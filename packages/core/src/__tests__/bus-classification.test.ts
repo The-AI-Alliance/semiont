@@ -43,18 +43,18 @@ describe('channel classification (generated)', () => {
     // Restated at WIRE-CROSSING-MODEL P1. It used to read "inbound iff has a
     // delivery value", which held only while `broadcast` was a delivery — and
     // `broadcast` restated `audience: everyone`, one fact in two places with
-    // no consumer. Delivery now answers how a REPLY is matched to its request;
+    // no consumer, and `streaming` had one declared member that nothing ever
+    // emitted. Delivery now answers how a REPLY is matched to its request;
     // who receives a frame is the audience axis.
     const replyChannels = new Set<string>();
     for (const op of Object.values(BUS_OPERATIONS)) {
       replyChannels.add(op.result);
       replyChannels.add(op.failure);
-      if ('progress' in op && op.progress) replyChannels.add(op.progress);
     }
     for (const ch of allChannels) {
       const a = attrs(ch);
       if (replyChannels.has(ch)) {
-        expect(['correlated', 'streaming'], ch).toContain(a.delivery);
+        expect(a.delivery, ch).toBe('correlated');
       } else {
         // Absent, not undefined-valued: the key must not be there at all.
         expect('delivery' in a, `${ch} (${a.direction}) must not carry a delivery`).toBe(false);
@@ -83,9 +83,6 @@ describe('channel classification (generated)', () => {
       expect(attrs(request).direction, request).toBe('outbound');
       expect(attrs(op.result).delivery, op.result).toBe('correlated');
       expect(attrs(op.failure).delivery, op.failure).toBe('correlated');
-      if ('progress' in op && op.progress) {
-        expect(attrs(op.progress).delivery, op.progress).toBe('streaming');
-      }
     }
   });
 

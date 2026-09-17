@@ -53,10 +53,9 @@ import type { AnchoredTextAnswer } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
 type StoredEventResponse = components['schemas']['StoredEventResponse'];
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
-type GatherProgress = components['schemas']['GatherProgress'];
 type MatchSearchResult = components['schemas']['MatchSearchResult'];
 type JobProgress = components['schemas']['JobProgress'];
-type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
+export type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type SupportedMediaType = components['schemas']['SupportedMediaType'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
@@ -188,10 +187,12 @@ export type User = AuthResponse['user'];
 // ── Progress types for long-running Observable operations ───────────────────
 
 /**
- * Progress emitted by gather.annotation() Observable.
- * Emits GatherProgress during assembly, then GatherAnnotationComplete on finish.
+ * `gather.annotation()` emits exactly one value: the assembled context. It was
+ * `GatherProgress | GatherAnnotationComplete` while a progress channel was
+ * declared — that channel was removed 2026-09-17, having never been emitted by
+ * anything, so the union had one inhabitant and the name promised a stream
+ * that did not exist.
  */
-export type GatherAnnotationProgress = GatherProgress | GatherAnnotationComplete;
 
 /**
  * Progress emitted by match.search() Observable.
@@ -428,7 +429,7 @@ export interface GatherNamespace {
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options?: { contextWindow?: number },
-  ): StreamObservable<GatherAnnotationProgress>;
+  ): StreamObservable<GatherAnnotationComplete>;
 
   resource(
     resourceId: ResourceId,

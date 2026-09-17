@@ -7,13 +7,10 @@
 package bus
 
 // Operation is one request/reply pair: emit the request channel with a
-// correlationId, then take the first matching Result or Failure. Progress is
-// set for streaming operations, which emit intermediate events under the same
-// correlationId before the terminal reply.
+// correlationId, then take the first matching Result or Failure.
 type Operation struct {
-	Result   Channel
-	Failure  Channel
-	Progress Channel // "" when the operation is not streaming
+	Result  Channel
+	Failure Channel
 }
 
 // Operations is the request→reply registry: 38 operations.
@@ -34,7 +31,7 @@ var Operations = map[Channel]Operation{
 	"browse:annotation-context-requested": {Result: "browse:annotation-context-result", Failure: "browse:annotation-context-failed"},
 	"frame:add-entity-type":               {Result: "frame:entity-type-add-ok", Failure: "frame:entity-type-add-failed"},
 	"frame:add-tag-schema":                {Result: "frame:tag-schema-add-ok", Failure: "frame:tag-schema-add-failed"},
-	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed", Progress: "gather:annotation-progress"},
+	"gather:requested":                    {Result: "gather:complete", Failure: "gather:failed"},
 	"gather:resource-requested":           {Result: "gather:resource-complete", Failure: "gather:resource-failed"},
 	"gather:summary-requested":            {Result: "gather:summary-result", Failure: "gather:summary-failed"},
 	"job:create":                          {Result: "job:created", Failure: "job:create-failed"},
@@ -57,7 +54,3 @@ var Operations = map[Channel]Operation{
 	"yield:clone-resource-requested":      {Result: "yield:clone-resource-result", Failure: "yield:clone-resource-failed"},
 	"yield:clone-token-requested":         {Result: "yield:clone-token-generated", Failure: "yield:clone-token-failed"},
 }
-
-// Streaming reports whether this operation emits progress events before its
-// terminal reply.
-func (o Operation) Streaming() bool { return o.Progress != "" }

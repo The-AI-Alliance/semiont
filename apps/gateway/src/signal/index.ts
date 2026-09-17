@@ -27,7 +27,7 @@ export {
   type ResolvedSignalPlaneOptions,
   type SignalPlaneOptions,
 } from './options';
-export { CORRELATED_CHANNELS, isCorrelatedChannel, isProgressChannel } from './channels';
+export { CORRELATED_CHANNELS, isCorrelatedChannel } from './channels';
 export { createInProcessSignalPlane } from './in-process';
 export { compositionFor, type SignalComposition } from './composition';
 export { GATEWAY_HANDLER_GROUP, bridgeGatewayHandlers } from './bridge';

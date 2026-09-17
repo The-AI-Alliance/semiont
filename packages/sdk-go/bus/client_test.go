@@ -259,36 +259,6 @@ func TestRequestTimesOutHonestly(t *testing.T) {
 	}
 }
 
-func TestRequestStreamsProgress(t *testing.T) {
-	f := newFakeGateway()
-	srv := f.server(t)
-	c := NewClient(srv.URL, "tok")
-	go func() {
-		for i := 0; i < 50; i++ {
-			f.mu.Lock()
-			n := len(f.emitted)
-			f.mu.Unlock()
-			if n > 0 {
-				cid := f.lastEmit(t)["correlationId"].(string)
-				f.replies <- frame("gather:annotation-progress", cid, map[string]any{"step": 1})
-				f.replies <- frame("gather:annotation-progress", cid, map[string]any{"step": 2})
-				f.replies <- frame("gather:complete", cid, map[string]any{})
-				return
-			}
-			time.Sleep(2 * time.Millisecond)
-		}
-	}()
-	var steps int
-	_, err := c.Request(context.Background(), "gather:requested", map[string]any{},
-		&RequestOptions{Progress: func(Channel, []byte) { steps++ }})
-	if err != nil {
-		t.Fatalf("request: %v", err)
-	}
-	if steps != 2 {
-		t.Errorf("progress callbacks = %d, want 2", steps)
-	}
-}
-
 func TestEmitRefusesNonEmittableChannel(t *testing.T) {
 	c := NewClient("http://unused", "tok")
 	// A domain event is not emittable — the gateway would reject it, so the

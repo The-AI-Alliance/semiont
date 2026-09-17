@@ -462,9 +462,19 @@ async function handleJobInner(
   // ── Job lifecycle signaling ───────────────────────────────────────────
   // `job:start` / `job:report-progress` / `job:complete` / `job:fail`
   // are the ONE unified lifecycle family. Start/complete/fail are
-  // persisted by Stower; progress is ephemeral UI feedback and Stower
-  // ignores it. UI consumers filter by `jobType` and/or `annotationId`
-  // in the payload.
+  // persisted by Stower (as the past-tense `job:started` / `job:completed` /
+  // `job:failed`); progress is ephemeral UI feedback and Stower ignores it.
+  //
+  // These are GLOBAL broadcasts carrying no correlationId — the identity a
+  // consumer routes on is domain data in the payload, not the envelope. Two
+  // consumers, two different keys, both measured 2026-09-17:
+  //   - a DISPATCHING caller filters by `jobId` (sdk `mark.assist`,
+  //     `yield.fromContext`) — it awaited one specific job;
+  //   - a RESOURCE VIEWER filters by `resourceId` (react-ui
+  //     `useOutcomeToasts`) — it wants anything happening to what it shows.
+  // `jobType` and `result.kind` are READ for rendering; neither is a filter.
+  // (`emitEvent` below states the same rule at the emit site. If these two
+  // ever disagree, the consumers are the evidence.)
 
   // What this job's commits ESTABLISHED, folded across every batch it makes
   // (a reference job commits per unit; generation commits on two resources).

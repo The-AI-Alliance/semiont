@@ -1,10 +1,9 @@
-import { merge } from 'rxjs';
-import { filter, map, takeUntil } from 'rxjs/operators';
+import { filter, map } from 'rxjs/operators';
 import type { AnnotationId, ResourceId, EventBus, GatheredContext } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import { busRequest, uuidV4 } from '@semiont/core';
-import type { GatherNamespace as IGatherNamespace, GatherAnnotationProgress } from './types';
+import type { GatherNamespace as IGatherNamespace, GatherAnnotationComplete } from './types';
 
 export class GatherNamespace implements IGatherNamespace {
   constructor(
@@ -16,8 +15,8 @@ export class GatherNamespace implements IGatherNamespace {
     resourceId: ResourceId,
     annotationId: AnnotationId,
     options?: { contextWindow?: number },
-  ): StreamObservable<GatherAnnotationProgress> {
-    return new StreamObservable<GatherAnnotationProgress>((subscriber) => {
+  ): StreamObservable<GatherAnnotationComplete> {
+    return new StreamObservable<GatherAnnotationComplete>((subscriber) => {
       const correlationId = uuidV4();
 
       const complete$ = this.bus.frames('gather:complete').pipe(
@@ -29,21 +28,8 @@ export class GatherNamespace implements IGatherNamespace {
         map((frame) => frame.payload),
       );
 
-      const sub = merge(
-        this.bus.on('gather:annotation-progress').pipe(
-          filter((e) => (e as { annotationId?: string }).annotationId === (annotationId as string)),
-          map((e) => e as GatherAnnotationProgress),
-        ),
-        complete$.pipe(map((e) => e as GatherAnnotationProgress)),
-      )
-        .pipe(takeUntil(merge(complete$, failed$)))
-        .subscribe({
-          next: (v) => subscriber.next(v),
-          error: (e) => subscriber.error(e),
-        });
-
       const completeSub = complete$.subscribe((e) => {
-        subscriber.next(e as GatherAnnotationProgress);
+        subscriber.next(e);
         subscriber.complete();
       });
 
@@ -64,7 +50,6 @@ export class GatherNamespace implements IGatherNamespace {
       });
 
       return () => {
-        sub.unsubscribe();
         completeSub.unsubscribe();
         failedSub.unsubscribe();
       };
@@ -73,9 +58,8 @@ export class GatherNamespace implements IGatherNamespace {
 
   /**
    * Gather whole-resource LLM context — a request/reply over
-   * `gather:resource-requested` → `gather:resource-complete`/`-failed`. Unlike
-   * `annotation()` there are no progress events, so this is a `Promise`, not a
-   * `StreamObservable`. Resolves to the unified `GatheredContext` (focus.kind:
+   * `gather:resource-requested` → `gather:resource-complete`/`-failed`, shaped
+   * as a `Promise` rather than the `StreamObservable` `annotation()` returns. Resolves to the unified `GatheredContext` (focus.kind:
    * 'resource') the gateway assembled — the resource focus plus the shared
    * knowledge graph; rejects with a `BusRequestError` on failure. Defaults mirror
    * the CLI `gather` command (depth 2, maxResources 10, content in, summary out).

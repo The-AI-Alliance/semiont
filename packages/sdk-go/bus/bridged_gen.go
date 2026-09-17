@@ -37,9 +37,6 @@ var BridgedChannels = func() []Channel {
 	out := append([]Channel(nil), BridgedBroadcasts...)
 	for _, op := range Operations {
 		out = append(out, op.Result, op.Failure)
-		if op.Streaming() {
-			out = append(out, op.Progress)
-		}
 	}
 	return out
 }()

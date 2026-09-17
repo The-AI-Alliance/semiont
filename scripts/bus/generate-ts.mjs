@@ -155,7 +155,7 @@ const opsLines = emitLines(
     // Absolute columns: pad the WHOLE prefix to the failure column, not the
     // result segment on its own.
     const head = pad(pad(`  '${o.request}':`, VALUE_COL_OPS) + `{ result: '${o.result}',`, FAILURE_COL_OPS);
-    const rest = `failure: '${o.failure}'` + (o.progress ? `, progress: '${o.progress}'` : '') + ' },';
+    const rest = `failure: '${o.failure}' },`;
     return head + rest + (o.trailing ? ` ${o.trailing}` : '');
   },
 );
@@ -209,12 +209,12 @@ const setDelivery = (ch, d) => {
 for (const o of reg.operations) {
   setDelivery(o.result, 'correlated');
   setDelivery(o.failure, 'correlated');
-  if (o.progress) setDelivery(o.progress, 'streaming');
 }
-// `delivery` describes the OPERATION-reply modes only. It used to carry
-// 'broadcast' as well, which restated `audience: everyone` — one fact in two
-// places, and nothing consumed it. Who receives a frame is the audience axis;
-// delivery is how a REPLY is matched to its request.
+// `delivery` describes the OPERATION-reply modes only, and there is one:
+// 'correlated'. It carried two others that are gone for the same reason —
+// 'broadcast' restated `audience: everyone`, and 'streaming' had a single
+// declared member that nothing ever emitted (2026-09-17). Who receives a frame
+// is the audience axis; delivery is how a REPLY is matched to its request.
 for (const ch of requestSet) {
   if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both a request and a delivered channel`);
 }
@@ -264,13 +264,13 @@ const classification =
  *  the wire at all. */
 export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 
-/** How an INBOUND channel is delivered. Correlated replies are
- *  owner-addressed; streaming (progress) frames refresh a claim's TTL but are
- *  never retained. ONLY an operation's replies carry this: who receives a
- *  frame is the audience axis, and a 'broadcast' value here used to restate
- *  audience everyone with no consumer (WIRE-CROSSING-MODEL P1). Absence is a
- *  decision, not a gap. */
-export type ChannelDelivery = 'correlated' | 'streaming';
+/** How an INBOUND channel is delivered: owner-addressed to the client whose
+ *  request minted the correlationId. ONLY an operation's replies carry this —
+ *  who receives a frame is the audience axis. Two sibling values are gone for
+ *  the same reason: 'broadcast' restated audience everyone with no consumer
+ *  (WIRE-CROSSING-MODEL P1), and 'streaming' had one declared member that
+ *  nothing ever emitted (2026-09-17). Absence is a decision, not a gap. */
+export type ChannelDelivery = 'correlated';
 
 export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */

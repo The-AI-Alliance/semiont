@@ -390,9 +390,6 @@
       "GatherAnnotationRequest": {
         "$ref": "components/schemas/GatherAnnotationRequest.json"
       },
-      "GatherProgress": {
-        "$ref": "components/schemas/GatherProgress.json"
-      },
       "GatherResourceComplete": {
         "$ref": "components/schemas/GatherResourceComplete.json"
       },

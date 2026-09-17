@@ -16,8 +16,6 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { BUS_OPERATIONS } from '../bus-operations';
-import { CHANNEL_SCHEMAS } from '../bus-protocol';
 
 const SCHEMA_DIR = join(dirname(fileURLToPath(import.meta.url)), '../../../../specs/src/components/schemas');
 
@@ -55,46 +53,9 @@ describe('CORRELATED-REPLY-ROUTING P1 — the wire carries identity', () => {
     );
   });
 
-  /**
-   * The invariant that binds FUTURE progress producers, and the reason this is
-   * a gate rather than three field checks.
-   *
-   * `CORRELATED_CHANNELS` derives progress channels into the delivery filter
-   * automatically. A progress channel whose payload carries no `correlationId`
-   * therefore ships frames the filter cannot match and silently drops — a new
-   * channel would inherit the bug with nothing to catch it.
-   */
-  it('every operation progress channel has a payload schema — routing comes from the envelope', () => {
-    const ops = BUS_OPERATIONS as Record<string, { result: string; failure: string; progress?: string }>;
-    const channels = CHANNEL_SCHEMAS as Record<string, string | null>;
-
-    const offenders: string[] = [];
-    for (const [op, spec] of Object.entries(ops)) {
-      if (!spec.progress) continue;
-      const schemaName = channels[spec.progress];
-      if (!schemaName) {
-        offenders.push(`${op} → ${spec.progress} (no schema: a progress frame with no payload cannot be routed)`);
-        continue;
-      }
-      // This asserted the payload schema REQUIRED `correlationId`, because a
-      // progress frame that could not be matched to its requester was
-      // unroutable. The reason still stands; the location moved. The key is on
-      // the envelope now (BUS-CARRIES-FRAMES P3), which every frame carries by
-      // construction, so a per-channel check for it cannot fail and would be a
-      // gate that only looks like one. What remains worth asserting is what
-      // the envelope cannot supply: a payload contract for the frame itself.
-      if ((schema(schemaName).required ?? []).includes('correlationId')) {
-        offenders.push(
-          `${op} → ${spec.progress} (${schemaName} still declares correlationId — it belongs on the envelope)`,
-        );
-      }
-    }
-
-    expect(offenders).toEqual([]);
-  });
-
-  it('covers at least one progress channel — a vacuous pass would mean the registry moved', () => {
-    const ops = BUS_OPERATIONS as Record<string, { progress?: string }>;
-    expect(Object.values(ops).filter((o) => o.progress).length).toBeGreaterThan(0);
-  });
+  // Two progress-channel cases lived here: one asserting a progress payload
+  // had a schema and no longer declared `correlationId`, and a vacuity guard
+  // asserting at least one operation declared progress. The guard fired when
+  // the last one was removed on 2026-09-17 — working exactly as written. The
+  // registry did move, deliberately: see .plans/RESTORE-STREAMING-PROGRESS.md.
 });

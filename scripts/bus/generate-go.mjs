@@ -3,7 +3,7 @@
 // specs/src/bus/registry.json, the same file the TypeScript generator reads.
 //
 //   packages/sdk-go/bus/channels_gen.go   channel constants + payload metadata
-//   packages/sdk-go/bus/operations_gen.go the request→{result,failure,progress} map
+//   packages/sdk-go/bus/operations_gen.go the request→{result,failure} map
 //
 // Payload STRUCTS are not generated here: the OpenAPI schemas a channel
 // carries already have Go types in packages/sdk-go/client_gen.go. What Go
@@ -126,9 +126,6 @@ var BridgedChannels = func() []Channel {
 \tout := append([]Channel(nil), BridgedBroadcasts...)
 \tfor _, op := range Operations {
 \t\tout = append(out, op.Result, op.Failure)
-\t\tif op.Streaming() {
-\t\t\tout = append(out, op.Progress)
-\t\t}
 \t}
 \treturn out
 }()
@@ -149,10 +146,9 @@ func Bridged(c Channel) bool {
 // ── operations_gen.go ──────────────────────────────────────────────────
 const opRows = alignRows(
   reg.operations.map((o) => {
-    const progress = o.progress ? `, Progress: ${JSON.stringify(o.progress)}` : '';
     return [
       `${JSON.stringify(o.request)}:`,
-      `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}${progress}}`,
+      `{Result: ${JSON.stringify(o.result)}, Failure: ${JSON.stringify(o.failure)}}`,
     ];
   }),
 );
@@ -161,23 +157,16 @@ const operationsGo = `${BANNER}
 package bus
 
 // Operation is one request/reply pair: emit the request channel with a
-// correlationId, then take the first matching Result or Failure. Progress is
-// set for streaming operations, which emit intermediate events under the same
-// correlationId before the terminal reply.
+// correlationId, then take the first matching Result or Failure.
 type Operation struct {
-\tResult   Channel
-\tFailure  Channel
-\tProgress Channel // "" when the operation is not streaming
+\tResult  Channel
+\tFailure Channel
 }
 
 // Operations is the request→reply registry: ${reg.operations.length} operations.
 var Operations = map[Channel]Operation{
 ${opRows.join('\n')}
 }
-
-// Streaming reports whether this operation emits progress events before its
-// terminal reply.
-func (o Operation) Streaming() bool { return o.Progress != "" }
 `;
 
 mkdirSync(OUT_DIR, { recursive: true });

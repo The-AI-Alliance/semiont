@@ -16,8 +16,7 @@ import type { EventName, EmittableChannel } from './bus-protocol';
  * loose, independently-maintained facts spread across call sites:
  *   - the request channel (the key — an `EmittableChannel`),
  *   - the `result` channel (success reply),
- *   - the `failure` channel,
- *   - and, for a streaming op, an optional `progress` channel.
+ *   - and the `failure` channel.
  *
  * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map
  * (bridged-channels.ts): every reply lands in the bridged fan-in set by
@@ -26,15 +25,13 @@ import type { EventName, EmittableChannel } from './bus-protocol';
  * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.
  *
  * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real
- * emittable request. `result`/`failure`/`progress` stay `EventName` rather than
+ * emittable request. `result`/`failure` stay `EventName` rather than
  * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from
  * this map); the derivation closes the loop instead.
  */
 export interface BusOperationSpec {
   result: EventName;
   failure: EventName;
-  /** Streaming ops only: an intermediate channel that also bridges. */
-  progress?: EventName;
 }
 
 export const BUS_OPERATIONS = {
@@ -62,8 +59,7 @@ export const BUS_OPERATIONS = {
   'frame:add-tag-schema':                { result: 'frame:tag-schema-add-ok',        failure: 'frame:tag-schema-add-failed' },
 
   // ── GATHER ──────────────────────────────────────────────────────
-  // streaming: take-1 result + failure plus an intermediate progress channel
-  'gather:requested':                    { result: 'gather:complete',                failure: 'gather:failed', progress: 'gather:annotation-progress' },
+  'gather:requested':                    { result: 'gather:complete',                failure: 'gather:failed' },
   'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
   // dormant — gateway handler complete, no client caller yet (annotation summary)
   'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
@@ -84,7 +80,7 @@ export const BUS_OPERATIONS = {
   'mark:update-entity-types':            { result: 'mark:update-entity-types-ok',    failure: 'mark:update-entity-types-failed' },
 
   // ── MATCH ───────────────────────────────────────────────────────
-  // take-1 dressed as an Observable in the SDK; no progress channel
+  // take-1 dressed as an Observable in the SDK
   'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
 
   // ── WEAVE ───────────────────────────────────────────────────────

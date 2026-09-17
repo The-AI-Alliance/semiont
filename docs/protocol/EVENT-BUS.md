@@ -325,17 +325,18 @@ them and cannot drift from the registry:
 - **`direction`** — `outbound` (emitted toward the hub), `inbound` (delivered
   from it — the fan-in set, by construction), or `in-process` (never on the
   wire).
-- **`delivery`** — how an operation's REPLY is matched to its request, and
-  only that. Two values: `correlated` (owner-addressed, keyed by
-  `correlationId`) and `streaming` (progress frames — they refresh a request's
-  liveness but are never retained as the answer). Its absence on request,
-  outbound and in-process channels is asserted, so it is a decision rather than
-  a gap.
+- **`delivery`** — how an operation's REPLY is matched to its request, and only
+  that. One value: `correlated` (owner-addressed, keyed by `correlationId`).
+  Its absence on request, outbound and in-process channels is asserted, so it
+  is a decision rather than a gap.
 
-  It once carried a third value, `broadcast`, which restated `audience:
-  everyone` — one fact in two places, and nothing read it. **Who receives a
-  frame is the `audience` axis; `delivery` is only how a reply finds its
-  request.**
+  Two sibling values are gone, for the same reason. `broadcast` restated
+  `audience: everyone` — one fact in two places, and nothing read it.
+  `streaming` classified an operation's third channel, whose frames refreshed a
+  request's liveness without being retained as the answer; it had one declared
+  member that nothing ever emitted, so every path serving it was unreachable.
+  **Who receives a frame is the `audience` axis; `delivery` is only how a reply
+  finds its request.**
 
 The three attributes are independent — a channel can be both `recorded` and
 correlated, pinned by the handful that are — and adding an operation to the
@@ -351,10 +352,9 @@ class refuses to generate — there is no default, because a silent fallthrough
 once classified `job:queued` as in-process and starved every worker. Declare
 the axis; read the attribute.
 
-**The `streaming` class has one declared member and no producer.**
-`gather:requested` names `gather:annotation-progress` as its progress channel;
-nothing in the tree emits on it. Incremental reporting that actually runs uses
-the job lifecycle family instead — see *Two identities* below.
+**There is no progress class.** An operation declares a `result` and a
+`failure`, and that is all. Incremental reporting uses the job lifecycle family
+instead — see *Two identities* below.
 
 ### Two identities: routing versus domain
 
@@ -374,15 +374,17 @@ A routing key is a wire concern: it exists to pair one reply with one request
 and never enters a channel's domain type. A domain key is a fact about the
 thing itself, and outlives any single exchange.
 
-The job lifecycle is the clearest case of the second. `job:create` is an
+The job lifecycle is the only case of the second, and the reason there is no
+progress class: an operation's reply arrives once, and work that reports as it
+goes is a job rather than a longer request. `job:create` is an
 operation — one request, one correlated `job:created` reply carrying a
 `jobId` — and that exchange is over. Everything after it (`job:start`,
 `job:report-progress`, `job:complete`, `job:fail`) is a **global broadcast
 carrying no `correlationId`**, which consumers filter by domain key: a
 dispatching caller by `jobId` (it awaited one job), a resource viewer by
 `resourceId` (it wants anything happening to what it shows). So job progress
-is not an under-declared `streaming` channel. It is a different mechanism,
-deliberately, and the `delivery` axis does not describe it.
+is not an operation reply that the `delivery` axis failed to classify. It is a
+different mechanism, deliberately, and `delivery` does not describe it.
 
 **Do not confuse `delivery` with the SSE fan-in disciplines** in [Resource
 scoping](#resource-scoping) above: `delivery` classifies a channel's *routing

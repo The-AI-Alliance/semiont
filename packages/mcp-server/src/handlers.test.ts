@@ -350,13 +350,6 @@ describe('gatherAnnotation', () => {
     expect(gather.annotation).toHaveBeenCalledWith('res-iliad', 'anno-reference', { contextWindow: 500 });
   });
 
-  it('throws when the stream ends without a context payload', async () => {
-    const { client, gather } = createStub();
-    gather.annotation.mockResolvedValue({ message: 'still gathering', percentage: 50 });
-
-    await expect(gatherAnnotation(client, { resourceId: 'res-iliad', annotationId: 'anno-reference' }))
-      .rejects.toThrow('Gather finished without a context payload');
-  });
 });
 
 // ── Yield ───────────────────────────────────────────────────────────────────

@@ -14,13 +14,13 @@ import type { EventName } from './bus-protocol';
  *  the wire at all. */
 export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 
-/** How an INBOUND channel is delivered. Correlated replies are
- *  owner-addressed; streaming (progress) frames refresh a claim's TTL but are
- *  never retained. ONLY an operation's replies carry this: who receives a
- *  frame is the audience axis, and a 'broadcast' value here used to restate
- *  audience everyone with no consumer (WIRE-CROSSING-MODEL P1). Absence is a
- *  decision, not a gap. */
-export type ChannelDelivery = 'correlated' | 'streaming';
+/** How an INBOUND channel is delivered: owner-addressed to the client whose
+ *  request minted the correlationId. ONLY an operation's replies carry this —
+ *  who receives a frame is the audience axis. Two sibling values are gone for
+ *  the same reason: 'broadcast' restated audience everyone with no consumer
+ *  (WIRE-CROSSING-MODEL P1), and 'streaming' had one declared member that
+ *  nothing ever emitted (2026-09-17). Absence is a decision, not a gap. */
+export type ChannelDelivery = 'correlated';
 
 export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */
@@ -122,7 +122,6 @@ export const CHANNEL_ATTRS = {
   'gather:summary-requested':         { recorded: false, direction: 'outbound' },
   'gather:summary-result':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'gather:summary-failed':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'gather:annotation-progress':       { recorded: false, direction: 'inbound', delivery: 'streaming' },
   'browse:resource-requested':        { recorded: false, direction: 'outbound' },
   'browse:resource-result':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:resource-failed':           { recorded: false, direction: 'inbound', delivery: 'correlated' },

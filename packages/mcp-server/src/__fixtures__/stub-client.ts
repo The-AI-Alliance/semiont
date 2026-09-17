@@ -21,7 +21,7 @@ import type {
 import type {
   CreateAnnotationInput,
   CreateResourceInput,
-  GatherAnnotationProgress,
+  GatherAnnotationComplete,
   GenerationOptions,
   MarkAssistEvent,
   MarkAssistOptions,
@@ -85,7 +85,7 @@ export const CONTEXT: GatheredContext = {
 };
 
 /** What `gather.annotation` actually resolves to: the envelope, not the context. */
-export const GATHER_COMPLETE: GatherAnnotationProgress = {
+export const GATHER_COMPLETE: GatherAnnotationComplete = {
   annotationId: 'anno-reference',
   response: CONTEXT,
 };
@@ -128,7 +128,7 @@ export function createStub() {
     body: vi.fn<(r: ResourceId, a: AnnotationId, ops: BodyOperation[]) => Promise<void>>(async () => {}),
   };
   const gather = {
-    annotation: vi.fn<(r: ResourceId, a: AnnotationId, options?: { contextWindow?: number }) => Promise<GatherAnnotationProgress>>(
+    annotation: vi.fn<(r: ResourceId, a: AnnotationId, options?: { contextWindow?: number }) => Promise<GatherAnnotationComplete>>(
       async () => GATHER_COMPLETE,
     ),
   };

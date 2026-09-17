@@ -145,24 +145,10 @@ func Gather(args []string) int {
 		payload = req
 	}
 
+	// No progress narration: gather is a single request/reply. The bus had a
+	// streaming class whose one declared channel nothing ever emitted, so this
+	// callback could not fire; both went 2026-09-17.
 	opts := &bus.RequestOptions{}
-	if !asJSON && bus.Operations[op].Streaming() {
-		// Narrate the wait rather than leaving a silent terminal (the
-		// codespace-wait lesson). GatherProgress carries message+percentage —
-		// there is no "step" field, whatever the earlier hand-rolled struct
-		// claimed.
-		opts.Progress = func(_ bus.Channel, raw []byte) {
-			var p semiont.GatherProgress
-			if json.Unmarshal(raw, &p) != nil || p.Message == nil {
-				return
-			}
-			if p.Percentage != nil {
-				u.log("%s (%.0f%%)", *p.Message, *p.Percentage)
-				return
-			}
-			u.log("%s", *p.Message)
-		}
-	}
 
 	reply, err := cli.Request(context.Background(), op, payload, opts)
 	if err != nil {
