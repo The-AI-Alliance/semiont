@@ -153,13 +153,13 @@ export class MarkNamespace implements IMarkNamespace {
       // and the `activeJobId` guard on the filter keeps each Observable
       // isolated to its own job.
       let activeJobId: string | null = null;
-      const progress$ = this.bus.get('job:report-progress').pipe(
+      const progress$ = this.bus.on('job:report-progress').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const complete$ = this.bus.get('job:complete').pipe(
+      const complete$ = this.bus.on('job:complete').pipe(
         filter((e) => e.jobId === activeJobId),
       );
-      const fail$ = this.bus.get('job:fail').pipe(
+      const fail$ = this.bus.on('job:fail').pipe(
         filter((e) => e.jobId === activeJobId),
       );
 
@@ -233,11 +233,11 @@ export class MarkNamespace implements IMarkNamespace {
   ): void {
     // Local emit: mark-state-unit subscribes via the local bus and routes by
     // `source` — resource-first, like every other mark.* method.
-    this.bus.get('mark:requested').next({ source, selector, motivation });
+    this.bus.emit('mark:requested', { source, selector, motivation });
   }
 
   requestAssist(motivation: Motivation, options: MarkAssistOptions, correlationId?: string): void {
-    this.bus.get('mark:assist-request').next({
+    this.bus.emit('mark:assist-request', {
       motivation,
       options,
       ...(correlationId ? { correlationId } : {}),
@@ -245,15 +245,15 @@ export class MarkNamespace implements IMarkNamespace {
   }
 
   submit(input: components['schemas']['MarkSubmitEvent']): void {
-    this.bus.get('mark:submit').next(input);
+    this.bus.emit('mark:submit', input);
   }
 
   cancelPending(): void {
-    this.bus.get('mark:cancel-pending').next(undefined);
+    this.bus.emit('mark:cancel-pending', undefined);
   }
 
   dismissProgress(): void {
-    this.bus.get('mark:progress-dismiss').next(undefined);
+    this.bus.emit('mark:progress-dismiss', undefined);
   }
 
   private async dispatchAssist(

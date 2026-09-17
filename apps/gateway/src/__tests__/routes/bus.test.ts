@@ -204,7 +204,7 @@ describe('bus routes', () => {
   describe('presence', () => {
     it('announces session:joined with the participant DID when an SSE stream opens', async () => {
       const joined: any[] = [];
-      eventBus.get('session:joined').subscribe((v) => joined.push(v));
+      eventBus.on('session:joined').subscribe((v) => joined.push(v));
 
       const res = await app.request('/bus/subscribe', {
         method: 'POST',
@@ -219,7 +219,7 @@ describe('bus routes', () => {
 
     it('announces session:left when the stream aborts', async () => {
       const left: any[] = [];
-      eventBus.get('session:left').subscribe((v) => left.push(v));
+      eventBus.on('session:left').subscribe((v) => left.push(v));
 
       const res = await app.request('/bus/subscribe', {
         method: 'POST',
@@ -244,7 +244,7 @@ describe('bus routes', () => {
     // and its socket destroyed.
     it('disconnects a subscriber whose pending writes exceed the byte bound (dead consumer)', async () => {
       const left: unknown[] = [];
-      eventBus.get('session:left').subscribe((v) => left.push(v));
+      eventBus.on('session:left').subscribe((v) => left.push(v));
       const destroy = vi.fn();
 
       const res = await app.request(
@@ -261,28 +261,28 @@ describe('bus routes', () => {
       expect(res.status).toBe(200);
       // Let the stream callback run to its subscription setup.
       await new Promise((r) => setTimeout(r, 20));
-      expect(eventBus.get('test:event' as never).observers.length).toBe(1);
+      expect(eventBus.emit('test:event' as never, undefined as never)).toBe(1);
 
       // Nobody ever reads res.body — the consumer is dead. Fan out
       // payloads until the pending-write bound trips (16 MiB cap; a
       // couple of early chunks may clear before backpressure builds).
       const chunk = 'x'.repeat(1024 * 1024);
       for (let i = 0; i < 25; i++) {
-        eventBus.get('test:event' as never).next({ chunk } as never);
+        eventBus.emit('test:event' as never, { chunk } as never);
       }
 
       await vi.waitFor(() => expect(left).toHaveLength(1));
       expect(destroy).toHaveBeenCalled();
       // The dead connection's bus subscriptions are gone — fan-out to it
       // has stopped costing anything.
-      expect(eventBus.get('test:event' as never).observers.length).toBe(0);
+      expect(eventBus.emit('test:event' as never, undefined as never)).toBe(0);
     });
 
     it('pairs joined and left by connectionId', async () => {
       const joined: any[] = [];
       const left: any[] = [];
-      eventBus.get('session:joined').subscribe((v) => joined.push(v));
-      eventBus.get('session:left').subscribe((v) => left.push(v));
+      eventBus.on('session:joined').subscribe((v) => joined.push(v));
+      eventBus.on('session:left').subscribe((v) => left.push(v));
 
       const res = await app.request('/bus/subscribe', {
         method: 'POST',
@@ -300,7 +300,7 @@ describe('bus routes', () => {
   describe('POST /bus/emit', () => {
     it('emits an event onto the bus and returns 202 for unvalidated channel', async () => {
       const received: unknown[] = [];
-      eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
+      eventBus.on('mark:added' as any).subscribe((v) => received.push(v));
 
       const res = await app.request('/bus/emit', {
         method: 'POST',
@@ -354,7 +354,7 @@ describe('bus routes', () => {
     // that is the point. The wire boundary was simply unpinned.
     describe('browse:click validation (TOUR-CLICK P6)', () => {
       it('accepts a well-formed payload and reports the subscriber count', async () => {
-        eventBus.get('browse:click').subscribe(() => {});
+        eventBus.on('browse:click').subscribe(() => {});
 
         const res = await app.request('/bus/emit', {
           method: 'POST',
@@ -410,8 +410,8 @@ describe('bus routes', () => {
     });
 
     it('reports how many subscribers an emit reached', async () => {
-      eventBus.get('beckon:focus').subscribe(() => {});
-      eventBus.get('beckon:focus').subscribe(() => {});
+      eventBus.on('beckon:focus').subscribe(() => {});
+      eventBus.on('beckon:focus').subscribe(() => {});
 
       const res = await app.request('/bus/emit', {
         method: 'POST',
@@ -431,7 +431,7 @@ describe('bus routes', () => {
     // subject here would report a healthy fan-out for a signal nobody scoped
     // will receive.
     it('counts subscribers on the SCOPED subject for a scoped emit', async () => {
-      eventBus.get('beckon:focus').subscribe(() => {});
+      eventBus.on('beckon:focus').subscribe(() => {});
 
       const res = await app.request('/bus/emit', {
         method: 'POST',
@@ -455,7 +455,7 @@ describe('bus routes', () => {
     // agents as architectural equivalents."
     it('stamps `_userId` from the principal DID for a human caller', async () => {
       const received: any[] = [];
-      eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
+      eventBus.on('mark:added' as any).subscribe((v) => received.push(v));
 
       const humanApp = buildApp(eventBus, {
         principalDid: 'did:web:test.local:users:alice%40test.local',
@@ -473,7 +473,7 @@ describe('bus routes', () => {
 
     it('stamps `_userId` from the principal DID for a software-agent caller', async () => {
       const received: any[] = [];
-      eventBus.get('mark:added' as any).subscribe((v) => received.push(v));
+      eventBus.on('mark:added' as any).subscribe((v) => received.push(v));
 
       const agentDid = 'did:web:test.local:agents:ollama:gemma2%3A27b';
       const agentApp = buildApp(eventBus, { principalDid: agentDid });
@@ -493,8 +493,8 @@ describe('bus routes', () => {
     it('emits scoped events when scope is provided', async () => {
       const globalReceived: unknown[] = [];
       const scopedReceived: unknown[] = [];
-      eventBus.get('mark:added' as any).subscribe((v) => globalReceived.push(v));
-      eventBus.scope('res-42').get('mark:added' as any).subscribe((v) => scopedReceived.push(v));
+      eventBus.on('mark:added' as any).subscribe((v) => globalReceived.push(v));
+      eventBus.scope('res-42').on('mark:added' as any).subscribe((v) => scopedReceived.push(v));
 
       const res = await app.request('/bus/emit', {
         method: 'POST',
@@ -554,7 +554,7 @@ describe('bus routes', () => {
 
     it('accepts valid payload for validated channel', async () => {
       const received: unknown[] = [];
-      eventBus.get('job:queued' as any).subscribe((v) => received.push(v));
+      eventBus.on('job:queued' as any).subscribe((v) => received.push(v));
 
       const res = await app.request('/bus/emit', {
         method: 'POST',
@@ -602,7 +602,7 @@ describe('bus routes', () => {
 
       // Emit after subscription has been set up (give the subscription a tick).
       setTimeout(() => {
-        eventBus.get('test:event' as any).next({ x: 1 });
+        eventBus.emit('test:event' as any, { x: 1 });
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('id: e-') && b.includes('test:event'));
@@ -620,7 +620,7 @@ describe('bus routes', () => {
       expect(res.status).toBe(200);
 
       setTimeout(() => {
-        eventBus.get('test:event' as any).next({ correlationId: 'abc12345', response: {} });
+        eventBus.emit('test:event' as any, { response: {} }, { correlationId: 'abc12345' });
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('id: e-test:event:'));
@@ -634,7 +634,7 @@ describe('bus routes', () => {
       expect(res.status).toBe(200);
 
       setTimeout(() => {
-        eventBus.scope('res-99').get('mark:added').next(fakeStoredMarkAdded(42, 'res-99', 'a-1'));
+        eventBus.scope('res-99').emit('mark:added', fakeStoredMarkAdded(42, 'res-99', 'a-1'));
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('p-res-99-42'));
@@ -734,8 +734,8 @@ describe('bus routes', () => {
       await new Promise((r) => setTimeout(r, 30));
 
       // Emit two live persisted events while replay is in-flight.
-      eventBus.scope('res-1').get('mark:added').next(fakeStoredMarkAdded(11, 'res-1', 'live-11'));
-      eventBus.scope('res-1').get('mark:added').next(fakeStoredMarkAdded(12, 'res-1', 'live-12'));
+      eventBus.scope('res-1').emit('mark:added', fakeStoredMarkAdded(11, 'res-1', 'live-11'));
+      eventBus.scope('res-1').emit('mark:added', fakeStoredMarkAdded(12, 'res-1', 'live-12'));
 
       // Now resolve the replay query. The server writes seq 8,9,10 to
       // the stream, then drains the buffered 11 and 12.
@@ -781,7 +781,7 @@ describe('bus routes', () => {
 
       // Simulate the race: the same event fires live (buffered), and
       // the replay resolves with the same event.
-      eventBus.scope('res-1').get('mark:added').next(fakeStoredMarkAdded(8, 'res-1', 'shared-ann'));
+      eventBus.scope('res-1').emit('mark:added', fakeStoredMarkAdded(8, 'res-1', 'shared-ann'));
       resolveQuery!(replayedEvents);
 
       const body = await readSSE(res, (b) => b.includes('shared-ann'), 800);
@@ -807,8 +807,8 @@ describe('bus routes', () => {
       expect(res.headers.get('content-type')).toContain('text/event-stream');
 
       setTimeout(() => {
-        eventBus.scope('res-A').get('mark:added').next(fakeStoredMarkAdded(1, 'res-A', 'ann-A'));
-        eventBus.scope('res-B').get('mark:added').next(fakeStoredMarkAdded(1, 'res-B', 'ann-B'));
+        eventBus.scope('res-A').emit('mark:added', fakeStoredMarkAdded(1, 'res-A', 'ann-A'));
+        eventBus.scope('res-B').emit('mark:added', fakeStoredMarkAdded(1, 'res-B', 'ann-B'));
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('ann-A') && b.includes('ann-B'));
@@ -827,8 +827,8 @@ describe('bus routes', () => {
       setTimeout(() => {
         // A's event first — if it were going to leak, it would arrive
         // before the B event the predicate waits on.
-        eventBus.scope('res-A').get('mark:added').next(fakeStoredMarkAdded(1, 'res-A', 'leak-A'));
-        eventBus.scope('res-B').get('mark:added').next(fakeStoredMarkAdded(1, 'res-B', 'keep-B'));
+        eventBus.scope('res-A').emit('mark:added', fakeStoredMarkAdded(1, 'res-A', 'leak-A'));
+        eventBus.scope('res-B').emit('mark:added', fakeStoredMarkAdded(1, 'res-B', 'keep-B'));
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('keep-B'));
@@ -844,8 +844,8 @@ describe('bus routes', () => {
       expect(res.status).toBe(200);
 
       setTimeout(() => {
-        eventBus.get('test:event' as never).next({ x: 1 } as never);
-        eventBus.scope('res-A').get('mark:added').next(fakeStoredMarkAdded(1, 'res-A', 'ann-A'));
+        eventBus.emit('test:event' as never, { x: 1 } as never);
+        eventBus.scope('res-A').emit('mark:added', fakeStoredMarkAdded(1, 'res-A', 'ann-A'));
       }, 20);
 
       const body = await readSSE(res, (b) => b.includes('test:event') && b.includes('ann-A'));
@@ -970,15 +970,16 @@ describe('bus routes', () => {
 
     // D2 — the claim
     it('rejects a request-channel emit that carries a correlationId but no clientId (400)', async () => {
-      const res = await emit({ channel: REQ, payload: { correlationId: 'c-1', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } } });
+      const res = await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, correlationId: 'c-1' });
       expect(res.status).toBe(400);
       expect(await res.text()).toMatch(/clientId/i);
     });
 
     it('rejects a second claim on a live correlationId (409)', async () => {
-      const payload = { correlationId: 'c-dup', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } };
-      expect((await emit({ channel: REQ, payload, clientId: 'client-a' })).status).toBe(202);
-      const second = await emit({ channel: REQ, payload, clientId: 'client-b' });
+      const payload = { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } };
+      const correlationId = 'c-dup';
+      expect((await emit({ channel: REQ, payload, correlationId, clientId: 'client-a' })).status).toBe(202);
+      const second = await emit({ channel: REQ, payload, correlationId, clientId: 'client-b' });
       expect(second.status).toBe(409);
     });
 
@@ -992,27 +993,24 @@ describe('bus routes', () => {
       // instantly with a synthesized failure — so shouting into a void no
       // longer accumulates anything. A client at capacity is one with many
       // requests genuinely in flight, which is what this now models.
-      eventBus.get(REQ).subscribe(() => {});
+      eventBus.on(REQ).subscribe(() => {});
       for (let i = 0; i < 256; i++) {
         const res = await emit({
           channel: REQ,
-          payload: { correlationId: `cap-${i}`, resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
-          clientId: 'client-full',
-        });
+          payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+          clientId: 'client-full', correlationId: `cap-${i}` });
         expect(res.status).toBe(202);
       }
       const overflow = await emit({
         channel: REQ,
-        payload: { correlationId: 'cap-256', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
-        clientId: 'client-full',
-      });
+        payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+        clientId: 'client-full', correlationId: 'cap-256' });
       expect(overflow.status).toBe(429);
       // The first claim is still live — nothing was evicted to make room.
       expect((await emit({
         channel: REQ,
-        payload: { correlationId: 'cap-0', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
-        clientId: 'client-full',
-      })).status).toBe(409);
+        payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } },
+        clientId: 'client-full', correlationId: 'cap-0' })).status).toBe(409);
     });
 
     // D3 — the delivery filter
@@ -1021,13 +1019,13 @@ describe('bus routes', () => {
       const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
       await new Promise((r) => setTimeout(r, 20));
 
-      await emit({ channel: REQ, payload: { correlationId: 'c-routed', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
+      await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-routed' });
 
       setTimeout(() => {
-        eventBus.get(RES).next({ correlationId: 'c-routed', response: { ok: 1 } } as never);
+        eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-routed' });
         // A marker on an uncorrelated channel proves the non-owner's stream
         // is alive — otherwise "no reply" and "no connection" look alike.
-        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+        eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
 
       const ownerBody = await readSSE(owner, (b) => b.includes('c-routed'));
@@ -1042,7 +1040,7 @@ describe('bus routes', () => {
       const a = await subscribe(app, { clientId: 'client-a', global: ['test:event'] });
       const b = await subscribe(app, { clientId: 'client-b', global: ['test:event'] });
       await new Promise((r) => setTimeout(r, 20));
-      setTimeout(() => eventBus.get('test:event' as never).next({ marker: 'broadcast' } as never), 10);
+      setTimeout(() => eventBus.emit('test:event' as never, { marker: 'broadcast' } as never), 10);
       expect(await readSSE(a, (x) => x.includes('broadcast'))).toContain('broadcast');
       expect(await readSSE(b, (x) => x.includes('broadcast'))).toContain('broadcast');
     });
@@ -1053,23 +1051,23 @@ describe('bus routes', () => {
     // fish for another user's reply.
     it('refuses to replay a retained reply to a client that does not own the cid', async () => {
       await subscribe(app, { clientId: 'client-owner', global: [RES] });
-      await emit({ channel: REQ, payload: { correlationId: 'c-mine', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
-      eventBus.get(RES).next({ correlationId: 'c-mine', response: { ok: 1 } } as never);
+      await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-mine' });
+      eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-mine' });
 
       const thief = await subscribe(app, {
         clientId: 'client-thief',
         global: [RES, 'test:event'],
         pendingReplies: ['c-mine'],
       });
-      setTimeout(() => eventBus.get('test:event' as never).next({ marker: 'alive' } as never), 10);
+      setTimeout(() => eventBus.emit('test:event' as never, { marker: 'alive' } as never), 10);
       const body = await readSSE(thief, (x) => x.includes('alive'));
       expect(body).not.toContain('c-mine');
     });
 
     it('replays a retained reply to the client that does own it', async () => {
       await subscribe(app, { clientId: 'client-owner', global: [RES] });
-      await emit({ channel: REQ, payload: { correlationId: 'c-ours', resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner' });
-      eventBus.get(RES).next({ correlationId: 'c-ours', response: { ok: 2 } } as never);
+      await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-ours' });
+      eventBus.emit(RES, { response: { ok: 2 } } as never, { correlationId: 'c-ours' });
 
       const back = await subscribe(app, {
         clientId: 'client-owner',
@@ -1128,10 +1126,10 @@ describe('bus routes', () => {
       const other = await subscribe(app, { clientId: 'client-other', global: [RES, 'test:event'] });
       await new Promise((r) => setTimeout(r, 20));
 
-      await emit({ channel: REQ, clientId: 'client-owner', payload: { correlationId: 'c-count', resourceId: 'r-1', options: OPTS } });
+      await emit({ channel: REQ, clientId: 'client-owner', payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-count' });
       setTimeout(() => {
-        eventBus.get(RES).next({ correlationId: 'c-count', response: { ok: 1 } } as never);
-        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+        eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-count' });
+        eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
       await readSSE(other, (b) => b.includes('alive'));
 
@@ -1144,9 +1142,9 @@ describe('bus routes', () => {
     it('does not count the owner\'s own delivery', async () => {
       const owner = await subscribe(app, { clientId: 'client-solo', global: [RES] });
       await new Promise((r) => setTimeout(r, 20));
-      await emit({ channel: REQ, clientId: 'client-solo', payload: { correlationId: 'c-solo', resourceId: 'r-1', options: OPTS } });
+      await emit({ channel: REQ, clientId: 'client-solo', payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-solo' });
       observed.replySuppressed.mockClear();
-      setTimeout(() => eventBus.get(RES).next({ correlationId: 'c-solo', response: { ok: 1 } } as never), 10);
+      setTimeout(() => eventBus.emit(RES, { response: { ok: 1 } } as never, { correlationId: 'c-solo' }), 10);
       await readSSE(owner, (b) => b.includes('c-solo'));
 
       expect(observed.replySuppressed).not.toHaveBeenCalled();
@@ -1161,8 +1159,8 @@ describe('bus routes', () => {
       await new Promise((r) => setTimeout(r, 20));
       observed.replySuppressed.mockClear();
       setTimeout(() => {
-        eventBus.get(RES).next({ correlationId: 'never-claimed', response: {} } as never);
-        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+        eventBus.emit(RES, { response: {} } as never, { correlationId: 'never-claimed' });
+        eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
       await readSSE(sub, (b) => b.includes('alive'));
 
@@ -1177,7 +1175,7 @@ describe('bus routes', () => {
         info: (msg: string, meta: unknown) => { infoed.push({ msg, meta }); },
       } as never);
 
-      await emit({ channel: REQ, clientId: 'client-logged', payload: { correlationId: 'c-log', resourceId: 'r-1', options: OPTS } });
+      await emit({ channel: REQ, clientId: 'client-logged', payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-log' });
       const emitLine = infoed.find((e) => (e as { msg?: string }).msg === 'emit') as { meta?: Record<string, unknown> } | undefined;
       expect(emitLine?.meta?.clientId).toBe('client-logged');
     });
@@ -1188,7 +1186,7 @@ describe('bus routes', () => {
       const warn = captureBusWarnings();
       await subscribe(app, { clientId: 'client-nocid', global: [RES] });
       await new Promise((r) => setTimeout(r, 20));
-      eventBus.get(RES).next({ response: { ok: 1 } } as never); // no cid
+      eventBus.emit(RES, { response: { ok: 1 } } as never); // no cid
       await new Promise((r) => setTimeout(r, 20));
 
       expect(warn.mock.calls.some((c) => String(c[0]).includes('REPLY-NO-CID'))).toBe(true);
@@ -1240,19 +1238,18 @@ describe('bus routes', () => {
       });
 
     it('synthesizes the mapped *-failed when a request reaches zero subscribers', async () => {
-      const failures: unknown[] = [];
-      eventBus.get(FAILED).subscribe((v) => failures.push(v));
+      const failures: { correlationId?: string; payload: { message?: string } }[] = [];
+      eventBus.frames(FAILED).subscribe((f) => failures.push(f));
 
       const res = await emit({
         channel: REQ,
         clientId: 'client-a',
-        payload: { correlationId: 'c-nobody', resourceId: 'r-1', options: OPTS },
-      });
+        payload: { resourceId: 'r-1', options: OPTS }, correlationId: 'c-nobody' });
 
       expect(res.status).toBe(202);
       expect(failures).toHaveLength(1);
-      expect(failures[0]).toMatchObject({ correlationId: 'c-nobody' });
-      expect(String((failures[0] as { message?: string }).message)).toMatch(/subscrib/i);
+      expect(failures[0]?.correlationId).toBe('c-nobody');
+      expect(String(failures[0]?.payload.message)).toMatch(/subscrib/i);
     });
 
     it("carries code 'peer-unavailable' — the class, not just the sentence", async () => {
@@ -1263,13 +1260,12 @@ describe('bus routes', () => {
       // which is why the weaver's boot passes treated a startup race as a
       // permanent data condition and gave up (2026-09-09).
       const failures: Record<string, unknown>[] = [];
-      eventBus.get(FAILED).subscribe((v) => failures.push(v as Record<string, unknown>));
+      eventBus.on(FAILED).subscribe((v) => failures.push(v as Record<string, unknown>));
 
       await emit({
         channel: REQ,
         clientId: 'client-code',
-        payload: { correlationId: 'c-coded', resourceId: 'r-3', options: OPTS },
-      });
+        payload: { resourceId: 'r-3', options: OPTS }, correlationId: 'c-coded' });
 
       expect(failures[0]?.code).toBe('peer-unavailable');
     });
@@ -1278,19 +1274,19 @@ describe('bus routes', () => {
     // REPLY-SHAPE violation — the failure would be synthesized and then
     // silently discarded, in exactly the outage this phase exists for.
     it('carries the request correlationId, so owner-routing can deliver it', async () => {
-      const failures: Record<string, unknown>[] = [];
-      eventBus.get(FAILED).subscribe((v) => failures.push(v as Record<string, unknown>));
+      const failures: { correlationId?: string; payload: Record<string, unknown> }[] = [];
+      eventBus.frames(FAILED).subscribe((f) => failures.push(f));
 
       await emit({
         channel: REQ,
         clientId: 'client-b',
-        payload: { correlationId: 'c-routed-fail', resourceId: 'r-2', options: OPTS },
-      });
+        payload: { resourceId: 'r-2', options: OPTS }, correlationId: 'c-routed-fail' });
 
+      // On the ENVELOPE, which is the only place owner-routing reads it.
       expect(failures[0]?.correlationId).toBe('c-routed-fail');
-      // Identifying fields the failure's own contract requires ride along:
-      // `gather:resource-failed` is `{ correlationId; resourceId } & CommandError`.
-      expect(failures[0]?.resourceId).toBe('r-2');
+      // Identifying fields the failure's own contract requires ride in the
+      // payload: `gather:resource-failed` is `{ resourceId } & CommandError`.
+      expect(failures[0]?.payload.resourceId).toBe('r-2');
     });
 
     it('reaches the emitting client and nobody else', async () => {
@@ -1302,9 +1298,8 @@ describe('bus routes', () => {
         void emit({
           channel: REQ,
           clientId: 'client-owner',
-          payload: { correlationId: 'c-only-mine', resourceId: 'r-3', options: OPTS },
-        });
-        eventBus.get('test:event' as never).next({ marker: 'alive' } as never);
+          payload: { resourceId: 'r-3', options: OPTS }, correlationId: 'c-only-mine' });
+        eventBus.emit('test:event' as never, { marker: 'alive' } as never);
       }, 10);
 
       expect(await readSSE(owner, (b) => b.includes('c-only-mine'))).toContain('c-only-mine');
@@ -1318,7 +1313,7 @@ describe('bus routes', () => {
     it('stays silent for a broadcast that reaches nobody', async () => {
       const seen: unknown[] = [];
       for (const ch of ['gather:resource-failed', 'test:event']) {
-        eventBus.get(ch as never).subscribe((v) => seen.push(v));
+        eventBus.on(ch as never).subscribe((v) => seen.push(v));
       }
       const before = seen.length;
 
@@ -1330,15 +1325,14 @@ describe('bus routes', () => {
     });
 
     it('stays silent when a request DID reach a subscriber', async () => {
-      eventBus.get(REQ).subscribe(() => {}); // a handler is present
+      eventBus.on(REQ).subscribe(() => {}); // a handler is present
       const failures: unknown[] = [];
-      eventBus.get(FAILED).subscribe((v) => failures.push(v));
+      eventBus.on(FAILED).subscribe((v) => failures.push(v));
 
       await emit({
         channel: REQ,
         clientId: 'client-c',
-        payload: { correlationId: 'c-answered', resourceId: 'r-4', options: OPTS },
-      });
+        payload: { resourceId: 'r-4', options: OPTS }, correlationId: 'c-answered' });
 
       expect(failures).toHaveLength(0);
     });
@@ -1347,7 +1341,7 @@ describe('bus routes', () => {
     // would produce a frame the filter drops and nobody awaits.
     it('stays silent for a request emit with no correlationId', async () => {
       const failures: unknown[] = [];
-      eventBus.get(FAILED).subscribe((v) => failures.push(v));
+      eventBus.on(FAILED).subscribe((v) => failures.push(v));
       await emit({ channel: REQ, payload: { resourceId: 'r-5', options: OPTS } });
       expect(failures).toHaveLength(0);
     });
@@ -1371,7 +1365,8 @@ describe('bus routes', () => {
         body: JSON.stringify({
           channel: REQ,
           clientId: 'client-t',
-          payload: { correlationId: 'c-unans', resourceId: 'r-1', options: OPTS },
+          correlationId: 'c-unans',
+          payload: { resourceId: 'r-1', options: OPTS },
         }),
       });
       expect(observed.unanswerable).toHaveBeenCalledWith(REQ);
@@ -1417,7 +1412,8 @@ describe('bus routes', () => {
         body: JSON.stringify({
           channel: REQ,
           clientId: 'client-occ',
-          payload: { correlationId: 'c-occ', resourceId: 'r-1', options: OPTS },
+          correlationId: 'c-occ',
+          payload: { resourceId: 'r-1', options: OPTS },
         }),
       });
       // The claim exists; its reply arrived via the synthesized failure, so
@@ -1447,8 +1443,8 @@ describe('bus routes', () => {
         body: JSON.stringify({
           channel: 'gather:resource-requested',
           clientId: 'client-lost',
+          correlationId: 'cid-lost',
           payload: {
-            correlationId: 'cid-lost',
             resourceId: 'r-1',
             options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false },
           },
@@ -1457,10 +1453,9 @@ describe('bus routes', () => {
 
       // The reply is published while the (conceptual) requester is
       // disconnected — nothing but retention holds it now.
-      eventBus.get('gather:resource-complete').next({
-        correlationId: 'cid-lost',
+      eventBus.emit('gather:resource-complete', {
         response: { ok: 1 },
-      } as never);
+      } as never, { correlationId: 'cid-lost' });
 
       // The requester reconnects, naming its outstanding cid.
       const res2 = await subscribe(app, {
@@ -1476,7 +1471,7 @@ describe('bus routes', () => {
     it('an unknown cid replays nothing', async () => {
       await subscribe(app, { global: ['test:event'] }); // wire retention
       const res = await subscribe(app, { global: ['test:event'], pendingReplies: ['never-seen'] });
-      setTimeout(() => eventBus.get('test:event' as any).next({ marker: 1 }), 20);
+      setTimeout(() => eventBus.emit('test:event' as any, { marker: 1 }), 20);
       const body = await readSSE(res, (b) => b.includes('marker'));
       expect(body).not.toContain('never-seen');
     });
@@ -1506,8 +1501,8 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ now: () => 1 });
     registry.claim('claimed', OWNER, DID);
 
-    registry.observe('gather:resource-complete', { correlationId: 'claimed', response: {} });
-    registry.observe('gather:resource-complete', { correlationId: 'unclaimed', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'claimed' });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'unclaimed' });
 
     expect(registry.lookupReply('claimed', OWNER, DID)).toBeDefined();
     // The in-process case: nobody claimed it, so nothing is held for it. Not a
@@ -1519,7 +1514,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
   it('refuses a lookup from a client that does not own the cid', () => {
     const registry = setup({ now: () => 1 });
     registry.claim('c1', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
 
     expect(registry.lookupReply('c1', 'client-2', DID)).toBeUndefined();
     expect(registry.lookupReply('c1', OWNER, 'did:web:test:users:mallory')).toBeUndefined();
@@ -1531,7 +1526,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     let clock = 1_000;
     const registry = setup({ ttlMs: 100, now: () => clock });
     registry.claim('c1', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
     expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
 
     clock += 101;
@@ -1550,12 +1545,12 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ ttlMs: 100, now: () => clock });
     for (const cid of ['c1', 'c2', 'c3']) {
       registry.claim(cid, OWNER, DID);
-      registry.observe('gather:resource-complete', { correlationId: cid, response: {} });
+      registry.observe('gather:resource-complete', { response: {} }, { correlationId: cid });
     }
 
     clock += 101;
     registry.claim('c4', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c4', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c4' });
 
     for (const cid of ['c1', 'c2', 'c3']) {
       expect(registry.lookupReply(cid, OWNER, DID)).toBeUndefined();
@@ -1568,7 +1563,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ max: 2, now: () => 1 });
     for (const cid of ['c1', 'c2', 'c3']) {
       registry.claim(cid, OWNER, DID);
-      registry.observe('gather:resource-complete', { correlationId: cid, response: {} });
+      registry.observe('gather:resource-complete', { response: {} }, { correlationId: cid });
     }
     expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined(); // FIFO
     expect(registry.lookupReply('c3', OWNER, DID)).toBeDefined();
@@ -1597,7 +1592,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     const registry = setup({ now: () => 1 });
     for (let i = 0; i < 256; i++) {
       registry.claim(`a-${i}`, OWNER, DID);
-      registry.observe('gather:resource-complete', { correlationId: `a-${i}`, response: {} });
+      registry.observe('gather:resource-complete', { response: {} }, { correlationId: `a-${i}` });
     }
     expect(registry.claim('a-256', OWNER, DID)).toBe('ok');
     // Retention is untouched: answered claims still route and replay.
@@ -1610,7 +1605,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     let clock = 1_000;
     const registry = setup({ claimTtlMs: 100, now: () => clock });
     registry.claim('c1', OWNER, DID);
-    registry.observe('gather:resource-complete', { correlationId: 'c1', response: {} });
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
     clock += 200; // c1's claim expires; the sweep must not decrement again
     for (let i = 0; i < 256; i++) expect(registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
     // A double-free would leave the counter at -1 and admit a 257th.
@@ -1624,7 +1619,7 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
     registry.claim('c-stream', OWNER, DID);
 
     clock += 80;
-    registry.observe('gather:annotation-progress', { correlationId: 'c-stream', done: 1, total: 9 });
+    registry.observe('gather:annotation-progress', { done: 1, total: 9 }, { correlationId: 'c-stream' });
     clock += 80;
     // Without the refresh this claim would have expired at t+100.
     expect(registry.owner('c-stream')).toBeDefined();

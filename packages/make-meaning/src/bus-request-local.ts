@@ -1,5 +1,5 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
-import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@semiont/core';
+import type { BusEnvelope, ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@semiont/core';
 
 /**
  * Adapt a raw in-process `EventBus` to the `BusRequestPrimitive` that
@@ -12,13 +12,20 @@ import type { ConnectionState, EventBus, EventMap, BusRequestPrimitive } from '@
  */
 export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
   return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number> {
-      eventBus.get(channel).next(payload);
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {
+      // The envelope rides through. `busRequest` mints the correlation key
+      // onto it and matches the reply on `frame.correlationId`, so an emit
+      // that dropped it here would strand every in-process request until
+      // its timeout — silently, since a narrower `emit` is still assignable.
+      eventBus.emit(channel, payload, envelope);
       // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
       return Promise.resolve(-1);
     },
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-      return eventBus.get(channel).asObservable();
+      return eventBus.on(channel);
+    },
+    frames<K extends keyof EventMap>(channel: K) {
+      return eventBus.frames(channel);
     },
     // Every channel: an in-process bus delivers every emit, so the receive
     // path carries anything asked of it. The true answer, which is why this
@@ -26,7 +33,7 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     isSubscribed: () => true,
     // In-process delivery is synchronous — no attach window, so `'open'` is
     // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
-    // `eventBus.get()` before the gate could matter. Published read-only
+    // `eventBus.on()` before the gate could matter. Published read-only
     // (X1): the subject's mutators must not leak to consumers.
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
   };

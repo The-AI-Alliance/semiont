@@ -173,9 +173,10 @@ func Gather(args []string) int {
 		return 0
 	}
 
-	// GENERATED reply types model the whole envelope (correlationId +
-	// response), so there is no hand-rolled unwrapping — and no chance of
-	// guessing a field name the schema never had.
+	// GENERATED reply types model the reply PAYLOAD, so there is no
+	// hand-rolled unwrapping — and no chance of guessing a field name the
+	// schema never had. Routing keys are not in here: correlationId rides
+	// the envelope, which the bus client consumed before handing this over.
 	var gathered semiont.GatheredContext
 	if len(positional) == 2 {
 		var r semiont.GatherAnnotationComplete

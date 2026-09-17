@@ -27,13 +27,12 @@ function makeFakeTransport() {
   const bus = new EventBus();
   const transport = inMemoryTransport({
     bus,
-    onEmit: (channel, payload) => {
+    onEmit: (channel, _payload, envelope) => {
       if (channel === 'browse:annotations-requested') {
         n += 1;
-        bus.get('browse:annotations-result').next({
-          correlationId: (payload as { correlationId: string }).correlationId,
+        bus.emit('browse:annotations-result', {
           response: { annotations: [mockAnnotation(`a${n}`)], total: 1 },
-        });
+        }, { correlationId: envelope?.correlationId });
       }
     },
   });

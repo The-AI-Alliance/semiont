@@ -95,7 +95,7 @@ describe('ResourceViewer — multi-mount invalidation is per-resource and O(1), 
     const { eventBus, spy } = mountTwoViewers();
 
     act(() => {
-      eventBus.get('mark:added').next(fakeMarkAdded('res-A'));
+      eventBus.emit('mark:added', fakeMarkAdded('res-A'));
     });
 
     await waitFor(() => expect(spy).toHaveBeenCalledWith('res-A'));
@@ -107,7 +107,7 @@ describe('ResourceViewer — multi-mount invalidation is per-resource and O(1), 
     const { eventBus, spy } = mountTwoViewers();
 
     act(() => {
-      eventBus.get('mark:removed').next({
+      eventBus.emit('mark:removed', {
         id: 'evt-2',
         type: 'mark:removed',
         resourceId: makeResourceId('res-B'),
@@ -128,7 +128,7 @@ describe('ResourceViewer — multi-mount invalidation is per-resource and O(1), 
     const { eventBus, spy } = mountTwoViewers();
 
     act(() => {
-      eventBus.get('mark:body-updated').next({
+      eventBus.emit('mark:body-updated', {
         resourceId: makeResourceId('res-A'),
         annotation: mockAnnotation('res-A'),
       } as never);

@@ -6,31 +6,60 @@
  * Can be used in Node.js, browser, workers, CLI - anywhere RxJS runs.
  */
 
-import { Subject } from 'rxjs';
+import { Observable, Subject } from 'rxjs';
+import { filter, map } from 'rxjs/operators';
 import { busLog, busLogEnabled, warnIfUnobservedReply, warnUnobservedRepliesEnabled } from './bus-log';
 import type { EventMap } from './bus-protocol';
 
 /**
- * RxJS-based event bus
+ * What the bus carries: a FRAME, not a bare payload.
  *
- * Provides direct access to RxJS Subjects for each event type.
- * Use standard RxJS patterns for emitting and subscribing.
+ * Routing metadata rides the envelope and never enters a channel's domain
+ * type — the rule `BusEmitRequest.clientId` already states for the wire
+ * (BUS-ROUTING-DECLARED D2). In-process it had nowhere to live, so
+ * `correlationId` was declared in 71 payload schemas and echoed by hand in
+ * nine handlers, and `scope` became a channel-key prefix: one fact with two
+ * representations depending on the layer.
+ *
+ * A handler cannot tell which fabric it is on — that is the property the
+ * signal plane is built on — so the envelope it reads must not depend on the
+ * fabric. This is the same frame the wire carries.
+ */
+export interface BusFrame<T> {
+  /** Correlates a reply with its request. Absent on an announcement. */
+  readonly correlationId?: string;
+  /** The resource scope this frame was emitted into. Absent means global. */
+  readonly scope?: string;
+  readonly payload: T;
+}
+
+/** The envelope half, for `emit`. */
+export type BusEnvelope = Omit<BusFrame<never>, 'payload'>;
+
+/**
+ * RxJS-based event bus.
+ *
+ * THREE VERBS, each answering one question, and no caller ever holds a
+ * Subject. `get()` used to hand one out, which meant nothing distinguished
+ * publishing from observing — every holder could write, read and pipe the
+ * same object — and that is what let the payload/envelope conflation stay
+ * invisible.
  *
  * @example
  * ```typescript
  * const eventBus = new EventBus();
  *
  * // Emit events
- * eventBus.get('beckon:hover').next({ annotationId: 'ann-1' });
+ * eventBus.emit('beckon:hover', { annotationId: 'ann-1' });
  *
  * // Subscribe to events
- * const subscription = eventBus.get('beckon:hover').subscribe(({ annotationId }) => {
+ * const subscription = eventBus.on('beckon:hover').subscribe(({ annotationId }) => {
  *   console.log('Hover:', annotationId);
  * });
  *
  * // Use RxJS operators
  * import { debounceTime } from 'rxjs/operators';
- * eventBus.get('beckon:hover')
+ * eventBus.on('beckon:hover')
  *   .pipe(debounceTime(100))
  *   .subscribe(handleHover);
  *
@@ -42,6 +71,14 @@ import type { EventMap } from './bus-protocol';
 export class EventBus {
   private subjects: Map<keyof EventMap, Subject<any>>;
   private isDestroyed: boolean;
+  /**
+   * Observers per (channel, scope). One Subject now carries every scope of a
+   * channel, so `subject.observers.length` counts subscribers of OTHER scopes
+   * too — and `emit`'s count is load-bearing: the gateway turns zero into a
+   * synthesized `peer-unavailable`. Separate subjects used to make this
+   * accurate by accident; one stream has to keep the tally on purpose.
+   */
+  private observerCounts: Map<string, number> = new Map();
 
   constructor() {
     this.subjects = new Map();
@@ -60,56 +97,96 @@ export class EventBus {
    * @example
    * ```typescript
    * // Emit
-   * eventBus.get('beckon:hover').next({ annotationId: 'ann-1' });
+   * eventBus.emit('beckon:hover', { annotationId: 'ann-1' });
    *
    * // Subscribe
-   * const sub = eventBus.get('beckon:hover').subscribe(handleHover);
+   * const sub = eventBus.on('beckon:hover').subscribe(handleHover);
    *
    * // With operators
-   * eventBus.get('beckon:hover')
+   * eventBus.on('beckon:hover')
    *   .pipe(debounceTime(100), distinctUntilChanged())
    *   .subscribe(handleHover);
    * ```
    */
-  get<K extends keyof EventMap>(eventName: K): Subject<EventMap[K]> {
-    if (this.isDestroyed) {
-      throw new Error(`Cannot access event '${String(eventName)}' on destroyed bus`);
+  /**
+   * The one write path. An envelope is optional per FIELD, never per frame:
+   * an announcement simply carries no correlationId.
+   */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope: BusEnvelope = {}): number {
+    const stream = this.channel(channel);
+    // Observability rides the ONE write path now. It used to wrap `next` on
+    // the subject handed out by `get()`, which meant it was installed per
+    // channel at first access and had to be re-wrapped for every new holder.
+    if (busLogEnabled()) busLog('EMIT', String(channel), payload as object, envelope.scope, envelope.correlationId);
+    if (warnUnobservedRepliesEnabled()) {
+      warnIfUnobservedReply(String(channel), envelope.correlationId, stream.observers.length);
     }
+    // The observer count AT DISPATCH, matching `ITransport.emit` on the wire
+    // and feeding the plane's `IngestReceipt.observers`. Zero is the signal
+    // the gateway turns into a synthesized `peer-unavailable` rather than
+    // letting a caller wait out its timeout, so it is load-bearing, not
+    // telemetry. Counted before delivery: a subscriber that unsubscribes in
+    // its own handler was still reached.
+    const observers = this.observersOf(channel, undefined);
+    stream.next({ ...envelope, payload });
+    return observers;
+  }
 
-    if (!this.subjects.has(eventName)) {
-      const subject = new Subject<EventMap[K]>();
-      // When bus-log is enabled (`SEMIONT_BUS_LOG=1` or
-      // `window.__SEMIONT_BUS_LOG__ = true`), wrap `.next()` so every
-      // local emit on this channel produces a `[bus EMIT] <channel> ...`
-      // line on `console.debug` — same shape as cross-wire emits from
-      // HttpTransport. This is what makes local-only fan-out signals
-      // (`beckon.hover`, `beckon.sparkle`, `mark.request`, etc.)
-      // visible to the e2e bus capture and to a developer's DevTools.
-      // The `busLogEnabled()` check is at first-`get` time per channel;
-      // setting the flag after channels are constructed won't
-      // retroactively wrap them. The bus capture fixture uses
-      // `addInitScript` so the flag is set before any namespace
-      // construction, which is when `get()` is first called.
-      //
-      // Independently, on Node we wrap `.next()` to catch *dropped replies*:
-      // a correlation-bearing payload emitted with zero observers (see
-      // `warnIfUnobservedReply`). This needs no flag — it's how the
-      // `gather:resource-complete` bridge gap stayed invisible until a 30 s
-      // timeout. The two wraps share one closure when both are active.
-      const wantBusLog = busLogEnabled();
-      const wantDropCheck = warnUnobservedRepliesEnabled();
-      if (wantBusLog || wantDropCheck) {
-        const wrapped = subject;
-        const originalNext = subject.next.bind(subject);
-        subject.next = (value: EventMap[K]): void => {
-          if (wantBusLog) busLog('EMIT', String(eventName), value as object);
-          if (wantDropCheck) warnIfUnobservedReply(String(eventName), value, wrapped.observers.length);
-          originalNext(value);
-        };
-      }
-      this.subjects.set(eventName, subject);
+  /** The payload view, DERIVED from `frames` so the two cannot disagree. */
+  on<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+    return this.frames(channel).pipe(map((frame) => frame.payload));
+  }
+
+  /**
+   * The envelope view: what a correlating handler reads to echo a reply back
+   * to its requester, and what a scope-aware reader inspects.
+   *
+   * Global by default — a frame emitted into a resource scope is NOT seen
+   * here. Separate subjects gave that isolation for free; one stream and a
+   * filter has to state it.
+   */
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+    return this.viewOf(channel, undefined);
+  }
+
+  /** @internal — one filtered, observer-counted view per (channel, scope). */
+  viewOf<K extends keyof EventMap>(channel: K, scope: string | undefined): Observable<BusFrame<EventMap[K]>> {
+    const key = `${scope ?? ''}\u0000${String(channel)}`;
+    // `asObservable()` before piping, deliberately: `Subject.pipe()` returns
+    // an AnonymousSubject, which still carries `next`, so piping alone would
+    // hand every reader a write path back to the channel.
+    const view = this.channel(channel)
+      .asObservable()
+      .pipe(filter((frame) => frame.scope === scope));
+    return new Observable<BusFrame<EventMap[K]>>((subscriber) => {
+      this.observerCounts.set(key, (this.observerCounts.get(key) ?? 0) + 1);
+      const inner = view.subscribe(subscriber);
+      return () => {
+        this.observerCounts.set(key, (this.observerCounts.get(key) ?? 1) - 1);
+        inner.unsubscribe();
+      };
+    });
+  }
+
+  /** @internal — observers of one (channel, scope) view, for `emit`. */
+  observersOf(channel: keyof EventMap, scope: string | undefined): number {
+    return this.observerCounts.get(`${scope ?? ''}\u0000${String(channel)}`) ?? 0;
+  }
+
+  /** Every frame on a channel, scoped or not. Internal to the scoped view. */
+  private channel<K extends keyof EventMap>(channel: K): Subject<BusFrame<EventMap[K]>> {
+    if (this.isDestroyed) {
+      throw new Error(`Cannot access event '${String(channel)}' on destroyed bus`);
     }
-    return this.subjects.get(eventName)!;
+    if (!this.subjects.has(channel)) {
+      this.subjects.set(channel, new Subject<BusFrame<EventMap[K]>>());
+    }
+    return this.subjects.get(channel)!;
+  }
+
+  /** @internal — the scoped view reads and writes the same per-channel stream. */
+  channelStream<K extends keyof EventMap>(channel: K): Subject<BusFrame<EventMap[K]>> {
+    return this.channel(channel);
   }
 
   /**
@@ -197,17 +274,23 @@ export class ScopedEventBus {
    * @param event - The event name
    * @returns The RxJS Subject for this scoped event
    */
-  get<E extends keyof EventMap>(event: E): Subject<EventMap[E]> {
-    // Internally namespace the event key, but preserve return type
-    const scopedKey = `${this.scopePrefix}:${event as string}`;
+  /** Emit into this scope. The scope is a FIELD on the frame, not a prefix
+   *  on the channel name — one channel, one stream, and a reader can see the
+   *  scope rather than having to parse it out of a key. */
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope: BusEnvelope = {}): number {
+    const observers = this.parent.observersOf(channel, this.scopePrefix);
+    this.parent.channelStream(channel).next({ ...envelope, scope: this.scopePrefix, payload });
+    return observers;
+  }
 
-    // Access parent's subjects map directly (needs cast for private access)
-    const parentSubjects = (this.parent as any).subjects as Map<string, Subject<any>>;
+  /** The payload view for this scope, derived from `frames` as it is globally. */
+  on<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
+    return this.frames(channel).pipe(map((frame) => frame.payload));
+  }
 
-    if (!parentSubjects.has(scopedKey)) {
-      parentSubjects.set(scopedKey, new Subject<EventMap[E]>());
-    }
-    return parentSubjects.get(scopedKey)!;
+  /** Frames emitted into THIS scope only. */
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+    return this.parent.viewOf(channel, this.scopePrefix);
   }
 
   /**

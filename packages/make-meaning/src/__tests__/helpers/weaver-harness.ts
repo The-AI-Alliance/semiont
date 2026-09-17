@@ -14,7 +14,7 @@
 
 import { Subject } from 'rxjs';
 import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
-import type { Annotation, EventMap, EventOfType, Logger, PersistedEventType, ResourceDescriptor, StoredEvent } from '@semiont/core';
+import type { Annotation, BusFrame, EventMap, EventOfType, Logger, PersistedEventType, ResourceDescriptor, StoredEvent } from '@semiont/core';
 import { MemoryGraphDatabase } from '@semiont/graph';
 import type { GraphDatabase } from '@semiont/graph';
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
@@ -311,7 +311,7 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
   const model = foldModel(history);
 
   const subs = [
-    eventBus.get('browse:resources-requested').subscribe((req) => {
+    eventBus.frames('browse:resources-requested').subscribe(({ payload: req, correlationId }) => {
       const offset = (req as { offset?: number }).offset ?? 0;
       const limit = (req as { limit?: number }).limit ?? 20;
       const page = rids.slice(offset, offset + limit).map((id) => {
@@ -324,27 +324,24 @@ export function serveHistory(eventBus: EventBus, history: StoredEvent[]): () => 
           entityTypes: m ? [...m.tags] : [],
         };
       });
-      eventBus.get('browse:resources-result').next({
-        correlationId: (req as { correlationId: string }).correlationId,
+      eventBus.emit('browse:resources-result', {
         response: { resources: page, total: rids.length, matchKind: 'lexical' },
-      } as unknown as EventMap['browse:resources-result']);
+      } as unknown as EventMap['browse:resources-result'], { correlationId });
     }),
-    eventBus.get('browse:events-requested').subscribe((req) => {
+    eventBus.frames('browse:events-requested').subscribe(({ payload: req, correlationId }) => {
       const rid = String((req as { resourceId: string }).resourceId);
       const events = byRid.get(rid) ?? [];
-      eventBus.get('browse:events-result').next({
-        correlationId: (req as { correlationId: string }).correlationId,
+      eventBus.emit('browse:events-result', {
         response: { events, total: events.length, resourceId: rid },
-      } as unknown as EventMap['browse:events-result']);
+      } as unknown as EventMap['browse:events-result'], { correlationId });
     }),
-    eventBus.get('browse:annotations-requested').subscribe((req) => {
+    eventBus.frames('browse:annotations-requested').subscribe(({ payload: req, correlationId }) => {
       const rid = String((req as { resourceId: string }).resourceId);
       const live = model.resources.get(rid)?.annotations ?? new Set<string>();
       const annotations = [...live].map((aid) => makeAnnotationPayload(aid, rid)) as unknown as Annotation[];
-      eventBus.get('browse:annotations-result').next({
-        correlationId: (req as { correlationId: string }).correlationId,
+      eventBus.emit('browse:annotations-result', {
         response: { annotations },
-      } as unknown as EventMap['browse:annotations-result']);
+      } as unknown as EventMap['browse:annotations-result'], { correlationId });
     }),
   ];
   return () => subs.forEach((s) => s.unsubscribe());
@@ -358,7 +355,7 @@ export interface WeaverRig {
   eventBus: EventBus;
   checkpoint: MemoryWeaverCheckpoint;
   push: (e: StoredEvent) => void;
-  pushRebuild: (cmd: EventMap['weave:rebuild']) => void;
+  pushRebuild: (cmd: EventMap['weave:rebuild'], correlationId?: string) => void;
   dispose: () => Promise<void>;
 }
 
@@ -372,7 +369,7 @@ export async function buildWeaverRig(opts?: {
   const eventBus = opts?.eventBus ?? new EventBus();
   const checkpoint = opts?.checkpoint ?? new MemoryWeaverCheckpoint();
   const events$ = new Subject<StoredEvent>();
-  const rebuilds$ = new Subject<EventMap['weave:rebuild']>();
+  const rebuilds$ = new Subject<BusFrame<EventMap['weave:rebuild']>>();
 
   const weaver = new Weaver(
     graph,
@@ -391,7 +388,7 @@ export async function buildWeaverRig(opts?: {
     eventBus,
     checkpoint,
     push: (e) => events$.next(e),
-    pushRebuild: (cmd) => rebuilds$.next(cmd),
+    pushRebuild: (cmd, correlationId) => rebuilds$.next({ correlationId, payload: cmd }),
     dispose: async () => {
       await weaver.stop();
     },

@@ -10,7 +10,7 @@
 
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { promises as fs } from 'fs';
 import { join } from 'path';
@@ -43,7 +43,7 @@ async function createAnnotationAndAwait(
   const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
   const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, kb);
   const expectedId = result.annotation.id;
-  await firstValueFrom(eventBus.get('mark:added').pipe(
+  await firstValueFrom(eventBus.on('mark:added').pipe(
     filter((e) => e.payload?.annotation?.id === expectedId),
     take(1),
   ));
@@ -528,7 +528,7 @@ describe('AnnotationOperations', () => {
 
       // Update with add operation — await mark:body-updated so the Stower finishes
       // writing the view before the next test starts (prevents concurrent view writes)
-      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+      const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
 
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
@@ -591,7 +591,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
       // Remove one tag — await mark:body-updated to prevent concurrent view writes
-      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+      const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
 
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
@@ -649,7 +649,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
       // Replace tag — await mark:body-updated to prevent concurrent view writes
-      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+      const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
 
       const result = await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
@@ -711,7 +711,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id.split('/').pop()!;
 
       // Update and await Stower persistence
-      const bodyUpdated$ = firstValueFrom(eventBus.get('mark:body-updated').pipe(take(1)));
+      const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
       await AnnotationOperations.updateAnnotationBody(
         annotationIdStr,
         {
@@ -793,7 +793,7 @@ describe('AnnotationOperations', () => {
       const annotationIdStr = createResult.annotation.id;
 
       // Delete and await Stower persistence
-      const deleted$ = firstValueFrom(eventBus.get('mark:delete-ok').pipe(take(1)));
+      const deleted$ = firstValueFrom(eventBus.on('mark:delete-ok').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
         testResourceId,
@@ -838,19 +838,17 @@ describe('AnnotationOperations', () => {
 
       const correlationId = 'uet-cid-1';
       const ok$ = firstValueFrom(
-        eventBus.get('mark:update-entity-types-ok').pipe(
-          filter((e) => e.correlationId === correlationId),
+        eventBus.frames('mark:update-entity-types-ok').pipe(
+          filter((frame) => frame.correlationId === correlationId),
+          map((frame) => frame.payload),
           take(1),
         ),
       );
 
-      eventBus.get('mark:update-entity-types').next({
-        correlationId,
-        _userId: 'user-1',
+      eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Legacy'],
-        updatedEntityTypes: ['Person'],
-      });
+        updatedEntityTypes: ['Person'], }, { correlationId });
 
       await ok$;
 
@@ -885,8 +883,9 @@ describe('AnnotationOperations', () => {
 
       const correlationId = 'uet-cid-fail';
       const failed$ = firstValueFrom(
-        failBus.get('mark:update-entity-types-failed').pipe(
-          filter((e) => e.correlationId === correlationId),
+        failBus.frames('mark:update-entity-types-failed').pipe(
+          filter((frame) => frame.correlationId === correlationId),
+          map((frame) => frame.payload),
           take(1),
         ),
       );
@@ -894,13 +893,10 @@ describe('AnnotationOperations', () => {
       // A REMOVAL, not an add: removals are never vocabulary-gated (the gate
       // would otherwise reject the tag before appendEvent runs), so this still
       // exercises the append-failure catch branch — the test's actual subject.
-      failBus.get('mark:update-entity-types').next({
-        correlationId,
-        _userId: 'user-1',
+      failBus.emit('mark:update-entity-types', { _userId: 'user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Person'],
-        updatedEntityTypes: [],
-      });
+        updatedEntityTypes: [], }, { correlationId });
 
       const failure = await failed$;
       expect(failure.message).toContain('disk full');

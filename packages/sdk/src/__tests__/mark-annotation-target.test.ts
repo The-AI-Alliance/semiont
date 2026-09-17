@@ -23,11 +23,13 @@ function makeTransport() {
   const bus = new EventBus();
   let lastChannel: string | null = null;
   let lastPayload: Record<string, unknown> | null = null;
+  let lastCorrelationId: string | undefined;
   const transport = inMemoryTransport({
     bus,
-    onEmit: (channel, payload) => {
+    onEmit: (channel, payload, envelope) => {
       lastChannel = channel as string;
       lastPayload = payload as Record<string, unknown>;
+      lastCorrelationId = envelope?.correlationId;
     },
   });
   return {
@@ -35,9 +37,14 @@ function makeTransport() {
     // Replies are pushed through the SAME typed bus the transport streams
     // from, so a fixture that is not the channel's declared payload is a
     // compile error rather than something the transport's cast used to hide.
-    subjectFor: <K extends keyof EventMap>(channel: K) => bus.get(channel),
+    // A push verb, not a handle. The old helper returned the channel's
+    // Subject so a test could write through it; `on` is read-only by design,
+    // and the write path is `emit`.
+    push: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
+      bus.emit(channel, payload, { correlationId }),
     getLastChannel: () => lastChannel,
     getLastPayload: () => lastPayload,
+    getLastCorrelationId: () => lastCorrelationId,
   };
 }
 
@@ -52,7 +59,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
   }
 
   it('forwards a source-only target (a resource edge) with NO selector and resolves', async () => {
-    const { mark, subjectFor, getLastChannel, getLastPayload } = makeMark();
+    const { mark, push, getLastChannel, getLastPayload, getLastCorrelationId } = makeMark();
     // Claim→Source edge: the target is the whole claim resource (no selector);
     // the body is a SpecificResource pointing at the source resource.
     const input: CreateAnnotationInput = {
@@ -72,14 +79,13 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     expect(req.target.selector).toBeUndefined(); // ← the pin: no selector injected or required
     expect(req.body).toEqual({ type: 'SpecificResource', source: 'res-source-1' });
 
-    const cid = payload.correlationId as string;
-    subjectFor('mark:create-ok').next({ correlationId: cid, response: { annotationId: 'ann-1' } });
+    push('mark:create-ok', { response: { annotationId: 'ann-1' } }, getLastCorrelationId());
 
     expect(await promise).toEqual({ annotationId: 'ann-1' });
   });
 
   it('still forwards a target WITH a selector unchanged (selector-agnostic both ways)', async () => {
-    const { mark, subjectFor, getLastPayload } = makeMark();
+    const { mark, push, getLastPayload, getLastCorrelationId } = makeMark();
     const input: CreateAnnotationInput = {
       motivation: 'commenting',
       target: { source: 'res-doc-1', selector: { type: 'TextPositionSelector', start: 0, end: 10 } },
@@ -92,8 +98,7 @@ describe('mark.annotation — selector-less (whole-resource) target', () => {
     const req = getLastPayload()!.request as CreateAnnotationInput;
     expect(req.target.selector).toEqual({ type: 'TextPositionSelector', start: 0, end: 10 });
 
-    const cid = getLastPayload()!.correlationId as string;
-    subjectFor('mark:create-ok').next({ correlationId: cid, response: { annotationId: 'ann-2' } });
+    push('mark:create-ok', { response: { annotationId: 'ann-2' } }, getLastCorrelationId());
     await promise;
   });
 });

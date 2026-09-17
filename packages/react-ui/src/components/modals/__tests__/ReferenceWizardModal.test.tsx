@@ -214,7 +214,7 @@ describe('ReferenceWizardModal — the context stays in view on the strategy ste
     const { client, baseElement } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
-    client.bus.get('match:search-results').next({
+    client.bus.emit('match:search-results', {
       referenceId: 'ann-1',
       response: [{ '@id': 'res-9', name: 'Caspian Sea', score: 54.2 }],
     } as never);
@@ -510,7 +510,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     // The results step is entered by the REPLY, not by the click — the wizard
     // sits on the configure step until the bus answers (which is why dismissal
     // must stay available; see the A5 pin in WizardFooter.test).
-    client.bus.get('match:search-results').next({
+    client.bus.emit('match:search-results', {
       referenceId: 'ann-1',
       // `ResourceDescriptor` is JSON-LD: the identifier is `@id`, and the
       // results step links on that. A fixture using `id` renders the row and
@@ -534,11 +534,8 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByRole('button', { name: T.search }));
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
 
-    client.bus.get('match:search-failed').next({
-      correlationId: 'c-1',
-      referenceId: 'ann-1',
-      error: '/bus/emit 400: Bus emit validation failed',
-    } as never);
+    client.bus.emit('match:search-failed', { referenceId: 'ann-1',
+      error: '/bus/emit 400: Bus emit validation failed', } as never, { correlationId: 'c-1' });
 
     // Still on configure-search, failure visible, retry available.
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
@@ -553,11 +550,8 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
 
-    client.bus.get('match:search-failed').next({
-      correlationId: 'c-2',
-      referenceId: 'someone-elses-annotation',
-      error: 'not ours',
-    } as never);
+    client.bus.emit('match:search-failed', { referenceId: 'someone-elses-annotation',
+      error: 'not ours', } as never, { correlationId: 'c-2' });
 
     expect(screen.getByRole('button', { name: T.searching })).toBeDisabled();
     expect(screen.queryByText(new RegExp(T.searchFailed))).not.toBeInTheDocument();
@@ -567,9 +561,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     const { client } = renderWizard();
     await userEvent.click(screen.getByText(new RegExp(`^🔍? ?${T.search}`)));
     await userEvent.click(screen.getByRole('button', { name: T.search }));
-    client.bus.get('match:search-failed').next({
-      correlationId: 'c-1', referenceId: 'ann-1', error: 'boom',
-    } as never);
+    client.bus.emit('match:search-failed', { referenceId: 'ann-1', error: 'boom', } as never, { correlationId: 'c-1' });
     expect(await screen.findByText(new RegExp(T.searchFailed))).toBeInTheDocument();
 
     await userEvent.click(screen.getByRole('button', { name: T.search }));
@@ -581,7 +573,7 @@ describe('ReferenceWizardModal — the three strategies complete', () => {
     // Two wizards can never be open at once, but one reply can outlive the
     // annotation it was asked for — a late answer must not hijack the step.
     const { client } = renderWizard();
-    client.bus.get('match:search-results').next({
+    client.bus.emit('match:search-results', {
       referenceId: 'someone-elses-annotation',
       response: [{ '@id': 'res-9', name: 'Caspian Sea' }],
     } as never);
@@ -650,7 +642,7 @@ describe('ReferenceWizardModal — nothing fires without an annotation to resolv
     expect(searchSpy).not.toHaveBeenCalled();
 
     // A reply that arrives anyway is ignored rather than advancing the step.
-    client.bus.get('match:search-results').next({
+    client.bus.emit('match:search-results', {
       referenceId: 'ann-1', response: [{ '@id': 'res-9', name: 'X' }],
     } as never);
     expect(screen.queryByRole('button', { name: new RegExp(T.link) })).not.toBeInTheDocument();

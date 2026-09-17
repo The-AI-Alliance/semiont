@@ -19,8 +19,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { firstValueFrom, filter, race, timer, take } from 'rxjs';
-import { EventBus, jobId, userId, resourceId, type Logger, type TagSchema } from '@semiont/core';
+import { firstValueFrom, filter, map, race, timer, take } from 'rxjs';
+import { EventBus, jobId, userId, resourceId, type EventMap, type Logger, type TagSchema } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { FsJobQueue } from '@semiont/jobs';
 import { registerJobCommandHandlers } from '../../handlers/job-commands';
@@ -85,15 +85,6 @@ async function writeEntityTypesProjection(project: SemiontProject, entityTypes: 
   await fs.writeFile(join(dir, 'entitytypes.json'), JSON.stringify({ entityTypes }));
 }
 
-interface JobCreatedEvent {
-  correlationId: string;
-  response: { jobId: string };
-}
-interface JobCreateFailedEvent {
-  correlationId: string;
-  message: string;
-}
-
 describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
@@ -116,20 +107,21 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     await writeTagSchemasProjection(project, [SCHEMA]);
 
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+      eventBus.frames('job:created')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-1'),
+      filter((frame) => frame.correlationId === 'cid-1'),
+      map((frame) => frame.payload),
       take(1),
     );
     const failed$ = (
-      eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
+      eventBus.frames('job:create-failed')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-1'),
+      filter((frame) => frame.correlationId === 'cid-1'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-1',
+    eventBus.emit('job:create', {
       jobType: 'tag-annotation',
       resourceId: 'rid-test',
       params: {
@@ -137,12 +129,12 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
         categories: ['A'],
       },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-1' });
 
     // Whichever side fires first wins — we expect job:created.
     const result = await firstValueFrom(race(created$, failed$, timer(2_000)));
     expect(result, 'job:created should fire (dispatcher resolved the schema)').toBeDefined();
-    expect((result as JobCreatedEvent).response?.jobId, 'job:created carries a jobId').toBeTruthy();
+    expect((result as EventMap['job:created']).response?.jobId, 'job:created carries a jobId').toBeTruthy();
 
     // Verify the dispatcher's resolution shape on the queued job.
     expect(jobQueue.createJob).toHaveBeenCalledTimes(1);
@@ -163,14 +155,14 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     // No projection written — `readTagSchemasProjection` returns [] and
     // the dispatcher can't resolve any schemaId.
     const failed$ = (
-      eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
+      eventBus.frames('job:create-failed')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-2'),
+      filter((frame) => frame.correlationId === 'cid-2'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-2',
+    eventBus.emit('job:create', {
       jobType: 'tag-annotation',
       resourceId: 'rid-test',
       params: {
@@ -178,11 +170,11 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
         categories: ['A'],
       },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-2' });
 
     const result = await firstValueFrom(race(failed$, timer(2_000)));
     expect(result, 'job:create-failed should fire').toBeDefined();
-    expect((result as JobCreateFailedEvent).message).toMatch(/Tag schema not registered/);
+    expect((result as EventMap['job:create-failed']).message).toMatch(/Tag schema not registered/);
     expect(jobQueue.createJob).not.toHaveBeenCalled();
   });
 
@@ -194,19 +186,18 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     // failed event fires in the same tick as the .next(). Subscribe
     // BEFORE emitting and collect; otherwise the event is gone by the
     // time `firstValueFrom` runs.
-    const failedEvents: JobCreateFailedEvent[] = [];
-    const sub = (eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>)
-      .subscribe((e) => {
-        if (e.correlationId === 'cid-3') failedEvents.push(e);
+    const failedEvents: EventMap['job:create-failed'][] = [];
+    const sub = (eventBus.frames('job:create-failed'))
+      .subscribe((frame) => {
+        if (frame.correlationId === 'cid-3') failedEvents.push(frame.payload);
       });
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-3',
+    eventBus.emit('job:create', {
       jobType: 'tag-annotation',
       resourceId: 'rid-test',
       params: { categories: ['A'] },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-3' });
 
     // Yield the microtask queue so the async subscriber's catch fires.
     await new Promise((r) => setTimeout(r, 50));
@@ -221,18 +212,18 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     // Non-tagging jobs go through the existing path unchanged. Use a
     // generation job which has no schemaId at all.
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+      eventBus.frames('job:created')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-4'),
+      filter((frame) => frame.correlationId === 'cid-4'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-4',
+    eventBus.emit('job:create', {
       jobType: 'generation',
       params: { ...GEN_PARAMS, context: genContext('resource') },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-4' });
 
     const result = await firstValueFrom(race(created$, timer(2_000)));
     expect(result, 'job:created should fire for generation jobs').toBeDefined();
@@ -243,22 +234,20 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
   });
 
   it('sets maxRetries to 0 for generation (non-idempotent) and 1 for detection', async () => {
-    const gen$ = (eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>)
-      .pipe(filter((e) => e.correlationId === 'cid-retry-gen'), take(1));
-    eventBus.get('job:create').next({
-      correlationId: 'cid-retry-gen', jobType: 'generation',
+    const gen$ = (eventBus.frames('job:created'))
+      .pipe(filter((frame) => frame.correlationId === 'cid-retry-gen'), map((frame) => frame.payload), take(1));
+    eventBus.emit('job:create', { jobType: 'generation',
       params: { ...GEN_PARAMS, context: genContext('resource') }, _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-retry-gen' });
     await firstValueFrom(race(gen$, timer(2_000)));
     const genJob = jobQueue.createJob.mock.calls.at(-1)![0] as { metadata: { maxRetries: number } };
     expect(genJob.metadata.maxRetries, 'generation must not retry — re-rolling is not a replay').toBe(0);
 
-    const ref$ = (eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>)
-      .pipe(filter((e) => e.correlationId === 'cid-retry-ref'), take(1));
-    eventBus.get('job:create').next({
-      correlationId: 'cid-retry-ref', jobType: 'reference-annotation', resourceId: 'rid-test',
+    const ref$ = (eventBus.frames('job:created'))
+      .pipe(filter((frame) => frame.correlationId === 'cid-retry-ref'), map((frame) => frame.payload), take(1));
+    eventBus.emit('job:create', { jobType: 'reference-annotation', resourceId: 'rid-test',
       params: {}, _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-retry-ref' });
     await firstValueFrom(race(ref$, timer(2_000)));
     const refJob = jobQueue.createJob.mock.calls.at(-1)![0] as { metadata: { maxRetries: number } };
     expect(refJob.metadata.maxRetries, 'detection keeps one self-heal retry').toBe(1);
@@ -301,19 +290,19 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     await writeEntityTypesProjection(project, ['Person', 'Organization', 'Location']);
 
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+      eventBus.frames('job:created')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-ref-ok'),
+      filter((frame) => frame.correlationId === 'cid-ref-ok'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-ref-ok',
+    eventBus.emit('job:create', {
       jobType: 'reference-annotation',
       resourceId: 'rid-test',
       params: { entityTypes: ['Person', 'Organization'] },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-ref-ok' });
 
     const result = await firstValueFrom(race(created$, timer(2_000)));
     expect(result, 'job:created should fire').toBeDefined();
@@ -323,19 +312,18 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
   it('reference-annotation: rejects when any entityType is unregistered, listing the missing ones', async () => {
     await writeEntityTypesProjection(project, ['Person', 'Organization']);
 
-    const failedEvents: JobCreateFailedEvent[] = [];
-    const sub = (eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>)
-      .subscribe((e) => {
-        if (e.correlationId === 'cid-ref-bad') failedEvents.push(e);
+    const failedEvents: EventMap['job:create-failed'][] = [];
+    const sub = (eventBus.frames('job:create-failed'))
+      .subscribe((frame) => {
+        if (frame.correlationId === 'cid-ref-bad') failedEvents.push(frame.payload);
       });
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-ref-bad',
+    eventBus.emit('job:create', {
       jobType: 'reference-annotation',
       resourceId: 'rid-test',
       params: { entityTypes: ['Person', 'NotRegistered', 'AlsoMissing'] },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-ref-bad' });
 
     await new Promise((r) => setTimeout(r, 50));
     sub.unsubscribe();
@@ -353,18 +341,18 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     await writeEntityTypesProjection(project, ['Character', 'Hero']);
 
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+      eventBus.frames('job:created')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-gen-ok'),
+      filter((frame) => frame.correlationId === 'cid-gen-ok'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-gen-ok',
+    eventBus.emit('job:create', {
       jobType: 'generation',
       params: { ...GEN_PARAMS, context: genContext('resource'), entityTypes: ['Character', 'Hero'] },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-gen-ok' });
 
     const result = await firstValueFrom(race(created$, timer(2_000)));
     expect(result).toBeDefined();
@@ -374,18 +362,17 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
   it('generation: rejects when entityTypes contain an unregistered tag', async () => {
     await writeEntityTypesProjection(project, ['Character']);
 
-    const failedEvents: JobCreateFailedEvent[] = [];
-    const sub = (eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>)
-      .subscribe((e) => {
-        if (e.correlationId === 'cid-gen-bad') failedEvents.push(e);
+    const failedEvents: EventMap['job:create-failed'][] = [];
+    const sub = (eventBus.frames('job:create-failed'))
+      .subscribe((frame) => {
+        if (frame.correlationId === 'cid-gen-bad') failedEvents.push(frame.payload);
       });
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-gen-bad',
+    eventBus.emit('job:create', {
       jobType: 'generation',
       params: { ...GEN_PARAMS, context: genContext('resource'), entityTypes: ['Character', 'UnknownThing'] },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-gen-bad' });
 
     await new Promise((r) => setTimeout(r, 50));
     sub.unsubscribe();
@@ -399,19 +386,19 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     // No entitytypes.json projection written — validation should be
     // a no-op when the caller doesn't supply entityTypes at all.
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+      eventBus.frames('job:created')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-ref-noet'),
+      filter((frame) => frame.correlationId === 'cid-ref-noet'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-ref-noet',
+    eventBus.emit('job:create', {
       jobType: 'reference-annotation',
       resourceId: 'rid-test',
       params: {},
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-ref-noet' });
 
     const result = await firstValueFrom(race(created$, timer(2_000)));
     expect(result, 'job:created should fire').toBeDefined();
@@ -420,19 +407,19 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
 
   it('reference-annotation: empty entityTypes array skips the check', async () => {
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
+      eventBus.frames('job:created')
     ).pipe(
-      filter((e) => e.correlationId === 'cid-ref-empty'),
+      filter((frame) => frame.correlationId === 'cid-ref-empty'),
+      map((frame) => frame.payload),
       take(1),
     );
 
-    eventBus.get('job:create').next({
-      correlationId: 'cid-ref-empty',
+    eventBus.emit('job:create', {
       jobType: 'reference-annotation',
       resourceId: 'rid-test',
       params: { entityTypes: [] },
       _userId: TEST_USER_DID,
-    } as never);
+    } as never, { correlationId: 'cid-ref-empty' });
 
     const result = await firstValueFrom(race(created$, timer(2_000)));
     expect(result).toBeDefined();
@@ -459,7 +446,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('moves the queue file on job:complete', async () => {
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       resourceId: 'rid-1',
       jobId: 'job-c1',
       jobType: 'reference-annotation',
@@ -472,7 +459,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('passes an empty result to completeJob when job:complete carries none', async () => {
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       resourceId: 'rid-1',
       jobId: 'job-c2',
       jobType: 'reference-annotation',
@@ -484,7 +471,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('routes job:fail through the queue retry-or-fail path', async () => {
-    eventBus.get('job:fail').next({
+    eventBus.emit('job:fail', {
       resourceId: 'rid-1',
       jobId: 'job-f1',
       jobType: 'generation',
@@ -497,7 +484,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('passes the checkpoint through to failJob (ABANDONED-INFERENCE P2, A3)', async () => {
-    eventBus.get('job:fail').next({
+    eventBus.emit('job:fail', {
       resourceId: 'rid-1',
       jobId: 'job-f2',
       jobType: 'reference-annotation',
@@ -511,7 +498,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('passes the failure class through to failJob (ABANDONED-INFERENCE P3, A4)', async () => {
-    eventBus.get('job:fail').next({
+    eventBus.emit('job:fail', {
       resourceId: 'rid-1',
       jobId: 'job-f3',
       jobType: 'reference-annotation',
@@ -525,7 +512,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('mirrors job:report-progress into the queue', async () => {
-    eventBus.get('job:report-progress').next({
+    eventBus.emit('job:report-progress', {
       resourceId: 'rid-1',
       jobId: 'job-p1',
       jobType: 'generation',
@@ -542,7 +529,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('falls back to the bare percentage when job:report-progress has no progress object', async () => {
-    eventBus.get('job:report-progress').next({
+    eventBus.emit('job:report-progress', {
       resourceId: 'rid-1',
       jobId: 'job-p2',
       jobType: 'generation',
@@ -555,7 +542,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('checkpoints completed units into the queue on job:checkpoint (JOB-RESTART-SAFETY P2)', async () => {
-    eventBus.get('job:checkpoint').next({
+    eventBus.emit('job:checkpoint', {
       jobId: 'job-ckpt',
       completedUnits: ['Person', 'Location'],
     } as never);
@@ -569,7 +556,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     // This handler is the only path from the wire to the queue, so a cursor it
     // drops is a cursor that never becomes durable — and the crash it exists to
     // survive is exactly the one that emits no job:fail.
-    eventBus.get('job:checkpoint').next({
+    eventBus.emit('job:checkpoint', {
       jobId: 'job-ckpt-cur',
       completedUnits: ['Person'],
       unitCursors: { Location: { next: 5_000, size: 800, found: 0, emitted: 0 } },
@@ -585,7 +572,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   it('forwards per-unit cursors to failJob on job:fail (CHUNK-GRAIN-RESUME P2)', async () => {
     // The clean-failure twin of the above: `failJob` rebuilds the retried
     // record, so a cursor it never receives cannot reach the next attempt.
-    eventBus.get('job:fail').next({
+    eventBus.emit('job:fail', {
       jobId: 'job-f-cur',
       error: 'stalled mid-unit',
       completedUnits: [],
@@ -605,8 +592,8 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   // "cancelled" about a job that ran to completion.
   it('reports 0 for a job that does not exist', async () => {
     jobQueue.getJob.mockResolvedValueOnce(null);
-    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
-    eventBus.get('job:cancel-requested').next({ correlationId: 'c1', jobId: 'job-ghost' } as never);
+    const reply = firstValueFrom(eventBus.on('job:cancel-ok').pipe(take(1)));
+    eventBus.emit('job:cancel-requested', { jobId: 'job-ghost' } as never, { correlationId: 'c1' });
 
     expect((await reply as any).response.cancelled).toBe(0);
     expect(jobQueue.cancelJob).not.toHaveBeenCalled();
@@ -616,8 +603,8 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     // Nothing to stop, and cancelJob must not be called — a completed job is
     // not a cancellable one, and moving it would rewrite history.
     jobQueue.getJob.mockResolvedValueOnce({ status: 'completed', metadata: { id: 'job-done' } });
-    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
-    eventBus.get('job:cancel-requested').next({ correlationId: 'c2', jobId: 'job-done' } as never);
+    const reply = firstValueFrom(eventBus.on('job:cancel-ok').pipe(take(1)));
+    eventBus.emit('job:cancel-requested', { jobId: 'job-done' } as never, { correlationId: 'c2' });
 
     expect((await reply as any).response.cancelled).toBe(0);
     expect(jobQueue.cancelJob).not.toHaveBeenCalled();
@@ -626,14 +613,14 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   it('reports 0 when the request names neither a jobId nor a jobType', async () => {
     // Answered rather than ignored: this rides a request/reply operation, so
     // a silent drop strands the caller until its timeout.
-    const reply = firstValueFrom(eventBus.get('job:cancel-ok').pipe(take(1)));
-    eventBus.get('job:cancel-requested').next({ correlationId: 'c3' } as never);
+    const reply = firstValueFrom(eventBus.on('job:cancel-ok').pipe(take(1)));
+    eventBus.emit('job:cancel-requested', {} as never, { correlationId: 'c3' });
 
     expect((await reply as any).response.cancelled).toBe(0);
   });
 
   it('cancels pending jobs of the requested category on job:cancel-requested', async () => {
-    eventBus.get('job:cancel-requested').next({ jobType: 'annotation' } as never);
+    eventBus.emit('job:cancel-requested', { jobType: 'annotation' } as never);
 
     await vi.waitFor(() => {
       expect(jobQueue.cancelPendingJobs).toHaveBeenCalledWith('annotation');
@@ -642,7 +629,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
 
   it('cancels a PENDING job immediately when job:cancel-requested targets a jobId (JOB-RESTART-SAFETY P4)', async () => {
     jobQueue.getJob.mockResolvedValueOnce({ status: 'pending', metadata: { id: 'job-x' } });
-    eventBus.get('job:cancel-requested').next({ jobId: 'job-x' } as never);
+    eventBus.emit('job:cancel-requested', { jobId: 'job-x' } as never);
 
     await vi.waitFor(() => {
       expect(jobQueue.cancelJob).toHaveBeenCalledWith('job-x');
@@ -651,7 +638,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
 
   it('does NOT cancel a RUNNING job queue-side on job:cancel-requested — the worker stops it cooperatively (P4)', async () => {
     jobQueue.getJob.mockResolvedValueOnce({ status: 'running', metadata: { id: 'job-r' } });
-    eventBus.get('job:cancel-requested').next({ jobId: 'job-r' } as never);
+    eventBus.emit('job:cancel-requested', { jobId: 'job-r' } as never);
 
     // getJob is consulted, but cancelJob is NOT called — yanking a running job
     // out from under its live worker is the roach-motel race this avoids.
@@ -662,7 +649,7 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   });
 
   it('moves a job to cancelled/ on job:cancel — the worker\'s cooperative-stop confirmation (P4)', async () => {
-    eventBus.get('job:cancel').next({
+    eventBus.emit('job:cancel', {
       resourceId: 'rid-1',
       jobId: 'job-r',
       jobType: 'reference-annotation',
@@ -676,13 +663,13 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
 
   it('emits job:cancel-ok with the cancelled count', async () => {
     jobQueue.cancelPendingJobs.mockResolvedValueOnce(3);
-    const acks: Array<{ correlationId?: string; response: { cancelled: number } }> = [];
-    eventBus.get('job:cancel-ok').subscribe((e) => acks.push(e));
+    const acks: Array<{ correlationId?: string; payload: { response: { cancelled: number } } }> = [];
+    eventBus.frames('job:cancel-ok').subscribe((f) => acks.push(f));
 
-    eventBus.get('job:cancel-requested').next({ jobType: 'generation', correlationId: 'cid-1' } as never);
+    eventBus.emit('job:cancel-requested', { jobType: 'generation' } as never, { correlationId: 'cid-1' });
 
     await vi.waitFor(() => expect(acks).toHaveLength(1));
-    expect(acks[0]).toMatchObject({ correlationId: 'cid-1', response: { cancelled: 3 } });
+    expect(acks[0]).toMatchObject({ correlationId: 'cid-1', payload: { response: { cancelled: 3 } } });
   });
 });
 
@@ -734,7 +721,7 @@ describe('registerJobCommandHandlers — lifecycle integration (real FsJobQueue)
   it('job:complete on the bus moves the running job file to complete/ with the result', async () => {
     await queue.createJob(runningJob('job-int-complete') as never);
 
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       resourceId: 'res-int',
       jobId: 'job-int-complete',
       jobType: 'reference-annotation',
@@ -756,11 +743,11 @@ describe('registerJobCommandHandlers — lifecycle integration (real FsJobQueue)
     await queue.createJob(runningJob('job-int-fail') as never);
 
     const announced: { jobId: string }[] = [];
-    eventBus.get('job:queued').subscribe((event) => {
+    eventBus.on('job:queued').subscribe((event) => {
       announced.push(event as { jobId: string });
     });
 
-    eventBus.get('job:fail').next({
+    eventBus.emit('job:fail', {
       resourceId: 'res-int',
       jobId: 'job-int-fail',
       jobType: 'reference-annotation',
@@ -836,18 +823,15 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
 
   function sendCreate(cid: string, command: Record<string, unknown>) {
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
-    ).pipe(filter((e) => e.correlationId === cid), take(1));
+      eventBus.frames('job:created')
+    ).pipe(filter((frame) => frame.correlationId === cid), map((frame) => frame.payload), take(1));
     const failed$ = (
-      eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
-    ).pipe(filter((e) => e.correlationId === cid), take(1));
+      eventBus.frames('job:create-failed')
+    ).pipe(filter((frame) => frame.correlationId === cid), map((frame) => frame.payload), take(1));
     const outcome = firstValueFrom(race(created$, failed$));
-    eventBus.get('job:create').next({
-      correlationId: cid,
-      jobType: 'generation',
+    eventBus.emit('job:create', { jobType: 'generation',
       _userId: TEST_USER_DID,
-      ...command,
-    } as never);
+      ...command, } as never, { correlationId: cid });
     return outcome;
   }
 
@@ -875,7 +859,7 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
       params: { ...GEN_PARAMS, context: genContext('resource') },
     });
     expect(outcome).toHaveProperty('message');
-    expect((outcome as JobCreateFailedEvent).message).toMatch(/focus is authoritative|omit resourceId/i);
+    expect((outcome as EventMap['job:create-failed']).message).toMatch(/focus is authoritative|omit resourceId/i);
     expect(jobQueue.createJob).not.toHaveBeenCalled();
   });
 
@@ -884,7 +868,7 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
       params: { ...GEN_PARAMS, referenceId: 'ann-imposter', context: genContext('annotation') },
     });
     expect(outcome).toHaveProperty('message');
-    expect((outcome as JobCreateFailedEvent).message).toMatch(/focus is authoritative|omit .*referenceId/i);
+    expect((outcome as EventMap['job:create-failed']).message).toMatch(/focus is authoritative|omit .*referenceId/i);
     expect(jobQueue.createJob).not.toHaveBeenCalled();
   });
 
@@ -893,7 +877,7 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
       params: { ...GEN_PARAMS, context: { graph: {}, metadata: {} } },
     });
     expect(outcome).toHaveProperty('message');
-    expect((outcome as JobCreateFailedEvent).message).toMatch(/gather\.resource|gather\.annotation/);
+    expect((outcome as EventMap['job:create-failed']).message).toMatch(/gather\.resource|gather\.annotation/);
     expect(jobQueue.createJob).not.toHaveBeenCalled();
   });
 
@@ -902,24 +886,23 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
       params: { context: genContext('resource') },   // no title, no storageUri
     });
     expect(outcome).toHaveProperty('message');
-    expect((outcome as JobCreateFailedEvent).message).toMatch(/GenerationJobParams|title/);
+    expect((outcome as EventMap['job:create-failed']).message).toMatch(/GenerationJobParams|title/);
     expect(jobQueue.createJob).not.toHaveBeenCalled();
   });
 
   it('still REQUIRES the envelope resourceId for non-generation jobTypes', async () => {
     const created$ = (
-      eventBus.get('job:created') as never as import('rxjs').Observable<JobCreatedEvent>
-    ).pipe(filter((e) => e.correlationId === 'g-7'), take(1));
+      eventBus.frames('job:created')
+    ).pipe(filter((frame) => frame.correlationId === 'g-7'), map((frame) => frame.payload), take(1));
     const failed$ = (
-      eventBus.get('job:create-failed') as never as import('rxjs').Observable<JobCreateFailedEvent>
-    ).pipe(filter((e) => e.correlationId === 'g-7'), take(1));
+      eventBus.frames('job:create-failed')
+    ).pipe(filter((frame) => frame.correlationId === 'g-7'), map((frame) => frame.payload), take(1));
     const outcome = firstValueFrom(race(created$, failed$));
-    eventBus.get('job:create').next({
-      correlationId: 'g-7',
+    eventBus.emit('job:create', {
       jobType: 'highlight-annotation',
       _userId: TEST_USER_DID,
       params: {},
-    } as never);
+    } as never, { correlationId: 'g-7' });
     expect(await outcome).toHaveProperty('message');
     expect(jobQueue.createJob).not.toHaveBeenCalled();
   });

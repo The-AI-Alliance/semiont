@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Request to browse resources with optional filtering and pagination",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "search": {
       "type": "string"
     },
@@ -20,8 +17,5 @@
     "limit": {
       "type": "integer"
     }
-  },
-  "required": [
-    "correlationId"
-  ]
+  }
 }

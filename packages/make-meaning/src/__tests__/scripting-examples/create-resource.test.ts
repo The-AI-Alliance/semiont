@@ -154,11 +154,11 @@ describe('Scripting Example: Create Resource', () => {
 
     // Subscribe to typed domain event channels BEFORE creating the update event
     const subs = (['yield:updated', 'mark:archived', 'mark:unarchived'] as const).map(type =>
-      resourceBus.get(type).subscribe(event => { domainEvents.push(event); })
+      resourceBus.on(type).subscribe(event => { domainEvents.push(event); })
     );
 
     // Now create another event (like archiving the resource)
-    eventBus.get('mark:archive').next({
+    eventBus.emit('mark:archive', {
       _userId: 'test-script',
       resourceId: result,
     });

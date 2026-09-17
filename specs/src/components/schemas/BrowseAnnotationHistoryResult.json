@@ -2,15 +2,11 @@
   "type": "object",
   "description": "Result of browsing annotation history",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "response": {
       "$ref": "./GetAnnotationHistoryResponse.json"
     }
   },
   "required": [
-    "correlationId",
     "response"
   ]
 }

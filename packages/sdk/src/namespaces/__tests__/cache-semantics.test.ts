@@ -157,8 +157,8 @@ function createHarness(opts: HarnessOptions = {}) {
   };
   const silentChannels = opts.silentChannels ?? [];
 
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
-    const correlationId = payload.correlationId as string;
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
+    const correlationId = envelope?.correlationId as string;
     if (silentChannels.includes(channel)) return; // request swallowed — no reply ever
 
     let resultChannel: string;
@@ -216,12 +216,15 @@ function createHarness(opts: HarnessOptions = {}) {
     if (state.rejectRemaining > 0) {
       state.rejectRemaining--;
       queueMicrotask(() => {
-        (transportBus.get(resultChannel.replace('-result', '-failed') as never) as { next(v: unknown): void })
-          .next({ correlationId, error: { message: 'rejected by test' } });
+        transportBus.emit(
+          resultChannel.replace('-result', '-failed') as never,
+          ({ message: 'rejected by test' }) as never,
+          { correlationId },
+        );
       });
     } else {
       queueMicrotask(() => {
-        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
       });
     }
   });
@@ -231,8 +234,8 @@ function createHarness(opts: HarnessOptions = {}) {
     bus: transportBus,
     subscribeToResource,
     state$: (opts.state$ ?? new BehaviorSubject<ConnectionState>('open')).asObservable(),
-    onEmit: (channel, payload) => {
-      void emitSpy(channel, payload);
+    onEmit: (channel, payload, envelope) => {
+      void emitSpy(channel, payload, envelope);
     },
   });
 
@@ -578,11 +581,11 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       await firstDefined(browse.annotations(RID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
 
-      eventBus.get('mark:added').next(fakeMarkAdded(RID, AID));
+      eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
       await flush();
       expect(emitSpy).toHaveBeenCalledTimes(3); // annotations + events refetched
 
-      eventBus.get('mark:removed').next(fakeMarkRemoved(RID, AID));
+      eventBus.emit('mark:removed', fakeMarkRemoved(RID, AID));
       await flush();
       // Each is independent; mark:removed also fires annotations + events refetch.
       expect(emitSpy).toHaveBeenCalledTimes(5);
@@ -620,7 +623,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       await firstDefined(browse.resource(RID_B));
       expect(emitSpy).toHaveBeenCalledTimes(3);
 
-      eventBus.get('bus:resume-gap').next(fakeBusResumeGap(RID_A, 'retention-exceeded'));
+      eventBus.emit('bus:resume-gap', fakeBusResumeGap(RID_A, 'retention-exceeded'));
       await flush();
 
       // Keys in scope A refetched; key in scope B untouched (aside from
@@ -639,7 +642,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       await firstDefined(browse.annotations(RID));
       expect(emitSpy).toHaveBeenCalledTimes(2);
 
-      eventBus.get('bus:resume-gap').next(fakeBusResumeGap(undefined, 'unparseable-last-event-id'));
+      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'unparseable-last-event-id'));
       await flush();
 
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
@@ -659,7 +662,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       // mark:delete-ok → remove path.
       const deleteOkPayload: components['schemas']['MarkDeleteOk'] = { response: { annotationId: AID } };
-      eventBus.get('mark:delete-ok').next(deleteOkPayload);
+      eventBus.emit('mark:delete-ok', deleteOkPayload);
       await flush();
 
       // Nothing else was fetched after the remove: no refetch side effect.
@@ -678,7 +681,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       // No top-level `annotation`: the enricher declined, so there is nothing to
       // write through. Returning early left the old body on screen.
-      eventBus.get('mark:body-updated').next(fakeMarkBodyUpdated(RID, mockAnnotation(AID, 'res-1')));
+      eventBus.emit('mark:body-updated', fakeMarkBodyUpdated(RID, mockAnnotation(AID, 'res-1')));
       await flush();
 
       expect(listFetches()).toBeGreaterThan(before);
@@ -704,7 +707,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       };
 
       // The enriched annotation the EventStore attaches, typed by EventMap.
-      eventBus.get('mark:body-updated').next({ ...fakeMarkBodyUpdated(RID, updated), annotation: updated });
+      eventBus.emit('mark:body-updated', { ...fakeMarkBodyUpdated(RID, updated), annotation: updated });
       await flush();
 
       const list = await firstDefined(browse.annotations(RID));
@@ -765,7 +768,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       browse.dispose();
       // mark:added would invalidate the annotation-list + events caches —
       // with the namespace disposed, its bus subscriptions are detached.
-      eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-9'));
+      eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-9'));
       await flush();
 
       expect(emitSpy).toHaveBeenCalledTimes(1); // nothing refetched
@@ -816,7 +819,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       // The roster's one real staleness event — a gateway restart with a
       // changed TOML — necessarily presents as an SSE gap.
-      eventBus.get('bus:resume-gap').next(fakeBusResumeGap(undefined, 'retention window exceeded'));
+      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'retention window exceeded'));
       await flush();
 
       const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;

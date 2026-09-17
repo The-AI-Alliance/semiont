@@ -659,17 +659,17 @@
     },
     {
       "channel": "yield:clone-persist-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -721,7 +721,7 @@
       "shape": "envelope",
       "schema": "CloneResourceWithTokenResponse",
       "validate": null,
-      "ts": "{ correlationId: string; response: components['schemas']['CloneResourceWithTokenResponse'] }",
+      "ts": "{ response: components['schemas']['CloneResourceWithTokenResponse'] }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -733,17 +733,17 @@
     },
     {
       "channel": "yield:clone-token-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -751,7 +751,7 @@
       "shape": "envelope",
       "schema": "GetResourceByTokenResponse",
       "validate": null,
-      "ts": "{ correlationId: string; response: components['schemas']['GetResourceByTokenResponse'] }",
+      "ts": "{ response: components['schemas']['GetResourceByTokenResponse'] }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -763,17 +763,17 @@
     },
     {
       "channel": "yield:clone-resource-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -793,17 +793,17 @@
     },
     {
       "channel": "yield:clone-create-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -1156,7 +1156,7 @@
       "channel": "mark:archive-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [
           "  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed",
@@ -1189,7 +1189,7 @@
       "channel": "mark:unarchive-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1218,7 +1218,7 @@
       "channel": "mark:update-entity-types-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [
           "  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack",
@@ -1546,7 +1546,7 @@
       "channel": "frame:entity-type-add-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [
           "",
@@ -1581,7 +1581,7 @@
       "channel": "frame:tag-schema-add-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1770,7 +1770,7 @@
       "channel": "gather:failed",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId: string; annotationId: string } & components['schemas']['CommandError']",
+      "ts": "{ annotationId: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1814,7 +1814,7 @@
       "channel": "gather:resource-failed",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId: string; resourceId: string } & components['schemas']['CommandError']",
+      "ts": "{ resourceId: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1845,7 +1845,7 @@
       "channel": "gather:summary-result",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId: string; response: Record<string, unknown> }",
+      "ts": "{ response: Record<string, unknown> }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1857,17 +1857,17 @@
     },
     {
       "channel": "gather:summary-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -1924,7 +1924,7 @@
       "channel": "browse:resource-result",
       "shape": "custom",
       "validate": "BrowseResourceResult",
-      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
+      "ts": "{\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1936,17 +1936,17 @@
     },
     {
       "channel": "browse:resource-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -1996,17 +1996,17 @@
     },
     {
       "channel": "browse:anchored-text-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -2030,7 +2030,7 @@
       "channel": "browse:resources-result",
       "shape": "custom",
       "validate": "BrowseResourcesResult",
-      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {\n      resources: ResourceDescriptor[];\n    };\n  }",
+      "ts": "{\n    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {\n      resources: ResourceDescriptor[];\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2042,10 +2042,10 @@
     },
     {
       "channel": "browse:resources-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2076,7 +2076,7 @@
       "channel": "browse:annotations-result",
       "shape": "custom",
       "validate": "BrowseAnnotationsResult",
-      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
+      "ts": "{\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2088,10 +2088,10 @@
     },
     {
       "channel": "browse:annotations-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2122,7 +2122,7 @@
       "channel": "browse:annotation-result",
       "shape": "custom",
       "validate": "BrowseAnnotationResult",
-      "ts": "{\n    correlationId: string;\n    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {\n      annotation: Annotation;\n      resource: ResourceDescriptor | null;\n      resolvedResource: ResourceDescriptor | null;\n    };\n  }",
+      "ts": "{\n    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {\n      annotation: Annotation;\n      resource: ResourceDescriptor | null;\n      resolvedResource: ResourceDescriptor | null;\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2134,10 +2134,10 @@
     },
     {
       "channel": "browse:annotation-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2181,10 +2181,10 @@
     },
     {
       "channel": "browse:events-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2228,10 +2228,10 @@
     },
     {
       "channel": "browse:annotation-history-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2262,7 +2262,7 @@
       "channel": "browse:annotation-context-result",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId: string; response: Record<string, unknown> }",
+      "ts": "{ response: Record<string, unknown> }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2274,10 +2274,10 @@
     },
     {
       "channel": "browse:annotation-context-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2321,10 +2321,10 @@
     },
     {
       "channel": "browse:referenced-by-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2368,10 +2368,10 @@
     },
     {
       "channel": "browse:entity-types-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2415,10 +2415,10 @@
     },
     {
       "channel": "browse:tag-schemas-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2462,10 +2462,10 @@
     },
     {
       "channel": "browse:agents-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2511,7 +2511,7 @@
       "channel": "browse:directory-failed",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId: string; path: string } & components['schemas']['CommandError']",
+      "ts": "{ path: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3023,17 +3023,17 @@
     },
     {
       "channel": "job:status-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId } & CommandError"
+        "trailing": "// CommandError"
       }
     },
     {
@@ -3053,10 +3053,10 @@
     },
     {
       "channel": "job:create-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3070,7 +3070,7 @@
       "channel": "job:claimed",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId: string; response: Record<string, unknown> }",
+      "ts": "{ response: Record<string, unknown> }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3082,10 +3082,10 @@
     },
     {
       "channel": "job:claim-failed",
-      "shape": "corrIntersect",
+      "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "{ correlationId: string } & components['schemas']['CommandError']",
+      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3099,7 +3099,7 @@
       "channel": "job:cancel-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string; response: { cancelled: number } }",
+      "ts": "{ response: { cancelled: number } }",
       "docs": {
         "lead": [
           "  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled",
@@ -3211,7 +3211,7 @@
       "channel": "weave:rebuild-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3225,7 +3225,7 @@
       "channel": "weave:rebuild-failed",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string; message: string }",
+      "ts": "{ message: string }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3261,7 +3261,7 @@
       "channel": "smelt:rebuild-anchors-ok",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string }",
+      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3275,7 +3275,7 @@
       "channel": "smelt:rebuild-anchors-failed",
       "shape": "custom",
       "validate": null,
-      "ts": "{ correlationId?: string; message: string }",
+      "ts": "{ message: string }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3868,7 +3868,6 @@
       "yield:clone",
       "yield:move-failed",
       "mark:create",
-      "mark:body-update-failed",
       "mark:select-comment",
       "mark:select-tag",
       "mark:select-assessment",
@@ -3942,7 +3941,8 @@
       "mark:unarchived",
       "job:started",
       "job:completed",
-      "job:failed"
+      "job:failed",
+      "mark:body-update-failed"
     ]
   },
   "audience": {
@@ -3987,7 +3987,8 @@
       "job:cancel",
       "job:start",
       "mark:update-body",
-      "weave:applied"
+      "weave:applied",
+      "mark:body-update-failed"
     ]
   }
 }

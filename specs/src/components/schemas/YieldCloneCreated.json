@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Success response after creating a cloned resource.",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "response": {
       "type": "object",
       "properties": {
@@ -12,8 +9,12 @@
           "type": "string"
         }
       },
-      "required": ["resourceId"]
+      "required": [
+        "resourceId"
+      ]
     }
   },
-  "required": ["correlationId", "response"]
+  "required": [
+    "response"
+  ]
 }

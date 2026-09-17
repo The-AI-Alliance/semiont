@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Command to create a new job via the event bus",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "_userId": {
       "type": "string",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
@@ -14,7 +11,7 @@
     },
     "resourceId": {
       "type": "string",
-      "description": "Resource the job operates on. REQUIRED for every jobType EXCEPT 'generation', where it must be ABSENT: the dispatcher derives it from params.context.focus (the context is authoritative) and REJECTS a supplied value via job:create-failed. Both directions are enforced at the dispatcher \u2014 this schema cannot express the per-jobType conditionality."
+      "description": "Resource the job operates on. REQUIRED for every jobType EXCEPT 'generation', where it must be ABSENT: the dispatcher derives it from params.context.focus (the context is authoritative) and REJECTS a supplied value via job:create-failed. Both directions are enforced at the dispatcher — this schema cannot express the per-jobType conditionality."
     },
     "params": {
       "type": "object",
@@ -22,7 +19,6 @@
     }
   },
   "required": [
-    "correlationId",
     "jobType",
     "params"
   ]

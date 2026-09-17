@@ -31,7 +31,7 @@ import { registerCorrelationRegistryProvider } from '@semiont/observability';
 import { CORRELATED_CHANNELS } from './channels';
 import { createInProcessSignalPlane } from './in-process';
 import type { SignalPlane } from './interface';
-import { CLAIM_CHANNEL, LEDGER_ADDRESS, createCorrelationRegistry, type RetainedReply } from './ledger';
+import { CLAIM_CHANNEL, LEDGER_ADDRESS, createCorrelationRegistry, type CorrelationRegistry, type RetainedReply } from './ledger';
 
 export interface SignalComposition {
   plane: SignalPlane;
@@ -40,7 +40,10 @@ export interface SignalComposition {
   claim(cid: string, clientId: string, principalDid: string | undefined): 'ok' | 'conflict' | 'at-capacity';
   owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
   lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
-  mayDeliver(channel: string, payload: unknown, clientId: string, principalDid: string | undefined): boolean;
+  /** Derived from the registry rather than restated: one declaration of the
+   *  entitlement gate, and this file stays clear of the correlation
+   *  vocabulary the P0.5 census bans on the plane side. */
+  mayDeliver: CorrelationRegistry['mayDeliver'];
   occupancy(): { claims: number; retainedReplies: number };
   dispose(): void;
 }
@@ -65,9 +68,9 @@ export function compositionFor(eventBus: EventBus, plane?: SignalPlane): SignalC
     address: LEDGER_ADDRESS,
     global: CORRELATED_CHANNELS,
     scoped: [],
-    onFrame: (channel, payload) => {
+    onFrame: (channel, payload, envelope) => {
       if (channel === CLAIM_CHANNEL) ledger.observeClaim(payload);
-      else ledger.observe(channel, payload);
+      else ledger.observe(channel, payload, envelope.meta);
     },
   });
 

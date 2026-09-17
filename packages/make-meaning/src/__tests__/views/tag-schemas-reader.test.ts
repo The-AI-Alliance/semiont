@@ -153,7 +153,7 @@ describe('Tag Schemas Projection Reader', () => {
       // Drive the registration through the bus, the way the SDK and HTTP
       // gateway do in production. `_userId` is normally injected by the
       // gateway.
-      eventBus.get('frame:add-tag-schema').next({
+      eventBus.emit('frame:add-tag-schema', {
         schema: SAMPLE_SCHEMA,
         _userId: makeUserId('did:web:test:users:test'),
       } as never);

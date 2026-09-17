@@ -368,7 +368,7 @@ constraint is:
 
 Adding a new bus event → invalidation mapping MUST NOT change the
 effect of any existing mapping. This is a structural rule: each
-`bus.get('X').subscribe(...)` handler in the cache's
+`bus.on('X').subscribe(...)` handler in the cache's
 `subscribeToEvents()` is independent. Debugging becomes tractable
 only if we can read one handler at a time and understand its full
 effect.

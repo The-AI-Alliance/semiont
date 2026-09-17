@@ -15,10 +15,27 @@ import type {
   ClientSubscriptionSpec,
   IngestReceipt,
   OnFrame,
+  PlaneEnvelope,
   PlaneSubscription,
   SignalPlane,
 } from './interface';
 import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
+
+/** The frame's envelope, as the seam's `PlaneEnvelope`.
+ *
+ *  `scope` is the one field this fabric INTERPRETS; everything else is
+ *  ferried verbatim into `meta`. Written that way round on purpose — the
+ *  driver must not learn the vocabulary of what it carries (the P0.5
+ *  census), so nothing here names a key of the metadata. */
+function envelopeOf(frame: { scope?: string }): PlaneEnvelope {
+  const { payload: _payload, scope, ...rest } = frame as { payload: unknown; scope?: string };
+  const meta: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rest)) if (typeof v === 'string') meta[k] = v;
+  // Absent, not empty: a frame that carried no metadata must present the same
+  // envelope here as it does across a broker, or the conformance suite would
+  // be comparing fabrics that agree on delivery and differ on shape.
+  return Object.keys(meta).length === 0 ? { scope } : { scope, meta };
+}
 
 interface HandlerGroup {
   members: OnFrame[];
@@ -45,11 +62,16 @@ export function createInProcessSignalPlane(
   };
 
   return {
-    ingest(channel, payload, scope): IngestReceipt {
-      const bus = scope ? eventBus.scope(scope) : eventBus;
-      const subject = bus.get(channel as keyof EventMap);
-      const observers = subject.observers.length;
-      subject.next(payload as never);
+    ingest(channel, payload, envelope): IngestReceipt {
+      const bus = envelope?.scope ? eventBus.scope(envelope.scope) : eventBus;
+      // The whole envelope rides through: the in-process fabric is the bus,
+      // and a handler must read the same envelope here as over a broker.
+      // Spread, not destructured: the driver hands the ferried metadata to the
+      // bus without naming a single key of it. Reading one would make this
+      // driver a reader of gateway policy, which the P0.5 census forbids.
+      const observers = bus.emit(channel as keyof EventMap, payload as never, {
+        ...envelope?.meta,
+      });
       return { observers };
     },
 
@@ -65,8 +87,8 @@ export function createInProcessSignalPlane(
       for (const channel of spec.global) {
         subs.push(
           track(
-            eventBus.get(channel as keyof EventMap).subscribe((payload) => {
-              spec.onFrame(channel, payload, undefined);
+            eventBus.frames(channel as keyof EventMap).subscribe((frame) => {
+              spec.onFrame(channel, frame.payload, envelopeOf(frame));
             }),
           ),
         );
@@ -76,8 +98,8 @@ export function createInProcessSignalPlane(
         for (const channel of entry.channels) {
           subs.push(
             track(
-              scopedBus.get(channel as keyof EventMap).subscribe((payload) => {
-                spec.onFrame(channel, payload, entry.scope);
+              scopedBus.frames(channel as keyof EventMap).subscribe((frame) => {
+                spec.onFrame(channel, frame.payload, envelopeOf(frame));
               }),
             ),
           );
@@ -107,7 +129,7 @@ export function createInProcessSignalPlane(
     deliver(address, channel, payload): void {
       const box = inboxes.get(address);
       if (!box) return;
-      for (const onFrame of box) onFrame(channel, payload, undefined);
+      for (const onFrame of box) onFrame(channel, payload, {});
     },
 
     subscribeHandlers(groupName, channels, onFrame): PlaneSubscription {
@@ -123,12 +145,12 @@ export function createInProcessSignalPlane(
           g.taps.set(
             channel,
             track(
-              eventBus.get(channel as keyof EventMap).subscribe((payload) => {
+              eventBus.frames(channel as keyof EventMap).subscribe((frame) => {
                 // Group semantics: each frame reaches AT MOST ONE member,
                 // never two (round-robin here; a queue group under NATS).
                 if (g.members.length === 0) return;
                 const target = g.members[g.rr++ % g.members.length]!;
-                target(channel, payload, undefined);
+                target(channel, frame.payload, envelopeOf(frame));
               }),
             ),
           );

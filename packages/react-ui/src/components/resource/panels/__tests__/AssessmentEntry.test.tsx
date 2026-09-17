@@ -178,7 +178,7 @@ describe('AssessmentEntry', () => {
         <AssessmentEntry {...defaultProps} session={session} />
       );
 
-      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.on('browse:click').subscribe(clickHandler);
 
       const entry = container.firstChild as HTMLElement;
       await userEvent.click(entry);

@@ -14,7 +14,7 @@ import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
 import { createJobClaimAdapter } from '../job-claim-adapter';
 import { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '../worker-runtime';
 import type { BusRequestPrimitive } from '@semiont/core';
-import { EventBus, type ConnectionState, type EventMap } from '@semiont/core';
+import { EventBus, type BusEnvelope, type ConnectionState, type EventMap } from '@semiont/core';
 
 function fakeBus() {
   // A correlated union, not `{ channel: keyof EventMap; payload: <union> }`:
@@ -22,12 +22,13 @@ function fakeBus() {
   // would not typecheck even for an emit we know is `job:claim`. This shape
   // lets `channel` narrow `payload` — the same correlation the bus itself
   // now carries.
-  type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K] } }[keyof EventMap];
+  type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; correlationId?: string } }[keyof EventMap];
   const emits: Emitted[] = [];
   const eventBus = new EventBus();
 
   const bus: BusRequestPrimitive = {
-    stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
+    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
@@ -36,7 +37,7 @@ function fakeBus() {
     // In-process fixture: replies are pushed synchronously onto the bus
     // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
     state$: new BehaviorSubject<ConnectionState>('open'),
-    emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K]) => {
+    emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope) => {
       // TypeScript correlates `channel` with `payload` on READ (see
       // `claimAt`) but not on WRITE through a type parameter: while `K` is
       // unresolved it will not accept `{ channel: K; payload: EventMap[K] }`
@@ -44,15 +45,15 @@ function fakeBus() {
       // construction — they are this call's own two arguments — so this is
       // the harness's single assertion, and it is what buys narrowing at
       // every read site.
-      emits.push({ channel, payload } as Emitted);
+      emits.push({ channel, payload, correlationId: envelope?.correlationId } as Emitted);
       return -1;
     }),
   };
 
   return {
     bus,
-    pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K]) =>
-      eventBus.get(channel).next(payload),
+    pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
+      eventBus.emit(channel, payload, { correlationId }),
     emits,
     /** The `job:claim` these tests read, narrowed by its channel — no cast. */
     claimAt: (i: number): EventMap['job:claim'] => {
@@ -62,6 +63,8 @@ function fakeBus() {
       }
       return e.payload;
     },
+    /** The key the adapter minted onto that claim's ENVELOPE. */
+    claimCidAt: (i: number): string | undefined => emits[i]?.correlationId,
   };
 }
 
@@ -112,13 +115,12 @@ describe('createJobClaimAdapter', () => {
     // Claim-by-type (JOB-QUEUE-DRIVER P2): the request names the worker's
     // TYPES; the claimed job's identity arrives in the response.
     expect(payload.types).toEqual(['generation']);
-    expect(typeof payload.correlationId).toBe('string');
+    expect(typeof h.claimCidAt(0)).toBe('string');
 
     // Simulate successful claim response.
     h.pushEvent('job:claimed', {
-      correlationId: payload.correlationId,
       response: { params: { foo: 'bar' }, metadata: { id: 'j1', type: 'generation', userId: 'u1' } },
-    });
+    }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active).toMatchObject({ jobId: 'j1', userId: 'u1', params: { foo: 'bar' } });
@@ -133,8 +135,7 @@ describe('createJobClaimAdapter', () => {
     h.pushEvent('job:queued', { jobId: 'j2', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
 
-    const corrId = h.claimAt(0).correlationId;
-    h.pushEvent('job:claim-failed', { correlationId: corrId, message: 'claim lost' });
+    h.pushEvent('job:claim-failed', { message: 'claim lost' }, h.claimCidAt(0));
 
     await new Promise((r) => setTimeout(r, 10));
     expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
@@ -149,9 +150,8 @@ describe('createJobClaimAdapter', () => {
     h.pushEvent('job:queued', { jobId: 'j3', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: { id: 'j3', type: 'generation', userId: 'u' } },
-    });
+    }, h.claimCidAt(0));
     await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
 
     adapter.completeJob();
@@ -229,9 +229,8 @@ describe('createJobClaimAdapter', () => {
       h.pushEvent('job:queued', { jobId: 'jv1', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
       await new Promise((r) => setTimeout(r, 0));
       h.pushEvent('job:claimed', {
-        correlationId: h.claimAt(0).correlationId,
         response: { params: {}, metadata: { id: 'jv1', type: 'generation', userId: 'u' } },
-      });
+      }, h.claimCidAt(0));
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
 
       const claimed = adapter.vitals();
@@ -285,9 +284,8 @@ describe('createJobClaimAdapter', () => {
       h.pushEvent('job:queued', { jobId: 'jv2', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
       await new Promise((r) => setTimeout(r, 0));
       h.pushEvent('job:claimed', {
-        correlationId: h.claimAt(0).correlationId,
         response: { params: {}, metadata: { id: 'jv2', type: 'generation', userId: 'u' } },
-      });
+      }, h.claimCidAt(0));
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
       adapter.errors$.subscribe(() => {});
 
@@ -319,9 +317,8 @@ describe('claimed-job checkpoint (A3)', () => {
     h.pushEvent('job:queued', { jobId: 'jc1', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: { id: 'jc1', type: 'generation', userId: 'u1', completedUnits: ['Person', 'Date'] } },
-    });
+    }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.completedUnits).toEqual(['Person', 'Date']);
@@ -336,13 +333,12 @@ describe('claimed-job checkpoint (A3)', () => {
     h.pushEvent('job:queued', { jobId: 'jc-cur', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: {
         id: 'jc-cursor', type: 'generation',
         userId: 'u1', completedUnits: [],
         unitCursors: { Person: { next: 12_400, size: 560, found: 20, emitted: 18 } },
       } },
-    });
+    }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.unitCursors).toEqual({ Person: { next: 12_400, size: 560, found: 20, emitted: 18 } });
@@ -361,7 +357,6 @@ describe('claimed-job checkpoint (A3)', () => {
     h.pushEvent('job:queued', { jobId: 'jc-cur2', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: {
         id: 'jc-cursor', type: 'generation',
         userId: 'u1', completedUnits: [],
@@ -370,7 +365,7 @@ describe('claimed-job checkpoint (A3)', () => {
           Location: { next: 900, size: 300, found: 4, emitted: 4 },          // complete
         },
       } },
-    });
+    }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     // The position is dropped with the counts — not kept and zero-filled.
@@ -386,9 +381,8 @@ describe('claimed-job checkpoint (A3)', () => {
     h.pushEvent('job:queued', { jobId: 'jc2', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
     await new Promise((r) => setTimeout(r, 0));
     h.pushEvent('job:claimed', {
-      correlationId: h.claimAt(0).correlationId,
       response: { params: {}, metadata: { id: 'jc4', type: 'generation', userId: 'u1' } },
-    });
+    }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.completedUnits).toEqual([]);

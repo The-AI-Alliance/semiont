@@ -24,3 +24,9 @@ export {
   type FaultyTransportConfig,
   type RequestLogEntry,
 } from './faulty-transport';
+
+export {
+  assertCarriesEnvelope,
+  type EnvelopeRelay,
+  type EnvelopeConformanceSpec,
+} from './envelope-conformance';

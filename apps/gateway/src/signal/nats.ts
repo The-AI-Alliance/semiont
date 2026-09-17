@@ -79,6 +79,21 @@ export interface NatsSignalPlaneOptions extends SignalPlaneOptions {
   reconnect?: boolean;
 }
 
+/**
+ * A frame as it travels over NATS: routing metadata beside the payload. The
+ * driver ferries `meta` verbatim and never reads a key out of it — that is
+ * what keeps the seam free of gateway policy (P0.5 census). Decoded
+ * defensively: a frame from an older build has no wrapper, and reading its
+ * whole body as the payload is the correct reading of it.
+ */
+function decodeFrame(raw: unknown): { meta?: Record<string, string>; payload: unknown } {
+  if (raw !== null && typeof raw === 'object' && 'payload' in (raw as object)) {
+    const framed = raw as { meta?: Record<string, string>; payload: unknown };
+    return { meta: framed.meta, payload: framed.payload };
+  }
+  return { payload: raw };
+}
+
 export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promise<SignalPlane> {
   const options = resolveSignalPlaneOptions(opts);
   const nc: NatsConnection = await connect({
@@ -128,9 +143,11 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
   };
 
   return {
-    ingest(channel, payload, scope): IngestReceipt {
-      const subject = scope ? subjectForScoped(scope, channel) : subjectForChannel(channel);
-      nc.publish(subject, codec.encode(payload));
+    ingest(channel, payload, envelope): IngestReceipt {
+      const subject = envelope?.scope ? subjectForScoped(envelope.scope, channel) : subjectForChannel(channel);
+      // The envelope travels WITH the payload on the wire — a broker frame is
+      // { meta?, payload } — routing metadata the driver ferries and never reads.
+      nc.publish(subject, codec.encode({ meta: envelope?.meta, payload }));
       // A remote fabric cannot count observers: report nothing, never a
       // fabricated zero (see IngestReceipt).
       return {};
@@ -149,7 +166,10 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
             nc.subscribe(subjectForChannel(channel), {
               callback: (_err, msg) => {
                 if (_err) return;
-                spec.onFrame(channel, codec.decode(msg.data), undefined);
+                {
+                  const frame = decodeFrame(codec.decode(msg.data));
+                  spec.onFrame(channel, frame.payload, { meta: frame.meta });
+                }
               },
             }),
           ),
@@ -162,7 +182,10 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
               nc.subscribe(subjectForScoped(entry.scope, channel), {
                 callback: (_err, msg) => {
                   if (_err) return;
-                  spec.onFrame(channel, codec.decode(msg.data), entry.scope);
+                  {
+                    const frame = decodeFrame(codec.decode(msg.data));
+                    spec.onFrame(channel, frame.payload, { scope: entry.scope, meta: frame.meta });
+                  }
                 },
               }),
             ),
@@ -175,7 +198,7 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
             callback: (_err, msg) => {
               if (_err) return;
               const envelope = codec.decode(msg.data) as InboxEnvelope;
-              spec.onFrame(envelope.channel, envelope.payload, undefined);
+              spec.onFrame(envelope.channel, envelope.payload, {});
             },
           }),
         ),
@@ -199,7 +222,10 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
               queue: group,
               callback: (_err, msg) => {
                 if (_err) return;
-                onFrame(channel, codec.decode(msg.data), undefined);
+                {
+                  const frame = decodeFrame(codec.decode(msg.data));
+                  onFrame(channel, frame.payload, { meta: frame.meta });
+                }
               },
             }),
           ),

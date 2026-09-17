@@ -59,7 +59,33 @@ export function toReplyAddress(clientId: string): ReplyAddress {
 }
 
 /** One frame as the plane carries it: channel, payload, optional scope. */
-export type OnFrame = (channel: string, payload: unknown, scope: string | undefined) => void;
+/**
+ * A delivered frame: the channel, its payload, and the ENVELOPE.
+ *
+ * The envelope was a bare `scope` until BUS-CARRIES-FRAMES P3. That was the
+ * same asymmetry the bus and the transport both had — one routing fact
+ * travelling as its own argument while `correlationId` had to be smuggled
+ * inside the payload. A handler cannot tell which fabric it is on, so every
+ * fabric carries the same envelope.
+ */
+export type OnFrame = (channel: string, payload: unknown, envelope: PlaneEnvelope) => void;
+
+/**
+ * Routing facts that ride beside a payload.
+ *
+ * `scope` is named because the DRIVER interprets it — it selects the subject a
+ * frame is published on. Everything else is `meta`: carried verbatim, never
+ * read. That split is deliberate and the P0.5 census enforces it. A driver
+ * that learned the correlation vocabulary would be a driver that had to
+ * understand gateway policy, and (before the key left payloads) one that had
+ * to deserialize an application payload to find its own routing key.
+ *
+ * The gateway puts `{ correlationId }` in `meta`; no driver names it.
+ */
+export interface PlaneEnvelope {
+  readonly scope?: string;
+  readonly meta?: Readonly<Record<string, string>>;
+}
 
 export interface ScopedChannels {
   scope: string;
@@ -98,7 +124,7 @@ export interface IngestReceipt {
 }
 
 export interface SignalPlane {
-  ingest(channel: string, payload: unknown, scope?: string): IngestReceipt;
+  ingest(channel: string, payload: unknown, envelope?: PlaneEnvelope): IngestReceipt;
   subscribeClient(spec: ClientSubscriptionSpec): PlaneSubscription;
   /**
    * Handler mode. `group` names the competing-consumer group; each frame on

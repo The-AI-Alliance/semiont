@@ -174,12 +174,12 @@ describe('entity types — Layer 2 (BrowseNamespace + Cache)', () => {
 
     // A realistic session emits these after opening a resource and
     // creating a highlight. None of them should affect entity types.
-    eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-1'));
-    eventBus.get('mark:removed').next(fakeMarkRemoved(RID, 'ann-1'));
-    eventBus.get('yield:create-ok').next(fakeYieldCreated('res-1'));
-    eventBus.get('yield:update-ok').next({ response: { resourceId: 'res-1' } });
-    eventBus.get('mark:archived').next(fakeMarkArchived(RID));
-    eventBus.get('mark:unarchived').next(fakeMarkUnarchived(RID));
+    eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-1'));
+    eventBus.emit('mark:removed', fakeMarkRemoved(RID, 'ann-1'));
+    eventBus.emit('yield:create-ok', fakeYieldCreated('res-1'));
+    eventBus.emit('yield:update-ok', { response: { resourceId: 'res-1' } });
+    eventBus.emit('mark:archived', fakeMarkArchived(RID));
+    eventBus.emit('mark:unarchived', fakeMarkUnarchived(RID));
 
     await flush();
     await flush();
@@ -285,9 +285,9 @@ describe('entity types — Layer 3 (state-unit pipe over real cache)', () => {
       const { browse, eventBus } = createHarness();
 
       await firstDefined(browse.entityTypes());
-      eventBus.get('mark:added').next(fakeMarkAdded(RID, 'ann-1'));
-      eventBus.get('yield:create-ok').next(fakeYieldCreated('res-1'));
-      eventBus.get('mark:archived').next(fakeMarkArchived(RID));
+      eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-1'));
+      eventBus.emit('yield:create-ok', fakeYieldCreated('res-1'));
+      eventBus.emit('mark:archived', fakeMarkArchived(RID));
       await flush();
 
       const lateVmPipe$ = browse.entityTypes().pipe(map((st) => readyValue(st) ?? []));

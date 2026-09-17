@@ -29,12 +29,11 @@ describe('createMatchStateUnit', () => {
     tc = withMatch(searchFn);
     const stateUnit = createMatchStateUnit(tc.client, RID);
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: { annotation: {} } as any,
-      correlationId: 'corr-1',
-    } as any);
+    } as any, { correlationId: 'corr-1' });
 
     expect(searchFn).toHaveBeenCalledOnce();
     expect(searchFn).toHaveBeenCalledWith(
@@ -56,14 +55,13 @@ describe('createMatchStateUnit', () => {
     const stateUnit = createMatchStateUnit(tc.client, RID);
 
     const results: unknown[] = [];
-    tc.bus.get('match:search-results').subscribe(r => results.push(r));
+    tc.bus.on('match:search-results').subscribe(r => results.push(r));
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
-      correlationId: 'corr-1',
-    } as any);
+    } as any, { correlationId: 'corr-1' });
 
     expect(results).toHaveLength(1);
     expect(results[0]).toEqual(mockResult);
@@ -77,19 +75,18 @@ describe('createMatchStateUnit', () => {
     tc = withMatch(searchFn);
     const stateUnit = createMatchStateUnit(tc.client, RID);
 
-    const failures: unknown[] = [];
-    tc.bus.get('match:search-failed').subscribe(f => failures.push(f));
+    const failures: { correlationId?: string; payload: unknown }[] = [];
+    tc.bus.frames('match:search-failed').subscribe(f => failures.push(f));
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
-      correlationId: 'corr-1',
-    } as any);
+    } as any, { correlationId: 'corr-1' });
 
     expect(failures).toHaveLength(1);
-    expect(failures[0]).toEqual(expect.objectContaining({
-      correlationId: 'corr-1',
+    expect(failures[0]!.correlationId).toBe('corr-1');
+    expect(failures[0]!.payload).toEqual(expect.objectContaining({
       referenceId: 'ref-1',
       error: 'search failed',
     }));
@@ -101,15 +98,14 @@ describe('createMatchStateUnit', () => {
     const searchFn = vi.fn(() => new Observable(() => {}));
     tc = withMatch(searchFn);
     const stateUnit = createMatchStateUnit(tc.client, RID);
-    const failures: unknown[] = [];
-    tc.bus.get('match:search-failed').subscribe(f => failures.push(f));
+    const failures: { correlationId?: string; payload: unknown }[] = [];
+    tc.bus.frames('match:search-failed').subscribe(f => failures.push(f));
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
-      correlationId: 'corr-1',
-    } as any);
+    } as any, { correlationId: 'corr-1' });
 
     vi.advanceTimersByTime(60_000);
     expect(failures).toHaveLength(1);
@@ -124,12 +120,11 @@ describe('createMatchStateUnit', () => {
     const stateUnit = createMatchStateUnit(tc.client, RID);
     stateUnit.dispose();
 
-    tc.bus.get('match:search-requested').next({
+    tc.bus.emit('match:search-requested', {
       resourceId: RID as string,
       referenceId: 'ref-1',
       context: {} as any,
-      correlationId: 'corr-1',
-    } as any);
+    } as any, { correlationId: 'corr-1' });
 
     expect(searchFn).not.toHaveBeenCalled();
   });

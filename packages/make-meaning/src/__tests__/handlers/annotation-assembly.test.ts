@@ -55,8 +55,8 @@ const request = {
 
 /** Whichever of the two outcomes arrives first, or 'none' if neither does. */
 async function outcomeOf(bus: EventBus): Promise<{ channel: string; message?: string }> {
-  const created = bus.get('mark:create').pipe(take(1));
-  const failed = bus.get('mark:create-failed').pipe(take(1));
+  const created = bus.on('mark:create').pipe(take(1));
+  const failed = bus.on('mark:create-failed').pipe(take(1));
   return firstValueFrom(
     race(
       created.pipe(),
@@ -82,7 +82,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
   it('lets an annotatable target through unchanged', async () => {
     registerAnnotationAssemblyHandler(bus, kbServing('text/markdown'), silentLogger);
     const pending = outcomeOf(bus);
-    bus.get('mark:create-request').next({ correlationId: 'cid-1', resourceId: RID, request, _userId: USER_DID } as never);
+    bus.emit('mark:create-request', { resourceId: RID, request, _userId: USER_DID } as never, { correlationId: 'cid-1' });
     expect((await pending).channel).toBe('mark:create');
   });
 
@@ -90,7 +90,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     // `text/css` is a registry row with `anchoring: 'none'` — known, and declined.
     registerAnnotationAssemblyHandler(bus, kbServing('text/css'), silentLogger);
     const pending = outcomeOf(bus);
-    bus.get('mark:create-request').next({ correlationId: 'cid-2', resourceId: RID, request, _userId: USER_DID } as never);
+    bus.emit('mark:create-request', { resourceId: RID, request, _userId: USER_DID } as never, { correlationId: 'cid-2' });
 
     const outcome = await pending;
     expect(outcome.channel).toBe('mark:create-failed');
@@ -104,7 +104,7 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     // sanely for a type the registry cannot make vocabulary claims about.
     registerAnnotationAssemblyHandler(bus, kbServing('text/x-obscure-notation'), silentLogger);
     const pending = outcomeOf(bus);
-    bus.get('mark:create-request').next({ correlationId: 'cid-3', resourceId: RID, request, _userId: USER_DID } as never);
+    bus.emit('mark:create-request', { resourceId: RID, request, _userId: USER_DID } as never, { correlationId: 'cid-3' });
 
     const outcome = await pending;
     expect(outcome.channel).toBe('mark:create-failed');
@@ -121,9 +121,9 @@ describe('mark:create-request refuses unannotatable targets (MEDIA-CAPABILITY-DI
     // outside of.
     registerAnnotationAssemblyHandler(bus, kbServing('text/css'), silentLogger);
     const failures: unknown[] = [];
-    bus.get('mark:create-failed').subscribe((e) => failures.push(e));
+    bus.on('mark:create-failed').subscribe((e) => failures.push(e));
 
-    bus.get('mark:create').next({ annotation: { id: 'ann-import-1' }, _userId: USER_DID, resourceId: resourceId(RID) } as never);
+    bus.emit('mark:create', { annotation: { id: 'ann-import-1' }, _userId: USER_DID, resourceId: resourceId(RID) } as never);
     await new Promise((r) => setTimeout(r, 50));
 
     expect(failures).toEqual([]);

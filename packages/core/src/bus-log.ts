@@ -58,10 +58,10 @@ export function busLog(
   channel: string,
   payload: unknown,
   scope?: string,
+  correlationId?: string,
 ): void {
   if (!busLogEnabled()) return;
-  const cidRaw = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
-  const cid = typeof cidRaw === 'string' ? cidRaw.slice(0, 8) : undefined;
+  const cid = correlationId ? correlationId.slice(0, 8) : undefined;
   let traceId: string | undefined;
   if (traceIdProvider) {
     try { traceId = traceIdProvider(); } catch { /* noop */ }
@@ -114,12 +114,11 @@ const unobservedReplyWarned = new Set<string>();
  */
 export function warnIfUnobservedReply(
   channel: string,
-  payload: unknown,
+  correlationId: string | undefined,
   observerCount: number,
 ): void {
   if (observerCount > 0) return;
-  const cidRaw = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
-  if (typeof cidRaw !== 'string' || cidRaw.length === 0) return;
+  if (correlationId === undefined || correlationId.length === 0) return;
   // A 0-observer emit on a *bridged* channel is a redundant copy (a global +
   // resource-scoped dual-emit, or an SSE reconnect replay), not a missing
   // forwarder — the first copy already reached the awaiting `take(1)`
@@ -132,7 +131,7 @@ export function warnIfUnobservedReply(
   unobservedReplyWarned.add(channel);
   // eslint-disable-next-line no-console
   console.warn(
-    `[bus DROP] ${channel} cid=${cidRaw.slice(0, 8)} emitted with 0 subscribers and not in ` +
+    `[bus DROP] ${channel} cid=${correlationId.slice(0, 8)} emitted with 0 subscribers and not in ` +
       `BRIDGED_CHANNELS — a correlation reply with no forwarder is dropped, so the awaiting ` +
       `client times out (no error). Bridge it by declaring its operation in BUS_OPERATIONS ` +
       `(packages/core/src/bus-operations.ts) — or, if it is a non-reply broadcast, add it to ` +

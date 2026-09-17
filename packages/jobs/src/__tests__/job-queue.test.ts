@@ -201,7 +201,7 @@ describe('FsJobQueue (driver-specific)', () => {
       const events: unknown[] = [];
       const job = createPendingDetectionJob('job-with-event');
 
-      eventBus.get('job:queued').subscribe(event => {
+      eventBus.on('job:queued').subscribe(event => {
         events.push(event);
       });
 
@@ -232,7 +232,7 @@ describe('FsJobQueue (driver-specific)', () => {
 
       const eventBus = new EventBus();
       const events: { jobId: string }[] = [];
-      eventBus.get('job:queued').subscribe(event => {
+      eventBus.on('job:queued').subscribe(event => {
         events.push(event);
       });
 
@@ -249,7 +249,7 @@ describe('FsJobQueue (driver-specific)', () => {
     test('initialize() announces nothing when pending/ is empty', async () => {
       const eventBus = new EventBus();
       const events: unknown[] = [];
-      eventBus.get('job:queued').subscribe(event => {
+      eventBus.on('job:queued').subscribe(event => {
         events.push(event);
       });
 
@@ -268,7 +268,7 @@ describe('FsJobQueue (driver-specific)', () => {
       await testQueue.createJob(createRunningDetectionJob('job-retry'));
 
       const events: { jobId: string }[] = [];
-      eventBus.get('job:queued').subscribe(event => {
+      eventBus.on('job:queued').subscribe(event => {
         events.push(event);
       });
 

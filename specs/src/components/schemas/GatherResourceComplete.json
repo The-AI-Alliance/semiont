@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Client-generated correlation ID to thread the response back to the originating request"
-    },
     "resourceId": {
       "type": "string",
       "description": "Branded ResourceId of the resource whose context was gathered"
@@ -15,5 +11,8 @@
       "description": "The gathered resource context (unified GatheredContext, focus.kind:'resource')"
     }
   },
-  "required": ["correlationId", "resourceId", "response"]
+  "required": [
+    "resourceId",
+    "response"
+  ]
 }

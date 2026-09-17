@@ -15,7 +15,7 @@
 
 import { vi } from 'vitest';
 import { BehaviorSubject, Observable } from 'rxjs';
-import type { Annotation, ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, ResourceDescriptor as CoreResourceDescriptor } from '@semiont/core';
+import type { Annotation, BusEnvelope, ExtractionOutcome, ConnectionState, Logger, EventMap, IContentTransport, ResourceDescriptor as CoreResourceDescriptor } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceId, userId as makeUserId } from '@semiont/core';
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -160,7 +160,8 @@ export function createFakeWorkerBus() {
   // cast this comment used to apologise for.
   const eventBus = new EventBus();
   const bus: BusRequestPrimitive = {
-    stream: <K extends keyof EventMap>(channel: K) => eventBus.get(channel).asObservable(),
+    stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
+    frames: <K extends keyof EventMap>(channel: K) => eventBus.frames(channel),
     // This double delivers whatever a test pushes at it — subjects are created
     // on demand — so `true` is the truth about it. It does not model a
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
@@ -172,7 +173,7 @@ export function createFakeWorkerBus() {
   return {
     bus,
     push: <K extends SmelterChannel>(channel: K, event: EventMap[K]) =>
-      eventBus.get(channel).next(event),
+      eventBus.emit(channel, event),
   };
 }
 
@@ -290,7 +291,7 @@ export function memoryAnchoredStore(
  * every payload, so `.payload.resourceId` would not typecheck even for an
  * emit we know the channel of.
  */
-export type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K] } }[keyof EventMap];
+export type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; correlationId?: string } }[keyof EventMap];
 
 export function createFakeKsBus(
   resources: ResourceDescriptor[],
@@ -306,13 +307,14 @@ export function createFakeKsBus(
     isSubscribed: () => true,
     // In-process fake — replies are queued on emit, so 'open' is the truth.
     state$: new BehaviorSubject<ConnectionState>('open'),
-    async emit<K extends keyof EventMap>(name: K, payload: EventMap[K]): Promise<number> {
+    async emit<K extends keyof EventMap>(name: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {
+      const correlationId = envelope?.correlationId;
       // The one assertion, and it buys every narrowing below. TypeScript
       // correlates `channel` with `payload` on READ but not on WRITE through a
       // type parameter: while `K` is unresolved it will not accept
       // `{ channel: K; payload: EventMap[K] }` as a member of the union. The
       // pair is correct by construction — it is this call's own arguments.
-      const request = { channel: name, payload } as Emitted;
+      const request = { channel: name, payload, correlationId } as Emitted;
       emitted.push(request);
 
       // `request.channel` narrows `request.payload`, so every field read below
@@ -321,9 +323,8 @@ export function createFakeKsBus(
       // typed `EventBus`, so a canned response that is not the spec's shape is
       // a compile error here rather than a passing test.
       if (request.channel === 'browse:resources-requested') {
-        const { correlationId, offset = 0, limit = 50 } = request.payload;
-        queueMicrotask(() => eventBus.get('browse:resources-result').next({
-          correlationId,
+        const { offset = 0, limit = 50 } = request.payload;
+        queueMicrotask(() => eventBus.emit('browse:resources-result', {
           response: {
             resources: resources.slice(offset, offset + limit),
             total: resources.length,
@@ -331,9 +332,9 @@ export function createFakeKsBus(
             limit,
             matchKind: 'lexical' as const,
           },
-        }));
+        }, { correlationId }));
       } else if (request.channel === 'browse:resource-requested') {
-        const { correlationId, resourceId } = request.payload;
+        const { resourceId } = request.payload;
         const resource = resources.find((r) => r['@id'] === resourceId);
         // Every id resolves: known ones from `resources`, unknown ones to a
         // synthesized descriptor. That is the policy the old fake already
@@ -346,22 +347,23 @@ export function createFakeKsBus(
         // The reply carries annotations and entityReferences too — another
         // thing the cast hid, since the fake sent `{ resource }` alone.
         const anns = annotationsByResource.get(resourceId) ?? [];
-        queueMicrotask(() => eventBus.get('browse:resource-result').next({
-          correlationId,
+        queueMicrotask(() => eventBus.emit('browse:resource-result', {
           response: { resource: found, annotations: anns, entityReferences: [] },
-        }));
+        }, { correlationId }));
       } else if (request.channel === 'browse:annotations-requested') {
-        const { correlationId, resourceId } = request.payload;
+        const { resourceId } = request.payload;
         const annotations = annotationsByResource.get(resourceId) ?? [];
-        queueMicrotask(() => eventBus.get('browse:annotations-result').next({
-          correlationId,
+        queueMicrotask(() => eventBus.emit('browse:annotations-result', {
           response: { annotations, total: annotations.length },
-        }));
+        }, { correlationId }));
       }
       return 1;
     },
+    frames<K extends keyof EventMap>(name: K) {
+      return eventBus.frames(name);
+    },
     stream<K extends keyof EventMap>(name: K): Observable<EventMap[K]> {
-      return eventBus.get(name).asObservable();
+      return eventBus.on(name);
     },
   };
 }

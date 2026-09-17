@@ -258,7 +258,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event on real event bus
-      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.on('browse:click').subscribe(clickHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       await userEvent.click(commentDiv);
@@ -289,7 +289,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event
-      const subscription = eventBus.get('beckon:hover').subscribe(hoverHandler);
+      const subscription = eventBus.on('beckon:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -316,7 +316,7 @@ describe('CommentEntry Component', () => {
       );
 
       // Subscribe to actual event
-      const subscription = eventBus.get('beckon:hover').subscribe(hoverHandler);
+      const subscription = eventBus.on('beckon:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -340,7 +340,7 @@ describe('CommentEntry Component', () => {
         <CommentEntry session={session} {...defaultProps} />
       );
 
-      const subscription = eventBus.get('beckon:hover').subscribe(hoverHandler);
+      const subscription = eventBus.on('beckon:hover').subscribe(hoverHandler);
 
       const commentDiv = container.firstChild as HTMLElement;
       fireEvent.mouseEnter(commentDiv);
@@ -406,7 +406,7 @@ describe('CommentEntry Component', () => {
         <CommentEntry session={session} {...defaultProps} />
       );
 
-      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.on('browse:click').subscribe(clickHandler);
 
       await userEvent.click(screen.getByText('Edit'));
 
@@ -501,7 +501,7 @@ describe('CommentEntry Component', () => {
         <CommentEntry session={session} {...defaultProps} />
       );
 
-      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.on('browse:click').subscribe(clickHandler);
 
       await userEvent.click(screen.getByText('Edit'));
       clickHandler.mockClear();

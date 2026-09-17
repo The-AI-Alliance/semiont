@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Completion payload emitted on the gather:annotation-complete bus channel when annotation context gathering finishes.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Client-generated correlation ID to thread the response back to the originating request"
-    },
     "annotationId": {
       "type": "string",
       "description": "Branded AnnotationId of the annotation whose context was gathered"
@@ -15,5 +11,8 @@
       "description": "The gathered annotation context (unified GatheredContext, focus.kind:'annotation')"
     }
   },
-  "required": ["correlationId", "annotationId", "response"]
+  "required": [
+    "annotationId",
+    "response"
+  ]
 }

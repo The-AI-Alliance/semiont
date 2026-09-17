@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Error payload emitted on match:search-failed SSE channel.",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "referenceId": {
       "type": "string"
     },
@@ -12,5 +9,8 @@
       "type": "string"
     }
   },
-  "required": ["correlationId", "referenceId", "error"]
+  "required": [
+    "referenceId",
+    "error"
+  ]
 }

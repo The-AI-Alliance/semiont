@@ -497,11 +497,11 @@ export class BrowseNamespace implements IBrowseNamespace {
    * viewport geometry and stays a local-only extra; it never crosses a wire.
    */
   click(annotationId: AnnotationId, anchorRect?: AnchorRect): void {
-    this.bus.get('browse:click').next({ annotationId, ...(anchorRect ? { anchorRect } : {}) });
+    this.bus.emit('browse:click', { annotationId, ...(anchorRect ? { anchorRect } : {}) });
   }
 
   openResource(resourceId: ResourceId): void {
-    this.bus.get('browse:resource-open').next({ resourceId });
+    this.bus.emit('browse:resource-open', { resourceId });
   }
 
   resourceViewed(resourceId: ResourceId): void {
@@ -592,7 +592,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   // ── EventBus subscriptions ──────────────────────────────────────────────
 
   /**
-   * Typed shorthand for `eventBus.get(channel).subscribe(handler)`.
+   * Typed shorthand for `eventBus.on(channel).subscribe(handler)`.
    * Preserves per-channel payload typing so handlers read
    * `EventMap[K]` without any casts.
    */
@@ -601,7 +601,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     handler: (payload: EventMap[K]) => void,
   ): void {
     this.busSubs.push(
-      (this.bus.get(channel) as {
+      (this.bus.on(channel) as {
         subscribe(fn: (p: EventMap[K]) => void): { unsubscribe(): void };
       }).subscribe(handler),
     );

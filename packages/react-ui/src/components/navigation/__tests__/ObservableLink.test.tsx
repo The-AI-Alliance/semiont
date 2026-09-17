@@ -35,7 +35,7 @@ describe('ObservableLink', () => {
       { returnShellBus: true }
     );
 
-    const subscription = shellBus!.get('nav:link-clicked').subscribe(handler);
+    const subscription = shellBus!.on('nav:link-clicked').subscribe(handler);
 
     const link = screen.getByRole('link');
     fireEvent.click(link);

@@ -134,7 +134,7 @@ export class FsJobQueue implements JobQueue {
    */
   private announce(job: AnyJob): void {
     if (this.eventBus && 'params' in job && 'resourceId' in job.params) {
-      this.eventBus.get('job:queued').next({
+      this.eventBus.emit('job:queued', {
         jobId: job.metadata.id,
         jobType: job.metadata.type,
         resourceId: job.params.resourceId,

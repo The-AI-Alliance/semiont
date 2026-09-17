@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Request payload sent on the gather:requested bus channel to gather context for an annotation.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Client-generated correlation ID to thread the response back to the originating request"
-    },
     "annotationId": {
       "type": "string",
       "description": "Branded AnnotationId of the annotation to gather context for"
@@ -19,7 +15,6 @@
     }
   },
   "required": [
-    "correlationId",
     "annotationId",
     "resourceId"
   ]

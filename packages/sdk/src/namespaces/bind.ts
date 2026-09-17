@@ -25,7 +25,7 @@ export class BindNamespace implements IBindNamespace {
 
   initiate(input: EventMap['bind:initiate']): void {
     // Local emit: resource-viewer-page-state-unit subscribes via the local bus.
-    this.bus.get('bind:initiate').next(input);
+    this.bus.emit('bind:initiate', input);
   }
 
   reportBodyError(input: EventMap['bind:body-error']): void {
@@ -33,6 +33,6 @@ export class BindNamespace implements IBindNamespace {
     // bind failure caught by a caller with no toast surface (ReferenceEntry's
     // unlink); useOutcomeToasts subscribes and surfaces it. Distinct from the
     // bind:body-update-failed wire reply, which is busRequest plumbing.
-    this.bus.get('bind:body-error').next(input);
+    this.bus.emit('bind:body-error', input);
   }
 }

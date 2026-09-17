@@ -25,6 +25,7 @@
  * built over this transport has no `.auth` / `.admin` namespaces.
  */
 
+import type { BusEnvelope, BusFrame } from '@semiont/core';
 import type { Observable, Subscription } from 'rxjs';
 import { BehaviorSubject, Subject } from 'rxjs';
 import type { SemiontError } from '@semiont/core';
@@ -101,10 +102,10 @@ export class LocalTransport implements ITransport {
   async emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
-    resourceScope?: ResourceId,
+    envelope?: BusEnvelope,
   ): Promise<number> {
-    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
-    recordBusEmit(channel as string, resourceScope as string | undefined);
+    busLog('EMIT', channel as string, payload, envelope?.scope as string | undefined, envelope?.correlationId);
+    recordBusEmit(channel as string, envelope?.scope as string | undefined);
     await withSpan(
       `bus.emit:${channel as string}`,
       () => {
@@ -114,16 +115,17 @@ export class LocalTransport implements ITransport {
         // Gateway-injected `_userId` isn't in every channel's declared payload,
         // so build the stamped object loosely and assert it back to EventMap[K].
         const stamped: Record<string, unknown> = { ...(payload as Record<string, unknown>), _userId: this.userId };
-        const target = resourceScope === undefined
-          ? this.bus.get(channel)
-          : this.bus.scope(resourceScope as string).get(channel);
-        target.next(stamped as EventMap[K]);
+        const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope as string);
+        // The correlation key rides through: an in-process handler must read
+        // the same envelope it would across a broker. `scope` is not repeated
+        // here — targeting the scoped bus IS how it is set.
+        target.emit(channel, stamped as EventMap[K], { correlationId: envelope?.correlationId });
       },
       {
         kind: SpanKind.PRODUCER,
         attrs: {
           'bus.channel': channel as string,
-          ...(resourceScope ? { 'bus.scope': resourceScope as string } : {}),
+          ...(envelope?.scope ? { 'bus.scope': envelope?.scope as string } : {}),
         },
       },
     );
@@ -133,12 +135,16 @@ export class LocalTransport implements ITransport {
   }
 
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void {
-    const sub = this.bus.get(channel).subscribe(handler);
+    const sub = this.bus.on(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.bus.get(channel);
+    return this.bus.on(channel);
+  }
+
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+    return this.bus.frames(channel);
   }
 
   /**
@@ -161,17 +167,20 @@ export class LocalTransport implements ITransport {
     if (this.bridges.includes(bus)) return;
     this.bridges.push(bus);
     for (const channel of BRIDGED_CHANNELS) {
-      const upstream: Observable<unknown> = this.bus.get(channel as keyof EventMap);
+      const upstream = this.bus.frames(channel as keyof EventMap);
       this.bridgeSubs.push(
-        upstream.subscribe((payload) => {
-          busLog('RECV', channel, payload);
+        upstream.subscribe((frame) => {
+          // A bridge FORWARDS a frame. Re-originating one here would strip
+          // the correlation key and strand every awaiting request.
+          const { payload, ...envelope } = frame;
+          busLog('RECV', channel, payload, envelope.scope, envelope.correlationId);
           // Tier 2: in-process — no _trace field on payload, parent
           // context comes from the active OTel context (inherited from
           // whichever code path emitted the event).
           void withSpan(
             `bus.recv:${channel}`,
             () => {
-              bus.get(channel as keyof EventMap).next(payload as EventMap[keyof EventMap]);
+              bus.emit(channel as keyof EventMap, payload as EventMap[keyof EventMap], envelope);
             },
             { kind: SpanKind.CONSUMER, attrs: { 'bus.channel': channel } },
           );

@@ -75,7 +75,7 @@ export class AnnotationOperations {
     const resId = makeResourceId(request.target.source);
 
     // Emit mark:create — Stower subscribes and appends to event store
-    eventBus.get('mark:create').next({
+    eventBus.emit('mark:create', {
       annotation,
       _userId: userId,
       resourceId: resId,
@@ -106,7 +106,7 @@ export class AnnotationOperations {
     }
 
     // Emit mark:update-body — Stower subscribes and appends to event store
-    eventBus.get('mark:update-body').next({
+    eventBus.emit('mark:update-body', {
       annotationId: annotationId(id),
       _userId: userId,
       resourceId: resId,
@@ -146,7 +146,7 @@ export class AnnotationOperations {
     logger?.debug('Removing annotation via EventBus', { annotationId: id });
 
     // Emit mark:delete — Stower subscribes and appends to event store
-    eventBus.get('mark:delete').next({
+    eventBus.emit('mark:delete', {
       annotationId: annotationId(id),
       _userId: userId,
       resourceId: resId,

@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Result of a job:create command",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "response": {
       "type": "object",
       "properties": {
@@ -12,8 +9,12 @@
           "type": "string"
         }
       },
-      "required": ["jobId"]
+      "required": [
+        "jobId"
+      ]
     }
   },
-  "required": ["correlationId", "response"]
+  "required": [
+    "response"
+  ]
 }

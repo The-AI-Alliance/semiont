@@ -179,15 +179,10 @@ export class EventStorage {
    * not by per-event chaining metadata. Per-event signatures (the unused
    * `EventSignature` field on StoredEvent) are the planned mechanism for
    * cross-KB authorship binding when federation becomes a real requirement.
-   *
-   * @param options.correlationId - Optional id propagated from a command. Stored
-   *   on the event's metadata so subscribers (notably the events-stream → frontend
-   *   path) can match command-result events back to the POST that initiated them.
    */
   async appendEvent(
     event: EventInput,
     resourceId: ResourceId,
-    options?: { correlationId?: string },
   ): Promise<StoredEvent> {
     // Ensure resource stream is initialized
     if (this.getSequenceNumber(resourceId) === 0) {
@@ -203,10 +198,7 @@ export class EventStorage {
 
     const sequenceNumber = this.getNextSequenceNumber(resourceId);
 
-    const metadata: EventMetadata = {
-      sequenceNumber,
-      ...(options?.correlationId !== undefined && { correlationId: options.correlationId }),
-    };
+    const metadata: EventMetadata = { sequenceNumber };
 
     const storedEvent: StoredEvent = {
       ...completeEvent,

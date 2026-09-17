@@ -86,7 +86,6 @@ export const CONTEXT: GatheredContext = {
 
 /** What `gather.annotation` actually resolves to: the envelope, not the context. */
 export const GATHER_COMPLETE: GatherAnnotationProgress = {
-  correlationId: 'corr-1',
   annotationId: 'anno-reference',
   response: CONTEXT,
 };

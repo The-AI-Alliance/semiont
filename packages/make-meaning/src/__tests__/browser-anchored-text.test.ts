@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, map } from 'rxjs';
 import { filter, take } from 'rxjs/operators';
 import { EventBus, type AnchoredText, type Logger } from '@semiont/core';
 import type { MakeMeaningConfig } from '../service';
@@ -59,9 +59,9 @@ function browserOver(kb: Record<string, unknown>) {
 async function ask(eventBus: EventBus, browser: Browser) {
   await browser.initialize();
   const reply = firstValueFrom(
-    eventBus.get('browse:anchored-text-result').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
+    eventBus.frames('browse:anchored-text-result').pipe(filter((frame) => frame.correlationId === 'c1'), map((frame) => frame.payload), take(1)),
   );
-  eventBus.get('browse:anchored-text-requested').next({ correlationId: 'c1', resourceId: RID });
+  eventBus.emit('browse:anchored-text-requested', { resourceId: RID }, { correlationId: 'c1' });
   return reply;
 }
 
@@ -143,9 +143,9 @@ describe('browse:anchored-text-requested', () => {
     await browser.initialize();
 
     const failure = firstValueFrom(
-      eventBus.get('browse:anchored-text-failed').pipe(filter((e) => e.correlationId === 'c1'), take(1)),
+      eventBus.frames('browse:anchored-text-failed').pipe(filter((frame) => frame.correlationId === 'c1'), map((frame) => frame.payload), take(1)),
     );
-    eventBus.get('browse:anchored-text-requested').next({ correlationId: 'c1', resourceId: RID });
+    eventBus.emit('browse:anchored-text-requested', { resourceId: RID }, { correlationId: 'c1' });
 
     expect((await failure).message).toContain('fold is broken');
   });

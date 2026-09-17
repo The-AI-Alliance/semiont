@@ -97,12 +97,11 @@ describe('mark:commit does not duplicate the event log', () => {
   const settle = () => new Promise((r) => setTimeout(r, 20));
 
   const commit = async (ids: string[], correlationId = 'c1') => {
-    bus.get('mark:commit').next({
+    bus.emit('mark:commit', {
       resourceId: RID,
-      correlationId,
       annotations: ids.map(annotation),
       _userId: USER,
-    } as never);
+    } as never, { correlationId });
     await settle();
   };
 
@@ -132,7 +131,7 @@ describe('mark:commit does not duplicate the event log', () => {
     // because everything is already durable has SUCCEEDED, and saying so is
     // what stops the retry loop.
     const acks: any[] = [];
-    bus.get('mark:commit-ok').subscribe((e) => acks.push(e));
+    bus.frames('mark:commit-ok').subscribe((f) => acks.push(f));
 
     await commit(['a1', 'a2'], 'first');
     await commit(['a1', 'a2'], 'retry');
@@ -143,8 +142,8 @@ describe('mark:commit does not duplicate the event log', () => {
     // named by the command is in the event log"), not an append tally — so it
     // reads the same on the retry as on the first commit. A caller cannot tell
     // the two apart, and must not need to.
-    expect(acks[1].response.persisted).toBe(2);
-    expect(acks[1].response.annotationIds).toEqual(['a1', 'a2']);
+    expect(acks[1].payload.response.persisted).toBe(2);
+    expect(acks[1].payload.response.annotationIds).toEqual(['a1', 'a2']);
   });
 
   it('appends in batch order and stops at the first failure', async () => {

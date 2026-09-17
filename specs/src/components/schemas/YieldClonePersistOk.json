@@ -2,13 +2,9 @@
   "type": "object",
   "description": "Success reply after cloning a resource, matched to the originating command by correlationId.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Correlation id echoed from the yield:clone-persist command so busRequest can match the reply."
-    },
     "response": {
       "type": "object",
-      "description": "The clone's identity \u2014 a new resource, distinct from its parent.",
+      "description": "The clone's identity — a new resource, distinct from its parent.",
       "properties": {
         "resourceId": {
           "type": "string"

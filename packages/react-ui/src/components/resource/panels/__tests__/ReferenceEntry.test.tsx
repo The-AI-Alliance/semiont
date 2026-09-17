@@ -280,7 +280,7 @@ describe('ReferenceEntry', () => {
 
       const { container } = renderEntry();
 
-      const subscription = eventBus.get('browse:click').subscribe(clickHandler);
+      const subscription = eventBus.on('browse:click').subscribe(clickHandler);
 
       const entry = container.firstChild as HTMLElement;
       await userEvent.click(entry);
@@ -366,7 +366,7 @@ describe('ReferenceEntry', () => {
 
       const bindSpy = vi.spyOn(BindNamespace.prototype, 'body').mockRejectedValue(new Error('link is load-bearing'));
       const errors: unknown[] = [];
-      eventBus.get('bind:body-error').subscribe(e => errors.push(e));
+      eventBus.on('bind:body-error').subscribe(e => errors.push(e));
 
       const { container } = renderEntry({ annotateMode: true });
       await userEvent.click(container.querySelector('.semiont-reference-unlink')!);
@@ -386,7 +386,7 @@ describe('ReferenceEntry', () => {
 
       const { container } = renderEntry({ annotateMode: true });
 
-      const subscription = eventBus.get('bind:initiate').subscribe(initiateHandler);
+      const subscription = eventBus.on('bind:initiate').subscribe(initiateHandler);
 
       const icon = container.querySelector('.semiont-reference-icon')!;
       await userEvent.click(icon);
@@ -425,7 +425,7 @@ describe('ReferenceEntry', () => {
 
       const { container } = renderEntry({ annotateMode: false });
 
-      const subscription = eventBus.get('bind:initiate').subscribe(initiateHandler);
+      const subscription = eventBus.on('bind:initiate').subscribe(initiateHandler);
 
       const icon = container.querySelector('.semiont-reference-icon')!;
       await userEvent.click(icon);

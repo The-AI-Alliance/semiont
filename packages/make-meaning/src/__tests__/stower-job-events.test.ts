@@ -77,7 +77,7 @@ describe('Stower job:* handlers', () => {
   const settle = () => new Promise((r) => setTimeout(r, 20));
 
   it('appends job:started with the injected actor', async () => {
-    bus.get('job:start').next(jobEvent() as never);
+    bus.emit('job:start', jobEvent() as never);
     await settle();
 
     expect(appendEvent).toHaveBeenCalledTimes(1);
@@ -89,7 +89,7 @@ describe('Stower job:* handlers', () => {
   });
 
   it('carries the job result onto job:completed', async () => {
-    bus.get('job:complete').next(jobEvent({ result: { found: 3 } }) as never);
+    bus.emit('job:complete', jobEvent({ result: { found: 3 } }) as never);
     await settle();
 
     const event = appendEvent.mock.calls[0][0];
@@ -100,12 +100,12 @@ describe('Stower job:* handlers', () => {
   it('records an annotationId only when the job carries one', async () => {
     // Omitted rather than written as undefined — an absent field and a field
     // present-but-empty are different facts in a log nobody can rewrite.
-    bus.get('job:complete').next(jobEvent({ annotationId: 'ann-7' }) as never);
+    bus.emit('job:complete', jobEvent({ annotationId: 'ann-7' }) as never);
     await settle();
     expect(appendEvent.mock.calls[0][0].payload.annotationId).toBe('ann-7');
 
     appendEvent.mockClear();
-    bus.get('job:complete').next(jobEvent() as never);
+    bus.emit('job:complete', jobEvent() as never);
     await settle();
     expect('annotationId' in appendEvent.mock.calls[0][0].payload).toBe(false);
   });
@@ -120,7 +120,7 @@ describe('Stower job:* handlers', () => {
   // a deterministic refusal from weather — and job:failed is a permanent fact
   // of the resource, not operational state.
   it('persists failureClass and willRetry onto job:failed', async () => {
-    bus.get('job:fail').next(jobEvent({
+    bus.emit('job:fail', jobEvent({
       error: 'Bus request timed out after 60000ms on mark:commit-ok',
       failureClass: 'transient',
       willRetry: true,
@@ -141,7 +141,7 @@ describe('Stower job:* handlers', () => {
     // 'transient'; `willRetry: false` asserts the run is over. Defaulting either
     // would write a judgment nobody made into a log nobody can rewrite — the
     // same rule the annotationId case above follows.
-    bus.get('job:fail').next(jobEvent({ error: 'boom' }) as never);
+    bus.emit('job:fail', jobEvent({ error: 'boom' }) as never);
     await settle();
 
     const payload = appendEvent.mock.calls[0][0].payload;
@@ -157,7 +157,7 @@ describe('Stower job:* handlers', () => {
     // inferred from a probe are different claims, and "the log said no" is a
     // different claim from "the log never answered". Four states, and without
     // this field the log holds two.
-    bus.get(channel as 'job:complete').next(jobEvent({ error: 'e', durability }) as never);
+    bus.emit(channel as 'job:complete', jobEvent({ error: 'e', durability }) as never);
     await settle();
 
     const event = appendEvent.mock.calls[0][0];
@@ -172,7 +172,7 @@ describe('Stower job:* handlers', () => {
     // The durable record is where an operator reconstructs a campaign's spend.
     // Dropping `attempt` here leaves the log unable to say a document ran twice
     // — the exact blindness that let a 26-minute re-run go unnoticed.
-    bus.get(channel as 'job:complete').next(jobEvent({ error: 'e', attempt: 2 }) as never);
+    bus.emit(channel as 'job:complete', jobEvent({ error: 'e', attempt: 2 }) as never);
     await settle();
 
     const event = appendEvent.mock.calls[0][0];
@@ -185,7 +185,7 @@ describe('Stower job:* handlers', () => {
     ['job:complete'],
     ['job:fail'],
   ])('refuses %s without the gateway-injected _userId — nothing is appended', async (channel) => {
-    bus.get(channel as 'job:start').next(jobEvent({ _userId: undefined }) as never);
+    bus.emit(channel as 'job:start', jobEvent({ _userId: undefined }) as never);
     await settle();
 
     // The refusal must not be a half-write: no event reaches the log at all.
@@ -209,28 +209,31 @@ describe('Stower job:* handlers', () => {
     });
 
     /** First reply on either channel, or 'none' if the seam answers nothing. */
-    async function replyOf(fn: () => void): Promise<{ channel: string; body: any }> {
-      const ok = firstValueFrom(bus.get('mark:commit-ok').pipe(take(1)));
-      const failed = firstValueFrom(bus.get('mark:commit-failed').pipe(take(1)));
+    async function replyOf(
+      fn: () => void,
+    ): Promise<{ channel: string; correlationId?: string; body: any }> {
+      // FRAMES: the key these tests assert on rides the envelope.
+      const ok = firstValueFrom(bus.frames('mark:commit-ok').pipe(take(1)));
+      const failed = firstValueFrom(bus.frames('mark:commit-failed').pipe(take(1)));
       fn();
       return Promise.race([
-        ok.then((body) => ({ channel: 'mark:commit-ok', body })),
-        failed.then((body) => ({ channel: 'mark:commit-failed', body })),
-        new Promise<{ channel: string; body: any }>((r) => setTimeout(() => r({ channel: 'none', body: null }), 300)),
+        ok.then((f) => ({ channel: 'mark:commit-ok', correlationId: f.correlationId, body: f.payload })),
+        failed.then((f) => ({ channel: 'mark:commit-failed', correlationId: f.correlationId, body: f.payload })),
+        new Promise<{ channel: string; correlationId?: string; body: any }>((r) =>
+          setTimeout(() => r({ channel: 'none', correlationId: undefined, body: null }), 300),
+        ),
       ]);
     }
 
     it('appends every annotation in the batch, then acknowledges', async () => {
-      const reply = await replyOf(() => bus.get('mark:commit').next({
-        correlationId: 'cid-1', resourceId: RID, _userId: USER,
-        annotations: [ann('a1'), ann('a2')],
-      } as never));
+      const reply = await replyOf(() => bus.emit('mark:commit', { resourceId: RID, _userId: USER,
+        annotations: [ann('a1'), ann('a2')], } as never, { correlationId: 'cid-1' }));
 
       // Acknowledged only after BOTH appends returned — the ack is a
       // durability claim, so it must not precede the writes it attests to.
       expect(appendEvent).toHaveBeenCalledTimes(2);
       expect(reply.channel).toBe('mark:commit-ok');
-      expect(reply.body.correlationId).toBe('cid-1');
+      expect(reply.correlationId).toBe('cid-1');
       expect(reply.body.response.persisted).toBe(2);
       expect(reply.body.response.annotationIds).toEqual(['a1', 'a2']);
       for (const call of appendEvent.mock.calls) {
@@ -245,13 +248,11 @@ describe('Stower job:* handlers', () => {
       // reported whole and the worker retries it whole.
       appendEvent.mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('log unwritable'));
 
-      const reply = await replyOf(() => bus.get('mark:commit').next({
-        correlationId: 'cid-2', resourceId: RID, _userId: USER,
-        annotations: [ann('b1'), ann('b2')],
-      } as never));
+      const reply = await replyOf(() => bus.emit('mark:commit', { resourceId: RID, _userId: USER,
+        annotations: [ann('b1'), ann('b2')], } as never, { correlationId: 'cid-2' }));
 
       expect(reply.channel).toBe('mark:commit-failed');
-      expect(reply.body.correlationId).toBe('cid-2');
+      expect(reply.correlationId).toBe('cid-2');
       expect(reply.body.message).toContain('log unwritable');
       // Stops at the failure rather than pressing on.
       expect(appendEvent).toHaveBeenCalledTimes(2);
@@ -260,9 +261,7 @@ describe('Stower job:* handlers', () => {
     it('acknowledges an empty batch without appending', async () => {
       // A legitimately-empty unit is still a completed unit: the worker must
       // be able to checkpoint it, so the seam has to answer rather than hang.
-      const reply = await replyOf(() => bus.get('mark:commit').next({
-        correlationId: 'cid-3', resourceId: RID, _userId: USER, annotations: [],
-      } as never));
+      const reply = await replyOf(() => bus.emit('mark:commit', { resourceId: RID, _userId: USER, annotations: [], } as never, { correlationId: 'cid-3' }));
 
       expect(appendEvent).not.toHaveBeenCalled();
       expect(reply.channel).toBe('mark:commit-ok');
@@ -270,9 +269,7 @@ describe('Stower job:* handlers', () => {
     });
 
     it('refuses without the gateway-injected _userId — nothing is appended', async () => {
-      const reply = await replyOf(() => bus.get('mark:commit').next({
-        correlationId: 'cid-4', resourceId: RID, annotations: [ann('c1')],
-      } as never));
+      const reply = await replyOf(() => bus.emit('mark:commit', { resourceId: RID, annotations: [ann('c1')], } as never, { correlationId: 'cid-4' }));
 
       expect(appendEvent).not.toHaveBeenCalled();
       // The guard throws before the try, so no reply is produced — the caller

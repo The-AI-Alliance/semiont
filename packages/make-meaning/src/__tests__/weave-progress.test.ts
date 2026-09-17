@@ -17,7 +17,7 @@ describe('WeaveProgress', () => {
   it('resolves immediately when the applied map already covers the sequence', async () => {
     const bus = new EventBus();
     const progress = createWeaveProgress(bus);
-    bus.get('weave:applied').next({ resourceId: 'res-1', sequenceNumber: 5 });
+    bus.emit('weave:applied', { resourceId: 'res-1', sequenceNumber: 5 });
 
     await expect(progress.whenApplied('res-1', 3, 1000)).resolves.toBeUndefined();
     await expect(progress.whenApplied('res-1', 5, 1000)).resolves.toBeUndefined();
@@ -31,7 +31,7 @@ describe('WeaveProgress', () => {
     const progress = createWeaveProgress(bus);
 
     const wait = progress.whenApplied('res-1', 7, 1000);
-    bus.get('weave:applied').next({ resourceId: 'res-1', sequenceNumber: 7 });
+    bus.emit('weave:applied', { resourceId: 'res-1', sequenceNumber: 7 });
 
     await expect(wait).resolves.toBeUndefined();
     progress.dispose();
@@ -42,8 +42,8 @@ describe('WeaveProgress', () => {
     const progress = createWeaveProgress(bus);
 
     const wait = progress.whenApplied('res-1', 7, 50);
-    bus.get('weave:applied').next({ resourceId: 'res-other', sequenceNumber: 9 });
-    bus.get('weave:applied').next({ resourceId: 'res-1', sequenceNumber: 6 });
+    bus.emit('weave:applied', { resourceId: 'res-other', sequenceNumber: 9 });
+    bus.emit('weave:applied', { resourceId: 'res-1', sequenceNumber: 6 });
 
     await expect(wait).rejects.toBeInstanceOf(WeaveProgressTimeout);
     progress.dispose();
@@ -61,8 +61,8 @@ describe('WeaveProgress', () => {
     const bus = new EventBus();
     const progress = createWeaveProgress(bus);
 
-    bus.get('weave:applied').next({ resourceId: 'res-1', sequenceNumber: 9 });
-    bus.get('weave:applied').next({ resourceId: 'res-1', sequenceNumber: 4 });
+    bus.emit('weave:applied', { resourceId: 'res-1', sequenceNumber: 9 });
+    bus.emit('weave:applied', { resourceId: 'res-1', sequenceNumber: 4 });
 
     expect(progress.appliedUpTo('res-1')).toBe(9);
     progress.dispose();
@@ -79,9 +79,9 @@ describe('WeaveProgress', () => {
       const bus = new EventBus();
       const progress = createWeaveProgress(bus);
 
-      bus.get('weave:applied').next({ resourceId: 'res-old', sequenceNumber: 1 });
+      bus.emit('weave:applied', { resourceId: 'res-old', sequenceNumber: 1 });
       vi.advanceTimersByTime(6 * 60_000);
-      bus.get('weave:applied').next({ resourceId: 'res-new', sequenceNumber: 2 });
+      bus.emit('weave:applied', { resourceId: 'res-new', sequenceNumber: 2 });
 
       expect(progress.appliedUpTo('res-old')).toBeUndefined();
       expect(progress.appliedUpTo('res-new')).toBe(2);

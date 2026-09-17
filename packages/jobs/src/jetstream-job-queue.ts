@@ -263,7 +263,7 @@ export class JetStreamJobQueue implements JobQueue {
   /** Same wire shape as the fs driver: only jobs with a resourceId announce. */
   private announce(job: AnyJob): void {
     if (this.eventBus && 'params' in job && 'resourceId' in (job.params as Record<string, unknown>)) {
-      this.eventBus.get('job:queued').next({
+      this.eventBus.emit('job:queued', {
         jobId: job.metadata.id,
         jobType: job.metadata.type,
         resourceId: (job.params as { resourceId: unknown }).resourceId as never,

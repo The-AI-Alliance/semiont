@@ -70,7 +70,7 @@ function createEventTracker() {
     clear: () => { events.length = 0; },
     _attach(eventBus: EventBus, client: SemiontClient) {
       // `yield:clone` is a local-bus UI signal emitted by `client.yield.clone()`.
-      eventBus.get('yield:clone').subscribe((payload: any) => {
+      eventBus.on('yield:clone').subscribe((payload: any) => {
         events.push({ event: 'yield:clone', payload });
       });
       // `mark:archive` / `mark:unarchive` are gateway-routed via `actor.emit`;

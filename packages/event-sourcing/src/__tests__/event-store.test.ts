@@ -18,6 +18,7 @@ describe('Event Store', () => {
   let project: SemiontProject;
   let eventStore: EventStore;
   let query: EventQuery;
+  let eventBus: EventBus;
 
   beforeAll(async () => {
     testDir = join(tmpdir(), `semiont-test-${uuidv4()}`);
@@ -26,11 +27,12 @@ describe('Event Store', () => {
 
     const viewStorage = new FilesystemViewStorage(project);
 
+    eventBus = new EventBus();
     eventStore = new EventStore(
       project,
       testDir,
       viewStorage,
-      new EventBus(),
+      eventBus,
     );
 
     query = new EventQuery(eventStore.log.storage);
@@ -98,9 +100,11 @@ describe('Event Store', () => {
    * to let subscribers match command-result events back to the POST that
    * initiated them. Phase 0b.
    */
-  it('appendEvent threads correlationId through to event metadata', async () => {
+  it('appendEvent carries correlationId on the published FRAME, never into the log', async () => {
     const docId = resourceId('doc-correlation-test');
     const cid = 'corr-abc-123';
+    const frames: { correlationId?: string }[] = [];
+    const sub = eventBus.frames('yield:created').subscribe((frame) => frames.push(frame));
 
     const stored = await eventStore.appendEvent(
       {
@@ -116,17 +120,23 @@ describe('Event Store', () => {
       },
       { correlationId: cid },
     );
+    sub.unsubscribe();
 
-    expect(stored.metadata.correlationId).toBe(cid);
+    // The routing fact reaches subscribers on the envelope...
+    expect(frames.map((f) => f.correlationId)).toEqual([cid]);
 
-    // Re-reading from disk should preserve the correlationId
+    // ...and nowhere else. The log stores facts; who asked for them is not
+    // one, so the key must not survive a round trip through storage.
+    expect('correlationId' in stored.metadata).toBe(false);
     const events = await query.getResourceEvents(docId);
     const reread = events.find((e) => e.id === stored.id);
-    expect(reread?.metadata.correlationId).toBe(cid);
+    expect('correlationId' in reread!.metadata).toBe(false);
   });
 
-  it('appendEvent without correlationId leaves the field absent', async () => {
+  it('appendEvent without a correlation key publishes a frame with none', async () => {
     const docId = resourceId('doc-no-correlation');
+    const frames: { correlationId?: string }[] = [];
+    const sub = eventBus.frames('yield:created').subscribe((frame) => frames.push(frame));
 
     const stored = await eventStore.appendEvent({
       type: 'yield:created',
@@ -139,8 +149,10 @@ describe('Event Store', () => {
         contentChecksum: 'sha:abc',
       },
     });
+    sub.unsubscribe();
 
-    expect(stored.metadata.correlationId).toBeUndefined();
+    expect(frames.map((f) => f.correlationId)).toEqual([undefined]);
+    expect('correlationId' in stored.metadata).toBe(false);
   });
 
   /**

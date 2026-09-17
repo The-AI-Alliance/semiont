@@ -33,7 +33,7 @@
 import { GEN_REQUIRED, minimalContext } from './fixtures/generation-fixtures';
 import { referenceIdOf } from '../worker-process';
 import type { UnitCheckpoint } from '../processors';
-import { Subject, BehaviorSubject } from 'rxjs';
+import { Subject, BehaviorSubject, map } from 'rxjs';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { extractPdfTextLayer } from '@semiont/content';
 import type { SemiontSession } from '@semiont/sdk';
@@ -110,7 +110,12 @@ function makeFakeSessionAndAdapter() {
   // Handlers registered via `transport.on`, so a test can fire the signals the
   // worker subscribes (JOB-RESTART-SAFETY P4's cancel).
   const transportHandlers = new Map<string, (e: unknown) => void>();
-  const replyStreams = new Map<string, Subject<Record<string, unknown>>>();
+  // Replies are FRAMES: `busRequest` matches on the envelope's key, so a
+  // double that only carried payloads would let a key-dropping reply pass.
+  const replyStreams = new Map<
+    string,
+    Subject<{ correlationId?: string; payload: Record<string, unknown> }>
+  >();
   const replyStream = (channel: string) => {
     let s = replyStreams.get(channel);
     if (!s) { s = new Subject(); replyStreams.set(channel, s); }
@@ -137,11 +142,11 @@ function makeFakeSessionAndAdapter() {
   /** Whether the durability probe can be answered at all. */
   const probeSink: { mode: 'answer' | 'unreachable' } = { mode: 'answer' };
 
-  const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, scope?: string) => {
-    busEmits.push({ channel, payload, scope });
+  const transportEmit = vi.fn(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string; scope?: string }) => {
+    busEmits.push({ channel, payload, scope: envelope?.scope });
     if (channel === 'mark:commit') {
       commitCount++;
-      const correlationId = payload.correlationId as string;
+      const correlationId = envelope?.correlationId as string;
       const annotations = (payload.annotations ?? []) as Array<{ id: string }>;
       const mode = commitSink.mode === 'first-ok-then-lost'
         ? (commitCount === 1 ? 'ok' : 'ack-lost')
@@ -162,10 +167,12 @@ function makeFakeSessionAndAdapter() {
           if (mode === 'ok') {
             replyStream('mark:commit-ok').next({
               correlationId,
-              response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
+              payload: {
+                response: { persisted: annotations.length, annotationIds: annotations.map((a) => String(a.id)) },
+              },
             });
           } else {
-            replyStream('mark:commit-failed').next({ correlationId, message: 'sink down' });
+            replyStream('mark:commit-failed').next({ correlationId, payload: { message: 'sink down' } });
           }
         });
       }
@@ -184,7 +191,10 @@ function makeFakeSessionAndAdapter() {
           return () => {};
         }),
         actor: {
-          stream: vi.fn((channel: string) => replyStream(channel).asObservable()),
+          stream: vi.fn((channel: string) =>
+            replyStream(channel).asObservable().pipe(map((frame) => frame.payload)),
+          ),
+          frames: vi.fn((channel: string) => replyStream(channel).asObservable()),
           emit: transportEmit,
           // 'open' is the attach gate's pass value (BUS-ATTACH-GATE); anything
           // else holds every busRequest until it times out.
@@ -852,9 +862,11 @@ describe('handleJob orchestration', () => {
       // durability to state. Every TERMINAL payload carries how durability was
       // established (COMMIT-ACK-FALSE-FAILURE) — here, an acknowledged commit.
       expect(keysOf('job:complete')).toEqual(['attempt', 'durability', 'jobId', 'jobType', 'resourceId', 'result']);
-      // The commit carries a batch and a correlationId (busRequest sets the
-      // latter), not a single annotation.
-      expect(keysOf('mark:commit')).toEqual(['annotations', 'correlationId', 'resourceId']);
+      // The commit carries a batch, not a single annotation — and NOTHING
+      // else. The correlation key busRequest mints rides the envelope now
+      // (BUS-CARRIES-FRAMES D1), so its reappearance here would mean a
+      // routing fact had leaked back into a domain payload.
+      expect(keysOf('mark:commit')).toEqual(['annotations', 'resourceId']);
     });
   });
 

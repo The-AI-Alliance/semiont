@@ -50,9 +50,7 @@ describe('HttpTransport ITransport delegation', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 1 }) });
     const transport = new HttpTransport({ baseUrl: BASE });
 
-    await transport.emit('beckon:hover', { annotationId: 'a-1' }, 'res-9' as Parameters<
-      HttpTransport['emit']
-    >[2]);
+    await transport.emit('beckon:hover', { annotationId: 'a-1' }, { scope: 'res-9' });
 
     const [, opts] = mockFetch.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(opts.body)).toMatchObject({ scope: 'res-9' });

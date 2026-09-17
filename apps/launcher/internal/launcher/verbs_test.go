@@ -20,11 +20,12 @@ import (
 // understands; a family tested only against a double can agree with a bug in
 // our own client.
 
-// reply wraps a scripted response the way the gateway does — the verbs decode
-// `{correlationId, response}`, so a bare body would fail to parse and the test
-// would be measuring the wrong thing.
+// reply wraps a scripted response the way the gateway does — the verbs are
+// handed a reply PAYLOAD and decode `{response}`, so a bare body would fail to
+// parse and the test would be measuring the wrong thing. No correlationId: it
+// rides the envelope and the bus client has already consumed it.
 func reply(body string) []byte {
-	return []byte(`{"correlationId":"c","response":` + body + `}`)
+	return []byte(`{"response":` + body + `}`)
 }
 
 // ── browse ──────────────────────────────────────────────────────────────

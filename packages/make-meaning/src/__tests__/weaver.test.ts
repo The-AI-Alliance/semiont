@@ -154,9 +154,8 @@ describe('Weaver', () => {
 
   const serveBrowseReads = (rids: string[], annotationsByRid: Record<string, unknown[]> = {}) => {
     const subs = [
-      coreEventBus.get('browse:resources-requested').subscribe((req: any) => {
-        coreEventBus.get('browse:resources-result').next({
-          correlationId: req.correlationId,
+      coreEventBus.frames('browse:resources-requested').subscribe(({ correlationId }: any) => {
+        coreEventBus.emit('browse:resources-result', {
           response: {
             resources: rids.map((id) => ({
               '@id': id, name: id, representations: [], archived: false, entityTypes: [],
@@ -164,21 +163,19 @@ describe('Weaver', () => {
             total: rids.length,
             matchKind: 'lexical',
           },
-        } as any);
+        } as any, { correlationId });
       }),
-      coreEventBus.get('browse:events-requested').subscribe((req: any) => {
+      coreEventBus.frames('browse:events-requested').subscribe(({ payload: req, correlationId }: any) => {
         void eventStore.log.getEvents(resourceId(req.resourceId)).then((events) => {
-          coreEventBus.get('browse:events-result').next({
-            correlationId: req.correlationId,
+          coreEventBus.emit('browse:events-result', {
             response: { events, total: events.length, resourceId: req.resourceId },
-          } as any);
+          } as any, { correlationId });
         });
       }),
-      coreEventBus.get('browse:annotations-requested').subscribe((req: any) => {
-        coreEventBus.get('browse:annotations-result').next({
-          correlationId: req.correlationId,
+      coreEventBus.frames('browse:annotations-requested').subscribe(({ payload: req, correlationId }: any) => {
+        coreEventBus.emit('browse:annotations-result', {
           response: { annotations: annotationsByRid[req.resourceId] ?? [] },
-        } as any);
+        } as any, { correlationId });
       }),
     ];
     stopServing = () => subs.forEach((s) => s.unsubscribe());
@@ -898,7 +895,7 @@ describe('Weaver', () => {
     } as unknown as EventMap[K]);
 
     const deliver = async <K extends PersistedEventType>(e: EventMap[K] & { type: K }) => {
-      coreEventBus.get(e.type).next(e);
+      coreEventBus.emit(e.type, e);
       await tick();
     };
 
@@ -956,8 +953,8 @@ describe('Weaver', () => {
 
       const e = stored('mark:added', 'dup-add-burst', { annotation: annotation('ann-dup-burst', 'dup-add-burst') });
       // Same event twice in the same burst window — no tick between.
-      coreEventBus.get('mark:added').next(e);
-      coreEventBus.get('mark:added').next(e);
+      coreEventBus.emit('mark:added', e);
+      coreEventBus.emit('mark:added', e);
       await tick();
 
       const { annotations } = await graphDb.listAnnotations({ resourceId: resourceId('dup-add-burst') });
@@ -1243,7 +1240,7 @@ describe('Weaver', () => {
       consumer = await wireWeaver(graphDb);
 
       const signals: string[] = [];
-      const signalSub = coreEventBus.get('weave:applied').subscribe((s) => signals.push(s.resourceId));
+      const signalSub = coreEventBus.on('weave:applied').subscribe((s) => signals.push(s.resourceId));
 
       vi.spyOn(graphDb, 'createResource').mockRejectedValueOnce(new Error('neo4j hiccup'));
 
@@ -1290,7 +1287,7 @@ describe('Weaver', () => {
         id: annotationId(aid), motivation: 'commenting', target: { source: rid }, body: [],
         created: '2026-01-01T00:00:00.000Z',
       });
-      const pushMark = (aid: string, seq: number) => coreEventBus.get('mark:added').next({
+      const pushMark = (aid: string, seq: number) => coreEventBus.emit('mark:added', {
         id: uuidv4(), type: 'mark:added', timestamp: new Date().toISOString(),
         userId: userId('user1'), resourceId: resourceId(rid), version: 1,
         payload: { annotation: ann(aid) }, metadata: { sequenceNumber: seq },

@@ -1108,6 +1108,7 @@ type busSub struct {
 
 type busFrame struct {
 	channel string
+	corrID  string // ENVELOPE, never inside the payload — see busPublish
 	payload map[string]any
 }
 
@@ -1153,7 +1154,12 @@ func busSubscriberCount(channel string) int {
 	return n
 }
 
-func busPublish(channel string, payload map[string]any) {
+// busPublish emits one frame. corrID rides the ENVELOPE beside the channel,
+// which is where the real gateway puts it (routes/bus.ts writes
+// `{channel, correlationId, payload}`) and where the Go client reads it.
+// Job lifecycle events pass "" — they are keyed by jobId, not by the
+// correlation key of the request that created the job.
+func busPublish(channel, corrID string, payload map[string]any) {
 	busMu.Lock()
 	subs := append([]*busSub(nil), busSubs...)
 	busMu.Unlock()
@@ -1162,7 +1168,7 @@ func busPublish(channel string, payload map[string]any) {
 			continue
 		}
 		select {
-		case s.out <- busFrame{channel: channel, payload: payload}:
+		case s.out <- busFrame{channel: channel, corrID: corrID, payload: payload}:
 		default: // a stalled reader must not wedge the emitter
 		}
 	}
@@ -1172,7 +1178,7 @@ func busPublish(channel string, payload map[string]any) {
 // comes from the generated operations registry, so the fake can never invent a
 // pair the real bus does not have — a fake that agrees with the code under
 // test about a wrong channel is how a verb passes while broken.
-func busReplyFor(request, cid string) (string, map[string]any) {
+func busReplyFor(request string) (string, map[string]any) {
 	if !busScripted[request] {
 		return "", nil
 	}
@@ -1181,7 +1187,7 @@ func busReplyFor(request, cid string) (string, map[string]any) {
 		return "", nil
 	}
 	if msg := os.Getenv("FAKERT_BUS_FAIL"); msg != "" {
-		return string(op.Failure), map[string]any{"correlationId": cid, "message": msg}
+		return string(op.Failure), map[string]any{"message": msg}
 	}
 	env := "FAKERT_BUS_REPLY_" + strings.NewReplacer(":", "_", "-", "_").Replace(request)
 	raw := os.Getenv(env)
@@ -1195,7 +1201,7 @@ func busReplyFor(request, cid string) (string, map[string]any) {
 	if json.Unmarshal([]byte(raw), &response) != nil {
 		response = map[string]any{}
 	}
-	return string(op.Result), map[string]any{"correlationId": cid, "response": response}
+	return string(op.Result), map[string]any{"response": response}
 }
 
 // The handful of operations the launcher's verbs use — an ALLOWLIST of request
@@ -1406,8 +1412,9 @@ func serve(ports []string) {
 				// FAKERT_BUS_FAIL=<message>: reply on the failure channel.
 				if r.URL.Path == "/bus/emit" && r.Method == http.MethodPost {
 					var body struct {
-						Channel string         `json:"channel"`
-						Payload map[string]any `json:"payload"`
+						Channel       string         `json:"channel"`
+						CorrelationID string         `json:"correlationId,omitempty"`
+						Payload       map[string]any `json:"payload"`
 					}
 					_ = json.NewDecoder(r.Body).Decode(&body)
 					// EVERY emit is appended, one JSON object per line. A
@@ -1422,18 +1429,18 @@ func serve(ports []string) {
 							_ = f.Close()
 						}
 					}
-					cid, _ := body.Payload["correlationId"].(string)
-					if ch, payload := busReplyFor(body.Channel, cid); ch != "" {
-						busPublish(ch, payload)
+					cid := body.CorrelationID
+					if ch, payload := busReplyFor(body.Channel); ch != "" {
+						busPublish(ch, cid, payload)
 						// A created job then runs: progress, then a terminal
 						// event, both keyed by jobId — never the correlationId
 						// the request used.
 						if body.Channel == "job:create" {
 							jobID := "fake-job-1"
-							busPublish("job:report-progress", map[string]any{
+							busPublish("job:report-progress", "", map[string]any{
 								"jobId": jobID, "progress": map[string]any{"message": map[string]any{"code": "generating-resource"}}})
 							if msg := os.Getenv("FAKERT_JOB_FAIL"); msg != "" {
-								busPublish("job:fail", map[string]any{"jobId": jobID, "error": msg})
+								busPublish("job:fail", "", map[string]any{"jobId": jobID, "error": msg})
 							} else {
 								// FAKERT_JOB_RESULT=<json>: which member of the
 								// JobResult union this job completes with. A
@@ -1447,7 +1454,7 @@ func serve(ports []string) {
 									}
 									result = custom
 								}
-								busPublish("job:complete", map[string]any{
+								busPublish("job:complete", "", map[string]any{
 									"jobId": jobID, "resourceId": "res-src", "jobType": "generation",
 									"result": result,
 								})
@@ -1505,7 +1512,11 @@ func serve(ports []string) {
 						case <-r.Context().Done():
 							return
 						case fr := <-sub.out:
-							data, _ := json.Marshal(map[string]any{"channel": fr.channel, "payload": fr.payload})
+							frame := map[string]any{"channel": fr.channel, "payload": fr.payload}
+							if fr.corrID != "" {
+								frame["correlationId"] = fr.corrID
+							}
+							data, _ := json.Marshal(frame)
 							fmt.Fprintf(w, "event: bus-event\ndata: %s\n\n", data)
 							if f, ok := w.(http.Flusher); ok {
 								f.Flush()

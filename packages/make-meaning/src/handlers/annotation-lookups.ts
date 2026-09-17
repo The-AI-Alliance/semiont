@@ -26,8 +26,7 @@ export function registerAnnotationContextHandler(
 ): void {
   const logger = parentLogger.child({ component: 'annotation-lookups' });
 
-  eventBus.get('browse:annotation-context-requested').subscribe(async (command) => {
-    const { correlationId } = command;
+  eventBus.frames('browse:annotation-context-requested').subscribe(async ({ payload: command, correlationId }) => {
     const annId = (command as Record<string, unknown>).annotationId as string;
     const resId = (command as Record<string, unknown>).resourceId as string;
     const contextBefore = ((command as Record<string, unknown>).contextBefore as number) ?? 100;
@@ -42,16 +41,10 @@ export function registerAnnotationContextHandler(
         kb,
       );
 
-      eventBus.get('browse:annotation-context-result').next({
-        correlationId,
-        response,
-      });
+      eventBus.emit('browse:annotation-context-result', { response, }, { correlationId });
     } catch (error) {
       logger.warn('annotation-context failed', { correlationId, error: (error as Error).message });
-      eventBus.get('browse:annotation-context-failed').next({
-        correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('browse:annotation-context-failed', { message: (error as Error).message, }, { correlationId });
     }
   });
 }
@@ -63,8 +56,7 @@ export function registerGatherSummaryHandler(
 ): void {
   const logger = parentLogger.child({ component: 'annotation-lookups' });
 
-  eventBus.get('gather:summary-requested').subscribe(async (command) => {
-    const { correlationId } = command;
+  eventBus.frames('gather:summary-requested').subscribe(async ({ payload: command, correlationId }) => {
     const annId = (command as Record<string, unknown>).annotationId as string;
     const resId = (command as Record<string, unknown>).resourceId as string;
 
@@ -74,16 +66,10 @@ export function registerGatherSummaryHandler(
         makeResourceId(resId),
       );
 
-      eventBus.get('gather:summary-result').next({
-        correlationId,
-        response,
-      });
+      eventBus.emit('gather:summary-result', { response, }, { correlationId });
     } catch (error) {
       logger.warn('gather:summary failed', { correlationId, error: (error as Error).message });
-      eventBus.get('gather:summary-failed').next({
-        correlationId,
-        message: (error as Error).message,
-      });
+      eventBus.emit('gather:summary-failed', { message: (error as Error).message, }, { correlationId });
     }
   });
 }

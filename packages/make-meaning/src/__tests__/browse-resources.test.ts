@@ -6,6 +6,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { BusRequestError, type BusRequestPrimitive, type ConnectionState } from '@semiont/core';
 import { BehaviorSubject, Subject } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { browseAllResources, RESOURCE_LISTING_RETRY } from '../browse-resources';
 import { retryBudgetMs, STARTUP_FETCH_RETRY } from '@semiont/core';
 import { EMBEDDING_PROVIDER_RETRY, EMBED_ROUND_TRIP_TIMEOUT_MS } from '@semiont/vectors';
@@ -20,8 +21,8 @@ type ScriptedReply = { resources: unknown[]; total: number } | null | 'refused';
 
 function scriptedBus(replies: ScriptedReply[]) {
   const emitted: Record<string, unknown>[] = [];
-  const failure = new Subject<Record<string, unknown>>();
-  const result = new Subject<Record<string, unknown>>();
+  const failure = new Subject<{ correlationId?: string; payload: Record<string, unknown> }>();
+  const result = new Subject<{ correlationId?: string; payload: Record<string, unknown> }>();
   let call = 0;
 
   // Typed as `BusRequestPrimitive`, not cast to it. The `as unknown as`
@@ -33,27 +34,37 @@ function scriptedBus(replies: ScriptedReply[]) {
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     // This double answers every channel from its scripted subjects.
     isSubscribed: () => true,
-    emit: vi.fn(async (_channel: unknown, payload: unknown) => {
-      const p = payload as Record<string, unknown>;
-      emitted.push(p);
+    // The key arrives on the ENVELOPE and goes back on one, which is what a
+    // real responder does. It used to be read out of the payload and copied
+    // into the reply payload; the payload no longer carries it.
+    emit: vi.fn(async (_channel: unknown, payload: unknown, envelope?: { correlationId?: string }) => {
+      emitted.push(payload as Record<string, unknown>);
+      const correlationId = envelope?.correlationId;
       const reply = replies[call++];
       queueMicrotask(() => {
         if (reply === null) {
           failure.next({
-            correlationId: p.correlationId,
-            code: 'peer-unavailable',
-            message: 'No subscriber for browse:resources-requested: the service that answers it is not connected',
+            correlationId,
+            payload: {
+              code: 'peer-unavailable',
+              message: 'No subscriber for browse:resources-requested: the service that answers it is not connected',
+            },
           });
         } else if (reply === 'refused') {
-          failure.next({ correlationId: p.correlationId, message: 'permission denied' });
+          failure.next({ correlationId, payload: { message: 'permission denied' } });
         } else {
-          result.next({ correlationId: p.correlationId, response: reply });
+          result.next({ correlationId, payload: { response: reply } });
         }
       });
       return 1;
     }),
-    stream: vi.fn((channel: unknown) =>
+    frames: vi.fn((channel: unknown) =>
       ((channel as string) === 'browse:resources-result' ? result : failure).asObservable(),
+    ) as BusRequestPrimitive['frames'],
+    stream: vi.fn((channel: unknown) =>
+      ((channel as string) === 'browse:resources-result' ? result : failure)
+        .asObservable()
+        .pipe(map((frame) => (frame as { payload: unknown }).payload)),
     ) as BusRequestPrimitive['stream'],
   };
 

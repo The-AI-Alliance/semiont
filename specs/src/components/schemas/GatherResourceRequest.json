@@ -2,10 +2,6 @@
   "type": "object",
   "description": "Request payload sent on the gather:resource-requested bus channel to gather context for a resource.",
   "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Client-generated correlation ID to thread the response back to the originating request"
-    },
     "resourceId": {
       "type": "string",
       "description": "Branded ResourceId of the resource to gather context for"
@@ -31,13 +27,23 @@
         },
         "excludeEntityTypes": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Entity types to exclude from the semantic recall built into this context (caller-supplied; e.g. a chat consumer passes ['Question'] so prior questions never ground answer generation). Optional; default none."
         }
       },
-      "required": ["depth", "maxResources", "includeContent", "includeSummary"],
+      "required": [
+        "depth",
+        "maxResources",
+        "includeContent",
+        "includeSummary"
+      ],
       "description": "Gathering configuration"
     }
   },
-  "required": ["correlationId", "resourceId", "options"]
+  "required": [
+    "resourceId",
+    "options"
+  ]
 }

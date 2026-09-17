@@ -18,7 +18,7 @@ describe('SmeltProgress', () => {
   it('resolves immediately when the fold already holds the settlement', async () => {
     const bus = new EventBus();
     const progress = createSmeltProgress(bus);
-    bus.get('smelt:settled').next({ resourceId: 'res-1', contentChecksum: 'cs-a', outcome: 'indexed' });
+    bus.emit('smelt:settled', { resourceId: 'res-1', contentChecksum: 'cs-a', outcome: 'indexed' });
 
     await expect(progress.whenSettled('res-1', 'cs-a', 1000)).resolves.toBe('indexed');
     expect(progress.settledAt('res-1')).toEqual({ contentChecksum: 'cs-a', outcome: 'indexed' });
@@ -31,7 +31,7 @@ describe('SmeltProgress', () => {
     const progress = createSmeltProgress(bus);
 
     const wait = progress.whenSettled('res-1', 'cs-a', 1000);
-    bus.get('smelt:settled').next({ resourceId: 'res-1', contentChecksum: 'cs-a', outcome: 'indexed' });
+    bus.emit('smelt:settled', { resourceId: 'res-1', contentChecksum: 'cs-a', outcome: 'indexed' });
 
     await expect(wait).resolves.toBe('indexed');
     progress.dispose();
@@ -42,7 +42,7 @@ describe('SmeltProgress', () => {
     const progress = createSmeltProgress(bus);
 
     const wait = progress.whenSettled('res-pdf', 'cs-pdf', 1000);
-    bus.get('smelt:settled').next({ resourceId: 'res-pdf', contentChecksum: 'cs-pdf', outcome: 'skipped' });
+    bus.emit('smelt:settled', { resourceId: 'res-pdf', contentChecksum: 'cs-pdf', outcome: 'skipped' });
 
     await expect(wait).resolves.toBe('skipped');
     progress.dispose();
@@ -53,9 +53,9 @@ describe('SmeltProgress', () => {
     const progress = createSmeltProgress(bus);
 
     const wait = progress.whenSettled('res-1', 'cs-new', 1000);
-    bus.get('smelt:settled').next({ resourceId: 'res-1', contentChecksum: 'cs-old', outcome: 'indexed' });
-    bus.get('smelt:settled').next({ resourceId: 'res-other', contentChecksum: 'cs-new', outcome: 'indexed' });
-    bus.get('smelt:settled').next({ resourceId: 'res-1', contentChecksum: 'cs-new', outcome: 'indexed' });
+    bus.emit('smelt:settled', { resourceId: 'res-1', contentChecksum: 'cs-old', outcome: 'indexed' });
+    bus.emit('smelt:settled', { resourceId: 'res-other', contentChecksum: 'cs-new', outcome: 'indexed' });
+    bus.emit('smelt:settled', { resourceId: 'res-1', contentChecksum: 'cs-new', outcome: 'indexed' });
 
     await expect(wait).resolves.toBe('indexed');
     progress.dispose();
@@ -65,8 +65,8 @@ describe('SmeltProgress', () => {
     const bus = new EventBus();
     const progress = createSmeltProgress(bus);
 
-    bus.get('smelt:settled').next({ resourceId: 'res-1', contentChecksum: 'cs-v1', outcome: 'indexed' });
-    bus.get('smelt:settled').next({ resourceId: 'res-1', contentChecksum: 'cs-v2', outcome: 'skipped' });
+    bus.emit('smelt:settled', { resourceId: 'res-1', contentChecksum: 'cs-v1', outcome: 'indexed' });
+    bus.emit('smelt:settled', { resourceId: 'res-1', contentChecksum: 'cs-v2', outcome: 'skipped' });
 
     expect(progress.settledAt('res-1')).toEqual({ contentChecksum: 'cs-v2', outcome: 'skipped' });
     progress.dispose();

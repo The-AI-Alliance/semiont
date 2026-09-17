@@ -309,7 +309,7 @@ async function main() {
   for (const channel of ARCHIVIST_INBOUND_CHANNELS) {
     pumps.push(
       httpTransport.stream(channel).subscribe((payload) => {
-        localBus.get(channel).next(payload as never);
+        localBus.emit(channel, payload as never);
       }),
     );
   }
@@ -317,7 +317,7 @@ async function main() {
   const outbound = ARCHIVIST_OUTBOUND_CHANNELS;
   for (const channel of outbound) {
     pumps.push(
-      localBus.get(channel).subscribe((payload) => {
+      localBus.on(channel).subscribe((payload) => {
         httpTransport.emit(channel, payload as never).catch((error: unknown) => {
           logger.error('Reply forwarding failed', { channel, error: errField(error) });
         });
@@ -346,8 +346,8 @@ async function main() {
   // so serialising them only doubled the drain time. `depth()` is published as
   // a gauge: an unbounded backlog with no number is how this went undiagnosed.
   const factPump = createFactPump(
-    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.get(type))),
-    { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, scope), logger },
+    merge(...PERSISTED_EVENT_TYPES.map((type) => localBus.on(type))),
+    { emit: (channel, payload, scope) => httpTransport.emit(channel, payload, { scope }), logger },
   );
   pumps.push({ unsubscribe: () => factPump.unsubscribe() } as Subscription);
   registerFactPumpDepthProvider(() => factPump.depth());

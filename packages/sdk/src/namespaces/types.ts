@@ -462,7 +462,7 @@ export interface MatchNamespace {
   ): StreamObservable<MatchSearchProgress>;
 
   /** Fire-and-forget variant: match-state-unit orchestrates the call and its result Observable. */
-  requestSearch(input: components['schemas']['MatchSearchRequest']): void;
+  requestSearch(input: components['schemas']['MatchSearchRequest'], correlationId: string): void;
 }
 
 /**

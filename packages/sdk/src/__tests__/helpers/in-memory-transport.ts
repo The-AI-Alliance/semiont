@@ -33,10 +33,10 @@ import { EventBus, baseUrl } from '@semiont/core';
 import type {
   ConnectionState,
   EventMap,
+  BusEnvelope,
   IContentTransport,
   IGatewayOperations,
   ITransport,
-  ResourceId,
   SemiontError,
 } from '@semiont/core';
 
@@ -48,7 +48,11 @@ export interface InMemoryTransportOptions {
    * so the interface contextually types `channel` and `payload` here and each
    * test still asserts on its own spy.
    */
-  onEmit?: (channel: keyof EventMap, payload: EventMap[keyof EventMap], resourceScope?: ResourceId) => void;
+  onEmit?: (
+    channel: keyof EventMap,
+    payload: EventMap[keyof EventMap],
+    envelope?: BusEnvelope,
+  ) => void;
   /** Subscriber count to report. Production returns the real count, and zero
    *  is what drives the gateway's unanswerable-request synthesis. */
   observers?: number;
@@ -73,15 +77,19 @@ export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITran
 
   return {
     baseUrl: baseUrl('http://transport.test'),
-    emit: async (channel, payload, resourceScope) => {
-      onEmit?.(channel, payload, resourceScope);
+    emit: async (channel, payload, envelope) => {
+      // The envelope reaches the bus, so a scripted responder can echo the
+      // correlation key back the way a real one does.
+      bus.emit(channel, payload, envelope);
+      onEmit?.(channel, payload, envelope);
       return observers;
     },
     on: (channel, handler) => {
-      const sub = bus.get(channel).subscribe(handler);
+      const sub = bus.on(channel).subscribe(handler);
       return () => sub.unsubscribe();
     },
-    stream: (channel) => bus.get(channel).asObservable(),
+    stream: (channel) => bus.on(channel),
+    frames: (channel) => bus.frames(channel),
     subscribeToResource,
     bridgeInto: () => {},
     state$,

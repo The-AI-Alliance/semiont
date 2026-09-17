@@ -61,7 +61,7 @@ describe('ResourceInfoPanel — text layer status', () => {
     ask.mockResolvedValue({ kind: 'extracted', pages: [] } as never);
 
     act(() => {
-      eventBus.get('smelt:settled').next({ resourceId: 'res-tl', contentChecksum: 'c', outcome: 'indexed' } as never);
+      eventBus.emit('smelt:settled', { resourceId: 'res-tl', contentChecksum: 'c', outcome: 'indexed' } as never);
     });
 
     expect(await screen.findByText('Ready')).toBeInTheDocument();
@@ -74,7 +74,7 @@ describe('ResourceInfoPanel — text layer status', () => {
     const calls = ask.mock.calls.length;
 
     act(() => {
-      eventBus.get('smelt:settled').next({ resourceId: 'OTHER', contentChecksum: 'c', outcome: 'indexed' } as never);
+      eventBus.emit('smelt:settled', { resourceId: 'OTHER', contentChecksum: 'c', outcome: 'indexed' } as never);
     });
 
     await waitFor(() => expect(ask.mock.calls.length).toBe(calls));

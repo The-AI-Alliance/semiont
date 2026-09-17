@@ -1,12 +1,5 @@
 {
   "type": "object",
   "description": "Request to browse available entity types",
-  "properties": {
-    "correlationId": {
-      "type": "string"
-    }
-  },
-  "required": [
-    "correlationId"
-  ]
+  "properties": {}
 }

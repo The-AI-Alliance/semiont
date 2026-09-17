@@ -114,9 +114,13 @@ describe('requestLog payloads', () => {
     expect(transport.requestLog).toHaveLength(2);
     expect(transport.requestLog[0]!.payload).toMatchObject({ limit: 10, entityType: 'Concept' });
     expect(transport.requestLog[1]!.payload).toMatchObject({ limit: 25 });
-    // The correlationId busRequest minted is on the payload too — the entry
-    // is what went on the wire, not a cleaned copy.
-    expect(transport.requestLog[0]!.payload.correlationId).toBe(transport.requestLog[0]!.correlationId);
+    // The key is NOT on the payload: it rides the envelope now
+    // (BUS-CARRIES-FRAMES P3), and the log records it as its own field. This
+    // asserted the opposite while `correlationId` lived inside the domain
+    // payload — the entry is still what went on the wire, the wire just stopped
+    // carrying routing metadata inside the message.
+    expect(transport.requestLog[0]!.payload).not.toHaveProperty('correlationId');
+    expect(transport.requestLog[0]!.correlationId).toEqual(expect.any(String));
 
     transport.dispose();
   });

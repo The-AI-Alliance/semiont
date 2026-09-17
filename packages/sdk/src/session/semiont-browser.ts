@@ -216,7 +216,7 @@ export class SemiontBrowser {
   /** Emit an event on the browser's app-scoped bus. */
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): void {
     if (this.disposed) return;
-    this.eventBus.get(channel).next(payload);
+    this.eventBus.emit(channel, payload);
   }
 
   /** Subscribe to an event; returns unsubscribe. */
@@ -224,13 +224,13 @@ export class SemiontBrowser {
     channel: K,
     handler: (payload: EventMap[K]) => void,
   ): () => void {
-    const sub = this.eventBus.get(channel).subscribe(handler);
+    const sub = this.eventBus.on(channel).subscribe(handler);
     return () => sub.unsubscribe();
   }
 
   /** Read-only observable for an app-scoped channel. */
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
-    return this.eventBus.get(channel).asObservable();
+    return this.eventBus.on(channel);
   }
 
   // ── Identity token (external OAuth/identity bridge; D1) ───────────────

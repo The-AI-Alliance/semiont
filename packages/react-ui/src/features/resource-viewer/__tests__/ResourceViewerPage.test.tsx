@@ -329,7 +329,7 @@ describe('ResourceViewerPage', () => {
       expect(capturedHistory.props).not.toBeNull();
 
       const focused: Array<string | null> = [];
-      const sub = stubClient.bus.get('beckon:focus').subscribe(({ annotationId }: any) => focused.push(annotationId));
+      const sub = stubClient.bus.on('beckon:focus').subscribe(({ annotationId }: any) => focused.push(annotationId));
 
       expect(capturedHistory.props?.onEventClick).toBeTypeOf('function');
       capturedHistory.props!.onEventClick('ann-42');

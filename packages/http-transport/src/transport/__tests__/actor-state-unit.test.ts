@@ -539,7 +539,7 @@ describe('createActorStateUnit', () => {
     const unscoped = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(unscoped.scope).toBeUndefined();
 
-    await stateUnit.emit('beckon:hover', { annotationId: 'a-2' }, 'res-99');
+    await stateUnit.emit('beckon:hover', { annotationId: 'a-2' }, { scope: 'res-99' });
     const scoped = JSON.parse(mockFetch.mock.calls[1][1].body);
     expect(scoped.scope).toBe('res-99');
 

@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Search results payload emitted on match:search-results SSE channel.",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "referenceId": {
       "type": "string"
     },
@@ -17,7 +14,6 @@
     }
   },
   "required": [
-    "correlationId",
     "referenceId",
     "response"
   ]

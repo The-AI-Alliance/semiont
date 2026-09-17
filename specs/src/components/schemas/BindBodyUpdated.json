@@ -1,11 +1,5 @@
 {
   "type": "object",
   "description": "Void success reply emitted on the bind:body-updated channel after bind:update-body has been applied, matched to the originating command by correlationId.",
-  "properties": {
-    "correlationId": {
-      "type": "string",
-      "description": "Correlation id echoed from the originating bind:update-body command so busRequest can match the reply."
-    }
-  },
-  "required": ["correlationId"]
+  "properties": {}
 }

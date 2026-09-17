@@ -219,7 +219,7 @@ describe('SemiontClient over LocalTransport', () => {
       const h = await bootHarness();
       try {
         const failed$ = (
-          h.client.bus.get('browse:resource-failed') as unknown as Observable<{ message: string }>
+          h.client.bus.on('browse:resource-failed') as unknown as Observable<{ message: string }>
         ).pipe(take(1));
         const observed = firstValueFrom(failed$);
 
@@ -290,7 +290,7 @@ describe('SemiontClient over LocalTransport', () => {
         await h.client.mark.delete(rId, aId);
 
         await waitForEvent(
-          h.client.bus.get('mark:delete-ok') as unknown as Observable<{ annotationId: string }>,
+          h.client.bus.on('mark:delete-ok') as unknown as Observable<{ annotationId: string }>,
           (e) => e.annotationId === aIdStr,
         );
 
@@ -332,7 +332,7 @@ describe('SemiontClient over LocalTransport', () => {
         ]);
 
         await waitForEvent(
-          h.client.bus.get('bind:body-updated') as unknown as Observable<{ annotationId: string }>,
+          h.client.bus.on('bind:body-updated') as unknown as Observable<{ annotationId: string }>,
           (e) => e.annotationId === aIdStr,
         );
 
@@ -363,7 +363,7 @@ describe('SemiontClient over LocalTransport', () => {
         // confirm Stower has appended + materialized the system view
         // before listing.
         await waitForEvent(
-          h.client.bus.get('frame:entity-type-added') as unknown as Observable<{ payload?: { entityType?: string } }>,
+          h.client.bus.on('frame:entity-type-added') as unknown as Observable<{ payload?: { entityType?: string } }>,
           (e) => e.payload?.entityType === (tag as unknown as string),
         );
 
@@ -400,7 +400,7 @@ describe('SemiontClient over LocalTransport', () => {
         // Wait for the bridged broadcast — proves Stower appended the
         // event and the materializer wrote the projection.
         await waitForEvent(
-          h.client.bus.get('frame:tag-schema-added') as unknown as Observable<{
+          h.client.bus.on('frame:tag-schema-added') as unknown as Observable<{
             payload?: { schema?: { id?: string } };
           }>,
           (e) => e.payload?.schema?.id === schema.id,

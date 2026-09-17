@@ -32,13 +32,13 @@ type ResponseMap = Record<string, (payload: Record<string, unknown>) => { result
 
 function createMockTransport(responses: ResponseMap): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn> } {
   const transportBus = new EventBus();
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
     const handler = responses[channel];
     if (handler) {
       const { resultChannel, response } = handler(payload);
-      const correlationId = payload.correlationId as string;
+      const correlationId = envelope?.correlationId as string;
       queueMicrotask(() => {
-        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
       });
     }
     return 1;
@@ -47,8 +47,8 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
   const transport = inMemoryTransport({
     bus: transportBus,
     subscribeToResource,
-    onEmit: (channel, payload) => {
-      void emitSpy(channel, payload);
+    onEmit: (channel, payload, envelope) => {
+      void emitSpy(channel, payload, envelope);
     },
   });
   return { transport, emitSpy };
@@ -103,7 +103,7 @@ describe('generation stall guard', () => {
     await vi.advanceTimersByTimeAsync(1); // 4000 × 75ms = 300s exactly
     await rejection;
     expect(cancelCount(emitSpy)).toBe(1);
-    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }));
+    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('an event inside the window resets it', async () => {
@@ -114,7 +114,7 @@ describe('generation stall guard', () => {
     const rejection = expect(p).rejects.toBeInstanceOf(GenerationStallError);
 
     await vi.advanceTimersByTimeAsync(299_000);
-    bus.get('job:report-progress').next({
+    bus.emit('job:report-progress', {
       resourceId: 'res-1', jobId: 'j1', jobType: 'generation', percentage: 50,
       progress: { percentage: 50 },
     });
@@ -136,7 +136,7 @@ describe('generation stall guard', () => {
     const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
     await vi.advanceTimersByTimeAsync(0); // let job:create settle → jobId assigned
 
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1',
       jobType: 'generation',
       resourceId: 'res-1',

@@ -50,7 +50,7 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
       />,
     );
 
-    client.bus.get('beckon:focus').next({ annotationId: 'ann-7' });
+    client.bus.emit('beckon:focus', { annotationId: 'ann-7' });
 
     expect(scrollSpy).toHaveBeenCalledTimes(1);
     expect(scrollSpy.mock.calls[0]?.[0]).toBe('ann-7');
@@ -86,13 +86,13 @@ describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () =>
 
   it('ignores a focus aimed at a DIFFERENT resource', () => {
     const client = renderAt('res-1');
-    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-2' });
+    client.bus.emit('beckon:focus', { annotationId: 'ann-7', resourceId: 'res-2' });
     expect(scrollSpy).not.toHaveBeenCalled();
   });
 
   it('still scrolls when the resource matches', () => {
     const client = renderAt('res-1');
-    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-1' });
+    client.bus.emit('beckon:focus', { annotationId: 'ann-7', resourceId: 'res-1' });
     expect(scrollSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -102,7 +102,7 @@ describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () =>
     // are already scoped to the open resource. A guard that treated absence as
     // "not mine" would break every one of them.
     const client = renderAt('res-1');
-    client.bus.get('beckon:focus').next({ annotationId: 'ann-7' });
+    client.bus.emit('beckon:focus', { annotationId: 'ann-7' });
     expect(scrollSpy).toHaveBeenCalledTimes(1);
   });
 });

@@ -102,7 +102,7 @@ function createEventTracker() {
       ] as const;
       annotationEvents.forEach((eventName) => {
         subscriptions.add(eventName);
-        eventBus.get(eventName).subscribe((payload: any) => {
+        eventBus.on(eventName).subscribe((payload: any) => {
           events.push({ event: eventName, payload });
         });
       });
@@ -117,7 +117,7 @@ function makeSession(client: SemiontClient): SemiontSession {
   return {
     client,
     subscribe: (channel: string, handler: (p: never) => void) => {
-      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
+      const sub = (client.bus.on(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } }).subscribe(handler);
       return () => sub.unsubscribe();
     },
   } as unknown as SemiontSession;
@@ -579,10 +579,10 @@ describe('BrowseView Component', () => {
       };
 
       const { SemiontWrapper, eventBus, client } = createTestSemiontWrapper();
-      eventBus.get('beckon:hover').subscribe((payload: any) => {
+      eventBus.on('beckon:hover').subscribe((payload: any) => {
         eventTracker.push({ event: 'beckon:hover', annotationId: payload?.annotationId ?? null });
       });
-      eventBus.get('browse:click').subscribe((payload: any) => {
+      eventBus.on('browse:click').subscribe((payload: any) => {
         eventTracker.push({ event: 'browse:click', annotationId: payload?.annotationId ?? null });
       });
 
@@ -675,7 +675,7 @@ describe('BrowseView — beckon:focus is guarded by resourceId (P6/D7)', () => {
 
     // Neither call may throw; the assertion that matters is the guard's
     // existence, pinned in AnnotateView where the scroll helper is mockable.
-    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-2' });
-    client.bus.get('beckon:focus').next({ annotationId: 'ann-7', resourceId: 'res-1' });
+    client.bus.emit('beckon:focus', { annotationId: 'ann-7', resourceId: 'res-2' });
+    client.bus.emit('beckon:focus', { annotationId: 'ann-7', resourceId: 'res-1' });
   });
 });

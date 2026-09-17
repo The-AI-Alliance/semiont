@@ -28,13 +28,13 @@ function createMockTransport(
   responses: Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }> = {},
 ): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn>; transportBus: EventBus } {
   const transportBus = new EventBus();
-  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>) => {
+  const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
     const handler = responses[channel];
     if (handler) {
       const { resultChannel, response } = handler(payload);
-      const correlationId = payload.correlationId as string;
+      const correlationId = envelope?.correlationId as string;
       queueMicrotask(() => {
-        (transportBus.get(resultChannel as never) as { next(v: unknown): void }).next({ correlationId, response });
+        transportBus.emit(resultChannel as never, { response } as never, { correlationId });
       });
     }
   });
@@ -42,7 +42,7 @@ function createMockTransport(
   const transport: ITransport & IGatewayOperations = {
     ...inMemoryTransport({
       bus: transportBus,
-      onEmit: (channel, payload) => { void emitSpy(channel, payload); },
+      onEmit: (channel, payload, envelope) => { void emitSpy(channel, payload, envelope); },
     }),
     ...gatewayOperationSpies(),
   };
@@ -81,7 +81,7 @@ describe('MarkNamespace', () => {
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     const result = await m.annotation({ motivation: 'highlighting', target: { source: RID } } as any);
-    expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }));
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:create-request', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
     expect(result.annotationId).toBe('ann-new');
   });
 
@@ -91,7 +91,7 @@ describe('MarkNamespace', () => {
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.delete(RID, AID);
-    expect(mock.emitSpy).toHaveBeenCalledWith('mark:delete', expect.objectContaining({ annotationId: AID, resourceId: RID }));
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:delete', expect.objectContaining({ annotationId: AID, resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('delete() REJECTS on mark:delete-failed — a delete failure is not silently dropped', async () => {
@@ -99,8 +99,8 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, eventBus);
     const assertion = expect(m.delete(RID, AID)).rejects.toThrow(/denied/);
     await new Promise((r) => setTimeout(r, 10));
-    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:delete-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'denied' });
+    const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
+    mock.transportBus.emit('mark:delete-failed' as never, { message: 'denied' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -110,7 +110,7 @@ describe('MarkNamespace', () => {
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.archive(RID);
-    expect(mock.emitSpy).toHaveBeenCalledWith('mark:archive', expect.objectContaining({ resourceId: RID }));
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:archive', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('archive() REJECTS on mark:archive-failed — an archive failure is not silently dropped', async () => {
@@ -118,8 +118,8 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, eventBus);
     const assertion = expect(m.archive(RID)).rejects.toThrow(/archive boom/);
     await new Promise((r) => setTimeout(r, 10));
-    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:archive-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'archive boom' });
+    const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
+    mock.transportBus.emit('mark:archive-failed' as never, { message: 'archive boom' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -129,7 +129,7 @@ describe('MarkNamespace', () => {
     });
     const m = new MarkNamespace(mock.transport, eventBus);
     await m.unarchive(RID);
-    expect(mock.emitSpy).toHaveBeenCalledWith('mark:unarchive', expect.objectContaining({ resourceId: RID }));
+    expect(mock.emitSpy).toHaveBeenCalledWith('mark:unarchive', expect.objectContaining({ resourceId: RID }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('unarchive() REJECTS on mark:unarchive-failed (the former silent no-op now surfaces)', async () => {
@@ -137,8 +137,8 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, eventBus);
     const assertion = expect(m.unarchive(RID)).rejects.toThrow(/file not found/);
     await new Promise((r) => setTimeout(r, 10));
-    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:unarchive-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'Cannot unarchive: file not found at x' });
+    const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
+    mock.transportBus.emit('mark:unarchive-failed' as never, { message: 'Cannot unarchive: file not found at x' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -152,7 +152,7 @@ describe('MarkNamespace', () => {
       resourceId: RID,
       currentEntityTypes: ['A'],
       updatedEntityTypes: ['A', 'B'],
-    }));
+    }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('updateEntityTypes() REJECTS on mark:update-entity-types-failed — a tag write failure is not silently dropped', async () => {
@@ -160,8 +160,8 @@ describe('MarkNamespace', () => {
     const m = new MarkNamespace(mock.transport, eventBus);
     const assertion = expect(m.updateEntityTypes(RID, [], ['Person'])).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
-    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('mark:update-entity-types-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'rejected by handler' });
+    const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
+    mock.transportBus.emit('mark:update-entity-types-failed' as never, { message: 'rejected by handler' } as never, { correlationId: cid });
     await assertion;
   });
 
@@ -177,11 +177,11 @@ describe('MarkNamespace', () => {
     await new Promise((r) => setTimeout(r, 10));
     // Unified lifecycle: filter by the jobId (`j1`) assigned by job:create.
     // assist() forwards the inner `progress` field as the Observable's `next`.
-    eventBus.get('job:report-progress').next({
+    eventBus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
       percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
     } as any);
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
       result: { totalFound: 3, totalEmitted: 3, errors: 0 },
     } as any);
@@ -209,7 +209,7 @@ describe('MarkNamespace', () => {
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(16_000);
 
-    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', expect.any(Object));
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', expect.any(Object), expect.objectContaining({ correlationId: expect.any(String) }));
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -231,7 +231,7 @@ describe('MarkNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
       result: { totalFound: 0, totalEmitted: 0, errors: 0 },
     } as any);
@@ -253,7 +253,7 @@ describe('MarkNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(9_000);
-    bus.get('job:report-progress').next({
+    bus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
       percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
     } as any);
@@ -282,6 +282,7 @@ describe('MarkNamespace', () => {
     expect(mock.emitSpy).toHaveBeenCalledWith(
       'job:cancel-requested',
       expect.objectContaining({ jobId: 'j-42' }),
+      expect.objectContaining({ correlationId: expect.any(String) }),
     );
     // Category-only cancellation is a different request; targeting must not
     // smuggle a jobType in and cancel the user's other work.
@@ -314,7 +315,7 @@ describe('MarkNamespace', () => {
     });
     await new Promise((r) => setTimeout(r, 0));
 
-    const fail = (willRetry: boolean) => bus.get('job:fail').next({
+    const fail = (willRetry: boolean) => bus.emit('job:fail', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
       error: 'transient blip', willRetry,
     } as never);
@@ -325,12 +326,12 @@ describe('MarkNamespace', () => {
 
     // Progress must keep flowing on the retried attempt, too — the old
     // takeUntil(fail$) silenced it even when the stream survived.
-    bus.get('job:report-progress').next({
+    bus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
       percentage: 20, progress: { percentage: 20 },
     } as never);
 
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
     } as never);
 
@@ -352,7 +353,7 @@ describe('MarkNamespace', () => {
 
     const err = await new Promise<Error>((resolve) => {
       m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
-      setTimeout(() => bus.get('job:fail').next({
+      setTimeout(() => bus.emit('job:fail', {
         jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
         error: 'budget spent', willRetry: false,
       } as never), 0);
@@ -370,7 +371,7 @@ describe('MarkNamespace', () => {
 
     const err = await new Promise<Error>((resolve) => {
       m.assist(RID, 'highlighting', {}).subscribe({ error: resolve });
-      setTimeout(() => bus.get('job:fail').next({
+      setTimeout(() => bus.emit('job:fail', {
         jobId: 'j1', resourceId: 'res-1', jobType: 'highlight-annotation',
         error: 'no field',
       } as never), 0);
@@ -421,7 +422,7 @@ describe('BindNamespace', () => {
       annotationId: AID,
       resourceId: RID,
       operations: expect.any(Array),
-    }));
+    }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('body() REJECTS on bind:body-update-failed — a bind failure is not silently dropped', async () => {
@@ -431,8 +432,8 @@ describe('BindNamespace', () => {
       bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]),
     ).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
-    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('bind:body-update-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'rejected by handler' });
+    const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
+    mock.transportBus.emit('bind:body-update-failed' as never, { message: 'rejected by handler' } as never, { correlationId: cid });
     await assertion;
   });
 });
@@ -458,7 +459,7 @@ describe('GatherNamespace', () => {
         annotationId: AID,
         resourceId: RID,
         options: { contextWindow: 2000 },
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -470,8 +471,8 @@ describe('GatherNamespace', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
-    const cid = call?.[1]?.correlationId;
-    eventBus.get('gather:complete').next({ correlationId: cid, annotationId: AID, response: { context: {} } } as any);
+    const cid = call?.[2]?.correlationId;
+    eventBus.emit('gather:complete', { annotationId: AID, response: { context: {} } } as any, { correlationId: cid });
     await completed;
   });
 
@@ -482,8 +483,8 @@ describe('GatherNamespace', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
-    const cid = call?.[1]?.correlationId;
-    eventBus.get('gather:failed').next({ correlationId: cid, annotationId: AID, message: 'boom' } as any);
+    const cid = call?.[2]?.correlationId;
+    eventBus.emit('gather:failed', { annotationId: AID, message: 'boom' } as any, { correlationId: cid });
     const err = await errored;
     expect(err.message).toContain('boom');
   });
@@ -509,7 +510,7 @@ describe('MatchNamespace', () => {
       expect(emitSpy).toHaveBeenCalledWith('match:search-requested', expect.objectContaining({
         resourceId: RID,
         referenceId: 'ref-1',
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -520,8 +521,8 @@ describe('MatchNamespace', () => {
     });
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
-    const cid = call?.[1]?.correlationId;
-    eventBus.get('match:search-results').next({ correlationId: cid, referenceId: 'ref-1', response: [] } as any);
+    const cid = call?.[2]?.correlationId;
+    eventBus.emit('match:search-results', { referenceId: 'ref-1', response: [] } as any, { correlationId: cid });
     await completed;
   });
 
@@ -531,8 +532,8 @@ describe('MatchNamespace', () => {
     });
     await new Promise((r) => setTimeout(r, 20));
     const call = emitSpy.mock.calls[0];
-    const cid = call?.[1]?.correlationId;
-    eventBus.get('match:search-failed').next({ correlationId: cid, referenceId: 'ref-1', error: 'no results' } as any);
+    const cid = call?.[2]?.correlationId;
+    eventBus.emit('match:search-failed', { referenceId: 'ref-1', error: 'no results' } as any, { correlationId: cid });
     const err = await errored;
     expect(err.message).toContain('no results');
   });
@@ -548,7 +549,7 @@ describe('JobNamespace', () => {
     const job = new JobNamespace(mock.transport, new EventBus());
     const count = await job.cancelByType('generation');
     expect(count).toBe(3);
-    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }));
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('cancelByType REJECTS on job:cancel-failed (queue error no longer swallowed)', async () => {
@@ -556,8 +557,8 @@ describe('JobNamespace', () => {
     const job = new JobNamespace(mock.transport, new EventBus());
     const assertion = expect(job.cancelByType('annotation')).rejects.toThrow(/queue down/);
     await new Promise((r) => setTimeout(r, 10));
-    const cid = mock.emitSpy.mock.calls[0]?.[1]?.correlationId as string;
-    (mock.transportBus.get('job:cancel-failed' as never) as { next(v: unknown): void }).next({ correlationId: cid, message: 'queue down' });
+    const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
+    mock.transportBus.emit('job:cancel-failed' as never, { message: 'queue down' } as never, { correlationId: cid });
     await assertion;
   });
 });
@@ -716,7 +717,7 @@ describe('YieldNamespace', () => {
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ outputMediaType: 'text/plain' }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -726,7 +727,7 @@ describe('YieldNamespace', () => {
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ outputMediaType: 'text/plain' }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -738,7 +739,7 @@ describe('YieldNamespace', () => {
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ task: 'answer', structure: 'prose' }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -750,7 +751,7 @@ describe('YieldNamespace', () => {
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ task: 'translate to French', structure: 'chat' }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -774,7 +775,7 @@ describe('YieldNamespace', () => {
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ cite: true }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -784,7 +785,7 @@ describe('YieldNamespace', () => {
     return new Promise<void>((resolve) => setTimeout(() => {
       expect(emitSpy).toHaveBeenCalledWith('job:create', expect.objectContaining({
         params: expect.objectContaining({ cite: true }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -818,7 +819,7 @@ describe('YieldNamespace', () => {
         params: expect.objectContaining({
           entityTypes: ['Character', 'Hero'],
         }),
-      }));
+      }), expect.objectContaining({ correlationId: expect.any(String) }));
       resolve();
     }, 20));
   });
@@ -833,11 +834,11 @@ describe('YieldNamespace', () => {
     });
 
     await new Promise((r) => setTimeout(r, 20));
-    eventBus.get('job:report-progress').next({
+    eventBus.emit('job:report-progress', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
       percentage: 50, progress: { percentage: 50, message: 'halfway' },
     } as any);
-    eventBus.get('job:complete').next({
+    eventBus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
       result: { resourceName: 'T' },
     } as any);
@@ -870,7 +871,7 @@ describe('YieldNamespace', () => {
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(16_000);
 
-    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', expect.any(Object));
+    expect(mock.emitSpy).toHaveBeenCalledWith('job:status-requested', expect.any(Object), expect.objectContaining({ correlationId: expect.any(String) }));
     expect(completed).toBe(true);
 
     bus.destroy();
@@ -892,7 +893,7 @@ describe('YieldNamespace', () => {
     });
 
     await vi.advanceTimersByTimeAsync(100);
-    bus.get('job:complete').next({
+    bus.emit('job:complete', {
       jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
       result: { resourceName: 'T' },
     } as any);
@@ -941,7 +942,7 @@ function makeDeferredEmitTransport(emitPromise: Promise<unknown>): { transport: 
   const emitSpy = vi.fn().mockReturnValue(emitPromise);
   const transport: ITransport & IGatewayOperations = {
     ...inMemoryTransport({
-      onEmit: (channel, payload) => { void emitSpy(channel, payload); },
+      onEmit: (channel, payload, envelope) => { void emitSpy(channel, payload, envelope); },
     }),
     ...gatewayOperationSpies(),
   };

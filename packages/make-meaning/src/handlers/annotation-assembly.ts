@@ -39,12 +39,11 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
   const logger = parentLogger.child({ component: 'annotation-assembly' });
   const inflight = new Map<string, { annotationId: string }>();
 
-  eventBus.get('mark:create-request').subscribe((command) => {
+  eventBus.frames('mark:create-request').subscribe(({ payload: command, correlationId: cid }) => {
     // Async because the gate reads the target's view; the try/catch below
     // covers the whole body, so nothing escapes as an unhandled rejection.
     void (async () => {
-    const { correlationId, resourceId: resId, request, _userId } = command as Record<string, unknown>;
-    const cid = correlationId as string | undefined;
+    const { resourceId: resId, request, _userId } = command as Record<string, unknown>;
 
     try {
       if (!_userId || typeof _userId !== 'string') {
@@ -63,12 +62,9 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
 
       inflight.set(cid, { annotationId: annotation.id });
 
-      eventBus.get('mark:create').next({
-        correlationId: cid,
-        annotation,
+      eventBus.emit('mark:create', { annotation,
         _userId,
-        resourceId: resourceId(resId as string),
-      } as never);
+        resourceId: resourceId(resId as string), } as never, { correlationId: cid });
 
       logger.info('Annotation assembled, awaiting persistence', {
         annotationId: annotation.id,
@@ -79,29 +75,23 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
         correlationId: cid,
         error: (error as Error).message,
       });
-      eventBus.get('mark:create-failed').next({
-        correlationId: cid,
-        message: (error as Error).message,
-      });
+      eventBus.emit('mark:create-failed', { message: (error as Error).message, }, { correlationId: cid });
     }
     })();
   });
 
-  eventBus.get('mark:added').subscribe((event) => {
-    const cid = event.metadata?.correlationId;
+  eventBus.frames('mark:added').subscribe(({ correlationId: cid }) => {
     if (!cid) return;
     const pending = inflight.get(cid);
     if (!pending) return;
     inflight.delete(cid);
-    eventBus.get('mark:create-ok').next({
-      correlationId: cid,
+    eventBus.emit('mark:create-ok', {
       response: { annotationId: pending.annotationId },
-    });
+    }, { correlationId: cid });
     logger.info('Annotation persisted', { annotationId: pending.annotationId, correlationId: cid });
   });
 
-  eventBus.get('mark:create-failed').subscribe((event) => {
-    const cid = (event as { correlationId?: string }).correlationId;
+  eventBus.frames('mark:create-failed').subscribe(({ correlationId: cid }) => {
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
   });

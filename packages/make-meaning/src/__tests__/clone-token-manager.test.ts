@@ -90,30 +90,34 @@ describe('CloneTokenManager format selection', () => {
     const tokenCid = uuidv4();
     const token$ = firstValueFrom(
       race(
-        eventBus.get('yield:clone-token-generated').pipe(
-          filter((e) => e.correlationId === tokenCid),
+        eventBus.frames('yield:clone-token-generated').pipe(
+          filter((frame) => frame.correlationId === tokenCid),
+          map((frame) => frame.payload),
           map((e) => e.response.token),
         ),
-        eventBus.get('yield:clone-token-failed').pipe(
-          filter((e) => e.correlationId === tokenCid),
+        eventBus.frames('yield:clone-token-failed').pipe(
+          filter((frame) => frame.correlationId === tokenCid),
+          map((frame) => frame.payload),
           map((e) => {
             throw new Error(e.message);
           }),
         ),
       ).pipe(timeout(5000)),
     );
-    eventBus.get('yield:clone-token-requested').next({ correlationId: tokenCid, resourceId: sourceId });
+    eventBus.emit('yield:clone-token-requested', { resourceId: sourceId }, { correlationId: tokenCid });
     const token = await token$;
 
     const createCid = uuidv4();
     const created$ = firstValueFrom(
       race(
-        eventBus.get('yield:clone-created').pipe(
-          filter((e) => e.correlationId === createCid),
+        eventBus.frames('yield:clone-created').pipe(
+          filter((frame) => frame.correlationId === createCid),
+          map((frame) => frame.payload),
           map((e) => e.response.resourceId),
         ),
-        eventBus.get('yield:clone-create-failed').pipe(
-          filter((e) => e.correlationId === createCid),
+        eventBus.frames('yield:clone-create-failed').pipe(
+          filter((frame) => frame.correlationId === createCid),
+          map((frame) => frame.payload),
           map((e) => {
             throw new Error(e.message);
           }),
@@ -127,8 +131,7 @@ describe('CloneTokenManager format selection', () => {
     const format = cloneFormat(sourceFormat);
     const cloneUri = deriveStorageUri(`clone-${fileCounter}`, format);
     const stored = await kb.content.store(Buffer.from('edited clone content'), cloneUri, { noGit: true });
-    eventBus.get('yield:clone-create').next({
-      correlationId: createCid,
+    eventBus.emit('yield:clone-create', {
       token,
       name: `clone-${fileCounter}`,
       storageUri: stored.storageUri,
@@ -136,7 +139,7 @@ describe('CloneTokenManager format selection', () => {
       byteSize: stored.byteSize,
       format,
       _userId: 'ctm-test',
-    });
+    }, { correlationId: createCid });
     const cloneId = await created$;
     if (!cloneId) throw new Error('yield:clone-created carried no resourceId');
 

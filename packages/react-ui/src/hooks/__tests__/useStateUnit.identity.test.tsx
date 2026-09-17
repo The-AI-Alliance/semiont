@@ -54,22 +54,30 @@ const NINE_TYPES = [
  */
 function inMemoryTransport(
   bus: EventBus,
-  onEmit: (channel: string, payload: Record<string, unknown>) => void,
+  onEmit: (
+    channel: string,
+    payload: Record<string, unknown>,
+    envelope?: { correlationId?: string },
+  ) => void,
 ): ITransport {
   return {
     baseUrl: baseUrl('http://transport.test'),
     // Adapting a spy here (rather than taking `ITransport['emit']` directly)
     // is what keeps this literal cast-free: the interface contextually types
     // `channel` and `payload`, and each test still asserts on its own spy.
-    emit: async (channel, payload) => {
-      onEmit(channel, payload as Record<string, unknown>);
+    emit: async (channel, payload, envelope) => {
+      // The envelope reaches the responder: `busRequest` matches its reply on
+      // `frame.correlationId`, so a double that swallowed it would strand
+      // every request behind this transport.
+      onEmit(channel, payload as Record<string, unknown>, envelope);
       return 1;
     },
     on: (channel, handler) => {
-      const sub = bus.get(channel).subscribe(handler);
+      const sub = bus.on(channel).subscribe(handler);
       return () => sub.unsubscribe();
     },
-    stream: (channel) => bus.get(channel).asObservable(),
+    stream: (channel) => bus.on(channel),
+    frames: (channel) => bus.frames(channel),
     subscribeToResource: () => () => {},
     bridgeInto: () => {},
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
@@ -97,12 +105,11 @@ function inMemoryContent(): IContentTransport {
  */
 function makeBrowse(answerEntityTypes: string[]) {
   const transportBus = new EventBus();
-  const emit = vi.fn().mockImplementation((channel: string, payload: Record<string, unknown>) => {
+  const emit = vi.fn().mockImplementation((channel: string, _payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
     if (channel === 'browse:entity-types-requested') {
-      const correlationId = payload.correlationId as string;
+      const correlationId = envelope?.correlationId as string;
       queueMicrotask(() => {
-        (transportBus.get('browse:entity-types-result') as { next(v: unknown): void })
-          .next({ correlationId, response: { entityTypes: answerEntityTypes } });
+        transportBus.emit('browse:entity-types-result', { response: { entityTypes: answerEntityTypes } }, { correlationId });
       });
     }
   });
@@ -202,9 +209,9 @@ describe('useStateUnit identity seam — stale client references', () => {
       // it follows directly from the previous test's setup.
       const transportBus = new EventBus();
       const pendingCids: string[] = [];
-      const emit = vi.fn().mockImplementation((channel: string, payload: Record<string, unknown>) => {
+      const emit = vi.fn().mockImplementation((channel: string, _payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
         if (channel === 'browse:entity-types-requested') {
-          pendingCids.push(payload.correlationId as string);
+          pendingCids.push(envelope?.correlationId as string);
           // Don't respond yet — test resolves this manually.
         }
       });
@@ -230,8 +237,7 @@ describe('useStateUnit identity seam — stale client references', () => {
       rerender(<Harness browse={browseB} />);
 
       // Now resolve browseA's fetch — late. Nobody's listening.
-      (transportBus.get('browse:entity-types-result') as { next(v: unknown): void })
-        .next({ correlationId: pendingCids[0]!, response: { entityTypes: NINE_TYPES } });
+      transportBus.emit('browse:entity-types-result', { response: { entityTypes: NINE_TYPES } }, { correlationId: pendingCids[0]! });
       await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
 
       // state unit is still pinned to browseA; that cache DID receive the value,

@@ -20,11 +20,11 @@ describe('EventBus scoping', () => {
     const events1: unknown[] = [];
     const events2: unknown[] = [];
 
-    resource1.get('mark:create-ok').subscribe(e => events1.push(e));
-    resource2.get('mark:create-ok').subscribe(e => events2.push(e));
+    resource1.on('mark:create-ok').subscribe(e => events1.push(e));
+    resource2.on('mark:create-ok').subscribe(e => events2.push(e));
 
-    resource1.get('mark:create-ok').next({ response: { annotationId:'ann-1' as never } });
-    resource2.get('mark:create-ok').next({ response: { annotationId:'ann-2' as never } });
+    resource1.emit('mark:create-ok', { response: { annotationId:'ann-1' as never } });
+    resource2.emit('mark:create-ok', { response: { annotationId:'ann-2' as never } });
 
     expect(events1).toHaveLength(1);
     expect((events1[0] as { response: { annotationId: string } }).response.annotationId).toBe('ann-1');
@@ -40,11 +40,11 @@ describe('EventBus scoping', () => {
     const events1: unknown[] = [];
     const events2: unknown[] = [];
 
-    resource1.get('mark:create-ok').subscribe(e => events1.push(e));
-    resource2.get('mark:create-ok').subscribe(e => events2.push(e));
+    resource1.on('mark:create-ok').subscribe(e => events1.push(e));
+    resource2.on('mark:create-ok').subscribe(e => events2.push(e));
 
     // Emit to resource1 only
-    resource1.get('mark:create-ok').next({ response: { annotationId:'ann-1' as never } });
+    resource1.emit('mark:create-ok', { response: { annotationId:'ann-1' as never } });
 
     expect(events1).toHaveLength(1);
     expect((events1[0] as { response: { annotationId: string } }).response.annotationId).toBe('ann-1');
@@ -59,12 +59,12 @@ describe('EventBus scoping', () => {
     const resourceEvents: unknown[] = [];
     const subsystemEvents: unknown[] = [];
 
-    resourceScope.get('mark:create-ok').subscribe(e => resourceEvents.push(e));
-    subsystemScope.get('mark:create-ok').subscribe(e => subsystemEvents.push(e));
+    resourceScope.on('mark:create-ok').subscribe(e => resourceEvents.push(e));
+    subsystemScope.on('mark:create-ok').subscribe(e => subsystemEvents.push(e));
 
     // Events to different scopes are isolated
-    resourceScope.get('mark:create-ok').next({ response: { annotationId:'res-level' as never } });
-    subsystemScope.get('mark:create-ok').next({ response: { annotationId:'subsystem-level' as never } });
+    resourceScope.emit('mark:create-ok', { response: { annotationId:'res-level' as never } });
+    subsystemScope.emit('mark:create-ok', { response: { annotationId:'subsystem-level' as never } });
 
     expect(resourceEvents).toHaveLength(1);
     expect((resourceEvents[0] as { response: { annotationId: string } }).response.annotationId).toBe('res-level');
@@ -85,15 +85,17 @@ describe('EventBus scoping', () => {
   it('maintains type safety across scopes', () => {
     const resourceScope = eventBus.scope('resource-1');
 
-    const subject = resourceScope.get('mark:create-ok');
-
+    // One name for reading and writing was the old shape: `get()` handed back
+    // a Subject, so a holder could do both and nothing said which it meant.
+    // The verbs separate them, and the payload stays typed either way — which
+    // is what this test is actually about.
     const events: unknown[] = [];
-    subject.subscribe(e => {
+    resourceScope.on('mark:create-ok').subscribe(e => {
       expect(e.response.annotationId).toBeDefined();
       events.push(e);
     });
 
-    subject.next({ response: { annotationId:'ann-1' as never } });
+    resourceScope.emit('mark:create-ok', { response: { annotationId:'ann-1' as never } });
 
     expect(events).toHaveLength(1);
   });

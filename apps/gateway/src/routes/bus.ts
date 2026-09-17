@@ -26,7 +26,7 @@ import {
   toReplyAddress,
   type PlaneSubscription,
 } from '../signal';
-import { LEDGER_ADDRESS, correlationIdOf } from '../signal/ledger';
+import { LEDGER_ADDRESS } from '../signal/ledger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
@@ -374,6 +374,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         channel: string,
         payload: unknown,
         eventScope: string | undefined,
+        correlationId: string | undefined,
       ): Promise<void> => {
         const seq = extractSequence(payload);
         let id: string;
@@ -391,7 +392,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           // misses it → duplicate delivery (.plans/bugs/BRIDGE-GAPS.md). Keying on
           // channel + correlationId makes both connections agree. Still `e-`-prefixed,
           // so it stays non-replayable.
-          const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+          const cid = correlationId;
           id =
             typeof cid === 'string' && cid.length > 0
               ? `${EPHEMERAL_ID_PREFIX}${channel}:${cid}`
@@ -402,7 +403,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         // has no header trailer, so trace-context rides on the payload as
         // `_trace`.
         //
-        // For request/reply *replies* (payloads carrying a correlationId) we
+        // For request/reply *replies* (frames carrying a correlationId) we
         // also open a short `sse.deliver:<channel>` span: the trace then shows
         // the reply actually leaving the gateway for this client — the
         // delivered-counterpart to the emit-side `[bus DROP]` warn, so a
@@ -411,15 +412,15 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         // *inside* the span so the client's recv stitches under the deliver,
         // not its parent. Non-reply broadcasts skip the span — they're
         // high-volume and have no single awaiting client.
-        const cid = (payload as { correlationId?: unknown } | null | undefined)?.correlationId;
+        const cid = correlationId;
         const doWrite = async (): Promise<void> => {
           if (payload && typeof payload === 'object') {
             injectTraceparent(payload as Record<string, unknown>);
           }
           const data = eventScope
-            ? JSON.stringify({ channel, payload, scope: eventScope })
-            : JSON.stringify({ channel, payload });
-          busLog('SSE', channel, payload, eventScope);
+            ? JSON.stringify({ channel, correlationId: cid, payload, scope: eventScope })
+            : JSON.stringify({ channel, correlationId: cid, payload });
+          busLog('SSE', channel, payload, eventScope, cid);
           await boundedWrite({ event: 'bus-event', data, id });
         };
         if (typeof cid === 'string' && cid.length > 0) {
@@ -468,11 +469,16 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // buffer drains to empty do we flip to live mode. JS's single-
       // threaded model guarantees no event slips between the final
       // "buffer empty" check and the mode flip.
-      type Queued = { channel: string; payload: unknown; scope: string | undefined };
+      type Queued = { channel: string; payload: unknown; scope: string | undefined; correlationId: string | undefined };
       const liveBuffer: Queued[] = [];
       let mode: 'buffering' | 'live' = 'live';
 
-      const emitOrBuffer = (channel: string, payload: unknown, eventScope: string | undefined) => {
+      const emitOrBuffer = (
+        channel: string,
+        payload: unknown,
+        eventScope: string | undefined,
+        correlationId: string | undefined,
+      ) => {
         if (mode === 'buffering') {
           if (liveBuffer.length >= MAX_REPLAY_BUFFER_EVENTS) {
             getBusLogger().warn('SSE replay-buffer overflow — disconnecting stalled subscriber', {
@@ -482,9 +488,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             teardown('replay-buffer-overflow');
             return;
           }
-          liveBuffer.push({ channel, payload, scope: eventScope });
+          liveBuffer.push({ channel, payload, scope: eventScope, correlationId });
         } else {
-          void writeBusEvent(channel, payload, eventScope);
+          void writeBusEvent(channel, payload, eventScope, correlationId);
         }
       };
 
@@ -502,15 +508,15 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         address: toReplyAddress(clientId),
         global: channels,
         scoped,
-        onFrame: (channel, payload, frameScope) => {
+        onFrame: (channel, payload, envelope) => {
           if (
-            frameScope === undefined &&
+            envelope.scope === undefined &&
             isCorrelatedChannel(channel) &&
-            !composition.mayDeliver(channel, payload, clientId, subscriberDid)
+            !composition.mayDeliver(channel, envelope.meta?.correlationId, clientId, subscriberDid)
           ) {
             return;
           }
-          emitOrBuffer(channel, payload, frameScope);
+          emitOrBuffer(channel, payload, envelope.scope, envelope.meta?.correlationId);
         },
       });
 
@@ -552,7 +558,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             }
 
             for (const ev of replayable) {
-              await writeBusEvent(ev.type as string, ev, entry.scope);
+              // Replayed from the event log: the log stores facts, not routing.
+              await writeBusEvent(ev.type as string, ev, entry.scope, undefined);
             }
           } catch (err) {
             getBusLogger().warn('bus resume query failed', {
@@ -569,21 +576,21 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       //
       // Each requested cid found in retention is written as a normal frame
       // with its DETERMINISTIC ephemeral id (`e-<channel>:<cid>` — stamped
-      // by writeBusEvent from the payload's correlationId), so a copy that
+      // by writeBusEvent from the frame's envelope), so a copy that
       // also arrived live during a connection overlap dedups client-side.
       // Entries are not consumed: a repeat replay is idempotent by id.
       for (const cid of pendingReplies) {
         if (tornDown) break;
         const retained = composition.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
-          await writeBusEvent(retained.channel, retained.payload, undefined);
+          await writeBusEvent(retained.channel, retained.payload, undefined, retained.correlationId);
         }
       }
 
       // ── Drain buffer and switch to live mode ─────────────────────────
       while (liveBuffer.length > 0 && !tornDown) {
         const next = liveBuffer.shift()!;
-        await writeBusEvent(next.channel, next.payload, next.scope);
+        await writeBusEvent(next.channel, next.payload, next.scope, next.correlationId);
       }
       mode = 'live';
 
@@ -620,7 +627,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const composition = compositionFor(eventBus);
     const plane = composition.plane;
     const body = await c.req.json();
-    const { channel, payload, scope } = body;
+    const { channel, payload, scope, correlationId } = body;
     const emitterClientId = typeof body.clientId === 'string' && body.clientId !== '' ? body.clientId : undefined;
 
     if (!channel || typeof channel !== 'string') {
@@ -665,7 +672,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     // Claims are emit-derived rather than trackReply-derived, so the
     // hand-rolled correlated flows (gather.ts, match.ts mint their own uuid
     // and emit directly) are covered with no SDK change.
-    const claimCid = channel in BUS_OPERATIONS ? correlationIdOf(payload) : undefined;
+    const claimCid = channel in BUS_OPERATIONS ? correlationId : undefined;
     if (claimCid) {
       const clientId = emitterClientId;
       if (clientId === undefined) {
@@ -726,9 +733,15 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       withSpan(
         `bus.dispatch:${channel}`,
         () => {
-          subscribers = plane.ingest(channel, payload, scope).observers;
+          subscribers = plane.ingest(channel, payload, {
+            scope,
+            // The envelope the frame travels under, everywhere: `meta` is
+            // ferried verbatim by every driver (P0.5), so an in-process
+            // handler and one across the broker read the same key.
+            meta: correlationId === undefined ? undefined : { correlationId },
+          }).observers;
 
-          busLog('EMIT', channel, payload, scope);
+          busLog('EMIT', channel, payload, scope, correlationId);
           recordBusEmit(channel, scope);
           // `clientId` rides the STRUCTURED line, not `busLog`: busLog's
           // signature is @semiont/core's and shared by every emitter, so
@@ -740,7 +753,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             scope,
             subscribers,
             clientId: emitterClientId,
-            correlationId: (payload as Record<string, unknown>).correlationId,
+            correlationId,
           });
           if (subscribers === 0) {
             // The caller is told in the response body too; this is for the
@@ -769,11 +782,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             // answers it is absent — a far sharper signal than when every
             // client subscribed everything.
             const operation = BUS_OPERATIONS[channel as keyof typeof BUS_OPERATIONS];
-            const failureCid = correlationIdOf(payload);
+            const failureCid = correlationId;
             if (operation?.failure && failureCid) {
               // The request payload is echoed because a failure's own contract
-              // is `{ correlationId, <the request's identifying fields> } &
-              // CommandError` — `gather:resource-failed` needs `resourceId`,
+              // is `<the request's identifying fields> & CommandError` —
+              // `gather:resource-failed` needs `resourceId`,
               // `match:search-failed` needs `referenceId`. Echoing the request
               // derives those; a per-operation table would restate 36 shapes.
               // `_userId` is dropped: the gateway injected it inbound and it is
@@ -802,7 +815,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
               // Unscoped, like every other reply: retention and the delivery
               // filter both watch the unscoped subject. Through the SAME
               // funnel as every emit (P0.1 q0 (a)): one ingest, no side door.
-              plane.ingest(operation.failure, failure);
+              plane.ingest(operation.failure, failure, { meta: { correlationId: failureCid } });
             }
           }
         },

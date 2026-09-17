@@ -2,6 +2,7 @@ import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxj
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
+import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import type { CommandErrorCode } from './payload-types';
@@ -135,7 +136,21 @@ export interface BusRequestPrimitive {
    * unknown). `busRequest` itself ignores it — the reply channel is its
    * ack — but the primitive must stay assignable from every ITransport.
    */
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K]): Promise<number>;
+  emit<K extends keyof EventMap>(
+    channel: K,
+    payload: EventMap[K],
+    envelope?: BusEnvelope,
+  ): Promise<number>;
+  /**
+   * The ENVELOPE view. `busRequest` matches a reply on `frame.correlationId`,
+   * which is why the key never needs to enter a channel's domain type
+   * (BUS-CARRIES-FRAMES P3). Required, not optional: every transport can
+   * answer it, and an optional member here would be one interface in two
+   * dialects — the compatibility layer D1a of CLIENT-SUBSCRIPTION-MANIFEST
+   * had to undo.
+   */
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
+  /** The payload view, DERIVED from `frames` so the two cannot disagree. */
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
   /**
    * Connection state of the stream that carries replies. Required, not
@@ -208,7 +223,6 @@ export async function busRequest<Op extends BusOperationKey>(
   timeoutMs = BUS_REQUEST_TIMEOUT_MS,
 ): Promise<BusReply<Op>> {
   const correlationId = uuidV4();
-  const fullPayload = { ...payload, correlationId };
   const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
 
   // A transport with a narrowed subscription set (a worker) that is not
@@ -225,13 +239,19 @@ export async function busRequest<Op extends BusOperationKey>(
     }
   }
 
+  // Matched on the ENVELOPE. The payload is read only for what it means —
+  // the response, or the failure's message and code — never for routing.
   const result$ = merge(
-    (bus.stream(resultChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
-      filter((e) => e.correlationId === correlationId),
-      map((e) => ({ ok: true as const, response: e.response as BusReply<Op> })),
+    bus.frames(resultChannel as keyof EventMap).pipe(
+      filter((frame) => frame.correlationId === correlationId),
+      map(({ payload: e }) => ({
+        ok: true as const,
+        response: (e as Record<string, unknown>).response as BusReply<Op>,
+      })),
     ),
-    (bus.stream(failureChannel as keyof EventMap) as Observable<Record<string, unknown>>).pipe(
-      filter((e) => e.correlationId === correlationId),
+    bus.frames(failureChannel as keyof EventMap).pipe(
+      filter((frame) => frame.correlationId === correlationId),
+      map(({ payload: p }) => p as Record<string, unknown>),
       map((e) => ({
         ok: false as const,
         error: new BusRequestError((e.message as string) ?? 'Bus request rejected', classifyFailureCode(e.code), {
@@ -363,7 +383,9 @@ export async function busRequest<Op extends BusOperationKey>(
   if (emitAllowed) {
     releaseTracking = bus.trackReply?.(correlationId);
     try {
-      await bus.emit(operation as keyof EventMap, fullPayload as EventMap[keyof EventMap]);
+      // The key goes on the ENVELOPE. A responder reads it from there and
+      // echoes it back on one; no channel's domain type ever carries it.
+      await bus.emit(operation as keyof EventMap, payload as EventMap[keyof EventMap], { correlationId });
     } catch (emitError) {
       releaseTracking?.();
       releaseTracking = undefined;

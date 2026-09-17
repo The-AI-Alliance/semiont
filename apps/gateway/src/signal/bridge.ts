@@ -49,12 +49,25 @@ export function bridgeGatewayHandlers(
     throw new Error(`signal bridge: channel(s) bridged both directions would loop: ${overlap.join(', ')}`);
   }
 
-  const inbound = plane.subscribeHandlers(GATEWAY_HANDLER_GROUP, inboundChannels, (channel, payload) => {
-    eventBus.get(channel as keyof EventMap).next(payload as never);
-  });
+  const inbound = plane.subscribeHandlers(
+    GATEWAY_HANDLER_GROUP,
+    inboundChannels,
+    (channel, payload, envelope) => {
+      // A bridge FORWARDS a frame. The ferried metadata crosses verbatim, so
+      // a handler on this side reads the envelope the emitter wrote.
+      eventBus.emit(channel as keyof EventMap, payload as never, { ...envelope.meta });
+    },
+  );
   const outbound: Subscription[] = outboundChannels.map((channel) =>
-    eventBus.get(channel).subscribe((payload) => {
-      plane.ingest(channel, payload);
+    eventBus.frames(channel).subscribe((frame) => {
+      // `scope` is the one field the plane INTERPRETS; everything else is
+      // ferried verbatim. Named that way round because this file sits behind
+      // the driver boundary and must not learn the correlation vocabulary
+      // (the P0.5 census) — the key crosses without being read.
+      const { payload, scope, ...rest } = frame;
+      const meta: Record<string, string> = {};
+      for (const [k, v] of Object.entries(rest)) if (typeof v === 'string') meta[k] = v;
+      plane.ingest(channel, payload, { scope, meta });
     }),
   );
 

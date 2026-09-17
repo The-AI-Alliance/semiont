@@ -6,10 +6,6 @@
       "type": "string",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
-    "correlationId": {
-      "type": "string",
-      "description": "Correlation id set by busRequest so the mark:commit-ok / mark:commit-failed reply routes back to the awaiting worker."
-    },
     "resourceId": {
       "type": "string",
       "description": "Resource every annotation in this batch targets."
@@ -17,11 +13,12 @@
     "annotations": {
       "type": "array",
       "description": "The unit's annotations, already built with deterministic ids. Re-committing an identical batch is a no-op rather than a duplicate.",
-      "items": { "$ref": "./Annotation.json" }
+      "items": {
+        "$ref": "./Annotation.json"
+      }
     }
   },
   "required": [
-    "correlationId",
     "resourceId",
     "annotations"
   ]

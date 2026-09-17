@@ -79,13 +79,13 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
     const correlationId = `uet-cid-${++cidCounter}`;
     const reply = firstValueFrom(
       race(
-        eventBus.get('mark:update-entity-types-ok').pipe(
-          filter((e) => e.correlationId === correlationId),
-          map((e) => ({ kind: 'ok' as const, e })),
+        eventBus.frames('mark:update-entity-types-ok').pipe(
+          filter((frame) => frame.correlationId === correlationId),
+          map((frame) => ({ kind: 'ok' as const, e: frame.payload, replyTo: frame.correlationId })),
         ),
-        eventBus.get('mark:update-entity-types-failed').pipe(
-          filter((e) => e.correlationId === correlationId),
-          map((e) => ({ kind: 'failed' as const, e })),
+        eventBus.frames('mark:update-entity-types-failed').pipe(
+          filter((frame) => frame.correlationId === correlationId),
+          map((frame) => ({ kind: 'failed' as const, e: frame.payload, replyTo: frame.correlationId })),
         ),
         timer(2000).pipe(
           map((): never => {
@@ -94,13 +94,10 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
         ),
       ).pipe(take(1)),
     );
-    eventBus.get('mark:update-entity-types').next({
-      correlationId,
-      _userId: 'user-1',
+    eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
       resourceId: rid,
       currentEntityTypes: current,
-      updatedEntityTypes: updated,
-    });
+      updatedEntityTypes: updated, }, { correlationId });
     return reply.then((r) => ({ ...r, correlationId }));
   }
 
@@ -112,7 +109,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
   it('rejects an unregistered add with the standard message and appends no events', async () => {
     const r = await updateTags([], ['Dragon']);
     if (r.kind !== 'failed') throw new Error('expected mark:update-entity-types-failed');
-    expect(r.e.correlationId).toBe(r.correlationId);
+    expect(r.replyTo).toBe(r.correlationId);
     expect(r.e.message).toBe('Entity type not registered: Dragon');
     expect(await tagEvents()).toEqual([]);
   });

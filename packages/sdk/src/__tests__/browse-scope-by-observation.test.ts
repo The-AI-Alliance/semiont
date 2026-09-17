@@ -47,23 +47,23 @@ function makeFakeTransport() {
     channel: string,
     requestChannel: Req,
     resultChannel: Res,
-    payload: Record<string, unknown>,
-    reply: Omit<EventMap[Res], 'correlationId'>,
+    correlationId: string | undefined,
+    reply: EventMap[Res],
   ) => {
     if (channel === requestChannel) {
-      bus.get(resultChannel).next({ correlationId: payload.correlationId as string, ...reply } as EventMap[Res]);
+      bus.emit(resultChannel, reply, { correlationId });
     }
   };
 
   const transport = inMemoryTransport({
     bus,
     subscribeToResource,
-    onEmit: (channel, payload) => {
-      respond(channel as string, 'browse:annotations-requested', 'browse:annotations-result', payload as Record<string, unknown>, { response: { annotations: [mockAnnotation('a1')], total: 1 } });
-      respond(channel as string, 'browse:resource-requested', 'browse:resource-result', payload as Record<string, unknown>, { response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] } });
-      respond(channel as string, 'browse:events-requested', 'browse:events-result', payload as Record<string, unknown>, { response: { events: [], total: 0, resourceId: 'res-1' } });
-      respond(channel as string, 'browse:referenced-by-requested', 'browse:referenced-by-result', payload as Record<string, unknown>, { response: { referencedBy: [] } });
-      respond(channel as string, 'browse:entity-types-requested', 'browse:entity-types-result', payload as Record<string, unknown>, { response: { entityTypes: [] } });
+    onEmit: (channel, _payload, envelope) => {
+      respond(channel as string, 'browse:annotations-requested', 'browse:annotations-result', envelope?.correlationId, { response: { annotations: [mockAnnotation('a1')], total: 1 } });
+      respond(channel as string, 'browse:resource-requested', 'browse:resource-result', envelope?.correlationId, { response: { resource: mockResource('res-1'), annotations: [], entityReferences: [] } });
+      respond(channel as string, 'browse:events-requested', 'browse:events-result', envelope?.correlationId, { response: { events: [], total: 0, resourceId: 'res-1' } });
+      respond(channel as string, 'browse:referenced-by-requested', 'browse:referenced-by-result', envelope?.correlationId, { response: { referencedBy: [] } });
+      respond(channel as string, 'browse:entity-types-requested', 'browse:entity-types-result', envelope?.correlationId, { response: { entityTypes: [] } });
     },
   });
 

@@ -16,7 +16,7 @@
 import { Observable, merge } from 'rxjs';
 import type { BusRequestPrimitive } from '@semiont/core';
 import { SMELTER_REPLY_CHANNELS } from './service-channels';
-import type { EventMap, StateUnit } from '@semiont/core';
+import type { BusFrame, EventMap, StateUnit } from '@semiont/core';
 
 export interface SmelterActorStateUnitOptions {
   bus: BusRequestPrimitive;
@@ -55,7 +55,7 @@ export const SMELTER_COMMAND_CHANNELS = ['smelt:rebuild-anchors'] as const;
 export interface SmelterActorStateUnit extends StateUnit {
   events$: Observable<SmelterEvent>;
   /** `smelt:rebuild-anchors` commands (PERSIST-ANCHORS P0) — see the command-channel note above. */
-  rebuildAnchors$: Observable<EventMap['smelt:rebuild-anchors']>;
+  rebuildAnchors$: Observable<BusFrame<EventMap['smelt:rebuild-anchors']>>;
   start(): void;
 }
 
@@ -82,7 +82,7 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
     ...SMELTER_CHANNELS.map((channel) => bus.stream(channel)),
   );
 
-  const rebuildAnchors$ = bus.stream('smelt:rebuild-anchors');
+  const rebuildAnchors$ = bus.frames('smelt:rebuild-anchors');
 
   return {
     events$,

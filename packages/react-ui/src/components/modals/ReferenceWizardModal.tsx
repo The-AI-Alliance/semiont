@@ -294,13 +294,12 @@ export function ReferenceWizardModal({
     setIsSearching(true);
     setSearchError(null);
     session?.client.match.requestSearch({
-      correlationId: uuidV4(),
       resourceId,
       referenceId: annotationId,
       context: contextWithHint,
       limit: config.limit,
       useSemanticScoring: config.useSemanticScoring,
-    });
+    }, uuidV4());
     // Stay on configure-search until results arrive (subscription above handles transition)
   }, [annotationId, resourceId, contextWithHint, session]);
 

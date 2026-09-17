@@ -27,7 +27,7 @@ describe('queue-driver emission census', () => {
     const emitted = new Set<string>();
     for (const file of DRIVER_FILES) {
       const source = stripComments(readFileSync(join(SRC, file), 'utf-8'));
-      for (const match of source.matchAll(/eventBus\.get\('([^']+)'\)\.next/g)) emitted.add(match[1]!);
+      for (const match of source.matchAll(/eventBus\.emit\('([^']+)'/g)) emitted.add(match[1]!);
     }
     expect([...JOB_QUEUE_EMITS].sort()).toEqual([...emitted].sort());
   });

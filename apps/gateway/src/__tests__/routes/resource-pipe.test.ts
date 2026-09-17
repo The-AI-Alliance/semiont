@@ -188,11 +188,10 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
       annotations: [],
       entityReferences: [],
     };
-    const sub = eventBus.get('browse:resource-requested').subscribe((e) => {
-      eventBus.get('browse:resource-result').next({
-        correlationId: e.correlationId,
-        response: graph,
-      });
+    // `frames`, not `on`: a responder echoes the key it was HANDED, and the
+    // payload no longer carries one.
+    const sub = eventBus.frames('browse:resource-requested').subscribe((frame) => {
+      eventBus.emit('browse:resource-result', { response: graph }, { correlationId: frame.correlationId });
     });
     try {
       const res = await app.request('/resources/res-pipe-graph/jsonld');
@@ -206,11 +205,8 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   });
 
   it('404s on /jsonld when the bus reports the resource missing', async () => {
-    const sub = eventBus.get('browse:resource-requested').subscribe((e) => {
-      eventBus.get('browse:resource-failed').next({
-        correlationId: e.correlationId,
-        message: 'Resource not found',
-      });
+    const sub = eventBus.frames('browse:resource-requested').subscribe((frame) => {
+      eventBus.emit('browse:resource-failed', { message: 'Resource not found' }, { correlationId: frame.correlationId });
     });
     try {
       const res = await app.request('/resources/res-pipe-missing/jsonld');

@@ -132,7 +132,7 @@ export {
 } from './event-utils';
 
 // Event bus (RxJS-based, framework-agnostic)
-export { EventBus, ScopedEventBus } from './event-bus';
+export { EventBus, ScopedEventBus, type BusFrame, type BusEnvelope } from './event-bus';
 
 // RxJS operators
 export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';

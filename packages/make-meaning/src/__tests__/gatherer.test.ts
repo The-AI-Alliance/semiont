@@ -113,13 +113,10 @@ describe('Gatherer', () => {
 
       vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue(mockContext);
 
-      const resultPromise = eventBus.get('gather:complete').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('gather:complete').pipe(take(1)).toPromise();
 
-      eventBus.get('gather:requested').next({
-        correlationId: 'test-corr-id',
-        annotationId: annotationId('ann-1'),
-        resourceId: resourceId('res-1'),
-      });
+      eventBus.emit('gather:requested', { annotationId: annotationId('ann-1'),
+        resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-1');
@@ -139,13 +136,10 @@ describe('Gatherer', () => {
     it('should emit gather:failed on error', async () => {
       vi.mocked(AnnotationContext.buildLLMContext).mockRejectedValue(new Error('Annotation not found'));
 
-      const resultPromise = eventBus.get('gather:failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('gather:failed').pipe(take(1)).toPromise();
 
-      eventBus.get('gather:requested').next({
-        correlationId: 'test-corr-id',
-        annotationId: annotationId('ann-2'),
-        resourceId: resourceId('res-1'),
-      });
+      eventBus.emit('gather:requested', { annotationId: annotationId('ann-2'),
+        resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.annotationId).toBe('ann-2');
@@ -164,13 +158,12 @@ describe('Gatherer', () => {
 
       vi.mocked(LLMContext.getResourceContext).mockResolvedValue(mockResponse as any);
 
-      const resultPromise = eventBus.get('gather:resource-complete').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('gather:resource-complete').pipe(take(1)).toPromise();
 
-      eventBus.get('gather:resource-requested').next({
-        correlationId: 'test-corr-id',
+      eventBus.emit('gather:resource-requested', {
         resourceId: resourceId('res-1'),
         options: { depth: 1, maxResources: 10, includeContent: true, includeSummary: false },
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-1');
@@ -189,13 +182,12 @@ describe('Gatherer', () => {
     it('should emit gather:resource-failed on error', async () => {
       vi.mocked(LLMContext.getResourceContext).mockRejectedValue(new Error('Resource not found'));
 
-      const resultPromise = eventBus.get('gather:resource-failed').pipe(take(1)).toPromise();
+      const resultPromise = eventBus.on('gather:resource-failed').pipe(take(1)).toPromise();
 
-      eventBus.get('gather:resource-requested').next({
-        correlationId: 'test-corr-id',
+      eventBus.emit('gather:resource-requested', {
         resourceId: resourceId('res-2'),
         options: { depth: 1, maxResources: 10, includeContent: false, includeSummary: false },
-      });
+      }, { correlationId: 'test-corr-id' });
 
       const result = await resultPromise;
       expect(result!.resourceId).toBe('res-2');
@@ -214,11 +206,8 @@ describe('Gatherer', () => {
 
       vi.mocked(AnnotationContext.buildLLMContext).mockResolvedValue({} as any);
 
-      eventBus.get('gather:requested').next({
-        correlationId: 'test-corr-id',
-        annotationId: annotationId('ann-3'),
-        resourceId: resourceId('res-1'),
-      });
+      eventBus.emit('gather:requested', { annotationId: annotationId('ann-3'),
+        resourceId: resourceId('res-1'), }, { correlationId: 'test-corr-id' });
 
       // Give time for any processing
       await new Promise((resolve) => setTimeout(resolve, 50));

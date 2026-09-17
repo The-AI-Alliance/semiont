@@ -58,7 +58,7 @@ function createFakeBrowserForTests(
     refresh: vi.fn(async () => null),
     /** Generic-channel subscription carve-out — mirror of SemiontSession.subscribe. */
     subscribe: <K extends string>(channel: K, handler: (payload: any) => void) => {
-      const sub = (client.bus.get(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } })
+      const sub = (client.bus.on(channel as never) as { subscribe(fn: (p: never) => void): { unsubscribe(): void } })
         .subscribe(handler as never);
       return () => sub.unsubscribe();
     },
@@ -112,12 +112,12 @@ function createFakeBrowserForTests(
     reorderOpenResources: vi.fn(),
     setLastViewedResource: vi.fn(),
     dispose: vi.fn(async () => {}),
-    emit: (channel: any, payload: any) => shellBus.get(channel).next(payload),
+    emit: (channel: any, payload: any) => shellBus.emit(channel, payload),
     on: (channel: any, handler: any) => {
-      const sub = shellBus.get(channel).subscribe(handler);
+      const sub = shellBus.on(channel).subscribe(handler);
       return () => sub.unsubscribe();
     },
-    stream: (channel: any) => shellBus.get(channel).asObservable(),
+    stream: (channel: any) => shellBus.on(channel),
     _shellBus: shellBus,
   } as unknown as SemiontBrowser;
 }

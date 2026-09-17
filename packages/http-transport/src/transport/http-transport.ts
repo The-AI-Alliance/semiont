@@ -44,6 +44,7 @@ import type {
   ListUsersResponse,
 } from '@semiont/core';
 import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
+import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
@@ -314,8 +315,18 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       // would satisfy `yield:created` and no cast would be needed to let it.
       // The old two casts here were hiding exactly that.
       const bridge = <K extends keyof EventMap>(channel: K) => {
-        this._actor!.stream(channel).subscribe((payload) => {
-          for (const bus of this.bridges) bus.get(channel).next(payload);
+        this._actor!.frames(channel).subscribe((frame) => {
+          // A bridge FORWARDS a frame. `correlationId` must survive the hop:
+          // it is what every awaiting `busRequest` matches on, and dropping
+          // it here would leave each one to time out with no error.
+          //
+          // `scope` deliberately does NOT: the fan-in above flattens the
+          // scoped set into one delivery per event however many scopes are
+          // held, and consumers read those off the unscoped bus. Re-scoping
+          // here would hide them from every existing subscriber.
+          for (const bus of this.bridges) {
+            bus.emit(channel, frame.payload, { correlationId: frame.correlationId });
+          }
         });
       };
       for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) bridge(channel);
@@ -328,23 +339,18 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   async emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
-    resourceScope?: ResourceId,
+    envelope?: BusEnvelope,
   ): Promise<number> {
-    busLog('EMIT', channel as string, payload, resourceScope as string | undefined);
-    recordBusEmit(channel as string, resourceScope as string | undefined);
+    busLog('EMIT', channel as string, payload, envelope?.scope, envelope?.correlationId);
+    recordBusEmit(channel as string, envelope?.scope);
     return withSpan(
       `bus.emit:${channel as string}`,
-      async () => {
-        if (resourceScope !== undefined) {
-          return this.actor.emit(channel, payload, resourceScope as string);
-        }
-        return this.actor.emit(channel, payload);
-      },
+      async () => this.actor.emit(channel, payload, envelope),
       {
         kind: SpanKind.PRODUCER,
         attrs: {
           'bus.channel': channel as string,
-          ...(resourceScope ? { 'bus.scope': resourceScope as string } : {}),
+          ...(envelope?.scope ? { 'bus.scope': envelope.scope } : {}),
         },
       },
     );
@@ -360,6 +366,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
     return this.actor.stream(channel);
+  }
+
+  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
+    return this.actor.frames(channel);
   }
 
   /**

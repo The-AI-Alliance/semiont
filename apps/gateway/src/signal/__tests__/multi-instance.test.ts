@@ -41,7 +41,7 @@ import { afterAll, describe, test, expect } from 'vitest';
 import { EventBus, busRequest, BRIDGED_CHANNELS, type BusOperationKey, type EventMap } from '@semiont/core';
 import { GATEWAY_HANDLER_CHANNELS, GATEWAY_HANDLER_EMITS } from '@semiont/make-meaning';
 import { JOB_QUEUE_EMITS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '@semiont/jobs';
-import { toReplyAddress } from '../interface';
+import { toReplyAddress, type PlaneEnvelope } from '../interface';
 import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
 import { bridgeGatewayHandlers } from '../bridge';
@@ -64,11 +64,11 @@ interface Instance {
   name: string;
   composition: SignalComposition;
   /** `job:create` commands this instance's bridged handler executed. */
-  handled: unknown[];
+  handled: { correlationId?: string; command: unknown }[];
   /** Emit-as-claim, as the /bus/emit route does it. */
   emitRequest(channel: string, cid: string, clientId: string, payload?: Record<string, unknown>): void;
   /** A reply/broadcast ingest, as any responder's emit. */
-  ingest(channel: string, payload: unknown, scope?: string): void;
+  ingest(channel: string, payload: unknown, envelope?: PlaneEnvelope): void;
   /** A subscribed client behind the route's entitlement gate (the SHARED
    *  `mayDeliver`, one copy in the ledger). */
   client(clientId: string, channels: string[]): { frames: Array<{ channel: string; payload: unknown }>; close(): void };
@@ -97,10 +97,13 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
   // The gateway-resident handler, in miniature: subscribes THIS instance's
   // bus (as registerGatewayBusHandlers does) and answers on it — the bridge
   // carries both directions.
-  const handled: unknown[] = [];
-  bus.get('job:create').subscribe((command) => {
-    handled.push(command);
-    bus.get('job:created').next({ correlationId: command.correlationId, response: { jobId: `job-${command.correlationId}` } });
+  const handled: { correlationId?: string; command: unknown }[] = [];
+  bus.frames('job:create').subscribe(({ payload: command, correlationId }) => {
+    // The KEY is what identifies the command here, and it rides the envelope —
+    // recording the payload alone would make every command indistinguishable
+    // and the "executed on exactly one instance" assertion vacuous.
+    handled.push({ correlationId, command });
+    bus.emit('job:created', { response: { jobId: `job-${correlationId}` } }, { correlationId });
   });
 
   return {
@@ -110,10 +113,10 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
     emitRequest(channel, cid, clientId, payload = {}) {
       const outcome = composition.claim(cid, clientId, PRINCIPAL);
       expect(outcome, `${name}: claim ${cid}`).toBe('ok');
-      composition.plane.ingest(channel, { ...payload, correlationId: cid, _userId: PRINCIPAL });
+      composition.plane.ingest(channel, { ...payload, _userId: PRINCIPAL }, { meta: { correlationId: cid } });
     },
-    ingest(channel, payload, scope) {
-      composition.plane.ingest(channel, payload, scope);
+    ingest(channel, payload, envelope) {
+      composition.plane.ingest(channel, payload, envelope);
     },
     client(clientId, channels) {
       const frames: Array<{ channel: string; payload: unknown }> = [];
@@ -121,11 +124,11 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
         address: toReplyAddress(clientId),
         global: channels,
         scoped: [],
-        onFrame: (channel, payload, frameScope) => {
+        onFrame: (channel, payload, envelope) => {
           if (
-            frameScope === undefined &&
+            envelope.scope === undefined &&
             isCorrelatedChannel(channel) &&
-            !composition.mayDeliver(channel, payload, clientId, PRINCIPAL)
+            !composition.mayDeliver(channel, envelope.meta?.correlationId, clientId, PRINCIPAL)
           ) {
             return;
           }
@@ -142,7 +145,7 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
       return busRequest(requestPrimitiveFor(bus), operation, payload, 5_000);
     },
     emitOnBus(channel, payload) {
-      bus.get(channel).next(payload as never);
+      bus.emit(channel, payload as never);
     },
     teardown() {
       bridge.close();
@@ -197,7 +200,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
         (i % 2 ? a : b).emitRequest('job:create', cid, 'client-h3', { jobType: 'generate', params: {} });
       }
       await settle(() => a.handled.length + b.handled.length >= cids.length);
-      const seen = [...a.handled, ...b.handled].map((c) => (c as { correlationId: string }).correlationId);
+      const seen = [...a.handled, ...b.handled].map((h) => h.correlationId);
       expect(seen.length, 'each command executed').toBe(cids.length);
       expect(new Set(seen).size, 'no command executed on BOTH instances').toBe(cids.length);
     } finally {
@@ -210,7 +213,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
     try {
       const client = a.client('client-h0', ['gather:summary-result']);
       a.emitRequest('gather:requested', 'cid-h0', 'client-h0');
-      a.ingest('gather:summary-result', { correlationId: 'cid-h0', summary: 'answered' });
+      a.ingest('gather:summary-result', { summary: 'answered' }, { meta: { correlationId: 'cid-h0' } });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'delivered').toBeGreaterThanOrEqual(1);
       await settle(() => a.composition.occupancy().retainedReplies >= 1);
@@ -248,7 +251,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
       // observed here when this line was missing. The harness models the
       // round-trip, not the pathological compression.
       await a.awaitClaim('cid-h1');
-      b.ingest('gather:summary-result', { correlationId: 'cid-h1', summary: 'from-b' });
+      b.ingest('gather:summary-result', { summary: 'from-b' }, { meta: { correlationId: 'cid-h1' } });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply delivered across instances').toBeGreaterThanOrEqual(1);
       client.close();
@@ -266,7 +269,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
       // (the recorded race); like a real handler round-trip, it follows the
       // claim's arrival.
       await a.awaitClaim('cid-h6');
-      a.ingest('gather:summary-result', { correlationId: 'cid-h6', summary: 'from-non-holder' });
+      a.ingest('gather:summary-result', { summary: 'from-non-holder' }, { meta: { correlationId: 'cid-h6' } });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply from a non-claim-holder instance').toBeGreaterThanOrEqual(1);
       client.close();
@@ -291,17 +294,16 @@ describe('P3 — two gateway-compositions over one broker', () => {
         address: toReplyAddress('fake-stower'),
         global: ['yield:create'],
         scoped: [],
-        onFrame: (_channel, payload) => {
-          const command = payload as { correlationId?: string };
+        onFrame: (_channel, _payload, envelope) => {
+          const correlationId = envelope.meta?.correlationId;
           // A probe carries no correlationId and is only proof of life.
-          if (command.correlationId === undefined) {
+          if (correlationId === undefined) {
             probesSeen += 1;
             return;
           }
           b.ingest('yield:create-ok', {
-            correlationId: command.correlationId,
             response: { resourceId: 'urn:semiont:r-h7' },
-          });
+          }, { meta: { correlationId } });
         },
       });
 
@@ -398,7 +400,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
 
       await settle(() => {
         if (worker.frames.some((f) => f.channel === 'job:cancel-requested')) return true;
-        a.ingest('job:cancel-requested', { jobId: 'job-h9', correlationId: 'cid-h9' });
+        a.ingest('job:cancel-requested', { jobId: 'job-h9' }, { meta: { correlationId: 'cid-h9' } });
         return false;
       });
       expect(
@@ -461,7 +463,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
     const { a, b, done } = await twoInstances();
     try {
       b.emitRequest('gather:requested', 'cid-h5', 'client-h5');
-      b.ingest('gather:summary-result', { correlationId: 'cid-h5', summary: 'kept' });
+      b.ingest('gather:summary-result', { summary: 'kept' }, { meta: { correlationId: 'cid-h5' } });
       await settle(
         () =>
           a.composition.occupancy().retainedReplies >= 1 &&

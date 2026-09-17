@@ -47,7 +47,7 @@
 import { Subject, Subscription, from, type Observable } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { didToAgent, burstBuffer, errField, busRequest } from '@semiont/core';
-import type { BusRequestPrimitive, EventMap } from '@semiont/core';
+import type { BusFrame, BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { intendedGraphAnnotation } from '@semiont/graph';
 import type { PersistedEvent, StoredEvent, EventOfType, ResourceId, Logger} from '@semiont/core';
@@ -123,7 +123,7 @@ export class Weaver {
   constructor(
     private graphDb: GraphDatabase,
     private events$: Observable<StoredEvent>,
-    private rebuilds$: Observable<EventMap['weave:rebuild']>,
+    private rebuilds$: Observable<BusFrame<EventMap['weave:rebuild']>>,
     private bus: BusRequestPrimitive,
     private checkpoint: WeaverCheckpoint,
     private timing: WeaverTiming,
@@ -139,7 +139,7 @@ export class Weaver {
     // Rebuild commands run strictly one at a time — a full rebuild must
     // never interleave with another rebuild.
     this.rebuildSubscription = this.rebuilds$.pipe(
-      concatMap((command) => from(this.handleRebuildCommand(command))),
+      concatMap((frame) => from(this.handleRebuildCommand(frame.payload, frame.correlationId))),
     ).subscribe({
       error: (err) => this.logger.error('Weaver rebuild stream error', { error: errField(err) }),
     });
@@ -564,7 +564,7 @@ export class Weaver {
     return null;
   }
 
-  private async handleRebuildCommand(command: EventMap['weave:rebuild']): Promise<void> {
+  private async handleRebuildCommand(command: EventMap['weave:rebuild'], correlationId: string | undefined): Promise<void> {
     try {
       const result = command.resourceId
         ? await this.rebuildResource(makeResourceId(command.resourceId))
@@ -574,20 +574,16 @@ export class Weaver {
         // A rebuild that dropped events must FAIL, not claim success —
         // silent under-materialization is the #845 failure mode.
         await this.bus.emit('weave:rebuild-failed', {
-          correlationId: command.correlationId,
           message: `rebuild dropped ${result.eventsFailed} event(s) — the graph is incomplete; see weaver logs`,
-        });
+        }, { correlationId });
         return;
       }
-      await this.bus.emit('weave:rebuild-ok', { correlationId: command.correlationId });
+      await this.bus.emit('weave:rebuild-ok', {}, { correlationId });
     } catch (error) {
       this.logger.error('Weaver rebuild command failed', {
         resourceId: command.resourceId, error: errField(error),
       });
-      await this.bus.emit('weave:rebuild-failed', {
-        correlationId: command.correlationId,
-        message: error instanceof Error ? error.message : String(error),
-      });
+      await this.bus.emit('weave:rebuild-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
     }
   }
 

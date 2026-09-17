@@ -2,9 +2,6 @@
   "type": "object",
   "description": "Request to browse a directory listing",
   "properties": {
-    "correlationId": {
-      "type": "string"
-    },
     "path": {
       "type": "string"
     },
@@ -18,7 +15,6 @@
     }
   },
   "required": [
-    "correlationId",
     "path"
   ]
 }

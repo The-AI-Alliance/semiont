@@ -21,10 +21,9 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
   const logger = parentLogger.child({ component: 'bind-update-body' });
   const inflight = new Set<string>();
 
-  eventBus.get('bind:update-body').subscribe((command) => {
-    const { correlationId, annotationId: annId, resourceId: resId, operations, _userId } =
+  eventBus.frames('bind:update-body').subscribe(({ payload: command, correlationId: cid }) => {
+    const { annotationId: annId, resourceId: resId, operations, _userId } =
       command as Record<string, unknown>;
-    const cid = correlationId as string | undefined;
 
     try {
       if (!_userId || typeof _userId !== 'string') {
@@ -36,13 +35,10 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
 
       inflight.add(cid);
 
-      eventBus.get('mark:update-body').next({
-        correlationId: cid,
-        annotationId: annotationId(annId as string),
+      eventBus.emit('mark:update-body', { annotationId: annotationId(annId as string),
         _userId,
         resourceId: resourceId(resId as string),
-        operations: operations as BodyOperation[],
-      });
+        operations: operations as BodyOperation[], }, { correlationId: cid });
 
       logger.info('Bind update-body forwarded to mark:update-body, awaiting persistence', {
         annotationId: annId,
@@ -53,31 +49,23 @@ export function registerBindUpdateBodyHandler(eventBus: EventBus, parentLogger: 
         correlationId: cid,
         error: (error as Error).message,
       });
-      eventBus.get('bind:body-update-failed').next({
-        correlationId: cid,
-        message: (error as Error).message,
-      });
+      eventBus.emit('bind:body-update-failed', { message: (error as Error).message, }, { correlationId: cid });
     }
   });
 
-  eventBus.get('mark:body-updated').subscribe((event) => {
-    const cid = event.metadata?.correlationId;
+  eventBus.frames('mark:body-updated').subscribe(({ payload: event, correlationId: cid }) => {
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
     const annId = event.payload?.annotationId;
-    eventBus.get('bind:body-updated').next({ correlationId: cid });
+    eventBus.emit('bind:body-updated', {}, { correlationId: cid });
     logger.info('Bind body-updated confirmed', { annotationId: annId, correlationId: cid });
   });
 
-  eventBus.get('mark:body-update-failed').subscribe((event) => {
-    const cid = (event as { correlationId?: string }).correlationId;
+  eventBus.frames('mark:body-update-failed').subscribe(({ payload: event, correlationId: cid }) => {
     if (!cid || !inflight.has(cid)) return;
     inflight.delete(cid);
-    const message = (event as { message?: string }).message ?? 'Unknown error';
-    eventBus.get('bind:body-update-failed').next({
-      correlationId: cid,
-      message,
-    });
+    const message = event.message ?? 'Unknown error';
+    eventBus.emit('bind:body-update-failed', { message, }, { correlationId: cid });
     logger.warn('Bind body-update failed after forwarding', { correlationId: cid, message });
   });
 }

@@ -100,7 +100,7 @@ describe('SimpleNavigation', () => {
         { returnShellBus: true }
       );
 
-      const subscription = shellBus!.get('shell:sidebar-toggle').subscribe(handler);
+      const subscription = shellBus!.on('shell:sidebar-toggle').subscribe(handler);
 
       const collapseButton = screen.getByLabelText('Collapse sidebar');
       fireEvent.click(collapseButton);

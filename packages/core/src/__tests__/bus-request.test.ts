@@ -29,6 +29,8 @@ import {
 interface MockBus extends BusRequestPrimitive {
   emitChannel: string | null;
   emitPayload: Record<string, unknown> | null;
+  /** The envelope the request rode out on — where the key lives now. */
+  emitEnvelope: { correlationId?: string } | null;
   resultSubject: Subject<unknown>;
   failureSubject: Subject<unknown>;
   stateSubject: BehaviorSubject<ConnectionState>;
@@ -48,13 +50,19 @@ function makeBus(
   const bus: MockBus = {
     emitChannel: null,
     emitPayload: null,
+    emitEnvelope: null,
     resultSubject,
     failureSubject,
     stateSubject,
     state$: stateSubject.asObservable(),
-    emit: vi.fn(async (channel: keyof EventMap, payload: EventMap[keyof EventMap]) => {
+    emit: vi.fn(async (
+      channel: keyof EventMap,
+      payload: EventMap[keyof EventMap],
+      envelope?: { correlationId?: string },
+    ) => {
       bus.emitChannel = channel as string;
       bus.emitPayload = payload as Record<string, unknown>;
+      bus.emitEnvelope = envelope ?? null;
       return 1;
     }) as BusRequestPrimitive['emit'],
     stream: vi.fn((channel: keyof EventMap) => {
@@ -71,6 +79,14 @@ function makeBus(
     // 2026-09-16 they had to, because omitting the member skipped the check
     // entirely — the compatibility layer this default replaces.
     isSubscribed: () => true,
+    // The envelope view this double answers from its own scripted subjects.
+    frames: vi.fn((channel: keyof EventMap) => {
+      const subject =
+        (channel as string) === resultChannel ? resultSubject
+        : (channel as string) === failureChannel ? failureSubject
+        : new Subject<unknown>();
+      return subject.asObservable();
+    }) as BusRequestPrimitive['frames'],
   };
   return bus;
 }
@@ -93,11 +109,11 @@ describe('busRequest', () => {
     expect(bus.emit).toHaveBeenCalledTimes(1);
     expect(bus.emitChannel).toBe(EMIT);
     expect(bus.emitPayload).toMatchObject({ foo: 'bar' });
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
     expect(typeof cid).toBe('string');
     expect(cid.length).toBeGreaterThan(0);
 
-    bus.resultSubject.next({ correlationId: cid, response: { value: 42 } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 42 } } });
     expect(await promise).toEqual({ value: 42 });
   });
 
@@ -105,11 +121,11 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
     // Wrong correlationId: must be ignored.
-    bus.resultSubject.next({ correlationId: 'somebody-else', response: { value: 1 } });
-    bus.resultSubject.next({ correlationId: cid, response: { value: 2 } });
+    bus.resultSubject.next({ correlationId: 'somebody-else', payload: { response: { value: 1 } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 2 } } });
 
     expect(await promise).toEqual({ value: 2 });
   });
@@ -118,9 +134,9 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid, message: 'permission denied' });
+    bus.failureSubject.next({ correlationId: cid, payload: { message: 'permission denied' } });
 
     const err = await captured;
     expect(err).toBeInstanceOf(BusRequestError);
@@ -146,12 +162,14 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
     bus.failureSubject.next({
       correlationId: cid,
-      code: 'peer-unavailable',
-      message: 'No subscriber for browse:resources-requested: the service that answers it is not connected',
+      payload: {
+        code: 'peer-unavailable',
+        message: 'No subscriber for browse:resources-requested: the service that answers it is not connected',
+      },
     });
 
     const err = await captured;
@@ -169,9 +187,9 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid, code: 'not-found', message: 'Resource not found' });
+    bus.failureSubject.next({ correlationId: cid, payload: { code: 'not-found', message: 'Resource not found' } });
 
     const err = await captured;
     expect(err).toBeInstanceOf(BusRequestError);
@@ -184,9 +202,9 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid, message: 'permission denied' });
+    bus.failureSubject.next({ correlationId: cid, payload: { message: 'permission denied' } });
     expect((await captured).code).toBe('bus.rejected');
   });
 
@@ -197,9 +215,9 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid, code: 'something-from-the-future', message: 'x' });
+    bus.failureSubject.next({ correlationId: cid, payload: { code: 'something-from-the-future', message: 'x' } });
     expect((await captured).code).toBe('bus.rejected');
   });
 
@@ -207,10 +225,10 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    const failurePayload = { correlationId: cid, message: 'denied', extra: 'context' };
-    bus.failureSubject.next(failurePayload);
+    const failurePayload = { message: 'denied', extra: 'context' };
+    bus.failureSubject.next({ correlationId: cid, payload: failurePayload });
 
     const e = (await captured) as BusRequestError;
     expect(e).toBeInstanceOf(BusRequestError);
@@ -225,9 +243,9 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const captured = busRequest(bus, EMIT, {}).catch((e) => e);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid });
+    bus.failureSubject.next({ correlationId: cid, payload: {} });
 
     const err = await captured;
     expect(err).toMatchObject({
@@ -264,7 +282,7 @@ describe('busRequest', () => {
       const bus = makeBus(RESULT, FAILURE);
       const captured = busRequest(bus, EMIT, {}, 50).catch((e) => e);
       await Promise.resolve();
-      const cid = bus.emitPayload!.correlationId as string;
+      const cid = bus.emitEnvelope!.correlationId as string;
 
       await vi.advanceTimersByTimeAsync(51);
 
@@ -288,10 +306,10 @@ describe('busRequest', () => {
     const bus = makeBus(RESULT, FAILURE);
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.resultSubject.next({ correlationId: cid, response: { value: 1 } });
-    bus.resultSubject.next({ correlationId: cid, response: { value: 2 } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 1 } } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 2 } } });
 
     expect(await promise).toEqual({ value: 1 });
   });
@@ -400,8 +418,8 @@ describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
     bus.stateSubject.next('open');
     await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
 
-    const cid = bus.emitPayload!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, response: { value: 7 } });
+    const cid = bus.emitEnvelope!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 7 } } });
     expect(await promise).toEqual({ value: 7 });
   });
 
@@ -421,8 +439,8 @@ describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
     bus.stateSubject.next('open');
     await vi.waitFor(() => expect(bus.emit).toHaveBeenCalledTimes(1));
 
-    const cid = bus.emitPayload!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, response: { value: 8 } });
+    const cid = bus.emitEnvelope!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 8 } } });
     expect(await promise).toEqual({ value: 8 });
   });
 
@@ -521,8 +539,8 @@ describe('busRequest attach gate (.plans/BUS-ATTACH-GATE.md)', () => {
     await new Promise((r) => setTimeout(r, 10));
     expect(bus.emit).toHaveBeenCalledTimes(1);
 
-    const cid = bus.emitPayload!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, response: { value: 9 } });
+    const cid = bus.emitEnvelope!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 9 } } });
     expect(await promise).toEqual({ value: 9 });
   });
 });
@@ -557,9 +575,12 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const tracked: string[] = [];
     const released: string[] = [];
     const originalEmit = bus.emit;
-    bus.emit = vi.fn(async (channel, payload) => {
+    bus.emit = vi.fn(async (channel, payload, envelope) => {
       order.push('emit');
-      return originalEmit(channel, payload);
+      // The envelope must ride through a wrapper. Dropping it here silently
+      // lost the correlation key — the same way any production decorator that
+      // forgets the third argument would.
+      return originalEmit(channel, payload, envelope);
     }) as BusRequestPrimitive['emit'];
     const trackingBus = Object.assign(bus, {
       trackReply: vi.fn((cid: string) => {
@@ -578,14 +599,14 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
 
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
     // Track-before-emit is load-bearing: a reconnect body built during the
     // emit's in-flight window must already carry the cid (see the plan).
     expect(order).toEqual(['track', 'emit']);
     expect(tracked).toEqual([cid]);
     expect(released).toEqual([]);
 
-    bus.resultSubject.next({ correlationId: cid, response: { value: 1 } });
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { value: 1 } } });
     await promise;
     expect(released).toEqual([cid]);
   });
@@ -594,9 +615,9 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const { bus, tracked, released } = makeTrackingBus();
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
-    bus.failureSubject.next({ correlationId: cid, message: 'nope' });
+    bus.failureSubject.next({ correlationId: cid, payload: { message: 'nope' } });
     await expect(promise).rejects.toMatchObject({ code: 'bus.rejected' });
     expect(tracked).toEqual([cid]);
     expect(released).toEqual([cid]);
@@ -606,7 +627,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const { bus, released } = makeTrackingBus();
     const promise = busRequest(bus, EMIT, {}, 20);
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
     await expect(promise).rejects.toMatchObject({ code: 'bus.timeout' });
     expect(released).toEqual([cid]);
@@ -616,7 +637,7 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const { bus, released } = makeTrackingBus();
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
+    const cid = bus.emitEnvelope!.correlationId as string;
 
     bus.resultSubject.complete();
     bus.failureSubject.complete();
@@ -653,8 +674,8 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     const bus = makeBus(RESULT, FAILURE);
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, response: { ok: 1 } });
+    const cid = bus.emitEnvelope!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { ok: 1 } } });
     expect(await promise).toEqual({ ok: 1 });
   });
 });
@@ -685,8 +706,8 @@ describe('busRequest subscription fail-fast gate', () => {
     const bus = makeBus(RESULT, FAILURE);
     const promise = busRequest(bus, EMIT, {});
     await Promise.resolve();
-    const cid = bus.emitPayload!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, response: { ok: 1 } });
+    const cid = bus.emitEnvelope!.correlationId as string;
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { ok: 1 } } });
     expect(await promise).toEqual({ ok: 1 });
   });
 });

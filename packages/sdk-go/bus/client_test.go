@@ -111,8 +111,16 @@ func (f *fakeGateway) lastEmit(t *testing.T) map[string]any {
 	return f.emitted[len(f.emitted)-1]
 }
 
-func frame(channel string, payload map[string]any) string {
-	b, _ := json.Marshal(map[string]any{"channel": channel, "payload": payload})
+// frame builds one SSE frame in the gateway's shape: the correlation key
+// rides the ENVELOPE beside the channel (routes/bus.ts writes
+// `{channel, correlationId, payload}`), never inside the payload. Pass "" for
+// a plain event — one that answers no request.
+func frame(channel, cid string, payload map[string]any) string {
+	env := map[string]any{"channel": channel, "payload": payload}
+	if cid != "" {
+		env["correlationId"] = cid
+	}
+	b, _ := json.Marshal(env)
 	return fmt.Sprintf("event: bus-event\ndata: %s\n\n", b)
 }
 
@@ -129,10 +137,10 @@ func TestRequestCorrelatesReply(t *testing.T) {
 			n := len(f.emitted)
 			f.mu.Unlock()
 			if n > 0 {
-				cid := f.lastEmit(t)["payload"].(map[string]any)["correlationId"].(string)
+				cid := f.lastEmit(t)["correlationId"].(string)
 				// A stranger's reply on the same channel must be ignored.
-				f.replies <- frame("browse:resources-result", map[string]any{"correlationId": "someone-else", "response": "wrong"})
-				f.replies <- frame("browse:resources-result", map[string]any{"correlationId": cid, "response": "right"})
+				f.replies <- frame("browse:resources-result", "someone-else", map[string]any{"response": "wrong"})
+				f.replies <- frame("browse:resources-result", cid, map[string]any{"response": "right"})
 				return
 			}
 			time.Sleep(5 * time.Millisecond)
@@ -157,8 +165,8 @@ func TestRequestCorrelatesReply(t *testing.T) {
 	if emit["channel"] != "browse:resources-requested" {
 		t.Errorf("emitted on %v", emit["channel"])
 	}
-	if _, ok := emit["payload"].(map[string]any)["correlationId"]; !ok {
-		t.Error("emit carried no correlationId")
+	if _, ok := emit["correlationId"]; !ok {
+		t.Error("emit carried no correlationId on the envelope")
 	}
 }
 
@@ -180,8 +188,8 @@ func TestRequestSubscribesBeforeEmitting(t *testing.T) {
 			n := len(f.emitted)
 			f.mu.Unlock()
 			if n > 0 {
-				cid := f.lastEmit(t)["payload"].(map[string]any)["correlationId"].(string)
-				f.replies <- frame("browse:resource-result", map[string]any{"correlationId": cid})
+				cid := f.lastEmit(t)["correlationId"].(string)
+				f.replies <- frame("browse:resource-result", cid, map[string]any{})
 				return
 			}
 			time.Sleep(2 * time.Millisecond)
@@ -205,8 +213,8 @@ func TestRequestFailureChannelBecomesError(t *testing.T) {
 			n := len(f.emitted)
 			f.mu.Unlock()
 			if n > 0 {
-				cid := f.lastEmit(t)["payload"].(map[string]any)["correlationId"].(string)
-				f.replies <- frame("browse:resource-failed", map[string]any{"correlationId": cid, "message": "no such resource"})
+				cid := f.lastEmit(t)["correlationId"].(string)
+				f.replies <- frame("browse:resource-failed", cid, map[string]any{"message": "no such resource"})
 				return
 			}
 			time.Sleep(2 * time.Millisecond)
@@ -261,10 +269,10 @@ func TestRequestStreamsProgress(t *testing.T) {
 			n := len(f.emitted)
 			f.mu.Unlock()
 			if n > 0 {
-				cid := f.lastEmit(t)["payload"].(map[string]any)["correlationId"].(string)
-				f.replies <- frame("gather:annotation-progress", map[string]any{"correlationId": cid, "step": 1})
-				f.replies <- frame("gather:annotation-progress", map[string]any{"correlationId": cid, "step": 2})
-				f.replies <- frame("gather:complete", map[string]any{"correlationId": cid})
+				cid := f.lastEmit(t)["correlationId"].(string)
+				f.replies <- frame("gather:annotation-progress", cid, map[string]any{"step": 1})
+				f.replies <- frame("gather:annotation-progress", cid, map[string]any{"step": 2})
+				f.replies <- frame("gather:complete", cid, map[string]any{})
 				return
 			}
 			time.Sleep(2 * time.Millisecond)
@@ -300,7 +308,7 @@ func TestEmitRefusesNonEmittableChannel(t *testing.T) {
 func TestReadSSEParsesFrames(t *testing.T) {
 	in := strings.NewReader(
 		"event: ping\ndata: \n\n" + // keep-alive, ignored
-			frame("mark:added", map[string]any{"a": 1}) +
+			frame("mark:added", "", map[string]any{"a": 1}) +
 			"event: bus-event\nid: 42\ndata: {\"channel\":\"mark:removed\",\"payload\":{}}\n\n")
 	out := make(chan Event, 4)
 	if err := readSSE(in, out); err != nil {
@@ -335,7 +343,7 @@ func TestSubscribeAndEmitCarryOneClientID(t *testing.T) {
 	}
 	defer sub.Close()
 
-	if _, err := c.Emit(ctx, "browse:resources-requested", map[string]any{"correlationId": "c-1"}, ""); err != nil {
+	if _, err := c.Emit(ctx, "browse:resources-requested", map[string]any{"limit": 1}, ""); err != nil {
 		t.Fatalf("emit: %v", err)
 	}
 
