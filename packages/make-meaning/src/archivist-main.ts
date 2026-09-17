@@ -12,8 +12,9 @@
  * the KB's bytes: the gateway proxies external content requests through
  * it, and internal readers dial it directly.
  *
- * Bus wiring is two disjoint pumps, deliberately NOT `bridgeInto`; both
- * rosters live in `service-channels.ts`:
+ * Bus wiring is two disjoint `relayFrames` pumps — not `bridgeInto`, which
+ * bridges everything the transport receives; both rosters live in
+ * `service-channels.ts`:
  *   in  — ARCHIVIST_INBOUND_CHANNELS (the actors' rosters, each pinned to
  *         its actor's real subscriptions by a census gate, plus
  *         `smelt:settled` for the anchored-text barrier fold), which is also
@@ -45,6 +46,7 @@ import {
   isTransientFetchError,
   STARTUP_FETCH_RETRY,
   errField,
+  relayFrames,
   type AccessToken, withDeadline } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
@@ -304,29 +306,13 @@ async function main() {
     channels: ARCHIVIST_INBOUND_CHANNELS,
   });
 
-  const pumps: Subscription[] = [];
-
-  // Both pumps forward FRAMES: correlationId rides the envelope, and a
-  // payload-only relay drops it silently. `scope` deliberately does not cross
-  // — inbound the gateway already flattened it, outbound the fact pump owns it.
-  for (const channel of ARCHIVIST_INBOUND_CHANNELS) {
-    pumps.push(
-      httpTransport.frames(channel).subscribe((frame) => {
-        localBus.emit(channel, frame.payload as never, { correlationId: frame.correlationId });
-      }),
-    );
-  }
-
   const outbound = ARCHIVIST_OUTBOUND_CHANNELS;
-  for (const channel of outbound) {
-    pumps.push(
-      localBus.frames(channel).subscribe((frame) => {
-        httpTransport.emit(channel, frame.payload as never, { correlationId: frame.correlationId }).catch((error: unknown) => {
-          logger.error('Reply forwarding failed', { channel, error: errField(error) });
-        });
-      }),
-    );
-  }
+  const pumps: Subscription[] = [
+    ...relayFrames(httpTransport, localBus, ARCHIVIST_INBOUND_CHANNELS),
+    ...relayFrames(localBus, httpTransport, outbound, (channel, error) =>
+      logger.error('Reply forwarding failed', { channel, error: errField(error) }),
+    ),
+  ];
 
   // ── The fact pump (P3, D5): persisted events ride the bus ──────────
   // Every append publishes an (enriched) StoredEvent on this process's bus;

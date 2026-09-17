@@ -28,6 +28,7 @@ import type {
 import {
   SemiontError,
   busLog,
+  relayFrames,
 } from '@semiont/core';
 import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
 import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
@@ -307,29 +308,18 @@ export class HttpTransport implements ITransport, IGatewayOperations {
       // ONCE per event however many scopes are held (the per-scope
       // bridge-subs design would have duplicated delivery N×).
       //
-      // Wired through a per-channel generic rather than inline in the loop.
-      // That is not style: inside `bridge`, `K` is ONE type, so `on$` and
-      // `bus.get` are provably the same channel's payload. Written inline the
-      // channel is a UNION, and calling `.next` on a union of `Subject`s makes
-      // the parameter the union of their payloads — so a `mark:added` payload
-      // would satisfy `yield:created` and no cast would be needed to let it.
-      // The old two casts here were hiding exactly that.
-      const bridge = <K extends keyof EventMap>(channel: K) => {
-        this._actor!.frames(channel).subscribe((frame) => {
-          // A bridge FORWARDS a frame. `correlationId` must survive the hop:
-          // it is what every awaiting `busRequest` matches on, and dropping
-          // it here would leave each one to time out with no error.
-          //
-          // `scope` deliberately does NOT: the fan-in above flattens the
-          // scoped set into one delivery per event however many scopes are
-          // held, and consumers read those off the unscoped bus. Re-scoping
-          // here would hide them from every existing subscriber.
-          for (const bus of this.bridges) {
-            bus.emit(channel, frame.payload, { correlationId: frame.correlationId });
-          }
-        });
-      };
-      for (const channel of [...globalChannels, ...RESOURCE_SCOPED_CHANNELS]) bridge(channel);
+      // `relayFrames` owns the hop itself (envelope carried, scope not). The
+      // sink fans out to `this.bridges`, which `bridgeInto` appends to after
+      // this is wired, so it must be read per frame rather than captured.
+      relayFrames(
+        this._actor,
+        {
+          emit: (channel, payload, envelope) => {
+            for (const bus of this.bridges) bus.emit(channel, payload, envelope);
+          },
+        },
+        [...globalChannels, ...RESOURCE_SCOPED_CHANNELS],
+      );
     }
     return this._actor;
   }

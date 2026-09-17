@@ -52,6 +52,7 @@ import { HttpTransport } from '@semiont/http-transport';
 import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
+  relayFrames,
   baseUrl as makeBaseUrl,
   accessToken as makeAccessToken,
   retryWithBackoff,
@@ -285,28 +286,16 @@ async function main() {
   // ── Bus pumps ──────────────────────────────────────────────────────
   const pumps: Subscription[] = [];
 
-  // Both pumps forward FRAMES — see the Archivist's pumps.
-  for (const channel of LIBRARIAN_INBOUND_CHANNELS) {
-    pumps.push(
-      httpTransport.frames(channel).subscribe((frame) => {
-        localBus.emit(channel, frame.payload as never, { correlationId: frame.correlationId });
-      }),
-    );
-  }
-
   const outbound = LIBRARIAN_OUTBOUND_CHANNELS;
-  for (const channel of outbound) {
-    pumps.push(
-      localBus.frames(channel).subscribe((frame) => {
-        httpTransport.emit(channel, frame.payload as never, { correlationId: frame.correlationId }).catch((error: unknown) => {
-          logger.error('Reply forwarding failed', {
-            channel,
-            error: error instanceof Error ? error.message : String(error),
-          });
-        });
+  pumps.push(
+    ...relayFrames(httpTransport, localBus, LIBRARIAN_INBOUND_CHANNELS),
+    ...relayFrames(localBus, httpTransport, outbound, (channel, error) =>
+      logger.error('Reply forwarding failed', {
+        channel,
+        error: error instanceof Error ? error.message : String(error),
       }),
-    );
-  }
+    ),
+  );
 
   logger.info('Bus pumps attached', { inbound: LIBRARIAN_INBOUND_CHANNELS.length, outbound: outbound.length });
 
