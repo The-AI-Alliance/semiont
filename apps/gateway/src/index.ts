@@ -288,6 +288,18 @@ if (signalPlane) {
     ...GATEWAY_HANDLER_EMITS,
     ...JOB_QUEUE_EMITS,
   ]);
+  // THE READINESS GATE (SIGNAL-PLANE-FLUSH D4). Subscribing is synchronous;
+  // REGISTERING that interest with the broker is not, and core NATS is
+  // at-most-once, so a request arriving before registration lands is
+  // dispatched to a queue group with no member: `ingest` reports zero
+  // observers and the gateway synthesizes `peer-unavailable`, blaming an
+  // absent service for its own boot race. Awaiting here is what makes the
+  // load balancer's health check mean what it has always implied.
+  //
+  // One round trip, once, after every subscription is composed — never per
+  // subscribe and never per frame (D3). Under the in-process driver this is an
+  // already-resolved promise and boot is byte-identical.
+  await signalPlane.flush();
   logger.info('Signal Plane handler bridge active', {
     consumed: GATEWAY_HANDLER_CHANNELS.length,
     emitted: GATEWAY_HANDLER_EMITS.length,
@@ -468,6 +480,20 @@ if (config.env?.NODE_ENV !== 'test') {
       try {
         server.close();
         await makeMeaning.stop();
+        // Drain before the connection dies with the process
+        // (SIGNAL-PLANE-FLUSH D5). `nc.publish` returns having written into a
+        // client-side buffer; on a scale-down or redeploy, frames written
+        // moments earlier — replies whose requesters are still waiting — go
+        // with the process. They get a timeout while the operator sees a clean
+        // shutdown, which is the silent lossy mode L4 forbids. One round trip
+        // at the end of teardown, after the actors that might still publish
+        // have stopped.
+        //
+        // Explicit rather than folded into `dispose()`: this is the only
+        // production disposal path and it is already async, whereas making
+        // `dispose()` return a promise would touch every composition root and
+        // every test teardown for a single call site.
+        if (signalPlane) await signalPlane.flush();
         eventBus.destroy();
         await DatabaseConnection.disconnect();
         logger.info('Shutdown complete');

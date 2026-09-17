@@ -289,42 +289,32 @@ describe('P3 — two gateway-compositions over one broker', () => {
     // registry's reply channel via its own emit.
     const { a, b, done } = await twoInstances();
     try {
-      let probesSeen = 0;
       const stower = b.composition.plane.subscribeClient({
         address: toReplyAddress('fake-stower'),
         global: ['yield:create'],
         scoped: [],
         onFrame: (_channel, _payload, envelope) => {
           const correlationId = envelope.meta?.correlationId;
-          // A probe carries no correlationId and is only proof of life.
-          if (correlationId === undefined) {
-            probesSeen += 1;
-            return;
-          }
+          if (correlationId === undefined) return;
           b.ingest('yield:create-ok', {
             response: { resourceId: 'urn:semiont:r-h7' },
           }, { meta: { correlationId } });
         },
       });
 
-      // Prove B's subscription is LIVE on the broker before requesting.
+      // B's subscription must be REGISTERED before the request is published:
+      // `subscribeClient` is synchronous, registering the interest with NATS is
+      // not, and core NATS is at-most-once, so a frame published first is
+      // DROPPED rather than delayed. The request then waits out its full
+      // deadline for a reply that was never going to come, which is why raising
+      // the timeout did not fix this (CI, 2026-09-16, `timed out after 5000ms
+      // on yield:create-ok`).
       //
-      // `subscribeClient` is synchronous, but registering the interest with
-      // NATS is not, and core NATS is at-most-once: a frame published before
-      // that registration lands is DROPPED, not delayed. The request then
-      // waits out its full deadline for a reply that was never going to come,
-      // which is why raising the timeout does not fix this and did not (CI,
-      // 2026-09-16, `timed out after 5000ms on yield:create-ok`).
-      //
-      // Same emit-until-seen shape as H4/H8/H9, for the same reason: the only
-      // way to know a subscription is live is for a frame to come back through
-      // it.
-      await settle(() => {
-        if (probesSeen > 0) return true;
-        a.ingest('yield:create', { name: 'h7-probe' });
-        return false;
-      });
-      expect(probesSeen, 'B subscription live before the request').toBeGreaterThan(0);
+      // This was an emit-until-seen probe — a correlationId-less `yield:create`
+      // repeated until the fake Stower saw one — which is probable rather than
+      // certain and cost the handler a branch that existed only for the test.
+      // `flush()` asks the question directly (SIGNAL-PLANE-FLUSH P3.3).
+      await b.composition.plane.flush();
 
       const response = await a.request('yield:create', { name: 'h7' });
       expect(response).toEqual({ resourceId: 'urn:semiont:r-h7' });

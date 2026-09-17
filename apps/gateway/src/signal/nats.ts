@@ -234,6 +234,13 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
       return { close: () => closeAll(subs) };
     },
 
+    async flush() {
+      // Round-trips the server: resolves once everything this connection has
+      // already written — subscription registrations included — has been
+      // processed. That is precisely the boot gate's question.
+      await nc.flush();
+    },
+
     dispose() {
       for (const s of open) s.unsubscribe();
       open.clear();

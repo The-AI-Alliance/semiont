@@ -138,6 +138,36 @@ export interface SignalPlane {
    * to a channel subject, so it need not be registry vocabulary.
    */
   deliver(address: ReplyAddress, channel: string, payload: unknown): void;
+  /**
+   * Resolves when operations already issued on THIS plane's connection have
+   * been processed by the broker.
+   *
+   * The one guarantee: after `await flush()`, a subscription issued before it
+   * is registered, so a publish that happens after it will be delivered to
+   * that subscription. That is what makes a readiness gate possible —
+   * registering interest is asynchronous under a broker, and core NATS is
+   * at-most-once, so a frame published before registration lands is DROPPED,
+   * not delayed. No timeout recovers it.
+   *
+   * It is deliberately NOT, whatever the name suggests to a reader in a
+   * hurry:
+   *  - delivery confirmation — it says nothing about any subscriber receiving
+   *    anything;
+   *  - durability — nothing is persisted and at-most-once is unchanged;
+   *  - ordering across connections — two replicas' publishes stay unordered;
+   *  - a barrier for frames published by anyone else.
+   *
+   * REQUIRED, never optional: both drivers have a true answer, so an optional
+   * member plus a caller-side `if (plane.flush)` would be one interface in two
+   * dialects, running or not according to which implementation is held rather
+   * than according to what is true.
+   *
+   * A composition-time and shutdown-time verb (D3). Never per subscribe and
+   * never per frame: a flush per operation turns a fire-and-forget publish
+   * into a synchronous round trip, which is a latency regression wearing the
+   * costume of safety.
+   */
+  flush(): Promise<void>;
   dispose(): void;
 }
 
