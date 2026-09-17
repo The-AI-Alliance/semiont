@@ -17,12 +17,11 @@
  *     - handler mode: a named group; each frame reaches AT MOST ONE member,
  *       never two, across all instances (a queue group under NATS; a group of
  *       one here).
- *  3. **Correlated-reply addressing** — ADDRESS-ONLY, by ratified decision:
- *     the interface learns WHERE a frame goes (`ReplyAddress`), never WHETHER
- *     a principal is entitled to one, and never takes a `correlationId` —
- *     that key lives in 71 payload schemas today, and an interface parsing
- *     payloads for its routing key would be rebuilt by BUS-ROUTING-DECLARED
- *     P2 (the envelope migration). The gateway's ledger (`./ledger.ts` —
+ *  3. **Correlated-reply addressing** — the interface learns WHERE a frame
+ *     goes (`ReplyAddress`), never WHETHER a principal is entitled to one.
+ *     It carries a `correlationId` without reading one: the key rides
+ *     `PlaneEnvelope.meta`, ferried verbatim (`scope` is the only field a
+ *     driver interprets). The gateway's ledger (`./ledger.ts` —
  *     gateway POLICY, not driver code) owns claims, entitlement and its
  *     refusals, and mints addresses. `deliver` is this group's publication
  *     half (P3 GREEN): a frame published TO an address, reaching every

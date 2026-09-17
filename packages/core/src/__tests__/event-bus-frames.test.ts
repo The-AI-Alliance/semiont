@@ -4,8 +4,8 @@
  *
  * `get(channel)` handed out a raw `Subject<EventMap[K]>`. Two things followed
  * from that. Routing metadata had nowhere to live except inside the domain
- * payload, which is why `correlationId` is declared in 71 payload schemas and
- * echoed by hand in nine handlers. And nothing distinguished publishing from
+ * payload, which is why `correlationId` was declared in 71 payload schemas and
+ * echoed by hand in nine handlers (zero today). And nothing distinguished publishing from
  * observing: every holder could write, read and pipe the same object, so the
  * conflation stayed invisible.
  *

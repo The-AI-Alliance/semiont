@@ -101,16 +101,40 @@ describe('createMarkStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('clears pendingAnnotation on mark:create-ok', () => {
-    tc = withMark();
+  it('clears pendingAnnotation once its own submit succeeds', async () => {
+    const annotationFn = vi.fn().mockResolvedValue({ annotationId: 'ann-1' });
+    tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
     const pend: unknown[] = [];
     stateUnit.pendingAnnotation$.subscribe(v => pend.push(v));
 
     tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
-    tc.bus.emit('mark:create-ok', { response: { annotationId: 'ann-1' } });
-    expect(pend[pend.length - 1]).toBeNull();
+    tc.bus.emit('mark:submit', { source: 'res-1', selector: {}, motivation: 'highlighting', body: [] } as any);
+
+    await vi.waitFor(() => expect(pend[pend.length - 1]).toBeNull());
     stateUnit.dispose();
+  });
+
+  it('does NOT clear pendingAnnotation when someone ELSE\'s create is replied to', () => {
+    // The clobber this replaced. `MarkCreateOk` is `{ response: { annotationId } }`
+    // — no resourceId — so a viewer could not tell its own reply from another's.
+    //
+    // The emit below IS the transport: `transport.bridgeInto(client.bus)` puts
+    // every wire reply on this bus, whichever viewer or host flow caused it.
+    // Standing in for it here is the only way a state-unit test can see wire
+    // behaviour at all, since the harness has no transport of its own.
+    tc = withMark();
+    const viewerA = createMarkStateUnit(tc.client, RID);
+    const pend: unknown[] = [];
+    viewerA.pendingAnnotation$.subscribe(v => pend.push(v));
+
+    tc.bus.emit('mark:requested', { source: 'res-1', selector: {}, motivation: 'highlighting' } as any);
+    expect(pend[pend.length - 1], 'selection registered').not.toBeNull();
+
+    tc.bus.emit('mark:create-ok', { response: { annotationId: 'ann-somebody-else' } });
+
+    expect(pend[pend.length - 1], "viewer A's in-progress selection survived").not.toBeNull();
+    viewerA.dispose();
   });
 
   // ── CRUD bridging ──────────────────────────────────────────
@@ -119,8 +143,6 @@ describe('createMarkStateUnit', () => {
     const annotationFn = vi.fn().mockResolvedValue({ annotationId: 'ann-new' });
     tc = withMark({ annotation: annotationFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
-    const okEvents: unknown[] = [];
-    tc.bus.on('mark:create-ok').subscribe(e => okEvents.push(e));
 
     tc.bus.emit('mark:submit', {
       source: 'res-1',
@@ -129,8 +151,18 @@ describe('createMarkStateUnit', () => {
       body: [{ type: 'TextualBody', value: 'note' }],
     } as any);
 
+    // The call-through IS the bridge. `mark:create-ok` is deliberately NOT
+    // asserted here: it is the wire reply to this call's own busRequest, and
+    // `transport.bridgeInto` delivers it — this harness has no transport, so
+    // asserting it here could only ever be observing a local echo. What the UI
+    // actually depends on is covered by 'clears pendingAnnotation on
+    // mark:create-ok', which feeds the frame the way the transport does.
     await vi.waitFor(() => expect(annotationFn).toHaveBeenCalledOnce());
-    await vi.waitFor(() => expect(okEvents).toHaveLength(1));
+    expect(annotationFn).toHaveBeenCalledWith({
+      motivation: 'highlighting',
+      target: { source: RID, selector: { type: 'TextQuoteSelector', exact: 'test' } },
+      body: [{ type: 'TextualBody', value: 'note' }],
+    });
     stateUnit.dispose();
   });
 
@@ -173,13 +205,13 @@ describe('createMarkStateUnit', () => {
     const deleteFn = vi.fn().mockResolvedValue(undefined);
     tc = withMark({ delete: deleteFn });
     const stateUnit = createMarkStateUnit(tc.client, RID);
-    const okEvents: unknown[] = [];
-    tc.bus.on('mark:delete-ok').subscribe(e => okEvents.push(e));
 
     tc.bus.emit('mark:delete', { annotationId: 'ann-del' } as any);
 
+    // As with submit above: the call-through is the bridge, and `mark:delete-ok`
+    // arrives from the wire rather than from this state unit.
     await vi.waitFor(() => expect(deleteFn).toHaveBeenCalledOnce());
-    await vi.waitFor(() => expect(okEvents).toHaveLength(1));
+    expect(deleteFn).toHaveBeenCalledWith(RID, 'ann-del');
     stateUnit.dispose();
   });
 

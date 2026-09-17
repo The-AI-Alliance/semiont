@@ -80,18 +80,28 @@ export function createMarkStateUnit(
     handleAnnotationRequested({ selector: selectionToSelector(s), motivation: 'linking' })));
 
   subs.push(client.bus.on('mark:cancel-pending').subscribe(() => pendingAnnotation$.next(null)));
-  subs.push(client.bus.on('mark:create-ok').subscribe(() => pendingAnnotation$.next(null)));
 
   // CRUD bridging (submit routed by source — see note above)
   subs.push(client.bus.on('mark:submit').subscribe(async (event) => {
     if (event.source !== resourceId) return;
     try {
-      const result = await client.mark.annotation({
+      await client.mark.annotation({
         motivation: event.motivation,
         target: { source: resourceId, selector: event.selector as Selector },
         body: event.body,
       });
-      client.bus.emit('mark:create-ok', { response: { annotationId: result.annotationId } });
+      // The composer closes HERE, not on `mark:create-ok`.
+      //
+      // Every other signal in this state machine is `direction: 'in-process'`
+      // — `mark:requested`, `mark:select-*`, `mark:cancel-pending`. Clearing
+      // on the wire reply reached outside that vocabulary for a frame carrying
+      // no `resourceId` (MarkCreateOk is `{ response: { annotationId } }`), so
+      // it could not be filtered: with two viewers on one session, creating an
+      // annotation in either discarded the other's in-progress selection.
+      // Clearing in the flow that owns the pending state is correlated by
+      // construction. A host that wants to cancel a composer emits
+      // `mark:cancel-pending`, which is what that channel is for.
+      pendingAnnotation$.next(null);
     } catch (error) {
       // Client-local, resource-stamped UI notification — the wire reply
       // (mark:create-failed) is busRequest plumbing, not for UI consumption.
@@ -101,8 +111,8 @@ export function createMarkStateUnit(
 
   subs.push(client.bus.on('mark:delete').subscribe(async (event) => {
     try {
+      // Same as create above — the wire reply already arrives on client.bus.
       await client.mark.delete(resourceId, event.annotationId as Parameters<typeof client.mark.delete>[1]);
-      client.bus.emit('mark:delete-ok', { response: { annotationId: event.annotationId } });
     } catch (error) {
       client.bus.emit('mark:delete-error', { resourceId: resourceId as string, message: error instanceof Error ? error.message : String(error) });
     }

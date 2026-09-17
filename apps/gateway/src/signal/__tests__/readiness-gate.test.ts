@@ -16,10 +16,21 @@
  * It does not import the gateway's entry module — that boots Postgres, JWT and
  * a listener. It asserts the contract that entry module must honour, over the
  * same seam, which is the part a regression would break.
+ *
+ * THE MODEL IS NOT THE GATE. `boot()` below is a hand-written stand-in for
+ * `index.ts`, so the two order assertions prove the pattern is sound and
+ * nothing about the shipped sequence — `index.ts` could drop its `await`
+ * outright and they would both stay green (measured). The third test reads
+ * `index.ts` itself and is the only one a real regression trips.
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'fs';
+import { dirname, join } from 'path';
+import { fileURLToPath } from 'url';
 import type { SignalPlane } from '../interface';
+
+const INDEX = join(dirname(fileURLToPath(import.meta.url)), '../../index.ts');
 
 /** A plane whose `flush()` resolves only when the test says so. */
 function deferredFlushPlane(): { plane: SignalPlane; release: () => void } {
@@ -79,5 +90,21 @@ describe('the readiness gate (SIGNAL-PLANE-FLUSH D4)', () => {
 
     // A flush before the subscription proves nothing about that subscription.
     expect(order).toEqual(['subscribe', 'flush', 'serve']);
+  });
+
+  it('index.ts AWAITS its readiness flush, and does it before serve()', () => {
+    // The two tests above drive a model. This one reads the shipped sequence,
+    // because that is where the regression would live: a reworded call, a lost
+    // `await`, or a flush that drifted below `serve()`.
+    const source = readFileSync(INDEX, 'utf-8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/.*$/gm, '');
+
+    const flush = source.search(/await\s+[^;]*?\bflush\b/);
+    expect(flush, 'no awaited flush in index.ts — the readiness gate is gone').toBeGreaterThan(-1);
+
+    const serveAt = source.search(/\bserve\s*\(\s*\{/);
+    expect(serveAt, 'no serve({...}) call found in index.ts').toBeGreaterThan(-1);
+    expect(flush, 'the readiness flush must be awaited BEFORE serve()').toBeLessThan(serveAt);
   });
 });

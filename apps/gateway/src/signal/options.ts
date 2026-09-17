@@ -38,6 +38,16 @@ export const PENDING_REPLIES_MAX = 256;
 export const CLAIM_TTL_MS = 15 * 60_000;
 export const CLAIM_MAX_GLOBAL = 4096;
 
+/**
+ * Bound on a `flush()` round trip (boot gate and shutdown drain).
+ *
+ * It is one PING/PONG to a reachable broker — milliseconds. This is not a
+ * latency budget but a liveness bound: the client reconnects forever, so
+ * against a dead broker an unbounded flush never settles, and the two callers
+ * are boot (before the port opens) and shutdown (before teardown finishes).
+ */
+export const SIGNAL_FLUSH_TIMEOUT_MS = 10_000;
+
 /** The seven, as one construction-options shape. */
 export interface SignalPlaneOptions {
   maxScopes?: number;

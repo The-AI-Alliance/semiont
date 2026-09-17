@@ -2,8 +2,9 @@
  * RED (BUS-CARRIES-FRAMES P3): the correlation key rides the ENVELOPE, and a
  * requester matches its reply without reading a payload.
  *
- * `correlationId` is declared in 71 payload schemas and echoed by hand in nine
- * handlers, while its other half `clientId` sits correctly on the envelope —
+ * At RED, `correlationId` was declared in 71 payload schemas and echoed by hand
+ * in nine handlers (zero today — it rides the envelope), while its other half
+ * `clientId` already sat correctly on the envelope —
  * under a description that states the very rule being broken: routing is "a
  * wire concern like `scope`, so it never enters a channel's domain type".
  *

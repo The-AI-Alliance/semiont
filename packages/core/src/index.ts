@@ -133,6 +133,7 @@ export {
 
 // Event bus (RxJS-based, framework-agnostic)
 export { EventBus, ScopedEventBus, type BusFrame, type BusEnvelope } from './event-bus';
+export { relayFrames, type FrameSource, type FrameSink } from './relay-frames';
 
 // RxJS operators
 export { burstBuffer, type BurstBufferOptions } from './operators/burst-buffer';
