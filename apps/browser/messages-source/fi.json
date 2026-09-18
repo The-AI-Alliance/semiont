@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} profiili",
     "session": "Istunto",
     "expiresIn": "Vanhenee: {{time}}",
-    "privileges": "Oikeudet",
-    "moderator": "⚖️ Moderaattori",
     "signOut": "Kirjaudu ulos"
   },
   "AnnotateView": {

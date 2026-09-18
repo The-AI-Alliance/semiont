@@ -27,7 +27,6 @@ interface LeftSidebarProps {
   collapsible?: boolean;
   storageKey?: string;
   isAuthenticated?: boolean;
-  isModerator?: boolean;
   currentPath?: string;
 }
 
@@ -40,7 +39,6 @@ export function LeftSidebar({
   brandingLink = '/',
   collapsible = false,
   storageKey = 'leftSidebarCollapsed',
-  isModerator = false,
   currentPath
 }: LeftSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -78,7 +76,6 @@ export function LeftSidebar({
       Link={Link}
       routes={routes}
       t={t}
-      isModerator={isModerator}
       brandingLink={brandingLink}
       onItemClick={onClose}
       currentPath={currentPath}

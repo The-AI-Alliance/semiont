@@ -385,7 +385,6 @@ describe('UnifiedHeader Component', () => {
           t={mockT}
           tHome={mockTHome}
                   isAuthenticated={true}
-          isModerator={true}
         />
       );
 

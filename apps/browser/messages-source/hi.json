@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} प्रोफ़ाइल",
     "session": "सत्र",
     "expiresIn": "समाप्ति: {{time}}",
-    "privileges": "विशेषाधिकार",
-    "moderator": "⚖️ मॉडरेटर",
     "signOut": "साइन आउट करें"
   },
   "AnnotateView": {

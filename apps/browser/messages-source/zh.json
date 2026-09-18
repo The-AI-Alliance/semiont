@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} 个人资料",
     "session": "会话",
     "expiresIn": "过期时间：{{time}}",
-    "privileges": "权限",
-    "moderator": "⚖️ 审核员",
     "signOut": "退出登录"
   },
   "AnnotateView": {

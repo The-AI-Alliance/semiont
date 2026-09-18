@@ -203,8 +203,6 @@
     "profileAlt": "الملف الشخصي لـ {{name}}",
     "session": "الجلسة",
     "expiresIn": "تنتهي خلال: {{time}}",
-    "privileges": "الصلاحيات",
-    "moderator": "⚖️ مشرف",
     "signOut": "تسجيل الخروج"
   },
   "AnnotateView": {

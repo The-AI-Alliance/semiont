@@ -28,7 +28,6 @@ function ModerateLayoutBody() {
   }
 
   const isAuthenticated = !!user;
-  const isModerator = user?.isModerator ?? false;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
@@ -42,7 +41,6 @@ function ModerateLayoutBody() {
           collapsible={true}
           storageKey="moderation-sidebar-collapsed"
           isAuthenticated={isAuthenticated}
-          isModerator={isModerator}
         >
           {(isCollapsed, toggleCollapsed, navigationMenu) => (
             <ModerationNavigation

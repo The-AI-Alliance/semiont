@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} profiel",
     "session": "Sessie",
     "expiresIn": "Verloopt over: {{time}}",
-    "privileges": "Bevoegdheden",
-    "moderator": "⚖️ Moderator",
     "signOut": "Uitloggen"
   },
   "AnnotateView": {

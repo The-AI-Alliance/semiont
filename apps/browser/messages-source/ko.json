@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} 프로필",
     "session": "세션",
     "expiresIn": "만료: {{time}}",
-    "privileges": "권한",
-    "moderator": "⚖️ 중재자",
     "signOut": "로그아웃"
   },
   "AnnotateView": {

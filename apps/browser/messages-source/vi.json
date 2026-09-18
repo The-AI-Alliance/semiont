@@ -203,8 +203,6 @@
     "profileAlt": "Hồ sơ {{name}}",
     "session": "Phiên làm việc",
     "expiresIn": "Hết hạn sau: {{time}}",
-    "privileges": "Quyền hạn",
-    "moderator": "⚖️ Kiểm duyệt viên",
     "signOut": "Đăng xuất"
   },
   "AnnotateView": {

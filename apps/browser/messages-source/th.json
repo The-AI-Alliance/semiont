@@ -203,8 +203,6 @@
     "profileAlt": "โปรไฟล์ {{name}}",
     "session": "เซสชัน",
     "expiresIn": "หมดอายุใน: {{time}}",
-    "privileges": "สิทธิ์",
-    "moderator": "⚖️ ผู้กลั่นกรอง",
     "signOut": "ออกจากระบบ"
   },
   "AnnotateView": {

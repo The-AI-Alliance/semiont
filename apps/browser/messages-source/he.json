@@ -203,8 +203,6 @@
     "profileAlt": "פרופיל {{name}}",
     "session": "סשן",
     "expiresIn": "פג תוקף בעוד: {{time}}",
-    "privileges": "הרשאות",
-    "moderator": "⚖️ מנהל תוכן",
     "signOut": "התנתקות"
   },
   "AnnotateView": {

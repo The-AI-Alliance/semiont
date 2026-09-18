@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} profil",
     "session": "Session",
     "expiresIn": "Upphör om: {{time}}",
-    "privileges": "Behörigheter",
-    "moderator": "⚖️ Moderator",
     "signOut": "Logga ut"
   },
   "AnnotateView": {

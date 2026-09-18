@@ -74,16 +74,14 @@ export const ImageURLSchema = {
 /**
  * Validates the authenticated user a knowledge base reports.
  *
- * `isAdmin` and `isModerator` are OPTIONAL. They are role flags no gateway
- * route reads, and where they live is an open question — so this validator
- * refuses to be the reason that question has to be answered in lockstep with
- * a wire change. A payload carrying neither is valid; a payload carrying one
- * of them as a non-boolean is not.
+ * `isAdmin` and `isModerator` are OPTIONAL, and as of 2026-09-18 NOTHING reads
+ * them: no gateway route gates on them, and no component branches on them —
+ * the moderation surface is shown to every authenticated user. They survive
+ * here only because a knowledge base may still send them and rejecting a
+ * payload over a field nobody consumes would be absurd.
  *
- * Consumers read them as `user?.isModerator ?? false`, so absence hides the
- * affordance rather than revealing it. That is the safe direction, and it is
- * why absence can be tolerated without a second thought: these flags shape the
- * UI and enforce nothing. The gateway grants no access on their basis.
+ * A payload carrying neither is valid. One carrying either as a non-boolean is
+ * not, because that is a malformed value rather than an absent one.
  */
 export interface OAuthUser {
   id: string;

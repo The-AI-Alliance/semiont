@@ -203,8 +203,6 @@
     "profileAlt": "{{name}}のプロフィール",
     "session": "セッション",
     "expiresIn": "有効期限: {{time}}",
-    "privileges": "権限",
-    "moderator": "⚖️ モデレーター",
     "signOut": "サインアウト"
   },
   "AnnotateView": {

@@ -84,7 +84,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -100,7 +99,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -158,7 +156,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -229,7 +226,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -254,7 +250,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -274,7 +269,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 

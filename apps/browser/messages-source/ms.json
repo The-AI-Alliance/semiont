@@ -203,8 +203,6 @@
     "profileAlt": "Profil {{name}}",
     "session": "Sesi",
     "expiresIn": "Tamat tempoh dalam: {{time}}",
-    "privileges": "Keistimewaan",
-    "moderator": "⚖️ Penyederhana",
     "signOut": "Log Keluar"
   },
   "AnnotateView": {

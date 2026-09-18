@@ -245,8 +245,6 @@
     "profileAlt": "{{name}} profile",
     "session": "Session",
     "expiresIn": "Expires in: {{time}}",
-    "privileges": "Privileges",
-    "moderator": "⚖️ Moderator",
     "signOut": "Sign Out"
   },
   "AnnotateView": {

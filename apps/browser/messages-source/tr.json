@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} profili",
     "session": "Oturum",
     "expiresIn": "Süre: {{time}}",
-    "privileges": "Yetkiler",
-    "moderator": "⚖️ Moderatör",
     "signOut": "Çıkış Yap"
   },
   "AnnotateView": {

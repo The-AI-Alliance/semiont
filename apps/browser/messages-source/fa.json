@@ -203,8 +203,6 @@
     "profileAlt": "نمایه {{name}}",
     "session": "نشست",
     "expiresIn": "انقضا در: {{time}}",
-    "privileges": "دسترسی‌ها",
-    "moderator": "⚖️ ناظر",
     "signOut": "خروج"
   },
   "AnnotateView": {

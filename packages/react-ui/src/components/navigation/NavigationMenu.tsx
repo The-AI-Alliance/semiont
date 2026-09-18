@@ -10,7 +10,6 @@ interface NavigationMenuProps {
   Link: React.ComponentType<LinkComponentProps>;
   routes: Partial<RouteBuilder>;
   t: TranslateFn;
-  isModerator?: boolean;
   brandingLink?: string;
   onItemClick?: () => void;
   className?: string;
@@ -21,7 +20,6 @@ export function NavigationMenu({
   Link,
   routes,
   t,
-  isModerator = false,
   onItemClick,
   className = "",
   currentPath
@@ -46,19 +44,15 @@ export function NavigationMenu({
         {t('know')}
       </Link>
 
-      {isModerator && (
-        <>
-          <hr className="semiont-navigation-menu__divider" />
-          <Link
-            href={routes.moderate?.() || '/moderate'}
-            {...(onItemClick && { onClick: onItemClick })}
-            className="semiont-navigation-menu__link"
-            aria-current={isCurrentPage(routes.moderate?.() || '/moderate') ? 'page' : undefined}
-          >
-            {t('moderate')}
-          </Link>
-        </>
-      )}
+      <hr className="semiont-navigation-menu__divider" />
+      <Link
+        href={routes.moderate?.() || '/moderate'}
+        {...(onItemClick && { onClick: onItemClick })}
+        className="semiont-navigation-menu__link"
+        aria-current={isCurrentPage(routes.moderate?.() || '/moderate') ? 'page' : undefined}
+      >
+        {t('moderate')}
+      </Link>
     </nav>
   );
 }

@@ -23,7 +23,6 @@ export function UserPanel() {
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
   const avatarUrl = user?.image ?? null;
   const userDomain = user?.domain || user?.email?.split('@')[1];
-  const isModerator = user?.isModerator ?? false;
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
   const sessionTimeFormatted = formatTime(timeRemaining) ?? 'Unknown';
@@ -89,22 +88,6 @@ export function UserPanel() {
             </div>
           </div>
         </div>
-
-        {/* Privileges */}
-        {isModerator && (
-          <div>
-            <label className="semiont-panel-label">
-              {t('privileges')}
-            </label>
-            <div className="space-y-1">
-              <div className="semiont-privilege-badge semiont-privilege-badge--moderator">
-                <span className="semiont-privilege-text">
-                  {t('moderator')}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Sign Out — only meaningful with a live session to sign out OF.
             Keyed on the session so the state unit is rebuilt against the

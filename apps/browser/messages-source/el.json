@@ -203,8 +203,6 @@
     "profileAlt": "Προφίλ {{name}}",
     "session": "Συνεδρία",
     "expiresIn": "Λήγει σε: {{time}}",
-    "privileges": "Δικαιώματα",
-    "moderator": "⚖️ Συντονιστής",
     "signOut": "Αποσύνδεση"
   },
   "AnnotateView": {

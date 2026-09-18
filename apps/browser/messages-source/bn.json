@@ -203,8 +203,6 @@
     "profileAlt": "{{name}} প্রোফাইল",
     "session": "সেশন",
     "expiresIn": "মেয়াদ শেষ: {{time}}",
-    "privileges": "বিশেষাধিকার",
-    "moderator": "⚖️ পরিচালক",
     "signOut": "প্রস্থান করুন"
   },
   "AnnotateView": {

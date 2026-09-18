@@ -203,8 +203,6 @@
     "profileAlt": "Profil uživatele {{name}}",
     "session": "Relace",
     "expiresIn": "Vyprší za: {{time}}",
-    "privileges": "Oprávnění",
-    "moderator": "⚖️ Moderátor",
     "signOut": "Odhlásit se"
   },
   "AnnotateView": {

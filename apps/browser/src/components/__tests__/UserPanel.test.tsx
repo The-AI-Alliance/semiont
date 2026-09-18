@@ -146,8 +146,6 @@ describe('UserPanel Component', () => {
         'UserPanel.profileAlt': 'Profile picture of {name}',
         'UserPanel.session': 'Session',
         'UserPanel.expiresIn': 'Expires in {time}',
-        'UserPanel.privileges': 'Privileges',
-        'UserPanel.moderator': 'Moderator',
         'UserPanel.signOut': 'Sign Out',
       };
       if (key === 'UserPanel.profileAlt' && params?.name) return `Profile picture of ${params.name}`;
@@ -266,27 +264,6 @@ describe('UserPanel Component', () => {
     });
   });
 
-  describe('Privileges Display', () => {
-    it('should not show privileges section for regular users', () => {
-      render(<UserPanel />);
-      expect(screen.queryByText('Privileges')).not.toBeInTheDocument();
-    });
-
-    it('should show moderator badge when user is moderator', () => {
-      setUser({ name: 'Mod User', image: null, isModerator: true });
-      render(<UserPanel />);
-      expect(screen.getByText('Privileges')).toBeInTheDocument();
-      expect(screen.getByText('Moderator')).toBeInTheDocument();
-    });
-
-    it('should style moderator badge', () => {
-      setUser({ name: 'Mod User', image: null, isModerator: true });
-      render(<UserPanel />);
-      const modBadge = screen.getByText('Moderator');
-      expect(modBadge).toHaveClass('semiont-privilege-text');
-      expect(modBadge.parentElement).toHaveClass('semiont-privilege-badge', 'semiont-privilege-badge--moderator');
-    });
-  });
 
   describe('Sign Out Functionality', () => {
     it('should call signOut(activeKnowledgeBase.id) and navigate to / on click', async () => {

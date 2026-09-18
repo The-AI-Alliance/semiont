@@ -56,7 +56,7 @@ describe('NavigationMenu Component', () => {
       expect(mockTranslate).toHaveBeenCalledWith('know');
     });
 
-    it('should render only knowledge link when no permissions', () => {
+    it('should render both links, with a divider between them', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -65,21 +65,10 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const links = container.querySelectorAll('a');
-      expect(links.length).toBe(1);
-    });
-
-    it('should not render dividers when only knowledge link visible', () => {
-      const { container } = render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      const dividers = container.querySelectorAll('hr');
-      expect(dividers.length).toBe(0);
+      // Knowledge and Moderate. The menu takes no permission input any more,
+      // so there is no "no permissions" case to render differently.
+      expect(container.querySelectorAll('a').length).toBe(2);
+      expect(container.querySelectorAll('hr').length).toBe(1);
     });
   });
 
@@ -119,7 +108,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -136,7 +124,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={routesWithoutModerate}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -146,57 +133,23 @@ describe('NavigationMenu Component', () => {
 
   });
 
-  describe('Moderator Access', () => {
-    it('should show moderate link when isModerator is true', () => {
+  describe('Moderation Link', () => {
+    /**
+     * The moderation surface is shown to every authenticated user. The link
+     * used to be gated on an `isModerator` prop, which gated nothing real —
+     * the gateway grants no access on that basis and never did, so hiding the
+     * link only obscured a page anyone could reach by typing its path.
+     */
+    it('should always render the moderate link', () => {
       render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
       expect(screen.getByText('Moderate')).toBeInTheDocument();
-    });
-
-    it('should hide moderate link when isModerator is false', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isModerator={false}
-        />
-      );
-
-      expect(screen.queryByText('Moderate')).not.toBeInTheDocument();
-    });
-
-    it('should hide moderate link by default', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      expect(screen.queryByText('Moderate')).not.toBeInTheDocument();
-    });
-
-    it('should show divider before moderate link', () => {
-      const { container } = render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isModerator={true}
-        />
-      );
-
-      const dividers = container.querySelectorAll('hr');
-      expect(dividers.length).toBe(1);
     });
   });
 
@@ -223,7 +176,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
           onItemClick={mockOnItemClick}
         />
       );
@@ -341,7 +293,6 @@ describe('NavigationMenu Component', () => {
           routes={mockRoutes}
           t={mockTranslate}
           currentPath="/knowledge"
-          isModerator={true}
         />
       );
 
@@ -367,7 +318,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -385,7 +335,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -407,7 +356,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={customTranslate}
-          isModerator={true}
         />
       );
 
