@@ -174,6 +174,22 @@ describe('OAuthUserSchema', () => {
         expect(result).toEqual(validUser);
       });
 
+      /**
+       * The role flags are optional on purpose. No gateway route reads them and
+       * where they should live is undecided, so a knowledge base that omits
+       * them is valid — this validator must not be what forces that decision.
+       * Consumers read `?? false`, so an omitted flag hides the affordance.
+       */
+      it('should accept a user carrying neither role flag', () => {
+        const { isAdmin, isModerator, ...noRoles } = validUser;
+
+        const result = OAuthUserSchema.parse(noRoles);
+
+        expect(result).toEqual(noRoles);
+        expect(result.isAdmin).toBeUndefined();
+        expect(result.isModerator).toBeUndefined();
+      });
+
       it('should accept user with optional name field', () => {
         const userWithName = { ...validUser, name: 'John Doe' };
         const result = OAuthUserSchema.parse(userWithName);
@@ -296,9 +312,9 @@ describe('OAuthUserSchema', () => {
         );
       });
 
-      it('should reject missing isAdmin', () => {
-        const { isAdmin, ...userWithoutAdmin } = validUser;
-        expect(() => OAuthUserSchema.parse(userWithoutAdmin)).toThrow(
+      it('should reject null isAdmin, which is a value and not an absence', () => {
+        const userWithNullAdmin = { ...validUser, isAdmin: null };
+        expect(() => OAuthUserSchema.parse(userWithNullAdmin)).toThrow(
           'isAdmin must be a boolean'
         );
       });
@@ -310,9 +326,9 @@ describe('OAuthUserSchema', () => {
         );
       });
 
-      it('should reject missing isModerator', () => {
-        const { isModerator, ...userWithoutMod } = validUser;
-        expect(() => OAuthUserSchema.parse(userWithoutMod)).toThrow(
+      it('should reject null isModerator, which is a value and not an absence', () => {
+        const userWithNullMod = { ...validUser, isModerator: null };
+        expect(() => OAuthUserSchema.parse(userWithNullMod)).toThrow(
           'isModerator must be a boolean'
         );
       });

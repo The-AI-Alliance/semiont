@@ -72,10 +72,18 @@ export const ImageURLSchema = {
 };
 
 /**
- * OAuth user validation (Next.js NextAuth specific)
+ * Validates the authenticated user a knowledge base reports.
  *
- * Validates user objects returned from OAuth providers.
- * Includes domain validation for access control.
+ * `isAdmin` and `isModerator` are OPTIONAL. They are role flags no gateway
+ * route reads, and where they live is an open question — so this validator
+ * refuses to be the reason that question has to be answered in lockstep with
+ * a wire change. A payload carrying neither is valid; a payload carrying one
+ * of them as a non-boolean is not.
+ *
+ * Consumers read them as `user?.isModerator ?? false`, so absence hides the
+ * affordance rather than revealing it. That is the safe direction, and it is
+ * why absence can be tolerated without a second thought: these flags shape the
+ * UI and enforce nothing. The gateway grants no access on their basis.
  */
 export interface OAuthUser {
   id: string;
@@ -83,8 +91,8 @@ export interface OAuthUser {
   name?: string | null;
   image?: string | null;
   domain: string;
-  isAdmin: boolean;
-  isModerator: boolean;
+  isAdmin?: boolean;
+  isModerator?: boolean;
 }
 
 export const OAuthUserSchema = {
@@ -117,12 +125,12 @@ export const OAuthUserSchema = {
       throw new Error('Image must be a string or null');
     }
 
-    // Validate boolean fields
-    if (typeof user.isAdmin !== 'boolean') {
+    // Optional role flags: absent is fine, present-but-not-a-boolean is not.
+    if (user.isAdmin !== undefined && typeof user.isAdmin !== 'boolean') {
       throw new Error('isAdmin must be a boolean');
     }
 
-    if (typeof user.isModerator !== 'boolean') {
+    if (user.isModerator !== undefined && typeof user.isModerator !== 'boolean') {
       throw new Error('isModerator must be a boolean');
     }
 
@@ -130,8 +138,6 @@ export const OAuthUserSchema = {
       id: user.id,
       email: user.email,
       domain: user.domain,
-      isAdmin: user.isAdmin,
-      isModerator: user.isModerator,
     };
 
     // Only add optional fields if they exist
@@ -140,6 +146,12 @@ export const OAuthUserSchema = {
     }
     if (user.image !== undefined) {
       result.image = user.image as string | null;
+    }
+    if (user.isAdmin !== undefined) {
+      result.isAdmin = user.isAdmin;
+    }
+    if (user.isModerator !== undefined) {
+      result.isModerator = user.isModerator;
     }
 
     return result;

@@ -221,8 +221,6 @@ describe('Validation Library (Native JS)', () => {
         { field: 'id', error: 'User ID is required' },
         { field: 'email', error: 'email address is required' },
         { field: 'domain', error: 'Domain is required' },
-        { field: 'isAdmin', error: 'isAdmin must be a boolean' },
-        { field: 'isModerator', error: 'isModerator must be a boolean' },
       ];
 
       requiredFields.forEach(({ field, error }) => {
@@ -253,12 +251,17 @@ describe('Validation Library (Native JS)', () => {
         { data: { ...validUser, isAdmin: 'true' }, error: 'isAdmin must be a boolean' },
         { data: { ...validUser, isAdmin: 1 }, error: 'isAdmin must be a boolean' },
         { data: { ...validUser, isAdmin: null }, error: 'isAdmin must be a boolean' },
-        { data: { ...validUser, isAdmin: undefined }, error: 'isAdmin must be a boolean' },
       ];
 
       invalidBooleanValues.forEach(({ data, error }) => {
         expect(() => OAuthUserSchema.parse(data)).toThrow(error);
       });
+    });
+
+    it('should accept a user with no role flags at all', () => {
+      const { isAdmin, isModerator, ...noRoles } = validUser;
+
+      expect(() => OAuthUserSchema.parse(noRoles)).not.toThrow();
     });
 
     it('should use safeParse correctly', () => {
