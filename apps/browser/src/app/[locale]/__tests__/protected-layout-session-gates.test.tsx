@@ -1,10 +1,10 @@
 /**
- * The admin and moderate layouts gate their `<Outlet />` on a live session,
- * the same way the knowledge layout does.
+ * The moderate layout gates its `<Outlet />` on a live session, the same way
+ * the knowledge layout does.
  *
- * Nothing recorded that, yet it is load-bearing: the pages below them build
+ * Nothing recorded that, yet it is load-bearing: the pages below it build
  * state units from `session!.client` in a mount-once factory
- * (`admin/{exchange,security,users}`, `moderate/{entity-tags,linked-data}`),
+ * (`moderate/{entity-tags,linked-data}`),
  * so they are only safe because they never render without a session and are
  * remounted when one is replaced. A refactor that kept showing the chrome
  * while the session was null would hand every one of them a disposed client
@@ -49,7 +49,6 @@ vi.mock('react-router', async () => {
   };
 });
 
-vi.mock('@/components/admin/AdminNavigation', () => ({ AdminNavigation: () => null }));
 vi.mock('@/components/moderation/ModerationNavigation', () => ({ ModerationNavigation: () => null }));
 vi.mock('@/components/CookiePreferences', () => ({ CookiePreferences: () => null }));
 vi.mock('@/lib/routing', () => ({
@@ -64,7 +63,7 @@ const harness = vi.hoisted(() => {
   const makeSession = (kbId = 'kb-a') => ({
     id: `session-${++seq}`,
     kb: { id: kbId, label: kbId },
-    user$: new BehaviorSubject<unknown>({ name: 'Ada', isAdmin: true, isModerator: true }),
+    user$: new BehaviorSubject<unknown>({ name: 'Ada', isModerator: true }),
   });
   const activeSession$ = new BehaviorSubject<any>(null);
   return { makeSession, activeSession$, browser: { activeSession$ } };
@@ -81,11 +80,9 @@ vi.mock('@semiont/react-ui', async () => {
   };
 });
 
-import AdminLayout from '../admin/layout';
 import ModerateLayout from '../moderate/layout';
 
 describe.each([
-  ['AdminLayout', AdminLayout],
   ['ModerateLayout', ModerateLayout],
 ])('%s session gate', (_name, Layout) => {
   beforeEach(() => {

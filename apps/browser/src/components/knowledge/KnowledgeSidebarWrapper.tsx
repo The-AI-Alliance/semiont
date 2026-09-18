@@ -11,7 +11,6 @@ export function KnowledgeSidebarWrapper() {
   const session = useObservable(useSemiont().activeSession$);
   const user = useObservable(session?.user$);
   const isAuthenticated = !!user;
-  const isAdmin = user?.isAdmin ?? false;
   const isModerator = user?.isModerator ?? false;
 
   return (
@@ -24,7 +23,6 @@ export function KnowledgeSidebarWrapper() {
       collapsible={true}
       storageKey="knowledgeNavCollapsed"
       isAuthenticated={isAuthenticated}
-      isAdmin={isAdmin}
       isModerator={isModerator}
     >
       {(isCollapsed, toggleCollapsed, navigationMenu) => (

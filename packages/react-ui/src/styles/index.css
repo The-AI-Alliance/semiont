@@ -40,9 +40,7 @@
 @import './panels/user-panel.css';
 
 /* Features */
-@import './features/admin.css';
 @import './features/compose.css';
-@import './features/devops.css';
 @import './features/entity-tags.css';
 @import './features/recent-docs.css';
 @import './features/resource.css';
@@ -56,7 +54,6 @@
 @import './patterns/panel-sections.css';
 @import './patterns/panel-helpers.css';
 @import './patterns/cards.css';
-@import './patterns/tables.css';
 
 /* Component-Level CSS */
 @import '../components/pdf-annotation/PdfAnnotationCanvas.css';

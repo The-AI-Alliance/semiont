@@ -2,7 +2,7 @@
  * Route-level AuthShell Wrapping Test
  *
  * Verifies that the App.tsx route definition wraps every authenticated
- * route group (know/* + admin/* + moderate/*) in a single
+ * route group (know/* + moderate/*) in a single
  * shared AuthShell — mounted once at the ProtectedLayout parent — while
  * the pre-app routes (auth/connect, auth/error, landing,
  * about) do NOT mount AuthShell.
@@ -52,16 +52,6 @@ vi.mock('@/app/[locale]/know/page', () => ({ default: () => <div data-testid="kn
 vi.mock('@/app/[locale]/know/discover/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/know/compose/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/know/resource/[id]/page', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/layout', () => ({
-  default: () => {
-    const { Outlet } = require('react-router');
-    return <div data-testid="admin-layout"><Outlet /></div>;
-  },
-}));
-vi.mock('@/app/[locale]/admin/page', () => ({ default: () => <div data-testid="admin-index">Admin</div> }));
-vi.mock('@/app/[locale]/admin/users/client', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/security/client', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/devops/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/moderate/layout', () => ({
   default: () => {
     const { Outlet } = require('react-router');
@@ -145,15 +135,6 @@ describe('App route definitions — AuthShell wrapping', () => {
       });
       const marker = screen.getByTestId('auth-shell-marker');
       expect(marker).toContainElement(screen.getByTestId('know-layout'));
-    });
-
-    it('admin section mounts AuthShell wrapping the AdminLayout', async () => {
-      renderAppAt('/en/admin');
-      await waitFor(() => {
-        expect(screen.getByTestId('admin-layout')).toBeInTheDocument();
-      });
-      const marker = screen.getByTestId('auth-shell-marker');
-      expect(marker).toContainElement(screen.getByTestId('admin-layout'));
     });
 
     it('moderate section mounts AuthShell wrapping the ModerateLayout', async () => {

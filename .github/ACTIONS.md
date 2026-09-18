@@ -29,8 +29,8 @@ curl -I http://localhost:3000/admin  # Must return 200, not 307
 curl -s http://localhost:3000/admin | grep -i "admin\|dashboard"  # Must return empty
 
 # Gateway verification  
-curl http://localhost:3001/api/admin/users  # Must return 401
-curl -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  # Must return 401
+curl http://localhost:3001/api/status  # Must return 401
+curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must return 401
 ```
 
 ### Continuous Integration (`ci.yml`)
@@ -145,13 +145,13 @@ echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-z
 **Gateway API Security**:
 ```bash
 # Test authentication requirement
-curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/admin/users  # Must be 401
+curl -s -o /dev/null -w "%{http_code}" http://localhost:3001/api/status  # Must be 401
 
 # Test invalid token handling  
-curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid" http://localhost:3001/api/admin/users  # Must be 401
+curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must be 401
 
 # Check error response format
-response=$(curl -s http://localhost:3001/api/admin/users)
+response=$(curl -s http://localhost:3001/api/status)
 echo "$response" | grep -q '"error".*"Unauthorized"'
 ```
 

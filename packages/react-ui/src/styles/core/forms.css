@@ -247,7 +247,6 @@
    are now defined in /styles/core/ as they are fundamental UI elements.
    See: core/textareas.css, core/selects.css, core/checkboxes.css */
 
-
 /* Inline row — lays out multiple fields side by side */
 .semiont-form__inline-row {
   display: flex;

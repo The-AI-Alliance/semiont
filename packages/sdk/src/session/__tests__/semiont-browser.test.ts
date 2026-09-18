@@ -9,7 +9,7 @@ import { firstValueFrom, filter, skip, take } from 'rxjs';
 const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
 const mockResourceFresh = vi.fn();
-let mockAdminStatus: (() => Promise<unknown>) | null = null;
+let mockSystemStatus: (() => Promise<unknown>) | null = null;
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
@@ -26,8 +26,8 @@ vi.mock('../../client', async () => {
       return { errorsSubject, errors$: errorsSubject.asObservable() };
     })();
     // KB-IDENTITY P1: the identity check reads the did the KB reports.
-    // `undefined` models a transport with no admin namespace (D3's local case).
-    admin = mockAdminStatus === null ? undefined : { status: () => mockAdminStatus!() };
+    // `undefined` models a transport with no system namespace (D3's local case).
+    system = mockSystemStatus === null ? undefined : { status: () => mockSystemStatus!() };
     // TABS-REVALIDATE P3: validation reads descriptors through `browse`.
     // `.fresh()` is the one-shot read (CACHE-CONTRACT D2 deleted the
     // `await`able surface), and it REJECTS on failure — which is how a
@@ -114,7 +114,7 @@ beforeEach(() => {
   // alone and hands off to the per-resource pass. Deliberately not a matching
   // did: that would be per-KB, and a fixed one silently trips the identity
   // check the moment a test activates a different KB.
-  mockAdminStatus = async () => ({ version: '1' });
+  mockSystemStatus = async () => ({ version: '1' });
   // Default: every tab validates, so tests that do not care are unaffected.
   mockResourceFresh.mockImplementation(async (id: string) => ({ '@id': id, name: `name-${id}` }));
   mockGetMe.mockResolvedValue({ id: 'u', email: 'x@y.z', name: 'X', isAdmin: false, isModerator: false });
@@ -556,7 +556,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a KB reporting a DIFFERENT did voids that KB\'s tabs and last-viewed (D2)', async () => {
     seedKbScopedState();
-    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -575,7 +575,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('only the active KB is voided — other KBs keep both maps', async () => {
     seedKbScopedState();
-    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -590,7 +590,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a matching did changes nothing — a match is not evidence about contents (D1)', async () => {
     seedKbScopedState();
-    mockAdminStatus = async () => ({ did: KB_A.did });
+    mockSystemStatus = async () => ({ did: KB_A.did });
     const browser = await makeConnectedBrowser();
     await settled();
 
@@ -604,9 +604,9 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     // The guard that must never be weakened. Losing a user's tabs because the
     // gateway was briefly down is strictly worse than the phantoms this fixes.
     for (const [label, arrange] of [
-      ['status rejects', () => { mockAdminStatus = async () => { throw new Error('unreachable'); }; }],
-      ['status reports no did', () => { mockAdminStatus = async () => ({ version: '1' }); }],
-      ['no admin namespace at all', () => { mockAdminStatus = null; }],
+      ['status rejects', () => { mockSystemStatus = async () => { throw new Error('unreachable'); }; }],
+      ['status reports no did', () => { mockSystemStatus = async () => ({ version: '1' }); }],
+      ['no system namespace at all', () => { mockSystemStatus = null; }],
     ] as const) {
       storage = new TestStorage();
       seedKbScopedState();
@@ -627,7 +627,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     // happened, and sign the user in to a KB they never chose under the name
     // of one they did. Re-registering is a deliberate act.
     seedKbScopedState();
-    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -643,7 +643,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
   it('raises a conflict signal carrying both dids, and does not decide what to do', async () => {
     seedKbScopedState();
     const observed = 'did:web:someone-else.github.io:other-kb';
-    mockAdminStatus = async () => ({ did: observed });
+    mockSystemStatus = async () => ({ did: observed });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -660,7 +660,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a mismatch stops the per-resource pass — those answers would be about the wrong KB (D5)', async () => {
     seedKbScopedState();
-    mockAdminStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -1067,7 +1067,7 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
       }
       return issuerReply({ access_token: freshJwt(), refresh_token: 'issued-refresh' });
     });
-    mockAdminStatus = async () => ({ did: KB_A.did, projectName: 'KB A', gitBranch: 'main' });
+    mockSystemStatus = async () => ({ did: KB_A.did, projectName: 'KB A', gitBranch: 'main' });
     mockGetMe.mockResolvedValue({ id: 'u', email: 'alice@example.com', name: 'Alice', isAdmin: false, isModerator: false });
   });
 
@@ -1145,7 +1145,7 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
   });
 
   it('refuses to register a KB that cannot say who it is, and stores nothing', async () => {
-    mockAdminStatus = async () => ({ projectName: 'Nameless' });
+    mockSystemStatus = async () => ({ projectName: 'Nameless' });
     const browser = makeBrowser();
     const { callback } = await begin(browser);
 

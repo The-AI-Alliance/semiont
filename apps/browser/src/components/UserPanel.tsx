@@ -23,7 +23,6 @@ export function UserPanel() {
   const displayName = user?.name ?? user?.email?.split('@')[0] ?? 'User';
   const avatarUrl = user?.image ?? null;
   const userDomain = user?.domain || user?.email?.split('@')[1];
-  const isAdmin = user?.isAdmin ?? false;
   const isModerator = user?.isModerator ?? false;
   const [imageError, setImageError] = useState(false);
   const { timeRemaining } = useSessionExpiry();
@@ -92,26 +91,17 @@ export function UserPanel() {
         </div>
 
         {/* Privileges */}
-        {(isAdmin || isModerator) && (
+        {isModerator && (
           <div>
             <label className="semiont-panel-label">
               {t('privileges')}
             </label>
             <div className="space-y-1">
-              {isAdmin && (
-                <div className="semiont-privilege-badge semiont-privilege-badge--admin">
-                  <span className="semiont-privilege-text">
-                    {t('administrator')}
-                  </span>
-                </div>
-              )}
-              {isModerator && (
-                <div className="semiont-privilege-badge semiont-privilege-badge--moderator">
-                  <span className="semiont-privilege-text">
-                    {t('moderator')}
-                  </span>
-                </div>
-              )}
+              <div className="semiont-privilege-badge semiont-privilege-badge--moderator">
+                <span className="semiont-privilege-text">
+                  {t('moderator')}
+                </span>
+              </div>
             </div>
           </div>
         )}

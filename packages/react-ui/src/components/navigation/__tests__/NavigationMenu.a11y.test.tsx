@@ -23,7 +23,6 @@ describe('NavigationMenu - Accessibility', () => {
   const mockRoutes = {
     knowledge: vi.fn(() => '/knowledge'),
     moderate: vi.fn(() => '/moderate'),
-    admin: vi.fn(() => '/admin'),
   };
 
   const mockTranslate = vi.fn((key: string) => {
@@ -31,7 +30,6 @@ describe('NavigationMenu - Accessibility', () => {
       'home': 'Home',
       'know': 'Knowledge',
       'moderate': 'Moderate',
-      'administer': 'Administer',
     };
     return translations[key] || key;
   });
@@ -86,7 +84,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
           isModerator={true}
         />
       );
@@ -103,18 +100,15 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
           isModerator={true}
         />
       );
 
       const knowLink = screen.getByText('Knowledge');
       const moderateLink = screen.getByText('Moderate');
-      const adminLink = screen.getByText('Administer');
 
       expect(knowLink).toBeInTheDocument();
       expect(moderateLink).toBeInTheDocument();
-      expect(adminLink).toBeInTheDocument();
     });
 
     it('should support keyboard navigation with Tab', () => {
@@ -164,7 +158,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
           isModerator={true}
         />
       );
@@ -172,7 +165,6 @@ describe('NavigationMenu - Accessibility', () => {
       // Link text should be descriptive (not "click here" or "link")
       expect(screen.getByText('Knowledge')).toBeInTheDocument();
       expect(screen.getByText('Moderate')).toBeInTheDocument();
-      expect(screen.getByText('Administer')).toBeInTheDocument();
     });
   });
 
@@ -237,7 +229,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
           isModerator={true}
         />
       );
@@ -247,7 +238,6 @@ describe('NavigationMenu - Accessibility', () => {
       // Links should be in DOM order (logical tab order)
       expect(links[0]).toHaveTextContent('Knowledge');
       expect(links[1]).toHaveTextContent('Moderate');
-      expect(links[2]).toHaveTextContent('Administer');
     });
   });
 
@@ -264,7 +254,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
           isModerator={true}
         />
       );
@@ -285,7 +274,6 @@ describe('NavigationMenu - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
           isModerator={true}
         />
       );
@@ -294,7 +282,6 @@ describe('NavigationMenu - Accessibility', () => {
       expect(mockTranslate).toHaveBeenCalled();
       expect(mockTranslate).toHaveBeenCalledWith('know');
       expect(mockTranslate).toHaveBeenCalledWith('moderate');
-      expect(mockTranslate).toHaveBeenCalledWith('administer');
     });
   });
 

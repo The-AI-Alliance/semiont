@@ -241,9 +241,6 @@ export type {
   HealthCheckResponse,
   StatusResponse,
   UserResponse,
-  UpdateUserRequest,
-  UpdateUserResponse,
-  ListUsersResponse,
 } from './transport';
 
 // Channel set every concrete transport bridges into the client's bus.

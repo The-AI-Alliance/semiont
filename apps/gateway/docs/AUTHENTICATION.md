@@ -35,9 +35,6 @@ export function createResourceRouter(): ResourcesRouterType {
 export const entityTypesRouter = new Hono<{ Variables: { user: User } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
-// Example: Admin router with layered middleware
-export const adminRouter = new Hono<{ Variables: { user: User } }>();
-adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
 ```
 
 ### Public Endpoints
@@ -129,31 +126,16 @@ publicRouter.get('/api', async (c) => {
 }
 ```
 
-### Admin-Only Routes
+### Role Gates
 
-For admin-only endpoints, use layered middleware:
+The gateway has exactly one authorization gate: `authMiddleware`, which answers
+401 or admits the request. Nothing in the gateway reads a role to decide access,
+and no route returns 403.
 
-```typescript
-adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
-```
-
-The `adminMiddleware` returns 403 if `user.isAdmin !== true`.
-
-### Moderator Routes
-
-Moderator endpoints use similar layered middleware, allowing both moderators and admins:
-
-```typescript
-const moderatorMiddleware = async (c: any, next: any) => {
-  const user = c.get('user');
-  if (!user || (!user.isModerator && !user.isAdmin)) {
-    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
-  }
-  return next();
-};
-
-moderateRouter.use('/api/moderate/*', authMiddleware, moderatorMiddleware);
-```
+`isAdmin` and `isModerator` are carried on the principal and echoed by
+`GET /api/auth/me` so that a client can shape its own UI, but they gate nothing
+here. Accounts and their roles are administered at the knowledge base's identity
+provider, not through this API.
 
 ## Gateway Authentication Flow
 
@@ -256,7 +238,7 @@ The gateway validates tokens through multiple layers:
 ### Security Features
 
 - **Router-level protection** - Routes protected via router.use() middleware
-- **Comprehensive test coverage** - route-auth-coverage.test.ts validates all routes
+- **Comprehensive test coverage** - route-spec-coverage.test.ts validates all routes
 - **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
 - **Request validation** - All inputs validated with Zod schemas
 - **SQL injection prevention** - Prisma ORM with parameterized queries
@@ -310,7 +292,7 @@ for the rotation procedure.
 **"Forbidden" Error (403)**:
 
 ```typescript
-// Check admin flag
+// Inspect the resolved principal
 app.get('/api/debug-user', async (c) => {
   const user = c.get('user');
   return c.json({ user });
@@ -390,12 +372,11 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 - No global authentication middleware
 - No PUBLIC_ENDPOINTS array
 - OpenAPI spec defines public vs protected routes
-- Comprehensive test coverage via route-auth-coverage.test.ts
+- Comprehensive test coverage via route-spec-coverage.test.ts
 
 **Implementation Files**:
 - [src/middleware/auth.ts](../src/middleware/auth.ts) - JWT validation middleware
 - [src/routes/resources/shared.ts](../src/routes/resources/shared.ts) - Resources router with auth
-- [src/routes/admin.ts](../src/routes/admin.ts) - Admin router with layered auth
 
 ---
 

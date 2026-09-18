@@ -61,24 +61,6 @@
   border-radius: var(--semiont-radius-lg);
 }
 
-.semiont-privilege-badge--admin {
-  background-color: var(--semiont-color-purple-50);
-}
-
-[data-theme="dark"] .semiont-privilege-badge--admin {
-  background-color: rgba(147, 51, 234, 0.2);
-}
-
-.semiont-privilege-badge--admin .semiont-privilege-text {
-  font-size: var(--semiont-text-sm);
-  font-weight: var(--semiont-font-medium);
-  color: var(--semiont-color-purple-700);
-}
-
-[data-theme="dark"] .semiont-privilege-badge--admin .semiont-privilege-text {
-  color: var(--semiont-color-purple-300);
-}
-
 .semiont-privilege-badge--moderator {
   background-color: var(--semiont-color-blue-50);
 }

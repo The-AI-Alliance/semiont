@@ -550,27 +550,31 @@ vi.mock('@semiont/react-ui', () => ({
 ```typescript
 // ✅ Good: Test pure component
 import { render, screen } from '@testing-library/react';
-import { AdminSecurityPage } from '../components/AdminSecurityPage';
+import { EntityTagsPage } from '@semiont/react-ui';
 
 it('renders page title', () => {
   const props = {
-    providers: [],
-    allowedDomains: [],
+    entityTypes: [],
     isLoading: false,
+    error: '',
+    newTag: '',
+    onNewTagChange: vi.fn(),
+    onAddTag: vi.fn(),
+    isAddingTag: false,
     theme: 'light' as const,
-    onThemeChange: vi.fn(),
+    activePanel: null,
     translations: {
-      title: 'Security Settings',
-      subtitle: 'Configure authentication',
+      pageTitle: 'Entity Tags',
+      pageDescription: 'Govern the entity type vocabulary',
       // ... rest of translations
     },
     Toolbar: () => <div>Toolbar</div>,
     ToolbarPanels: () => <div>Panels</div>,
   };
 
-  render(<AdminSecurityPage {...props} />);
+  render(<EntityTagsPage {...props} />);
 
-  expect(screen.getByText('Security Settings')).toBeInTheDocument();
+  expect(screen.getByText('Entity Tags')).toBeInTheDocument();
 });
 ```
 

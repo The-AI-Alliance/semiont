@@ -22,7 +22,7 @@
  * (`IGatewayOperations`) are HTTP-shaped concepts that don't apply
  * in-process — local mode runs as a single host-process identity supplied
  * at construction, with no token/credential lifecycle. A `SemiontClient`
- * built over this transport has no `.auth` / `.admin` namespaces.
+ * built over this transport has no `.auth` / `.system` namespaces.
  */
 
 import type { BusEnvelope, BusFrame } from '@semiont/core';
@@ -191,7 +191,7 @@ export class LocalTransport implements ITransport {
 
   // LocalTransport implements `ITransport` only. It does not implement
   // `IGatewayOperations` — a SemiontClient built over LocalTransport has
-  // no `client.auth` / `client.admin` namespaces by design (no
+  // no `client.auth` / `client.system` namespaces by design (no
   // credentials, no admin routes, no exchange machinery in-process).
 
   // ── Lifecycle ───────────────────────────────────────────────────────────

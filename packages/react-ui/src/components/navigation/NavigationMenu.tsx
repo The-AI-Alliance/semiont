@@ -10,7 +10,6 @@ interface NavigationMenuProps {
   Link: React.ComponentType<LinkComponentProps>;
   routes: Partial<RouteBuilder>;
   t: TranslateFn;
-  isAdmin?: boolean;
   isModerator?: boolean;
   brandingLink?: string;
   onItemClick?: () => void;
@@ -22,7 +21,6 @@ export function NavigationMenu({
   Link,
   routes,
   t,
-  isAdmin = false,
   isModerator = false,
   onItemClick,
   className = "",
@@ -48,7 +46,7 @@ export function NavigationMenu({
         {t('know')}
       </Link>
 
-      {(isModerator || isAdmin) && (
+      {isModerator && (
         <>
           <hr className="semiont-navigation-menu__divider" />
           <Link
@@ -58,20 +56,6 @@ export function NavigationMenu({
             aria-current={isCurrentPage(routes.moderate?.() || '/moderate') ? 'page' : undefined}
           >
             {t('moderate')}
-          </Link>
-        </>
-      )}
-
-      {isAdmin && (
-        <>
-          <hr className="semiont-navigation-menu__divider" />
-          <Link
-            href={routes.admin?.() || '/admin'}
-            {...(onItemClick && { onClick: onItemClick })}
-            className="semiont-navigation-menu__link"
-            aria-current={isCurrentPage(routes.admin?.() || '/admin') ? 'page' : undefined}
-          >
-            {t('administer')}
           </Link>
         </>
       )}

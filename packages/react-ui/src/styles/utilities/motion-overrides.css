@@ -28,7 +28,6 @@
   .semiont-button[data-variant],
   .semiont-button[data-size],
   .semiont-button--gradient,
-  .semiont-action-button,
   .semiont-panel-button,
   .semiont-toolbar-button,
   .semiont-signout-button,
@@ -220,8 +219,6 @@
      Table Components
      ======================================== */
 
-  .semiont-table__row:hover,
-  .semiont-table__cell,
   .semiont-table__sort-icon {
     transition: none !important;
   }

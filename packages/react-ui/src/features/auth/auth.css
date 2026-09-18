@@ -7,15 +7,9 @@
  * styled: a knowledge base trusts an issuer and the Browser sends the user
  * there, so no component in this package collects a credential any more.
  * What is left is generic and is kept here only because moving it is a
- * separate change — `.semiont-button--full-width` is rendered by the admin
- * users page, and `.sr-only` by a dozen components.
+ * separate change: the icon rules, and `.sr-only`, which a dozen components
+ * render.
  */
-
-/* Button modifiers */
-.semiont-button--full-width {
-  width: 100%;
-  justify-content: center;
-}
 
 /* Icon styles */
 .semiont-icon {

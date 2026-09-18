@@ -13,7 +13,7 @@
 - [Match — Semantic Search](#match)
 - [Beckon — Attention Coordination](#beckon)
 - [Auth — Authentication](#auth)
-- [Admin — Administration](#admin)
+- [System — health and status](#system)
 - [Job — Worker Lifecycle](#job)
 - [KB Discovery — Launcher-Managed Endpoints](#kb-discovery)
 - [Bus Connection](#bus-connection)
@@ -122,8 +122,8 @@ import { BehaviorSubject } from 'rxjs';
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('your-jwt'));
 const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), token$ });
 // HttpTransport implements both ITransport and IGatewayOperations; passing it
-// as the third arg wires `client.auth` and `client.admin`. Non-HTTP transports
-// implement only ITransport — omit the third arg and `client.auth` / `.admin`
+// as the third arg wires `client.auth` and `client.system`. Non-HTTP transports
+// implement only ITransport — omit the third arg and `client.auth` / `.system`
 // are `undefined`.
 const semiont = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
@@ -468,7 +468,7 @@ in the same namespace and must stay local.
 
 ## Auth
 
-Like `admin`, the `auth` namespace lives on `IGatewayOperations` and is `undefined` on a `SemiontClient` constructed without a gateway. HTTP-context callers narrow with `!`:
+Like `system`, the `auth` namespace lives on `IGatewayOperations` and is `undefined` on a `SemiontClient` constructed without a gateway. HTTP-context callers narrow with `!`:
 
 ```typescript
 const user = await semiont.auth!.me();
@@ -478,17 +478,16 @@ const { token } = await semiont.auth!.mediaToken(resourceId);
 
 Signing in is not an `auth` op: it happens at the issuer, through `SemiontSession.signInDevice(...)` or `SemiontBrowser.beginSignIn` / `completeSignIn`, which wire the tokens into `token$` AND own the refresh that keeps them alive past ten minutes.
 
-## Admin
+## System
 
-The `admin` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp`, or `session.client`) has `client.admin: AdminNamespace`; one constructed without a gateway has `client.admin: undefined`. HTTP-context callers narrow with `!`:
+What a knowledge base says about itself. The `system` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp`, or `session.client`) has `client.system: SystemNamespace`; one constructed without a gateway has `client.system: undefined`. HTTP-context callers narrow with `!`:
 
 ```typescript
-const users = await semiont.admin!.users();
-const stats = await semiont.admin!.userStats();
-await semiont.admin!.updateUser(userId, { isAdmin: true });
-const config = await semiont.admin!.oauthConfig();
-const health = await semiont.admin!.healthCheck();
+const status = await semiont.system!.status();   // identity, branch, features
+const health = await semiont.system!.healthCheck();
 ```
+
+There is no administration namespace. Accounts live at the knowledge base's identity provider and are administered there — `semiont useradd` for a launcher-run Keycloak, the issuer's own console otherwise.
 
 ## Job
 

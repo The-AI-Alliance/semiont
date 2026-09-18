@@ -18,11 +18,6 @@ const KnowledgePage = React.lazy(() => import('./app/[locale]/know/page'));
 const KnowledgeDiscoverPage = React.lazy(() => import('./app/[locale]/know/discover/page'));
 const KnowledgeComposePage = React.lazy(() => import('./app/[locale]/know/compose/page'));
 const KnowledgeResourcePage = React.lazy(() => import('./app/[locale]/know/resource/[id]/page'));
-const AdminLayout = React.lazy(() => import('./app/[locale]/admin/layout'));
-const AdminPage = React.lazy(() => import('./app/[locale]/admin/page'));
-const AdminUsersPage = React.lazy(() => import('./app/[locale]/admin/users/client'));
-const AdminSecurityPage = React.lazy(() => import('./app/[locale]/admin/security/client'));
-const AdminDevOpsPage = React.lazy(() => import('./app/[locale]/admin/devops/page'));
 const ModerateLayout = React.lazy(() => import('./app/[locale]/moderate/layout'));
 const ModeratePage = React.lazy(() => import('./app/[locale]/moderate/page'));
 const ModerateRecentPage = React.lazy(() => import('./app/[locale]/moderate/recent/page'));
@@ -55,7 +50,7 @@ function LocaleGuard({ children }: { children: React.ReactNode }) {
 
 /**
  * ProtectedLayout — pathless wrapper that mounts AuthShell once for every
- * authenticated route group below it. Section layouts (know/, admin/,
+ * authenticated route group below it. Section layouts (know/,
  * moderate/) live under this route so cross-section
  * navigation keeps the AuthShell tree (ProtectedErrorBoundary + the two
  * auth-failure modals) mounted instead of tearing it down and rebuilding.
@@ -118,14 +113,6 @@ export default function App() {
               <Route path="discover" element={<KnowledgeDiscoverPage />} />
               <Route path="compose" element={<KnowledgeComposePage />} />
               <Route path="resource/:id" element={<KnowledgeResourcePage />} />
-            </Route>
-
-            {/* Admin section */}
-            <Route path="admin" element={<AdminLayout />}>
-              <Route index element={<AdminPage />} />
-              <Route path="users" element={<AdminUsersPage />} />
-              <Route path="security" element={<AdminSecurityPage />} />
-              <Route path="devops" element={<AdminDevOpsPage />} />
             </Route>
 
             {/* Moderation section */}

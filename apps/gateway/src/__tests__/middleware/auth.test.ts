@@ -460,10 +460,10 @@ describe('Auth Middleware', () => {
       });
 
       it('should not accept a media token on a non-resource path', async () => {
-        // /api/admin/users does not match MEDIA_TOKEN_PATH — falls through to normal auth
+        // /api/status does not match MEDIA_TOKEN_PATH — falls through to normal auth
         const context = createMockContext(
           {},
-          { path: '/api/admin/users', method: 'GET', queryParams: { token: 'some.media.token' } }
+          { path: '/api/status', method: 'GET', queryParams: { token: 'some.media.token' } }
         );
 
         await authMiddleware(context, mockNext);

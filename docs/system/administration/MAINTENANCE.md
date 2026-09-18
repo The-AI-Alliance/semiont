@@ -135,16 +135,17 @@ Auth is applied **per router**, not globally with a public-endpoint allowlist. E
 | Router | Protected paths |
 |---|---|
 | `resources` | `/api/resources/*`, `/api/clone-tokens/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/gateway/src/routes/resources/shared.ts)) |
-| `admin` | `/api/admin/*` (plus `adminMiddleware`) |
-| `exchange` | `/api/admin/exchange/*`, `/api/moderate/exchange/*` (plus admin / moderator middleware) |
 | `status` | `/api/status` |
-| `bus` | `/bus/emit`, `/bus/subscribe` |
+| `bus` | `/bus/*` ([`routes/bus.ts`](../../../apps/gateway/src/routes/bus.ts)) |
 
-`/api/health` and the root router are intentionally unauthenticated.
+`/api/health` and `POST /api/tokens/agent` are the only API operations the spec
+declares public, alongside the documentation meta-routes and the root splash page.
+`route-spec-coverage.test.ts` holds this table honest: every registered route must
+either answer 401 to an unauthenticated caller or be declared public in the spec.
 
 The maintenance consequence: **a new router is unauthenticated until you say otherwise.** Adding one means deciding its auth explicitly, and reviewing that decision belongs in the PR review — there is no global default to fall back on.
 
-`site.oauthAllowedDomains` is required in the environment config and gates which email domains may authenticate.
+Who may authenticate is decided at the trusted issuer, not here. The gateway accepts any subject the issuer vouches for.
 
 ## Repository maintenance
 

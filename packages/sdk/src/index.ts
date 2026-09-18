@@ -24,7 +24,7 @@
  *
  * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
  * // HttpTransport implements both ITransport and IGatewayOperations;
- * // passing it as the third arg wires `client.auth` and `client.admin`.
+ * // passing it as the third arg wires `client.auth` and `client.system`.
  * const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
  * ```
  */
@@ -66,7 +66,7 @@ export {
 export { BeckonNamespace } from './namespaces/beckon';
 export { JobNamespace } from './namespaces/job';
 export { AuthNamespace } from './namespaces/auth';
-export { AdminNamespace } from './namespaces/admin';
+export { SystemNamespace } from './namespaces/system';
 export type * from './namespaces/types';
 
 // Re-exports from @semiont/core for one-import convenience. The principled

@@ -45,7 +45,7 @@ export async function describeConnection(target: HttpEndpoint, access: string): 
   try {
     let status;
     try {
-      status = await client.admin!.status();
+      status = await client.system!.status();
     } catch (e) {
       throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
     }

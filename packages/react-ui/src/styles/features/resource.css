@@ -241,7 +241,6 @@
   border-top-color: var(--semiont-color-gray-700);
 }
 
-
 /* Document Viewer Components */
 .semiont-document-viewer {
   display: flex;
@@ -460,39 +459,6 @@
   flex: 1;
   overflow: auto; /* FIXED: Allow scrolling so panel content isn't clipped */
   min-height: 0;
-}
-
-/* Admin Components - Consolidated in Admin sections below */
-
-.semiont-admin__section {
-  margin-bottom: 2rem;
-}
-
-.semiont-admin__section-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--semiont-text-primary);
-  margin: 0 0 0.5rem;
-}
-
-[data-theme="dark"] .semiont-admin__section-title {
-  color: var(--semiont-color-gray-100);
-}
-
-.semiont-admin__section-description {
-  color: var(--semiont-color-gray-600);
-  font-size: 0.875rem;
-  margin: 0 0 1rem;
-}
-
-[data-theme="dark"] .semiont-admin__section-description {
-  color: var(--semiont-color-gray-400);
-}
-
-.semiont-admin__features-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 1.5rem;
 }
 
 /* Spinner Animation */

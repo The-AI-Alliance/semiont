@@ -91,7 +91,7 @@ flowchart TD
 
 ### Current Implementation
 
-- **404 for unauthorized admin routes** - Routes return 404 instead of 403 to hide existence
+- **404 for unauthorized routes** - Routes return 404 instead of 403 to hide existence
 - **No permission details in errors** - Generic messages prevent information leakage
 - **Client-side permission checks** - Basic checks, not authoritative
 
@@ -99,7 +99,7 @@ flowchart TD
 
 1. **Never trust client-side permissions** - Always validate on gateway
 2. **Fail closed** - Default to denying access
-3. **Obscure sensitive routes** - Use 404s for admin/moderate paths
+3. **Obscure sensitive routes** - Use 404s for privileged paths
 4. **Minimal error information** - Don't reveal system internals
 
 ## Future Roadmap
@@ -262,7 +262,7 @@ describe('Authorization', () => {
   it('shows PermissionDeniedModal on 403', async () => {
     // Mock API to return 403
     server.use(
-      http.get('/api/admin/*', () => {
+      http.get('/api/resources/*', () => {
         return new Response('Forbidden', { status: 403 });
       })
     );
@@ -290,7 +290,6 @@ Future permission configuration structure:
 const permissions = {
   document: ['create', 'read', 'update', 'delete', 'share'],
   collection: ['create', 'read', 'update', 'delete', 'manage'],
-  admin: ['users', 'security', 'devops', 'audit']
 };
 ```
 

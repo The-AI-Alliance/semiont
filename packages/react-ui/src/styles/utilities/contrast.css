@@ -167,7 +167,6 @@ a:visited,
 [data-theme="dark"] a:visited,
 
 /* Badge and chip text - ensure readability */
-.semiont-badge,
 .semiont-chip,
 .semiont-tag {
   font-weight: 500 !important; /* Slightly bolder for better readability */
@@ -347,24 +346,6 @@ label {
 [data-theme="dark"] .semiont-error-text,
 [data-theme="dark"] .semiont-error {
   color: var(--semiont-color-red-400) !important;
-}
-
-/* Tables - improve readability */
-.semiont-table th {
-  color: var(--semiont-color-gray-900) !important;
-  font-weight: 600 !important;
-}
-
-[data-theme="dark"] .semiont-table th {
-  color: var(--semiont-color-gray-50) !important;
-}
-
-.semiont-table td {
-  color: var(--semiont-color-gray-700) !important;
-}
-
-[data-theme="dark"] .semiont-table td {
-  color: var(--semiont-color-gray-300) !important;
 }
 
 /* Code blocks - ensure syntax highlighting has contrast */

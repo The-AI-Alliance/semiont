@@ -27,7 +27,7 @@ import { BeckonNamespace } from './namespaces/beckon';
 import { FrameNamespace } from './namespaces/frame';
 import { JobNamespace } from './namespaces/job';
 import { AuthNamespace } from './namespaces/auth';
-import { AdminNamespace } from './namespaces/admin';
+import { SystemNamespace } from './namespaces/system';
 import type { IGatewayOperations, IContentTransport, ITransport } from '@semiont/core';
 
 // Local imports of the HTTP adapters from @semiont/http-transport — needed
@@ -89,7 +89,7 @@ export class SemiontClient {
   public readonly beckon: BeckonNamespace;
   public readonly job: JobNamespace;
   public readonly auth: AuthNamespace | undefined;
-  public readonly admin: AdminNamespace | undefined;
+  public readonly system: SystemNamespace | undefined;
 
   /**
    * The client *owns* its bus. The constructor creates a fresh `EventBus`
@@ -149,7 +149,7 @@ export class SemiontClient {
     this.beckon = new BeckonNamespace(this.transport, this.bus);
     this.job    = new JobNamespace(this.transport, this.bus);
     this.auth   = gateway ? new AuthNamespace(gateway)  : undefined;
-    this.admin  = gateway ? new AdminNamespace(gateway) : undefined;
+    this.system = gateway ? new SystemNamespace(gateway) : undefined;
   }
 
   /** Transport-level connection state. HTTP reflects SSE health; local is always 'connected'. */
@@ -210,7 +210,7 @@ export class SemiontClient {
     const transport = new HttpTransport({ baseUrl: url, token$ });
     const content = new HttpContentTransport(transport);
     // HttpTransport implements both ITransport and IGatewayOperations;
-    // pass it twice so `client.auth` / `client.admin` are wired.
+    // pass it twice so `client.auth` / `client.system` are wired.
     return new SemiontClient(transport, content, transport);
   }
 

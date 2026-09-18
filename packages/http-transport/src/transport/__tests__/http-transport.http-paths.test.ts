@@ -133,45 +133,6 @@ describe('HttpTransport — HTTP wire shape', () => {
     });
   });
 
-  describe('Admin', () => {
-    test('listUsers gets /api/admin/users', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ users: [] }),
-      } as never);
-      await transport.listUsers();
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/users`, { headers: {} });
-    });
-
-    test('getUserStats gets /api/admin/users/stats', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ count: 0 }),
-      } as never);
-      await transport.getUserStats();
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/users/stats`, { headers: {} });
-    });
-
-    test('updateUser PATCHes /api/admin/users/{id} with the patch body', async () => {
-      vi.mocked(mockKy.patch).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ updated: true }),
-      } as never);
-      const userId = 'did:web:example.com:users:alice%40example.com' as never;
-      const patch = { isAdmin: true } as never;
-      await transport.updateUser(userId, patch);
-      expect(mockKy.patch).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/admin/users/${userId}`,
-        expect.objectContaining({ json: patch }),
-      );
-    });
-
-    test('getOAuthConfig gets /api/admin/oauth/config', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ google: { clientId: 'x' } }),
-      } as never);
-      await transport.getOAuthConfig();
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/oauth/config`, { headers: {} });
-    });
-  });
-
   describe('System status', () => {
     test('getStatus gets /api/status', async () => {
       vi.mocked(mockKy.get).mockReturnValue({

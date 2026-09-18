@@ -12,7 +12,7 @@ import { HttpTransport } from '@semiont/http-transport';
 new HttpTransport(config: HttpTransportConfig)
 ```
 
-Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP `/bus/emit`, and the auth/admin/exchange/health/status REST surface that crosses the remote boundary.
+Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP `/bus/emit`, and the auth/exchange/health/status REST surface that crosses the remote boundary.
 
 ### `HttpTransportConfig`
 
@@ -70,8 +70,8 @@ import { BehaviorSubject } from 'rxjs';
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('...'));
 const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example.com'), token$ });
 // HttpTransport implements both ITransport and IGatewayOperations; passing it
-// third enables the `auth` / `admin` namespaces. Omit the third argument and
-// `client.auth` / `client.admin` are `undefined`.
+// third enables the `auth` / `system` namespaces. Omit the third argument and
+// `client.auth` / `client.system` are `undefined`.
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 

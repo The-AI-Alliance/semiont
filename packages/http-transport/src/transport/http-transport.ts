@@ -19,7 +19,6 @@ import type {
   EventMap,
   Logger,
   ResourceId,
-  UserDID,
   components,
 } from '@semiont/core';
 import {
@@ -37,15 +36,10 @@ import type {
   HealthCheckResponse,
   StatusResponse,
   UserResponse,
-  UpdateUserRequest,
-  UpdateUserResponse,
-  ListUsersResponse,
 } from '@semiont/core';
 import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
-type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
-type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 // ── Channel constants (mirror client.ts) ────────────────────────────────
@@ -461,33 +455,6 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   async getMediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     return this.http.post(`${this.baseUrl}/api/tokens/media`, {
       json: { resourceId },
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  // ── Admin ─────────────────────────────────────────────────────────────
-
-  async listUsers(): Promise<ListUsersResponse> {
-    return this.http.get(`${this.baseUrl}/api/admin/users`, {
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  async getUserStats(): Promise<AdminUserStatsResponse> {
-    return this.http.get(`${this.baseUrl}/api/admin/users/stats`, {
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  async updateUser(id: UserDID, data: UpdateUserRequest): Promise<UpdateUserResponse> {
-    return this.http.patch(`${this.baseUrl}/api/admin/users/${id}`, {
-      json: data,
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  async getOAuthConfig(): Promise<OAuthConfigResponse> {
-    return this.http.get(`${this.baseUrl}/api/admin/oauth/config`, {
       headers: this.authHeaders(),
     }).json();
   }

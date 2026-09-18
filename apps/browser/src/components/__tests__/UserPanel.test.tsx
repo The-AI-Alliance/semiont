@@ -147,7 +147,6 @@ describe('UserPanel Component', () => {
         'UserPanel.session': 'Session',
         'UserPanel.expiresIn': 'Expires in {time}',
         'UserPanel.privileges': 'Privileges',
-        'UserPanel.administrator': 'Administrator',
         'UserPanel.moderator': 'Moderator',
         'UserPanel.signOut': 'Sign Out',
       };
@@ -273,33 +272,11 @@ describe('UserPanel Component', () => {
       expect(screen.queryByText('Privileges')).not.toBeInTheDocument();
     });
 
-    it('should show administrator badge when user is admin', () => {
-      setUser({ name: 'Admin User', image: null, isAdmin: true });
-      render(<UserPanel />);
-      expect(screen.getByText('Privileges')).toBeInTheDocument();
-      expect(screen.getByText('Administrator')).toBeInTheDocument();
-    });
-
     it('should show moderator badge when user is moderator', () => {
       setUser({ name: 'Mod User', image: null, isModerator: true });
       render(<UserPanel />);
       expect(screen.getByText('Privileges')).toBeInTheDocument();
       expect(screen.getByText('Moderator')).toBeInTheDocument();
-    });
-
-    it('should show both badges when user is admin and moderator', () => {
-      setUser({ name: 'Super User', image: null, isAdmin: true, isModerator: true });
-      render(<UserPanel />);
-      expect(screen.getByText('Administrator')).toBeInTheDocument();
-      expect(screen.getByText('Moderator')).toBeInTheDocument();
-    });
-
-    it('should style administrator badge', () => {
-      setUser({ name: 'Admin User', image: null, isAdmin: true });
-      render(<UserPanel />);
-      const adminBadge = screen.getByText('Administrator');
-      expect(adminBadge).toHaveClass('semiont-privilege-text');
-      expect(adminBadge.parentElement).toHaveClass('semiont-privilege-badge', 'semiont-privilege-badge--admin');
     });
 
     it('should style moderator badge', () => {

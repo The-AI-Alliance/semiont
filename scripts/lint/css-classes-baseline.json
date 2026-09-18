@@ -1,11 +1,8 @@
 {
   "_note": "Debt frozen 2026-08-13 (CLEAN-PROGRESS Lane C). Entries may only be REMOVED.",
   "duplicated": [
-    "semiont-admin__info-box",
     "semiont-annotation-prompt__quote",
-    "semiont-badge",
     "semiont-button--danger",
-    "semiont-button--full-width",
     "semiont-card",
     "semiont-chip",
     "semiont-document-viewer__error-button",
@@ -30,7 +27,6 @@
     "semiont-panel__list",
     "semiont-reference-icon",
     "semiont-skip-link",
-    "semiont-stat-card__icon--warning",
     "semiont-status--success",
     "semiont-status--warning",
     "semiont-tag",

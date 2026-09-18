@@ -564,7 +564,7 @@ describe('Route Authentication Coverage — THE primary security contract', () =
       const routeGroups = new Map<string, Array<{ method: string; path: string; index: number }>>();
 
       routes.forEach((r, index) => {
-        // Extract path prefix (e.g., /api/admin/users -> /api/admin)
+        // Extract path prefix (e.g., /api/tokens/media -> /api/tokens)
         const segments = r.path.split('/').filter(s => s);
         const prefix = segments.slice(0, Math.min(2, segments.length)).join('/');
         const key = `/${prefix}`;
@@ -716,7 +716,6 @@ describe('Route Authentication Coverage — THE primary security contract', () =
     it('should not include protected routes in public routes set', () => {
       // Validate known protected routes are NOT in publicRoutes
       const knownProtectedRoutes = [
-        '/api/admin/users',
         '/api/users/me',
         '/api/status',
         '/resources',

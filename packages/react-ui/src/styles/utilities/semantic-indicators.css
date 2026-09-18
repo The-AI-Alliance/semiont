@@ -37,7 +37,6 @@
 
 /* Warning indicators */
 .semiont-button[data-variant="warning"]::before,
-.semiont-stat-card__icon--warning::before,
 .semiont-status--warning::before,
 [data-state="warning"]::before,
 [data-status="warning"]::before {
@@ -107,7 +106,6 @@
 }
 
 .semiont-button[data-variant="warning"]::after,
-.semiont-stat-card__icon--warning::after,
 .semiont-status--warning::after {
   content: " (Warning)" !important;
   position: absolute !important;
@@ -158,9 +156,8 @@
   ) !important;
 }
 
-/* Warning pattern - dots */
+/* Warning pattern - dots, with the border that distinguishes it */
 .semiont-button[data-variant="warning"],
-.semiont-stat-card__icon--warning,
 .semiont-status--warning {
   background-image: radial-gradient(
     circle,
@@ -168,6 +165,7 @@
     transparent 1px
   ) !important;
   background-size: 10px 10px !important;
+  border: 2px dashed var(--semiont-color-amber-600) !important;
 }
 
 /* ========================================
@@ -180,11 +178,6 @@
 .semiont-panel-error {
   border-left: 4px solid var(--semiont-color-red-600) !important;
   padding-left: 0.75rem !important;
-}
-
-.semiont-button[data-variant="warning"],
-.semiont-status--warning {
-  border: 2px dashed var(--semiont-color-amber-600) !important;
 }
 
 .semiont-button[data-variant="success"],
@@ -259,7 +252,6 @@
 
 /* Make stat card icons more distinguishable */
 .semiont-stat-card__icon--error,
-.semiont-stat-card__icon--warning,
 .semiont-stat-card__icon--success,
 .semiont-stat-card__icon--info {
   position: relative !important;
@@ -292,7 +284,6 @@
   filter: none !important;
 }
 
-[data-theme="dark"] .semiont-stat-card__icon--warning,
 [data-theme="dark"] .semiont-stat-card__icon--error,
 [data-theme="dark"] .semiont-stat-card__icon--success,
 [data-theme="dark"] .semiont-stat-card__icon--info {

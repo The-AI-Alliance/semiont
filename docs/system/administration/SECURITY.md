@@ -37,20 +37,13 @@ The current implementation includes:
 
 Comprehensive security test coverage ensures no authentication regressions:
 
-- **route-auth-coverage.test.ts**: Tests ALL gateway routes dynamically
+- **route-spec-coverage.test.ts**: Tests ALL gateway routes dynamically
   - Validates all non-public routes return 401 without authentication
   - Uses OpenAPI spec as single source of truth for public routes
   - Tests invalid tokens, malformed tokens, expired tokens
   - Auto-detects route patterns and catch-all routes
   - Provides coverage statistics (tested vs skipped routes)
   - Runs in CI/CD via `npm run test:security`
-
-- **gateway-security.test.ts**: Documents security requirements
-  - Admin endpoint protection patterns
-  - Approved error messages (no sensitive data leakage)
-  - HTTP status code standards
-  - Token validation flows
-  - Information disclosure prevention
 
 - **security-controls.test.ts**: Tests security headers
   - CORS configuration
@@ -90,7 +83,6 @@ export GITHUB_CLIENT_SECRET="<oauth-client-secret>"
 export GITLAB_CLIENT_ID="<oauth-client-id>"
 export GITLAB_CLIENT_SECRET="<oauth-client-secret>"
 export DATABASE_URL="<your-database-connection-string>"
-export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 ```
 
 ### Production Deployment
@@ -100,7 +92,7 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 3. **Secure Secrets**: Use a secrets management system for sensitive configuration
 4. **Network Security**: Deploy gateway services in private networks when possible
 5. **Regular Updates**: Keep dependencies updated with security patches
-6. **Domain Restrictions**: Configure OAUTH_ALLOWED_DOMAINS to limit OAuth access
+6. **Admission**: Restrict who may authenticate at the trusted issuer. The gateway admits every subject the issuer vouches for.
 
 ### Development vs Production
 
@@ -117,11 +109,11 @@ export OAUTH_ALLOWED_DOMAINS="example.com,example.org"
 
 ### Access Control
 
-1. **OAuth Configuration**: Configure OAuth providers with appropriate redirect URIs
-2. **Domain Restrictions**: Set OAUTH_ALLOWED_DOMAINS to restrict user registration by email domain
+1. **Issuer Configuration**: Configure the trusted issuer's own registration and domain admission rules
+2. **Admission is the issuer's job**: the gateway performs no domain or allowlist check of its own
 3. **Token Expiration**: Access tokens are short-lived and refresh tokens long-lived; a logout revokes all of a user's tokens (TTLs and revocation in [Authentication](./AUTHENTICATION.md))
 4. **API Keys**: Rotate API keys and secrets regularly
-5. **Admin Accounts**: Limit admin role assignments to trusted users
+5. **Treat every authenticated user as full-access**: no gateway route consults a role
 
 ### Monitoring
 

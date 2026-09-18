@@ -45,7 +45,7 @@ function createFakeBrowserForTests(
 ): SemiontBrowser {
   const transport = new HttpTransport({ baseUrl: baseUrl(apiBaseUrl) });
   // HttpTransport implements both ITransport and IGatewayOperations; pass
-  // it as gateway so `client.auth` / `client.admin` are wired for tests
+  // it as gateway so `client.auth` / `client.system` are wired for tests
   // that exercise hooks like useMediaToken.
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
   liveTestClients.push(client);

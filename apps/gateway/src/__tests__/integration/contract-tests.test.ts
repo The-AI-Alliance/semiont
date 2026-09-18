@@ -331,17 +331,6 @@ describe('API Contract Tests', () => {
               },
             },
           },
-          admin: {
-            'GET /api/admin/users': {
-              description: 'List all users (admin only)',
-              auth: 'Admin Bearer token required',
-              responses: {
-                200: 'UserListResponse',
-                401: 'ErrorResponse',
-                403: 'ErrorResponse',
-              },
-            },
-          },
         },
       };
 
@@ -351,7 +340,6 @@ describe('API Contract Tests', () => {
       expect(apiInfo.endpoints).toBeDefined();
       expect(apiInfo.endpoints.public).toBeDefined();
       expect(apiInfo.endpoints.protected).toBeDefined();
-      expect(apiInfo.endpoints.admin).toBeDefined();
     });
   });
 });

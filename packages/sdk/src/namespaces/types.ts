@@ -43,7 +43,6 @@ import type {
   GatheredContext,
   TagSchema,
   CollaboratorEntry,
-  UserDID,
 } from '@semiont/core';
 
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
@@ -58,9 +57,7 @@ type JobProgress = components['schemas']['JobProgress'];
 export type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type SupportedMediaType = components['schemas']['SupportedMediaType'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
-type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
-type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 
 // ── Response type helpers (extract JSON body from OpenAPI path types) ────────
 
@@ -556,13 +553,9 @@ export interface AuthNamespace {
 }
 
 /**
- * Admin — administration
+ * System — what the knowledge base says about itself (health, status).
  */
-export interface AdminNamespace {
-  users(): Promise<components['schemas']['AdminUsersListResponse']['users']>;
-  userStats(): Promise<AdminUserStatsResponse>;
-  updateUser(userId: UserDID, data: RequestContent<paths['/api/admin/users/{id}']['patch']>): Promise<components['schemas']['AdminUpdateUserResponse']['user']>;
-  oauthConfig(): Promise<OAuthConfigResponse>;
+export interface SystemNamespace {
   healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>>;
   status(): Promise<ResponseContent<paths['/api/status']['get']>>;
 }

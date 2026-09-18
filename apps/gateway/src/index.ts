@@ -205,7 +205,6 @@ import { healthRouter } from './routes/health';
 import { wellKnownRouter } from './routes/well-known';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
-import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
@@ -264,7 +263,6 @@ app.route('/', healthRouter);
 app.route('/', wellKnownRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
-app.route('/', adminRouter);
 const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
 // ── Signal Plane selection (SIGNAL-PLANE P2, D6) ─────────────────────────

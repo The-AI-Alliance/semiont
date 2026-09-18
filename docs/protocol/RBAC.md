@@ -2,26 +2,25 @@
 
 ## Current State
 
-Semiont authenticates all users via OAuth and enforces three privilege levels through middleware on the gateway:
+Semiont authenticates every user at a trusted issuer and recognizes exactly one
+authorization decision on the gateway: authenticated, or not.
 
-| Role | Flag | Capabilities |
+| Role | Flag | What it gates today |
 |------|------|-------------|
 | **User** | *(default)* | Full read/write access to all resources, annotations, and entity types |
-| **Moderator** | `isModerator` | User capabilities + entity type management |
-| **Admin** | `isAdmin` | All capabilities + user management, system configuration |
+| **Moderator** | `isModerator` | Nothing on the gateway; carried on the principal for clients to shape their own UI |
+| **Admin** | `isAdmin` | Nothing on the gateway; carried on the principal for clients to shape their own UI |
 
 ### What This Means in Practice
 
 - **All authenticated users can see and edit all content.** There is no per-resource, per-annotation, or per-user access control today.
-- Moderator and Admin roles gate access to specific administrative features, not to content.
-- Role flags (`isAdmin`, `isModerator`) are stored on the User record in the PostgreSQL database and checked by middleware on protected routes.
+- The gateway has no administration surface. Accounts are created, disabled, and assigned roles at the knowledge base's identity provider.
+- Role flags are stored on the User record, echoed by `GET /api/auth/me`, and read by no gateway route. Treat them as a client-side hint, not a security boundary.
 
 ### Access Levels
 
-- **Public**: Health checks, API documentation, OAuth endpoints (no authentication required)
-- **Authenticated**: All resources, annotations, entity types, search, graph queries
-- **Moderator**: Entity type management (`/api/entity-types` mutations)
-- **Admin**: User management (`/api/admin/users`), system configuration
+- **Public**: `GET /api/health`, `POST /api/tokens/agent`, API documentation, the root splash page
+- **Authenticated**: Everything else — resources, annotations, entity types, search, graph queries, status, and the bus
 
 ### What's NOT Implemented
 
@@ -69,30 +68,26 @@ In development mode (`NODE_ENV=development`), authentication can be simplified f
 
 Until content-level access control is implemented:
 
-1. **OAuth Domain Restrictions**: Configure `OAUTH_ALLOWED_DOMAINS` to limit who can authenticate
+1. **Issuer Admission**: The issuer decides who may authenticate. Restrict registration and domain admission there.
 2. **Network Security**: Deploy behind a firewall or VPN if sensitive data is involved
 3. **Environment Isolation**: Use separate deployments for different user groups with different trust levels
-4. **Admin Assignment**: Limit admin role assignments to trusted users via the admin UI
+4. **Treat every authenticated user as a full-access user**, because that is what the gateway does.
 
 ## For Developers
 
 ### Middleware Pattern
 
-Role checks are enforced via middleware on the gateway:
+There is one gate, applied per router:
 
 ```typescript
-// Admin middleware pattern (used in routes/admin.ts)
-const adminMiddleware = async (c, next) => {
-  const user = c.get('user');
-  if (!user || !user.isAdmin) {
-    return c.json({ error: 'Forbidden: Admin access required' }, 403);
-  }
-  return next();
-};
+resourcesRouter.use('/api/resources/*', authMiddleware);
 ```
 
-All protected routes apply `authMiddleware` first (JWT validation), then role-specific middleware as needed.
+`authMiddleware` verifies the bearer token, resolves the principal, and answers 401
+when it cannot. No gateway route returns 403, because no gateway route consults a
+role. A route that needs a narrower audience than "any authenticated user" needs a
+new gate, and `route-spec-coverage.test.ts` is where its contract gets declared.
 
 ---
 
-Last Updated: March 2026
+Last Updated: September 2026

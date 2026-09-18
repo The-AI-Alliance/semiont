@@ -194,11 +194,8 @@ export * from './components/loading-states/ResourceLoadingState';
 export * from './components/error-states/ResourceErrorState';
 
 // Features - Admin
-export * from './features/admin-devops/components/AdminDevOpsPage';
-export * from './features/admin-security/components/AdminSecurityPage';
 
 // Features - Moderation
-export * from './features/admin-users/components/AdminUsersPage';
 
 // Features - Auth
 export * from './features/auth/components/AuthErrorDisplay';
@@ -236,8 +233,6 @@ export { createShellStateUnit, type ShellStateUnit, type ShellStateUnitOptions, 
 export { createComposePageStateUnit, type ComposePageStateUnit, type ComposeParams, type ComposeMode, type CloneData, type SaveResourceParams } from './features/resource-compose/state/compose-page-state-unit';
 export { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit, type WizardState, type AnnotationGroups } from './features/resource-viewer/state/resource-viewer-page-state-unit';
 export { createResourceLoaderStateUnit, type ResourceLoaderStateUnit } from './features/resource-viewer/state/resource-loader-state-unit';
-export { createAdminUsersStateUnit, type AdminUsersStateUnit } from './features/admin-users/state/admin-users-state-unit';
-export { createAdminSecurityStateUnit, type AdminSecurityStateUnit } from './features/admin-security/state/admin-security-state-unit';
 export { createDiscoverStateUnit, type DiscoverStateUnit } from './features/resource-discovery/state/discover-state-unit';
 export { createEntityTagsStateUnit, type EntityTagsStateUnit } from './features/moderate-entity-tags/state/entity-tags-state-unit';
 

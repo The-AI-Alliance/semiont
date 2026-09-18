@@ -224,7 +224,7 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 
 - **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy)
 - **Pages** — `createComposePageStateUnit`, `createResourceViewerPageStateUnit`, `createResourceLoaderStateUnit`
-- **Admin** — `createAdminUsersStateUnit`, `createAdminSecurityStateUnit`, `createExchangeStateUnit` (backup/restore + import/export)
+- **Exchange** — `createExchangeStateUnit` (backup/restore + import/export)
 - **Auth + discovery + moderation** — `createDiscoverStateUnit`, `createEntityTagsStateUnit`
 
 Adjacent to the state units: `useKBDiscovery` binds the sdk's

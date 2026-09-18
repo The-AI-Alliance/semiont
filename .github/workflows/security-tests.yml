@@ -57,51 +57,6 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Browser not ready yet, continuing..."
           sleep 5
 
-      - name: Verify no admin content leakage
-        run: |
-          echo "Testing admin route security..."
-
-          # This is a Vite SPA: the server returns 200 + index.html for all routes.
-          # Client-side auth guards (tested by test:security unit tests) prevent
-          # unauthorized access. We verify the server response is the SPA shell and
-          # does NOT contain server-rendered admin content or sensitive data.
-
-          # Test 1: Verify admin route returns 200 (SPA shell, not admin content)
-          status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/admin)
-          if [ "$status_code" != "200" ]; then
-            echo "❌ UNEXPECTED: Admin route returned $status_code instead of 200"
-            echo "SPA server should return 200 for all routes (client-side routing)"
-            exit 1
-          fi
-          echo "✅ Admin route returns 200 (SPA shell served correctly)"
-
-          # Test 2: Verify response is the SPA HTML shell, not server-rendered admin content
-          response=$(curl -s http://localhost:3000/admin)
-
-          # Verify it's a valid HTML page (the SPA entry point)
-          if ! echo "$response" | grep -qi "<html\|<!DOCTYPE"; then
-            echo "❌ UNEXPECTED: Admin route did not return an HTML page"
-            exit 1
-          fi
-          echo "✅ Admin route returns HTML shell (SPA entry point)"
-
-          # Test 3: Verify no server-rendered admin-specific content in the shell
-          # The SPA shell should only contain the app bootstrap JS, not admin UI
-          if echo "$response" | grep -qi "admin dashboard\|user management\|delete user\|admin control"; then
-            echo "❌ SECURITY FAILURE: Server-rendered admin content found in SPA shell!"
-            exit 1
-          fi
-          echo "✅ No server-rendered admin content in SPA shell"
-
-          # Test 4: Verify no sensitive data patterns in HTML shell
-          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"; then
-            echo "❌ SECURITY FAILURE: Sensitive data patterns found in response!"
-            exit 1
-          fi
-          echo "✅ No sensitive data patterns detected"
-
-          echo "🎉 All admin route security checks passed!"
-
       - name: Verify no moderate content leakage
         run: |
           echo "Testing moderate route security..."
@@ -400,8 +355,8 @@ jobs:
         run: |
           echo "Testing gateway API security..."
 
-          # Test 1: Verify admin endpoints require authentication
-          endpoints=("/api/admin/users" "/api/admin/users/stats")
+          # Test 1: Verify protected endpoints require authentication
+          endpoints=("/api/status" "/api/resources/does-not-exist")
 
           for endpoint in "${endpoints[@]}"; do
             echo "Testing $endpoint..."
@@ -424,7 +379,7 @@ jobs:
           done
 
           # Test 2: Verify error responses don't leak sensitive data
-          response=$(curl -s http://localhost:4000/api/admin/users)
+          response=$(curl -s http://localhost:4000/api/status)
           if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.js:[0-9]+"; then
             echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
             echo "Response: $response"
@@ -545,7 +500,7 @@ jobs:
           
           if [ "${{ needs.browser-security.result }}" == "success" ]; then
             echo "✅ **Browser Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- SPA shell serves correctly for admin/moderate routes" >> $GITHUB_STEP_SUMMARY
+            echo "- SPA shell serves correctly for the moderate route" >> $GITHUB_STEP_SUMMARY
             echo "- No server-rendered privileged content in SPA shell" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data patterns in responses" >> $GITHUB_STEP_SUMMARY
             echo "- Client-side auth guards verified by unit tests" >> $GITHUB_STEP_SUMMARY

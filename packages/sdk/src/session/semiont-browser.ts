@@ -679,7 +679,7 @@ export class SemiontBrowser {
       // `kind: 'local'` endpoint has no admin routes in-process and never
       // will. `/api/status` itself needs authentication but not an admin
       // role, so this is readable by any signed-in user.
-      observedDid = (await session.client.admin?.status())?.did;
+      observedDid = (await session.client.system?.status())?.did;
     } catch {
       return false; // unreachable — a symptom, not a verdict
     }

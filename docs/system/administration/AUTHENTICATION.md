@@ -130,16 +130,12 @@ A raw browser navigation to a protected resource (e.g. pasting a `/resources/:id
 
 The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten header from being misdiagnosed as the old CORS mystery.
 
-### Admin endpoints
-
-Admin routes require a valid token **plus** `isAdmin: true`, returning `403` otherwise (e.g. `PATCH /api/admin/users/:id`).
-
 ## JWT Security
 
 ### Validation layers (per request)
 
 1. **Signature** — HMAC-SHA256 against `JWT_SECRET`.
-2. **Payload structure** — runtime Zod validation; `tokenVersion` is a **required** claim (a token minted before the field fails `safeParse` → re-login, the correct revoke-on-rollout posture).
+2. **Payload structure** — runtime Zod validation against `JWTPayloadSchema`; a token whose claims do not parse is rejected, not coerced.
 3. **Expiration** — access tokens are short-lived.
 4. **User + epoch** — the user is loaded from the DB; rejected if absent, not `isActive`, or `payload.tokenVersion !== user.tokenVersion` (revoked).
 5. **Domain** — email domain checked against the allowed list.
