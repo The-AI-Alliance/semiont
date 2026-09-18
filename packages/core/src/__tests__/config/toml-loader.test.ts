@@ -307,7 +307,7 @@ ${MINIMAL_TOML}`;
     });
   });
 
-  it("emits no jobs service when the section is absent (the consumer's 'fs' default, until P3)", () => {
+  it("emits no jobs service when the section is absent (the consumer's 'fs' default)", () => {
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
     expect(cfg.services.jobs).toBeUndefined();
   });
@@ -389,6 +389,71 @@ servers = "\${NATS_HOST}:4222"
 ${MINIMAL_TOML}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_HOST: '10.0.0.9' });
     expect(cfg.services.signal?.servers).toBe('10.0.0.9:4222');
+  });
+
+  // EXTERNAL-IDENTITY P3: the gateway reads services.identity for the issuer
+  // it trusts and the audience it expects. Same missing-middle shape as
+  // [jobs] and [signal], and every key the verifier needs is required —
+  // typed-but-incomplete refuses, naming the key.
+  it('maps [identity] to services.identity — type, issuer and audience pass through', () => {
+    const toml = `
+[environments.local.identity]
+type = "oidc"
+issuer = "https://login.example.com/realms/acme"
+audience = "semiont-gateway"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.services.identity).toEqual({
+      type: 'oidc',
+      issuer: 'https://login.example.com/realms/acme',
+      audience: 'semiont-gateway',
+    });
+  });
+
+  it('emits no identity service when the section is absent', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+    expect(cfg.services.identity).toBeUndefined();
+  });
+
+  it('refuses an [identity] section that names no type', () => {
+    const toml = `
+[environments.local.identity]
+issuer = "https://login.example.com/realms/acme"
+audience = "semiont-gateway"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.identity\].*type/);
+  });
+
+  it('refuses [identity] with no issuer — typed-but-incomplete never falls through', () => {
+    const toml = `
+[environments.local.identity]
+type = "keycloak"
+audience = "semiont-gateway"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.identity\].*issuer/);
+  });
+
+  it('refuses [identity] with no audience', () => {
+    const toml = `
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://keycloak.internal:8080/realms/semiont"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.identity\].*audience/);
+  });
+
+  it('resolves ${VAR} placeholders in identity.issuer from the loader env', () => {
+    const toml = `
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont"
+audience = "semiont-gateway"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { KEYCLOAK_HOST: '10.0.0.9' });
+    expect(cfg.services.identity?.issuer).toBe('http://10.0.0.9:8080/realms/semiont');
   });
 
   // SINGLE-KB-MOUNT D4: the launcher stages the KB's committed identity into

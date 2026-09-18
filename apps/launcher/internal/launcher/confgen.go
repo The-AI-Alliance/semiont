@@ -113,6 +113,11 @@ func generateSemiontconfig(p genParams) string {
 	w(`name = "semiont"`)
 	w(`user = "postgres"`)
 	w(`password = "localpass"`)
+	w(``)
+	w(`[environments.local.identity]`)
+	w(`type = "keycloak"`)
+	w(`issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"`)
+	w(`audience = "semiont-gateway"`)
 	return b.String()
 }
 

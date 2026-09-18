@@ -46,11 +46,14 @@ type executor interface {
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
 	either(cond func() bool, then, els func() int) int
-	otelDetect(addr string) []string       // --service: OTel iff the collector is up
-	recoverSecret() (string, bool)         // --service: rejoin the running stack's secret
-	workerSecret() (string, bool)          // full start: env or generated
-	jwtSecret(root string) (string, bool)  // gateway token-signing key: env, else persisted per-root, else generated
-	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
+	otelDetect(addr string) []string                    // --service: OTel iff the collector is up
+	recoverSecret() (string, bool)                      // --service: rejoin the running stack's secret
+	workerSecret() (string, bool)                       // full start: env or generated
+	jwtSecret(root string) (string, bool)               // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword(root string) (string, bool)   // Keycloak's bootstrap admin password: same three sources
+	stageRealm(realm string, doc []byte) (string, bool) // the realm file Keycloak imports; returns its staged path
+	createDatabase(user, name string) bool              // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string              // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
@@ -580,6 +583,43 @@ func (x *liveExec) jwtSecret(root string) (string, bool) {
 	return loadOrCreateJWTSecret(x.u, root)
 }
 
+func (x *liveExec) identityAdminPassword(root string) (string, bool) {
+	return loadOrCreateKeycloakAdminPassword(x.u, root)
+}
+
+func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
+	stage, ok := x.stageDir()
+	if !ok {
+		return "", false
+	}
+	p := filepath.Join(stage, "keycloak-"+realm+"-realm.json")
+	if err := os.WriteFile(p, doc, 0o644); err != nil {
+		x.u.fail("Staging the Keycloak realm: %v", err)
+		return "", false
+	}
+	return p, true
+}
+
+// createDatabase creates a database on the launcher-run PostgreSQL if it is
+// absent — idempotent by construction (psql's \gexec runs the CREATE only when
+// the WHERE finds nothing), so a second start is a no-op. Retried: the TCP
+// gate proves the server is listening, not yet that it accepts sessions.
+func (x *liveExec) createDatabase(user, name string) bool {
+	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
+	args := []string{"exec", "-i", roles["database"].container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	x.u.echoCmd(x.rt, args...)
+	var err error
+	for i := 0; i < 5; i++ {
+		if err = runWithStdin(x.rt, sql, args...); err == nil {
+			x.u.ok("PostgreSQL has database %q", name)
+			return true
+		}
+		time.Sleep(time.Second)
+	}
+	x.u.fail("Creating database %q on PostgreSQL: %v", name, err)
+	return false
+}
+
 func (x *liveExec) ollamaVolume(opts startOptions) string {
 	return chooseOllamaVolume(x.u, opts)
 }
@@ -1049,6 +1089,20 @@ func (x *planExec) workerSecret() (string, bool) { return "<worker-secret>", tru
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
 // never has the side effect of creating a root's signing key.
 func (x *planExec) jwtSecret(root string) (string, bool) { return "<jwt-secret>", true }
+
+func (x *planExec) identityAdminPassword(string) (string, bool) {
+	return "<keycloak-admin-password>", true
+}
+
+func (x *planExec) stageRealm(realm string, _ []byte) (string, bool) {
+	x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; the realm, the Browser's public client, the gateway audience mapper)", realm)
+	return "<config-stage>/keycloak-" + realm + "-realm.json", true
+}
+
+func (x *planExec) createDatabase(user, name string) bool {
+	x.c("create database %s on PostgreSQL if absent: %s exec -i semiont-postgres psql -U %s (SQL on stdin)", name, x.rt, user)
+	return true
+}
 
 func (x *planExec) ollamaVolume(opts startOptions) string {
 	volume := "<ollama-volume>"

@@ -3885,7 +3885,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
-	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "inference", "embedding", "database",
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "identity", "inference", "embedding", "database",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
@@ -7130,4 +7130,37 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 		t.Fatalf("start accepted mismatched [jobs]/[signal] servers")
 	}
 	mustContain(t, "mismatch refusal", stderr, "[jobs] and [signal] name different servers", "must match")
+}
+
+// EXTERNAL-IDENTITY P3 (launcher lane): a config whose [environments.*.identity]
+// selects keycloak on ${KEYCLOAK_HOST} boots Keycloak after PostgreSQL and
+// before the gateway — its database created on that PostgreSQL if absent, the
+// realm file staged and imported, the bootstrap admin password per root — and
+// every service's env carries KEYCLOAK_HOST. The no-identity-section case is
+// proven by every other boot golden: only the preflight logs snapshot grows.
+func TestStartKeycloakIdentityBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	// Pinned like JWT_SECRET: a generated password is random and the golden
+	// compares argv verbatim.
+	s.extraEnv = append(s.extraEnv, "KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin")
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\naudience = \"semiont-gateway\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "keycloak.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--config", "keycloak"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-keycloak-identity-boot.argv", s.argv(t))
+	// The database is created on stdin, where fakert records what the pipe
+	// carried — idempotently, so the second start is a no-op there too.
+	in, err := os.ReadFile(filepath.Join(s.fakertDir, "exec-stdin.txt"))
+	if err != nil {
+		t.Fatalf("no exec stdin recorded — the keycloak database was never created: %v", err)
+	}
+	mustContain(t, "create database", string(in), "CREATE DATABASE keycloak", "WHERE NOT EXISTS", `\gexec`)
 }

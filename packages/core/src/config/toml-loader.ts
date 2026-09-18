@@ -169,6 +169,11 @@ interface EnvironmentSection {
     type?: 'in-process' | 'nats';
     servers?: string;
   };
+  identity?: {
+    type?: 'keycloak' | 'oidc';
+    issuer?: string;
+    audience?: string;
+  };
   site?: {
     domain?: string;
     siteName?: string;
@@ -595,6 +600,34 @@ export function loadTomlConfig(
     services.signal = {
       type: resolved.signal.type,
       ...(resolved.signal.servers ? { servers: resolved.signal.servers } : {}),
+    };
+  }
+
+  // The identity provider the gateway trusts (EXTERNAL-IDENTITY D5). Same
+  // refusal discipline as [signal]: a section that names no type, or a typed
+  // section missing the issuer or audience the verifier needs, refuses at
+  // load — a verifier configured without either would reject every token and
+  // surface as "everyone is logged out" instead of a config error.
+  if (resolved.identity) {
+    if (!resolved.identity.type) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no type — add type = "keycloak" or "oidc". Semiont selects the identity provider from config; nothing is inferred.`,
+      );
+    }
+    if (!resolved.identity.issuer) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section refuses at load, never falls through.`,
+      );
+    }
+    if (!resolved.identity.audience) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no audience — add audience = "semiont-gateway" (the client id the gateway expects in a token's aud claim).`,
+      );
+    }
+    services.identity = {
+      type: resolved.identity.type,
+      issuer: resolved.identity.issuer,
+      audience: resolved.identity.audience,
     };
   }
 

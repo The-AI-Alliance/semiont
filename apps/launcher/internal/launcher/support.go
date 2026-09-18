@@ -181,7 +181,7 @@ func (u *ui) stamp(event string) {
 // well-known local-dev values the summary table prints anyway.)
 var echoEnvAllowlist = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true,
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
 }
 

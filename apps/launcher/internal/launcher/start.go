@@ -32,7 +32,7 @@ func configFreeService(svc string) bool {
 
 var preflightNames = []string{
 	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-nats", "semiont-postgres",
-	"semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
+	"semiont-keycloak", "semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
 	"semiont-archivist", "semiont-librarian",
 }
 
@@ -132,6 +132,12 @@ Environment:
                         refreshed under the new key (refresh TTL: 30 days).
                         Replacing the key outright still invalidates every
                         token already issued
+  KC_BOOTSTRAP_ADMIN_PASSWORD
+                        Keycloak's admin-console password, when [identity]
+                        selects keycloak (default: generated ONCE per KB root
+                        and kept — Keycloak creates the admin on its first boot
+                        only, so the value must outlive the stack). Console
+                        user: admin
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -810,6 +816,7 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "NATS_HOST="+addr,
+		"--env", "KEYCLOAK_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "OLLAMA_HOST="+addr,
 		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
@@ -863,6 +870,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, version string, user
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "NATS_HOST="+addr,
+		"--env", "KEYCLOAK_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		// Interpolation requirement only: loadEnvironmentConfig expands the
@@ -896,6 +904,7 @@ func archivistArgs(kbRoot, stage, addr, secret, version string, userEnv, otel []
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "NATS_HOST="+addr,
+		"--env", "KEYCLOAK_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
@@ -927,6 +936,7 @@ func librarianArgs(stage, addr, secret, version string, userEnv, otel []string, 
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "NATS_HOST="+addr,
+		"--env", "KEYCLOAK_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",

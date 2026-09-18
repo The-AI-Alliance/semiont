@@ -365,35 +365,17 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 		return "", false
 	}
 
-	if b, err := os.ReadFile(p); err == nil {
-		if s := strings.TrimSpace(string(b)); s != "" {
-			u.log("Token-signing key: %s", u.dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
-			return s, true
-		}
+	if s := readPersistedSecret(p); s != "" {
+		u.log("Token-signing key: %s", u.dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
+		return s, true
 	}
 
-	b := make([]byte, 32) // 64 hex chars — comfortably over the gateway's 32 minimum
-	if _, err := rand.Read(b); err != nil {
-		u.fail("Generating the gateway's JWT secret: %v", err)
+	// 32 bytes → 64 hex chars, comfortably over the gateway's 32 minimum.
+	secret, ok := generateHexSecret(u, 32, "the gateway's JWT secret")
+	if !ok {
 		return "", false
 	}
-	secret := hex.EncodeToString(b)
-
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		u.fail("Creating %s: %v", filepath.Dir(p), err)
-		return "", false
-	}
-	// Not best-effort, unlike saveRootMeta: a secret we failed to persist would
-	// be a DIFFERENT secret next start, and the resulting token failures are far
-	// harder to diagnose than this error.
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
-		u.fail("Writing %s: %v", p, err)
-		return "", false
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		u.fail("Writing %s: %v", p, err)
+	if !persistSecret(u, p, secret) {
 		return "", false
 	}
 	// Say so loudly. A silently regenerated key invalidates every token already
@@ -402,6 +384,91 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 	// the key had changed underneath them.
 	u.log("Token-signing key: %s", u.dim(jwtProvenance("generated and persisted at "+p, 1)))
 	return secret, true
+}
+
+// keycloakAdminPasswordPath: <stateRootDir>/keycloak-admin-password — a VALUE,
+// so its own 0600 file beside jwt-secret.
+func keycloakAdminPasswordPath(root string) string {
+	dir := stateRootDir(root)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "keycloak-admin-password")
+}
+
+// loadOrCreateKeycloakAdminPassword resolves Keycloak's bootstrap admin
+// password for one root: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted
+// per-root value, else a freshly generated one persisted before use.
+//
+// Per-root and persisted for the JWT secret's reason: Keycloak creates the
+// admin on its FIRST boot against an empty database and never reads the
+// variable again, so the value must outlive the stack with the database that
+// holds the admin it created — a regenerated one locks the console out.
+func loadOrCreateKeycloakAdminPassword(u *ui, root string) (string, bool) {
+	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
+		u.log("Keycloak admin password: %s", u.dim("from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment (console user: "+keycloakAdminUser+")"))
+		return s, true
+	}
+	p := keycloakAdminPasswordPath(root)
+	if p == "" {
+		u.fail("No home directory resolvable, so Keycloak's admin password cannot be persisted.")
+		fmt.Fprintln(os.Stderr, "  Export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
+		return "", false
+	}
+	if s := readPersistedSecret(p); s != "" {
+		u.log("Keycloak admin password: %s", u.dim("reused from "+p+" (console user: "+keycloakAdminUser+")"))
+		return s, true
+	}
+	secret, ok := generateHexSecret(u, 16, "Keycloak's admin password")
+	if !ok {
+		return "", false
+	}
+	if !persistSecret(u, p, secret) {
+		return "", false
+	}
+	u.log("Keycloak admin password: %s", u.dim("generated and persisted at "+p+" (console user: "+keycloakAdminUser+")"))
+	return secret, true
+}
+
+// readPersistedSecret: the trimmed contents of a per-root secret file, or ""
+// when there is none to read.
+func readPersistedSecret(p string) string {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func generateHexSecret(u *ui, bytes int, what string) (string, bool) {
+	b := make([]byte, bytes)
+	if _, err := rand.Read(b); err != nil {
+		u.fail("Generating %s: %v", what, err)
+		return "", false
+	}
+	return hex.EncodeToString(b), true
+}
+
+// persistSecret writes a per-root secret to its own 0600 file, atomically.
+// Not best-effort, unlike saveRootMeta: a secret we failed to persist would be
+// a DIFFERENT secret next start, and the resulting failures are far harder to
+// diagnose than this error.
+func persistSecret(u *ui, p, secret string) bool {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		u.fail("Creating %s: %v", filepath.Dir(p), err)
+		return false
+	}
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
+		u.fail("Writing %s: %v", p, err)
+		return false
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		_ = os.Remove(tmp)
+		u.fail("Writing %s: %v", p, err)
+		return false
+	}
+	return true
 }
 
 // jwtProvenance renders one provenance line. The VALUE never appears — this

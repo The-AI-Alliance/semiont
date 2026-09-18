@@ -23,7 +23,7 @@ type flowCtx struct {
 
 var depRoleTitles = map[string]string{
 	"graph": "Graph", "vectors": "Vectors", "database": "Database",
-	"embedding": "Embedding", "messaging": "Messaging",
+	"embedding": "Embedding", "messaging": "Messaging", "identity": "Identity",
 }
 
 // flowFullStart is THE full-start sequence: preflight → ports → staging →
@@ -171,6 +171,12 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
 		return code
 	}
+	// The identity provider (Keycloak, when [identity] selects it) is a
+	// gateway dependency too: the gateway verifies human tokens against its
+	// keys. After the database, whose PostgreSQL holds its realm.
+	if code := flowDepRole(x, "identity", fc, addr); code != 0 {
+		return code
+	}
 
 	secret, ok := x.workerSecret()
 	if !ok {
@@ -298,15 +304,21 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
 	// jobs without a [jobs] section is a WORKING DEFAULT, not a gap: the
-	// gateway's built-in fs queue serves the stack (JOB-QUEUE-DRIVER P2;
-	// P3 retires that driver and flips this to a refusal like vectors').
-	// The generic "not configured; skipping" banner block read as a
-	// misconfiguration to the first person who saw it — say what IS
-	// running instead, in one line, no banner.
+	// gateway's built-in fs queue serves the stack. The generic "not
+	// configured; skipping" banner block read as a misconfiguration to the
+	// first person who saw it — say what IS running instead, in one line,
+	// no banner. Same for identity without an [identity] section: the
+	// gateway issues its own tokens.
 	if role == "messaging" && rp.Obligation == obligationAbsent {
 		x.say(sayLog, "messaging — nothing to launch: jobs ride the gateway's fs queue; signals are in-process")
 		x.note("messaging: nothing to launch (jobs: fs driver; signal: in-process)")
 		x.record(role, "", "", providedNone, "", rp.Driver)
+		return 0
+	}
+	if role == "identity" && rp.Obligation == obligationAbsent {
+		x.say(sayLog, "identity — nothing to launch: no [identity] section; the gateway issues its own tokens")
+		x.note("identity: nothing to launch (no [identity] section; gateway-issued tokens)")
+		x.record(role, "", "", providedNone, "", "")
 		return 0
 	}
 	disp := driverDisplay(role, rp.Driver)
@@ -328,6 +340,13 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 		}
+		if role == "identity" {
+			kc, ok := identityRunExtras(x, fc, addr)
+			if !ok {
+				return 1
+			}
+			extra = append(extra, kc...)
+		}
 		args := providedRunArgs(role, rp, extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
@@ -335,6 +354,16 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			return 1
 		}
 		switch role {
+		case "identity":
+			// Keycloak answers on the realm only once the import is done —
+			// the wait is the realm gate as well as the liveness gate.
+			d, ok := x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90)
+			if !ok {
+				x.dumpLogs(roles["identity"].container, "identity")
+				return 1
+			}
+			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp), x.dim("("+took(d)+")"))
+			x.record(role, id, rp.Image, providedLauncher, identityEndpoint(rp), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
 			d, ok := x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", aux), 30)
@@ -795,7 +824,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "jaeger")
-	case "graph", "vectors", "database", "messaging":
+	case "graph", "vectors", "database", "messaging", "identity":
 		rp := fc.plan.Roles[svc]
 		disp := driverDisplay(svc, rp.Driver)
 		// The same persistence rules as a full start (LAUNCHER-STATE.md): a
@@ -804,6 +833,13 @@ func flowOneService(x executor, fc flowCtx) int {
 		extra, ok := x.stateMounts(svc, rp.Image, fc.root)
 		if !ok {
 			return 1
+		}
+		if svc == "identity" {
+			kc, ok := identityRunExtras(x, fc, addr)
+			if !ok {
+				return 1
+			}
+			extra = append(extra, kc...)
 		}
 		args := providedRunArgs(svc, rp, extra...)
 		id, ok := x.runDetached(args)
@@ -830,6 +866,11 @@ func flowOneService(x executor, fc flowCtx) int {
 		case "messaging":
 			if d, ok = x.waitTCP(disp, addr, rp.Port, 15); !ok {
 				x.dumpLogs(roles["messaging"].container, "messaging")
+				return 1
+			}
+		case "identity":
+			if d, ok = x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90); !ok {
+				x.dumpLogs(roles["identity"].container, "identity")
 				return 1
 			}
 		}

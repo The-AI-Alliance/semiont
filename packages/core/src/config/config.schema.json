@@ -973,6 +973,9 @@
         },
         "signal": {
           "$ref": "#/definitions/SignalServiceConfig"
+        },
+        "identity": {
+          "$ref": "#/definitions/IdentityServiceConfig"
         }
       },
       "required": [
@@ -1276,7 +1279,7 @@
     },
     "JobsServiceConfig": {
       "type": "object",
-      "description": "The job queue driver (JOB-QUEUE-DRIVER P2). Selection is stated here, never inferred: 'fs' is the launcher-mounted filesystem queue (retires at P3); 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs' until P3 flips the default. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
+      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
       "properties": {
         "type": {
           "type": "string",
@@ -1330,6 +1333,31 @@
       },
       "required": [
         "type"
+      ],
+      "additionalProperties": false
+    },
+    "IdentityServiceConfig": {
+      "type": "object",
+      "description": "The OIDC issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY D5). Selection is stated here, never inferred: 'keycloak' is the launcher-run Keycloak; 'oidc' is an external issuer the launcher never launches. 'issuer' is the issuer URL exactly as it appears in a token's iss claim (its host may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one); 'audience' is the client id the gateway expects in a token's aud claim. All three are required for both types.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "keycloak",
+            "oidc"
+          ]
+        },
+        "issuer": {
+          "type": "string"
+        },
+        "audience": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "issuer",
+        "audience"
       ],
       "additionalProperties": false
     }
