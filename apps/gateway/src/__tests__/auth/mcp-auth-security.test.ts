@@ -72,7 +72,7 @@ describe('MCP Authentication security', () => {
       // What is under test is the DIFFERENTIATION, not the production TTLs — the
       // literals below are this test's own. Real lifetimes live in one table:
       // docs/system/administration/AUTHENTICATION.md (access is minutes, not hours).
-      const accessToken = JWTService.generateToken({ tokenVersion: 0,
+      const accessToken = JWTService.generateToken({
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -80,7 +80,7 @@ describe('MCP Authentication security', () => {
         isAdmin: false
       }, '1h'); // arbitrary: any access-shorter-than-refresh pair proves the point
       
-      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
+      const refreshToken = JWTService.generateToken({
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -107,7 +107,7 @@ describe('MCP Authentication security', () => {
       // Setup: User doesn't exist in database
       mockPrisma.user.findUnique.mockResolvedValue(null);
       
-      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
+      const refreshToken = JWTService.generateToken({
         userId: userId('clh0vssng0003356tmf4mt8fb'),
         email: email('deleted@example.com'),
         domain: 'example.com',
@@ -170,11 +170,10 @@ describe('MCP Authentication security', () => {
         domain: 'example.com',
         provider: 'google',
         providerId: 'google-123',
-    passwordHash: null,
         image: null,
         isActive: true,
         isAdmin: false,
-        isModerator: false, tokenVersion: 0,
+        isModerator: false,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -184,7 +183,7 @@ describe('MCP Authentication security', () => {
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);
       
       // Generate access token (would be done by refresh endpoint)
-      const accessToken = JWTService.generateToken({ tokenVersion: 0,
+      const accessToken = JWTService.generateToken({
         userId: userId(mockUser.id),
         email: email(mockUser.email),
         name: mockUser.name || undefined,
@@ -207,7 +206,7 @@ describe('MCP Authentication security', () => {
 
   describe('Token Security Best Practices', () => {
     it('security: should use secure JWT algorithm', () => {
-      const token = JWTService.generateToken({ tokenVersion: 0,
+      const token = JWTService.generateToken({
         userId: userId('clh0vssng0005356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -227,7 +226,7 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should include proper token claims', () => {
-      const token = JWTService.generateToken({ tokenVersion: 0,
+      const token = JWTService.generateToken({
         userId: userId('clh0vssng0002356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -249,7 +248,7 @@ describe('MCP Authentication security', () => {
       // Refresh tokens: long-lived (30 days), used only to get new access tokens
       // Access tokens are short-lived and used for API calls (TTL: see AUTHENTICATION.md)
       
-      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
+      const refreshToken = JWTService.generateToken({
         userId: userId('clh0vssng0005356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',
@@ -260,7 +259,7 @@ describe('MCP Authentication security', () => {
       const refreshPayload = JWTService.verifyToken(refreshToken);
       
       // Access tokens should be used for API calls
-      const accessToken = JWTService.generateToken({ tokenVersion: 0,
+      const accessToken = JWTService.generateToken({
         userId: userId('clh0vssng0005356tmf4mt8fb'),
         email: email('test@example.com'),
         domain: 'example.com',

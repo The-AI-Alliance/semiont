@@ -21,12 +21,12 @@ vi.mock('@/i18n/routing', () => ({
 // `useSemiont().activeSession$`, and signs out via `semiont.signOut(kb.id)`.
 // The mock browser exposes controllable subjects so tests can flip the shape
 // the panel sees.
-const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL, mockLogout, mockBrowser, mockClient, user$, activeSession$ } = vi.hoisted(() => {
+const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL, mockBrowser, mockClient, user$, activeSession$ } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
   const { BehaviorSubject } = require('rxjs');
-  const mockLogout = vi.fn().mockResolvedValue(undefined);
-  // sessionStateUnit.logout() calls client.auth.logout() — namespace shape, not flat.
-  const mockClient = { auth: { logout: mockLogout } };
+  // Signing out goes through the browser, not the session's client, so nothing
+  // here is called — the session just has to carry one.
+  const mockClient = {};
   const user$ = new BehaviorSubject(null);
   const token$ = new BehaviorSubject(null);
   const ACTIVE_KB = {
@@ -57,7 +57,6 @@ const { mockSignOut, mockUseSessionExpiry, mockFormatTime, mockSanitizeImageURL,
     mockUseSessionExpiry: vi.fn(),
     mockFormatTime: vi.fn(),
     mockSanitizeImageURL: vi.fn(),
-    mockLogout,
     mockBrowser,
     user$,
     activeSession$,
@@ -317,22 +316,20 @@ describe('UserPanel Component', () => {
       render(<UserPanel />);
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
       await userEvent.click(signOutButton);
-      expect(mockLogout).toHaveBeenCalled();
       expect(mockSignOut).toHaveBeenCalledWith(ACTIVE_KB.id);
       expect(mockRouterPush).toHaveBeenCalledWith('/');
     });
 
-    it('should still call apiClient.logout and navigate when no KB is active', async () => {
+    it('should still navigate when no KB is active', async () => {
       // Defensive branch: if Sign Out is somehow clicked while activeKnowledgeBase
-      // is null, the handler must NOT call signOut(...) (no id to pass) but
-      // must still log out the API client and navigate home.
+      // is null, the handler must NOT call signOut(...) — there is no id to pass —
+      // but must still navigate home.
       setActiveKnowledgeBase(null);
 
       render(<UserPanel />);
       const signOutButton = screen.getByRole('button', { name: 'Sign Out' });
       await userEvent.click(signOutButton);
 
-      expect(mockLogout).toHaveBeenCalled();
       expect(mockSignOut).not.toHaveBeenCalled();
       expect(mockRouterPush).toHaveBeenCalledWith('/');
     });
@@ -350,23 +347,25 @@ describe('UserPanel Component', () => {
       expect(screen.queryByRole('button', { name: 'Sign Out' })).not.toBeInTheDocument();
     });
 
-    it('signs out through the CURRENT session client after a session swap', async () => {
+    it('signs out the CURRENT knowledge base after a session swap', async () => {
+      // The handler must read the kb off the session it renders with, not one
+      // captured at mount: after a switch, clicking Sign Out has to end the KB
+      // the user is looking at rather than the one they left.
       render(<UserPanel />);
 
-      const replacementLogout = vi.fn().mockResolvedValue(undefined);
       const previous = activeSession$.getValue() as Record<string, unknown>;
       act(() => {
         activeSession$.next({
           ...previous,
           id: 'session-2',
-          client: { auth: { logout: replacementLogout } },
+          kb: { ...ACTIVE_KB, id: 'kb-2' },
         });
       });
 
       await userEvent.click(screen.getByRole('button', { name: 'Sign Out' }));
 
-      expect(replacementLogout).toHaveBeenCalled();
-      expect(mockLogout).not.toHaveBeenCalled();
+      expect(mockSignOut).toHaveBeenCalledWith('kb-2');
+      expect(mockSignOut).not.toHaveBeenCalledWith(ACTIVE_KB.id);
     });
 
     it('should still navigate even if signOut is rapidly clicked', async () => {

@@ -35,9 +35,9 @@ function issuerOf(token: string): string | undefined {
 }
 
 /**
- * A gateway-signed token: verified against the HMAC key ring, its User row
- * read, and its revocation epoch compared to the row's — a logout bumps the
- * row's epoch, so a token minted before it is refused.
+ * A gateway-signed token: verified against the HMAC key ring, and its User row
+ * read so the Semiont-owned facts on it (`isActive` above all) decide the
+ * request rather than the claims the token was minted with.
  */
 export async function principalFromGatewayToken(token: AccessToken): Promise<Principal> {
   const payload = JWTService.verifyToken(token);
@@ -45,9 +45,6 @@ export async function principalFromGatewayToken(token: AccessToken): Promise<Pri
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
   if (!user || !user.isActive) {
     throw new Error('User not found or inactive');
-  }
-  if (payload.tokenVersion !== user.tokenVersion) {
-    throw new Error('Token revoked');
   }
   return payload.agentDid ? { user, agentDid: payload.agentDid } : { user };
 }
@@ -116,7 +113,6 @@ export async function provisionUser(input: {
       name: name ?? null,
       provider: issuer,
       providerId: subject,
-      passwordHash: null,
       domain: email.split('@')[1] ?? '',
       isAdmin: false,
       lastLogin,

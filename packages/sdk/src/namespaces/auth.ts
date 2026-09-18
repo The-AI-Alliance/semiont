@@ -12,10 +12,6 @@ type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadat
 export class AuthNamespace implements IAuthNamespace {
   constructor(private readonly gateway: IGatewayOperations) {}
 
-  async logout(): Promise<void> {
-    await this.gateway.logout();
-  }
-
   async me(): Promise<User> {
     return this.gateway.getCurrentUser();
   }

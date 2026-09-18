@@ -151,9 +151,8 @@ const testUser = {
   domain: 'example.com',
   provider: 'google',
   providerId: 'google-test-user-id',
-    passwordHash: null,
   isAdmin: false,
-  isModerator: false, tokenVersion: 0,
+  isModerator: false,
   isActive: true,
   termsAcceptedAt: new Date(),
   lastLogin: new Date(),
@@ -203,7 +202,7 @@ describe('API Endpoints Integration Tests', () => {
     app = serverModule.app;
 
     // Generate a test token
-    testToken = JWTService.generateToken({ tokenVersion: 0,
+    testToken = JWTService.generateToken({
       userId: userId(testUser.id),
       email: email(testUser.email),
       name: testUser.name,
@@ -344,9 +343,8 @@ describe('API Endpoints Integration Tests', () => {
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-123',
-    passwordHash: null,
       isAdmin: false,
-      isModerator: false, tokenVersion: 0,
+      isModerator: false,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -404,17 +402,6 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.error).toContain('token');
     });
 
-    it('POST /api/users/logout returns 204 No Content', async () => {
-      const res = await app.request('/api/users/logout', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer valid-jwt-token',
-        },
-      });
-
-      expect(res.status).toBe(204);
-    });
-
     it('POST /api/users/accept-terms should update terms acceptance', async () => {
       sharedMockClient.user.update.mockResolvedValue({ ...mockUser, termsAcceptedAt: new Date() } as User);
 
@@ -441,9 +428,8 @@ describe('API Endpoints Integration Tests', () => {
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-admin-123',
-    passwordHash: null,
       isAdmin: true,
-      isModerator: true, tokenVersion: 0,
+      isModerator: true,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),
@@ -459,9 +445,8 @@ describe('API Endpoints Integration Tests', () => {
       domain: 'example.com',
       provider: 'google',
       providerId: 'google-user-123',
-    passwordHash: null,
       isAdmin: false,
-      isModerator: false, tokenVersion: 0,
+      isModerator: false,
       isActive: true,
       termsAcceptedAt: new Date(),
       lastLogin: new Date(),

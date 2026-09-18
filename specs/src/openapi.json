@@ -30,9 +30,6 @@
     "/api/users/accept-terms": {
       "$ref": "paths/api_users_accept-terms.json"
     },
-    "/api/users/logout": {
-      "$ref": "paths/api_users_logout.json"
-    },
     "/api/status": {
       "$ref": "paths/api_status.json"
     },

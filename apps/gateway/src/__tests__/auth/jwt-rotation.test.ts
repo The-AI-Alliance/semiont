@@ -25,7 +25,6 @@ const PAYLOAD = {
   domain: 'example.com',
   provider: 'google',
   isAdmin: false,
-  tokenVersion: 0,
 };
 
 function signWith(secret: string, overrides: Record<string, unknown> = {}, opts: jwt.SignOptions = {}) {
@@ -122,7 +121,7 @@ describe('error precedence — the ring must not mask non-signature failures', (
   });
 
   it('surfaces a payload-validation failure rather than a signature error', () => {
-    // Correctly signed, but missing required claims (tokenVersion, domain, ...).
+    // Correctly signed, but missing required claims (domain, provider, ...).
     const token = jwt.sign({ userId: PAYLOAD.userId }, S_NEW, { expiresIn: '10m' });
     process.env.JWT_SECRET = `${S_NEW},${S_OLD}`;
 

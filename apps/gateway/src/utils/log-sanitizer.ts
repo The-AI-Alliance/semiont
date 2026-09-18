@@ -8,7 +8,6 @@
 // Fields that should never be logged
 const SENSITIVE_FIELDS = [
   'password',
-  'passwordHash',
   'token',
   'accessToken',
   'refreshToken',

@@ -172,7 +172,6 @@ The auth middleware automatically:
 - Verifies the JWT signature
 - Checks token expiration
 - Loads the user from the database and confirms they are active
-- Enforces revocation: rejects the token when `payload.tokenVersion !== user.tokenVersion` (a logout bump invalidates every live token)
 - Attaches the user to the request context
 
 ### 3. Route Access
@@ -204,29 +203,27 @@ Mint a short-lived, resource-scoped **media token** for header-less fetches
   presented as `GET /api/resources/:id?token=…` and verified by the auth
   middleware's media path
 
-### `POST /api/users/logout`
+### Signing out
 
-Revoke the caller's sessions. Increments the user's `tokenVersion`, which instantly
-invalidates the refresh token **and** every live access token on its next
-request — server-side, all devices.
-
-- **Auth**: Requires a valid access token
-- **Returns**: `204 No Content`
+The gateway has no logout endpoint, because it never issued the session. A client
+signs out by forgetting its stored session and revoking the refresh token at the
+issuer (RFC 7009), which is what stops a new access token from being minted. The
+access token already in hand stays valid until it expires, minutes later. Nothing
+server-side has to be consulted per request to make that true, which is what lets
+the gateway run N replicas without a shared revocation table.
 
 > **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
 > **removed**. Today `packages/mcp-server` runs single-gateway with a **static**
-> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working when
-> the access token expires, or when a logout bumps `tokenVersion`. A refreshing
-> provisioning flow is being rebuilt; this guide will document it once it lands.
+> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working
+> once the access token expires. A refreshing provisioning flow is being rebuilt;
+> this guide will document it once it lands.
 
 ## JWT Token Structure
 
 A person's token is the issuer's: its claims are the issuer's, and the gateway
 reads `sub`, `email`, `email_verified`, and `name` from it. A gateway-minted
 token carries the claim set validated by `JWTPayloadSchema` in
-[src/types/jwt-types.ts](../src/types/jwt-types.ts), including the user's
-`tokenVersion` at mint time — the middleware rejects it once the stored
-`tokenVersion` moves ahead (see logout, above) — and, for a software agent,
+[src/types/jwt-types.ts](../src/types/jwt-types.ts) and, for a software agent,
 its `agentDid`.
 
 ### Agent Token
@@ -239,7 +236,6 @@ its `agentDid`.
   "provider": "agent",
   "isAdmin": false,
   "agentDid": "did:web:example.com:agents:anthropic:claude-sonnet-5",
-  "tokenVersion": 0,
   "iat": 1698765432,
   "exp": 1698851832
 }

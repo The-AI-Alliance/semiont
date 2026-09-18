@@ -114,7 +114,6 @@ export function gatewayOperationSpies(
   overrides: Partial<IGatewayOperations> = {},
 ): IGatewayOperations {
   return {
-    logout: vi.fn<IGatewayOperations['logout']>(),
     acceptTerms: vi.fn<IGatewayOperations['acceptTerms']>(),
     getCurrentUser: vi.fn<IGatewayOperations['getCurrentUser']>(),
     getProtectedResourceMetadata: vi.fn<IGatewayOperations['getProtectedResourceMetadata']>(),

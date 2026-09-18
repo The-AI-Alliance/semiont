@@ -140,7 +140,6 @@ authRouter.post('/api/tokens/agent', async (c) => {
     provider: agentUser.provider,
     isAdmin: false,
     agentDid: did,
-    tokenVersion: agentUser.tokenVersion,
   }, '24h');
 
   return c.json({ token, did }, 200);
@@ -189,27 +188,6 @@ authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
   };
 
   return c.json(response, 200);
-});
-
-/**
- * POST /api/users/logout
- *
- * Logout - Logout the current user
- * Requires authentication
- * In JWT-based auth, logout is handled client-side
- * This endpoint exists for consistency and future session management
- */
-authRouter.post('/api/users/logout', authMiddleware, async (c) => {
-  // Revoke every outstanding token for this user by bumping the per-user
-  // revocation epoch (SDK-AUTH-CORS Phase 2) — refresh and live access tokens
-  // minted at the old version are rejected from here on.
-  const user = c.get('user');
-  const prisma = DatabaseConnection.getClient();
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { tokenVersion: { increment: 1 } },
-  });
-  return c.body(null, 204);
 });
 
 /**

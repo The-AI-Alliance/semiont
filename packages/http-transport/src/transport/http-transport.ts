@@ -448,12 +448,6 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }
 
-  async logout(): Promise<void> {
-    await this.http.post(`${this.baseUrl}/api/users/logout`, {
-      headers: this.authHeaders(),
-    }).json();
-  }
-
   async acceptTerms(): Promise<void> {
     await this.http.post(`${this.baseUrl}/api/users/accept-terms`, {
       headers: this.authHeaders(),

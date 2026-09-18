@@ -235,7 +235,6 @@ export interface ITransport {
 export interface IGatewayOperations {
   // ── Auth ──────────────────────────────────────────────────────────────
 
-  logout(): Promise<void>;
   acceptTerms(): Promise<void>;
   getCurrentUser(): Promise<UserResponse>;
   getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;

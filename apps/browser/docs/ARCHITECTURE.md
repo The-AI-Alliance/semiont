@@ -171,7 +171,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 **Token Management:**
 - Bearer-only: every request carries `Authorization: Bearer <jwt>` — there is no cookie and no ambient credential
 - The per-KB session (short-lived access token + long-lived refresh token — TTLs in [Authentication](../../../docs/system/administration/AUTHENTICATION.md)) is held in memory and persisted per-KB via the storage adapter (localStorage on web), so it survives reload
-- The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` calls the gateway logout, bumping `tokenVersion` to revoke the refresh token and all live access tokens server-side (all devices)
+- The browser exposes mutations (`addKnowledgeBase`, `signIn`, `signOut`); `signOut(kbId)` forgets the stored session and revokes the refresh token at the issuer (RFC 7009), so it cannot be exchanged again. The gateway takes no part: it never issued the session. The access token already in hand stays valid until it expires, minutes later.
 
 ### Authentication Hooks
 

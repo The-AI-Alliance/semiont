@@ -48,13 +48,11 @@ function fakeUser(overrides: Partial<User> = {}): User {
     domain: 'example.com',
     provider: 'google',
     providerId: 'google-bearer-1',
-    passwordHash: null,
     isAdmin: false,
     isActive: true,
     isModerator: false,
     termsAcceptedAt: null,
     lastLogin: null,
-    tokenVersion: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -68,7 +66,6 @@ function mintToken(user: User) {
     domain: user.domain,
     provider: user.provider,
     isAdmin: user.isAdmin,
-    tokenVersion: user.tokenVersion,
   }, '10m');
 }
 

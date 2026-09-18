@@ -6,8 +6,6 @@ import {
   formatTime,
   useSemiont,
   useObservable,
-  createSessionStateUnit,
-  useSessionStateUnit,
 } from '@semiont/react-ui';
 import type { SemiontSession } from '@semiont/sdk';
 import { useRouter } from '@/i18n/routing';
@@ -134,20 +132,20 @@ export function UserPanel() {
 }
 
 /**
- * Owns the session state unit, so it is only ever constructed where a session
- * is guaranteed. `UserPanel` itself renders inside `ToolbarPanels`, which the
- * unauthenticated knowledge layout also mounts — there, `activeSession$` is
- * null and `createSessionStateUnit(session?.client)` would capture `undefined`
- * and blow up on click.
+ * Rendered only where a session is guaranteed. `UserPanel` itself renders
+ * inside `ToolbarPanels`, which the unauthenticated knowledge layout also
+ * mounts — there `activeSession$` is null and there is nothing to sign out of.
  * See .plans/bugs/resource-page-frozen-on-disposed-client-after-kb-switch.md
+ *
+ * Signing out is one call: the browser forgets the stored session and revokes
+ * the refresh token at the issuer. The gateway has no part in it — it never
+ * issued the session, so it has nothing to revoke.
  */
 function SignOutButton({ session, label }: { session: SemiontSession; label: string }) {
   const semiont = useSemiont();
   const router = useRouter();
-  const sessionStateUnit = useSessionStateUnit(session ?? undefined, createSessionStateUnit);
 
   const handleSignOut = async () => {
-    await sessionStateUnit?.logout();
     if (session.kb) {
       await semiont.signOut(session.kb.id);
     }

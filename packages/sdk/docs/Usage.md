@@ -471,10 +471,6 @@ in the same namespace and must stay local.
 Like `admin`, the `auth` namespace lives on `IGatewayOperations` and is `undefined` on a `SemiontClient` constructed without a gateway. HTTP-context callers narrow with `!`:
 
 ```typescript
-const signedIn = await semiont.auth!.password('user@example.com', 'password');
-const viaGoogle = await semiont.auth!.google(credential);
-const renewed = await semiont.auth!.refresh(refreshToken);
-await semiont.auth!.logout();
 const user = await semiont.auth!.me();
 await semiont.auth!.acceptTerms();
 const { token } = await semiont.auth!.mediaToken(resourceId);

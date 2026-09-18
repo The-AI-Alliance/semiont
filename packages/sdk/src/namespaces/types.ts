@@ -549,7 +549,6 @@ export interface JobNamespace {
  * Auth — authentication
  */
 export interface AuthNamespace {
-  logout(): Promise<void>;
   me(): Promise<User>;
   acceptTerms(): Promise<void>;
   mediaToken(resourceId: ResourceId): Promise<{ token: string }>;

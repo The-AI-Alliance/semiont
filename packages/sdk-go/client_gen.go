@@ -11166,9 +11166,6 @@ type ClientInterface interface {
 	// PostApiUsersAcceptTerms request
 	PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiUsersLogout request
-	PostApiUsersLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiUsersMe request
 	GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11410,18 +11407,6 @@ func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMedia
 
 func (c *Client) PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiUsersAcceptTermsRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiUsersLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiUsersLogoutRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -12006,33 +11991,6 @@ func NewPostApiUsersAcceptTermsRequest(server string) (*http.Request, error) {
 	return req, nil
 }
 
-// NewPostApiUsersLogoutRequest generates requests for PostApiUsersLogout
-func NewPostApiUsersLogoutRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/logout")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetApiUsersMeRequest generates requests for GetApiUsersMe
 func NewGetApiUsersMeRequest(server string) (*http.Request, error) {
 	var err error
@@ -12332,9 +12290,6 @@ type ClientWithResponsesInterface interface {
 
 	// PostApiUsersAcceptTermsWithResponse request
 	PostApiUsersAcceptTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersAcceptTermsResponse, error)
-
-	// PostApiUsersLogoutWithResponse request
-	PostApiUsersLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersLogoutResponse, error)
 
 	// GetApiUsersMeWithResponse request
 	GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error)
@@ -12721,27 +12676,6 @@ func (r PostApiUsersAcceptTermsResponse) StatusCode() int {
 	return 0
 }
 
-type PostApiUsersLogoutResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiUsersLogoutResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiUsersLogoutResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type GetApiUsersMeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -13048,15 +12982,6 @@ func (c *ClientWithResponses) PostApiUsersAcceptTermsWithResponse(ctx context.Co
 		return nil, err
 	}
 	return ParsePostApiUsersAcceptTermsResponse(rsp)
-}
-
-// PostApiUsersLogoutWithResponse request returning *PostApiUsersLogoutResponse
-func (c *ClientWithResponses) PostApiUsersLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersLogoutResponse, error) {
-	rsp, err := c.PostApiUsersLogout(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiUsersLogoutResponse(rsp)
 }
 
 // GetApiUsersMeWithResponse request returning *GetApiUsersMeResponse
@@ -13702,22 +13627,6 @@ func ParsePostApiUsersAcceptTermsResponse(rsp *http.Response) (*PostApiUsersAcce
 		}
 		response.JSON401 = &dest
 
-	}
-
-	return response, nil
-}
-
-// ParsePostApiUsersLogoutResponse parses an HTTP response from a PostApiUsersLogoutWithResponse call
-func ParsePostApiUsersLogoutResponse(rsp *http.Response) (*PostApiUsersLogoutResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiUsersLogoutResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
 	}
 
 	return response, nil

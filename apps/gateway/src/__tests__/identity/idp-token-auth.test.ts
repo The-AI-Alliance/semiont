@@ -48,13 +48,11 @@ function fakeUser(overrides: Partial<User> = {}): User {
     domain: 'example.com',
     provider: ORIGIN,
     providerId: 'sub-alice',
-    passwordHash: null,
     isAdmin: false,
     isActive: true,
     isModerator: false,
     termsAcceptedAt: null,
     lastLogin: null,
-    tokenVersion: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -203,7 +201,6 @@ describe('a gateway-signed token', () => {
       provider: agent.provider,
       isAdmin: false,
       agentDid: 'did:web:test.local:agents:ollama:gemma',
-      tokenVersion: 0,
     }, '10m');
 
     const res = await me(token);

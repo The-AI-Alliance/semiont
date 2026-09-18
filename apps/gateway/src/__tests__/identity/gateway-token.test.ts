@@ -26,27 +26,24 @@ function fakeUser(overrides: Partial<User> = {}): User {
     domain: 'example.com',
     provider: 'agent',
     providerId: 'anthropic:claude',
-    passwordHash: null,
     isAdmin: false,
     isActive: true,
     isModerator: false,
     termsAcceptedAt: null,
     lastLogin: null,
-    tokenVersion: 0,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
   };
 }
 
-function mintToken(user: User, extra: { tokenVersion?: number; agentDid?: string } = {}) {
+function mintToken(user: User, extra: { agentDid?: string } = {}) {
   return accessToken(JWTService.generateToken({
     userId: makeUserId(user.id),
     email: makeEmail(user.email),
     domain: user.domain,
     provider: user.provider,
     isAdmin: user.isAdmin,
-    tokenVersion: extra.tokenVersion ?? user.tokenVersion,
     ...(extra.agentDid ? { agentDid: extra.agentDid } : {}),
   }, '1h'));
 }
@@ -99,12 +96,5 @@ describe('principalFromGatewayToken', () => {
     mockPrismaUser.findUnique.mockResolvedValue(user);
 
     await expect(principalFromGatewayToken(mintToken(user))).rejects.toThrow('User not found or inactive');
-  });
-
-  it('refuses a token minted before the user\'s last logout', async () => {
-    const user = fakeUser({ tokenVersion: 3 });
-    mockPrismaUser.findUnique.mockResolvedValue(user);
-
-    await expect(principalFromGatewayToken(mintToken(user, { tokenVersion: 2 }))).rejects.toThrow('Token revoked');
   });
 });

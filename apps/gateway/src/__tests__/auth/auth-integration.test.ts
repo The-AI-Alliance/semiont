@@ -54,16 +54,15 @@ describe('Authentication Integration', () => {
         domain: 'example.com',
         provider: 'google',
         providerId: 'google-ca-123',
-        passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false, tokenVersion: 0,
+        isModerator: false,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const token = JWTService.generateToken({ tokenVersion: 0,
+      const token = JWTService.generateToken({
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
         domain: user.domain,
@@ -102,16 +101,15 @@ describe('Authentication Integration', () => {
         domain: 'example.com',
         provider: 'google',
         providerId: 'google-bearer-123',
-        passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false, tokenVersion: 0,
+        isModerator: false,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const bearerToken = JWTService.generateToken({ tokenVersion: 0,
+      const bearerToken = JWTService.generateToken({
         userId: makeUserId(bearerUser.id),
         email: makeEmail(bearerUser.email),
         domain: bearerUser.domain,
@@ -145,16 +143,15 @@ describe('Authentication Integration', () => {
         domain: 'example.com',
         provider: 'google',
         providerId: 'google-me-123',
-        passwordHash: null,
         isAdmin: false,
         isActive: true,
-        isModerator: false, tokenVersion: 0,
+        isModerator: false,
         termsAcceptedAt: null,
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
-      const token = JWTService.generateToken({ tokenVersion: 0,
+      const token = JWTService.generateToken({
         userId: makeUserId(user.id),
         email: makeEmail(user.email),
         domain: user.domain,
@@ -174,50 +171,4 @@ describe('Authentication Integration', () => {
     });
   });
 
-  describe('POST /api/users/logout revokes the session', () => {
-    it('bumps tokenVersion, returns 204, and sets no cookie', async () => {
-      const { email: makeEmail, userId: makeUserId } = require('@semiont/core');
-      const user: User = {
-        id: makeCuid(),
-        email: 'logout@example.com',
-        name: 'Logout User',
-        image: null,
-        domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-logout-123',
-        passwordHash: null,
-        isAdmin: false,
-        isActive: true,
-        isModerator: false, tokenVersion: 0,
-        termsAcceptedAt: null,
-        lastLogin: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      const token = JWTService.generateToken({ tokenVersion: 0,
-        userId: makeUserId(user.id),
-        email: makeEmail(user.email),
-        domain: user.domain,
-        provider: user.provider,
-        isAdmin: user.isAdmin,
-      });
-      mockPrismaUser.findUnique.mockResolvedValue(user);
-
-      const response = await app.request('/api/users/logout', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      expect(response.status).toBe(204);
-      // Logout revokes the session by bumping the per-user token epoch
-      // (SDK-AUTH-CORS Phase 2); it touches no cookie (Phase 3 — bearer-only).
-      expect(mockPrismaUser.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: user.id },
-          data: { tokenVersion: { increment: 1 } },
-        }),
-      );
-      expect(response.headers.get('set-cookie')).toBeNull();
-    });
-  });
 });

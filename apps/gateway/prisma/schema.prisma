@@ -9,22 +9,25 @@ datasource db {
   provider = "postgresql"
 }
 
-// User model for OAuth and password authentication
+// The Semiont side of an identity the trusted issuer owns. The credential
+// lives at the issuer; this row carries only what this knowledge base knows
+// about the person or agent behind it.
 model User {
   id              String    @id @default(cuid())
   email           String    @unique
   name            String?
-  image           String? // Profile picture from OAuth provider
-  provider        String // 'password', 'google', 'github', etc.
-  providerId      String // OAuth provider's user ID (or email for password users)
-  passwordHash    String? // bcrypt hash - NULL for OAuth users, required for password provider
-  domain          String // Email domain for access control
+  image           String? // Profile picture from the issuer
+  // The join key to the identity that authenticated: the issuer URL and the
+  // `sub` its tokens carry, or 'agent' and '<provider>:<model>' for a
+  // software agent the gateway itself mints tokens for.
+  provider        String
+  providerId      String
+  domain          String // Email domain, for agent DIDs and display
   isActive        Boolean   @default(true)
   isAdmin         Boolean   @default(false) // Admin role for administrative access
   isModerator     Boolean   @default(false) // Moderator role for content governance
   termsAcceptedAt DateTime? // When user accepted terms of service
   lastLogin       DateTime?
-  tokenVersion    Int       @default(0) // bumped on logout to revoke all of this user's tokens (SDK-AUTH-CORS Phase 2)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 

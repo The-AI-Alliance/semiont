@@ -104,14 +104,6 @@ describe('HttpTransport — HTTP wire shape', () => {
   });
 
   describe('Auth', () => {
-    test('logout posts to /api/users/logout', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ message: 'ok' }),
-      } as never);
-      await transport.logout();
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/logout`, { headers: {} });
-    });
-
     test('getCurrentUser gets /api/users/me', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
         json: vi.fn().mockResolvedValue({ id: 'u1' }),
