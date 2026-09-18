@@ -65,7 +65,13 @@ async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVeri
     throw new Error('Token email is not verified');
   }
   const name = claims['name'];
-  const user = await provisionUser(verifier.issuer, claims.sub, email, isString(name) ? name : undefined);
+  const user = await provisionUser({
+    issuer: verifier.issuer,
+    subject: claims.sub,
+    email,
+    ...(isString(name) ? { name } : {}),
+    lastLogin: new Date(),
+  });
   if (!user.isActive) {
     throw new Error('User not found or inactive');
   }
@@ -78,8 +84,20 @@ async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVeri
  * subject; else created. A read per request, a write only on first sight.
  * `provider`/`providerId` hold the issuer and subject — the join key — as
  * they hold `agent` and `<provider>:<model>` for software agents.
+ *
+ * `semiont useradd` calls this too, with the id the issuer just minted and a
+ * null `lastLogin`: an administrator creating an account and its owner first
+ * presenting a token are the same mapping question, and answering it twice
+ * would let the two answers drift.
  */
-async function provisionUser(issuer: string, subject: string, email: string, name: string | undefined): Promise<User> {
+export async function provisionUser(input: {
+  issuer: string;
+  subject: string;
+  email: string;
+  name?: string;
+  lastLogin: Date | null;
+}): Promise<User> {
+  const { issuer, subject, email, name, lastLogin } = input;
   const prisma = DatabaseConnection.getClient();
   const linked = await prisma.user.findFirst({ where: { provider: issuer, providerId: subject } });
   if (linked) {
@@ -89,7 +107,7 @@ async function provisionUser(issuer: string, subject: string, email: string, nam
   if (byEmail) {
     return prisma.user.update({
       where: { id: byEmail.id },
-      data: { provider: issuer, providerId: subject, ...(name ? { name } : {}), lastLogin: new Date() },
+      data: { provider: issuer, providerId: subject, ...(name ? { name } : {}), lastLogin },
     });
   }
   return prisma.user.create({
@@ -101,7 +119,7 @@ async function provisionUser(issuer: string, subject: string, email: string, nam
       passwordHash: null,
       domain: email.split('@')[1] ?? '',
       isAdmin: false,
-      lastLogin: new Date(),
+      lastLogin,
     },
   });
 }

@@ -36,7 +36,7 @@ let originalSecret: string | undefined;
 
 beforeEach(() => {
   originalSecret = process.env.JWT_SECRET;
-  JWTService.setTestConfig('example.com', ['example.com']);
+  JWTService.setTestConfig('example.com');
 });
 
 afterEach(() => {

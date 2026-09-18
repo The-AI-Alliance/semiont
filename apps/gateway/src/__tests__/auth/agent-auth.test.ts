@@ -62,7 +62,7 @@ function makeAgentUser(overrides: Partial<User> = {}): User {
 describe('POST /api/tokens/agent', () => {
   beforeAll(() => {
     JWTService.initialize({
-      site: { domain: SITE_DOMAIN, oauthAllowedDomains: [SITE_DOMAIN] },
+      site: { domain: SITE_DOMAIN },
     });
   });
 
@@ -162,7 +162,7 @@ describe('POST /api/tokens/agent', () => {
       // This test guards against the auth-fails-after-issue regression
       // where the JWT's email field fails the email() validator on
       // every subsequent /bus/subscribe call.
-      JWTService.setTestConfig('localhost:8080', ['localhost:8080']);
+      JWTService.setTestConfig('localhost:8080');
       mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
 
       await app.request('/api/tokens/agent', {
@@ -180,7 +180,7 @@ describe('POST /api/tokens/agent', () => {
       expect(call.create.email.endsWith('@agents.localhost')).toBe(true);
 
       // Restore the test domain for subsequent tests
-      JWTService.setTestConfig(SITE_DOMAIN, [SITE_DOMAIN]);
+      JWTService.setTestConfig(SITE_DOMAIN);
     });
 
     it('URI-encodes models containing colons in the DID', async () => {

@@ -396,6 +396,28 @@ func keycloakAdminPasswordPath(root string) string {
 	return filepath.Join(dir, "keycloak-admin-password")
 }
 
+// keycloakAdminPassword resolves the bootstrap admin password WITHOUT creating
+// one — $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted per-root value, else
+// "" — and names where it came from, for the caller that logs it.
+//
+// The read-only half exists for `semiont useradd`, which administers the realm
+// Keycloak already created: generating a password there would hand the gateway
+// a credential the realm has never seen, and the admin API would refuse it with
+// nothing to explain why.
+func keycloakAdminPassword(root string) (secret, source string) {
+	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
+		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment"
+	}
+	p := keycloakAdminPasswordPath(root)
+	if p == "" {
+		return "", ""
+	}
+	if s := readPersistedSecret(p); s != "" {
+		return s, "reused from " + p
+	}
+	return "", ""
+}
+
 // loadOrCreateKeycloakAdminPassword resolves Keycloak's bootstrap admin
 // password for one root: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted
 // per-root value, else a freshly generated one persisted before use.
@@ -405,8 +427,8 @@ func keycloakAdminPasswordPath(root string) string {
 // variable again, so the value must outlive the stack with the database that
 // holds the admin it created — a regenerated one locks the console out.
 func loadOrCreateKeycloakAdminPassword(u *ui, root string) (string, bool) {
-	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
-		u.log("Keycloak admin password: %s", u.dim("from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment (console user: "+keycloakAdminUser+")"))
+	if s, source := keycloakAdminPassword(root); s != "" {
+		u.log("Keycloak admin password: %s", u.dim(source+" (console user: "+keycloakAdminUser+")"))
 		return s, true
 	}
 	p := keycloakAdminPasswordPath(root)
@@ -414,10 +436,6 @@ func loadOrCreateKeycloakAdminPassword(u *ui, root string) (string, bool) {
 		u.fail("No home directory resolvable, so Keycloak's admin password cannot be persisted.")
 		fmt.Fprintln(os.Stderr, "  Export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
 		return "", false
-	}
-	if s := readPersistedSecret(p); s != "" {
-		u.log("Keycloak admin password: %s", u.dim("reused from "+p+" (console user: "+keycloakAdminUser+")"))
-		return s, true
 	}
 	secret, ok := generateHexSecret(u, 16, "Keycloak's admin password")
 	if !ok {

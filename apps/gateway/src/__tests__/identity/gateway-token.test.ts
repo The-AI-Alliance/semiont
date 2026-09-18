@@ -54,7 +54,7 @@ function mintToken(user: User, extra: { tokenVersion?: number; agentDid?: string
 describe('principalFromGatewayToken', () => {
   beforeAll(() => {
     JWTService.initialize({
-      site: { domain: 'test.local', oauthAllowedDomains: ['test.local', 'example.com'] },
+      site: { domain: 'test.local' },
     });
   });
 

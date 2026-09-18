@@ -17,7 +17,6 @@ export interface JWTPayload {
 
 interface SiteConfig {
   domain?: string;
-  oauthAllowedDomains?: string[];
 }
 
 /**
@@ -79,17 +78,12 @@ export class JWTService {
       throw new Error('site.domain is required in environment config');
     }
 
-    if (!config.site?.oauthAllowedDomains || !Array.isArray(config.site.oauthAllowedDomains)) {
-      throw new Error('site.oauthAllowedDomains is required in environment config');
-    }
-
     // Fail here rather than at first use: validating the same rules getSecret
     // enforces, at a point where the process can still decline to start.
     this.requireSecret();
 
     this.siteConfig = {
       domain: config.site.domain,
-      oauthAllowedDomains: config.site.oauthAllowedDomains
     };
   }
 
@@ -121,24 +115,11 @@ export class JWTService {
   }
 
   /**
-   * The email domains permitted to authenticate — `site.oauthAllowedDomains`,
-   * validated at startup by initialize().
-   *
-   * Exposed so nothing has to re-read this from the environment. The admin
-   * endpoint GET /api/admin/oauth/config used to parse an OAUTH_ALLOWED_DOMAINS
-   * env var, which made two sources of truth for one fact; the retired CLI set
-   * that var, so when it went the endpoint became a guaranteed 500.
-   */
-  static getAllowedDomains(): string[] {
-    return this.getSiteConfig().oauthAllowedDomains ?? [];
-  }
-
-  /**
    * Override configuration for testing purposes
    * @param config The configuration to use
    */
-  static setTestConfig(domain: string, oauthAllowedDomains: string[]): void {
-    this.siteConfig = { domain, oauthAllowedDomains };
+  static setTestConfig(domain: string): void {
+    this.siteConfig = { domain };
   }
 
   /**

@@ -81,7 +81,6 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
       siteName: 'Test Site',
       domain: 'localhost',
       adminEmail: 'admin@test.local',
-      oauthAllowedDomains: ['test.local'],
     },
     // The KB's committed identity, as the launcher stages it (SINGLE-KB-MOUNT
     // P5). The gateway mounts no KB tree, so this is the ONLY place it can see

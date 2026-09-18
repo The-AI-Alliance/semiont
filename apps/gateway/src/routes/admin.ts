@@ -10,7 +10,7 @@
 
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
-import { JWTService } from '../auth/jwt';
+import { trustedIssuer } from '../identity/trusted-issuer';
 import { DatabaseConnection } from '../db';
 import { User } from '@prisma/client';
 import { validateRequestBody } from '../middleware/validate-openapi';
@@ -225,29 +225,19 @@ adminRouter.delete('/api/admin/users/:id', async (c) => {
 /**
  * GET /api/admin/oauth/config
  *
- * Get OAuth provider configuration (admin only, read-only)
+ * The issuer this knowledge base trusts (admin only, read-only).
  * Requires authentication + admin role
  */
 adminRouter.get('/api/admin/oauth/config', async (c) => {
-  // site.oauthAllowedDomains, via the service that already owns and validates it
-  // at startup. This used to parse an OAUTH_ALLOWED_DOMAINS env var and throw
-  // when absent — a second source of truth for the same fact, supplied only by
-  // the retired CLI, so the endpoint 500'd for every admin once the CLI went.
-  const allowedDomains = JWTService.getAllowedDomains();
-
-  // Check which providers are configured
-  const providers = [];
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    providers.push({
-      name: 'google',
-      isConfigured: true,
-      clientId: process.env.GOOGLE_CLIENT_ID.substring(0, 20) + '...'
-    });
-  }
+  // The configured verifier is the one authority on both values — the same
+  // object the middleware verifies every token against, so an administrator
+  // reading this page is reading what actually gates sign-in rather than a
+  // second copy of the configuration.
+  const issuer = trustedIssuer();
 
   const response: OAuthConfigResponseActual = {
-    providers,
-    allowedDomains
+    issuer: issuer?.issuer ?? null,
+    audience: issuer?.audience ?? null,
   };
 
   return c.json(response, 200);

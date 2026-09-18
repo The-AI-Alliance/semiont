@@ -188,9 +188,8 @@ describe('API Endpoints Integration Tests', () => {
     // `null`, not SEMIONT_ROOT: the gateway mounts no knowledge base and reads
     // its whole config from ~/.semiontconfig — index.ts:48 loads exactly this
     // way. The fixture redirects HOME to its temp dir and writes the file
-    // there, and `[environments.integration.site]` carries the `domain` and
-    // `oauthAllowedDomains` JWTService.initialize requires, so no project root
-    // is involved in reaching them.
+    // there, and `[environments.integration.site]` carries the `domain`
+    // JWTService.initialize requires, so no project root is involved in reaching it.
     //
     // The SEMIONT_ROOT read this replaces outlived its requirement: both
     // gateway test setups stopped exporting the variable once nothing in

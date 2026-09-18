@@ -42,7 +42,7 @@ describe('MCP Authentication security', () => {
     (DatabaseConnection.getClient as any).mockReturnValue(mockPrisma);
     
     // Setup JWT service test config
-    JWTService.setTestConfig('test.semiont.com', ['example.com']);
+    JWTService.setTestConfig('test.semiont.com');
   });
 
   afterEach(() => {

@@ -6,8 +6,10 @@ import type { SemiontSession } from '@semiont/sdk';
 
 export interface AdminSecurityStateUnit extends StateUnit {
   browse: ShellStateUnit;
-  providers$: Observable<unknown[]>;
-  allowedDomains$: Observable<string[]>;
+  /** The issuer this knowledge base trusts; null when none is configured. */
+  issuer$: Observable<string | null>;
+  /** What the gateway requires in a token's `aud`; null when none is configured. */
+  audience$: Observable<string | null>;
   isLoading$: Observable<boolean>;
 }
 
@@ -21,27 +23,26 @@ export function createAdminSecurityStateUnit(
   // (`useShellStateUnit`), not this unit — do NOT add it to the disposer (it's the
   // shared, app-scoped shell). See packages/sdk/docs/STATE-UNITS.md (composition rule).
 
-  const providers$ = new BehaviorSubject<unknown[]>([]);
-  const allowedDomains$ = new BehaviorSubject<string[]>([]);
+  const issuer$ = new BehaviorSubject<string | null>(null);
+  const audience$ = new BehaviorSubject<string | null>(null);
   const isLoading$ = new BehaviorSubject<boolean>(true);
 
   client.admin!.oauthConfig()
-    .then((data) => {
-      const config = data as { providers?: unknown[]; allowedDomains?: string[] };
-      providers$.next(config.providers ?? []);
-      allowedDomains$.next(config.allowedDomains ?? []);
+    .then((config) => {
+      issuer$.next(config.issuer ?? null);
+      audience$.next(config.audience ?? null);
       isLoading$.next(false);
     })
     .catch(() => isLoading$.next(false));
 
   return {
     browse,
-    providers$: providers$.asObservable(),
-    allowedDomains$: allowedDomains$.asObservable(),
+    issuer$: issuer$.asObservable(),
+    audience$: audience$.asObservable(),
     isLoading$: isLoading$.asObservable(),
     dispose: () => {
-      providers$.complete();
-      allowedDomains$.complete();
+      issuer$.complete();
+      audience$.complete();
       isLoading$.complete();
       disposer.dispose();
     },

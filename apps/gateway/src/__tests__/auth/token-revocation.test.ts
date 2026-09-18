@@ -76,7 +76,7 @@ function mintToken(user: User, tokenVersion: number, ttl = '1h') {
 describe('per-user token revocation', () => {
   beforeAll(() => {
     JWTService.initialize({
-      site: { domain: 'test.local', oauthAllowedDomains: ['test.local', 'example.com'] },
+      site: { domain: 'test.local' },
     });
   });
 

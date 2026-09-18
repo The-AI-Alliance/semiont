@@ -461,8 +461,8 @@ ${MINIMAL_TOML}`;
   // [site], whose domain an environment section can override into an identity
   // the KB never declared. [kb] lives beside [defaults] in the file root, so
   // an environment section cannot reach it by construction.
-  // A `[site]` section is routinely added for an unrelated key — most often
-  // `oauthAllowedDomains` — and the loader used to fill in the missing `domain`
+  // A `[site]` section is routinely added for an unrelated key — `siteName`,
+  // say — and the loader used to fill in the missing `domain`
   // with the literal 'localhost'. That silently renamed the KB's agents to
   // did:web:localhost, an identity every other domain-less KB on the machine
   // also claims. Absent must stay absent so a consumer can fall back to the
@@ -478,7 +478,7 @@ platform = "posix"
 port = 3001
 
 [environments.local.site]
-oauthAllowedDomains = ["example.com"]
+siteName = "Example"
 
 [environments.local.make-meaning.graph]
 type = "memory"
@@ -487,19 +487,17 @@ ${SERVICES_LOCAL}`;
 
     expect(config.site?.domain).toBeUndefined();
     // The section still carries what it was actually added for.
-    expect(config.site?.oauthAllowedDomains).toEqual(['example.com']);
+    expect(config.site?.siteName).toBe('Example');
   });
 
-  it('carries the staged [kb] sign-in policy, so a gateway with no [site] can still authenticate', () => {
+  it('carries the staged [kb] identity, so a gateway with no [site] still knows which KB it serves', () => {
     // SINGLE-KB-MOUNT: the gateway stopped mounting the tree that holds
-    // `.semiont/config`, so the launcher stages both committed facts under
-    // [kb]. Staging the identity but not the policy left a well-formed KB
-    // unable to start.
+    // `.semiont/config`, so the launcher stages the committed identity under
+    // [kb]. Without it a well-formed KB could not start.
     const toml = `
 [kb]
 name = "example-kb"
 domain = "example.github.io:test-kb"
-oauthAllowedDomains = ["example.com"]
 
 [defaults]
 environment = "local"
@@ -513,8 +511,8 @@ type = "memory"
 ${SERVICES_LOCAL}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
 
+    expect(config.kb?.name).toBe('example-kb');
     expect(config.kb?.domain).toBe('example.github.io:test-kb');
-    expect(config.kb?.oauthAllowedDomains).toEqual(['example.com']);
     expect(config.site).toBeUndefined();
   });
 

@@ -28,7 +28,7 @@ const AUDIENCE = 'semiont-gateway';
 const METADATA_PATH = '/.well-known/oauth-protected-resource';
 
 beforeAll(() => {
-  JWTService.initialize({ site: { domain: 'test.local', oauthAllowedDomains: ['test.local'] } });
+  JWTService.initialize({ site: { domain: 'test.local' } });
 });
 
 beforeEach(() => {

@@ -66,7 +66,7 @@ const ALICE = { sub: 'sub-alice', email: 'alice@example.com', email_verified: tr
 let issuer: FixtureIssuer;
 
 beforeAll(() => {
-  JWTService.initialize({ site: { domain: SITE_DOMAIN, oauthAllowedDomains: [SITE_DOMAIN] } });
+  JWTService.initialize({ site: { domain: SITE_DOMAIN } });
 });
 
 beforeEach(async () => {

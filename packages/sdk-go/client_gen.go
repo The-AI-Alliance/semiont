@@ -3678,12 +3678,11 @@ type Motivation string
 
 // OAuthConfigResponse defines model for OAuthConfigResponse.
 type OAuthConfigResponse struct {
-	AllowedDomains []string `json:"allowedDomains"`
-	Providers      []struct {
-		ClientId     string `json:"clientId"`
-		IsConfigured bool   `json:"isConfigured"`
-		Name         string `json:"name"`
-	} `json:"providers"`
+	// Audience The value the gateway requires in a token's aud claim. Null when no identity provider is configured.
+	Audience *string `json:"audience"`
+
+	// Issuer The OIDC issuer this knowledge base trusts for human tokens, exactly as it appears in a token's iss claim. Null when no identity provider is configured, in which case nobody can sign in.
+	Issuer *string `json:"issuer"`
 }
 
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.

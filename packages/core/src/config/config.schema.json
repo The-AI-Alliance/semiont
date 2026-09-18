@@ -1006,14 +1006,6 @@
           "type": "string",
           "format": "email",
           "description": "Support email address (optional)"
-        },
-        "oauthAllowedDomains": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "description": "Email domains allowed for OAuth authentication"
         }
       },
       "additionalProperties": false
@@ -1127,13 +1119,6 @@
             },
             "domain": {
               "type": "string"
-            },
-            "oauthAllowedDomains": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "Sign-in policy committed in the KB's .semiont/config, staged alongside the identity because the gateway no longer mounts the tree that holds it."
             }
           },
           "required": [

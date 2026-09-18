@@ -302,7 +302,7 @@ func (x *liveExec) stagedConfig(svc string, cfg []byte, envName, addr string) []
 		cfg = patchArchivistTopology(cfg, envName, addr)
 	}
 	if kbIdentityStaged[svc] {
-		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root), committedOAuthAllowedDomains(x.root))
+		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root))
 	}
 	return cfg
 }
@@ -350,7 +350,7 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 // operator whose state tree lives under a name the current root would not
 // derive. Invalid TOML passes through untouched; the consumer's own loader
 // owns that error.
-func patchKBIdentity(cfg []byte, name, domain string, oauthAllowedDomains []string) []byte {
+func patchKBIdentity(cfg []byte, name, domain string) []byte {
 	var doc map[string]any
 	if err := toml.Unmarshal(cfg, &doc); err != nil {
 		return cfg
@@ -361,16 +361,6 @@ func patchKBIdentity(cfg []byte, name, domain string, oauthAllowedDomains []stri
 	stanza := fmt.Sprintf("\n# Staged by the launcher: this KB's committed identity (SINGLE-KB-MOUNT D4).\n[kb]\nname = %q\n", name)
 	if domain != "" {
 		stanza += fmt.Sprintf("domain = %q\n", domain)
-	}
-	// Same rule as domain: staged when declared, omitted when not, so a KB
-	// that declares no sign-in policy still meets the gateway's refusal
-	// instead of inheriting a fabricated one.
-	if len(oauthAllowedDomains) > 0 {
-		quoted := make([]string, len(oauthAllowedDomains))
-		for i, d := range oauthAllowedDomains {
-			quoted[i] = fmt.Sprintf("%q", d)
-		}
-		stanza += fmt.Sprintf("oauthAllowedDomains = [%s]\n", strings.Join(quoted, ", "))
 	}
 	return append(cfg, []byte(stanza)...)
 }

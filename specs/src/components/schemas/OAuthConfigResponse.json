@@ -1,37 +1,19 @@
 {
   "type": "object",
   "properties": {
-    "providers": {
-      "type": "array",
-      "items": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "isConfigured": {
-            "type": "boolean"
-          },
-          "clientId": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "name",
-          "isConfigured",
-          "clientId"
-        ]
-      }
+    "issuer": {
+      "type": "string",
+      "nullable": true,
+      "description": "The OIDC issuer this knowledge base trusts for human tokens, exactly as it appears in a token's iss claim. Null when no identity provider is configured, in which case nobody can sign in."
     },
-    "allowedDomains": {
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
+    "audience": {
+      "type": "string",
+      "nullable": true,
+      "description": "The value the gateway requires in a token's aud claim. Null when no identity provider is configured."
     }
   },
   "required": [
-    "providers",
-    "allowedDomains"
+    "issuer",
+    "audience"
   ]
 }

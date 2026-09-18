@@ -112,7 +112,6 @@ interface SemiontConfigFile {
   kb?: {
     name?: string;
     domain?: string;
-    oauthAllowedDomains?: string[];
   };
   environments?: Record<string, EnvironmentSection>;
 }
@@ -178,7 +177,6 @@ interface EnvironmentSection {
     domain?: string;
     siteName?: string;
     adminEmail?: string;
-    oauthAllowedDomains?: string[];
     enableLocalAuth?: boolean;
   };
   database?: {
@@ -667,7 +665,6 @@ export function loadTomlConfig(
       ? { kb: {
           name: raw.kb.name,
           ...(raw.kb.domain ? { domain: raw.kb.domain } : {}),
-          ...(raw.kb.oauthAllowedDomains ? { oauthAllowedDomains: raw.kb.oauthAllowedDomains } : {}),
         } }
       : {}),
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
@@ -675,16 +672,15 @@ export function loadTomlConfig(
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
     site: site ? {
       // NO 'localhost' default. A `[site]` section is routinely added for an
-      // unrelated key — `oauthAllowedDomains` is the usual one — and
-      // manufacturing a domain for it silently renamed the KB's agents to
-      // `did:web:localhost`, an identity that collides with every other
-      // domain-less KB on the machine. Absent now means absent, so a consumer
-      // either falls back to the committed `[kb] domain` or refuses; neither
-      // can be done on top of a fabricated value.
+      // unrelated key — `siteName`, say — and manufacturing a domain for it
+      // silently renamed the KB's agents to `did:web:localhost`, an identity
+      // that collides with every other domain-less KB on the machine. Absent
+      // now means absent, so a consumer either falls back to the committed
+      // `[kb] domain` or refuses; neither can be done on top of a fabricated
+      // value.
       ...(site.domain ? { domain: site.domain } : {}),
       siteName: site.siteName,
       adminEmail: site.adminEmail,
-      oauthAllowedDomains: site.oauthAllowedDomains as [string, ...string[]] | undefined,
     } : undefined,
     logLevel: resolved.logLevel,
     _metadata: {

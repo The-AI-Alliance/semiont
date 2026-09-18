@@ -30,7 +30,7 @@ describe('Authentication Integration', () => {
   beforeAll(() => {
     // Initialize JWTService with test config
     JWTService.initialize({
-      site: { domain: 'test.local', oauthAllowedDomains: ['test.local', 'example.com'] },
+      site: { domain: 'test.local' },
     });
   });
 

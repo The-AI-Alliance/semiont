@@ -1,17 +1,16 @@
 /**
- * GET /api/admin/oauth/config reads its allowed domains from CONFIG, not the
- * environment.
+ * GET /api/admin/oauth/config reports the issuer this knowledge base trusts.
  *
- * It used to parse an OAUTH_ALLOWED_DOMAINS env var and throw when it was
- * absent — a second source of truth for a fact `site.oauthAllowedDomains`
- * already owns and JWTService already validates at startup. The retired CLI set
- * that var, so the split was invisible; once the CLI went, nothing supplied it
- * and the endpoint 500'd for every admin who opened it.
+ * It reads the configured verifier — the same object the middleware checks
+ * every token against — rather than a second copy of the configuration, so an
+ * administrator reading this page is reading what actually gates sign-in. The
+ * endpoint used to report an email-domain allowlist, which no longer decides
+ * anything now that the issuer does.
  *
  * The request has to be an AUTHENTICATED ADMIN one: the route is admin-gated, so
- * an unauthenticated call 401s in middleware and never reaches the handler body
- * where the throw lived. A test that only checks "not 500" while unauthenticated
- * passes no matter what the handler does.
+ * an unauthenticated call 401s in middleware and never reaches the handler body.
+ * A test that only checks "not 500" while unauthenticated passes no matter what
+ * the handler does.
  */
 
 import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vitest';
@@ -35,6 +34,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 import { app } from '../../index';
 import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
+import { configureTrustedIssuer } from '../../identity/trusted-issuer';
 import type { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
 import { email as makeEmail, userId as makeUserId } from '@semiont/core';
@@ -42,7 +42,8 @@ import { email as makeEmail, userId as makeUserId } from '@semiont/core';
 const prisma = DatabaseConnection.getClient();
 const mockPrismaUser = vi.mocked(prisma.user);
 
-const CONFIGURED = ['example.com', 'partner.org'];
+const ISSUER = 'https://issuer.test/realms/semiont';
+const AUDIENCE = 'semiont-gateway';
 
 function adminUser(): User {
   return {
@@ -51,8 +52,8 @@ function adminUser(): User {
     name: 'Admin',
     image: null,
     domain: 'example.com',
-    provider: 'google',
-    providerId: 'google-admin-1',
+    provider: ISSUER,
+    providerId: 'issuer-admin-1',
     passwordHash: null,
     isAdmin: true,
     isActive: true,
@@ -76,23 +77,18 @@ function mintToken(user: User) {
   }, '10m');
 }
 
-describe('GET /api/admin/oauth/config — source of the allowed domains', () => {
-  let savedEnv: string | undefined;
-
+describe('GET /api/admin/oauth/config — the issuer this knowledge base trusts', () => {
   beforeAll(() => {
-    JWTService.initialize({
-      site: { domain: 'test.local', oauthAllowedDomains: CONFIGURED },
-    });
+    JWTService.initialize({ site: { domain: 'test.local' } });
   });
 
   beforeEach(() => {
     vi.clearAllMocks();
-    savedEnv = process.env.OAUTH_ALLOWED_DOMAINS;
+    configureTrustedIssuer({ type: 'keycloak', issuer: ISSUER, audience: AUDIENCE });
   });
 
   afterEach(() => {
-    if (savedEnv === undefined) delete process.env.OAUTH_ALLOWED_DOMAINS;
-    else process.env.OAUTH_ALLOWED_DOMAINS = savedEnv;
+    configureTrustedIssuer(undefined);
   });
 
   async function fetchAsAdmin() {
@@ -103,25 +99,25 @@ describe('GET /api/admin/oauth/config — source of the allowed domains', () => 
     });
   }
 
-  it('serves the configured domains with OAUTH_ALLOWED_DOMAINS unset', async () => {
-    delete process.env.OAUTH_ALLOWED_DOMAINS;
+  it('reports the configured issuer and the audience it requires', async () => {
     const res = await fetchAsAdmin();
+
     expect(res.status).toBe(200);
-    const body = await res.json() as { allowedDomains: string[] };
-    expect(body.allowedDomains).toEqual(CONFIGURED);
+    expect(await res.json()).toEqual({ issuer: ISSUER, audience: AUDIENCE });
   });
 
-  it('ignores OAUTH_ALLOWED_DOMAINS when it disagrees with the config', async () => {
-    process.env.OAUTH_ALLOWED_DOMAINS = 'ignored-and-wrong.example';
+  it('reports nulls when the knowledge base trusts no issuer', async () => {
+    configureTrustedIssuer(undefined);
+
     const res = await fetchAsAdmin();
+
     expect(res.status).toBe(200);
-    const body = await res.json() as { allowedDomains: string[] };
-    expect(body.allowedDomains).toEqual(CONFIGURED);
-    expect(body.allowedDomains).not.toContain('ignored-and-wrong.example');
+    expect(await res.json()).toEqual({ issuer: null, audience: null });
   });
 
-  it('exposes the configured domains through a single accessor', () => {
-    delete process.env.OAUTH_ALLOWED_DOMAINS;
-    expect(JWTService.getAllowedDomains()).toEqual(CONFIGURED);
+  it('refuses an unauthenticated request', async () => {
+    const res = await app.request('/api/admin/oauth/config');
+
+    expect(res.status).toBe(401);
   });
 });

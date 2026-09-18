@@ -7,6 +7,8 @@ import type { ShellStateUnit } from '../../../../state/shell-state-unit';
 import { createAdminSecurityStateUnit } from '../admin-security-state-unit';
 import { assertStateUnitAxioms, disposeProbe } from '@semiont/core/testing/axioms';
 
+const ISSUER = 'https://keycloak.example/realms/semiont';
+
 function mockBrowse(): ShellStateUnit {
   return { dispose: vi.fn() } as unknown as ShellStateUnit;
 }
@@ -16,25 +18,25 @@ function mockClient(oauthConfig: ReturnType<typeof vi.fn>): SemiontClient {
 }
 
 describe('createAdminSecurityStateUnit', () => {
-  it('fetches OAuth config on creation', async () => {
+  it('fetches the trusted issuer on creation', async () => {
     const getOAuthConfig = vi.fn().mockResolvedValue({
-      providers: [{ name: 'google' }],
-      allowedDomains: ['example.com'],
+      issuer: ISSUER,
+      audience: 'semiont-gateway',
     });
     const stateUnit = createAdminSecurityStateUnit(sessionOf(mockClient(getOAuthConfig)), mockBrowse());
 
-    const providers = await firstValueFrom(stateUnit.providers$.pipe(filter((p) => p.length > 0)));
-    expect(providers).toEqual([{ name: 'google' }]);
+    const issuer = await firstValueFrom(stateUnit.issuer$.pipe(filter((v) => v !== null)));
+    expect(issuer).toBe(ISSUER);
 
-    const domains = await firstValueFrom(stateUnit.allowedDomains$.pipe(filter((d) => d.length > 0)));
-    expect(domains).toEqual(['example.com']);
+    const audience = await firstValueFrom(stateUnit.audience$.pipe(filter((v) => v !== null)));
+    expect(audience).toBe('semiont-gateway');
 
     stateUnit.dispose();
   });
 
   it('starts loading, resolves to false', async () => {
     const stateUnit = createAdminSecurityStateUnit(sessionOf(
-      mockClient(vi.fn().mockResolvedValue({ providers: [], allowedDomains: [] }))),
+      mockClient(vi.fn().mockResolvedValue({ issuer: ISSUER, audience: 'semiont-gateway' }))),
       mockBrowse(),
     );
 
@@ -52,18 +54,16 @@ describe('createAdminSecurityStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('defaults to empty arrays when response has no providers/domains', async () => {
+  it('stays null when the knowledge base trusts no issuer', async () => {
     const stateUnit = createAdminSecurityStateUnit(sessionOf(
-      mockClient(vi.fn().mockResolvedValue({}))),
+      mockClient(vi.fn().mockResolvedValue({ issuer: null, audience: null }))),
       mockBrowse(),
     );
 
     await firstValueFrom(stateUnit.isLoading$.pipe(filter((l) => !l)));
 
-    const providers = await firstValueFrom(stateUnit.providers$);
-    const domains = await firstValueFrom(stateUnit.allowedDomains$);
-    expect(providers).toEqual([]);
-    expect(domains).toEqual([]);
+    expect(await firstValueFrom(stateUnit.issuer$)).toBeNull();
+    expect(await firstValueFrom(stateUnit.audience$)).toBeNull();
 
     stateUnit.dispose();
   });
@@ -74,10 +74,10 @@ describe('AdminSecurityStateUnit — StateUnit axioms', () => {
     assertStateUnitAxioms({
       setup: () => {
         const browse = disposeProbe();
-        const client = mockClient(vi.fn().mockResolvedValue({ providers: [], allowedDomains: [] }));
+        const client = mockClient(vi.fn().mockResolvedValue({ issuer: null, audience: null }));
         return { unit: createAdminSecurityStateUnit(sessionOf(client), browse as unknown as ShellStateUnit), passedIn: [browse] };
       },
-      surfaces: (u) => [u.providers$, u.allowedDomains$, u.isLoading$],
+      surfaces: (u) => [u.issuer$, u.audience$, u.isLoading$],
     });
   });
 });

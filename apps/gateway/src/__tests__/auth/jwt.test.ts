@@ -76,12 +76,12 @@ describe('JWT Service', () => {
   };
   
   const testDomain = 'test.example.com';
-  const testAllowedDomains = ['example.com', 'test.org'];
+
 
   beforeEach(() => {
     vi.clearAllMocks();
     // Set the test configuration
-    JWTService.setTestConfig(testDomain, testAllowedDomains);
+    JWTService.setTestConfig(testDomain);
   });
   
   afterEach(() => {
@@ -90,7 +90,7 @@ describe('JWT Service', () => {
   });
 
   // initialize() is the ONE startup gate for everything the service needs to
-  // sign a token. It already validates site.domain and site.oauthAllowedDomains;
+  // sign a token. It already validates site.domain;
   // JWT_SECRET is the third input and belongs in the same place.
   //
   // Why a gate and not a lazy read: getSecret() runs per token operation, so a
@@ -100,7 +100,7 @@ describe('JWT Service', () => {
   // failing loudly on.
   describe('initialize — the startup gate', () => {
     const validConfig = {
-      site: { domain: testDomain, oauthAllowedDomains: testAllowedDomains },
+      site: { domain: testDomain },
     };
     let saved: string | undefined;
 

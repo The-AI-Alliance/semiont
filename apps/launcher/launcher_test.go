@@ -963,13 +963,13 @@ func TestStartWarnsWhenEnvConfigOverridesIdentity(t *testing.T) {
 		"agent identities")
 
 	// 2. A [site] section with NO domain — the shape someone gets by adding the
-	// section for `oauthAllowedDomains` alone. This USED to be the one nobody
+	// section for one unrelated key. This USED to be the one nobody
 	// intends: the loader substituted the literal 'localhost' and the agents
 	// collided with every other such KB on the machine. The loader no longer
 	// manufactures a domain, so the gateway falls back to the KB's committed
 	// identity, nothing diverges, and there is nothing to warn about.
 	s2 := newScenario(t, "container")
-	withSite(t, s2, "[environments.local.site]\noauthAllowedDomains = [\"example.com\"]\n")
+	withSite(t, s2, "[environments.local.site]\nsiteName = \"Example\"\n")
 	stdout, stderr, code = s2.run(t, "start", "--config", "sited", "--dry-run")
 	if code != 0 {
 		t.Fatalf("domain-less site must not refuse: exit %d\nstderr:\n%s", code, stderr)
@@ -2701,11 +2701,16 @@ func TestUseraddCodespace(t *testing.T) {
 	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
 	remote = remote[:strings.IndexByte(remote, '\n')]
 	mustContain(t, "remote command", remote,
-		"docker exec -i semiont-gateway semiont-useradd", // -i keeps the pipe open through ssh
+		"docker exec -i ",                 // -i keeps the pipe open through ssh
+		"semiont-gateway semiont-useradd", // the exec target inside the codespace
 		"'alice@example.com'", "'--admin'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
+	// The realm administrator's password is named, never carried: the remote
+	// shell expands its own variable, so this machine's secret does not cross
+	// the wire and there is nothing here to redact.
+	mustContain(t, "remote command", remote, `-e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"`)
 	// Other arguments still cross a shell, so they must still be quoted: the
 	// old bug was echoing RAW args, which would expand $NAME and split on
 	// spaces if pasted.
@@ -5888,10 +5893,7 @@ func TestInitBirthsIdentity(t *testing.T) {
 		`name = "family-kb"`,
 		`domain = "pingel-org.github.io:family-kb"`,
 		`siteName = "Family KB"`,
-		`sync = true`,
-		// Required: the gateway refuses to boot without an allowlist, and
-		// nothing else supplies one. example.com (RFC 2606) admits nobody.
-		`oauthAllowedDomains = ["example.com"]`)
+		`sync = true`)
 	// Two fields the fleet's KBs do not carry, so a born KB must not either:
 	// `version` is bumped by nothing, and `adminEmail` reaches no reader.
 	for _, dead := range []string{"version =", "adminEmail"} {

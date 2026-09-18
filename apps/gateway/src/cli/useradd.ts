@@ -4,21 +4,30 @@
  *
  * (No shebang — tsup's `banner` adds one to every entry.)
  *
- * Why this lives in the gateway rather than the launcher: creating a user is a
- * schema-shaped operation. Two columns carry NO database-side default —
+ * A user is two things, and this command writes both. The ACCOUNT lives at the
+ * knowledge base's identity provider, which owns the credential and mints the
+ * `sub` its tokens carry. The Semiont ROW carries what only this knowledge base
+ * knows: `isAdmin`, `isModerator`, `isActive`, the display name. The row is
+ * written through `provisionUser` — the same function the gateway runs when a
+ * token arrives — so an account created here and one that simply signs in land
+ * on the same row by the same rule.
+ *
+ * Pre-creating the row is not an optimization: `isAdmin` has nowhere else to
+ * live, and a knowledge base whose first administrator could only be granted by
+ * an existing administrator would have none.
+ *
+ * Why this lives in the gateway rather than the launcher: the row is
+ * schema-shaped. Two columns carry NO database-side default —
  *
  *   "id"        TEXT NOT NULL          -- @default(cuid()), applied client-side
  *   "updatedAt" TIMESTAMP(3) NOT NULL  -- @updatedAt, applied client-side
  *
- * — so a writer outside Prisma has to generate a cuid, supply updatedAt, know the
- * physical column names, and match argon2's PHC parameters. Each is doable; the
- * durable cost is that a future migration adding a NOT NULL column breaks such a
- * writer SILENTLY, discovered the next time someone creates a user. Here, the
- * generated client changes with the schema and `tsc` fails in CI.
- *
- * It also keeps the launcher technology-agnostic: it runs containers and decides
- * which stack is meant. It does not need to know that postgres, argon2, or cuids
- * exist.
+ * — so a writer outside Prisma has to generate a cuid, supply updatedAt and know
+ * the physical column names. Each is doable; the durable cost is that a future
+ * migration adding a NOT NULL column breaks such a writer SILENTLY, discovered
+ * the next time someone creates a user. Here, the generated client changes with
+ * the schema and `tsc` fails in CI. It also keeps the launcher
+ * technology-agnostic: it runs containers and decides which stack is meant.
  *
  * DATABASE_URL is derived here, not inherited: `container exec` starts a process
  * from the IMAGE's env, so nothing the CMD exported is visible to it (verified).
@@ -26,11 +35,11 @@
  */
 
 import * as crypto from 'crypto';
-import * as argon2 from 'argon2';
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { loadEnvironmentConfig } from '@semiont/core/node';
+import { DatabaseConnection } from '../db';
 import { databaseUrlFrom } from '../utils/database-url';
+import { KeycloakAdminApi } from '../identity/keycloak-admin';
+import { provisionUser } from '../identity/principal';
 
 interface Options {
   email: string;
@@ -46,9 +55,10 @@ interface Options {
 
 const USAGE = `Usage: semiont-useradd --email <email> [--password-stdin | --generate-password] [options]
 
-Creating a user requires a password, so one of --password-stdin or
---generate-password. Updating an existing one does not: pass --password-stdin
-only when the point is to CHANGE the password.
+Creates the account at this knowledge base's identity provider and the row that
+carries its Semiont roles. Creating a user requires a password, so one of
+--password-stdin or --generate-password. Updating an existing one does not: pass
+--password-stdin only when the point is to CHANGE the password.
 
   --email <email>       User email address (required)
   --password-stdin      Read the password from stdin, first line (min 8 chars)
@@ -126,14 +136,6 @@ function generatePassword(): string {
   return crypto.randomBytes(12).toString('base64');
 }
 
-function domainOf(email: string): string {
-  const parts = email.split('@');
-  if (parts.length !== 2 || !parts[1]) {
-    throw new Error(`Cannot extract domain from email: ${email}`);
-  }
-  return parts[1];
-}
-
 function validate(o: Options): void {
   if (!o.email) throw new Error('--email is required');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) {
@@ -147,6 +149,37 @@ function validate(o: Options): void {
   }
 }
 
+/**
+ * The issuer this knowledge base trusts, and the administrator credentials for
+ * it — refusing, with the reason, wherever the answer is not this command's to
+ * give. An `oidc` issuer is somebody else's directory: Semiont has no standing
+ * to create accounts in it, and pretending otherwise would fail at the API
+ * rather than here, where the operator can read why.
+ */
+function keycloakTarget(identity: { type: string; issuer: string } | undefined): {
+  issuer: string; username: string; password: string;
+} {
+  if (!identity) {
+    throw new Error(
+      'This knowledge base configures no identity provider — add an [identity] section before creating users.',
+    );
+  }
+  if (identity.type !== 'keycloak') {
+    throw new Error(
+      `Identity type "${identity.type}" is an issuer Semiont does not administer. ` +
+        `Create the account at ${identity.issuer}, then it can sign in here.`,
+    );
+  }
+  const username = process.env.KC_BOOTSTRAP_ADMIN_USERNAME;
+  const password = process.env.KC_BOOTSTRAP_ADMIN_PASSWORD;
+  if (!username || !password) {
+    throw new Error(
+      'KC_BOOTSTRAP_ADMIN_USERNAME and KC_BOOTSTRAP_ADMIN_PASSWORD must both be set to administer the realm.',
+    );
+  }
+  return { issuer: identity.issuer, username, password };
+}
+
 async function main(argv: string[]): Promise<number> {
   const o = parseArgs(argv);
   validate(o);
@@ -156,68 +189,77 @@ async function main(argv: string[]): Promise<number> {
   // which mounts no knowledge base and sets no SEMIONT_ROOT. The staged
   // ~/.semiontconfig is the config, and the loader reads it either way.
   const config = loadEnvironmentConfig(null);
+  const target = keycloakTarget(config.services.identity);
+  const keycloak = await KeycloakAdminApi.connect(target.issuer, target.username, target.password);
 
-  // An explicit DATABASE_URL still wins, matching the container CMD's precedence.
-  const connectionString = process.env.DATABASE_URL || databaseUrlFrom(config);
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const account = await keycloak.findUserByEmail(o.email);
+
+  let password: string | undefined;
+  if (o.generatePassword) {
+    password = generatePassword();
+    // Printed once and never stored: the caller's only chance to capture it.
+    process.stdout.write(`Generated password: ${password}\n`);
+  } else if (o.passwordStdin) {
+    password = await readPasswordFromStdin();
+  } else if (!account) {
+    throw new Error('Password required: use --password-stdin or --generate-password');
+  }
+
+  if (account && o.upsert) {
+    process.stdout.write(`User already exists: ${o.email}\n`);
+    return 0;
+  }
+  if (account && !o.update) {
+    throw new Error(
+      `User ${o.email} already exists. Use --update to modify or --upsert to skip silently.`,
+    );
+  }
+  if (!account && o.update) {
+    throw new Error(`User ${o.email} not found. Remove --update to create a new user.`);
+  }
+
+  let subject: string;
+  if (account) {
+    if (password) await keycloak.setPassword(account.id, password);
+    subject = account.id;
+  } else {
+    subject = await keycloak.createUser(o.email, password!);
+  }
+
+  // An explicit DATABASE_URL still wins, matching the container CMD's
+  // precedence; DatabaseConnection reads it from here, so deriving it into the
+  // environment is what lets this command share the gateway's one client rather
+  // than constructing a second with its own idea of the connection.
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = databaseUrlFrom(config);
+  }
+  const prisma = DatabaseConnection.getClient();
 
   try {
-    const existing = await prisma.user.findUnique({ where: { email: o.email } });
-
-    let passwordHash: string | undefined;
-    if (o.generatePassword) {
-      const generated = generatePassword();
-      passwordHash = await argon2.hash(generated);
-      // Printed once and never stored: the caller's only chance to capture it.
-      process.stdout.write(`Generated password: ${generated}\n`);
-    } else if (o.passwordStdin) {
-      passwordHash = await argon2.hash(await readPasswordFromStdin());
-    } else if (!existing) {
-      throw new Error('Password required: use --password-stdin or --generate-password');
-    }
-
-    if (existing) {
-      if (o.upsert) {
-        process.stdout.write(`User already exists: ${o.email}\n`);
-        return 0;
-      }
-      if (!o.update) {
-        throw new Error(
-          `User ${o.email} already exists. Use --update to modify or --upsert to skip silently.`,
-        );
-      }
-      await prisma.user.update({
-        where: { email: o.email },
-        data: {
-          ...(passwordHash ? { passwordHash } : {}),
-          ...(o.name !== undefined ? { name: o.name } : {}),
-          ...(o.admin ? { isAdmin: true } : {}),
-          ...(o.moderator ? { isModerator: true } : {}),
-          ...(o.inactive ? { isActive: false } : {}),
-        },
-      });
-      process.stdout.write(`User updated: ${o.email}\n`);
-      return 0;
-    }
-
-    if (o.update) {
-      throw new Error(`User ${o.email} not found. Remove --update to create a new user.`);
-    }
-
-    await prisma.user.create({
-      data: {
-        email: o.email,
-        name: o.name ?? null,
-        provider: 'password',
-        providerId: o.email,
-        passwordHash: passwordHash!,
-        domain: domainOf(o.email),
-        isActive: !o.inactive,
-        isAdmin: o.admin,
-        isModerator: o.moderator,
-      },
+    // `lastLogin: null` — this account has not signed in, and an administrator
+    // creating it is not a sign-in.
+    const user = await provisionUser({
+      issuer: target.issuer,
+      subject,
+      email: o.email,
+      ...(o.name !== undefined ? { name: o.name } : {}),
+      lastLogin: null,
     });
-    process.stdout.write(`User created: ${o.email}\n`);
+
+    // Only what was asked for: the flags GRANT, matching what this command has
+    // always done — there is no revocation flag, and inventing one silently
+    // would be a surprise for anyone re-running it to change a display name.
+    const roles = {
+      ...(o.name !== undefined ? { name: o.name } : {}),
+      ...(o.admin ? { isAdmin: true } : {}),
+      ...(o.moderator ? { isModerator: true } : {}),
+      ...(o.inactive ? { isActive: false } : {}),
+    };
+    if (Object.keys(roles).length > 0) {
+      await prisma.user.update({ where: { id: user.id }, data: roles });
+    }
+
+    process.stdout.write(`${account ? 'User updated' : 'User created'}: ${o.email}\n`);
     if (o.admin) process.stdout.write('  Role: Admin\n');
     if (o.moderator) process.stdout.write('  Role: Moderator\n');
     return 0;

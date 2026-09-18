@@ -8,20 +8,17 @@
 import React from 'react';
 import {
   ShieldCheckIcon,
-  GlobeAltIcon,
   CheckCircleIcon,
   InformationCircleIcon
 } from '@heroicons/react/24/outline';
 import { COMMON_PANELS, type ToolbarPanelType } from '../../../state/shell-state-unit';
-export interface OAuthProvider {
-  name: string;
-  clientId?: string;
-}
 
 export interface AdminSecurityPageProps {
   // Data props
-  providers: OAuthProvider[];
-  allowedDomains: string[];
+  /** The issuer this knowledge base trusts; null when none is configured. */
+  issuer: string | null;
+  /** What the gateway requires in a token's `aud`; null when none is configured. */
+  audience: string | null;
   isLoading: boolean;
 
   // UI state
@@ -37,9 +34,6 @@ export interface AdminSecurityPageProps {
     clientId: string;
     configured: string;
     noProvidersConfigured: string;
-    allowedDomains: string;
-    allowedDomainsDescription: string;
-    noDomainsConfigured: string;
     configManagementTitle: string;
     configManagementDescription: string;
     configLocalDev: string;
@@ -55,8 +49,8 @@ export interface AdminSecurityPageProps {
 }
 
 export function AdminSecurityPage({
-  providers,
-  allowedDomains,
+  issuer,
+  audience,
   isLoading,
   theme,
   activePanel,
@@ -91,60 +85,28 @@ export function AdminSecurityPage({
               <div className="semiont-skeleton-group">
                 <div className="semiont-skeleton semiont-skeleton--bar"></div>
               </div>
-            ) : providers.length > 0 ? (
+            ) : issuer ? (
               <div className="semiont-provider-list">
-                {providers.map((provider) => (
-                  <div key={provider.name} className="semiont-provider-item">
-                    <div className="semiont-provider-item__info">
-                      <CheckCircleIcon className="semiont-provider-item__icon semiont-provider-item__icon--success" />
-                      <span className="semiont-provider-item__name">
-                        {provider.name}
-                      </span>
-                      {provider.clientId && (
-                        <span className="semiont-provider-item__client-id">
-                          {t.clientId}: {provider.clientId}
-                        </span>
-                      )}
-                    </div>
-                    <span className="semiont-badge semiont-badge--success">
-                      {t.configured}
+                <div className="semiont-provider-item">
+                  <div className="semiont-provider-item__info">
+                    <CheckCircleIcon className="semiont-provider-item__icon semiont-provider-item__icon--success" />
+                    <span className="semiont-provider-item__name">
+                      {issuer}
                     </span>
+                    {audience && (
+                      <span className="semiont-provider-item__client-id">
+                        {t.clientId}: {audience}
+                      </span>
+                    )}
                   </div>
-                ))}
+                  <span className="semiont-badge semiont-badge--success">
+                    {t.configured}
+                  </span>
+                </div>
               </div>
             ) : (
               <div className="semiont-empty-message">
                 {t.noProvidersConfigured}
-              </div>
-            )}
-          </div>
-
-          {/* Allowed Domains */}
-          <div className="semiont-admin__card">
-            <div className="semiont-admin__card-header">
-              <GlobeAltIcon className="semiont-admin__card-icon semiont-admin__card-icon--primary" />
-              <div>
-                <h3 className="semiont-admin__card-title">{t.allowedDomains}</h3>
-                <p className="semiont-admin__card-description">{t.allowedDomainsDescription}</p>
-              </div>
-            </div>
-
-            {isLoading ? (
-              <div className="semiont-skeleton-group">
-                <div className="semiont-skeleton semiont-skeleton--chip"></div>
-                <div className="semiont-skeleton semiont-skeleton--chip semiont-skeleton--chip-lg"></div>
-              </div>
-            ) : allowedDomains.length > 0 ? (
-              <div className="semiont-domain-list">
-                {allowedDomains.map((domain) => (
-                  <div key={domain} className="semiont-chip semiont-chip--primary">
-                    @{domain}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="semiont-empty-message">
-                {t.noDomainsConfigured}
               </div>
             )}
           </div>

@@ -101,7 +101,6 @@ configureTrustedIssuer(config.services.identity);
 // them, rather than re-deriving them from a config shape this process no longer
 // fully has.
 let effectiveDomain: string;
-let effectiveOAuthAllowedDomains: string[] | undefined;
 
 {
   const committedDomain = config.kb?.domain;
@@ -145,12 +144,6 @@ let effectiveOAuthAllowedDomains: string[] | undefined;
     );
   }
 
-  // Sign-in policy travels the same road as the domain: committed in the KB's
-  // `.semiont/config`, staged by the launcher under `[kb]` because this process
-  // no longer mounts the tree that holds it. An environment `[site]` may
-  // override it; absent both, JWTService refuses — which is correct, and is why
-  // nothing is defaulted here.
-  effectiveOAuthAllowedDomains = config.site?.oauthAllowedDomains ?? config.kb?.oauthAllowedDomains;
 }
 
 const gatewayService = config.services.gateway;
@@ -436,9 +429,9 @@ if (config.env?.NODE_ENV !== 'test') {
   const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
   registerSupervisorRestartCount();
 
-  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET,
-  // site.domain, and site.oauthAllowedDomains — without all three the process
-  // cannot authenticate anyone, so it must not accept connections.
+  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET and
+  // site.domain — without both the process cannot mint or attribute a token,
+  // so it must not accept connections.
   //
   // It used to run inside the serve callback wrapped in a try/catch that only
   // logged, which meant a missing secret or site config produced a container
@@ -446,11 +439,11 @@ if (config.env?.NODE_ENV !== 'test') {
   // unconditionally), reported healthy in `semiont status` — and failed every
   // sign-in. Failing here instead makes the misconfiguration undeployable.
   const { JWTService } = await import('./auth/jwt');
-  // The RESOLVED pair, not `config`: both values may come from the staged
-  // `[kb]` identity rather than a `[site]` section, and the resolution above is
-  // their one home. Passing the raw config made JWTService reach for
-  // `config.site`, which a KB with no environment `[site]` does not have.
-  JWTService.initialize({ site: { domain: effectiveDomain, oauthAllowedDomains: effectiveOAuthAllowedDomains } });
+  // The RESOLVED domain, not `config`: it may come from the staged `[kb]`
+  // identity rather than a `[site]` section, and the resolution above is its one
+  // home. Passing the raw config made JWTService reach for `config.site`, which
+  // a KB with no environment `[site]` does not have.
+  JWTService.initialize({ site: { domain: effectiveDomain } });
 
   const server = serve({
     fetch: app.fetch,

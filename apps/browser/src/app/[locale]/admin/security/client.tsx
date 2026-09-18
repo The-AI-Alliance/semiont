@@ -10,7 +10,6 @@ import { Toolbar, useSemiont } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
 import { useTheme, useShellStateUnit, useObservable } from '@semiont/react-ui';
 import { AdminSecurityPage } from '@semiont/react-ui';
-import type { OAuthProvider } from '@semiont/react-ui';
 import { createAdminSecurityStateUnit } from '@semiont/react-ui';
 import { useSessionStateUnit } from '@semiont/react-ui';
 
@@ -23,8 +22,8 @@ export default function AdminSecurity() {
   const stateUnit = useSessionStateUnit(session, (s) => createAdminSecurityStateUnit(s, browseStateUnit));
 
   const activePanel = useObservable(stateUnit?.browse.activePanel$) ?? null;
-  const providers = useObservable(stateUnit?.providers$) ?? [];
-  const allowedDomains = useObservable(stateUnit?.allowedDomains$) ?? [];
+  const issuer = useObservable(stateUnit?.issuer$) ?? null;
+  const audience = useObservable(stateUnit?.audience$) ?? null;
   const isLoading = useObservable(stateUnit?.isLoading$) ?? true;
 
   const { theme } = useTheme();
@@ -33,8 +32,8 @@ export default function AdminSecurity() {
 
   return (
     <AdminSecurityPage
-      providers={providers as OAuthProvider[]}
-      allowedDomains={allowedDomains}
+      issuer={issuer}
+      audience={audience}
       isLoading={isLoading}
       theme={theme}
       activePanel={activePanel}
@@ -46,9 +45,6 @@ export default function AdminSecurity() {
         clientId: t('clientId'),
         configured: t('configured'),
         noProvidersConfigured: t('noProvidersConfigured'),
-        allowedDomains: t('allowedDomains'),
-        allowedDomainsDescription: t('allowedDomainsDescription'),
-        noDomainsConfigured: t('noDomainsConfigured'),
         configManagementTitle: t('configManagementTitle'),
         configManagementDescription: t('configManagementDescription'),
         configLocalDev: t('configLocalDev'),

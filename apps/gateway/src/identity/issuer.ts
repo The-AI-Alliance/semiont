@@ -25,6 +25,11 @@ export class IssuerVerifier {
     return this.options.issuer;
   }
 
+  /** What a token's `aud` must carry for this gateway to accept it. */
+  get audience(): string {
+    return this.options.audience;
+  }
+
   async verify(token: AccessToken): Promise<JWTPayload> {
     const { payload } = await jwtVerify(token, await this.keySet(), {
       issuer: this.options.issuer,
