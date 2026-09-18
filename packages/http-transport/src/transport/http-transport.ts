@@ -51,6 +51,7 @@ type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
+type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 // ── Channel constants (mirror client.ts) ────────────────────────────────
 
@@ -489,6 +490,10 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     return this.http.get(`${this.baseUrl}/api/users/me`, {
       headers: this.authHeaders(),
     }).json();
+  }
+
+  async getProtectedResourceMetadata(): Promise<ProtectedResourceMetadata> {
+    return this.http.get(`${this.baseUrl}/.well-known/oauth-protected-resource`).json();
   }
 
   async getMediaToken(resourceId: ResourceId): Promise<{ token: string }> {

@@ -170,6 +170,7 @@ export function stubGateway(): IGatewayOperations {
     acceptTerms: notScripted('acceptTerms'),
     getCurrentUser: notScripted('getCurrentUser'),
     getMediaToken: notScripted('getMediaToken'),
+    getProtectedResourceMetadata: notScripted('getProtectedResourceMetadata'),
     listUsers: notScripted('listUsers'),
     getUserStats: notScripted('getUserStats'),
     updateUser: notScripted('updateUser'),

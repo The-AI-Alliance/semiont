@@ -1,0 +1,32 @@
+{
+  "get": {
+    "summary": "Protected Resource Metadata",
+    "description": "OAuth 2.0 Protected Resource Metadata (RFC 9728): the authorization server whose tokens this knowledge base accepts, and how a bearer token reaches it. Public — a client reads it before it has any token. 404 when the knowledge base trusts no external issuer: there is no authorization server to advertise.",
+    "tags": [
+      "System"
+    ],
+    "security": [],
+    "responses": {
+      "200": {
+        "description": "The resource's metadata.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ProtectedResourceMetadata.json"
+            }
+          }
+        }
+      },
+      "404": {
+        "description": "No trusted issuer is configured for this knowledge base.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

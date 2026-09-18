@@ -1,5 +1,6 @@
 import { Context, Next } from 'hono';
 import { principalFromToken } from '../identity/principal';
+import { bearerChallenge } from '../identity/resource-metadata';
 import { JWTService } from '../auth/jwt';
 import { User } from '@prisma/client';
 import { accessToken, userToDid } from '@semiont/core';
@@ -75,6 +76,7 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
     // Actionable body (SDK-AUTH-CORS Phase 6): keep the machine-readable
     // `error` code, add a `hint` so a bare-IRI browser navigation / a script
     // that forgot the header gets one line naming the fix.
+    c.header('WWW-Authenticate', bearerChallenge(c));
     return c.json({
       error: 'Unauthorized',
       hint: 'Authentication required: send an `Authorization: Bearer <token>` header. A raw browser navigation to a protected resource is unauthenticated.',
@@ -108,6 +110,7 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
       method: c.req.method,
       error: error instanceof Error ? error.message : String(error)
     });
+    c.header('WWW-Authenticate', bearerChallenge(c, 'invalid_token'));
     return c.json({ error: 'Invalid token' }, 401);
   }
 };

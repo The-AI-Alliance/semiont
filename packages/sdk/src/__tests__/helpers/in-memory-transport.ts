@@ -120,6 +120,7 @@ export function gatewayOperationSpies(
     logout: vi.fn<IGatewayOperations['logout']>(),
     acceptTerms: vi.fn<IGatewayOperations['acceptTerms']>(),
     getCurrentUser: vi.fn<IGatewayOperations['getCurrentUser']>(),
+    getProtectedResourceMetadata: vi.fn<IGatewayOperations['getProtectedResourceMetadata']>(),
     getMediaToken: vi.fn<IGatewayOperations['getMediaToken']>(),
     listUsers: vi.fn<IGatewayOperations['listUsers']>(),
     getUserStats: vi.fn<IGatewayOperations['getUserStats']>(),

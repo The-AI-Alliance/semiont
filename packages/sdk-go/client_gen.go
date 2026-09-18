@@ -1097,6 +1097,21 @@ func (e Motivation) Valid() bool {
 	}
 }
 
+// Defines values for ProtectedResourceMetadataBearerMethodsSupported.
+const (
+	Header ProtectedResourceMetadataBearerMethodsSupported = "header"
+)
+
+// Valid indicates whether the value is a known member of the ProtectedResourceMetadataBearerMethodsSupported enum.
+func (e ProtectedResourceMetadataBearerMethodsSupported) Valid() bool {
+	switch e {
+	case Header:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RepresentationRel.
 const (
 	Derived   RepresentationRel = "derived"
@@ -3720,6 +3735,24 @@ type PdfTextItem struct {
 	X     float32 `json:"x"`
 	Y     float32 `json:"y"`
 }
+
+// ProtectedResourceMetadata OAuth 2.0 Protected Resource Metadata (RFC 9728): which authorization server this knowledge base trusts, served at /.well-known/oauth-protected-resource so a client — the Browser, an MCP client — learns where to send a user to sign in without configuration. A 401 from any protected route points here in its WWW-Authenticate challenge.
+type ProtectedResourceMetadata struct {
+	// AuthorizationServers Issuer identifiers whose tokens this resource accepts — the configured identity issuer.
+	AuthorizationServers []string `json:"authorization_servers"`
+
+	// BearerMethodsSupported How a bearer token reaches this resource: the Authorization header only.
+	BearerMethodsSupported []ProtectedResourceMetadataBearerMethodsSupported `json:"bearer_methods_supported"`
+
+	// Resource This knowledge base's resource identifier: the origin the metadata was fetched from.
+	Resource string `json:"resource"`
+
+	// ResourceName The knowledge base's name, for a client's sign-in prompt.
+	ResourceName *string `json:"resource_name,omitempty"`
+}
+
+// ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
+type ProtectedResourceMetadataBearerMethodsSupported string
 
 // Representation A specific, byte-addressable rendition of a resource (file/asset/variant).
 type Representation struct {
@@ -11135,6 +11168,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// GetWellKnownOauthProtectedResource request
+	GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiAdminOauthConfig request
 	GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11224,6 +11260,18 @@ type ClientInterface interface {
 
 	// GetResourcesIdJsonld request
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWellKnownOauthProtectedResourceRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -11620,6 +11668,33 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetWellKnownOauthProtectedResourceRequest generates requests for GetWellKnownOauthProtectedResource
+func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/.well-known/oauth-protected-resource")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewGetApiAdminOauthConfigRequest generates requests for GetApiAdminOauthConfig
@@ -12467,6 +12542,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetWellKnownOauthProtectedResourceWithResponse request
+	GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error)
+
 	// GetApiAdminOauthConfigWithResponse request
 	GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error)
 
@@ -12556,6 +12634,29 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourcesIdJsonldWithResponse request
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
+}
+
+type GetWellKnownOauthProtectedResourceResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *ProtectedResourceMetadata
+	JSON404      *ErrorResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetWellKnownOauthProtectedResourceResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type GetApiAdminOauthConfigResponse struct {
@@ -13130,6 +13231,15 @@ func (r GetResourcesIdJsonldResponse) StatusCode() int {
 	return 0
 }
 
+// GetWellKnownOauthProtectedResourceWithResponse request returning *GetWellKnownOauthProtectedResourceResponse
+func (c *ClientWithResponses) GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error) {
+	rsp, err := c.GetWellKnownOauthProtectedResource(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetWellKnownOauthProtectedResourceResponse(rsp)
+}
+
 // GetApiAdminOauthConfigWithResponse request returning *GetApiAdminOauthConfigResponse
 func (c *ClientWithResponses) GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error) {
 	rsp, err := c.GetApiAdminOauthConfig(ctx, reqEditors...)
@@ -13416,6 +13526,39 @@ func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetResourcesIdJsonldResponse(rsp)
+}
+
+// ParseGetWellKnownOauthProtectedResourceResponse parses an HTTP response from a GetWellKnownOauthProtectedResourceWithResponse call
+func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWellKnownOauthProtectedResourceResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetWellKnownOauthProtectedResourceResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ProtectedResourceMetadata
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON404 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseGetApiAdminOauthConfigResponse parses an HTTP response from a GetApiAdminOauthConfigWithResponse call

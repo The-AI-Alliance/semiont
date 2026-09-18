@@ -9,6 +9,7 @@ import type { AuthNamespace as IAuthNamespace, User } from './types';
 
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
+type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 export class AuthNamespace implements IAuthNamespace {
   constructor(private readonly gateway: IGatewayOperations) {}
@@ -39,5 +40,9 @@ export class AuthNamespace implements IAuthNamespace {
 
   async mediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     return this.gateway.getMediaToken(resourceId);
+  }
+
+  async protectedResourceMetadata(): Promise<ProtectedResourceMetadata> {
+    return this.gateway.getProtectedResourceMetadata();
   }
 }

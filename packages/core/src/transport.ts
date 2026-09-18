@@ -82,6 +82,7 @@ type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
+type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
   ? R
@@ -246,6 +247,8 @@ export interface IGatewayOperations {
   acceptTerms(): Promise<void>;
   getCurrentUser(): Promise<UserResponse>;
   getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;
+  /** RFC 9728: which issuer the knowledge base trusts. Public; read before any token exists. */
+  getProtectedResourceMetadata(): Promise<ProtectedResourceMetadata>;
 
   // ── Admin ─────────────────────────────────────────────────────────────
 

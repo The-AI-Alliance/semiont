@@ -63,9 +63,11 @@ function createMockContext(
       query: vi.fn((name: string) => queryParams[name]),
       path,
       method,
+      url: `http://localhost${path}`,
       raw: { headers: rawHeaders },
     },
     json: mockJson,
+    header: vi.fn(),
     set: mockSet,
     get: mockGet,
   } as any;

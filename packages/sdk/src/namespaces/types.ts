@@ -61,6 +61,7 @@ type JobStatusResponse = components['schemas']['JobStatusResponse'];
 type AuthResponse = components['schemas']['AuthResponse'];
 type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
+type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 
 // ── Response type helpers (extract JSON body from OpenAPI path types) ────────
@@ -557,6 +558,8 @@ export interface AuthNamespace {
   me(): Promise<User>;
   acceptTerms(): Promise<void>;
   mediaToken(resourceId: ResourceId): Promise<{ token: string }>;
+  /** RFC 9728: which issuer the knowledge base trusts — where to send a user to sign in. */
+  protectedResourceMetadata(): Promise<ProtectedResourceMetadata>;
 }
 
 /**

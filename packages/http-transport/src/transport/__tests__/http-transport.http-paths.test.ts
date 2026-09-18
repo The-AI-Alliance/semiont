@@ -120,6 +120,14 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/users/me`, { headers: {} });
     });
 
+    test('getProtectedResourceMetadata gets /.well-known/oauth-protected-resource with no token', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ resource: testBaseUrl }),
+      } as never);
+      await transport.getProtectedResourceMetadata();
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/.well-known/oauth-protected-resource`);
+    });
+
     test('authenticatePassword posts credentials to /api/tokens/password', async () => {
       vi.mocked(mockKy.post).mockReturnValue({
         json: vi.fn().mockResolvedValue({ token: 'tok' }),

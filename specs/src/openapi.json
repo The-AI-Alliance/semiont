@@ -15,6 +15,9 @@
     "/api/health": {
       "$ref": "paths/api_health.json"
     },
+    "/.well-known/oauth-protected-resource": {
+      "$ref": "paths/well-known_oauth-protected-resource.json"
+    },
     "/api/tokens/password": {
       "$ref": "paths/api_tokens_password.json"
     },
@@ -641,6 +644,9 @@
       },
       "PasswordAuthRequest": {
         "$ref": "components/schemas/PasswordAuthRequest.json"
+      },
+      "ProtectedResourceMetadata": {
+        "$ref": "components/schemas/ProtectedResourceMetadata.json"
       },
       "Representation": {
         "$ref": "components/schemas/Representation.json"

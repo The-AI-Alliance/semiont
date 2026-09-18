@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "description": "OAuth 2.0 Protected Resource Metadata (RFC 9728): which authorization server this knowledge base trusts, served at /.well-known/oauth-protected-resource so a client — the Browser, an MCP client — learns where to send a user to sign in without configuration. A 401 from any protected route points here in its WWW-Authenticate challenge.",
+  "properties": {
+    "resource": {
+      "type": "string",
+      "description": "This knowledge base's resource identifier: the origin the metadata was fetched from."
+    },
+    "authorization_servers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Issuer identifiers whose tokens this resource accepts — the configured identity issuer."
+    },
+    "bearer_methods_supported": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "header"
+        ]
+      },
+      "description": "How a bearer token reaches this resource: the Authorization header only."
+    },
+    "resource_name": {
+      "type": "string",
+      "description": "The knowledge base's name, for a client's sign-in prompt."
+    }
+  },
+  "required": [
+    "resource",
+    "authorization_servers",
+    "bearer_methods_supported"
+  ],
+  "additionalProperties": false
+}

@@ -200,6 +200,7 @@ const makeMeaning = await startMakeMeaningGateway(
 // Import route definitions
 import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
+import { wellKnownRouter } from './routes/well-known';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
 import { adminRouter } from './routes/admin';
@@ -258,6 +259,7 @@ app.use('*', async (c, next) => {
 // Mount route routers
 app.route('/', rootRouter);
 app.route('/', healthRouter);
+app.route('/', wellKnownRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
 app.route('/', adminRouter);
