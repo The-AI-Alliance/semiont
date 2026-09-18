@@ -348,24 +348,6 @@ describe('JWT Service', () => {
     });
   });
 
-  describe('isAllowedDomain', () => {
-    it('should allow configured domains', () => {
-      // The mock has oauthAllowedDomains: ['example.com', 'test.org']
-      expect(JWTService.isAllowedDomain(email('user@example.com'))).toBe(true);
-      expect(JWTService.isAllowedDomain(email('admin@test.org'))).toBe(true);
-    });
-
-    it('should reject non-configured domains', () => {
-      expect(JWTService.isAllowedDomain(email('user@evil.com'))).toBe(false);
-      expect(JWTService.isAllowedDomain(email('admin@hacker.org'))).toBe(false);
-    });
-
-    it('should handle invalid email formats', () => {
-      expect(JWTService.isAllowedDomain(email('invalid-email'))).toBe(false);
-      expect(JWTService.isAllowedDomain(email(''))).toBe(false);
-      expect(JWTService.isAllowedDomain(email('@example.com'))).toBe(false);
-    });
-  });
 
   describe('Security', () => {
     it('should not expose secret in error messages', () => {

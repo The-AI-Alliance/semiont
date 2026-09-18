@@ -163,7 +163,7 @@ SemiontProvider (app root) → SemiontBrowser singleton (library-side, outside R
 ```
 
 **Authentication Flow:**
-1. User adds a KB and submits credentials → `SemiontSession.signInHttp` POSTs to that KB's gateway → gateway returns access + refresh tokens in the response body
+1. User adds a KB → `SemiontBrowser.beginSignIn` discovers the KB's issuer from its gateway (RFC 9728) and redirects there → the callback page's `completeSignIn` exchanges the authorization code (PKCE) for access + refresh tokens
 2. The browser activates the session (`activeSession$`), marks the KB active (`activeKbId$`), and persists the session via the storage adapter
 3. On reload/switch the browser restores the stored session; the client uses its in-memory access token, re-minting from the refresh token as it nears expiry
 4. A 401 that can't be refreshed → the session's signals set the expiry flag → `SessionExpiredModal` surfaces

@@ -43,7 +43,7 @@ Tag schemas are runtime-registered per KB (see [`docs/protocol/skills/semiont-ta
 ```typescript
 import { SemiontSession, type TagSchema } from '@semiont/sdk';
 
-const session = await SemiontSession.signInHttp({ /* kb, storage, baseUrl, email, password */ });
+const session = await SemiontSession.signInDevice({ /* kb, storage, onCode */ });
 const semiont = session.client;
 
 // Register a schema (idempotent — same content re-registered is silent)

@@ -115,7 +115,9 @@ page-shaped. Page-level state machines and components, including the **embeddabl
 npm install @semiont/sdk
 ```
 
-Credentials-first — `SemiontSession` owns the token lifecycle (proactive refresh, storage,
+Sign-in happens at the knowledge base's identity provider, never at the gateway. A script uses
+the device grant: it prints a URL, the person approves in any browser, and the session comes
+back live. `SemiontSession` owns the token lifecycle (proactive refresh at the issuer, storage,
 disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
 client-level signIn: the access token lives ten minutes, so a construction without refresh
 was a trap rather than a shortcut.
@@ -123,20 +125,19 @@ was a trap rather than a shortcut.
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'my-watcher', label: 'My Watcher', email: 'me@example.com',
                host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
-  baseUrl: 'http://localhost:4000',
-  email: 'me@example.com',
-  password: 'pwd',
+  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
 const { resources } = await session.client.browse.resources({ limit: 10 }).fresh();
 await session.dispose();
 ```
 
-Already hold a token? `SemiontClient.fromHttp({ baseUrl, token })` /
-`SemiontSession.fromHttp(...)` skip the auth round-trip. In-process (CLI, tests, embedded) —
+Already hold tokens? `SemiontSession.fromIssuedSession(...)` takes the access and refresh pair;
+`SemiontClient.fromHttp({ baseUrl, token })` / `SemiontSession.fromHttp(...)` take a bare access
+token. In-process (CLI, tests, embedded) —
 same surface, no network:
 
 ```ts

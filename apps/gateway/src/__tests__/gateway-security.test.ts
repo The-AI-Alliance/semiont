@@ -15,7 +15,7 @@ describe('Gateway API Security', () => {
         authorization: 'isAdmin=true required from database lookup',
         statusCodes: '401 for authentication, 403 for authorization',
         errorMessages: 'Generic messages only, no sensitive data',
-        tokenValidation: 'Server-side validation via OAuthService',
+        tokenValidation: 'Server-side validation via principalFromToken',
         adminCheck: 'Database verification of user.isAdmin property'
       };
 
@@ -95,7 +95,7 @@ describe('Gateway API Security', () => {
     it('should verify token validation is server-side only', () => {
       const tokenValidationFlow = {
         step1: 'Extract token from Authorization: Bearer <token>',
-        step2: 'Call OAuthService.getPrincipalFromToken(token)',
+        step2: 'Call principalFromToken(token)',
         step3: 'Verify token signature and expiration',
         step4: 'Lookup user in database',
         step5: 'Check user.isAdmin property from database',

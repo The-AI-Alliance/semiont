@@ -20,9 +20,7 @@ export type ContentFormat = components['schemas']['ContentFormat'];
 
 export type Email = string & { readonly __brand: 'Email' };
 export type AuthCode = string & { readonly __brand: 'AuthCode' };
-export type GoogleCredential = string & { readonly __brand: 'GoogleCredential' };
 export type AccessToken = string & { readonly __brand: 'AccessToken' };
-export type RefreshToken = string & { readonly __brand: 'RefreshToken' };
 export type MCPToken = string & { readonly __brand: 'MCPToken' };
 export type CloneToken = string & { readonly __brand: 'CloneToken' };
 
@@ -42,9 +40,7 @@ export type BaseUrl = string & { readonly __brand: 'BaseUrl' };
 
 export function email(value: string): Email { return value as Email; }
 export function authCode(value: string): AuthCode { return value as AuthCode; }
-export function googleCredential(value: string): GoogleCredential { return value as GoogleCredential; }
 export function accessToken(value: string): AccessToken { return value as AccessToken; }
-export function refreshToken(value: string): RefreshToken { return value as RefreshToken; }
 export function mcpToken(value: string): MCPToken { return value as MCPToken; }
 export function cloneToken(value: string): CloneToken { return value as CloneToken; }
 export function jobId(value: string): JobId { return value as JobId; }

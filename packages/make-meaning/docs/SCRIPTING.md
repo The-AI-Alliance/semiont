@@ -211,16 +211,14 @@ import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 import { resourceId, annotationId } from '@semiont/core';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'script', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
   storage: new InMemorySessionStorage(),
-  baseUrl: url.href,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
+  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
 const semiont = session.client;
 

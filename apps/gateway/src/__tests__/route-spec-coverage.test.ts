@@ -697,9 +697,7 @@ describe('Route Authentication Coverage — THE primary security contract', () =
       // Validate expected public routes from spec are present
       const expectedFromSpec = [
         '/api/health',
-        '/api/tokens/password',
-        '/api/tokens/google',
-        '/api/tokens/refresh',
+        '/.well-known/oauth-protected-resource',
       ];
 
       for (const expected of expectedFromSpec) {

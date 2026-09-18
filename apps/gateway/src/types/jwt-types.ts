@@ -1,6 +1,5 @@
 import { z } from 'zod';
-import type { GoogleAuthRequest, UserId } from '@semiont/core';
-import type { Email } from '@semiont/core';
+import type { Email, UserId } from '@semiont/core';
 
 // JWT Payload schema - gateway-specific internal type for JWT validation
 export const JWTPayloadSchema = z.object({
@@ -35,6 +34,3 @@ export type JWTPayload = Omit<JWTPayloadBase, 'userId' | 'email'> & {
   userId: UserId;
   email: Email;
 };
-
-// Re-export GoogleAuthRequest type from SDK
-export type { GoogleAuthRequest };

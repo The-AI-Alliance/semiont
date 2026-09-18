@@ -245,15 +245,4 @@ export class JWTService {
     if (decoded['purpose'] !== 'media') throw new Error('Invalid media token');
     if (decoded['sub'] !== resourceId) throw new Error('Media token resource mismatch');
   }
-
-  static isAllowedDomain(email: Email): boolean {
-    const parts = email.split('@');
-    if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      return false;
-    }
-    const domain = parts[1];
-    const config = this.getSiteConfig();
-    const allowedDomains = config.oauthAllowedDomains || [];
-    return allowedDomains.includes(domain);
-  }
 }

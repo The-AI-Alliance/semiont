@@ -116,18 +116,6 @@ function partialMaskValue(value: any): string {
 }
 
 /**
- * Create a safe logging context by sanitizing all data
- *
- * @param context - The logging context
- * @returns Sanitized context safe for logging
- */
-export function createSafeLogContext(context: Record<string, any>): Record<string, any> {
-  return sanitizeForLogging(context, {
-    partialMask: true
-  });
-}
-
-/**
  * Sanitize HTTP headers for logging
  * Removes authorization, cookie, and other sensitive headers
  */

@@ -1,5 +1,5 @@
 import { userId } from '@semiont/core';
-import { email, accessToken } from '@semiont/core';
+import { email } from '@semiont/core';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -68,19 +68,6 @@ interface StatusResponse {
   authenticatedAs?: string;
 }
 
-interface AuthResponse {
-  success: boolean;
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-    image: string | null;
-    domain: string;
-    isAdmin: boolean;
-  };
-  token: string;
-  isNewUser: boolean;
-}
 
 interface UserResponse {
   id: string;
@@ -129,14 +116,8 @@ interface AdminStatsResponse {
 // Removed unused AdminUserUpdateResponse and AdminUserDeleteResponse interfaces
 
 
-// Mock the entire auth/oauth module to avoid external API calls
-vi.mock('../../auth/oauth', () => ({
-  OAuthService: {
-    verifyGoogleToken: vi.fn(),
-    createOrUpdateUser: vi.fn(),
-    getPrincipalFromToken: vi.fn(),
-    acceptTerms: vi.fn(),
-  },
+vi.mock('../../identity/principal', () => ({
+  principalFromToken: vi.fn(),
 }));
 
 // Create a shared mock client that tests can modify
@@ -237,9 +218,9 @@ describe('API Endpoints Integration Tests', () => {
     const prisma = DatabaseConnection.getClient();
     vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as User);
     
-    // Mock OAuthService to return test user for the test token
-    const { OAuthService } = await import('../../auth/oauth');
-    vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
+    // Resolve the test token to the test user
+    const { principalFromToken } = await import('../../identity/principal');
+    vi.mocked(principalFromToken).mockImplementation(async (token) => {
       if (token === testToken || token === 'valid-jwt-token') {
         return { user: testUser as User };
       }
@@ -355,119 +336,6 @@ describe('API Endpoints Integration Tests', () => {
     });
   });
 
-  describe('Authentication Endpoints', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
-    it('POST /api/tokens/google should authenticate with valid token', async () => {
-      const { OAuthService } = await import('../../auth/oauth');
-      
-      // Mock successful OAuth flow
-      vi.mocked(OAuthService.verifyGoogleToken).mockResolvedValue({
-        id: 'google-123',
-        email: email('test@example.com'),
-        verified_email: true,
-        name: 'Test User',
-        picture: 'https://example.com/avatar.jpg',
-        // locale: 'en', // Not part of GoogleUserInfo type
-      });
-
-      vi.mocked(OAuthService.createOrUpdateUser).mockResolvedValue({
-        user: {
-          id: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          image: 'https://example.com/avatar.jpg',
-          domain: 'example.com',
-          provider: 'google',
-          providerId: 'google-123',
-    passwordHash: null,
-          isAdmin: false,
-          isModerator: false, tokenVersion: 0,
-          isActive: true,
-          termsAcceptedAt: null,
-          lastLogin: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        },
-        token: accessToken('mock-jwt-token'),
-        refreshToken: 'mock-refresh-token',
-        isNewUser: false,
-      });
-
-      const res = await app.request('/api/tokens/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          access_token: 'valid-google-token',
-        }),
-      });
-
-      expect(res.status).toBe(200);
-      const data = await res.json() as AuthResponse;
-      expect(data.success).toBe(true);
-      expect(data.user.email).toBe('test@example.com');
-      expect(data.token).toBe('mock-jwt-token');
-      expect(data.isNewUser).toBe(false);
-    });
-
-    it('POST /api/tokens/google should fail with invalid token', async () => {
-      const { OAuthService } = await import('../../auth/oauth');
-      
-      // Mock OAuth failure
-      vi.mocked(OAuthService.verifyGoogleToken).mockRejectedValue(
-        new Error('Invalid token')
-      );
-
-      const res = await app.request('/api/tokens/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          access_token: 'invalid-token',
-        }),
-      });
-
-      expect(res.status).toBe(400);
-      const data = await res.json() as ErrorResponse;
-      expect(data.error).toBe('Invalid token');
-    });
-
-    it('POST /api/tokens/google should fail with missing token', async () => {
-      const res = await app.request('/api/tokens/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({}),
-      });
-
-      expect(res.status).toBe(400);
-      // The response contains ZodError instead of formatted validation error
-      const responseText = await res.text();
-      expect(responseText).toContain('access_token');
-    });
-
-    it('POST /api/tokens/google should fail with invalid JSON', async () => {
-      const res = await app.request('/api/tokens/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: 'invalid-json',
-      });
-
-      expect(res.status).toBe(400);
-      const responseText = await res.text();
-      // Response should be valid, but may contain different error format
-      expect(responseText).toBeDefined();
-    });
-  });
-
   describe('Protected Endpoints', () => {
     const mockUser = {
       id: 'user-123',
@@ -489,8 +357,8 @@ describe('API Endpoints Integration Tests', () => {
 
     beforeEach(async () => {
       // Mock successful token verification for protected routes
-      const { OAuthService } = await import('../../auth/oauth');
-      vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
+      const { principalFromToken } = await import('../../identity/principal');
+      vi.mocked(principalFromToken).mockImplementation(async (token) => {
         if (token === 'valid-jwt-token') {
           return { user: mockUser as User };
         }
@@ -523,8 +391,8 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('GET /api/users/me should fail with invalid token', async () => {
-      const { OAuthService } = await import('../../auth/oauth');
-      vi.mocked(OAuthService.getPrincipalFromToken).mockRejectedValue(new Error('Invalid token'));
+      const { principalFromToken } = await import('../../identity/principal');
+      vi.mocked(principalFromToken).mockRejectedValue(new Error('Invalid token'));
 
       const res = await app.request('/api/users/me', {
         headers: {
@@ -549,9 +417,7 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('POST /api/users/accept-terms should update terms acceptance', async () => {
-      const { OAuthService } = await import('../../auth/oauth');
-      const updatedUser = { ...mockUser, termsAcceptedAt: new Date() };
-      vi.mocked(OAuthService.acceptTerms).mockResolvedValue(updatedUser as User);
+      sharedMockClient.user.update.mockResolvedValue({ ...mockUser, termsAcceptedAt: new Date() } as User);
 
       const res = await app.request('/api/users/accept-terms', {
         method: 'POST',
@@ -607,9 +473,9 @@ describe('API Endpoints Integration Tests', () => {
     beforeEach(async () => {
       vi.clearAllMocks();
 
-      // Re-setup the OAuth mock for each test
-      const { OAuthService } = await import('../../auth/oauth');
-      vi.mocked(OAuthService.getPrincipalFromToken).mockImplementation(async (token) => {
+      // Re-arm the principal mock for each test
+      const { principalFromToken } = await import('../../identity/principal');
+      vi.mocked(principalFromToken).mockImplementation(async (token) => {
         if (token === 'admin-jwt-token') {
           return { user: mockAdminUser as User };
         } else if (token === 'regular-jwt-token') {
@@ -693,25 +559,24 @@ describe('API Endpoints Integration Tests', () => {
     });
 
     it('should handle malformed JSON in request body', async () => {
-      const res = await app.request('/api/tokens/google', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: '{invalid json',
-      });
+      // The agent route is the one public POST; it answers 503 without its secret.
+      const priorSecret = process.env.SEMIONT_WORKER_SECRET;
+      process.env.SEMIONT_WORKER_SECRET = 'api-endpoints-worker-secret';
+      try {
+        const res = await app.request('/api/tokens/agent', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: '{invalid json',
+        });
 
-      expect(res.status).toBe(400);
+        expect(res.status).toBe(400);
+      } finally {
+        if (priorSecret === undefined) delete process.env.SEMIONT_WORKER_SECRET;
+        else process.env.SEMIONT_WORKER_SECRET = priorSecret;
+      }
     });
 
-    it('should handle missing Content-Type header', async () => {
-      const res = await app.request('/api/tokens/google', {
-        method: 'POST',
-        body: JSON.stringify({ access_token: 'test' }),
-      });
-
-      // Should still work - Hono handles this gracefully
-      expect(res.status).toBe(400); // Will fail validation, but not due to missing header
-    });
   });
 });

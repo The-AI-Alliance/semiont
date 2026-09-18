@@ -18,15 +18,6 @@
     "/.well-known/oauth-protected-resource": {
       "$ref": "paths/well-known_oauth-protected-resource.json"
     },
-    "/api/tokens/password": {
-      "$ref": "paths/api_tokens_password.json"
-    },
-    "/api/tokens/google": {
-      "$ref": "paths/api_tokens_google.json"
-    },
-    "/api/tokens/refresh": {
-      "$ref": "paths/api_tokens_refresh.json"
-    },
     "/api/tokens/media": {
       "$ref": "paths/api_tokens_media.json"
     },
@@ -128,9 +119,6 @@
       },
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
-      },
-      "AuthResponse": {
-        "$ref": "components/schemas/AuthResponse.json"
       },
       "BeckonFocusEvent": {
         "$ref": "components/schemas/BeckonFocusEvent.json"
@@ -441,9 +429,6 @@
       "GetTagSchemasResponse": {
         "$ref": "components/schemas/GetTagSchemasResponse.json"
       },
-      "GoogleAuthRequest": {
-        "$ref": "components/schemas/GoogleAuthRequest.json"
-      },
       "HealthResponse": {
         "$ref": "components/schemas/HealthResponse.json"
       },
@@ -642,9 +627,6 @@
       "OAuthConfigResponse": {
         "$ref": "components/schemas/OAuthConfigResponse.json"
       },
-      "PasswordAuthRequest": {
-        "$ref": "components/schemas/PasswordAuthRequest.json"
-      },
       "ProtectedResourceMetadata": {
         "$ref": "components/schemas/ProtectedResourceMetadata.json"
       },
@@ -734,12 +716,6 @@
       },
       "TextualBody": {
         "$ref": "components/schemas/TextualBody.json"
-      },
-      "TokenRefreshRequest": {
-        "$ref": "components/schemas/TokenRefreshRequest.json"
-      },
-      "TokenRefreshResponse": {
-        "$ref": "components/schemas/TokenRefreshResponse.json"
       },
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"

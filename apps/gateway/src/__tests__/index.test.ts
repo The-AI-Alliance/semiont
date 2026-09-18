@@ -162,35 +162,30 @@ describe('Main Application (index.ts)', () => {
     });
   });
 
-  describe('Authentication Endpoints', () => {
-    it('should handle OAuth endpoint structure', async () => {
-      const response = await app.request('http://localhost/api/tokens/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      // Should return 400 for invalid request body
-      expect(response.status).toBe(400);
-    });
-  });
-
   describe('Error Handling', () => {
     it('should return 404 for non-existent API routes', async () => {
       const response = await app.request('http://localhost/api/nonexistent');
-      
+
       // Non-existent routes now return 404 (auth is applied per-router)
       expect(response.status).toBe(404);
     });
 
     it('should handle invalid JSON in POST requests', async () => {
-      const response = await app.request('http://localhost/api/tokens/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: 'invalid-json',
-      });
+      // The agent route is the one public POST; it answers 503 without its secret.
+      const priorSecret = process.env.SEMIONT_WORKER_SECRET;
+      process.env.SEMIONT_WORKER_SECRET = 'index-test-worker-secret';
+      try {
+        const response = await app.request('http://localhost/api/tokens/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: 'invalid-json',
+        });
 
-      expect(response.status).toBe(400);
+        expect(response.status).toBe(400);
+      } finally {
+        if (priorSecret === undefined) delete process.env.SEMIONT_WORKER_SECRET;
+        else process.env.SEMIONT_WORKER_SECRET = priorSecret;
+      }
     });
   });
 
@@ -204,8 +199,7 @@ describe('Main Application (index.ts)', () => {
   describe('Middleware Configuration', () => {
     it('should have authentication middleware configured for API routes', async () => {
       // This test verifies the middleware is set up, but doesn't test the actual auth
-      // behavior since we can't properly mock the OAuthService in unit tests.
-      // Full auth behavior is tested in integration tests.
+      // behavior — principalFromToken is not mocked here; the middleware suite covers it.
       
       // We can verify that the middleware chain exists by checking that
       // routes are registered

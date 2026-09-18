@@ -208,8 +208,6 @@ async function main(argv: string[]): Promise<number> {
       data: {
         email: o.email,
         name: o.name ?? null,
-        // provider/providerId must match what POST /api/tokens/password looks
-        // for: it rejects any account whose provider is not 'password'.
         provider: 'password',
         providerId: o.email,
         passwordHash: passwordHash!,

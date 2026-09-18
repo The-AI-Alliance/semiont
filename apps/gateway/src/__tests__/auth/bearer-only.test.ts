@@ -32,7 +32,6 @@ import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
 import type { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
-import * as argon2 from 'argon2';
 import { email as makeEmail, userId as makeUserId } from '@semiont/core';
 
 const prisma = DatabaseConnection.getClient();
@@ -84,28 +83,6 @@ describe('SDK-AUTH-CORS Phase 3 — bearer-only (no cookie)', () => {
     vi.clearAllMocks();
   });
 
-  it('a successful password login sets no Set-Cookie (token rides the body)', async () => {
-    const passwordHash = await argon2.hash('pw-secret');
-    const user = fakeUser({
-      provider: 'password',
-      providerId: 'pw@example.com',
-      email: 'pw@example.com',
-      passwordHash,
-    });
-    mockPrismaUser.findUnique.mockResolvedValue(user);
-    mockPrismaUser.update.mockResolvedValue(user);
-
-    const res = await app.request('/api/tokens/password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'pw@example.com', password: 'pw-secret' }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toBeNull();
-    const data = await res.json() as { token?: string };
-    expect(data.token).toBeDefined();
-  });
 
   it('rejects a request authenticated only by the semiont-token cookie → 401', async () => {
     const user = fakeUser();

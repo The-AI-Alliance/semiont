@@ -124,11 +124,12 @@ access token re-minted from a long-lived refresh token
 ([TTLs](../../../docs/system/administration/AUTHENTICATION.md)). Bearer-only: no
 cookie, no ambient credential.
 
-- **Sign in** — `SemiontSession.signInHttp({ … })` exchanges credentials for the
-  JWT (returned in the response body) and activates the session.
-- **Sign out** — `browser.signOut(kbId)` calls the gateway logout, which bumps
-  the user's `tokenVersion` — revoking the refresh token and every live access
-  token **server-side, on all devices** — and clears `activeSession$`.
+- **Sign in** — `browser.beginSignIn({ … })` discovers the KB's issuer from its
+  gateway (RFC 9728) and sends the person there; the callback page's
+  `browser.completeSignIn(url)` exchanges the authorization code (PKCE) for the
+  access and refresh pair and activates the session.
+- **Sign out** — `browser.signOut(kbId)` clears the stored session and
+  `activeSession$`, and revokes the refresh token at the issuer (RFC 7009).
 
 Protected layouts mount `AuthShell`, which mounts the protected error boundary
 and the two auth-failure modals; the modals read the active session's signals

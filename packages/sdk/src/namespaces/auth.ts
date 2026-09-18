@@ -1,30 +1,16 @@
 /**
- * AuthNamespace — authentication. Gateway ops only; no bus.
+ * AuthNamespace — the gateway's view of the signed-in principal. Gateway ops
+ * only; no bus. Signing in happens at the issuer (`session/oauth.ts`).
  */
 
 import type { ResourceId, components } from '@semiont/core';
-import { email as makeEmail, googleCredential, refreshToken as makeRefreshToken } from '@semiont/core';
 import type { IGatewayOperations } from '@semiont/core';
 import type { AuthNamespace as IAuthNamespace, User } from './types';
 
-type AuthResponse = components['schemas']['AuthResponse'];
-type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 export class AuthNamespace implements IAuthNamespace {
   constructor(private readonly gateway: IGatewayOperations) {}
-
-  async password(emailStr: string, passwordStr: string): Promise<AuthResponse> {
-    return this.gateway.authenticatePassword(makeEmail(emailStr), passwordStr);
-  }
-
-  async google(credential: string): Promise<AuthResponse> {
-    return this.gateway.authenticateGoogle(googleCredential(credential));
-  }
-
-  async refresh(token: string): Promise<TokenRefreshResponse> {
-    return this.gateway.refreshAccessToken(makeRefreshToken(token));
-  }
 
   async logout(): Promise<void> {
     await this.gateway.logout();

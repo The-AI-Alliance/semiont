@@ -1726,26 +1726,6 @@ type AnnotationTarget_Selector struct {
 	union json.RawMessage
 }
 
-// AuthResponse defines model for AuthResponse.
-type AuthResponse struct {
-	IsNewUser bool `json:"isNewUser"`
-
-	// RefreshToken Long-lived refresh token (30 days). Exchange via POST /api/tokens/refresh for a fresh access token.
-	RefreshToken string `json:"refreshToken"`
-	Success      bool   `json:"success"`
-
-	// Token Short-lived access token. Use as Authorization: Bearer header on API calls. The TTL is deliberately NOT restated here — docs/system/administration/AUTHENTICATION.md holds the one table of token lifetimes, and a second copy is how this description came to claim an hour for a ten-minute token. A client must refresh from the refresh token rather than assume any particular window.
-	Token string `json:"token"`
-	User  struct {
-		Domain  string  `json:"domain"`
-		Email   string  `json:"email"`
-		Id      string  `json:"id"`
-		Image   *string `json:"image"`
-		IsAdmin bool    `json:"isAdmin"`
-		Name    *string `json:"name"`
-	} `json:"user"`
-}
-
 // BeckonFocusEvent Emitted when an annotation receives focus for beckoning. resourceId is a guard, not navigation: it names the resource this focus applies to, and a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
 type BeckonFocusEvent struct {
 	AnnotationId *string `json:"annotationId,omitempty"`
@@ -2803,11 +2783,6 @@ type GetTagSchemasResponse struct {
 	TagSchemas []TagSchema `json:"tagSchemas"`
 }
 
-// GoogleAuthRequest defines model for GoogleAuthRequest.
-type GoogleAuthRequest struct {
-	AccessToken string `json:"access_token"`
-}
-
 // GraphAnnotationNode An annotation's graph presence. The node IS the annotation, so the full W3C object is required — selectors and body included, which is what lets a client place context annotations without a second fetch. Citations ride here too: an inbound reference is its linking annotation, anchored by an `annotation-of` edge to the resource it lives on and a `cites` edge to the focal resource.
 type GraphAnnotationNode struct {
 	Annotation Annotation `json:"annotation"`
@@ -3711,15 +3686,6 @@ type OAuthConfigResponse struct {
 	} `json:"providers"`
 }
 
-// PasswordAuthRequest defines model for PasswordAuthRequest.
-type PasswordAuthRequest struct {
-	// Email User email address
-	Email openapi_types.Email `json:"email"`
-
-	// Password User password (minimum 8 characters)
-	Password string `json:"password"`
-}
-
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
 	// End Char offset into AnchoredText.text, exclusive.
@@ -4512,17 +4478,6 @@ type TextualBody struct {
 // TextualBodyType defines model for TextualBody.Type.
 type TextualBodyType string
 
-// TokenRefreshRequest defines model for TokenRefreshRequest.
-type TokenRefreshRequest struct {
-	// RefreshToken Refresh token obtained during login
-	RefreshToken string `json:"refreshToken"`
-}
-
-// TokenRefreshResponse defines model for TokenRefreshResponse.
-type TokenRefreshResponse struct {
-	AccessToken string `json:"access_token"`
-}
-
 // UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it (CHUNK-GRAIN-RESUME P2). A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
@@ -4810,17 +4765,8 @@ type PostApiCookiesConsentJSONRequestBody = CookieConsentRequest
 // PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
 type PostApiTokensAgentJSONRequestBody PostApiTokensAgentJSONBody
 
-// PostApiTokensGoogleJSONRequestBody defines body for PostApiTokensGoogle for application/json ContentType.
-type PostApiTokensGoogleJSONRequestBody = GoogleAuthRequest
-
 // PostApiTokensMediaJSONRequestBody defines body for PostApiTokensMedia for application/json ContentType.
 type PostApiTokensMediaJSONRequestBody = MediaTokenRequest
-
-// PostApiTokensPasswordJSONRequestBody defines body for PostApiTokensPassword for application/json ContentType.
-type PostApiTokensPasswordJSONRequestBody = PasswordAuthRequest
-
-// PostApiTokensRefreshJSONRequestBody defines body for PostApiTokensRefresh for application/json ContentType.
-type PostApiTokensRefreshJSONRequestBody = TokenRefreshRequest
 
 // PostBusEmitJSONRequestBody defines body for PostBusEmit for application/json ContentType.
 type PostBusEmitJSONRequestBody = BusEmitRequest
@@ -11213,25 +11159,10 @@ type ClientInterface interface {
 
 	PostApiTokensAgent(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiTokensGoogleWithBody request with any body
-	PostApiTokensGoogleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiTokensGoogle(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// PostApiTokensMediaWithBody request with any body
 	PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiTokensPasswordWithBody request with any body
-	PostApiTokensPasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiTokensPassword(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiTokensRefreshWithBody request with any body
-	PostApiTokensRefreshWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiTokensRefresh(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PostApiUsersAcceptTerms request
 	PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11454,30 +11385,6 @@ func (c *Client) PostApiTokensAgent(ctx context.Context, body PostApiTokensAgent
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensGoogleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensGoogleRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensGoogle(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensGoogleRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiTokensMediaRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -11492,54 +11399,6 @@ func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType str
 
 func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiTokensMediaRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensPasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensPasswordRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensPassword(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensPasswordRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensRefreshWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensRefreshRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensRefresh(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensRefreshRequest(c.Server, body)
 	if err != nil {
 		return nil, err
 	}
@@ -12081,46 +11940,6 @@ func NewPostApiTokensAgentRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewPostApiTokensGoogleRequest calls the generic PostApiTokensGoogle builder with application/json body
-func NewPostApiTokensGoogleRequest(server string, body PostApiTokensGoogleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensGoogleRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiTokensGoogleRequestWithBody generates requests for PostApiTokensGoogle with any type of body
-func NewPostApiTokensGoogleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/google")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewPostApiTokensMediaRequest calls the generic PostApiTokensMedia builder with application/json body
 func NewPostApiTokensMediaRequest(server string, body PostApiTokensMediaJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -12142,86 +11961,6 @@ func NewPostApiTokensMediaRequestWithBody(server string, contentType string, bod
 	}
 
 	operationPath := fmt.Sprintf("/api/tokens/media")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostApiTokensPasswordRequest calls the generic PostApiTokensPassword builder with application/json body
-func NewPostApiTokensPasswordRequest(server string, body PostApiTokensPasswordJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensPasswordRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiTokensPasswordRequestWithBody generates requests for PostApiTokensPassword with any type of body
-func NewPostApiTokensPasswordRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/password")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostApiTokensRefreshRequest calls the generic PostApiTokensRefresh builder with application/json body
-func NewPostApiTokensRefreshRequest(server string, body PostApiTokensRefreshJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensRefreshRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiTokensRefreshRequestWithBody generates requests for PostApiTokensRefresh with any type of body
-func NewPostApiTokensRefreshRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/refresh")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12587,25 +12326,10 @@ type ClientWithResponsesInterface interface {
 
 	PostApiTokensAgentWithResponse(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error)
 
-	// PostApiTokensGoogleWithBodyWithResponse request with any body
-	PostApiTokensGoogleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error)
-
-	PostApiTokensGoogleWithResponse(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error)
-
 	// PostApiTokensMediaWithBodyWithResponse request with any body
 	PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
 
 	PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
-
-	// PostApiTokensPasswordWithBodyWithResponse request with any body
-	PostApiTokensPasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error)
-
-	PostApiTokensPasswordWithResponse(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error)
-
-	// PostApiTokensRefreshWithBodyWithResponse request with any body
-	PostApiTokensRefreshWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error)
-
-	PostApiTokensRefreshWithResponse(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error)
 
 	// PostApiUsersAcceptTermsWithResponse request
 	PostApiUsersAcceptTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersAcceptTermsResponse, error)
@@ -12952,29 +12676,6 @@ func (r PostApiTokensAgentResponse) StatusCode() int {
 	return 0
 }
 
-type PostApiTokensGoogleResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthResponse
-	JSON400      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiTokensGoogleResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensGoogleResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
 type PostApiTokensMediaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -12992,54 +12693,6 @@ func (r PostApiTokensMediaResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostApiTokensMediaResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiTokensPasswordResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiTokensPasswordResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensPasswordResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiTokensRefreshResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TokenRefreshResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiTokensRefreshResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensRefreshResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13372,23 +13025,6 @@ func (c *ClientWithResponses) PostApiTokensAgentWithResponse(ctx context.Context
 	return ParsePostApiTokensAgentResponse(rsp)
 }
 
-// PostApiTokensGoogleWithBodyWithResponse request with arbitrary body returning *PostApiTokensGoogleResponse
-func (c *ClientWithResponses) PostApiTokensGoogleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error) {
-	rsp, err := c.PostApiTokensGoogleWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensGoogleResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiTokensGoogleWithResponse(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error) {
-	rsp, err := c.PostApiTokensGoogle(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensGoogleResponse(rsp)
-}
-
 // PostApiTokensMediaWithBodyWithResponse request with arbitrary body returning *PostApiTokensMediaResponse
 func (c *ClientWithResponses) PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error) {
 	rsp, err := c.PostApiTokensMediaWithBody(ctx, contentType, body, reqEditors...)
@@ -13404,40 +13040,6 @@ func (c *ClientWithResponses) PostApiTokensMediaWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePostApiTokensMediaResponse(rsp)
-}
-
-// PostApiTokensPasswordWithBodyWithResponse request with arbitrary body returning *PostApiTokensPasswordResponse
-func (c *ClientWithResponses) PostApiTokensPasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error) {
-	rsp, err := c.PostApiTokensPasswordWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensPasswordResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiTokensPasswordWithResponse(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error) {
-	rsp, err := c.PostApiTokensPassword(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensPasswordResponse(rsp)
-}
-
-// PostApiTokensRefreshWithBodyWithResponse request with arbitrary body returning *PostApiTokensRefreshResponse
-func (c *ClientWithResponses) PostApiTokensRefreshWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error) {
-	rsp, err := c.PostApiTokensRefreshWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensRefreshResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiTokensRefreshWithResponse(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error) {
-	rsp, err := c.PostApiTokensRefresh(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensRefreshResponse(rsp)
 }
 
 // PostApiUsersAcceptTermsWithResponse request returning *PostApiUsersAcceptTermsResponse
@@ -14040,39 +13642,6 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 	return response, nil
 }
 
-// ParsePostApiTokensGoogleResponse parses an HTTP response from a PostApiTokensGoogleWithResponse call
-func ParsePostApiTokensGoogleResponse(rsp *http.Response) (*PostApiTokensGoogleResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiTokensGoogleResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	}
-
-	return response, nil
-}
-
 // ParsePostApiTokensMediaResponse parses an HTTP response from a PostApiTokensMediaWithResponse call
 func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -14089,86 +13658,6 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest MediaTokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiTokensPasswordResponse parses an HTTP response from a PostApiTokensPasswordWithResponse call
-func ParsePostApiTokensPasswordResponse(rsp *http.Response) (*PostApiTokensPasswordResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiTokensPasswordResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiTokensRefreshResponse parses an HTTP response from a PostApiTokensRefreshWithResponse call
-func ParsePostApiTokensRefreshResponse(rsp *http.Response) (*PostApiTokensRefreshResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiTokensRefreshResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TokenRefreshResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

@@ -128,38 +128,6 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/.well-known/oauth-protected-resource`);
     });
 
-    test('authenticatePassword posts credentials to /api/tokens/password', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ token: 'tok' }),
-      } as never);
-      await transport.authenticatePassword('user@test.local' as never, 'pw');
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/tokens/password`,
-        expect.objectContaining({ json: { email: 'user@test.local', password: 'pw' } }),
-      );
-    });
-
-    test('authenticateGoogle posts credential to /api/tokens/google', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ token: 'tok' }),
-      } as never);
-      await transport.authenticateGoogle('google-cred' as never);
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/tokens/google`,
-        expect.objectContaining({ json: { credential: 'google-cred' } }),
-      );
-    });
-
-    test('refreshAccessToken posts refreshToken to /api/tokens/refresh', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ access: 'a', refresh: 'r' }),
-      } as never);
-      await transport.refreshAccessToken('refresh-tok' as never);
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/tokens/refresh`,
-        expect.objectContaining({ json: { refreshToken: 'refresh-tok' } }),
-      );
-    });
 
     test('acceptTerms posts to /api/users/accept-terms', async () => {
       vi.mocked(mockKy.post).mockReturnValue({

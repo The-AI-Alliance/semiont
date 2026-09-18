@@ -160,7 +160,7 @@ verbs compose:
 ```ts
 import { SemiontSession } from '@semiont/sdk';
 
-const session = await SemiontSession.signInHttp({ kb, storage, baseUrl, email, password });
+const session = await SemiontSession.signInDevice({ kb, storage, onCode });
 const { client } = session;
 
 // 1. Persist the question as a document in its own right.

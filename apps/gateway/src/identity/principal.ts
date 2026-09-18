@@ -3,7 +3,7 @@ import type { User } from '@prisma/client';
 import type { AccessToken } from '@semiont/core';
 import { isString } from '@semiont/core';
 import { DatabaseConnection } from '../db';
-import { OAuthService } from '../auth/oauth';
+import { JWTService } from '../auth/jwt';
 import { IssuerVerifier } from './issuer';
 import { trustedIssuer } from './trusted-issuer';
 
@@ -15,16 +15,15 @@ export interface Principal {
 /**
  * The principal behind a bearer token, dispatched on `iss`: a token from the
  * trusted issuer is verified against that issuer's keys and its subject
- * mapped to a User row; any other token is gateway-signed and takes the
- * HMAC path (agent tokens, and human tokens until the gateway stops minting
- * them).
+ * mapped to a User row; any other token is gateway-signed (a software
+ * agent's) and takes the HMAC path.
  */
 export async function principalFromToken(token: AccessToken): Promise<Principal> {
   const issuer = trustedIssuer();
   if (issuer && issuerOf(token) === issuer.issuer) {
     return principalFromIssuerToken(token, issuer);
   }
-  return OAuthService.getPrincipalFromToken(token);
+  return principalFromGatewayToken(token);
 }
 
 function issuerOf(token: string): string | undefined {
@@ -33,6 +32,24 @@ function issuerOf(token: string): string | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * A gateway-signed token: verified against the HMAC key ring, its User row
+ * read, and its revocation epoch compared to the row's — a logout bumps the
+ * row's epoch, so a token minted before it is refused.
+ */
+export async function principalFromGatewayToken(token: AccessToken): Promise<Principal> {
+  const payload = JWTService.verifyToken(token);
+  const prisma = DatabaseConnection.getClient();
+  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
+  if (!user || !user.isActive) {
+    throw new Error('User not found or inactive');
+  }
+  if (payload.tokenVersion !== user.tokenVersion) {
+    throw new Error('Token revoked');
+  }
+  return payload.agentDid ? { user, agentDid: payload.agentDid } : { user };
 }
 
 async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVerifier): Promise<Principal> {

@@ -27,19 +27,6 @@ interface StatusResponse {
   authenticatedAs?: string;
 }
 
-interface AuthResponse {
-  success: boolean;
-  user: {
-    id: string;
-    email: string;
-    name: string | null;
-    image: string | null;
-    domain: string;
-    isAdmin: boolean;
-  };
-  token: string;
-  isNewUser: boolean;
-}
 
 interface UserResponse {
   id: string;
@@ -118,28 +105,6 @@ describe('API Contract Tests', () => {
     });
 
 
-    it('should match AuthResponse contract', () => {
-      const mockResponse: AuthResponse = {
-        success: true,
-        user: {
-          id: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          image: 'https://example.com/avatar.jpg',
-          domain: 'example.com',
-          isAdmin: false,
-        },
-        token: 'mock-jwt-token',
-        isNewUser: false,
-      };
-
-      expect(mockResponse.success).toBeDefined();
-      expect(mockResponse.user).toBeDefined();
-      expect(mockResponse.user.id).toBeDefined();
-      expect(mockResponse.user.email).toBeDefined();
-      expect(mockResponse.token).toBeDefined();
-      expect(mockResponse.isNewUser).toBeDefined();
-    });
 
     it('should match UserResponse contract', () => {
       const mockResponse: UserResponse = {
@@ -180,34 +145,6 @@ describe('API Contract Tests', () => {
   });
 
   describe('Request/Response Flow Validation', () => {
-    it('should validate Google Auth request flow', () => {
-      // Request validation
-      const validRequest = {
-        access_token: 'valid-google-token',
-      };
-
-      expect(validRequest.access_token).toBeDefined();
-      expect(typeof validRequest.access_token).toBe('string');
-      expect(validRequest.access_token.length).toBeGreaterThan(0);
-
-      // Response validation
-      const successResponse: AuthResponse = {
-        success: true,
-        user: {
-          id: 'user-123',
-          email: 'test@example.com',
-          name: 'Test User',
-          image: 'https://example.com/avatar.jpg',
-          domain: 'example.com',
-          isAdmin: false,
-        },
-        token: 'jwt-token',
-        isNewUser: false,
-      };
-
-      expect(successResponse.success).toBe(true);
-      expect(successResponse.user.email).toMatch(/\S+@\S+\.\S+/);
-    });
 
     it('should validate error response structure', () => {
       const errorResponse: ErrorResponse = {
@@ -388,17 +325,6 @@ describe('API Contract Tests', () => {
               },
             },
           },
-          auth: {
-            'POST /api/auth/google': {
-              description: 'Authenticate with Google OAuth',
-              body: 'GoogleAuthRequest',
-              responses: {
-                200: 'AuthResponse',
-                400: 'ErrorResponse',
-                401: 'ErrorResponse',
-              },
-            },
-          },
           protected: {
             'GET /api/user': {
               description: 'Get current user information',
@@ -428,7 +354,6 @@ describe('API Contract Tests', () => {
       expect(apiInfo.description).toBeDefined();
       expect(apiInfo.endpoints).toBeDefined();
       expect(apiInfo.endpoints.public).toBeDefined();
-      expect(apiInfo.endpoints.auth).toBeDefined();
       expect(apiInfo.endpoints.protected).toBeDefined();
       expect(apiInfo.endpoints.admin).toBeDefined();
     });

@@ -8,7 +8,7 @@ Our gateway security tests provide comprehensive coverage across all security-cr
 
 ### **Authentication & Authorization Tests**
 - **JWT Service Tests** (`auth/jwt.test.ts`): Token generation, validation, and security
-- **OAuth Service Tests** (`auth/oauth.test.ts`): Google token verification and user management  
+- **Identity Tests** (`identity/*.test.ts`): Issuer token verification, user provisioning, and the gateway-token path
 - **Auth Middleware Tests** (`middleware/auth.test.ts`): Request authentication and authorization
 - **Admin API Tests** (`api/admin-endpoints.test.ts`): Admin endpoint protection and data security
 
@@ -20,7 +20,7 @@ Our gateway security tests provide comprehensive coverage across all security-cr
 ### **1. Authentication Security**
 - JWT token generation with secure algorithms
 - Token validation and expiration handling
-- Google OAuth token verification
+- Issuer token verification against the issuer's published keys
 - User session management and security
 - Authentication middleware enforcement
 
@@ -74,8 +74,8 @@ npm run test:security
 # JWT authentication tests
 npm test -- auth/jwt.test.ts
 
-# OAuth service tests  
-npm test -- auth/oauth.test.ts
+# Identity tests
+npm test -- identity/
 
 # Middleware security tests
 npm test -- middleware/auth.test.ts
@@ -117,7 +117,7 @@ npm test -- --watch
 
 ### 🔐 **Authentication Flow**
 1. **JWT Token Required**: All admin endpoints require `Authorization: Bearer <token>`
-2. **Server-Side Validation**: Tokens validated via `OAuthService.getUserFromToken()`
+2. **Server-Side Validation**: Tokens validated via `principalFromToken()`
 3. **Database Lookup**: User details fetched from database, not trusted from token claims
 
 ### 🛡️ **Authorization Controls**  
@@ -171,7 +171,7 @@ These tests follow a **documentation-driven approach**:
 Run these tests before any changes to:
 - Authentication middleware (`src/middleware/auth.ts`)
 - Admin route handlers (`src/index.ts` admin routes)
-- OAuth service (`src/auth/oauth.ts`)
+- Identity (`src/identity/`)
 - Database schema (user roles/permissions)
 
 **If any security test fails, do not merge changes until security implications are reviewed.**

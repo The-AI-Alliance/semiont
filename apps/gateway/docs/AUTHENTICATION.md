@@ -45,9 +45,8 @@ adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
 These endpoints are documented in the OpenAPI spec as public (no `security` field):
 
 - `GET /api/health` - Health check for load balancer monitoring
-- `POST /api/tokens/password` - Password authentication
-- `POST /api/tokens/google` - Google OAuth authentication
-- `POST /api/tokens/refresh` - Exchange a refresh token for a new access token (driven by the SDK `Session`)
+- `GET /.well-known/oauth-protected-resource` - Which issuer this gateway trusts (RFC 9728)
+- `POST /api/tokens/agent` - Software-agent token exchange (the shared worker secret is the credential)
 
 All other routes require JWT authentication via router-level middleware.
 
@@ -190,33 +189,9 @@ app.get('/api/documents', async (c) => {
 
 ## Token & Session Endpoints
 
-Gateway-specific endpoints beyond the public login routes (`/api/tokens/password`,
-`/api/tokens/google`). Align behavior to the canonical
+People sign in at the trusted issuer and refresh there; the gateway mints only the
+tokens below. Align behavior to the canonical
 [System Authentication](../../../docs/system/administration/AUTHENTICATION.md).
-
-### `POST /api/tokens/refresh`
-
-Exchange a refresh token for a new access token. This is the path
-the SDK `Session` drives to keep a client signed in without re-prompting.
-
-- **Auth**: Public (the refresh token is supplied in the request body)
-- **Revocation-aware**: rejected if the token's `tokenVersion` is behind the user's current value (see logout)
-- **Returns**: `{ access_token: string }`
-
-```typescript
-// The SDK Session exchanges a refresh token for a fresh access token
-const response = await fetch('https://api.semiont.com/api/tokens/refresh', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ refreshToken })
-});
-const { access_token } = await response.json();
-
-// Use the access token for API requests
-const documents = await fetch('https://api.semiont.com/api/documents', {
-  headers: { 'Authorization': `Bearer ${access_token}` }
-});
-```
 
 ### `POST /api/tokens/media`
 
@@ -246,32 +221,29 @@ request — server-side, all devices.
 
 ## JWT Token Structure
 
-Access and refresh tokens carry the **same claim set** (validated by
-`JWTPayloadSchema` in [src/types/jwt-types.ts](../src/types/jwt-types.ts)); they
-differ only in lifetime. Every token carries the user's `tokenVersion` at mint
-time — the middleware rejects it once the stored `tokenVersion` moves ahead (see
-logout, above). Software-agent tokens additionally carry an `agentDid`.
+A person's token is the issuer's: its claims are the issuer's, and the gateway
+reads `sub`, `email`, `email_verified`, and `name` from it. A gateway-minted
+token carries the claim set validated by `JWTPayloadSchema` in
+[src/types/jwt-types.ts](../src/types/jwt-types.ts), including the user's
+`tokenVersion` at mint time — the middleware rejects it once the stored
+`tokenVersion` moves ahead (see logout, above) — and, for a software agent,
+its `agentDid`.
 
-### Access Token
+### Agent Token
 
 ```json
 {
   "userId": "clx0a1b2c3d4e5f6g7h8i9j0k",
-  "email": "user@example.com",
+  "email": "anthropic-claude-sonnet-5@agents.example.com",
   "domain": "example.com",
-  "provider": "google",
+  "provider": "agent",
   "isAdmin": false,
+  "agentDid": "did:web:example.com:agents:anthropic:claude-sonnet-5",
   "tokenVersion": 0,
   "iat": 1698765432,
-  "exp": 1698766032
+  "exp": 1698851832
 }
 ```
-
-### Refresh Token
-
-Held by the SDK `Session`, which exchanges it for fresh access tokens via
-`POST /api/tokens/refresh`. Same claims as the access token (including
-`tokenVersion`, so a logout revokes it) — only `exp` differs.
 
 ## Security Implementation
 
@@ -357,11 +329,11 @@ DEBUG=hono:*
 LOG_LEVEL=debug
 ```
 
-**Refresh Token Exchange Fails**:
+**Issuer Token Rejected**:
 
-- Check the refresh token hasn't expired or been revoked by a logout (`tokenVersion` bump)
-- Verify the `POST /api/tokens/refresh` endpoint is accessible
-- Ensure the refresh token is sent as `{ "refreshToken": "…" }` in the body
+- The token's `iss` must equal the configured identity `issuer` exactly (scheme, host, port, path)
+- The token's `aud` must carry the configured `audience`
+- The issuer's JWKS must be reachable from the gateway; a signing key the gateway has not seen triggers one re-fetch
 
 ### Gateway Debugging Tools
 

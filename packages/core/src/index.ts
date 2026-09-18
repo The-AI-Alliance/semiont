@@ -16,9 +16,7 @@ export type {
   // Authentication & tokens
   Email,
   AuthCode,
-  GoogleCredential,
   AccessToken,
-  RefreshToken,
   MCPToken,
   CloneToken,
   // System identifiers
@@ -36,9 +34,7 @@ export {
   // Helper functions
   email,
   authCode,
-  googleCredential,
   accessToken,
-  refreshToken,
   mcpToken,
   cloneToken,
   jobId,
@@ -360,7 +356,6 @@ export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '.
 export type { TagSchema, TagCategory } from './tag-schemas';
 
 // Auth types
-export type { GoogleAuthRequest } from './auth-types';
 
 // ID generation
 export { generateUuid, uuidV4 } from './id-generation';

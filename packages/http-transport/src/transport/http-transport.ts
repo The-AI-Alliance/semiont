@@ -15,12 +15,9 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type {
   AccessToken,
   BaseUrl,
-  Email,
   EventBus,
   EventMap,
-  GoogleCredential,
   Logger,
-  RefreshToken,
   ResourceId,
   UserDID,
   components,
@@ -47,8 +44,6 @@ import type {
 import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
-type AuthResponse = components['schemas']['AuthResponse'];
-type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
 type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -451,27 +446,6 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private authHeaders(): Record<string, string> {
     const token = this.token$.getValue() ?? undefined;
     return token ? { Authorization: `Bearer ${token}` } : {};
-  }
-
-  async authenticatePassword(email: Email, password: string): Promise<AuthResponse> {
-    return this.http.post(`${this.baseUrl}/api/tokens/password`, {
-      json: { email, password },
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  async authenticateGoogle(credential: GoogleCredential): Promise<AuthResponse> {
-    return this.http.post(`${this.baseUrl}/api/tokens/google`, {
-      json: { credential },
-      headers: this.authHeaders(),
-    }).json();
-  }
-
-  async refreshAccessToken(token: RefreshToken): Promise<TokenRefreshResponse> {
-    return this.http.post(`${this.baseUrl}/api/tokens/refresh`, {
-      json: { refreshToken: token },
-      headers: this.authHeaders(),
-    }).json();
   }
 
   async logout(): Promise<void> {

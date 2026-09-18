@@ -163,9 +163,6 @@ export function stubGateway(): IGatewayOperations {
   const notScripted = (name: string) => () =>
     Promise.reject(new Error(`stubGateway: not scripted: ${name}`));
   return {
-    authenticatePassword: notScripted('authenticatePassword'),
-    authenticateGoogle: notScripted('authenticateGoogle'),
-    refreshAccessToken: notScripted('refreshAccessToken'),
     logout: notScripted('logout'),
     acceptTerms: notScripted('acceptTerms'),
     getCurrentUser: notScripted('getCurrentUser'),

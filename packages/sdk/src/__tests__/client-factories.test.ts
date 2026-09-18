@@ -6,11 +6,8 @@
  * through, brands string inputs, and returns a wired client. We assert
  * on the wiring it can hand back without going to the wire.
  *
- * The credentials-first factory that used to live here was DELETED
- * (SSE-AUTH-RESILIENCE P5) — it handed out a token that never refreshed.
- * Its replacement and its coverage are `SemiontSession.signInHttp`, tested in
- * `session/__tests__/semiont-session-factories.test.ts`.
- *
+ * Signing in belongs to the session layer (`SemiontSession.signInDevice`,
+ * tested in `session/__tests__/semiont-session-factories.test.ts`);
  * `fromHttp` never authenticates, so nothing here goes to the wire.
  */
 

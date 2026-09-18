@@ -188,7 +188,7 @@ export class SemiontClient {
    * doesn't need to drive the token from outside (no manual refresh,
    * no cross-tab sync). For long-running scripts that need refresh,
    * use `SemiontSession.fromHttp(...)` (with a token already on hand)
-   * or `SemiontSession.signInHttp(...)` (credentials-first) instead —
+   * or `SemiontSession.signInDevice(...)` (sign in at the issuer) instead —
    * either owns the same transport/client wiring plus the
    * proactive-refresh + storage machinery.
    *
