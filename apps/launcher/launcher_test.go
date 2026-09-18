@@ -7183,7 +7183,7 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = append(b, []byte("\n[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\naudience = \"semiont-gateway\"\n")...)
+	b = append(b, []byte("\n[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n")...)
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "keycloak.toml"), b, 0o644); err != nil {
 		t.Fatal(err)
 	}

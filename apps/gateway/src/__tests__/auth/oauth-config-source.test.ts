@@ -80,11 +80,11 @@ describe('GET /api/admin/oauth/config — the issuer this knowledge base trusts'
 
   beforeEach(() => {
     vi.clearAllMocks();
-    configureTrustedIssuer({ type: 'keycloak', issuer: ISSUER, audience: AUDIENCE });
+    configureTrustedIssuer({ type: 'keycloak', issuer: ISSUER }, AUDIENCE);
   });
 
   afterEach(() => {
-    configureTrustedIssuer(undefined);
+    configureTrustedIssuer(undefined, AUDIENCE);
   });
 
   async function fetchAsAdmin() {
@@ -103,7 +103,7 @@ describe('GET /api/admin/oauth/config — the issuer this knowledge base trusts'
   });
 
   it('reports nulls when the knowledge base trusts no issuer', async () => {
-    configureTrustedIssuer(undefined);
+    configureTrustedIssuer(undefined, AUDIENCE);
 
     const res = await fetchAsAdmin();
 

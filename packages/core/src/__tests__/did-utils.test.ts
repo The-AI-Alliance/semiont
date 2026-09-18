@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid } from '../did-utils';
+import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid, kbResource } from '../did-utils';
 
 import { validators } from '../openapi';
 
@@ -306,6 +306,36 @@ describe('@semiont/core - did-utils', () => {
       const domain = 'the-ai-alliance.github.io:semiont-caselaw-kb';
       const agent = agentToDid({ domain, provider: 'anthropic', model: 'claude-haiku-4-5' });
       expect(agent.startsWith(`${kbDid(domain)}:agents:`)).toBe(true);
+    });
+  });
+
+  /**
+   * The same committed domain, rendered as the resource identifier a token's
+   * `aud` must carry. One declared fact, two renderings — which is the point:
+   * a second CONFIGURED audience could disagree with the KB's identity, and
+   * this one cannot.
+   */
+  describe('kbResource', () => {
+    it('resolves the did:web colon path to its https URL', () => {
+      expect(kbResource('the-ai-alliance.github.io:semiont-caselaw-kb'))
+        .toBe('https://the-ai-alliance.github.io/semiont-caselaw-kb');
+    });
+
+    it('is the bare origin when the domain declares no path', () => {
+      expect(kbResource('example.com')).toBe('https://example.com');
+    });
+
+    it('is https even for a domain only ever reached over http — it identifies, it does not address', () => {
+      // Local development dials http://localhost:4000, and the token minted
+      // for it still carries the https identity. Nothing dereferences this
+      // value, so the scheme is part of the name rather than a route.
+      expect(kbResource('localhost:4000')).toBe('https://localhost/4000');
+    });
+
+    it('names the same subject as kbDid, so the two cannot drift', () => {
+      const domain = 'example.org:kb';
+      expect(kbDid(domain)).toBe('did:web:example.org:kb');
+      expect(kbResource(domain)).toBe('https://example.org/kb');
     });
   });
 });

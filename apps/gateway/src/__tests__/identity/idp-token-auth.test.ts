@@ -69,7 +69,7 @@ beforeAll(() => {
 beforeEach(async () => {
   for (const fn of Object.values(mockPrismaUser)) fn.mockReset();
   issuer = await fixtureIssuer(ORIGIN, { audience: AUDIENCE });
-  configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN, audience: AUDIENCE });
+  configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN }, AUDIENCE);
 });
 
 async function me(token: string) {
@@ -175,7 +175,7 @@ describe('a token that must not authenticate', () => {
   });
 
   it('is an issuer token when no issuer is trusted', async () => {
-    configureTrustedIssuer(undefined);
+    configureTrustedIssuer(undefined, AUDIENCE);
     mockPrismaUser.findFirst.mockResolvedValue(fakeUser());
 
     const res = await me(await issuer.token({ claims: ALICE }));

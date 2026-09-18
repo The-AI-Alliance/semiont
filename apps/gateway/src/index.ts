@@ -21,7 +21,7 @@ import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontState } from '@semiont/core/node';
-import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, withDeadline, errField } from '@semiont/core';
+import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, kbResource, withDeadline, errField } from '@semiont/core';
 import {
   GATEWAY_HANDLER_CHANNELS,
   GATEWAY_HANDLER_EMITS,
@@ -67,13 +67,6 @@ if (!config.services?.gateway) {
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 
-// The issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY): keys
-// are discovered on first use, so a configured issuer that is unreachable
-// surfaces at the first human request, not here. No section, no trusted
-// issuer — only gateway-signed tokens authenticate.
-const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
-configureTrustedIssuer(config.services.identity);
-
 // ── KB identity (KB-IDENTITY-VS-ADDRESS decisions 8 + 10) ────────────────
 //
 // One check over two values, because they are two branches of one question —
@@ -97,10 +90,11 @@ configureTrustedIssuer(config.services.identity);
 // when the KB declares none — so an undeclared identity still arrives here as
 // absent, and still refuses below.
 //
-// Both resolved values escape the block so JWTService.initialize can be handed
-// them, rather than re-deriving them from a config shape this process no longer
-// fully has.
+// All three resolved values escape the block so JWTService.initialize and the
+// trusted issuer can be handed them, rather than re-deriving them from a config
+// shape this process no longer fully has.
 let effectiveDomain: string;
+let committedKbDomain: string;
 
 {
   const committedDomain = config.kb?.domain;
@@ -132,6 +126,7 @@ let effectiveDomain: string;
   // refusal in JWTService, which is how a KB that was perfectly well-formed
   // could not start.
   effectiveDomain = config.site?.domain ?? committedDomain;
+  committedKbDomain = committedDomain;
 
   if (config.site?.domain !== undefined && config.site.domain !== committedDomain) {
     // eslint-disable-next-line no-console
@@ -145,6 +140,20 @@ let effectiveDomain: string;
   }
 
 }
+
+// The issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY): keys are
+// discovered on first use, so a configured issuer that is unreachable surfaces
+// at the first human request, not here. No section, no trusted issuer — only
+// gateway-signed tokens authenticate.
+//
+// The AUDIENCE is not configured. It is this knowledge base's own resource
+// identifier, derived from the committed did:web domain resolved above, which
+// is why this runs after that block rather than before it. One declared fact
+// decides both what the KB calls itself and what it requires in `aud`, so the
+// two cannot be configured into disagreement — and a disagreement here refuses
+// every token while looking like a working deployment.
+const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
+configureTrustedIssuer(config.services.identity, kbResource(committedKbDomain));
 
 const gatewayService = config.services.gateway;
 

@@ -41,7 +41,6 @@ type rolePlan struct {
 	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
 	Env              []string // container env derived from config (creds)
 	Issuer           string   // identity: the OIDC issuer URL as configured
-	Audience         string   // identity: the client id the gateway expects in a token's aud
 }
 
 type launchPlan struct {
@@ -649,8 +648,10 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	}
 
 	// identity — the OIDC issuer the gateway trusts (EXTERNAL-IDENTITY D5).
-	// One shape for both types: issuer and audience are stated, never
-	// inferred. keycloak on the launcher-injected ${KEYCLOAK_HOST} is
+	// One shape for both types: the issuer is stated, never inferred. The
+	// AUDIENCE is not configured at all — it is the KB's own resource
+	// identifier, derived from the committed did:web domain, so it cannot
+	// disagree with the identity the KB already publishes. keycloak on the launcher-injected ${KEYCLOAK_HOST} is
 	// provided — launched with the staged realm, its database on the
 	// PostgreSQL the [database] section names (D6). Any other host, and
 	// every oidc issuer, is external: verified, never launched.
@@ -667,9 +668,6 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if id.Issuer == "" {
 			return nil, secErr("identity", "missing required key %q (e.g. \"http://${KEYCLOAK_HOST}:8080/realms/semiont\")", "issuer")
 		}
-		if id.Audience == "" {
-			return nil, secErr("identity", "missing required key %q (the client id the gateway expects in a token's aud)", "audience")
-		}
 		spec := driverCatalog["identity"][id.Type]
 		host, port, path, err := splitIssuer(id.Issuer)
 		if err != nil {
@@ -678,7 +676,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if port == 0 {
 			port = spec.defaultPort
 		}
-		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer, Audience: id.Audience}
+		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer}
 		switch {
 		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == obligationProvided:
 			if keycloakRealm(path) == "" {

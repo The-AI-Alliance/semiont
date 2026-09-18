@@ -117,7 +117,6 @@ func generateSemiontconfig(p genParams) string {
 	w(`[environments.local.identity]`)
 	w(`type = "keycloak"`)
 	w(`issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"`)
-	w(`audience = "semiont-gateway"`)
 	return b.String()
 }
 

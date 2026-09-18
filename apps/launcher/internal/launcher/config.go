@@ -177,12 +177,12 @@ type signalCfg struct {
 // identityCfg mirrors the TypeScript IdentityServiceConfig: type "keycloak" |
 // "oidc", the issuer URL the gateway trusts (a keycloak issuer on the
 // launcher-injected ${KEYCLOAK_HOST} is provided; any other host, and every
-// oidc issuer, is external), and the audience the gateway expects in tokens.
+// oidc issuer, is external). The audience is NOT configured: it is derived
+// from the KB's committed did:web domain (kbResource).
 type identityCfg struct {
-	Type     string `toml:"type"`
-	Issuer   string `toml:"issuer"`
-	Audience string `toml:"audience"`
-	Image    string `toml:"image"` // optional: override the catalog's default image
+	Type   string `toml:"type"`
+	Issuer string `toml:"issuer"`
+	Image  string `toml:"image"` // optional: override the catalog's default image
 }
 
 type bindingCfg struct {

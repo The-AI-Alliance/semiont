@@ -138,7 +138,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, bool) {
 		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, keycloakDatabase)
 	}
 	realm := keycloakRealm(issuerPath(rp.Issuer))
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, rp.Audience, addr))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr))
 	if !ok {
 		return nil, false
 	}

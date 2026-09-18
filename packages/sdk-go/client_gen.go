@@ -3703,7 +3703,7 @@ type ProtectedResourceMetadata struct {
 	// BearerMethodsSupported How a bearer token reaches this resource: the Authorization header only.
 	BearerMethodsSupported []ProtectedResourceMetadataBearerMethodsSupported `json:"bearer_methods_supported"`
 
-	// Resource This knowledge base's resource identifier: the origin the metadata was fetched from.
+	// Resource This knowledge base's resource identifier: its did:web identity resolved to an https URL (did:web:example.github.io:my-kb identifies https://example.github.io/my-kb). This is the exact value a token's aud claim must carry. It is an identifier, not an address — nothing dereferences it, and a knowledge base reached over http in local development still names itself by the https form, which is what makes the value stable across every host, port and proxy it is reached through.
 	Resource string `json:"resource"`
 
 	// ResourceName The knowledge base's name, for a client's sign-in prompt.

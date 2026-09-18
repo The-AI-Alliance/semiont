@@ -99,7 +99,6 @@ func Login(args []string) int {
 			fmt.Fprintln(os.Stderr, "    [environments.<env>.identity]")
 			fmt.Fprintln(os.Stderr, "    type = \"keycloak\"")
 			fmt.Fprintln(os.Stderr, "    issuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"")
-			fmt.Fprintln(os.Stderr, "    audience = \"semiont-gateway\"")
 			return 1
 		}
 		u.fail("%v", err)
@@ -115,9 +114,9 @@ func Login(args []string) int {
 	}
 
 	// The gateway is the judge of the token, not the issuer: a 401 here means
-	// the knowledge base's [identity] audience and the realm's client
-	// audience disagree, and storing the token would only defer that error to
-	// the first verb.
+	// the realm's audience mapper and the knowledge base's own resource
+	// identifier disagree, and storing the token would only defer that error
+	// to the first verb.
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
 	me, err := cli.GetApiUsersMeWithResponse(ctx, bearer(tr.AccessToken))
 	cancel()
@@ -126,7 +125,7 @@ func Login(args []string) int {
 		return 1
 	}
 	if me.JSON200 == nil {
-		u.fail("The issuer signed you in, but the gateway rejected the token (HTTP %d) — its [identity] audience and the issuer's client audience disagree.", me.HTTPResponse.StatusCode)
+		u.fail("The issuer signed you in, but the gateway rejected the token (HTTP %d) — the realm's audience mapper and this knowledge base's resource identifier disagree.", me.HTTPResponse.StatusCode)
 		return 1
 	}
 	email := string(me.JSON200.Email)

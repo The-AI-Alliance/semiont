@@ -13,7 +13,6 @@ import (
 const keycloakIdentity = `[environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
-audience = "semiont-gateway"
 `
 
 func TestDerivePlanIdentityAbsent(t *testing.T) {
@@ -29,8 +28,8 @@ func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_DB_PASSWORD=localpass", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
 	})
 	rp := plan.Roles["identity"]
-	if rp.Issuer != "http://${KEYCLOAK_HOST}:8080/realms/semiont" || rp.Audience != "semiont-gateway" {
-		t.Errorf("issuer/audience not carried on the plan: %+v", rp)
+	if rp.Issuer != "http://${KEYCLOAK_HOST}:8080/realms/semiont" {
+		t.Errorf("issuer not carried on the plan: %+v", rp)
 	}
 	if got := identityEndpoint(rp); got != "http://localhost:8080/realms/semiont" {
 		t.Errorf("endpoint: got %q", got)
@@ -41,7 +40,6 @@ func TestDerivePlanIdentityOIDCExternal(t *testing.T) {
 	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": `[environments.local.identity]
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
-audience = "semiont-gateway"
 `}))
 	checkRole(t, plan, "identity", rolePlan{
 		Obligation: obligationExternal, Driver: "oidc", Address: "login.example.com", Port: 443,
@@ -54,25 +52,22 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 		want          []string
 	}{
 		{"no type",
-			"[environments.local.identity]\nissuer = \"https://login.example.com/realms/acme\"\naudience = \"semiont-gateway\"\n",
+			"[environments.local.identity]\nissuer = \"https://login.example.com/realms/acme\"\n",
 			[]string{"identity", "\"type\""}},
 		{"unknown type",
-			"[environments.local.identity]\ntype = \"foo\"\nissuer = \"https://login.example.com\"\naudience = \"a\"\n",
+			"[environments.local.identity]\ntype = \"foo\"\nissuer = \"https://login.example.com\"\n",
 			[]string{"unknown type", "foo"}},
 		{"oidc without issuer",
-			"[environments.local.identity]\ntype = \"oidc\"\naudience = \"semiont-gateway\"\n",
+			"[environments.local.identity]\ntype = \"oidc\"\n",
 			[]string{"identity", "\"issuer\""}},
-		{"keycloak without audience",
-			"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n",
-			[]string{"identity", "\"audience\""}},
 		{"keycloak issuer without a realm path",
-			"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080\"\naudience = \"a\"\n",
+			"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080\"\n",
 			[]string{"/realms/<realm>"}},
 		{"oidc on an injected host",
-			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/x\"\naudience = \"a\"\n",
+			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/x\"\n",
 			[]string{"launcher-injected host"}},
 		{"issuer without a scheme",
-			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"login.example.com\"\naudience = \"a\"\n",
+			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"login.example.com\"\n",
 			[]string{"http://"}},
 	}
 	for _, c := range cases {
@@ -104,14 +99,14 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 }
 
 func TestKeycloakRealmJSON(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "semiont-gateway", "192.168.64.1"))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1"))
 	for _, want := range []string{
 		`"realm": "semiont"`,
 		`"clientId": "semiont-browser"`,
 		`"publicClient": true`,
 		`"pkce.code.challenge.method": "S256"`,
 		`"http://192.168.64.1:3000/*"`,
-		`"included.custom.audience": "semiont-gateway"`,
+		`"included.custom.audience": "https://example.github.io/my-kb"`,
 		`"clientId": "semiont-cli"`,
 		`"oauth2.device.authorization.grant.enabled": "true"`,
 	} {

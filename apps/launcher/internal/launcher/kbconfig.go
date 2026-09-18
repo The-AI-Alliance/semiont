@@ -12,6 +12,7 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	toml "github.com/pelletier/go-toml/v2"
 )
@@ -29,6 +30,31 @@ func (k *kbIdentity) didWeb() string {
 		return ""
 	}
 	return "did:web:" + k.Domain
+}
+
+// kbResource renders the KB's RESOURCE identifier: the did:web resolved to
+// the https URL it names, which is the single value a token's `aud` must
+// carry (EXTERNAL-IDENTITY). did:web turns the colon path into a slash path,
+// so `did:web:example.github.io:my-kb` identifies
+// `https://example.github.io/my-kb`.
+//
+// An identifier, not an address — nothing dereferences it, and a KB reached
+// over http in local development still names itself by the https form. The
+// TypeScript twin is `kbResource` in packages/core/src/did-utils.ts and the
+// two MUST agree byte-for-byte: this value goes into the realm's audience
+// mapper and the gateway checks tokens against its own copy, so a divergence
+// refuses every token with nothing to point at.
+func kbResource(domain string) string {
+	if domain == "" {
+		return ""
+	}
+	return "https://" + strings.ReplaceAll(domain, ":", "/")
+}
+
+// committedResource is the KB's resource identifier from its own committed
+// config, "" when it declares no domain — the audience half of committedDomain.
+func committedResource(root string) string {
+	return kbResource(committedDomain(root))
 }
 
 // loadKBIdentity reads <root>/.semiont/config. nil when absent or unreadable
