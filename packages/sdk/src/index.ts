@@ -168,6 +168,11 @@ export {
   isValidHostname,
   kbGatewayUrl,
   setStoredSession,
+  // One refresh policy for every holder of a gateway token: when a token
+  // expires is the token's own claim, and how long before that to renew is
+  // a single number. Sidecars outside this package schedule from both.
+  parseJwtExpiry,
+  REFRESH_BEFORE_EXP_MS,
   type StoredSession,
 } from './session/storage';
 

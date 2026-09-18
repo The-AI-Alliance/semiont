@@ -18,14 +18,12 @@
  *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
  */
 
-import { BehaviorSubject } from 'rxjs';
 import { WEAVER_MANIFEST, createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit';
 import { Weaver, type WeaverTiming } from './weaver';
 import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY } from '@semiont/core';
+import { baseUrl as makeBaseUrl, createTomlConfigLoader } from '@semiont/core';
 import { runBootPass, type BootPassState } from './boot-pass';
-import type { AccessToken } from '@semiont/core';
 import { getGraphDatabase } from '@semiont/graph';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
@@ -76,57 +74,10 @@ const stateHome = process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state
 const checkpointPath = join(stateHome, 'semiont', 'weaver-checkpoint.json');
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { startAgentSession } from './agent-session';
 const logger = createProcessLogger('weaver');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-
-async function authenticate(): Promise<string> {
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
-
-  // The weaver is a Software peer (D2: the Smelter's exchange). It has no
-  // inference (provider, model), so it authenticates under the stable
-  // identity (semiont, weaver) — DID did:web:<host>:agents:semiont:weaver —
-  // and the bus stamps that onto every signal it emits.
-  //
-  // Connection-level failures are retried with backoff: the gateway may be
-  // mid-restart or the container network still warming up when this process
-  // starts, and orchestration runs it with `--rm` and no restart policy —
-  // exiting on the first failed fetch is permanent death. HTTP-level
-  // rejections (bad secret) are NOT retried; the gateway is up and said no.
-  return retryWithBackoff(
-    async () => {
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: workerSecret,
-          provider: 'semiont',
-          model: 'weaver',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Gateway unreachable, retrying authentication', {
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -139,35 +90,28 @@ async function main() {
   // only surviving container teardown would need a mount (F2, declined).
   registerSupervisorRestartCount();
 
-  logger.info('Authenticating', { baseUrl });
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
-  logger.info('Authenticated');
-
-  // Agent tokens expire (24h — POST /api/tokens/agent). Two recovery paths
-  // keep a long-lived worker authenticated: `tokenRefresher` re-authenticates
-  // and retries once when any HTTP request 401s, and a proactive re-auth at
-  // half the TTL covers the listen-only case — SSE reconnects read `token$`
-  // fresh, so pushing here is what keeps the event feed alive.
-  const refreshToken = async (): Promise<string | null> => {
-    const token = await authenticate();
-    tokenSubject.next(makeAccessToken(token));
-    return token;
-  };
-  const reauthTimer = setInterval(() => {
-    refreshToken().catch((error) => {
-      logger.error('Proactive re-authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 12 * 60 * 60 * 1000);
+  // The weaver is a Software peer (D2: the Smelter's exchange). It has no
+  // inference (provider, model), so it authenticates under the stable
+  // identity (semiont, weaver) — DID did:web:<host>:agents:semiont:weaver —
+  // and the bus stamps that onto every signal it emits.
+  //
+  // The token's lifetime and the refresh cadence derived from it are the
+  // gateway's to decide; see `startAgentSession`.
+  const session = await startAgentSession({
+    baseUrl,
+    workerSecret,
+    provider: 'semiont',
+    model: 'weaver',
+    logger,
+  });
 
   const graphDb = await getGraphDatabase(graphConfig);
   logger.info('Graph database ready', { type: graphConfig.type });
 
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
+    token$: session.token$,
+    tokenRefresher: session.refresh,
     // The whole manifest at construction — reply channels, the domain-event
     // fold and the command channels — not the reply set plus a later
     // widening. See WEAVER_MANIFEST.
@@ -225,7 +169,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    clearInterval(reauthTimer);
+    session.stop();
     actorStateUnit.dispose();
     httpTransport.dispose();
     void weaver.stop().then(() => {

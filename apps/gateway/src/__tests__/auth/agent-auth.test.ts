@@ -92,6 +92,39 @@ describe('POST /api/tokens/agent', () => {
       expect(data.token.split('.')).toHaveLength(3);
     });
 
+    /**
+     * An agent token is the one credential here with no revocation behind it:
+     * the account is synthetic, so there is nothing at the issuer to disable,
+     * and rotating the shared secret stops new mints without touching tokens
+     * already handed out. Its lifetime IS the revocation window, so this
+     * bounds it. It was a day.
+     *
+     * The bound is asserted on the token's own `exp` claim because that claim
+     * is what every holder schedules its re-authentication from — sidecars via
+     * `startAgentSession`, workers via `SemiontSession`. Nothing restates the
+     * number, so this is the only place it can be checked.
+     */
+    it('signs a lifetime short enough to serve as the revocation window', async () => {
+      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
+
+      const response = await app.request('/api/tokens/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          secret: WORKER_SECRET,
+          provider: 'ollama',
+          model: 'gemma2:27b',
+        }),
+      });
+
+      const { token } = await response.json() as { token: string };
+      const payload = JWTService.verifyToken(token as never);
+
+      expect(payload.exp).toBeDefined();
+      expect(payload.iat).toBeDefined();
+      expect(payload.exp! - payload.iat!).toBeLessThanOrEqual(60 * 60);
+    });
+
     it('JWT carries the agent DID in `agentDid` so the bus uses it as `_userId`', async () => {
       mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
 

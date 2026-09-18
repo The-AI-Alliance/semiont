@@ -48,6 +48,24 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
 
 
 /**
+ * How long a software-agent token lives, in seconds.
+ *
+ * This is the ONLY place the lifetime is decided. It is signed into the token
+ * and nowhere else: a long-lived agent schedules its re-authentication by
+ * reading the `exp` claim off the token it was handed, so there is no second
+ * copy of this number to drift. Four sidecars used to hold such a copy, as
+ * `12 * 60 * 60 * 1000`, "half the TTL" of a value they did not own.
+ *
+ * An hour rather than a day because an agent token is the one credential here
+ * with no revocation behind it: the account is synthetic, so there is nothing
+ * at the issuer to disable, and rotating the shared secret stops new mints
+ * without touching tokens already handed out. The lifetime IS the revocation
+ * window, so it is short enough to matter and long enough that re-minting
+ * stays cheap.
+ */
+const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
+
+/**
  * POST /api/tokens/agent
  *
  * Software-agent token exchange. A worker process presents the shared
@@ -138,7 +156,7 @@ authRouter.post('/api/tokens/agent', async (c) => {
     provider: agentUser.provider,
     isAdmin: false,
     agentDid: did,
-  }, '24h');
+  }, `${AGENT_TOKEN_TTL_SECONDS}s`);
 
   return c.json({ token, did }, 200);
 });

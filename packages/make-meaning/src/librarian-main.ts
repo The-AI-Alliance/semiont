@@ -46,18 +46,14 @@
  *   XDG_STATE_HOME            — the shared state mount the views live under.
  */
 
-import { BehaviorSubject, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
 import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
   baseUrl as makeBaseUrl,
-  accessToken as makeAccessToken,
-  retryWithBackoff,
-  isTransientFetchError,
-  STARTUP_FETCH_RETRY,
-  type AccessToken, withDeadline } from '@semiont/core';
+  withDeadline } from '@semiont/core';
 import { loadEnvironmentConfig, SemiontState } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '@semiont/graph';
@@ -116,51 +112,10 @@ const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
 const healthPort = 24104;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { startAgentSession } from './agent-session';
 const logger = createProcessLogger('librarian');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-
-async function authenticate(): Promise<string> {
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
-
-  // A Software peer under the stable identity (semiont, librarian), the same
-  // shape as the Archivist: one DID for the reference desk. NOT the actor's
-  // inference pair — this process hosts Matcher now and Gatherer at P3, each
-  // with its own inference config, under one token.
-  return retryWithBackoff(
-    async () => {
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: workerSecret,
-          provider: 'semiont',
-          model: 'librarian',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Gateway unreachable, retrying authentication', {
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -171,22 +126,20 @@ async function main() {
   // record already existed here — nothing read it into a metric until now.
   registerSupervisorRestartCount();
 
-  logger.info('Authenticating', { baseUrl });
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
-  logger.info('Authenticated');
-
-  const refreshToken = async (): Promise<string | null> => {
-    const token = await authenticate();
-    tokenSubject.next(makeAccessToken(token));
-    return token;
-  };
-  const reauthTimer = setInterval(() => {
-    refreshToken().catch((error) => {
-      logger.error('Proactive re-authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 12 * 60 * 60 * 1000);
+  // A Software peer under the stable identity (semiont, librarian), the same
+  // shape as the Archivist: one DID for the reference desk. NOT the actor's
+  // inference pair — this process hosts Matcher now and Gatherer at P3, each
+  // with its own inference config, under one token.
+  //
+  // The token's lifetime and the refresh cadence derived from it are the
+  // gateway's to decide; see `startAgentSession`.
+  const session = await startAgentSession({
+    baseUrl,
+    workerSecret,
+    provider: 'semiont',
+    model: 'librarian',
+    logger,
+  });
 
   // ── The stores: reads only, nothing owned ──────────────────────────
   const localBus = new EventBus();
@@ -227,8 +180,8 @@ async function main() {
   // The bus transport. Its pumps attach after the actors subscribe.
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
+    token$: session.token$,
+    tokenRefresher: session.refresh,
     // The inbound roster plus the awaited-reply channels — never the full
     // bridged set, whose global reply fan-out is the worker-OOM failure
     // mode. This process awaits ONE wire reply (the anchored-text ask behind
@@ -317,7 +270,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    clearInterval(reauthTimer);
+    session.stop();
     for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
     void Promise.all([matcher.stop(), gatherer.stop()]).then(async () => {

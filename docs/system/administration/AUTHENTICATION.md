@@ -63,7 +63,7 @@ graph TB
 |---|---|---|---|
 | **Access** | **10 minutes** | `Authorization: Bearer` | Per-request API auth; validated on every protected route. |
 | **Refresh** | **30 days** | request body to `/api/tokens/refresh` | The SDK **Session** silently mints new access tokens from it. |
-| **Agent** | 24 hours | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). |
+| **Agent** | **1 hour** | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). No account exists at the issuer to disable, so this lifetime IS the revocation window. |
 | **Media** | 5 minutes | `?token=` query param | Resource-scoped token for `GET /api/resources/:id` (images, PDFs) where a header can't be set. |
 
 This table is the only place these values are written down; everywhere else says
@@ -74,7 +74,7 @@ row against the literal, not against another document:
 |---|---|---|
 | Access | `apps/gateway/src/routes/auth.ts` (password sign-in and refresh) and `apps/gateway/src/auth/oauth.ts` (OAuth) — **three call sites, all `'10m'`; check all three when changing it** | `generateToken(jwtPayload, '10m')` |
 | Refresh | [`apps/gateway/src/routes/auth.ts:129`](../../../apps/gateway/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
-| Agent | [`apps/gateway/src/routes/auth.ts:430`](../../../apps/gateway/src/routes/auth.ts#L430) | `}, '24h')` |
+| Agent | [`apps/gateway/src/routes/auth.ts`](../../../apps/gateway/src/routes/auth.ts) | `AGENT_TOKEN_TTL_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
 | Media | [`apps/gateway/src/auth/jwt.ts:189`](../../../apps/gateway/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
 
 Every JWT carries the user's **`tokenVersion`** at mint time (a required claim — there is no compatibility default). Both access-validation and `/api/tokens/refresh` reject when `payload.tokenVersion !== user.tokenVersion`.

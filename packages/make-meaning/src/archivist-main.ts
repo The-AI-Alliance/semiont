@@ -35,17 +35,13 @@
  *   SEMIONT_SKIP_REBUILD      — 'true' skips the startup view rebuild.
  */
 
-import { BehaviorSubject, Subscription, merge } from 'rxjs';
+import { Subscription, merge } from 'rxjs';
 import { HttpTransport } from '@semiont/http-transport';
 import {
   EventBus,
   PERSISTED_EVENT_TYPES,
   baseUrl as makeBaseUrl,
-  accessToken as makeAccessToken,
-  retryWithBackoff,
-  isTransientFetchError,
-  STARTUP_FETCH_RETRY,
-  type AccessToken, withDeadline } from '@semiont/core';
+  withDeadline } from '@semiont/core';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
@@ -117,50 +113,11 @@ const healthPort = 24103;
 
 import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { startAgentSession } from './agent-session';
 import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('archivist');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-
-async function authenticate(): Promise<string> {
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
-
-  // A Software peer under the stable identity (semiont, archivist), the same
-  // shape as the Weaver: no inference pair, one DID for the record-keeper.
-  return retryWithBackoff(
-    async () => {
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: workerSecret,
-          provider: 'semiont',
-          model: 'archivist',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Gateway unreachable, retrying authentication', {
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -174,22 +131,18 @@ async function main() {
   const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
   registerSupervisorRestartCount();
 
-  logger.info('Authenticating', { baseUrl });
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
-  logger.info('Authenticated');
-
-  const refreshToken = async (): Promise<string | null> => {
-    const token = await authenticate();
-    tokenSubject.next(makeAccessToken(token));
-    return token;
-  };
-  const reauthTimer = setInterval(() => {
-    refreshToken().catch((error) => {
-      logger.error('Proactive re-authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 12 * 60 * 60 * 1000);
+  // A Software peer under the stable identity (semiont, archivist), the same
+  // shape as the Weaver: no inference pair, one DID for the record-keeper.
+  //
+  // The token's lifetime and the refresh cadence derived from it are the
+  // gateway's to decide; see `startAgentSession`.
+  const session = await startAgentSession({
+    baseUrl,
+    workerSecret,
+    provider: 'semiont',
+    model: 'archivist',
+    logger,
+  });
 
   // ── The record: local, single-owner ────────────────────────────────
   const project = new SemiontProject(projectRoot, { anchoredTextDir });
@@ -296,8 +249,8 @@ async function main() {
   // ── Bus pumps ──────────────────────────────────────────────────────
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
+    token$: session.token$,
+    tokenRefresher: session.refresh,
     // Exactly the inbound roster — never the full bridged set, whose global
     // reply fan-out is the worker-OOM failure mode. This process awaits no
     // wire replies (busRequest's isSubscribed gate fails fast if one is ever
@@ -363,7 +316,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    clearInterval(reauthTimer);
+    session.stop();
     for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
     void Promise.all([stower.stop(), browser.stop(), cloneTokenManager.stop()]).then(() => {
