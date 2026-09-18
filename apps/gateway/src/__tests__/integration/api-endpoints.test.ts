@@ -78,7 +78,6 @@ interface UserResponse {
   provider: string;
   isAdmin: boolean;
   isActive: boolean;
-  termsAcceptedAt: string | null;
   lastLogin: string | null;
   created: string;
 }
@@ -92,11 +91,6 @@ interface ErrorResponse {
 
 // Local test interfaces (removed unused ApiDocResponse)
 
-interface TermsAcceptanceResponse {
-  success: boolean;
-  message: string;
-  termsAcceptedAt: string;
-}
 
 interface AdminUsersResponse {
   success: boolean;
@@ -154,7 +148,6 @@ const testUser = {
   isAdmin: false,
   isModerator: false,
   isActive: true,
-  termsAcceptedAt: new Date(),
   lastLogin: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -346,7 +339,6 @@ describe('API Endpoints Integration Tests', () => {
       isAdmin: false,
       isModerator: false,
       isActive: true,
-      termsAcceptedAt: new Date(),
       lastLogin: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -402,21 +394,6 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.error).toContain('token');
     });
 
-    it('POST /api/users/accept-terms should update terms acceptance', async () => {
-      sharedMockClient.user.update.mockResolvedValue({ ...mockUser, termsAcceptedAt: new Date() } as User);
-
-      const res = await app.request('/api/users/accept-terms', {
-        method: 'POST',
-        headers: {
-          'Authorization': 'Bearer valid-jwt-token',
-        },
-      });
-
-      expect(res.status).toBe(200);
-      const data = await res.json() as TermsAcceptanceResponse;
-      expect(data.success).toBe(true);
-      expect(data.message).toBe('Terms accepted');
-    });
   });
 
   describe('Admin Endpoints', () => {
@@ -431,7 +408,6 @@ describe('API Endpoints Integration Tests', () => {
       isAdmin: true,
       isModerator: true,
       isActive: true,
-      termsAcceptedAt: new Date(),
       lastLogin: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -448,7 +424,6 @@ describe('API Endpoints Integration Tests', () => {
       isAdmin: false,
       isModerator: false,
       isActive: true,
-      termsAcceptedAt: new Date(),
       lastLogin: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),

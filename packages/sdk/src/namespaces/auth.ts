@@ -16,10 +16,6 @@ export class AuthNamespace implements IAuthNamespace {
     return this.gateway.getCurrentUser();
   }
 
-  async acceptTerms(): Promise<void> {
-    await this.gateway.acceptTerms();
-  }
-
   async mediaToken(resourceId: ResourceId): Promise<{ token: string }> {
     return this.gateway.getMediaToken(resourceId);
   }

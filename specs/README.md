@@ -136,7 +136,7 @@ All 79 schemas are defined in [src/components/schemas/](src/components/schemas/)
 - `UpdateResourceRequest.json`, etc.
 
 **Authentication:**
-- `ProtectedResourceMetadata.json`, `UserResponse.json`, `AcceptTermsResponse.json`
+- `ProtectedResourceMetadata.json`, `UserResponse.json`
 
 **Entity Management:**
 - `AddEntityTypeRequest.json`, `GetEntityTypesResponse.json`

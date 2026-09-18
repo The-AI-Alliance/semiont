@@ -177,7 +177,6 @@ describe('MCP Authentication security', () => {
         lastLogin: null,
         createdAt: new Date(),
         updatedAt: new Date(),
-        termsAcceptedAt: new Date()
       };
       
       mockPrisma.user.findUnique.mockResolvedValue(mockUser);

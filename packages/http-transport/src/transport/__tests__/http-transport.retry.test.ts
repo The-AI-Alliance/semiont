@@ -17,7 +17,7 @@
  */
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
-import { baseUrl } from '@semiont/core';
+import { baseUrl, resourceId } from '@semiont/core';
 import { HttpTransport } from '../http-transport';
 import { APIError } from '../api-error';
 
@@ -125,7 +125,7 @@ describe('HttpTransport retry — what the caller receives', () => {
     });
 
     const thrown = await transport
-      .acceptTerms()
+      .getMediaToken(resourceId('r1'))
       .then(() => null)
       .catch((e: unknown) => e);
 

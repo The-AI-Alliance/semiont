@@ -37,7 +37,6 @@ interface UserResponse {
   provider: string;
   isAdmin: boolean;
   isActive: boolean;
-  termsAcceptedAt: string | null;
   lastLogin: string | null;
   created: string;
 }
@@ -116,7 +115,6 @@ describe('API Contract Tests', () => {
         provider: 'google',
         isAdmin: false,
         isActive: true,
-        termsAcceptedAt: '2024-01-01T00:00:00.000Z',
         lastLogin: '2024-01-01T00:00:00.000Z',
         created: '2024-01-01T00:00:00.000Z',
       };
@@ -173,7 +171,6 @@ describe('API Contract Tests', () => {
             provider: 'google',
             isAdmin: false,
             isActive: true,
-            termsAcceptedAt: '2024-01-01T00:00:00.000Z',
             lastLogin: '2024-01-01T00:00:00.000Z',
             created: '2024-01-01T00:00:00.000Z',
           },
@@ -297,7 +294,6 @@ describe('API Contract Tests', () => {
         provider: 'google',
         isAdmin: false,
         isActive: true,
-        termsAcceptedAt: null,
         lastLogin: '2024-01-01T00:00:00.000Z',
         created: '2024-01-01T00:00:00.000Z',
       };

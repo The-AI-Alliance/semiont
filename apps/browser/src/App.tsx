@@ -13,7 +13,6 @@ const ConnectPage = React.lazy(() => import('./app/[locale]/auth/connect/page'))
 const SignUpPage = React.lazy(() => import('./app/[locale]/auth/signup/page'));
 const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'));
 const AuthCallbackPage = React.lazy(() => import('./app/[locale]/auth/callback/page'));
-const WelcomePage = React.lazy(() => import('./app/[locale]/auth/welcome/page'));
 import { AuthShell } from './contexts/AuthShell';
 const KnowledgeLayout = React.lazy(() => import('./app/[locale]/know/layout'));
 const KnowledgePage = React.lazy(() => import('./app/[locale]/know/page'));
@@ -58,7 +57,7 @@ function LocaleGuard({ children }: { children: React.ReactNode }) {
 /**
  * ProtectedLayout — pathless wrapper that mounts AuthShell once for every
  * authenticated route group below it. Section layouts (know/, admin/,
- * moderate/, auth/welcome) live under this route so cross-section
+ * moderate/) live under this route so cross-section
  * navigation keeps the AuthShell tree (ProtectedErrorBoundary + the two
  * auth-failure modals) mounted instead of tearing it down and rebuilding.
  */
@@ -114,7 +113,6 @@ export default function App() {
 
           {/* Protected routes — single AuthShell parent across every authenticated section */}
           <Route element={<ProtectedLayout />}>
-            <Route path="auth/welcome" element={<WelcomePage />} />
 
             {/* Knowledge section */}
             <Route path="know" element={<KnowledgeLayout />}>

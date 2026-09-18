@@ -203,7 +203,6 @@ export * from './features/admin-users/components/AdminUsersPage';
 // Features - Auth
 export * from './features/auth/components/SignUpForm';
 export * from './features/auth/components/AuthErrorDisplay';
-export * from './features/auth-welcome/components/WelcomePage';
 
 // Features - Moderation
 export * from './features/moderate-entity-tags/components/EntityTagsPage';
@@ -240,7 +239,6 @@ export { createResourceViewerPageStateUnit, type ResourceViewerPageStateUnit, ty
 export { createResourceLoaderStateUnit, type ResourceLoaderStateUnit } from './features/resource-viewer/state/resource-loader-state-unit';
 export { createAdminUsersStateUnit, type AdminUsersStateUnit } from './features/admin-users/state/admin-users-state-unit';
 export { createAdminSecurityStateUnit, type AdminSecurityStateUnit } from './features/admin-security/state/admin-security-state-unit';
-export { createWelcomeStateUnit, type WelcomeStateUnit } from './features/auth-welcome/state/welcome-state-unit';
 export { createDiscoverStateUnit, type DiscoverStateUnit } from './features/resource-discovery/state/discover-state-unit';
 export { createEntityTagsStateUnit, type EntityTagsStateUnit } from './features/moderate-entity-tags/state/entity-tags-state-unit';
 

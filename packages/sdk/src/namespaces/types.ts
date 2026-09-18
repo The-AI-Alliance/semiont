@@ -550,7 +550,6 @@ export interface JobNamespace {
  */
 export interface AuthNamespace {
   me(): Promise<User>;
-  acceptTerms(): Promise<void>;
   mediaToken(resourceId: ResourceId): Promise<{ token: string }>;
   /** RFC 9728: which issuer the knowledge base trusts — where to send a user to sign in. */
   protectedResourceMetadata(): Promise<ProtectedResourceMetadata>;

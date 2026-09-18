@@ -235,7 +235,6 @@ export interface ITransport {
 export interface IGatewayOperations {
   // ── Auth ──────────────────────────────────────────────────────────────
 
-  acceptTerms(): Promise<void>;
   getCurrentUser(): Promise<UserResponse>;
   getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;
   /** RFC 9728: which issuer the knowledge base trusts. Public; read before any token exists. */

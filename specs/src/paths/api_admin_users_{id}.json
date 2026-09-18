@@ -111,7 +111,7 @@
         "content": {
           "application/json": {
             "schema": {
-              "$ref": "../components/schemas/AcceptTermsResponse.json"
+              "$ref": "../components/schemas/DeleteUserResponse.json"
             }
           }
         }

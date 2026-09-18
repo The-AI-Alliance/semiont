@@ -121,15 +121,6 @@ describe('HttpTransport — HTTP wire shape', () => {
     });
 
 
-    test('acceptTerms posts to /api/users/accept-terms', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue(undefined),
-      } as never);
-      await transport.acceptTerms();
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/accept-terms`, { headers: {} });
-    });
-
-
     test('getMediaToken posts resourceId to /api/tokens/media', async () => {
       vi.mocked(mockKy.post).mockReturnValue({
         json: vi.fn().mockResolvedValue({ token: 'media-tok' }),

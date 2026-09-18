@@ -18,7 +18,7 @@ function SignUpContent() {
   const router = useRouter();
   const keyboardContext = useContext(KeyboardShortcutsContext);
 
-  const callbackUrl = searchParams.get('callbackUrl') ?? '/auth/welcome';
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/know';
 
   const handleSignUp = async () => {
     router.push(`/auth/connect?callbackUrl=${encodeURIComponent(callbackUrl)}`);

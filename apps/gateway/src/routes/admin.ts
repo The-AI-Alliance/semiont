@@ -59,7 +59,6 @@ adminRouter.get('/api/admin/users', async (c) => {
       provider: true,
       isAdmin: true,
       isActive: true,
-      termsAcceptedAt: true,
       lastLogin: true,
       createdAt: true,
       updatedAt: true,
@@ -70,7 +69,6 @@ adminRouter.get('/api/admin/users', async (c) => {
     success: true,
     users: users.map((u) => ({
       ...u,
-      termsAcceptedAt: u.termsAcceptedAt?.toISOString() || null,
       lastLogin: u.lastLogin?.toISOString() || null,
       created: u.createdAt.toISOString(),
       updatedAt: u.updatedAt.toISOString(),

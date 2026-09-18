@@ -68,7 +68,6 @@ describe('JWT Service', () => {
     isAdmin: false,
     isActive: true,
     isModerator: false,
-    termsAcceptedAt: null,
     lastLogin: new Date(),
     createdAt: new Date(),
     updatedAt: new Date(),

@@ -27,9 +27,6 @@
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"
     },
-    "/api/users/accept-terms": {
-      "$ref": "paths/api_users_accept-terms.json"
-    },
     "/api/status": {
       "$ref": "paths/api_status.json"
     },
@@ -72,9 +69,6 @@
   },
   "components": {
     "schemas": {
-      "AcceptTermsResponse": {
-        "$ref": "components/schemas/AcceptTermsResponse.json"
-      },
       "AdminUpdateUserResponse": {
         "$ref": "components/schemas/AdminUpdateUserResponse.json"
       },

@@ -14,7 +14,6 @@ import type { components } from '@semiont/core';
 import { userId as makeUserId, email as makeEmail, agentToDid } from '@semiont/core';
 
 type UserResponse = components['schemas']['UserResponse'];
-type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
 
 export const authRouter = new Hono<{ Variables: { user: User; token: string } }>();
 
@@ -39,7 +38,6 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
     isAdmin: user.isAdmin,
     isModerator: user.isModerator,
     isActive: user.isActive,
-    termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
     lastLogin: user.lastLogin?.toISOString() || null,
     created: user.createdAt.toISOString(),
     token,
@@ -165,29 +163,6 @@ authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
   }
   const token = JWTService.generateMediaToken(body.resourceId, user.id);
   return c.json({ token }, 200);
-});
-
-/**
- * POST /api/users/accept-terms
- *
- * Accept Terms - Mark terms as accepted for the current user
- * Requires authentication
- * Response type: AcceptTermsResponse from OpenAPI spec
- */
-authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
-  const user = c.get('user');
-
-  await DatabaseConnection.getClient().user.update({
-    where: { id: user.id },
-    data: { termsAcceptedAt: new Date() },
-  });
-
-  const response: AcceptTermsResponse = {
-    success: true,
-    message: 'Terms accepted',
-  };
-
-  return c.json(response, 200);
 });
 
 /**

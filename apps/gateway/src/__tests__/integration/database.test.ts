@@ -151,7 +151,6 @@ describe('Database Integration Tests', () => {
       
       expect(user.name).toBeNull();
       expect(user.image).toBeNull();
-      expect(user.termsAcceptedAt).toBeNull();
       expect(user.lastLogin).toBeNull();
     });
 
@@ -169,14 +168,12 @@ describe('Database Integration Tests', () => {
         data: {
           name: 'Updated Name',
           isActive: false,
-          termsAcceptedAt: now,
           lastLogin: now
         }
       });
 
       expect(updated.name).toBe('Updated Name');
       expect(updated.isActive).toBe(false);
-      expect(updated.termsAcceptedAt).toEqual(now);
       expect(updated.lastLogin).toEqual(now);
       expect(updated.updatedAt.getTime()).toBeGreaterThan(user.updatedAt.getTime());
     });

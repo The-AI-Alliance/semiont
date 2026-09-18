@@ -29,7 +29,6 @@ function fakeUser(overrides: Partial<User> = {}): User {
     isAdmin: false,
     isActive: true,
     isModerator: false,
-    termsAcceptedAt: null,
     lastLogin: null,
     createdAt: new Date(),
     updatedAt: new Date(),

@@ -57,7 +57,6 @@ function adminUser(): User {
     isAdmin: true,
     isActive: true,
     isModerator: false,
-    termsAcceptedAt: null,
     lastLogin: null,
     createdAt: new Date(),
     updatedAt: new Date(),

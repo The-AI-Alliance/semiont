@@ -1439,12 +1439,6 @@ func (e TextualBodyType) Valid() bool {
 	}
 }
 
-// AcceptTermsResponse defines model for AcceptTermsResponse.
-type AcceptTermsResponse struct {
-	Message string `json:"message"`
-	Success bool   `json:"success"`
-}
-
 // AdminUpdateUserResponse defines model for AdminUpdateUserResponse.
 type AdminUpdateUserResponse struct {
 	Success bool `json:"success"`
@@ -4537,18 +4531,17 @@ type UpdateUserResponse struct {
 
 // UserResponse defines model for UserResponse.
 type UserResponse struct {
-	Created         string  `json:"created"`
-	Domain          string  `json:"domain"`
-	Email           string  `json:"email"`
-	Id              string  `json:"id"`
-	Image           *string `json:"image"`
-	IsActive        bool    `json:"isActive"`
-	IsAdmin         bool    `json:"isAdmin"`
-	IsModerator     bool    `json:"isModerator"`
-	LastLogin       *string `json:"lastLogin"`
-	Name            *string `json:"name"`
-	Provider        string  `json:"provider"`
-	TermsAcceptedAt *string `json:"termsAcceptedAt"`
+	Created     string  `json:"created"`
+	Domain      string  `json:"domain"`
+	Email       string  `json:"email"`
+	Id          string  `json:"id"`
+	Image       *string `json:"image"`
+	IsActive    bool    `json:"isActive"`
+	IsAdmin     bool    `json:"isAdmin"`
+	IsModerator bool    `json:"isModerator"`
+	LastLogin   *string `json:"lastLogin"`
+	Name        *string `json:"name"`
+	Provider    string  `json:"provider"`
 
 	// Token The validated JWT token string for the current session
 	Token string `json:"token"`
@@ -11163,9 +11156,6 @@ type ClientInterface interface {
 
 	PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiUsersAcceptTerms request
-	PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiUsersMe request
 	GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11395,18 +11385,6 @@ func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType str
 
 func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiTokensMediaRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiUsersAcceptTermsRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11964,33 +11942,6 @@ func NewPostApiTokensMediaRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewPostApiUsersAcceptTermsRequest generates requests for PostApiUsersAcceptTerms
-func NewPostApiUsersAcceptTermsRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/accept-terms")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
 // NewGetApiUsersMeRequest generates requests for GetApiUsersMe
 func NewGetApiUsersMeRequest(server string) (*http.Request, error) {
 	var err error
@@ -12288,9 +12239,6 @@ type ClientWithResponsesInterface interface {
 
 	PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
 
-	// PostApiUsersAcceptTermsWithResponse request
-	PostApiUsersAcceptTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersAcceptTermsResponse, error)
-
 	// GetApiUsersMeWithResponse request
 	GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error)
 
@@ -12412,7 +12360,7 @@ func (r GetApiAdminUsersStatsResponse) StatusCode() int {
 type DeleteApiAdminUsersIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *AcceptTermsResponse
+	JSON200      *DeleteUserResponse
 	JSON400      *ErrorResponse
 	JSON401      *ErrorResponse
 	JSON403      *ErrorResponse
@@ -12647,29 +12595,6 @@ func (r PostApiTokensMediaResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostApiTokensMediaResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiUsersAcceptTermsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AcceptTermsResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiUsersAcceptTermsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiUsersAcceptTermsResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12975,15 +12900,6 @@ func (c *ClientWithResponses) PostApiTokensMediaWithResponse(ctx context.Context
 	return ParsePostApiTokensMediaResponse(rsp)
 }
 
-// PostApiUsersAcceptTermsWithResponse request returning *PostApiUsersAcceptTermsResponse
-func (c *ClientWithResponses) PostApiUsersAcceptTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersAcceptTermsResponse, error) {
-	rsp, err := c.PostApiUsersAcceptTerms(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiUsersAcceptTermsResponse(rsp)
-}
-
 // GetApiUsersMeWithResponse request returning *GetApiUsersMeResponse
 func (c *ClientWithResponses) GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error) {
 	rsp, err := c.GetApiUsersMe(ctx, reqEditors...)
@@ -13222,7 +13138,7 @@ func ParseDeleteApiAdminUsersIdResponse(rsp *http.Response) (*DeleteApiAdminUser
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AcceptTermsResponse
+		var dest DeleteUserResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -13582,39 +13498,6 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest MediaTokenResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiUsersAcceptTermsResponse parses an HTTP response from a PostApiUsersAcceptTermsWithResponse call
-func ParsePostApiUsersAcceptTermsResponse(rsp *http.Response) (*PostApiUsersAcceptTermsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiUsersAcceptTermsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AcceptTermsResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
