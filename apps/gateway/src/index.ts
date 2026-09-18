@@ -67,6 +67,13 @@ if (!config.services?.gateway) {
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 
+// The issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY): keys
+// are discovered on first use, so a configured issuer that is unreachable
+// surfaces at the first human request, not here. No section, no trusted
+// issuer — only gateway-signed tokens authenticate.
+const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
+configureTrustedIssuer(config.services.identity);
+
 // ── KB identity (KB-IDENTITY-VS-ADDRESS decisions 8 + 10) ────────────────
 //
 // One check over two values, because they are two branches of one question —

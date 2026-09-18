@@ -20,6 +20,11 @@ export class IssuerVerifier {
 
   constructor(private readonly options: IssuerVerifierOptions) {}
 
+  /** The issuer URL this verifier trusts — what a token's `iss` must equal. */
+  get issuer(): string {
+    return this.options.issuer;
+  }
+
   async verify(token: AccessToken): Promise<JWTPayload> {
     const { payload } = await jwtVerify(token, await this.keySet(), {
       issuer: this.options.issuer,

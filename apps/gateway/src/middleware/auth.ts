@@ -1,5 +1,5 @@
 import { Context, Next } from 'hono';
-import { OAuthService } from '../auth/oauth';
+import { principalFromToken } from '../identity/principal';
 import { JWTService } from '../auth/jwt';
 import { User } from '@prisma/client';
 import { accessToken, userToDid } from '@semiont/core';
@@ -82,7 +82,7 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
   }
 
   try {
-    const { user, agentDid } = await OAuthService.getPrincipalFromToken(accessToken(tokenStr));
+    const { user, agentDid } = await principalFromToken(accessToken(tokenStr));
 
     // Add user and token to context
     c.set('user', user);
@@ -119,7 +119,7 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
     const tokenStr = authHeader.substring(7);
 
     try {
-      const { user, agentDid } = await OAuthService.getPrincipalFromToken(accessToken(tokenStr));
+      const { user, agentDid } = await principalFromToken(accessToken(tokenStr));
       c.set('user', user);
       c.set('principalDid', agentDid ?? userToDid(user));
       if (agentDid) c.set('agentDid', agentDid);
