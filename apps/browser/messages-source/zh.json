@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "关于 Semiont",
     "tagline": "开源、面向未来的框架，使人类和智能代理能够共同创建共享知识——由您治理，经久耐用。",
-    "signUp": "注册",
     "signIn": "登录",
     "missionTitle": "我们的使命",
     "mission": "Semiont 正在为知识管理的新时代奠定基础，在这里，人类的创造力和人工智能无缝协作。我们相信，信息的未来属于每个人，而不仅仅是少数大公司。我们的平台确保您的知识始终属于您，同时实现强大的协作能力。",
@@ -127,17 +126,6 @@
     "heading": "页面未找到",
     "message": "您正在查找的页面不存在。",
     "goHome": "返回首页"
-  },
-  "AuthSignUp": {
-    "loading": "加载中...",
-    "pageTitle": "创建您的 Semiont 帐户",
-    "signUpPrompt": "使用您的 Google 帐户注册以开始使用",
-    "creatingAccount": "正在创建帐户...",
-    "signUpWithGoogle": "使用 Google 注册",
-    "approvedDomainsInfo": "只有拥有已批准电子邮件域名的用户才能创建帐户。",
-    "termsAgreement": "注册后，您将被要求同意我们的服务条款。",
-    "alreadyHaveAccount": "已有帐户？改为登录",
-    "backToHome": "返回首页"
   },
   "AuthError": {
     "loading": "加载中...",

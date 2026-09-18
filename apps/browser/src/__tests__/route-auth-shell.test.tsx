@@ -4,7 +4,7 @@
  * Verifies that the App.tsx route definition wraps every authenticated
  * route group (know/* + admin/* + moderate/*) in a single
  * shared AuthShell — mounted once at the ProtectedLayout parent — while
- * the pre-app routes (auth/connect, auth/signup, auth/error, landing,
+ * the pre-app routes (auth/connect, auth/error, landing,
  * about) do NOT mount AuthShell.
  *
  * Catches regressions where someone reorganizes routes and accidentally
@@ -41,7 +41,6 @@ vi.mock('@/app/[locale]/about/page', () => ({ default: () => <div data-testid="a
 vi.mock('@/app/[locale]/privacy/page', () => ({ default: () => <div data-testid="privacy-page">Privacy</div> }));
 vi.mock('@/app/[locale]/terms/page', () => ({ default: () => <div data-testid="terms-page">Terms</div> }));
 vi.mock('@/app/[locale]/auth/connect/page', () => ({ default: () => <div data-testid="connect-page">Connect</div> }));
-vi.mock('@/app/[locale]/auth/signup/page', () => ({ default: () => <div data-testid="signup-page">Signup</div> }));
 vi.mock('@/app/[locale]/auth/error/page', () => ({ default: () => <div data-testid="error-page">Error</div> }));
 vi.mock('@/app/[locale]/know/layout', () => ({
   default: () => {
@@ -117,14 +116,6 @@ describe('App route definitions — AuthShell wrapping', () => {
       renderAppAt('/en/auth/connect');
       await waitFor(() => {
         expect(screen.getByTestId('connect-page')).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
-    });
-
-    it('auth/signup does not mount AuthShell', async () => {
-      renderAppAt('/en/auth/signup');
-      await waitFor(() => {
-        expect(screen.getByTestId('signup-page')).toBeInTheDocument();
       });
       expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
     });

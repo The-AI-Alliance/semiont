@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "O aplikaci Semiont",
     "tagline": "Open-source framework odolný vůči budoucnosti, který umožňuje lidem a inteligentním agentům spoluvytvářet sdílené znalosti — řízený vámi a vytvořený tak, aby vydržel.",
-    "signUp": "Registrace",
     "signIn": "Přihlášení",
     "missionTitle": "Naše mise",
     "mission": "Semiont buduje základy pro novou éru správy znalostí, kde lidská kreativita a umělá inteligence bezproblémově spolupracují. Věříme, že budoucnost informací patří všem, nejen několika velkým korporacím. Naše platforma zajišťuje, že vaše znalosti zůstanou vaše, a zároveň umožňuje výkonné schopnosti spolupráce.",
@@ -127,17 +126,6 @@
     "heading": "Stránka nenalezena",
     "message": "Stránka, kterou hledáte, nebyla nalezena.",
     "goHome": "Přejít na úvodní stránku"
-  },
-  "AuthSignUp": {
-    "loading": "Načítání...",
-    "pageTitle": "Vytvořte si účet Semiont",
-    "signUpPrompt": "Zaregistrujte se pomocí svého účtu Google a začněte",
-    "creatingAccount": "Vytváření účtu...",
-    "signUpWithGoogle": "Registrace přes Google",
-    "approvedDomainsInfo": "Účty si mohou vytvořit pouze uživatelé se schválenými e-mailovými doménami.",
-    "termsAgreement": "Při registraci budete požádáni o souhlas s našimi podmínkami služby.",
-    "alreadyHaveAccount": "Již máte účet? Přihlaste se",
-    "backToHome": "Zpět na úvodní stránku"
   },
   "AuthError": {
     "loading": "Načítání...",

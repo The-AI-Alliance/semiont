@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Semiont 소개",
     "tagline": "인간과 지능형 에이전트가 공유 지식을 함께 창조할 수 있게 해주는 오픈소스 미래지향적 프레임워크 — 당신이 관리하고, 오래 지속되도록 구축되었습니다.",
-    "signUp": "회원가입",
     "signIn": "로그인",
     "missionTitle": "우리의 미션",
     "mission": "Semiont는 인간의 창의성과 인공지능이 원활하게 협력하는 지식 관리의 새로운 시대를 위한 기반을 구축하고 있습니다. 우리는 정보의 미래가 소수의 대기업이 아닌 모든 사람에게 속해야 한다고 믿습니다. 우리의 플랫폼은 강력한 협업 기능을 제공하면서도 당신의 지식이 당신의 것으로 유지되도록 보장합니다.",
@@ -127,17 +126,6 @@
     "heading": "페이지를 찾을 수 없습니다",
     "message": "찾고 계신 페이지를 찾을 수 없습니다.",
     "goHome": "홈으로 이동"
-  },
-  "AuthSignUp": {
-    "loading": "로딩 중...",
-    "pageTitle": "Semiont 계정 만들기",
-    "signUpPrompt": "시작하려면 Google 계정으로 가입하세요",
-    "creatingAccount": "계정 생성 중...",
-    "signUpWithGoogle": "Google로 가입",
-    "approvedDomainsInfo": "승인된 이메일 도메인의 사용자만 계정을 만들 수 있습니다.",
-    "termsAgreement": "가입하면 서비스 이용약관에 동의하라는 요청을 받게 됩니다.",
-    "alreadyHaveAccount": "이미 계정이 있으신가요? 대신 로그인",
-    "backToHome": "홈으로 돌아가기"
   },
   "AuthError": {
     "loading": "로딩 중...",

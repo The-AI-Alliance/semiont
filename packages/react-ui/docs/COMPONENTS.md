@@ -6,7 +6,7 @@ Component library reference for `@semiont/react-ui`.
 
 The library provides components organized by functionality:
 
-- **Authentication Components** - Sign-in, sign-up, and error displays
+- **Authentication Components** - Error displays (signing in happens at the issuer)
 - **Resource Viewers** - Display and interact with resources
 - **Layout Components** - Page structure and navigation
 - **Annotation Components** - Semantic markup and collaboration
@@ -113,38 +113,10 @@ import { AnnotationHistory } from '@semiont/react-ui';
 
 ## Authentication Components
 
-Sign-in is not a form: a knowledge base trusts an issuer, and the Browser sends the user there
-(`SemiontBrowser.beginSignIn` / `completeSignIn` in `@semiont/sdk`). No component here collects
-a credential.
-
-### SignUpForm
-
-Google OAuth sign-up form.
-
-```tsx
-import { SignUpForm } from '@semiont/react-ui';
-import Link from 'next/link';
-
-<SignUpForm
-  onSignUp={async () => signIn('google', { callbackUrl: '/welcome' })}
-  Link={Link}
-  translations={{
-    pageTitle: 'Join Semiont',
-    signUpPrompt: 'Create your account',
-    // ... other translation keys
-  }}
-/>
-```
-
-**Props:**
-- `onSignUp` - Callback when user initiates sign-up
-- `Link` - Link component from your router
-- `translations` - Translation strings
-
-**Features:**
-- Loading state during OAuth flow
-- Error handling with user feedback
-- Accessible form controls
+Neither signing in nor signing up is a form here. A knowledge base trusts an issuer, and the
+Browser sends the user there (`SemiontBrowser.beginSignIn` / `completeSignIn` in `@semiont/sdk`);
+accounts are created at that issuer by an administrator. No component in this package collects a
+credential, and the only one left is the error display below.
 
 ### AuthErrorDisplay
 
@@ -175,29 +147,6 @@ import Link from 'next/link';
 - `AccessDenied` - User not authorized
 - `Verification` - Email verification failed
 - Other types show generic error message
-
-### WelcomePage
-
-Terms-acceptance / welcome screen for new users. Driven by an explicit `status` and
-accept/decline callbacks; the host injects its own `PageLayout`.
-
-```tsx
-import { WelcomePage } from '@semiont/react-ui';
-import Link from 'next/link';
-
-<WelcomePage
-  status="form"            // 'loading' | 'accepted' | 'form'
-  isProcessing={processing}
-  onAccept={acceptTerms}
-  onDecline={declineTerms}
-  userName={user.name}
-  PageLayout={PageLayout}
-  Link={Link}
-  translations={strings}
-/>
-```
-
-**Required:** `status`, `isProcessing`, `onAccept`, `onDecline`, `PageLayout`, `Link`, `translations`. **Optional:** `userName`, `termsAcceptedAt`, `isNewUser`. Full shape: the exported `WelcomePageProps` type.
 
 ---
 

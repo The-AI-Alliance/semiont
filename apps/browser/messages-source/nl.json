@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Over Semiont",
     "tagline": "Het open-source, toekomstbestendige framework dat mensen en intelligente agenten in staat stelt samen gedeelde kennis te creëren — beheerd door jou en gebouwd om te blijven.",
-    "signUp": "Registreren",
     "signIn": "Inloggen",
     "missionTitle": "Onze missie",
     "mission": "Semiont bouwt het fundament voor een nieuw tijdperk van kennisbeheer waarin menselijke creativiteit en kunstmatige intelligentie naadloos samenwerken. Wij geloven dat de toekomst van informatie aan iedereen toebehoort, niet alleen aan enkele grote bedrijven. Ons platform zorgt ervoor dat jouw kennis van jou blijft, terwijl krachtige samenwerkingsmogelijkheden worden geboden.",
@@ -127,17 +126,6 @@
     "heading": "Pagina niet gevonden",
     "message": "De pagina die je zoekt kon niet worden gevonden.",
     "goHome": "Ga naar Home"
-  },
-  "AuthSignUp": {
-    "loading": "Laden...",
-    "pageTitle": "Maak je Semiont-account aan",
-    "signUpPrompt": "Registreer met je Google-account om te beginnen",
-    "creatingAccount": "Account aanmaken...",
-    "signUpWithGoogle": "Registreren met Google",
-    "approvedDomainsInfo": "Alleen gebruikers met goedgekeurde e-maildomeinen kunnen accounts aanmaken.",
-    "termsAgreement": "Bij registratie wordt je gevraagd akkoord te gaan met onze servicevoorwaarden.",
-    "alreadyHaveAccount": "Heb je al een account? Log in",
-    "backToHome": "Terug naar Home"
   },
   "AuthError": {
     "loading": "Laden...",

@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Acerca de Semiont",
     "tagline": "El marco de código abierto y a prueba de futuro que permite a humanos y agentes inteligentes co-crear conocimiento compartido — gobernado por ti y construido para durar.",
-    "signUp": "Registrarse",
     "signIn": "Iniciar Sesión",
     "missionTitle": "Nuestra Misión",
     "mission": "Semiont está construyendo la base para una nueva era de gestión del conocimiento donde la creatividad humana y la inteligencia artificial trabajan juntas sin problemas. Creemos que el futuro de la información pertenece a todos, no solo a unas pocas grandes corporaciones. Nuestra plataforma garantiza que tu conocimiento siga siendo tuyo mientras habilita poderosas capacidades de colaboración.",
@@ -127,17 +126,6 @@
     "heading": "Página no encontrada",
     "message": "La página que estás buscando no se pudo encontrar.",
     "goHome": "Ir al Inicio"
-  },
-  "AuthSignUp": {
-    "loading": "Cargando...",
-    "pageTitle": "Crea tu cuenta de Semiont",
-    "signUpPrompt": "Regístrate con tu cuenta de Google para comenzar",
-    "creatingAccount": "Creando cuenta...",
-    "signUpWithGoogle": "Registrarse con Google",
-    "approvedDomainsInfo": "Solo los usuarios con dominios de correo electrónico aprobados pueden crear cuentas.",
-    "termsAgreement": "Al registrarte, se te pedirá que aceptes nuestros términos de servicio.",
-    "alreadyHaveAccount": "¿Ya tienes una cuenta? Inicia sesión en su lugar",
-    "backToHome": "Volver al Inicio"
   },
   "AuthError": {
     "loading": "Cargando...",

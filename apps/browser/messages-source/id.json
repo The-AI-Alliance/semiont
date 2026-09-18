@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Tentang Semiont",
     "tagline": "Kerangka kerja sumber terbuka dan tahan masa depan yang memungkinkan manusia dan agen cerdas untuk bersama-sama menciptakan pengetahuan bersama — dikelola oleh Anda dan dibangun untuk bertahan lama.",
-    "signUp": "Daftar",
     "signIn": "Masuk",
     "missionTitle": "Misi Kami",
     "mission": "Semiont sedang membangun fondasi untuk era baru manajemen pengetahuan di mana kreativitas manusia dan kecerdasan buatan bekerja sama secara mulus. Kami percaya bahwa masa depan informasi milik semua orang, bukan hanya beberapa perusahaan besar. Platform kami memastikan bahwa pengetahuan Anda tetap menjadi milik Anda sambil memungkinkan kemampuan kolaborasi yang kuat.",
@@ -127,17 +126,6 @@
     "heading": "Halaman tidak ditemukan",
     "message": "Halaman yang Anda cari tidak dapat ditemukan.",
     "goHome": "Ke Beranda"
-  },
-  "AuthSignUp": {
-    "loading": "Memuat...",
-    "pageTitle": "Buat akun Semiont Anda",
-    "signUpPrompt": "Daftar dengan akun Google Anda untuk memulai",
-    "creatingAccount": "Membuat akun...",
-    "signUpWithGoogle": "Daftar dengan Google",
-    "approvedDomainsInfo": "Hanya pengguna dengan domain email yang disetujui yang dapat membuat akun.",
-    "termsAgreement": "Dengan mendaftar, Anda akan diminta untuk menyetujui ketentuan layanan kami.",
-    "alreadyHaveAccount": "Sudah memiliki akun? Masuk sebagai gantinya",
-    "backToHome": "Kembali ke Beranda"
   },
   "AuthError": {
     "loading": "Memuat...",

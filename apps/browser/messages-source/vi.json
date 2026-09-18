@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Giới thiệu về Semiont",
     "tagline": "Nền tảng mã nguồn mở, bền vững cho phép con người và các tác nhân thông minh cùng nhau tạo dựng tri thức chung — được quản trị bởi bạn và được xây dựng để trường tồn.",
-    "signUp": "Đăng ký",
     "signIn": "Đăng nhập",
     "missionTitle": "Sứ mệnh của chúng tôi",
     "mission": "Semiont đang xây dựng nền tảng cho một kỷ nguyên mới trong quản lý tri thức, nơi sức sáng tạo của con người và trí tuệ nhân tạo phối hợp cùng nhau một cách liền mạch. Chúng tôi tin rằng tương lai của thông tin thuộc về tất cả mọi người, không chỉ riêng một vài tập đoàn lớn. Nền tảng của chúng tôi đảm bảo rằng tri thức của bạn vẫn thuộc về bạn, đồng thời cho phép các khả năng cộng tác mạnh mẽ.",
@@ -127,17 +126,6 @@
     "heading": "Không tìm thấy trang",
     "message": "Trang bạn đang tìm kiếm không thể được tìm thấy.",
     "goHome": "Về trang chủ"
-  },
-  "AuthSignUp": {
-    "loading": "Đang tải...",
-    "pageTitle": "Tạo tài khoản Semiont của bạn",
-    "signUpPrompt": "Đăng ký bằng tài khoản Google của bạn để bắt đầu",
-    "creatingAccount": "Đang tạo tài khoản...",
-    "signUpWithGoogle": "Đăng ký bằng Google",
-    "approvedDomainsInfo": "Chỉ người dùng có tên miền email được phê duyệt mới có thể tạo tài khoản.",
-    "termsAgreement": "Khi đăng ký, bạn sẽ được yêu cầu đồng ý với điều khoản dịch vụ của chúng tôi.",
-    "alreadyHaveAccount": "Đã có tài khoản? Đăng nhập thay thế",
-    "backToHome": "Quay lại trang chủ"
   },
   "AuthError": {
     "loading": "Đang tải...",

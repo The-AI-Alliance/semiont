@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Tietoja Semiontista",
     "tagline": "Avoimen lähdekoodin, tulevaisuudenvarma kehys, joka mahdollistaa ihmisten ja älykkäiden agenttien yhteistyön jaetun tiedon luomisessa — sinun hallitsemana ja kestäväksi rakennettu.",
-    "signUp": "Rekisteröidy",
     "signIn": "Kirjaudu sisään",
     "missionTitle": "Tehtävämme",
     "mission": "Semiont rakentaa perustaa uudelle tiedonhallinnan aikakaudelle, jossa ihmisen luovuus ja tekoäly toimivat saumattomasti yhdessä. Uskomme, että tiedon tulevaisuus kuuluu kaikille, ei vain muutamalle suurelle yritykselle. Alustamme varmistaa, että tietosi pysyvät sinun samalla mahdollistaen tehokkaan yhteistyön.",
@@ -127,17 +126,6 @@
     "heading": "Sivua ei löytynyt",
     "message": "Etsimääsi sivua ei löytynyt.",
     "goHome": "Siirry etusivulle"
-  },
-  "AuthSignUp": {
-    "loading": "Ladataan...",
-    "pageTitle": "Luo Semiont-tilisi",
-    "signUpPrompt": "Rekisteröidy Google-tililläsi aloittaaksesi",
-    "creatingAccount": "Luodaan tiliä...",
-    "signUpWithGoogle": "Rekisteröidy Googlella",
-    "approvedDomainsInfo": "Vain hyväksyttyjen sähköpostiverkkotunnusten käyttäjät voivat luoda tilejä.",
-    "termsAgreement": "Rekisteröityessäsi sinua pyyderään hyväksymään käyttöehtomme.",
-    "alreadyHaveAccount": "Onko sinulla jo tili? Kirjaudu sisään",
-    "backToHome": "Takaisin etusivulle"
   },
   "AuthError": {
     "loading": "Ladataan...",

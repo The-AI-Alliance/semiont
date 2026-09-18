@@ -50,7 +50,6 @@
 @import './features/resource-viewer.css';
 @import './features/schemas.css';
 @import './features/static-pages.css';
-@import './features/welcome.css';
 
 /* Patterns - Reusable Design System Patterns */
 @import './patterns/panels-base.css';

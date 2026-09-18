@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Über Semiont",
     "tagline": "Das quelloffene, zukunftssichere Framework, das Menschen und intelligente Agenten befähigt, gemeinsam Wissen zu schaffen — von Ihnen gesteuert und für die Zukunft gebaut.",
-    "signUp": "Registrieren",
     "signIn": "Anmelden",
     "missionTitle": "Unsere Mission",
     "mission": "Semiont schafft die Grundlage für eine neue Ära des Wissensmanagements, in der menschliche Kreativität und künstliche Intelligenz nahtlos zusammenarbeiten. Wir glauben, dass die Zukunft der Information allen gehört und nicht nur wenigen großen Unternehmen. Unsere Plattform stellt sicher, dass Ihr Wissen Ihnen gehört und gleichzeitig leistungsstarke Kollaborationsmöglichkeiten bereitgestellt werden.",
@@ -127,17 +126,6 @@
     "heading": "Seite nicht gefunden",
     "message": "Die gesuchte Seite konnte nicht gefunden werden.",
     "goHome": "Zur Startseite"
-  },
-  "AuthSignUp": {
-    "loading": "Wird geladen...",
-    "pageTitle": "Erstellen Sie Ihr Semiont-Konto",
-    "signUpPrompt": "Registrieren Sie sich mit Ihrem Google-Konto, um zu beginnen",
-    "creatingAccount": "Konto wird erstellt...",
-    "signUpWithGoogle": "Mit Google registrieren",
-    "approvedDomainsInfo": "Nur Benutzer mit genehmigten E-Mail-Domains können Konten erstellen.",
-    "termsAgreement": "Bei der Registrierung werden Sie gebeten, unseren Nutzungsbedingungen zuzustimmen.",
-    "alreadyHaveAccount": "Haben Sie bereits ein Konto? Stattdessen anmelden",
-    "backToHome": "Zurück zur Startseite"
   },
   "AuthError": {
     "loading": "Wird geladen...",

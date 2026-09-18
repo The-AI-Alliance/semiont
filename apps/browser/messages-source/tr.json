@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Semiont Hakkında",
     "tagline": "İnsanların ve akıllı ajanların ortak bilgiyi birlikte oluşturmasını sağlayan, sizin tarafınızdan yönetilen ve kalıcı olmak üzere inşa edilen açık kaynaklı, geleceğe hazır çerçeve.",
-    "signUp": "Kayıt Ol",
     "signIn": "Giriş Yap",
     "missionTitle": "Misyonumuz",
     "mission": "Semiont, insan yaratıcılığı ve yapay zekanın sorunsuz bir şekilde birlikte çalıştığı yeni bir bilgi yönetimi çağının temelini inşa ediyor. Bilginin geleceğinin yalnızca birkaç büyük şirkete değil, herkese ait olduğuna inanıyoruz. Platformumuz, güçlü işbirlikçi yetenekleri etkinleştirirken bilginizin size ait kalmasını sağlar.",
@@ -127,17 +126,6 @@
     "heading": "Sayfa bulunamadı",
     "message": "Aradığınız sayfa bulunamadı.",
     "goHome": "Ana Sayfaya Git"
-  },
-  "AuthSignUp": {
-    "loading": "Yükleniyor...",
-    "pageTitle": "Semiont hesabınızı oluşturun",
-    "signUpPrompt": "Başlamak için Google hesabınızla kaydolun",
-    "creatingAccount": "Hesap oluşturuluyor...",
-    "signUpWithGoogle": "Google ile Kayıt Ol",
-    "approvedDomainsInfo": "Yalnızca onaylı e-posta alan adlarına sahip kullanıcılar hesap oluşturabilir.",
-    "termsAgreement": "Kaydolduğunuzda, hizmet şartlarımızı kabul etmeniz istenecektir.",
-    "alreadyHaveAccount": "Zaten bir hesabınız var mı? Bunun yerine giriş yapın",
-    "backToHome": "Ana Sayfaya Dön"
   },
   "AuthError": {
     "loading": "Yükleniyor...",

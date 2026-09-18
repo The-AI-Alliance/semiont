@@ -250,25 +250,25 @@ data.name; // Type-safe access
 // ❌ WRONG - Couples to Next.js
 import Link from 'next/link';
 
-export function SignInForm() {
-  return <Link href="/signup">Sign Up</Link>;
+export function AuthErrorDisplay() {
+  return <Link href="/">Back to home</Link>;
 }
 
 // ✅ CORRECT - Framework-agnostic
-export interface SignInFormProps {
+export interface AuthErrorDisplayProps {
   Link: React.ComponentType<any>;
   // ... other props
 }
 
-export function SignInForm({ Link, ...props }: SignInFormProps) {
-  return <Link href="/signup">Sign Up</Link>;
+export function AuthErrorDisplay({ Link, ...props }: AuthErrorDisplayProps) {
+  return <Link href="/">Back to home</Link>;
 }
 
 // Apps provide their Link
-import { SignInForm } from '@semiont/react-ui';
+import { AuthErrorDisplay } from '@semiont/react-ui';
 import Link from 'next/link'; // or from 'react-router-dom', etc.
 
-<SignInForm Link={Link} ... />
+<AuthErrorDisplay Link={Link} ... />
 ```
 
 **Applies to:**
@@ -336,8 +336,6 @@ packages/react-ui/
 │   ├── features/          # Feature-based components
 │   │   ├── auth/          # Authentication components
 │   │   │   ├── components/
-│   │   │   │   ├── SignInForm.tsx
-│   │   │   │   ├── SignUpForm.tsx
 │   │   │   │   └── AuthErrorDisplay.tsx
 │   │   │   └── __tests__/
 │   │   ├── resource-viewer/

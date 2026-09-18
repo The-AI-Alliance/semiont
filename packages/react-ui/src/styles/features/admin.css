@@ -182,13 +182,6 @@
   color: var(--semiont-color-gray-400);
 }
 
-/* Domain List */
-.semiont-domain-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
 /* Empty Message */
 .semiont-empty-message {
   font-size: 0.875rem;
@@ -209,17 +202,6 @@
 .semiont-skeleton--bar {
   height: 3rem;
   width: 100%;
-}
-
-.semiont-skeleton--chip {
-  height: 2rem;
-  width: 8rem;
-  display: inline-block;
-  margin-right: 0.5rem;
-}
-
-.semiont-skeleton--chip-lg {
-  width: 10rem;
 }
 
 /* Info Box - Consolidated with other definitions */

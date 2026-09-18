@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "À propos de Semiont",
     "tagline": "Le cadre open source et pérenne qui permet aux humains et aux agents intelligents de co-créer des connaissances partagées — gouverné par vous et conçu pour durer.",
-    "signUp": "S'inscrire",
     "signIn": "Se connecter",
     "missionTitle": "Notre mission",
     "mission": "Semiont construit les fondations d'une nouvelle ère de gestion des connaissances où la créativité humaine et l'intelligence artificielle travaillent ensemble de manière transparente. Nous croyons que l'avenir de l'information appartient à tous, pas seulement à quelques grandes entreprises. Notre plateforme garantit que vos connaissances restent les vôtres tout en permettant de puissantes capacités de collaboration.",
@@ -127,17 +126,6 @@
     "heading": "Page introuvable",
     "message": "La page que vous recherchez est introuvable.",
     "goHome": "Retour à l'accueil"
-  },
-  "AuthSignUp": {
-    "loading": "Chargement...",
-    "pageTitle": "Créez votre compte Semiont",
-    "signUpPrompt": "Inscrivez-vous avec votre compte Google pour commencer",
-    "creatingAccount": "Création du compte...",
-    "signUpWithGoogle": "S'inscrire avec Google",
-    "approvedDomainsInfo": "Seuls les utilisateurs disposant d'un domaine e-mail approuvé peuvent créer un compte.",
-    "termsAgreement": "En vous inscrivant, il vous sera demandé d'accepter nos conditions d'utilisation.",
-    "alreadyHaveAccount": "Vous avez déjà un compte ? Connectez-vous",
-    "backToHome": "Retour à l'accueil"
   },
   "AuthError": {
     "loading": "Chargement...",

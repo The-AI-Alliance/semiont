@@ -368,7 +368,7 @@ SemiontClient creates one ActorStateUnit (single SSE to /bus/subscribe)
 The provider tree has two distinct layers:
 
 1. **Root providers** mounted in `[locale]/layout.tsx` — auth-independent. Available on every page including the landing page, the OAuth flow, and static pages.
-2. **Auth shell** mounted only in protected layouts (`know/`, `admin/`, `moderate/`) and around `<WelcomePage />` in the route tree. Bundles authentication, the active KB, and the auth-failure modals. Pre-app routes intentionally do not mount the auth shell — surfacing a "session expired" modal on the landing page would be confusing because the user has not yet entered the app.
+2. **Auth shell** mounted only in protected layouts (`know/`, `admin/`, `moderate/`). Bundles authentication, the active KB, and the auth-failure modals. Pre-app routes intentionally do not mount the auth shell — surfacing a "session expired" modal on the landing page would be confusing because the user has not yet entered the app.
 
 ### Root layer (always present)
 
@@ -381,7 +381,7 @@ The provider tree has two distinct layers:
         <KeyboardShortcutsProvider>  // app-specific
           <ThemeProvider>      // @semiont/react-ui — theme
             <NavigationHandler />
-            {children}          // landing, about, privacy, terms, /auth/connect, /auth/error, /auth/signup, or any of the AuthShell-wrapped subtrees below
+            {children}          // landing, about, privacy, terms, /auth/connect, /auth/callback, /auth/error, or any of the AuthShell-wrapped subtrees below
 ```
 
 ### Auth shell (mounted in protected layouts only)
@@ -444,15 +444,10 @@ apps/browser/src/
 
 packages/react-ui/src/      # Reusable React components library
 ├── features/              # Feature-based components
-│   ├── auth/              # Sign-in / sign-up components
+│   ├── auth/              # Authentication error surface
 │   │   ├── components/
-│   │   │   ├── SignInForm.tsx         # Framework-agnostic sign-in
-│   │   │   ├── SignUpForm.tsx         # Framework-agnostic sign-up
 │   │   │   └── AuthErrorDisplay.tsx   # Error display
 │   │   └── __tests__/     # Component tests
-│   ├── auth-welcome/      # Post-auth welcome / terms
-│   │   └── components/
-│   │       └── WelcomePage.tsx        # Welcome page
 │   ├── resource-viewer/   # Resource viewing components
 │   ├── resource-discovery/ # Discovery components
 │   └── ...                # Other feature modules
@@ -488,7 +483,7 @@ packages/react-ui/src/      # Reusable React components library
 - `apps/browser/src` - Vite SPA pages and app-specific implementations
 - `packages/react-ui/src` - Framework-agnostic components and interfaces
 
-**Note**: Authentication components (SignInForm, SignUpForm, AuthErrorDisplay) are framework-agnostic and live in `packages/react-ui/src/features/auth/`; the post-auth WelcomePage lives in `packages/react-ui/src/features/auth-welcome/`. The Browser provides React Router-specific wrappers that handle routing, translations, and auth state.
+**Note**: `AuthErrorDisplay` is framework-agnostic and lives in `packages/react-ui/src/features/auth/`. Signing in is not a component: the Browser sends the user to the knowledge base's issuer and completes the exchange on its callback route. The Browser provides React Router-specific wrappers that handle routing, translations, and auth state.
 
 See [`@semiont/react-ui/docs/`](../../../packages/react-ui/docs/) for documentation on the reusable component library.
 

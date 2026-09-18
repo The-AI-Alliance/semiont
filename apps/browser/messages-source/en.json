@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "About Semiont",
     "tagline": "The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.",
-    "signUp": "Sign Up",
     "signIn": "Sign In",
     "missionTitle": "Our Mission",
     "mission": "Semiont is building the foundation for a new era of knowledge management where human creativity and artificial intelligence work together seamlessly. We believe that the future of information belongs to everyone, not just a few large corporations. Our platform ensures that your knowledge remains yours while enabling powerful collaborative capabilities.",
@@ -127,17 +126,6 @@
     "heading": "Page not found",
     "message": "The page you are looking for could not be found.",
     "goHome": "Go to Home"
-  },
-  "AuthSignUp": {
-    "loading": "Loading...",
-    "pageTitle": "Create your Semiont account",
-    "signUpPrompt": "Sign up with your Google account to get started",
-    "creatingAccount": "Creating account...",
-    "signUpWithGoogle": "Sign Up with Google",
-    "approvedDomainsInfo": "Only users with approved email domains can create accounts.",
-    "termsAgreement": "By signing up, you'll be asked to agree to our terms of service.",
-    "alreadyHaveAccount": "Already have an account? Sign in instead",
-    "backToHome": "Back to Home"
   },
   "AuthError": {
     "loading": "Loading...",

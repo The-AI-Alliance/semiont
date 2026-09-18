@@ -17,8 +17,6 @@
 
 /* Error indicators */
 .semiont-error-message::before,
-.semiont-auth__error::before,
-.semiont-auth__error-text::before,
 .semiont-form__error::before,
 .semiont-panel-error::before,
 .semiont-view-error::before,
@@ -93,8 +91,6 @@
 
 /* Add visually hidden but screen-reader accessible text */
 .semiont-error-message::after,
-.semiont-auth__error::after,
-.semiont-auth__error-text::after,
 .semiont-form__error::after,
 .semiont-panel-error::after,
 .semiont-view-error::after {
@@ -151,7 +147,6 @@
 
 /* Error pattern - diagonal stripes */
 .semiont-error-message,
-.semiont-auth__error,
 .semiont-panel-error,
 .semiont-view-error {
   background-image: repeating-linear-gradient(
@@ -181,7 +176,6 @@
 
 /* Add distinct border styles to status elements */
 .semiont-error-message,
-.semiont-auth__error,
 .semiont-form__error,
 .semiont-panel-error {
   border-left: 4px solid var(--semiont-color-red-600) !important;
@@ -279,8 +273,6 @@
 
 /* Ensure patterns work in dark theme */
 [data-theme="dark"] .semiont-error-message,
-[data-theme="dark"] .semiont-auth__error,
-[data-theme="dark"] .semiont-auth__error-text,
 [data-theme="dark"] .semiont-form__error,
 [data-theme="dark"] .semiont-panel-error,
 [data-theme="dark"] .semiont-view-error,

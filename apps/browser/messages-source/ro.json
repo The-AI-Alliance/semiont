@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Despre Semiont",
     "tagline": "Cadrul open-source, pregătit pentru viitor, care permite oamenilor și agenților inteligenți să co-creeze cunoștințe partajate — guvernat de tine și construit să dureze.",
-    "signUp": "Înregistrare",
     "signIn": "Autentificare",
     "missionTitle": "Misiunea noastră",
     "mission": "Semiont construiește fundația pentru o nouă eră a gestionării cunoștințelor, în care creativitatea umană și inteligența artificială lucrează împreună fără probleme. Credem că viitorul informației aparține tuturor, nu doar câtorva corporații mari. Platforma noastră asigură că cunoștințele tale rămân ale tale, permițând în același timp capabilități puternice de colaborare.",
@@ -127,17 +126,6 @@
     "heading": "Pagina nu a fost găsită",
     "message": "Pagina pe care o căutați nu a putut fi găsită.",
     "goHome": "Mergi la pagina principală"
-  },
-  "AuthSignUp": {
-    "loading": "Se încarcă...",
-    "pageTitle": "Creează-ți contul Semiont",
-    "signUpPrompt": "Înregistrează-te cu contul tău Google pentru a începe",
-    "creatingAccount": "Se creează contul...",
-    "signUpWithGoogle": "Înregistrare cu Google",
-    "approvedDomainsInfo": "Doar utilizatorii cu domenii de e-mail aprobate pot crea conturi.",
-    "termsAgreement": "La înregistrare, vi se va cere să acceptați termenii și condițiile noastre.",
-    "alreadyHaveAccount": "Ai deja un cont? Autentifică-te în schimb",
-    "backToHome": "Înapoi la pagina principală"
   },
   "AuthError": {
     "loading": "Se încarcă...",

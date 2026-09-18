@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Om Semiont",
     "tagline": "Det open source, fremtidssikrede framework, der gør det muligt for mennesker og intelligente agenter at samskabe delt viden — styret af dig og bygget til at holde.",
-    "signUp": "Opret konto",
     "signIn": "Log ind",
     "missionTitle": "Vores mission",
     "mission": "Semiont bygger fundamentet for en ny æra inden for videnstyring, hvor menneskelig kreativitet og kunstig intelligens arbejder problemfrit sammen. Vi tror på, at fremtidens information tilhører alle, ikke kun nogle få store virksomheder. Vores platform sikrer, at din viden forbliver din, samtidig med at den muliggør kraftfulde samarbejdsmuligheder.",
@@ -127,17 +126,6 @@
     "heading": "Siden blev ikke fundet",
     "message": "Den side, du leder efter, kunne ikke findes.",
     "goHome": "Gå til forsiden"
-  },
-  "AuthSignUp": {
-    "loading": "Indlæser...",
-    "pageTitle": "Opret din Semiont-konto",
-    "signUpPrompt": "Tilmeld dig med din Google-konto for at komme i gang",
-    "creatingAccount": "Opretter konto...",
-    "signUpWithGoogle": "Opret konto med Google",
-    "approvedDomainsInfo": "Kun brugere med godkendte e-maildomæner kan oprette konti.",
-    "termsAgreement": "Ved tilmelding bliver du bedt om at acceptere vores servicevilkår.",
-    "alreadyHaveAccount": "Har du allerede en konto? Log ind i stedet",
-    "backToHome": "Tilbage til forsiden"
   },
   "AuthError": {
     "loading": "Indlæser...",

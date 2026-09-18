@@ -29,7 +29,6 @@
   "About": {
     "pageTitle": "Om Semiont",
     "tagline": "Det öppna, framtidssäkra ramverket som gör det möjligt för människor och intelligenta agenter att samskapa delad kunskap — styrt av dig och byggt för att bestå.",
-    "signUp": "Registrera dig",
     "signIn": "Logga in",
     "missionTitle": "Vårt uppdrag",
     "mission": "Semiont bygger grunden för en ny era av kunskapshantering där mänsklig kreativitet och artificiell intelligens samverkar sömlöst. Vi tror att informationens framtid tillhör alla, inte bara ett fåtal stora företag. Vår plattform säkerställer att din kunskap förblir din samtidigt som den möjliggör kraftfulla samarbetsfunktioner.",
@@ -127,17 +126,6 @@
     "heading": "Sidan hittades inte",
     "message": "Sidan du letar efter kunde inte hittas.",
     "goHome": "Gå till startsidan"
-  },
-  "AuthSignUp": {
-    "loading": "Laddar...",
-    "pageTitle": "Skapa ditt Semiont-konto",
-    "signUpPrompt": "Registrera dig med ditt Google-konto för att komma igång",
-    "creatingAccount": "Skapar konto...",
-    "signUpWithGoogle": "Registrera dig med Google",
-    "approvedDomainsInfo": "Endast användare med godkända e-postdomäner kan skapa konton.",
-    "termsAgreement": "Genom att registrera dig kommer du att bli ombedd att godkänna våra användarvillkor.",
-    "alreadyHaveAccount": "Har du redan ett konto? Logga in istället",
-    "backToHome": "Tillbaka till startsidan"
   },
   "AuthError": {
     "loading": "Laddar...",
