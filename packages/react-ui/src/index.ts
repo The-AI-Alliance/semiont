@@ -201,7 +201,6 @@ export * from './features/admin-security/components/AdminSecurityPage';
 export * from './features/admin-users/components/AdminUsersPage';
 
 // Features - Auth
-export * from './features/auth/components/SignInForm';
 export * from './features/auth/components/SignUpForm';
 export * from './features/auth/components/AuthErrorDisplay';
 export * from './features/auth-welcome/components/WelcomePage';

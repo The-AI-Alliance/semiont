@@ -8,7 +8,6 @@ import { firstValueFrom, filter, skip, take } from 'rxjs';
 
 const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
-const mockRefreshToken = vi.fn();
 const mockResourceFresh = vi.fn();
 let mockAdminStatus: (() => Promise<unknown>) | null = null;
 
@@ -16,7 +15,7 @@ vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
   const { Subject } = await import('rxjs');
   class MockSemiontApiClient {
-    auth = { me: mockGetMe, refresh: mockRefreshToken };
+    auth = { me: mockGetMe };
     dispose = mockDispose;
     actor = { state$: { subscribe: () => ({ unsubscribe: () => {} }) } };
     eventBus = { get: () => ({ next: () => {}, subscribe: () => ({ unsubscribe: () => {} }) }) };
@@ -43,13 +42,38 @@ vi.mock('../../client', async () => {
   };
 });
 
+import { HttpTransport } from '@semiont/http-transport';
 import { SemiontBrowser } from '../semiont-browser';
 import { createHttpSessionFactory } from '../http-session-factory';
 import { getBrowser } from '../registry';
 import { __resetForTests } from '../testing';
-import { storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
+import { storageKey, seedStoredSession, testSession, TestStorage, TEST_TOKEN_ENDPOINT, TEST_REVOCATION_ENDPOINT } from './test-storage-helpers';
 import { STORAGE_KEY, ACTIVE_KEY, OPEN_RESOURCES_BY_KB_KEY, LAST_VIEWED_RESOURCE_BY_KB_KEY } from '../storage';
+import { PENDING_AUTHORIZATION_KEY } from '../oauth';
+import { IdentityUnverifiableError } from '../connect';
 import { BusRequestError } from '@semiont/core';
+
+/** An issuer's JSON answer, as `fetch` would hand it back. */
+function issuerReply(json: unknown, status = 200): Response {
+  return { ok: status < 300, status, json: async () => json } as unknown as Response;
+}
+
+/**
+ * Every fetch in this file goes through this stub — the issuer's answers AND
+ * the live transport's event-stream subscribe, which the mocked client does
+ * not replace. Assertions therefore look at the calls to a given issuer
+ * endpoint, never at "the first fetch"; the default refuses to refresh.
+ */
+let fetchMock: ReturnType<typeof vi.fn>;
+const callsTo = (endpoint: string) =>
+  fetchMock.mock.calls.filter(([url]) => url === endpoint) as unknown as Array<[string, { body: URLSearchParams }]>;
+/** Script the issuer's token endpoint; everything else keeps refusing. */
+const tokenEndpointAnswers = (answer: Response | Error) =>
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url !== TEST_TOKEN_ENDPOINT) return issuerReply({ error: 'invalid_grant' }, 400);
+    if (answer instanceof Error) throw answer;
+    return answer;
+  });
 
 const KB_A = {
   id: 'kb-a',
@@ -83,8 +107,9 @@ beforeEach(() => {
   storage = new TestStorage();
   mockGetMe.mockReset();
   mockDispose.mockReset();
-  mockRefreshToken.mockReset();
   mockResourceFresh.mockReset();
+  fetchMock = vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400));
+  vi.stubGlobal('fetch', fetchMock);
   // Default: a status with NO did — D3's "no verdict", which leaves state
   // alone and hands off to the per-resource pass. Deliberately not a matching
   // did: that would be per-KB, and a fixed one silently trips the identity
@@ -96,6 +121,8 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   await __resetForTests();
 });
 
@@ -134,8 +161,7 @@ describe('SemiontBrowser — KB list', () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
       { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
-      freshJwt(),
-      'refresh',
+      testSession(freshJwt(), 'refresh'),
     );
 
     expect(kb.id).toBeDefined();
@@ -157,8 +183,7 @@ describe('SemiontBrowser — KB list', () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
       { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint, did: DID },
-      freshJwt(),
-      'refresh',
+      testSession(freshJwt(), 'refresh'),
     );
 
     expect(kb.did).toBe(DID);
@@ -198,13 +223,11 @@ describe('SemiontBrowser — KB list', () => {
     const browser = makeBrowser();
     const a = browser.addKb(
       { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
-      freshJwt(),
-      'r',
+      testSession(freshJwt(), 'r'),
     );
     const b = browser.addKb(
       { label: KB_B.label, email: KB_B.email, did: KB_B.did, endpoint: KB_B.endpoint },
-      freshJwt(),
-      'r',
+      testSession(freshJwt(), 'r'),
     );
     expect(browser.activeKbId$.getValue()).toBe(b.id);
 
@@ -220,8 +243,7 @@ describe('SemiontBrowser — KB list', () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
       { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
-      freshJwt(),
-      'r',
+      testSession(freshJwt(), 'r'),
     );
     browser.updateKb(kb.id, { label: 'New Label' });
     const updated = browser.kbs$.getValue().find((k) => k.id === kb.id);
@@ -673,12 +695,12 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     it('a working refresh keeps the modal silent and the stored session intact', async () => {
       const browser = await makeConnectedBrowser();
       const signals = browser.activeSignals$.getValue()!;
-      mockRefreshToken.mockResolvedValueOnce({ access_token: freshJwt(), token_type: 'Bearer' });
+      tokenEndpointAnswers(issuerReply({ access_token: freshJwt() }));
 
       pushError(browser, { code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
       await settled();
 
-      expect(mockRefreshToken).toHaveBeenCalled();
+      expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
       expect(signals.sessionExpiredAt$.getValue()).toBeNull();
       expect(storage.get(storageKey(KB_A.id))).not.toBeNull();
 
@@ -688,7 +710,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     it('refresh exhausted: the modal fires with the session teardown message, and the stored session is CLEARED', async () => {
       const browser = await makeConnectedBrowser();
       const signals = browser.activeSignals$.getValue()!;
-      mockRefreshToken.mockRejectedValue(new Error('invalid refresh token'));
+      fetchMock.mockResolvedValue(issuerReply({ error: 'invalid_grant', error_description: 'Token is not active' }, 400));
 
       pushError(browser, { code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
       await settled();
@@ -774,7 +796,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     const stored = JSON.parse(storage.get(OPEN_RESOURCES_BY_KB_KEY)!) as Record<string, Array<{ id: string }>>;
     expect(stored[KB_A.id]!.map((r) => r.id)).toEqual(['r1']);
 
-    await browser.signIn(KB_A.id, freshJwt(), 'r');
+    await browser.signIn(KB_A.id, testSession(freshJwt(), 'r'));
     expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['r1']);
 
     await browser.dispose();
@@ -929,29 +951,27 @@ describe('SemiontBrowser — getKbSessionStatus', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────
-// Auth callbacks: SemiontBrowser owns the refresh-token + user-validate
-// logic and passes them to each SemiontSession it constructs. These
-// callbacks were previously in a separate `refresh.ts` module; they
-// moved here as `performRefresh` / `performValidate` during the
-// WORKER-SESSIONS refactor. The tests below exercise the inlined
-// logic directly by triggering session construction with a stored
-// token (activates `performValidate`) or an expired stored token
-// (activates `performRefresh`).
+// Auth callbacks: the session factory owns the refresh + user-validate
+// logic and passes them to each SemiontSession it constructs. Refresh is
+// the refresh grant against the issuer the stored session names; the
+// tests below trigger it by activating a KB whose stored token is expired.
 // ──────────────────────────────────────────────────────────────────────
 
-describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
-  it('calls refreshToken on a throwaway client when the stored token is expired', async () => {
+describe('SemiontBrowser — performRefresh (the refresh grant at the issuer)', () => {
+  it('renews at the issuer the stored session names when the stored token is expired', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'old-refresh');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
-    mockRefreshToken.mockResolvedValueOnce({ access_token: freshJwt(), token_type: 'Bearer' });
+    tokenEndpointAnswers(issuerReply({ access_token: freshJwt() }));
 
     const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
-    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
-    // The throwaway client is disposed afterward.
-    expect(mockDispose).toHaveBeenCalled();
+    const renewals = callsTo(TEST_TOKEN_ENDPOINT);
+    expect(renewals).toHaveLength(1);
+    expect(Object.fromEntries(renewals[0]![1].body.entries())).toEqual({
+      grant_type: 'refresh_token', refresh_token: 'old-refresh', client_id: 'semiont-browser',
+    });
 
     await browser.dispose();
   });
@@ -961,24 +981,24 @@ describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
     const newJwt = freshJwt();
-    mockRefreshToken.mockResolvedValueOnce({ access_token: newJwt, token_type: 'Bearer' });
+    tokenEndpointAnswers(issuerReply({ access_token: newJwt }));
 
     const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const stored = JSON.parse(storage.get(storageKey(KB_A.id))!);
     expect(stored.access).toBe(newJwt);
-    // Refresh token MUST be preserved (we don't rotate refresh tokens on access-token refresh).
+    // The issuer returned no rotated refresh token, so the held one stays current.
     expect(stored.refresh).toBe('old-refresh');
 
     await browser.dispose();
   });
 
-  it('returns null when refreshToken throws, and clears the stored session', async () => {
+  it('returns null when the issuer is unreachable, and clears the stored session', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(-3600), 'bad-refresh');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
-    mockRefreshToken.mockRejectedValueOnce(new Error('refresh endpoint down'));
+    tokenEndpointAnswers(new Error('issuer down'));
 
     const browser = makeBrowser();
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
@@ -1000,22 +1020,166 @@ describe('SemiontBrowser — performRefresh (inlined refresh flow)', () => {
 
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
-    mockRefreshToken.mockClear();
+    fetchMock.mockClear();
 
-    // Hold the refresh call open so both session.refresh() calls see
+    // Hold the issuer's answer open so both session.refresh() calls see
     // an in-flight entry in the Map.
-    let resolveRefresh!: (value: { access_token: string; token_type: string }) => void;
-    mockRefreshToken.mockImplementationOnce(
-      () => new Promise((r) => { resolveRefresh = r; }),
-    );
+    let resolveRefresh!: (value: Response) => void;
+    fetchMock.mockImplementation(async (url: string) =>
+      url === TEST_TOKEN_ENDPOINT
+        ? new Promise<Response>((r) => { resolveRefresh = r; })
+        : issuerReply({ error: 'invalid_grant' }, 400));
 
     const r1 = session!.refresh();
     const r2 = session!.refresh();
-    resolveRefresh({ access_token: freshJwt(), token_type: 'Bearer' });
+    resolveRefresh(issuerReply({ access_token: freshJwt() }));
     await Promise.all([r1, r2]);
 
-    expect(mockRefreshToken).toHaveBeenCalledTimes(1);
+    expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
 
+    await browser.dispose();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────
+// Sign-in through the issuer a KB trusts (EXTERNAL-IDENTITY P4): the
+// browser discovers the issuer, hands the host a URL, and on return
+// exchanges the code, asks the KB who it is and who the user is, and
+// registers or re-authenticates. The issuer is a fetch stub; the KB is the
+// mocked client.
+// ──────────────────────────────────────────────────────────────────────
+
+describe('SemiontBrowser — sign-in through the issuer', () => {
+  const ISSUER = 'https://issuer.test/realms/semiont';
+  const REDIRECT = 'http://localhost:3000/en/auth/callback';
+  const TARGET = { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const };
+
+  beforeEach(() => {
+    vi.spyOn(HttpTransport.prototype, 'getProtectedResourceMetadata').mockResolvedValue({
+      resource: 'http://localhost:4000', authorization_servers: [ISSUER], bearer_methods_supported: ['header'],
+    });
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/.well-known/openid-configuration')) {
+        return issuerReply({
+          issuer: ISSUER, authorization_endpoint: `${ISSUER}/auth`, token_endpoint: `${ISSUER}/token`,
+          revocation_endpoint: `${ISSUER}/revoke`,
+        });
+      }
+      return issuerReply({ access_token: freshJwt(), refresh_token: 'issued-refresh' });
+    });
+    mockAdminStatus = async () => ({ did: KB_A.did, projectName: 'KB A', gitBranch: 'main' });
+    mockGetMe.mockResolvedValue({ id: 'u', email: 'alice@example.com', name: 'Alice', isAdmin: false, isModerator: false });
+  });
+
+  async function begin(browser: SemiontBrowser, extra: { kbId?: string; expectedDid?: string; expectedName?: string } = {}) {
+    const url = await browser.beginSignIn({ target: TARGET, redirectUri: REDIRECT, ...extra });
+    const { state } = JSON.parse(storage.get(PENDING_AUTHORIZATION_KEY)!) as { state: string };
+    return { url, callback: `${REDIRECT}?code=the-code&state=${state}` };
+  }
+
+  it("beginSignIn returns the issuer's authorization URL for the host to navigate to", async () => {
+    const browser = makeBrowser();
+
+    const { url } = await begin(browser);
+
+    expect(url.startsWith(`${ISSUER}/auth?`)).toBe(true);
+    expect(new URL(url).searchParams.get('client_id')).toBe('semiont-browser');
+    await browser.dispose();
+  });
+
+  it('completeSignIn registers the KB with the identity it reports and the email the issuer vouched for', async () => {
+    const browser = makeBrowser();
+    const { callback } = await begin(browser);
+
+    const outcome = await browser.completeSignIn(callback);
+
+    expect(outcome.kb).toMatchObject({ did: KB_A.did, label: 'KB A', email: 'alice@example.com', gitBranch: 'main', endpoint: TARGET });
+    expect(outcome.expected).toBeUndefined();
+    expect(browser.kbs$.getValue()).toHaveLength(1);
+    expect(browser.activeKbId$.getValue()).toBe(outcome.kb.id);
+    expect(JSON.parse(storage.get(storageKey(outcome.kb.id))!)).toMatchObject({
+      refresh: 'issued-refresh', clientId: 'semiont-browser',
+      tokenEndpoint: `${ISSUER}/token`, revocationEndpoint: `${ISSUER}/revoke`,
+    });
+    expect(storage.get(PENDING_AUTHORIZATION_KEY)).toBeNull();
+    await browser.dispose();
+  });
+
+  it('reports what the user believed they clicked, so the host can verify it against who answered', async () => {
+    const browser = makeBrowser();
+    const { callback } = await begin(browser, { expectedDid: 'did:web:someone-else', expectedName: 'Other KB' });
+
+    const outcome = await browser.completeSignIn(callback);
+
+    expect(outcome.expected).toEqual({ did: 'did:web:someone-else', name: 'Other KB' });
+    // Registered anyway: verification reports, it never blocks.
+    expect(outcome.kb.did).toBe(KB_A.did);
+    await browser.dispose();
+  });
+
+  it('re-authenticates a registered KB by id, taking what the KB and the issuer now say', async () => {
+    storage.set(STORAGE_KEY, JSON.stringify([{ ...KB_A, label: 'Old name', email: 'old@example.com' }]));
+    const browser = makeBrowser();
+    const { callback } = await begin(browser, { kbId: KB_A.id });
+
+    const outcome = await browser.completeSignIn(callback);
+
+    expect(outcome.kb.id).toBe(KB_A.id);
+    expect(outcome.kb).toMatchObject({ label: 'KB A', email: 'alice@example.com' });
+    expect(outcome.expected).toEqual({ did: KB_A.did, name: 'Old name' });
+    expect(browser.kbs$.getValue()).toHaveLength(1);
+    expect(storage.get(storageKey(KB_A.id))).not.toBeNull();
+    await browser.dispose();
+  });
+
+  it('re-authenticates by address when a registered KB already lives there', async () => {
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    const browser = makeBrowser();
+    const { callback } = await begin(browser);
+
+    const outcome = await browser.completeSignIn(callback);
+
+    expect(outcome.kb.id).toBe(KB_A.id);
+    expect(browser.kbs$.getValue()).toHaveLength(1);
+    await browser.dispose();
+  });
+
+  it('refuses to register a KB that cannot say who it is, and stores nothing', async () => {
+    mockAdminStatus = async () => ({ projectName: 'Nameless' });
+    const browser = makeBrowser();
+    const { callback } = await begin(browser);
+
+    await expect(browser.completeSignIn(callback)).rejects.toBeInstanceOf(IdentityUnverifiableError);
+
+    expect(browser.kbs$.getValue()).toHaveLength(0);
+    expect(storage.get(PENDING_AUTHORIZATION_KEY)).toBeNull();
+    await browser.dispose();
+  });
+
+  it('refuses a callback that does not belong to the pending sign-in', async () => {
+    const browser = makeBrowser();
+    await begin(browser);
+
+    await expect(browser.completeSignIn(`${REDIRECT}?code=c&state=forged`)).rejects.toMatchObject({ code: 'state' });
+
+    expect(browser.kbs$.getValue()).toHaveLength(0);
+    await browser.dispose();
+  });
+
+  it('signOut revokes the refresh token at the issuer, then forgets it', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
+    const browser = makeBrowser();
+    fetchMock.mockResolvedValue(issuerReply(undefined, 200));
+
+    await browser.signOut(KB_A.id);
+
+    expect(storage.get(storageKey(KB_A.id))).toBeNull();
+    const revocations = callsTo(TEST_REVOCATION_ENDPOINT);
+    expect(revocations).toHaveLength(1);
+    expect(Object.fromEntries(revocations[0]![1].body.entries())).toEqual({
+      token: 'r', token_type_hint: 'refresh_token', client_id: 'semiont-browser',
+    });
     await browser.dispose();
   });
 });
@@ -1125,7 +1289,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
 
     // signIn for the already-active KB tears down and reconstructs so
     // the new token is picked up from storage.
-    await browser.signIn(KB_A.id, freshJwt(), 'new-refresh');
+    await browser.signIn(KB_A.id, testSession(freshJwt(), 'new-refresh'));
     const secondSignals = browser.activeSignals$.getValue();
     expect(secondSignals).not.toBeNull();
     expect(secondSignals).not.toBe(firstSignals);
@@ -1138,7 +1302,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'bad-refresh');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
     storage.set(ACTIVE_KEY, KB_A.id);
-    mockRefreshToken.mockRejectedValue(new Error('down'));
+    tokenEndpointAnswers(new Error('down'));
 
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
@@ -1174,7 +1338,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     subj.next(new APIError('token expired', 401, 'Unauthorized'));
     await new Promise((r) => setTimeout(r, 0));
 
-    expect(mockRefreshToken).toHaveBeenCalled();
+    expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
     expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
     // The session's own teardown message — never the raw transport line.
     expect(signals.sessionExpiredMessage$.getValue()).toMatch(/session has expired/i);

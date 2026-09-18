@@ -47,6 +47,7 @@ import {
   clearStoredSession,
   getStoredSession,
   isJwtExpired,
+  kbGatewayUrl,
   parseJwtExpiry,
   REFRESH_BEFORE_EXP_MS,
   sessionKey,
@@ -55,6 +56,7 @@ import {
 } from './storage';
 import { SemiontSessionError } from './errors';
 import type { SessionStorage } from './session-storage';
+import { SCRIPT_CLIENT_ID, refreshStoredSession, signInWithDeviceGrant, type DeviceCode } from './oauth';
 
 export type UserInfo = components['schemas']['UserResponse'];
 
@@ -441,91 +443,74 @@ export class SemiontSession {
   }
 
   /**
-   * Async factory for the credentials-first long-running script case.
-   * Builds the HTTP transport stack, calls `auth.password(email,
-   * password)` to acquire access + refresh tokens, persists them via
-   * the storage adapter, wires a default `refresh` callback that
-   * exchanges the refresh token via `auth.refresh(...)`, and returns
-   * the ready session.
+   * A session over tokens an issuer already issued — a Browser's completed
+   * sign-in, a script's device grant, a test harness's minted pair. Persists
+   * the session under the KB's id and wires the refresh grant against the
+   * issuer the session names; `ready` has resolved when this returns.
    *
-   * The consumer-supplied `refresh` callback becomes optional — only
-   * needed for non-standard refresh flows (worker-pool shared secret,
-   * OAuth refresh-token grant, interactive re-prompt). The default
-   * uses the refresh token returned by `auth.password`.
-   *
-   * `kb` is required and must be a full `KbTarget`. The `id` field
-   * is the storage key for this session — distinct scripts sharing the
-   * same `SessionStorage` instance must use distinct ids to avoid
-   * trampling each other's tokens. The factory does not synthesize a
-   * default; the consumer makes the choice.
-   *
-   * Named `signInHttp` because email+password authentication is
-   * inherently an HTTP-shaped operation in the current gateway; an
-   * in-process `LocalTransport` doesn't have a credentials login
-   * path. Non-HTTP transports construct the session directly from
-   * their package's transport instance.
-   *
-   * Throws on auth failure with no resources leaked. On success, the
-   * returned session's `ready` promise has already resolved.
+   * `kb.id` is the storage key: distinct scripts sharing one
+   * `SessionStorage` must use distinct ids or they trample each other's
+   * tokens. No default is synthesized; the consumer chooses.
    */
-  static async signInHttp(opts: {
+  static async fromIssuedSession(opts: {
     kb: KbTarget;
     storage: SessionStorage;
     baseUrl: BaseUrl | string;
-    email: string;
-    password: string;
+    session: StoredSession;
     validate?: (token: AccessToken) => Promise<UserInfo | null>;
     onAuthFailed?: (message: string | null) => void;
     onError?: (err: SemiontSessionError) => void;
   }): Promise<SemiontSession> {
-    const url = typeof opts.baseUrl === 'string' ? baseUrl(opts.baseUrl) : opts.baseUrl;
-
-    // Phase 1: build a transient transport with no token, authenticate,
-    // and capture the full StoredSession from the response.
-    const token$ = new BehaviorSubject<AccessToken | null>(null);
-    const transport = new HttpTransport({ baseUrl: url, token$ });
-    const content = new HttpContentTransport(transport);
-    const client = new SemiontClient(transport, content, transport);
-
-    let auth: components['schemas']['AuthResponse'];
-    try {
-      auth = await client.auth!.password(opts.email, opts.password);
-    } catch (err) {
-      client.dispose();
-      throw err;
-    }
-
-    setStoredSession(opts.storage, opts.kb.id, { access: auth.token, refresh: auth.refreshToken });
-    token$.next(accessToken(auth.token));
-
-    // Phase 2: wire a default refresh callback that uses the stored
-    // refresh token (read at refresh time, not capture-time, so storage
-    // updates from elsewhere are honored). The session itself updates
-    // storage on each successful refresh, so this stays in sync.
-    const defaultRefresh = async (): Promise<string | null> => {
-      const stored = getStoredSession(opts.storage, opts.kb.id);
-      if (!stored) return null;
-      try {
-        const response = await client.auth!.refresh(stored.refresh);
-        return response.access_token;
-      } catch {
-        return null;
-      }
-    };
-
-    const config: SemiontSessionConfig = {
+    setStoredSession(opts.storage, opts.kb.id, opts.session);
+    const session = SemiontSession.fromHttp({
       kb: opts.kb,
       storage: opts.storage,
-      client,
-      token$,
-      refresh: defaultRefresh,
-    };
-    if (opts.validate) config.validate = opts.validate;
-    if (opts.onAuthFailed) config.onAuthFailed = opts.onAuthFailed;
-    if (opts.onError) config.onError = opts.onError;
-
-    const session = new SemiontSession(config);
+      baseUrl: opts.baseUrl,
+      token: opts.session.access,
+      refresh: () => refreshStoredSession(opts.storage, opts.kb.id),
+      ...(opts.validate ? { validate: opts.validate } : {}),
+      ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
+      ...(opts.onError ? { onError: opts.onError } : {}),
+    });
     await session.ready;
     return session;
+  }
+
+  /**
+   * The device authorization grant (RFC 8628): a script signs in as a
+   * person. The issuer the knowledge base trusts mints a code, `onCode`
+   * shows the person where to approve it, and the tokens come back here —
+   * no password ever passes through the process. Throws a `SignInError`
+   * when the KB trusts no issuer, the person denies, or the code expires.
+   */
+  static async signInDevice(opts: {
+    kb: KbTarget;
+    storage: SessionStorage;
+    onCode: (code: DeviceCode) => void;
+    signal?: AbortSignal;
+    validate?: (token: AccessToken) => Promise<UserInfo | null>;
+    onAuthFailed?: (message: string | null) => void;
+    onError?: (err: SemiontSessionError) => void;
+  }): Promise<SemiontSession> {
+    if (opts.kb.endpoint.kind !== 'http') {
+      throw new Error(`The device grant needs an HTTP endpoint; this knowledge base's is "${opts.kb.endpoint.kind}"`);
+    }
+    const { issuer, tokens } = await signInWithDeviceGrant({
+      target: opts.kb.endpoint,
+      onCode: opts.onCode,
+      ...(opts.signal ? { signal: opts.signal } : {}),
+    });
+    const { onCode: _onCode, signal: _signal, ...rest } = opts;
+    return SemiontSession.fromIssuedSession({
+      ...rest,
+      baseUrl: kbGatewayUrl(opts.kb.endpoint),
+      session: {
+        access: tokens.access,
+        refresh: tokens.refresh,
+        clientId: SCRIPT_CLIENT_ID,
+        tokenEndpoint: issuer.token,
+        ...(issuer.revocation ? { revocationEndpoint: issuer.revocation } : {}),
+      },
+    });
   }
 }

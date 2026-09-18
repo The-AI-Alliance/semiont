@@ -113,29 +113,9 @@ import { AnnotationHistory } from '@semiont/react-ui';
 
 ## Authentication Components
 
-### SignInForm
-
-Sign-in form with Google OAuth and optional credentials-based auth. The sign-in callbacks
-receive the target `gatewayUrl` (the form can prompt for it, or you can pre-fill + lock it via
-the `gatewayUrl` prop).
-
-```tsx
-import { SignInForm } from '@semiont/react-ui';
-import Link from 'next/link'; // or your router's Link
-
-<SignInForm
-  onGoogleSignIn={async (gatewayUrl) => signIn('google', { gatewayUrl })}
-  onCredentialsSignIn={async (gatewayUrl, email, password) => signIn('credentials', { gatewayUrl, email, password })}
-  gatewayUrl={lockedGatewayUrl}   // optional: pre-fill + lock the gateway-URL field
-  showCredentialsAuth
-  isLoading={submitting}
-  error={errorMessage}
-  Link={Link}
-  translations={strings}
-/>
-```
-
-**Required:** `onGoogleSignIn(gatewayUrl)`, `Link`, `translations`. **Optional:** `onCredentialsSignIn(gatewayUrl, email, password)`, `gatewayUrl`, `showCredentialsAuth`, `isLoading`, `error`. The full `translations` shape (21 keys) is the exported `SignInFormProps` type.
+Sign-in is not a form: a knowledge base trusts an issuer, and the Browser sends the user there
+(`SemiontBrowser.beginSignIn` / `completeSignIn` in `@semiont/sdk`). No component here collects
+a credential.
 
 ### SignUpForm
 

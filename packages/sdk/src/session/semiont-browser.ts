@@ -36,7 +36,16 @@ import {
   LAST_VIEWED_RESOURCE_BY_KB_KEY,
   saveKnowledgeBases,
   setStoredSession,
+  type StoredSession,
 } from './storage';
+import {
+  BROWSER_CLIENT_ID,
+  beginAuthorization,
+  completeAuthorization,
+  revokeAtIssuer,
+  type BeginAuthorizationOptions,
+} from './oauth';
+import { describeConnection } from './connect';
 import type {
   KnowledgeBase,
   KbSessionStatus,
@@ -78,6 +87,18 @@ function loadLastViewedByKb(storage: SessionStorage): Record<string, string> {
     // Ignore parse errors
   }
   return {};
+}
+
+/**
+ * What a completed sign-in registered or re-authenticated, plus what the
+ * user believed they were connecting to — a discovered row they clicked, or
+ * the registered record they re-authenticated — so a host can verify the
+ * two against each other and report a mismatch. Verification reports; it
+ * never blocks, because the KB that answered is the one they reached.
+ */
+export interface SignInOutcome {
+  kb: KnowledgeBase;
+  expected?: { did: string; name?: string };
 }
 
 export interface SemiontBrowserConfig {
@@ -248,12 +269,67 @@ export class SemiontBrowser {
 
   // ── KB list management ────────────────────────────────────────────────
 
-  addKb(input: NewKnowledgeBase, access: string, refresh: string): KnowledgeBase {
+  addKb(input: NewKnowledgeBase, session: StoredSession): KnowledgeBase {
     const kb: KnowledgeBase = { id: generateKbId(), ...input };
-    setStoredSession(this.storage, kb.id, { access, refresh });
+    setStoredSession(this.storage, kb.id, session);
     this.kbs$.next([...this.kbs$.getValue(), kb]);
     void this.setActiveKb(kb.id);
     return kb;
+  }
+
+  // ── Sign-in through the issuer a KB trusts ────────────────────────────
+
+  /**
+   * Start a sign-in: discover the issuer the target trusts, remember the
+   * pending authorization, and return the URL the host must navigate the
+   * user to. Navigation is the host's act — a browser assigns
+   * `window.location`, a test asserts the URL.
+   */
+  async beginSignIn(opts: BeginAuthorizationOptions): Promise<string> {
+    return beginAuthorization(opts, this.storage);
+  }
+
+  /**
+   * Finish a sign-in from the URL the issuer returned the user to: exchange
+   * the code, ask the KB who it is and who the user is, then register the
+   * KB (a new address) or re-authenticate it (a registered one, by id or by
+   * the same address). Throws `SignInError` for the OAuth half and
+   * `IdentityUnverifiableError` when the KB cannot say who it is.
+   */
+  async completeSignIn(callbackUrl: string): Promise<SignInOutcome> {
+    const { pending, tokens } = await completeAuthorization(callbackUrl, this.storage);
+    const identity = await describeConnection(pending.target, tokens.access);
+    const session: StoredSession = {
+      access: tokens.access,
+      refresh: tokens.refresh,
+      clientId: BROWSER_CLIENT_ID,
+      tokenEndpoint: pending.issuer.token,
+      ...(pending.issuer.revocation ? { revocationEndpoint: pending.issuer.revocation } : {}),
+    };
+    const kbs = this.kbs$.getValue();
+    const existing = pending.kbId
+      ? kbs.find((kb) => kb.id === pending.kbId)
+      : kbs.find((kb) =>
+          kb.endpoint.kind === 'http'
+          && kb.endpoint.host === pending.target.host
+          && kb.endpoint.port === pending.target.port);
+    const expected = pending.expectedDid
+      ? { did: pending.expectedDid, ...(pending.expectedName ? { name: pending.expectedName } : {}) }
+      : existing
+        ? { did: existing.did, ...(existing.label ? { name: existing.label } : {}) }
+        : undefined;
+    const branch = identity.gitBranch ? { gitBranch: identity.gitBranch } : {};
+    if (existing) {
+      const kb: KnowledgeBase = { ...existing, label: identity.label, email: identity.email, ...branch };
+      this.updateKb(existing.id, { label: identity.label, email: identity.email, ...branch });
+      await this.signIn(existing.id, session);
+      return { kb, ...(expected ? { expected } : {}) };
+    }
+    const kb = this.addKb(
+      { did: identity.did, label: identity.label, email: identity.email, endpoint: pending.target, ...branch },
+      session,
+    );
+    return { kb, ...(expected ? { expected } : {}) };
   }
 
   removeKb(id: string): void {
@@ -456,9 +532,9 @@ export class SemiontBrowser {
    * session. If the KB is already active, the current session is disposed
    * and replaced so the new tokens take effect.
    */
-  async signIn(id: string, access: string, refresh: string): Promise<void> {
+  async signIn(id: string, session: StoredSession): Promise<void> {
     if (this.disposed) return;
-    setStoredSession(this.storage, id, { access, refresh });
+    setStoredSession(this.storage, id, session);
 
     // If this KB is already active, tear down and reconstruct so the new
     // tokens are picked up from storage by the session ctor.
@@ -477,12 +553,19 @@ export class SemiontBrowser {
   }
 
   /**
-   * Sign out of a KB: clear stored tokens. If the KB is active, dispose
-   * its session + signals and emit null for both.
+   * Sign out of a KB: forget the stored tokens and, best-effort, revoke the
+   * refresh token at the issuer that issued it. If the KB is active,
+   * dispose its session + signals and emit null for both.
    */
   async signOut(id: string): Promise<void> {
     if (this.disposed) return;
+    const stored = getStoredSession(this.storage, id);
     clearStoredSession(this.storage, id);
+    if (stored?.revocationEndpoint) {
+      // The local act is the sign-out; an unreachable issuer must not trap
+      // the user in a session they asked to end.
+      void revokeAtIssuer(stored.revocationEndpoint, stored.clientId, stored.refresh).catch(() => {});
+    }
 
     // Bump the kbs$ list so downstream status-derivations re-run.
     this.kbs$.next([...this.kbs$.getValue()]);

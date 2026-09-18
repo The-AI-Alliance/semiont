@@ -12,6 +12,7 @@ const TermsPage = React.lazy(() => import('./app/[locale]/terms/page'));
 const ConnectPage = React.lazy(() => import('./app/[locale]/auth/connect/page'));
 const SignUpPage = React.lazy(() => import('./app/[locale]/auth/signup/page'));
 const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'));
+const AuthCallbackPage = React.lazy(() => import('./app/[locale]/auth/callback/page'));
 const WelcomePage = React.lazy(() => import('./app/[locale]/auth/welcome/page'));
 import { AuthShell } from './contexts/AuthShell';
 const KnowledgeLayout = React.lazy(() => import('./app/[locale]/know/layout'));
@@ -109,6 +110,7 @@ export default function App() {
           <Route path="auth/connect" element={<ConnectPage />} />
           <Route path="auth/signup" element={<SignUpPage />} />
           <Route path="auth/error" element={<AuthErrorPage />} />
+          <Route path="auth/callback" element={<AuthCallbackPage />} />
 
           {/* Protected routes — single AuthShell parent across every authenticated section */}
           <Route element={<ProtectedLayout />}>

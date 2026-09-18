@@ -127,7 +127,24 @@ export {
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
-export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
+export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome } from './session/semiont-browser';
+export {
+  BROWSER_CLIENT_ID,
+  SCRIPT_CLIENT_ID,
+  SignInError,
+  type SignInErrorCode,
+  type IssuerEndpoints,
+  type DeviceCode,
+  type BeginAuthorizationOptions,
+  discoverIssuer,
+  beginAuthorization,
+  completeAuthorization,
+  signInWithDeviceGrant,
+  refreshAtIssuer,
+  refreshStoredSession,
+  revokeAtIssuer,
+} from './session/oauth';
+export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection } from './session/connect';
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
 export { SessionSignals } from './session/session-signals';
