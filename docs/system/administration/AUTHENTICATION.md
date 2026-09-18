@@ -59,8 +59,8 @@ graph TB
 
 | Token | TTL | Carried as | Purpose |
 |---|---|---|---|
-| **Access** | the issuer's realm setting | `Authorization: Bearer` | Per-request API auth for people; minted by the issuer, validated here on every protected route. The lifetime is the realm's, not ours, and the launcher does not override it. |
-| **Agent** | **1 hour** | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). No account exists at the issuer to disable, so this lifetime IS the revocation window. |
+| **Access** | **5 minutes** | `Authorization: Bearer` | Per-request API auth for people; minted by the issuer, validated here on every protected route. This is the revocation window: a disabled account's token works until it expires. |
+| **Agent** | **1 hour** | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). No account exists at the issuer to disable, so this lifetime is the whole of the revocation window. |
 | **Media** | 5 minutes | `?token=` query param | Resource-scoped token for `GET /api/resources/:id` (images, PDFs) where a header can't be set. |
 
 This table is the only place these values are written down; everywhere else says
@@ -69,7 +69,7 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | the trusted issuer's realm — **not in this repository** | realm setting `accessTokenLifespan`; read it from the running realm |
+| Access | the realm the launcher imports, [`apps/launcher/internal/launcher/identity.go`](../../../apps/launcher/internal/launcher/identity.go) | `keycloakAccessTokenLifespan`, written into the realm as `accessTokenLifespan`. **Only on first boot** — import skips an existing realm, so a deployment older than a change to that constant keeps what it was created with. |
 | Agent | [`apps/gateway/src/routes/auth.ts`](../../../apps/gateway/src/routes/auth.ts) | `AGENT_TOKEN_TTL_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
 | Media | [`apps/gateway/src/auth/jwt.ts:189`](../../../apps/gateway/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
 
@@ -77,7 +77,9 @@ row against the literal, not against another document:
 
 **Disable the account at the issuer.** It stops minting for that person immediately, which ends their access as soon as the token they are holding expires.
 
-That delay is the whole of the trade, and it is deliberate. Semiont previously kept an `isActive` column and checked it on every request, which cut off a live token on its next call. It also meant two systems answering one question, able to disagree, with only the issuer's answer capable of stopping a token from being minted at all. The column is gone; the issuer decides, and the access token lifetime bounds how long a revoked person can still act.
+That delay is the whole of the trade, and it is deliberate. Semiont previously kept an `isActive` column and checked it on every request, which cut off a live token on its next call. It also meant two systems answering one question, able to disagree, with only the issuer's answer capable of stopping a token from being minted at all. The column is gone; the issuer decides, and the access token lifetime above bounds how long a revoked person can still act.
+
+Disabling also stops the refresh grant, so the person cannot mint a replacement when the one they hold expires.
 
 **Signing out in a client is a client-side act.** The token lives in memory and the client drops it. The gateway is not told, and nothing server-side changes.
 

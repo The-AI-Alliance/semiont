@@ -16,6 +16,21 @@ const (
 	// browserClientID: the Browser's registration in every KB realm. The
 	// Browser is machine-level, so one public client (PKCE) serves it.
 	browserClientID = "semiont-browser"
+
+	// keycloakAccessTokenLifespan: how long an access token the realm mints
+	// stays valid, in seconds.
+	//
+	// This is the revocation window for every person using the knowledge base.
+	// Semiont holds no per-user admission flag: disabling an account here stops
+	// the realm minting and stops it refreshing, but a token already in someone's
+	// hand keeps working until it expires. That expiry is this number.
+	//
+	// Pinned rather than left to Keycloak's default so the window is a decision
+	// somebody made and can read back, not a value that moves with a Keycloak
+	// upgrade. Five minutes matches the default this was written against, so
+	// pinning it changes no existing behaviour — the point is that changing it
+	// now requires editing this line.
+	keycloakAccessTokenLifespan = 300
 )
 
 // splitIssuer: the host, port and path of an issuer URL. Not url.Parse — a
@@ -59,12 +74,16 @@ func identityEndpoint(rp rolePlan) string {
 	return fmt.Sprintf("http://localhost:%d%s", rp.Port, issuerPath(rp.Issuer))
 }
 
-// keycloakRealmJSON renders the realm Keycloak imports on first boot: the
+// keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
 // realm itself and two public clients — the Browser's (authorization code
 // with PKCE) and the launcher's (the device grant) — each with an audience
 // mapper that stamps the gateway's client id into every access token, the
-// value the gateway's verifier checks. Import skips a realm that already
-// exists, so a second start changes nothing.
+// value the gateway's verifier checks.
+//
+// Import SKIPS a realm that already exists, so a second start changes nothing —
+// including the values here. A deployment whose realm predates a change to this
+// function keeps the settings it was created with; adjusting those is a console
+// or admin-API job, not a restart.
 func keycloakRealmJSON(realm, audience, addr string) []byte {
 	browser := publicClient(browserClientID, "Semiont Browser", audience)
 	browser["standardFlowEnabled"] = true
@@ -80,10 +99,11 @@ func keycloakRealmJSON(realm, audience, addr string) []byte {
 		"oauth2.device.authorization.grant.enabled": "true",
 	}
 	doc := map[string]any{
-		"realm":       realm,
-		"enabled":     true,
-		"sslRequired": "none",
-		"clients":     []map[string]any{browser, cli},
+		"realm":               realm,
+		"enabled":             true,
+		"sslRequired":         "none",
+		"accessTokenLifespan": keycloakAccessTokenLifespan,
+		"clients":             []map[string]any{browser, cli},
 	}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
