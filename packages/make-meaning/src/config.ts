@@ -55,8 +55,6 @@ export interface MakeMeaningConfig {
   search: { semanticFloor: number };
   services: {
     graph?: GraphServiceConfig;
-    /** The job queue driver (JOB-QUEUE-DRIVER P2). Absent means 'fs' until
-     *  P3 retires that driver and flips the default. */
     jobs?: JobsServiceConfig;
     /** REQUIRED (MANDATORY-EMBEDDING D0+D1, type-level per the 2026-08-12
      *  ruling): the config NAMES its store — `memory` is a first-class
