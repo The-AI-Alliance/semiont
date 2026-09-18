@@ -34,7 +34,7 @@ Options:
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
 
-Requires a session:  semiont login --email <address>
+Requires a session:  semiont login
 Generation from context: semiont yield --delegate --help
 `
 
@@ -215,7 +215,7 @@ func Yield(args []string) int {
 	tok, haveTok := loadTokens()[key]
 	if !haveTok || tok.Token == "" {
 		u.fail("No session for %s.", key)
-		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login --email <address>")
+		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login")
 		return 1
 	}
 
@@ -308,7 +308,7 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 			return 0
 		case resp.JSON401 != nil:
 			if attempt == 0 {
-				if refreshed, ok := refreshSession(u, cli, key, *tok); ok {
+				if refreshed, ok := refreshSession(u, key, *tok); ok {
 					*tok = refreshed
 					continue
 				}
@@ -318,7 +318,7 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 				// would contradict the Session-refreshed line just printed.
 				u.fail("Session rejected even after a successful refresh — the gateway no longer accepts this account's tokens.")
 			}
-			fmt.Fprintln(os.Stderr, "  Log in again:  semiont login --email <address>")
+			fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
 			return 1
 		case resp.JSON400 != nil:
 			u.fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
@@ -356,7 +356,7 @@ Options:
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
 
-Requires a session:  semiont login --email <address>
+Requires a session:  semiont login
 `
 
 func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOptions) int {

@@ -51,7 +51,7 @@ Options:
   --runtime <rt>        Target the local stack explicitly
   --help                Show this help
 
-Requires a session:  semiont login --email <address>
+Requires a session:  semiont login
 `
 
 func Browse(args []string) int {
@@ -367,7 +367,7 @@ func busFail(u *ui, verb string, err error) int {
 		u.fail("%s was rejected: %s", verb, re.Error())
 	case strings.Contains(err.Error(), "HTTP 401"):
 		u.fail("%s: the session was rejected.", verb)
-		fmt.Fprintln(os.Stderr, "  Log in again:  semiont login --email <address>")
+		fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
 	default:
 		u.fail("%s failed: %v", verb, err)
 	}

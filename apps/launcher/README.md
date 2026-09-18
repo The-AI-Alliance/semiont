@@ -447,10 +447,12 @@ semiont stop
 
 ### Login and upload
 
-`semiont login --email <address>` authenticates against a running stack's
-gateway and stores the session token — never the password, which is read
-from stdin only (prompted echo-off on a terminal; `echo "$PW" | semiont
-login …` for scripts) — per stack in the launcher state home, mode 0600.
+`semiont login` signs in to a running stack's knowledge base through the
+issuer it trusts: the launcher reads the KB's OAuth resource metadata, runs
+the device authorization grant against that issuer (a URL and a code you
+approve in a browser), and stores the tokens per stack in the launcher
+state home, mode 0600. No password ever reaches the launcher; a script's
+session is the stored refresh token from one interactive sign-in.
 `semiont yield --upload <file>` then registers files as KB resources.
 Files must live under the KB root (storage URIs are repo-relative; the
 content belongs in the repo) — and commit the `.semiont/events/` files an
@@ -461,11 +463,11 @@ Both take `--repo <owner/name>` to target a codespace stack through its
 forward instead of the local one.
 
 Sessions maintain themselves: access tokens are short-lived, and on a 401 the
-launcher renews one invisibly from the stored refresh token
+launcher renews one invisibly at the issuer from the stored refresh token
 (announced, saved, retried once) — login is a rare event, not a routine
-chore. `semiont logout` ends a session (best-effort server-side,
-local token forgotten either way, said plainly when the server half
-didn't complete), and `semiont status --verbose` lists every stored
+chore. `semiont logout` ends a session (the refresh token revoked at the
+issuer, best-effort; local token forgotten either way, said plainly when
+the issuer half didn't complete), and `semiont status --verbose` lists every stored
 session under SESSIONS, live-verified against the stack when reachable —
 valid / expired / unverified, never a guess.
 

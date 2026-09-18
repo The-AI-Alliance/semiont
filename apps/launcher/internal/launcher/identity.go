@@ -60,48 +60,62 @@ func identityEndpoint(rp rolePlan) string {
 }
 
 // keycloakRealmJSON renders the realm Keycloak imports on first boot: the
-// realm itself and the Browser's public client, with an audience mapper that
-// stamps the gateway's client id into every access token — the value the
-// gateway's verifier checks. Import skips a realm that already exists, so a
-// second start changes nothing.
+// realm itself and two public clients — the Browser's (authorization code
+// with PKCE) and the launcher's (the device grant) — each with an audience
+// mapper that stamps the gateway's client id into every access token, the
+// value the gateway's verifier checks. Import skips a realm that already
+// exists, so a second start changes nothing.
 func keycloakRealmJSON(realm, audience, addr string) []byte {
+	browser := publicClient(browserClientID, "Semiont Browser", audience)
+	browser["standardFlowEnabled"] = true
+	browser["redirectUris"] = []string{"http://localhost:3000/*", "http://" + addr + ":3000/*"}
+	browser["webOrigins"] = []string{"+"}
+	browser["attributes"] = map[string]string{
+		"pkce.code.challenge.method": "S256",
+		"post.logout.redirect.uris":  "+",
+	}
+	cli := publicClient(cliClientID, "Semiont launcher", audience)
+	cli["standardFlowEnabled"] = false
+	cli["attributes"] = map[string]string{
+		"oauth2.device.authorization.grant.enabled": "true",
+	}
 	doc := map[string]any{
 		"realm":       realm,
 		"enabled":     true,
 		"sslRequired": "none",
-		"clients": []map[string]any{{
-			"clientId":                  browserClientID,
-			"name":                      "Semiont Browser",
-			"enabled":                   true,
-			"protocol":                  "openid-connect",
-			"publicClient":              true,
-			"standardFlowEnabled":       true,
-			"implicitFlowEnabled":       false,
-			"directAccessGrantsEnabled": false,
-			"redirectUris":              []string{"http://localhost:3000/*", "http://" + addr + ":3000/*"},
-			"webOrigins":                []string{"+"},
-			"attributes": map[string]string{
-				"pkce.code.challenge.method": "S256",
-				"post.logout.redirect.uris":  "+",
-			},
-			"protocolMappers": []map[string]any{{
-				"name":            "gateway audience",
-				"protocol":        "openid-connect",
-				"protocolMapper":  "oidc-audience-mapper",
-				"consentRequired": false,
-				"config": map[string]string{
-					"included.custom.audience": audience,
-					"access.token.claim":       "true",
-					"id.token.claim":           "false",
-				},
-			}},
-		}},
+		"clients":     []map[string]any{browser, cli},
 	}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		panic(err)
 	}
 	return append(b, '\n')
+}
+
+// publicClient: the shape both of Semiont's clients share — public (no
+// secret, PKCE or device grant), no implicit or password grants, and the
+// gateway audience stamped into access tokens.
+func publicClient(clientID, name, audience string) map[string]any {
+	return map[string]any{
+		"clientId":                  clientID,
+		"name":                      name,
+		"enabled":                   true,
+		"protocol":                  "openid-connect",
+		"publicClient":              true,
+		"implicitFlowEnabled":       false,
+		"directAccessGrantsEnabled": false,
+		"protocolMappers": []map[string]any{{
+			"name":            "gateway audience",
+			"protocol":        "openid-connect",
+			"protocolMapper":  "oidc-audience-mapper",
+			"consentRequired": false,
+			"config": map[string]string{
+				"included.custom.audience": audience,
+				"access.token.claim":       "true",
+				"id.token.claim":           "false",
+			},
+		}},
+	}
 }
 
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —

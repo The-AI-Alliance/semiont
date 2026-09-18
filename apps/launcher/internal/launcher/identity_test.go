@@ -112,6 +112,8 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		`"pkce.code.challenge.method": "S256"`,
 		`"http://192.168.64.1:3000/*"`,
 		`"included.custom.audience": "semiont-gateway"`,
+		`"clientId": "semiont-cli"`,
+		`"oauth2.device.authorization.grant.enabled": "true"`,
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("realm document missing %s", want)

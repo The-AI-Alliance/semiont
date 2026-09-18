@@ -14,11 +14,16 @@ import (
 
 type tokenEntry struct {
 	Token string `json:"token"` // short-lived access token (Bearer)
-	// RefreshToken: long-lived (30d); stored so a later refresh flow can
-	// renew without another password prompt.
+	// RefreshToken: long-lived; renews the access token at the issuer without
+	// another sign-in.
 	RefreshToken string    `json:"refreshToken,omitempty"`
 	Email        string    `json:"email"`
 	ObtainedAt   time.Time `json:"obtainedAt"`
+	// The issuer the session came from and the endpoints a renewal and a
+	// logout need — discovered once at login, so a verb never re-asks.
+	Issuer             string `json:"issuer"`
+	TokenEndpoint      string `json:"tokenEndpoint"`
+	RevocationEndpoint string `json:"revocationEndpoint,omitempty"`
 }
 
 // deleteToken forgets one stack's session (logout).

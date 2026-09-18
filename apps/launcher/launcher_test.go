@@ -1262,37 +1262,74 @@ func tokensPathFor(home string) string {
 	return filepath.Join(home, ".local", "state", "semiont", "tokens.json")
 }
 
-func TestLoginStoresTokenNeverPassword(t *testing.T) {
+// EXTERNAL-IDENTITY P4 (launcher lane): `semiont login` is the device
+// authorization grant (RFC 8628). The launcher learns the issuer from the
+// knowledge base's resource metadata, asks it for a code as the launcher's
+// own public client, and stores the tokens the issuer returns — no --email,
+// no stdin, no password anywhere in this process.
+func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// Password arrives on stdin — never argv (ps/history), never env.
-	s.stdin = "hunter2secret\n"
-	stdout, stderr, code := s.run(t, "login", "--email", "admin@example.com")
+	stdout, stderr, code := s.run(t, "login")
 	if code != 0 {
 		t.Fatalf("login: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
+	mustContain(t, "output", stdout+stderr, "realms/semiont", "FAKE-CODE")
 	mustContain(t, "stdout", stdout, "Logged in", "admin@example.com")
+	if strings.Contains(stdout+stderr, "Password") {
+		t.Errorf("login asked for a password:\n%s\n%s", stdout, stderr)
+	}
+	// The grant went to the issuer as the launcher's own public client,
+	// asking for a refresh token that outlives the browser session.
+	da, err := os.ReadFile(filepath.Join(s.fakertDir, "device-auth.txt"))
+	if err != nil {
+		t.Fatalf("device authorization request not recorded: %v", err)
+	}
+	mustContain(t, "device authorization", string(da), "client_id=semiont-cli", "offline_access")
 	b, err := os.ReadFile(tokensPathFor(s.home))
 	if err != nil {
 		t.Fatalf("tokens.json after login: %v", err)
 	}
-	mustContain(t, "tokens.json", string(b), "fake-jwt-token", `"local"`)
+	mustContain(t, "tokens.json", string(b), "fake-jwt-token", "fake-refresh-token", `"local"`,
+		`"issuer"`, "http://localhost:4000/realms/semiont", `"tokenEndpoint"`)
 	if fi, err := os.Stat(tokensPathFor(s.home)); err == nil {
 		if perm := fi.Mode().Perm(); perm != 0o600 {
 			t.Errorf("tokens.json mode = %o, want 600 (it holds a bearer token)", perm)
 		}
 	}
-	// The password exists NOWHERE after the command: not in any launcher
-	// file, not echoed. (Same discipline as the secret tests.)
-	for _, f := range []string{tokensPathFor(s.home), statePathFor(s.home), rootsPathFor(s.home)} {
-		if fb, err := os.ReadFile(f); err == nil && strings.Contains(string(fb), "hunter2secret") {
-			t.Errorf("password persisted in %s", f)
-		}
+}
+
+func TestLoginRefusesKBWithoutIssuer(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_NO_ISSUER=1")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	if strings.Contains(stdout, "hunter2secret") {
-		t.Error("password echoed to stdout")
+	_, stderr, code := s.run(t, "login")
+	if code == 0 {
+		t.Fatal("login must refuse when the knowledge base trusts no issuer")
+	}
+	mustContain(t, "refusal", stderr, "trusts no external issuer", "[identity]")
+	if _, err := os.Stat(tokensPathFor(s.home)); err == nil {
+		t.Error("a refused login stored a token")
+	}
+}
+
+func TestLoginDeniedAtIssuer(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_DEVICE_DENY=1")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	_, stderr, code := s.run(t, "login")
+	if code == 0 {
+		t.Fatal("login must fail when the user denies the sign-in at the issuer")
+	}
+	mustContain(t, "denial", stderr, "denied")
+	if _, err := os.Stat(tokensPathFor(s.home)); err == nil {
+		t.Error("a denied login stored a token")
 	}
 }
 
@@ -1307,8 +1344,6 @@ func TestVerbStackContradictionRefuses(t *testing.T) {
 		switch verb {
 		case "useradd":
 			args = append(args, "--email", "x@y.example")
-		case "login":
-			args = append(args, "--email", "x@y.example")
 		case "yield":
 			args = append(args, "--upload", "docs/note.md")
 		}
@@ -1322,8 +1357,7 @@ func TestVerbStackContradictionRefuses(t *testing.T) {
 
 func TestLoginWithoutStackRefuses(t *testing.T) {
 	s := newScenario(t, "container")
-	s.stdin = "hunter2secret\n"
-	_, stderr, code := s.run(t, "login", "--email", "a@b.example")
+	_, stderr, code := s.run(t, "login")
 	if code == 0 {
 		t.Fatal("login with no running stack must refuse")
 	}
@@ -1343,11 +1377,9 @@ func yieldScenario(t *testing.T, login bool, extraEnv ...string) *scenario {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if login {
-		s.stdin = "hunter2secret\n"
-		if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+		if _, stderr, code := s.run(t, "login"); code != 0 {
 			t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 		}
-		s.stdin = ""
 	}
 	if err := os.MkdirAll(filepath.Join(s.kb, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1451,12 +1483,19 @@ func TestLogoutForgetsSession(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("logout: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Logged out", "local")
+	mustContain(t, "stdout", stdout, "Logged out", "local", "revoked at the issuer")
 	if tb, err := os.ReadFile(tokensPathFor(s.home)); err == nil {
 		if strings.Contains(string(tb), "fake-jwt-token") {
 			t.Errorf("token survived logout:\n%s", tb)
 		}
 	}
+	// The refresh token was revoked at the issuer (RFC 7009), as the
+	// launcher's own client — not merely forgotten locally.
+	rv, err := os.ReadFile(filepath.Join(s.fakertDir, "revoked.txt"))
+	if err != nil {
+		t.Fatalf("no revocation reached the issuer: %v", err)
+	}
+	mustContain(t, "revocation", string(rv), "token=fake-refresh-token", "client_id=semiont-cli")
 	// A second logout is a benign no-op, said plainly.
 	stdout, _, code = s.run(t, "logout")
 	if code != 0 {
@@ -1473,11 +1512,9 @@ func TestStatusVerboseShowsSessions(t *testing.T) {
 	// Before any login: the section says so, without inventing a session.
 	stdout, _, _ := s.run(t, "status", "--verbose")
 	mustContain(t, "no sessions yet", stdout, "SESSIONS", "none — semiont login")
-	s.stdin = "hunter2secret\n"
-	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+	if _, stderr, code := s.run(t, "login"); code != 0 {
 		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = ""
 	stdout, _, _ = s.run(t, "status", "--verbose")
 	mustContain(t, "session row", stdout, "SESSIONS", "local", "admin@example.com", "valid")
 }
@@ -5295,11 +5332,9 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 	if _, stderr, code := s.run(t, "start", "--config", "mixed"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = "hunter2secret\n"
-	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+	if _, stderr, code := s.run(t, "login"); code != 0 {
 		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = ""
 	return s
 }
 
@@ -6560,11 +6595,9 @@ func busScenario(t *testing.T, env ...string) *scenario {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = "hunter2secret\n"
-	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+	if _, stderr, code := s.run(t, "login"); code != 0 {
 		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = ""
 	return s
 }
 

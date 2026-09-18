@@ -1315,6 +1315,15 @@ func killServe(name string) bool {
 
 // serve listens on every given port, answering 200 to any HTTP request; the
 // open listener also satisfies the launcher's raw TCP dial (postgres phase 1).
+// devicePolls counts token-endpoint polls of the device grant, so the first
+// FAKERT_DEVICE_PENDING of them can answer authorization_pending; bearerUses
+// counts presentations of each bearer, so a token can be accepted once (at
+// login) and stale afterwards.
+var (
+	devicePolls int
+	bearerUses  = map[string]int{}
+)
+
 func serve(ports []string) {
 	done := make(chan struct{})
 	for _, p := range ports {
@@ -1331,63 +1340,125 @@ func serve(ports []string) {
 					http.Error(w, "warming", http.StatusServiceUnavailable)
 					return
 				}
-				// The gateway's password login (sdk-go glue): any credentials
-				// accepted, fixed fake JWT back — tests assert the TOKEN is
-				// stored and the PASSWORD never is.
-				if r.URL.Path == "/api/tokens/password" {
-					// Explicit Content-Type: the generated Go client parses
-					// JSON200 only when the header says json (the sniffer
-					// would say text/plain), exactly like the real gateway.
+				// The knowledge base's issuer, served on the same port under
+				// /realms/semiont: the resource metadata names it, discovery
+				// names its endpoints, and the device + token endpoints run
+				// the grant — every JSON-bodied, Content-Type explicit (the
+				// generated Go client parses JSON200 only when the header
+				// says json, exactly like the real gateway).
+				//   FAKERT_NO_ISSUER=1        the KB trusts no issuer (404 metadata)
+				//   FAKERT_DEVICE_PENDING=n   polls answered authorization_pending first (default 1)
+				//   FAKERT_DEVICE_DENY=1      the user denies at the issuer
+				origin := "http://" + r.Host
+				issuer := origin + "/realms/semiont"
+				jsonOut := func(status int, body any) {
 					w.Header().Set("Content-Type", "application/json")
-					_ = json.NewEncoder(w).Encode(map[string]any{
-						"success":      true,
-						"token":        "fake-jwt-token",
-						"refreshToken": "fake-refresh-token",
-						"user": map[string]any{
-							"id": "u1", "email": "admin@example.com", "name": nil,
-							"image": nil, "domain": "example.com", "isAdmin": true,
-						},
+					w.WriteHeader(status)
+					_ = json.NewEncoder(w).Encode(body)
+				}
+				if r.URL.Path == "/.well-known/oauth-protected-resource" {
+					if os.Getenv("FAKERT_NO_ISSUER") != "" {
+						jsonOut(404, map[string]any{"error": "This knowledge base trusts no external issuer"})
+						return
+					}
+					jsonOut(200, map[string]any{
+						"resource":                 origin,
+						"authorization_servers":    []string{issuer},
+						"bearer_methods_supported": []string{"header"},
+						"resource_name":            "fake-kb",
 					})
 					return
 				}
-				// Session lifecycle (Tier 1). FAKERT_STALE_TOKEN=1 makes the
-				// login-issued token read as EXPIRED — the refresh flow's
-				// exercise: refresh with the stored refresh token mints
-				// fake-jwt-token-2, which every bearer endpoint accepts.
-				bearerOK := func() bool {
-					// FAKERT_ALL_TOKENS_STALE: NO bearer is ever accepted,
-					// though refresh still succeeds — the "refreshed but
-					// still rejected" scenario (account disabled etc.).
-					if os.Getenv("FAKERT_ALL_TOKENS_STALE") != "" {
-						return false
+				if r.URL.Path == "/realms/semiont/.well-known/openid-configuration" {
+					jsonOut(200, map[string]any{
+						"issuer":                        issuer,
+						"device_authorization_endpoint": issuer + "/protocol/openid-connect/auth/device",
+						"token_endpoint":                issuer + "/protocol/openid-connect/token",
+						"revocation_endpoint":           issuer + "/protocol/openid-connect/revoke",
+					})
+					return
+				}
+				if r.URL.Path == "/realms/semiont/protocol/openid-connect/auth/device" {
+					_ = r.ParseForm()
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						_ = os.WriteFile(filepath.Join(dir, "device-auth.txt"), []byte(r.PostForm.Encode()+"\n"), 0o644)
 					}
+					jsonOut(200, map[string]any{
+						"device_code":               "fake-device-code",
+						"user_code":                 "FAKE-CODE",
+						"verification_uri":          issuer + "/device",
+						"verification_uri_complete": issuer + "/device?user_code=FAKE-CODE",
+						"expires_in":                600,
+						"interval":                  0,
+					})
+					return
+				}
+				if r.URL.Path == "/realms/semiont/protocol/openid-connect/token" {
+					_ = r.ParseForm()
+					switch r.PostForm.Get("grant_type") {
+					case "urn:ietf:params:oauth:grant-type:device_code":
+						if os.Getenv("FAKERT_DEVICE_DENY") != "" {
+							jsonOut(400, map[string]any{"error": "access_denied"})
+							return
+						}
+						pending := 1
+						if n, err := strconv.Atoi(os.Getenv("FAKERT_DEVICE_PENDING")); err == nil {
+							pending = n
+						}
+						devicePolls++
+						if devicePolls <= pending {
+							jsonOut(400, map[string]any{"error": "authorization_pending"})
+							return
+						}
+						jsonOut(200, map[string]any{
+							"access_token": "fake-jwt-token", "refresh_token": "fake-refresh-token",
+							"token_type": "Bearer", "expires_in": 300,
+						})
+					case "refresh_token":
+						if r.PostForm.Get("refresh_token") != "fake-refresh-token" {
+							jsonOut(400, map[string]any{"error": "invalid_grant"})
+							return
+						}
+						jsonOut(200, map[string]any{
+							"access_token": "fake-jwt-token-2", "refresh_token": "fake-refresh-token",
+							"token_type": "Bearer", "expires_in": 300,
+						})
+					default:
+						jsonOut(400, map[string]any{"error": "unsupported_grant_type"})
+					}
+					return
+				}
+				if r.URL.Path == "/realms/semiont/protocol/openid-connect/revoke" {
+					_ = r.ParseForm()
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+						_ = os.WriteFile(filepath.Join(dir, "revoked.txt"), []byte(r.PostForm.Encode()+"\n"), 0o644)
+					}
+					w.WriteHeader(200)
+					return
+				}
+				// Session lifecycle. Login verifies its fresh token with the
+				// gateway once, so "stale" means stale AFTER that first use —
+				// an access token that expired between login and the verb.
+				// FAKERT_STALE_TOKEN=1: the login-issued token is accepted
+				// once, then reads as expired; the refresh grant above mints
+				// fake-jwt-token-2, which every bearer endpoint accepts.
+				// FAKERT_ALL_TOKENS_STALE=1: the login-issued token is accepted
+				// once and NO bearer ever again, though refresh still succeeds
+				// — the "refreshed but still rejected" scenario (account
+				// disabled right after login).
+				bearerOK := func() bool {
 					a := r.Header.Get("Authorization")
+					bearerUses[a]++
+					if os.Getenv("FAKERT_ALL_TOKENS_STALE") != "" {
+						return a == "Bearer fake-jwt-token" && bearerUses[a] == 1
+					}
 					if a == "Bearer fake-jwt-token-2" {
 						return true
 					}
-					return a == "Bearer fake-jwt-token" && os.Getenv("FAKERT_STALE_TOKEN") == ""
-				}
-				if r.URL.Path == "/api/tokens/refresh" {
-					var req struct {
-						RefreshToken string `json:"refreshToken"`
+					if a != "Bearer fake-jwt-token" {
+						return false
 					}
-					_ = json.NewDecoder(r.Body).Decode(&req)
-					w.Header().Set("Content-Type", "application/json")
-					if req.RefreshToken != "fake-refresh-token" {
-						w.WriteHeader(401)
-						_ = json.NewEncoder(w).Encode(map[string]any{"error": "invalid refresh token"})
-						return
-					}
-					_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "fake-jwt-token-2"})
-					return
-				}
-				if r.URL.Path == "/api/users/logout" {
-					if !bearerOK() {
-						http.Error(w, `{"error":"unauthorized"}`, 401)
-						return
-					}
-					w.WriteHeader(204)
-					return
+					return os.Getenv("FAKERT_STALE_TOKEN") == "" || bearerUses[a] == 1
 				}
 				if r.URL.Path == "/api/users/me" {
 					w.Header().Set("Content-Type", "application/json")

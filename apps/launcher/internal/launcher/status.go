@@ -728,7 +728,7 @@ func printSessions(u *ui, ss *stackSet) {
 	u.section("SESSIONS")
 	toks := loadTokens()
 	if len(toks) == 0 {
-		fmt.Printf("  %s\n", u.dim("(none — semiont login --email <address>)"))
+		fmt.Printf("  %s\n", u.dim("(none — semiont login)"))
 		return
 	}
 	keys := make([]string, 0, len(toks))

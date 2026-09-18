@@ -54,7 +54,7 @@ func fetchModelFacts(base string) modelFacts {
 	var tags struct {
 		Models []ollamaModel `json:"models"`
 	}
-	if !getJSON(base+"/api/tags", &tags) {
+	if fetchJSON(base+"/api/tags", 2*time.Second, &tags) != nil {
 		return f
 	}
 	f.found = true
@@ -66,29 +66,12 @@ func fetchModelFacts(base string) modelFacts {
 	var ps struct {
 		Models []ollamaModel `json:"models"`
 	}
-	if getJSON(base+"/api/ps", &ps) {
+	if fetchJSON(base+"/api/ps", 2*time.Second, &ps) == nil {
 		for _, m := range ps.Models {
 			f.loaded[normalizeModel(m.Name)] = true
 		}
 	}
 	return f
-}
-
-func getJSON(url string, into any) bool {
-	c := &http.Client{Timeout: 2 * time.Second}
-	resp, err := c.Get(url)
-	if err != nil {
-		return false
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		return false
-	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if err != nil {
-		return false
-	}
-	return json.Unmarshal(b, into) == nil
 }
 
 // humanSize renders bytes the way model listings do.
