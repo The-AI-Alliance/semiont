@@ -123,46 +123,11 @@ describe('Authentication Integration', () => {
       });
 
       expect(response.status).toBe(200);
-      const data = await response.json() as { id: string };
-      expect(data.id).toBe(bearerUser.id);
+      const data = await response.json() as { did: string; email: string };
+      expect(data.email).toBe(bearerUser.email);
+      expect(data.did).toBe(`did:web:${bearerUser.domain}:users:${encodeURIComponent(bearerUser.email)}`);
     });
   });
 
-  describe('GET /api/users/me exposes token in response', () => {
-    it('should include the token field in the response body', async () => {
-      const { email: makeEmail, userId: makeUserId } = require('@semiont/core');
-      const user: User = {
-        id: makeCuid(),
-        email: 'me@example.com',
-        name: 'Me User',
-        image: null,
-        domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-me-123',
-        isAdmin: false,
-        isModerator: false,
-        lastLogin: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      const token = JWTService.generateToken({
-        userId: makeUserId(user.id),
-        email: makeEmail(user.email),
-        domain: user.domain,
-        provider: user.provider,
-        isAdmin: user.isAdmin,
-      });
-      mockPrismaUser.findUnique.mockResolvedValue(user);
-
-      const response = await app.request('/api/users/me', {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      expect(response.status).toBe(200);
-      const data = await response.json() as { token: string; id: string };
-      expect(data.token).toBe(token);
-      expect(data.id).toBe(user.id);
-    });
-  });
 
 });

@@ -184,7 +184,7 @@ describe('Validation Library (Native JS)', () => {
 
   describe('OAuthUserSchema', () => {
     const validUser = {
-      id: 'user123',
+      did: 'did:web:example.com:users:user%40example.com',
       email: 'user@example.com',
       name: 'John Doe',
       image: 'https://example.com/avatar.jpg',
@@ -218,7 +218,7 @@ describe('Validation Library (Native JS)', () => {
 
     it('should require mandatory fields', () => {
       const requiredFields = [
-        { field: 'id', error: 'User ID is required' },
+        { field: 'did', error: 'A did is required' },
         { field: 'email', error: 'email address is required' },
         { field: 'domain', error: 'Domain is required' },
       ];
@@ -237,7 +237,7 @@ describe('Validation Library (Native JS)', () => {
 
     it('should require non-empty required string fields', () => {
       const emptyStringFields = [
-        { ...validUser, id: '' },
+        { ...validUser, did: '' },
         { ...validUser, domain: '' },
       ];
 
@@ -365,7 +365,7 @@ describe('Validation Library (Native JS)', () => {
 
     it('should handle complex object validation', () => {
       const validUser = {
-        id: 'user123',
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         name: 'John Doe',
         image: 'https://example.com/avatar.jpg',
@@ -377,14 +377,14 @@ describe('Validation Library (Native JS)', () => {
       const result = validateData(OAuthUserSchema, validUser);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.id).toBe('user123');
+        expect(result.data.did).toBe('did:web:example.com:users:user%40example.com');
         expect(result.data.email).toBe('user@example.com');
       }
     });
 
     it('should handle validation errors', () => {
       const invalidUser = {
-        id: '',
+        did: '',
         email: 'invalid-email',
         domain: 'example.com',
         isAdmin: false,
@@ -425,7 +425,7 @@ describe('Validation Library (Native JS)', () => {
       const maliciousData = {
         __proto__: { polluted: true },
         constructor: { prototype: { polluted: true } },
-        id: 'user123',
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         domain: 'example.com',
         isAdmin: false,
@@ -437,7 +437,7 @@ describe('Validation Library (Native JS)', () => {
       if (result.success) {
         // Should only contain the expected fields
         const keys = Object.keys(result.data);
-        expect(keys).toContain('id');
+        expect(keys).toContain('did');
         expect(keys).toContain('email');
         expect(keys).not.toContain('__proto__');
         expect(keys).not.toContain('constructor');

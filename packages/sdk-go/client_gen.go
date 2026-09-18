@@ -4432,21 +4432,26 @@ type UpdateAnnotationBodyRequest_Operations_Item struct {
 	union json.RawMessage
 }
 
-// UserResponse defines model for UserResponse.
+// UserResponse The authenticated principal, as this knowledge base names it.
+//
+// The `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. The row id this endpoint used to return appears nowhere else in the system, so it could not be correlated with anything and is gone.
+//
+// The remaining fields exist to be displayed. Roles are carried but gate nothing here.
 type UserResponse struct {
-	Created     string  `json:"created"`
-	Domain      string  `json:"domain"`
-	Email       string  `json:"email"`
-	Id          string  `json:"id"`
-	Image       *string `json:"image"`
-	IsAdmin     bool    `json:"isAdmin"`
-	IsModerator bool    `json:"isModerator"`
-	LastLogin   *string `json:"lastLogin"`
-	Name        *string `json:"name"`
-	Provider    string  `json:"provider"`
+	// Did The authenticated principal's DID — `did:web:<domain>:users:<email>` for a person, `did:web:<domain>:agents:<provider>:<model>` for a software agent.
+	Did string `json:"did"`
 
-	// Token The validated JWT token string for the current session
-	Token string `json:"token"`
+	// Domain Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's.
+	Domain string  `json:"domain"`
+	Email  string  `json:"email"`
+	Image  *string `json:"image"`
+
+	// IsAdmin Carried, read by nothing. No gateway route grants access on this basis.
+	IsAdmin bool `json:"isAdmin"`
+
+	// IsModerator Carried, read by nothing. No gateway route grants access on this basis.
+	IsModerator bool    `json:"isModerator"`
+	Name        *string `json:"name"`
 }
 
 // WeaveRebuildCommand Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.

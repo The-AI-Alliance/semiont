@@ -7,7 +7,6 @@ import { accessToken, userToDid } from '@semiont/core';
 
 interface Variables {
   user: User;
-  token: string;
   /**
    * The DID identifying the authenticated principal — either a Person
    * (computed from the User) or a Software peer (from the JWT's
@@ -44,8 +43,11 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
     if (mediaTokenParam && resourceId) {
       try {
         JWTService.verifyMediaToken(mediaTokenParam, resourceId);
-        // Media tokens are stateless — no user lookup needed; set a sentinel
-        c.set('token', mediaTokenParam);
+        // Media tokens are stateless and resource-scoped: the token names the
+        // resource it may fetch, so there is no principal to resolve and none
+        // is set. A route reached this way sees no `user` and no
+        // `principalDid`, which is correct — nothing about the holder is known
+        // beyond their having been given this one token for this one resource.
         await next();
         return;
       } catch (error) {
@@ -88,7 +90,6 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
 
     // Add user and token to context
     c.set('user', user);
-    c.set('token', tokenStr);
     c.set('principalDid', agentDid ?? userToDid(user));
     if (agentDid) c.set('agentDid', agentDid);
 

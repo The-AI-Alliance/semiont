@@ -159,7 +159,7 @@ describe('ImageURLSchema', () => {
 
 describe('OAuthUserSchema', () => {
   const validUser: OAuthUser = {
-    id: 'user123',
+    did: 'did:web:example.com:users:user%40example.com',
     email: 'user@example.com',
     domain: 'example.com',
     isAdmin: false,
@@ -252,19 +252,21 @@ describe('OAuthUserSchema', () => {
         expect(() => OAuthUserSchema.parse(123)).toThrow('User data must be an object');
       });
 
-      it('should reject missing id', () => {
-        const { id, ...userWithoutId } = validUser;
-        expect(() => OAuthUserSchema.parse(userWithoutId)).toThrow('User ID is required');
+      it('should reject a missing did', () => {
+        const { did, ...userWithoutDid } = validUser;
+        expect(() => OAuthUserSchema.parse(userWithoutDid)).toThrow('A did is required');
       });
 
-      it('should reject empty id', () => {
-        const userWithEmptyId = { ...validUser, id: '' };
-        expect(() => OAuthUserSchema.parse(userWithEmptyId)).toThrow('User ID is required');
+      it('should reject a value that is not a did', () => {
+        // The row id this replaced would have passed any non-empty check, which
+        // is why the check is on the scheme and not merely on the length.
+        const userWithRowId = { ...validUser, did: 'user123' };
+        expect(() => OAuthUserSchema.parse(userWithRowId)).toThrow('A did is required');
       });
 
-      it('should reject non-string id', () => {
-        const userWithNumberId = { ...validUser, id: 123 };
-        expect(() => OAuthUserSchema.parse(userWithNumberId)).toThrow('User ID is required');
+      it('should reject a non-string did', () => {
+        const userWithNumberDid = { ...validUser, did: 123 };
+        expect(() => OAuthUserSchema.parse(userWithNumberDid)).toThrow('A did is required');
       });
 
       it('should reject missing email', () => {

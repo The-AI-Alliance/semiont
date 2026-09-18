@@ -106,7 +106,12 @@ Host: api.semiont.com
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-`GET /api/users/me` returns the token in its body — the bearer-in-body path the SDK relies on (no cookie to read).
+`GET /api/users/me` answers with the caller's **DID**, which is the name the rest of the system
+uses for them: the bus stamps it on every event, resource creation is attributed to it, and the
+signal ledger claims under it. A client compares against this to recognise its own work in the
+data. It used to answer with the User row's id, which appeared nowhere else and so could be
+compared against nothing, and to echo the caller's own token back to the caller who had just
+sent it.
 
 ### Media tokens (`?token=`)
 

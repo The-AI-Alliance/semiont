@@ -411,10 +411,16 @@ describe('Auth Middleware', () => {
         await authMiddleware(context, mockNext);
 
         expect(mockJWTService.verifyMediaToken).toHaveBeenCalledWith('valid.media.token', 'res-abc');
-        expect(context.set).toHaveBeenCalledWith('token', 'valid.media.token');
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
         expect(mockPrincipalFromToken).not.toHaveBeenCalled();
+
+        // A media token is resource-scoped, not principal-scoped: it names the
+        // one resource it may fetch and says nothing about who holds it. So the
+        // middleware sets NO principal on this path, and a route reached this
+        // way must not assume one. (It used to stash the raw token under
+        // `token`, which no route ever read.)
+        expect(context.set).not.toHaveBeenCalled();
       });
 
       it('should return 401 for an invalid media token', async () => {

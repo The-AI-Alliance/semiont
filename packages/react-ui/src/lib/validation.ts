@@ -74,6 +74,10 @@ export const ImageURLSchema = {
 /**
  * Validates the authenticated user a knowledge base reports.
  *
+ * The identity is the `did`. It used to be a row id, which named the caller in
+ * a way nothing else in the system used, so it could not be compared against
+ * anything — events, attributions and claims all carry the did.
+ *
  * `isAdmin` and `isModerator` are OPTIONAL, and as of 2026-09-18 NOTHING reads
  * them: no gateway route gates on them, and no component branches on them —
  * the moderation surface is shown to every authenticated user. They survive
@@ -84,7 +88,7 @@ export const ImageURLSchema = {
  * not, because that is a malformed value rather than an absent one.
  */
 export interface OAuthUser {
-  id: string;
+  did: string;
   email: string;
   name?: string | null;
   image?: string | null;
@@ -102,8 +106,8 @@ export const OAuthUserSchema = {
     const user = data as Record<string, unknown>;
 
     // Validate required string fields
-    if (typeof user.id !== 'string' || user.id.length === 0) {
-      throw new Error('User ID is required');
+    if (typeof user.did !== 'string' || !user.did.startsWith('did:')) {
+      throw new Error('A did is required');
     }
 
     if (typeof user.email !== 'string' || !isValidEmail(user.email)) {
@@ -133,7 +137,7 @@ export const OAuthUserSchema = {
     }
 
     const result: OAuthUser = {
-      id: user.id,
+      did: user.did,
       email: user.email,
       domain: user.domain,
     };

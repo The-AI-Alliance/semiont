@@ -100,24 +100,19 @@ describe('API Contract Tests', () => {
 
     it('should match UserResponse contract', () => {
       const mockResponse: UserResponse = {
-        id: 'user-123',
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         name: 'Test User',
         image: 'https://example.com/avatar.jpg',
         domain: 'example.com',
-        provider: 'google',
         isAdmin: false,
         isModerator: false,
-        lastLogin: '2024-01-01T00:00:00.000Z',
-        created: '2024-01-01T00:00:00.000Z',
-        token: 'header.payload.signature',
       };
 
-      expect(mockResponse.id).toBeDefined();
+      expect(mockResponse.did).toBeDefined();
       expect(mockResponse.email).toBeDefined();
       expect(mockResponse.name).toBeDefined();
       expect(mockResponse.domain).toBeDefined();
-      expect(mockResponse.provider).toBeDefined();
       expect(mockResponse.isAdmin).toBeDefined();
       expect(mockResponse.isModerator).toBeDefined();
     });
@@ -233,17 +228,13 @@ describe('API Contract Tests', () => {
 
     it('should validate boolean fields', () => {
       const userResponse: UserResponse = {
-        id: 'user-123',
+        did: 'did:web:example.com:users:test%40example.com',
         email: 'test@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
         isAdmin: false,
         isModerator: false,
-        lastLogin: '2024-01-01T00:00:00.000Z',
-        created: '2024-01-01T00:00:00.000Z',
-        token: 'header.payload.signature',
       };
 
       expect(typeof userResponse.isAdmin).toBe('boolean');

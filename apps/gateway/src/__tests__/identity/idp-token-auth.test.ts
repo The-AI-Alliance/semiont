@@ -84,7 +84,7 @@ describe('a token from the trusted issuer', () => {
     const res = await me(await issuer.token({ claims: ALICE }));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ email: 'alice@example.com', provider: ORIGIN });
+    expect(await res.json()).toMatchObject({ email: 'alice@example.com' });
     expect(mockPrismaUser.create).toHaveBeenCalledWith({
       data: expect.objectContaining({ email: 'alice@example.com', provider: ORIGIN, providerId: 'sub-alice', isAdmin: false }),
     });

@@ -337,7 +337,9 @@ describe('API Endpoints Integration Tests', () => {
 
       expect(res.status).toBe(200);
       const data = await res.json() as UserResponse;
-      expect(data.id).toBe('user-123');
+      // The DID, not the row id: this is the name the rest of the system uses
+      // for the caller, so it is the one a client can correlate against.
+      expect(data.did).toBe('did:web:example.com:users:test%40example.com');
       expect(data.email).toBe('test@example.com');
       expect(data.name).toBe('Test User');
       expect(data.isAdmin).toBe(false);

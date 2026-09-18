@@ -15,31 +15,33 @@ import { userId as makeUserId, email as makeEmail, agentToDid } from '@semiont/c
 
 type UserResponse = components['schemas']['UserResponse'];
 
-export const authRouter = new Hono<{ Variables: { user: User; token: string } }>();
+export const authRouter = new Hono<{ Variables: { user: User; principalDid: string } }>();
 
 /**
  * GET /api/users/me
  *
- * Get Current User - Get information about the authenticated user
- * Requires authentication
- * Response type: UserResponse from OpenAPI spec
+ * Who the bearer of this token is, as this knowledge base names them.
+ *
+ * The answer is the DID, taken from the context the auth middleware already
+ * computed — so a software agent gets its agent DID and a person gets theirs,
+ * by the same rule that decides what every event they cause is attributed to.
+ *
+ * What this used to return and no longer does: the User row's id, which
+ * appears nowhere else in the system and so answered a question nobody could
+ * act on; `provider`, `lastLogin` and `created`, which nothing read; and the
+ * caller's own token, echoed back to the caller who had just sent it.
  */
 authRouter.get('/api/users/me', authMiddleware, async (c) => {
   const user = c.get('user');
-  const token = c.get('token');
 
   const response: UserResponse = {
-    id: user.id,
+    did: c.get('principalDid'),
     email: user.email,
     name: user.name,
     image: user.image,
     domain: user.domain,
-    provider: user.provider,
     isAdmin: user.isAdmin,
     isModerator: user.isModerator,
-    lastLogin: user.lastLogin?.toISOString() || null,
-    created: user.createdAt.toISOString(),
-    token,
   };
 
   return c.json(response, 200);
