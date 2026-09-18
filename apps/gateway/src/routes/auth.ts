@@ -37,7 +37,6 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
     provider: user.provider,
     isAdmin: user.isAdmin,
     isModerator: user.isModerator,
-    isActive: user.isActive,
     lastLogin: user.lastLogin?.toISOString() || null,
     created: user.createdAt.toISOString(),
     token,
@@ -132,7 +131,6 @@ authRouter.post('/api/tokens/agent', async (c) => {
     where: { provider_providerId: { provider: 'agent', providerId } },
     update: {
       name: agentName,
-      isActive: true,
       lastLogin: new Date(),
     },
     create: {
@@ -141,7 +139,6 @@ authRouter.post('/api/tokens/agent', async (c) => {
       provider: 'agent',
       providerId,
       domain: siteDomain,
-      isActive: true,
       isAdmin: false,
     },
   });

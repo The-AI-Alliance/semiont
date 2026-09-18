@@ -173,6 +173,58 @@ describe('KeycloakAdminApi.createUser', () => {
 
     await expect(api.createUser('bob@example.com', 'pw')).rejects.toThrow(/named no id/);
   });
+
+  /**
+   * `useradd --inactive` used to set a Semiont column the gateway checked on
+   * every request. The issuer holds that answer now, so the flag has to reach
+   * the realm at creation — an account created "inactive" that the realm
+   * nonetheless enables would let someone sign in to a knowledge base an
+   * administrator deliberately closed to them.
+   */
+  it('creates a disabled account when asked, so --inactive reaches the realm', async () => {
+    let payload: unknown;
+    server.use(
+      tokenEndpoint(),
+      http.post(USERS, async ({ request }) => {
+        payload = await request.json();
+        return new HttpResponse(null, { status: 201, headers: { location: `${USERS}/kc-user-3` } });
+      }),
+    );
+
+    const api = await connect();
+    await api.createUser('carol@example.com', 'a-strong-password', false);
+
+    expect(payload).toMatchObject({ email: 'carol@example.com', enabled: false });
+  });
+});
+
+describe('KeycloakAdminApi.setEnabled', () => {
+  it.each([true, false])('sets enabled=%s on an existing account', async (enabled) => {
+    let payload: unknown;
+    server.use(
+      tokenEndpoint(),
+      http.put(`${USERS}/kc-user-1`, async ({ request }) => {
+        payload = await request.json();
+        return new HttpResponse(null, { status: 204 });
+      }),
+    );
+
+    const api = await connect();
+    await api.setEnabled('kc-user-1', enabled);
+
+    expect(payload).toEqual({ enabled });
+  });
+
+  it('surfaces a refusal, naming the direction it was attempting', async () => {
+    server.use(
+      tokenEndpoint(),
+      http.put(`${USERS}/kc-user-1`, () => new HttpResponse(null, { status: 403 })),
+    );
+
+    const api = await connect();
+
+    await expect(api.setEnabled('kc-user-1', false)).rejects.toThrow(/Disabling kc-user-1 .* \(HTTP 403\)/);
+  });
 });
 
 describe('KeycloakAdminApi.setPassword', () => {

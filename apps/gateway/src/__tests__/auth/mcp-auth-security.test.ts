@@ -171,7 +171,6 @@ describe('MCP Authentication security', () => {
         provider: 'google',
         providerId: 'google-123',
         image: null,
-        isActive: true,
         isAdmin: false,
         isModerator: false,
         lastLogin: null,

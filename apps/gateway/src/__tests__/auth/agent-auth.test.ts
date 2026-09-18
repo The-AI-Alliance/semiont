@@ -48,7 +48,6 @@ function makeAgentUser(overrides: Partial<User> = {}): User {
     provider: 'agent',
     providerId: 'ollama:gemma2:27b',
     isAdmin: false,
-    isActive: true,
     isModerator: false,
     lastLogin: null,
     createdAt: new Date(),
@@ -162,7 +161,6 @@ describe('POST /api/tokens/agent', () => {
           provider: 'agent',
           providerId: 'anthropic:claude-3-5-sonnet',
           domain: SITE_DOMAIN,
-          isActive: true,
           isAdmin: false,
         }),
       }));

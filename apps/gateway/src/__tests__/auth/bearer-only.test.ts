@@ -49,7 +49,6 @@ function fakeUser(overrides: Partial<User> = {}): User {
     provider: 'google',
     providerId: 'google-bearer-1',
     isAdmin: false,
-    isActive: true,
     isModerator: false,
     lastLogin: null,
     createdAt: new Date(),

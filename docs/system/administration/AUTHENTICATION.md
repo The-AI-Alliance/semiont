@@ -12,9 +12,9 @@ Semiont uses **bearer-only** authentication: every request authenticates with an
 
 Three pieces make up the auth system:
 
-1. **Sign-in** — the browser SPA (Vite + React) or any SDK consumer exchanges credentials (password or Google OAuth) for a JWT, returned **in the response body**. There is no auth server in front of the API and no NextAuth — the SPA is a pure client.
-2. **Bearer validation** — the gateway validates the JWT on every protected request (router-level `authMiddleware`), loading the user from the database.
-3. **Revocable sessions** — a per-user revocation epoch (`User.tokenVersion`) makes **logout server-side, immediate, and all-devices**.
+1. **Sign-in happens elsewhere.** People authenticate at the knowledge base's trusted issuer and receive a token from it. The gateway mints no human credential and holds no password; it is a resource server, not an auth server.
+2. **Bearer validation** — the gateway validates the token on every protected request (router-level `authMiddleware`), verifying an issuer token against the issuer's published keys and loading the matching user row.
+3. **Revocation belongs to the issuer.** Disabling an account there stops new tokens at once. A token already issued stays valid until it expires, and that lifetime is the revocation window.
 
 ## Authentication Flow Diagram
 
@@ -24,27 +24,26 @@ graph TB
         App[App holds token in memory]
     end
 
-    subgraph "OAuth Provider"
-        Google[Google OAuth 2.0]
+    subgraph "Trusted Issuer"
+        IdP[Identity provider<br/>owns credentials and accounts]
+        JWKS[Published signing keys]
     end
 
     subgraph "Gateway API"
-        TokenGen[Token endpoints]
+        TokenGen[Agent and media token mint]
         MW[authMiddleware<br/>Bearer + ?token= validator]
         API[Protected APIs]
-        Users[(Users table<br/>tokenVersion epoch)]
+        Users[(Users table<br/>roles and display name)]
     end
 
-    App -->|"1. POST /api/tokens/password<br/>or /api/tokens/google"| TokenGen
-    Google -.->|OAuth credential| App
-    TokenGen -->|"2. JWT in body (access + refresh)"| App
-    TokenGen --> Users
+    App -->|"1. sign in"| IdP
+    IdP -.->|"2. access token"| App
 
-    App -->|"3. Authorization: Bearer <access>"| MW
-    MW -->|"validate sig + tokenVersion + load user"| Users
+    App -->|"3. Authorization: Bearer <token>"| MW
+    MW -->|"4. verify signature against"| JWKS
+    MW -->|"5. find or create the row for this subject"| Users
     MW --> API
-    App -->|"4. SDK Session: POST /api/tokens/refresh<br/>(refresh → new access)"| TokenGen
-    App -->|"5. POST /api/users/logout → bump tokenVersion (204)"| Users
+    App -->|"6. POST /api/tokens/media (resource-scoped)"| TokenGen
 ```
 
 ## Authentication Model
@@ -53,16 +52,14 @@ graph TB
 
 - **Bearer-only**: authentication is an `Authorization: Bearer <jwt>` header. JS attaches it explicitly — it is **not** an ambient credential, so the API works with CORS `origin: '*'` and no `Access-Control-Allow-Credentials` (see [Security](./SECURITY.md)).
 - **Router-level protection**: each router applies `authMiddleware` to its protected routes; protection is explicit.
-- **Stateless access, per-request user load**: the access token is a stateless JWT, but the middleware loads the user every request — which is what makes revocation (below) ~free and immediate.
-- **Revocable sessions**: logout is meaningful — it revokes server-side across all devices, not just a local cookie delete.
-- **Domain restrictions**: email-domain-based access control (`ALLOWED_EMAIL_DOMAINS`).
+- **Stateless token, per-request user load**: the token is stateless, but the middleware loads the user row every request, so a role or display-name change takes effect immediately.
+- **One admission decision, held by the issuer**: the gateway admits every subject whose token verifies. It keeps no allowlist and no per-user enable flag, because a second answer to "may this person sign in" can only disagree with the first — and only the issuer's answer can stop a token being minted.
 
 ### Token lifecycle
 
 | Token | TTL | Carried as | Purpose |
 |---|---|---|---|
-| **Access** | **10 minutes** | `Authorization: Bearer` | Per-request API auth; validated on every protected route. |
-| **Refresh** | **30 days** | request body to `/api/tokens/refresh` | The SDK **Session** silently mints new access tokens from it. |
+| **Access** | the issuer's realm setting | `Authorization: Bearer` | Per-request API auth for people; minted by the issuer, validated here on every protected route. The lifetime is the realm's, not ours, and the launcher does not override it. |
 | **Agent** | **1 hour** | `Authorization: Bearer` | Software-agent identity for background workers (`/api/tokens/agent`). No account exists at the issuer to disable, so this lifetime IS the revocation window. |
 | **Media** | 5 minutes | `?token=` query param | Resource-scoped token for `GET /api/resources/:id` (images, PDFs) where a header can't be set. |
 
@@ -72,38 +69,34 @@ row against the literal, not against another document:
 
 | Token | Minted at | Literal |
 |---|---|---|
-| Access | `apps/gateway/src/routes/auth.ts` (password sign-in and refresh) and `apps/gateway/src/auth/oauth.ts` (OAuth) — **three call sites, all `'10m'`; check all three when changing it** | `generateToken(jwtPayload, '10m')` |
-| Refresh | [`apps/gateway/src/routes/auth.ts:129`](../../../apps/gateway/src/routes/auth.ts#L129) | `generateToken(jwtPayload, '30d')` |
+| Access | the trusted issuer's realm — **not in this repository** | realm setting `accessTokenLifespan`; read it from the running realm |
 | Agent | [`apps/gateway/src/routes/auth.ts`](../../../apps/gateway/src/routes/auth.ts) | `AGENT_TOKEN_TTL_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
 | Media | [`apps/gateway/src/auth/jwt.ts:189`](../../../apps/gateway/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
 
-Every JWT carries the user's **`tokenVersion`** at mint time (a required claim — there is no compatibility default). Both access-validation and `/api/tokens/refresh` reject when `payload.tokenVersion !== user.tokenVersion`.
+### Revocation
 
-### Revocation — what logout does
+**Disable the account at the issuer.** It stops minting for that person immediately, which ends their access as soon as the token they are holding expires.
 
-`POST /api/users/logout` increments `User.tokenVersion` and returns **`204`**. That single bump:
+That delay is the whole of the trade, and it is deliberate. Semiont previously kept an `isActive` column and checked it on every request, which cut off a live token on its next call. It also meant two systems answering one question, able to disagree, with only the issuer's answer capable of stopping a token from being minted at all. The column is gone; the issuer decides, and the access token lifetime bounds how long a revoked person can still act.
 
-- **Kills the refresh token** — `/refresh` now rejects it, so no new access tokens can be minted.
-- **Rejects live access tokens** on their next request — the per-request user load makes the epoch check ~free.
+**Signing out in a client is a client-side act.** The token lives in memory and the client drops it. The gateway is not told, and nothing server-side changes.
 
-So logout is **immediate and all-devices**. (Per-device logout would need a per-session table; deliberately deferred — the epoch doesn't preclude adding it later.)
-
-The counter is a **logical clock**, chosen over a wall-clock `tokensValidAfter` timestamp on purpose: Semiont is a global, multi-instance system, so comparing a mint-time `iat` (stamped by one instance) against a logout timestamp (stamped by another) would be unsound under clock skew. Exact integer equality is clock-independent. (Honest caveat shared by any DB-backed scheme: revocation is only as instant as cross-region replication of the `User` row.)
+**Agent tokens are the exception with no issuer behind them.** Their synthetic accounts exist only in Semiont, so there is nothing to disable. Their lifetime is their revocation window, and rotating `SEMIONT_WORKER_SECRET` stops new ones being minted without affecting tokens already handed out.
 
 ## Endpoint Protection
 
 ### Public endpoints (no auth)
 
 - `GET /api/health` — health check
-- `GET /api` — API documentation
-- `POST /api/tokens/password` — password sign-in (returns JWT in body)
-- `POST /api/tokens/google` — Google OAuth sign-in (returns JWT in body)
-- `POST /api/tokens/refresh` — refresh-token exchange (validates `tokenVersion` + `isActive`)
-- `POST /api/tokens/agent` — software-agent token mint
+- `GET /api` — API documentation, and the OpenAPI document itself
+- `GET /.well-known/oauth-protected-resource` — names the issuer this deployment trusts (RFC 9728)
+- `POST /api/tokens/agent` — software-agent token mint, gated by the shared worker secret rather than by a bearer
+
+There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
 
 ### Protected endpoints (`authMiddleware`)
 
-Require a valid `Authorization: Bearer` access token (signature, payload schema, expiry, user exists + `isActive`, matching `tokenVersion`, allowed domain). Examples: `GET /api/users/me`, `POST /api/tokens/media`, `POST /api/users/accept-terms`, `POST /api/users/logout`, and all `/api/resources/*`.
+Require a valid `Authorization: Bearer` access token. Examples: `GET /api/users/me`, `GET /api/status`, `POST /api/tokens/media`, the bus endpoints, and all of `/api/resources/*`.
 
 ```http
 GET /api/users/me HTTP/1.1
@@ -134,11 +127,22 @@ The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten he
 
 ### Validation layers (per request)
 
-1. **Signature** — HMAC-SHA256 against `JWT_SECRET`.
+The gateway dispatches on the token's `iss` claim, and the two paths verify differently.
+
+**A token from the trusted issuer** (every human):
+
+1. **Signature** — verified against the issuer's published JWKS.
+2. **Issuer and audience** — must match the configured issuer and this knowledge base's derived resource identity.
+3. **Expiration** — enforced by the verifier.
+4. **Subject and email** — a `sub` is required, an `email` is required, and an `email_verified` of false is refused.
+5. **User row** — found by (issuer, subject), else by email and linked, else created. This is a lookup, not a second admission check.
+
+**A token the gateway itself signed** (software agents only):
+
+1. **Signature** — HMAC-SHA256 against the `JWT_SECRET` key ring.
 2. **Payload structure** — runtime Zod validation against `JWTPayloadSchema`; a token whose claims do not parse is rejected, not coerced.
-3. **Expiration** — access tokens are short-lived.
-4. **User + epoch** — the user is loaded from the DB; rejected if absent, not `isActive`, or `payload.tokenVersion !== user.tokenVersion` (revoked).
-5. **Domain** — email domain checked against the allowed list.
+3. **Expiration** — enforced at verification.
+4. **User row** — loaded by id and rejected if absent. The row is what the request runs as; the claims are not trusted to still describe it.
 
 ### Access token payload
 
@@ -150,7 +154,6 @@ The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten he
   "domain": "example.com",
   "provider": "google",
   "isAdmin": false,
-  "tokenVersion": 0,
   "iat": 1698765432,
   "exp": 1698766032
 }
@@ -160,7 +163,7 @@ The IRI is meant for SDK / `Bearer` dereference; the `hint` keeps a forgotten he
 
 ### Bearer validation (`apps/gateway/src/middleware/auth.ts`)
 
-The middleware accepts a media token via `?token=` for `GET /api/resources/:id`, otherwise an `Authorization: Bearer` header; a missing token returns the actionable 401 above. On a valid token it loads the principal (`OAuthService.getPrincipalFromToken` → `prisma.user.findUnique`), enforcing the `isActive` and `tokenVersion` checks, and sets `c.get('user')`.
+The middleware accepts a media token via `?token=` for `GET /api/resources/:id`, otherwise an `Authorization: Bearer` header; a missing token returns the actionable 401 above. On a valid token it loads the principal (`principalFromToken` in `apps/gateway/src/identity/`) and sets `c.get('user')`.
 
 ### Route protection (`apps/gateway/src/routes/resources/shared.ts`)
 
@@ -173,36 +176,21 @@ export function initResourcesRouter(router: Hono) {
 }
 ```
 
-### Logout (`apps/gateway/src/routes/auth.ts`)
-
-```typescript
-authRouter.post('/api/users/logout', authMiddleware, async (c) => {
-  const user = c.get('user');
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { tokenVersion: { increment: 1 } }, // revoke all of this user's tokens
-  });
-  return c.body(null, 204);
-});
-```
-
 ## Environment Configuration
 
 ### Required environment variables (gateway)
 
 ```bash
-JWT_SECRET=your-jwt-secret
+JWT_SECRET=your-jwt-secret                 # signs agent and media tokens only
 DATABASE_URL=postgresql://user:pass@localhost:5432/semiont
-ALLOWED_EMAIL_DOMAINS=example.com,company.com
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com   # for /api/tokens/google
-GOOGLE_CLIENT_SECRET=your-client-secret
+SEMIONT_WORKER_SECRET=...                  # gates POST /api/tokens/agent
 ```
 
-There are **no** `NEXTAUTH_*` variables — the Browser is a pure SPA with no auth server.
+There are **no** OAuth client credentials here and no `NEXTAUTH_*` variables. The gateway never speaks to an identity provider on a person's behalf, so it holds no client secret; it only verifies tokens against the issuer's published keys. The issuer this deployment trusts is named in the knowledge base's `[identity]` configuration.
 
 ### Secret management
 
-Store `JWT_SECRET` and OAuth credentials in secure secret storage (e.g. AWS Secrets Manager); never commit them; use different secrets per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md).
+Store `JWT_SECRET` and `SEMIONT_WORKER_SECRET` in secure secret storage (e.g. AWS Secrets Manager); never commit them; use different secrets per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md).
 
 Nothing generates the signing key at request time, and the gateway **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
 
@@ -213,11 +201,11 @@ Nothing generates the signing key at request time, and the gateway **refuses to 
 
 Both announce which key they used — `Token-signing key: generated and persisted at …` / `reused from …` / `from JWT_SECRET in the environment`. Neither ever prints the key. If tokens start failing, that line tells you whether the key changed.
 
-### Rotating `JWT_SECRET` without signing everyone out
+### Rotating `JWT_SECRET` without cutting off the sidecars
 
 `JWT_SECRET` is an **ordered, comma-separated list**: the first key signs, *every* key verifies. A single value is the one-key case and behaves exactly as before.
 
-Replacing the key outright is what causes an outage: it invalidates every access **and** refresh token at once, and refresh cannot heal it — `/api/tokens/refresh` verifies the presented token with the current key before issuing anything, so every session needs a fresh sign-in. Rotating through the list avoids that entirely.
+Replacing the key outright is what causes an outage: every agent and media token stops verifying at once. Sidecars recover on their own, because a 401 sends them back to `/api/tokens/agent`, but every in-flight request fails first and a listen-only feed stays dead until its next scheduled renewal. Rotating through the list avoids that entirely. People are unaffected either way; their tokens are the issuer's and verify against its keys.
 
 ```bash
 # 1. Mint a new key and put it FIRST, keeping the old one behind it.
@@ -226,21 +214,20 @@ semiont start --service gateway        # or restart however you deploy
 
 # 2. Nothing breaks. New tokens are signed with the new key; tokens already
 #    issued still verify against the old one, and each re-mints under the new
-#    key at its next refresh.
+#    key when its holder next authenticates.
 
-# 3. Once every outstanding refresh token has had a chance to refresh
-#    (refresh TTL is 30 days), drop the tail:
+# 3. Once every outstanding agent token has had a chance to be re-minted
+#    (an hour, the agent TTL above), drop the tail:
 export JWT_SECRET="$NEW_SECRET"
 semiont start --service gateway
 ```
 
-**Retiring the old key early is what breaks sessions** — any refresh token that has not been used since the rotation dies with it. Wait a full refresh TTL, or accept that the stragglers re-authenticate.
+**The ring signs agent and media tokens only.** People's tokens come from the issuer and verify against its published keys, so a `JWT_SECRET` rotation does not touch them. Retiring the old key early cuts off any sidecar still holding a token minted under it; wait out the agent TTL, or accept that the stragglers re-authenticate, which they do on a 401 without operator involvement.
 
 Details worth knowing:
 
 - **Each key must be at least 32 characters.** The check is per key, not on the whole string — `<valid>,short` would otherwise pass trivially. `semiont start` refuses such a value up front rather than letting the gateway crash-loop.
 - **A comma cannot appear in a key**, so the delimiter is unambiguous: generated keys are hex, and the documented recipe is `openssl rand -hex 32`.
-- **Logout still wins.** Revocation is a `tokenVersion` epoch check that runs independently of the key ring: a token revoked by signing out stays revoked even though its signature verifies against a ring member. A rotation is not an amnesty.
 - **Media tokens** (`?token=`) sign and verify through the same ring, so they rotate with everything else. Their 5-minute TTL makes the grace window academic, but they are not on a separate path.
 - **Two keys is the normal maximum.** The ring exists for a rotation window, not as a key store; trial verification costs one extra HMAC per key on the failing path.
 
@@ -248,14 +235,14 @@ Details worth knowing:
 
 ### Token handling
 
-1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie. The XSS trade-off (a long-lived refresh token in JS) is mitigated by **revocability**: logout bumps `tokenVersion` and instantly invalidates it.
-2. **The short access TTL** limits the window of a leaked access token; revocation is at the `/refresh` boundary and on every request.
+1. **Bearer tokens live in JS memory**, not cookies — the SDK holds them and attaches them explicitly. There is no httpOnly cookie, and the gateway holds no long-lived credential of its own for a person.
+2. **The access token lifetime is the containment window.** A leaked token works until it expires, and disabling the account at the issuer prevents a replacement rather than cancelling the one in hand. Keep the realm's lifetime short for that reason.
 3. **Always use HTTPS in production.**
 4. **Open CORS is intentional and safe here** because no credentials are carried (see [Security](./SECURITY.md)). Never re-introduce credentialed CORS or origin-reflection.
 
-### OAuth
+### At the issuer
 
-1. Restrict redirect URIs to known callbacks. 2. Limit access by email domain. 3. Verify the email is confirmed by the provider. 4. Request minimal scopes.
+The decisions that used to sit here now sit in the realm: who may register, which domains are admitted, how long an access token lives, and whether an account is enabled. Semiont enforces none of them and cannot compensate for them.
 
 ### API
 
@@ -268,26 +255,22 @@ Details worth knowing:
 **"Unauthorized" (401)**
 - Confirm the `Authorization: Bearer <token>` header is present and well-formed.
 - A raw browser navigation to a protected resource is unauthenticated by design — use the SDK or a media `?token=`.
-- The token may be expired — let the SDK Session refresh, or re-authenticate.
-- After a **logout** anywhere, *all* of that user's existing tokens are revoked (the `tokenVersion` epoch advanced) — re-authenticate.
+- The token may be expired — obtain a new one from the issuer.
+- The token may be for another audience. This deployment accepts only tokens whose audience is its own derived resource identity, published at `/.well-known/oauth-protected-resource`.
+- The token's email may not be marked verified by the issuer, which is refused.
 
-**Refresh fails (session ends)**
-- A `401` from `/api/tokens/refresh` means the refresh token was revoked (logout) or the user is inactive — the SDK Session clears and stops retrying. Re-authenticate.
-
-**OAuth callback fails**
-- Verify the redirect URI matches the Google OAuth configuration and the Google client ID/secret are valid.
-
-**Domain restriction blocks login**
-- Confirm the user's email domain is in `ALLOWED_EMAIL_DOMAINS` and the email is verified by the provider.
+**Sign-in fails at the issuer**
+- The account may be disabled there. That is where enable and disable live; `semiont useradd --active` re-enables one.
+- Nothing about this is visible in the gateway's logs, because the gateway is never contacted for a sign-in that fails.
 
 ## Related Documentation
 
 - [Architecture Overview](../README.md) - Application architecture and service communication
 - [Security](./SECURITY.md) - CORS posture, secrets, hardening
 - [Running Semiont on AWS](../platforms/AWS.md) - what you must wire up yourself
-- [Database Management](./DATABASE.md) - User table schema (incl. `tokenVersion`) and Prisma setup
+- [Database Management](./DATABASE.md) - User table schema and Prisma setup
 
 ---
 
-**Authentication**: bearer-only JWT (short-lived access + long-lived refresh) with a per-user `tokenVersion` revocation epoch; `?token=` media tokens; open CORS.
-**Last Updated**: 2026-06-20
+**Authentication**: bearer-only. People's tokens are minted by the trusted issuer and verified here against its published keys; the gateway signs only agent and media tokens. Revocation is disabling the account at the issuer, bounded by the access token lifetime. Open CORS.
+**Last Updated**: 2026-09-18

@@ -27,7 +27,8 @@ Options that command understands:
   --name <name>         Display name
   --admin               Grant admin privileges
   --moderator           Grant moderator privileges
-  --inactive            Create the user inactive
+  --inactive            Disable the account at the identity provider
+  --active              Re-enable a disabled account
   --update              Update an existing user
   --upsert              Create if absent, succeed silently if present
   --password-stdin      Set the password (implied when creating; say it

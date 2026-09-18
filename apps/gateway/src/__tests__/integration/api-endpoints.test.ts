@@ -11,7 +11,7 @@ import { resolve } from 'path';
 import { fileURLToPath } from 'url';
 import type { Hono } from 'hono';
 import type { User } from '@prisma/client';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { EnvironmentConfig, EventBus, components } from '@semiont/core';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 import { JWTService } from '../../auth/jwt';
 
@@ -69,18 +69,8 @@ interface StatusResponse {
 }
 
 
-interface UserResponse {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  domain: string;
-  provider: string;
-  isAdmin: boolean;
-  isActive: boolean;
-  lastLogin: string | null;
-  created: string;
-}
+// Derived, not restated: the spec owns this shape.
+type UserResponse = components['schemas']['UserResponse'];
 
 
 interface ErrorResponse {
@@ -132,7 +122,6 @@ const testUser = {
   providerId: 'google-test-user-id',
   isAdmin: false,
   isModerator: false,
-  isActive: true,
   lastLogin: new Date(),
   createdAt: new Date(),
   updatedAt: new Date(),
@@ -323,7 +312,6 @@ describe('API Endpoints Integration Tests', () => {
       providerId: 'google-123',
       isAdmin: false,
       isModerator: false,
-      isActive: true,
       lastLogin: new Date(),
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -353,7 +341,7 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.email).toBe('test@example.com');
       expect(data.name).toBe('Test User');
       expect(data.isAdmin).toBe(false);
-      expect(data.isActive).toBe(true);
+      expect(data.isModerator).toBe(false);
     });
 
     it('GET /api/users/me should fail without token', async () => {

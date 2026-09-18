@@ -1,0 +1,11 @@
+-- DropColumn: whether a person may sign in is the identity provider's answer,
+-- given by refusing to mint a token. Semiont held a second answer here and
+-- checked it on every request, which meant two systems deciding one thing and
+-- only one of them able to stop a token being issued at all.
+--
+-- The trade this makes: disabling someone now stops new tokens immediately,
+-- but an access token already in hand keeps working until it expires. The
+-- window is the access token lifetime. In exchange, the control gains a way
+-- back — the column could only ever be turned off; `semiont useradd --active`
+-- re-enables at the issuer.
+ALTER TABLE "users" DROP COLUMN "isActive";

@@ -23,17 +23,16 @@ model User {
   id              String    @id @default(cuid())
   email           String    @unique
   name            String?
-  image           String?   // Profile picture from OAuth provider
-  provider        String    // 'password', 'google', 'github', etc.
-  providerId      String    // OAuth provider's user ID (or email for password users)
-  passwordHash    String?   // bcrypt — NULL for OAuth users, required for password provider
-  domain          String    // Email domain for access control
-  isActive        Boolean   @default(true)
-  isAdmin         Boolean   @default(false)
-  isModerator     Boolean   @default(false)
-  termsAcceptedAt DateTime?
+  image           String? // Profile picture from the issuer
+  // The join key to the identity that authenticated: the issuer URL and the
+  // `sub` its tokens carry, or 'agent' and '<provider>:<model>' for a
+  // software agent the gateway itself mints tokens for.
+  provider        String
+  providerId      String
+  domain          String // Email domain, for agent DIDs and display
+  isAdmin         Boolean   @default(false) // Admin role for administrative access
+  isModerator     Boolean   @default(false) // Moderator role for content governance
   lastLogin       DateTime?
-  tokenVersion    Int       @default(0) // bumped on logout to revoke this user's tokens
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -240,8 +239,8 @@ container exec semiont-postgres psql -U postgres semiont \
 
 - The database is not published outside the stack network except for the port the launcher maps for local development.
 - Credentials come from configuration, never from the image; see [CONFIGURATION.md](CONFIGURATION.md) and [SECRETS.md](../services/SECRETS.md).
-- Passwords are bcrypt hashes in `passwordHash`; OAuth users have none.
-- `tokenVersion` is bumped on logout, which revokes every token previously issued to that user.
+- No credential is stored here. The identity provider holds the password, and whether an account may sign in is its `enabled` flag, not a column in this table.
+- The row carries what only this knowledge base knows: the roles, the display name, and the join key to the identity that authenticated.
 
 ## Related
 

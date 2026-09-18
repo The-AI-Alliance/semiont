@@ -49,7 +49,6 @@ function fakeUser(overrides: Partial<User> = {}): User {
     provider: ORIGIN,
     providerId: 'sub-alice',
     isAdmin: false,
-    isActive: true,
     isModerator: false,
     lastLogin: null,
     createdAt: new Date(),
@@ -119,14 +118,6 @@ describe('a token from the trusted issuer', () => {
     expect(mockPrismaUser.create).not.toHaveBeenCalled();
   });
 
-  it('is refused for an inactive user', async () => {
-    mockPrismaUser.findFirst.mockResolvedValue(fakeUser({ isActive: false }));
-
-    const res = await me(await issuer.token({ claims: ALICE }));
-
-    expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({ error: 'Invalid token' });
-  });
 });
 
 describe('a token that must not authenticate', () => {

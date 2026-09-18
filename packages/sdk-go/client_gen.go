@@ -4439,7 +4439,6 @@ type UserResponse struct {
 	Email       string  `json:"email"`
 	Id          string  `json:"id"`
 	Image       *string `json:"image"`
-	IsActive    bool    `json:"isActive"`
 	IsAdmin     bool    `json:"isAdmin"`
 	IsModerator bool    `json:"isModerator"`
 	LastLogin   *string `json:"lastLogin"`

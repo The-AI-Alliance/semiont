@@ -10,7 +10,6 @@ function createUserData(overrides: Partial<any> = {}) {
     domain: 'example.com',
     provider: 'google',
     providerId: `google-${Date.now()}`,
-    isActive: true,
     isAdmin: false,
     isModerator: false,
     ...overrides
@@ -87,7 +86,6 @@ describe('Database Integration Tests', () => {
       expect(user.provider).toBe(userData.provider);
       expect(user.providerId).toBe(userData.providerId);
       expect(user.domain).toBe(userData.domain);
-      expect(user.isActive).toBe(true); // default value
       expect(user.isAdmin).toBe(false); // default value
       expect(user.createdAt).toBeInstanceOf(Date);
       expect(user.updatedAt).toBeInstanceOf(Date);
@@ -167,13 +165,13 @@ describe('Database Integration Tests', () => {
         where: { id: user.id },
         data: {
           name: 'Updated Name',
-          isActive: false,
+          isAdmin: true,
           lastLogin: now
         }
       });
 
       expect(updated.name).toBe('Updated Name');
-      expect(updated.isActive).toBe(false);
+      expect(updated.isAdmin).toBe(true);
       expect(updated.lastLogin).toEqual(now);
       expect(updated.updatedAt.getTime()).toBeGreaterThan(user.updatedAt.getTime());
     });
@@ -298,8 +296,8 @@ describe('Database Integration Tests', () => {
       await Promise.all([
         testPrisma.user.create({ 
           data: { 
-            email: 'active@example.com', 
-            isActive: true, 
+            email: 'admin@example.com', 
+            isAdmin: true, 
             domain: 'example.com',
             provider: 'google',
             providerId: 'google_active'
@@ -307,8 +305,8 @@ describe('Database Integration Tests', () => {
         }),
         testPrisma.user.create({ 
           data: { 
-            email: 'inactive@example.com', 
-            isActive: false, 
+            email: 'plain@example.com', 
+            isAdmin: false, 
             domain: 'example.com',
             provider: 'google',
             providerId: 'google_inactive'
@@ -317,7 +315,7 @@ describe('Database Integration Tests', () => {
         testPrisma.user.create({ 
           data: { 
             email: 'other@test.org', 
-            isActive: true, 
+            isAdmin: true, 
             domain: 'test.org',
             provider: 'github',
             providerId: 'github_other'
@@ -328,14 +326,14 @@ describe('Database Integration Tests', () => {
       const result = await testPrisma.user.findMany({
         where: {
           AND: [
-            { isActive: true },
+            { isAdmin: true },
             { domain: 'example.com' }
           ]
         },
         select: {
           id: true,
           email: true,
-          isActive: true,
+          isAdmin: true,
           domain: true,
           createdAt: true
         },
@@ -343,8 +341,8 @@ describe('Database Integration Tests', () => {
       });
 
       expect(result).toHaveLength(1);
-      expect(result[0]?.email).toBe('active@example.com');
-      expect(result[0]?.isActive).toBe(true);
+      expect(result[0]?.email).toBe('admin@example.com');
+      expect(result[0]?.isAdmin).toBe(true);
       expect(result[0]?.domain).toBe('example.com');
     });
   });

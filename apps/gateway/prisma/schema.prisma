@@ -23,7 +23,6 @@ model User {
   provider        String
   providerId      String
   domain          String // Email domain, for agent DIDs and display
-  isActive        Boolean   @default(true)
   isAdmin         Boolean   @default(false) // Admin role for administrative access
   isModerator     Boolean   @default(false) // Moderator role for content governance
   lastLogin       DateTime?

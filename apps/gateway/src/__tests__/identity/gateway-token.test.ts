@@ -27,7 +27,6 @@ function fakeUser(overrides: Partial<User> = {}): User {
     provider: 'agent',
     providerId: 'anthropic:claude',
     isAdmin: false,
-    isActive: true,
     isModerator: false,
     lastLogin: null,
     createdAt: new Date(),
@@ -87,13 +86,6 @@ describe('principalFromGatewayToken', () => {
     const user = fakeUser();
     mockPrismaUser.findUnique.mockResolvedValue(null);
 
-    await expect(principalFromGatewayToken(mintToken(user))).rejects.toThrow('User not found or inactive');
-  });
-
-  it('refuses a token for a deactivated user', async () => {
-    const user = fakeUser({ isActive: false });
-    mockPrismaUser.findUnique.mockResolvedValue(user);
-
-    await expect(principalFromGatewayToken(mintToken(user))).rejects.toThrow('User not found or inactive');
+    await expect(principalFromGatewayToken(mintToken(user))).rejects.toThrow('User not found');
   });
 });

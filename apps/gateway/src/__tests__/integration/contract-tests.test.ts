@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { components } from '@semiont/core';
 
 // Local type definitions to replace api-contracts imports
 interface HealthResponse {
@@ -28,18 +29,10 @@ interface StatusResponse {
 }
 
 
-interface UserResponse {
-  id: string;
-  email: string;
-  name: string | null;
-  image: string | null;
-  domain: string;
-  provider: string;
-  isAdmin: boolean;
-  isActive: boolean;
-  lastLogin: string | null;
-  created: string;
-}
+// The wire shape is the spec's, not this file's. It was restated here and had
+// already drifted — no `isModerator`, no `token` — so a contract test was
+// asserting against a contract nobody published.
+type UserResponse = components['schemas']['UserResponse'];
 
 
 interface ErrorResponse {
@@ -114,9 +107,10 @@ describe('API Contract Tests', () => {
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
-        isActive: true,
+        isModerator: false,
         lastLogin: '2024-01-01T00:00:00.000Z',
         created: '2024-01-01T00:00:00.000Z',
+        token: 'header.payload.signature',
       };
 
       expect(mockResponse.id).toBeDefined();
@@ -125,7 +119,7 @@ describe('API Contract Tests', () => {
       expect(mockResponse.domain).toBeDefined();
       expect(mockResponse.provider).toBeDefined();
       expect(mockResponse.isAdmin).toBeDefined();
-      expect(mockResponse.isActive).toBeDefined();
+      expect(mockResponse.isModerator).toBeDefined();
     });
 
     // Logout returns 204 No Content (SDK-AUTH-CORS Phase 2) — there is no
@@ -158,53 +152,6 @@ describe('API Contract Tests', () => {
       expect(errorResponse.details!.length).toBeGreaterThan(0);
     });
 
-    it('should validate admin endpoints response structure', () => {
-      // Users list response
-      const usersResponse = {
-        users: [
-          {
-            id: 'user-1',
-            email: 'user1@example.com',
-            name: 'User One',
-            image: null,
-            domain: 'example.com',
-            provider: 'google',
-            isAdmin: false,
-            isActive: true,
-            lastLogin: '2024-01-01T00:00:00.000Z',
-            created: '2024-01-01T00:00:00.000Z',
-          },
-        ],
-        pagination: {
-          page: 1,
-          limit: 10,
-          total: 1,
-          totalPages: 1,
-        },
-      };
-
-      expect(Array.isArray(usersResponse.users)).toBe(true);
-      expect(usersResponse.pagination).toBeDefined();
-      expect(usersResponse.pagination.page).toBeGreaterThan(0);
-      expect(usersResponse.pagination.limit).toBeGreaterThan(0);
-      expect(usersResponse.pagination.total).toBeGreaterThanOrEqual(0);
-      expect(usersResponse.pagination.totalPages).toBeGreaterThan(0);
-
-      // User stats response
-      const statsResponse = {
-        total: 10,
-        active: 8,
-        admins: 2,
-        providers: {
-          google: 10,
-        },
-      };
-
-      expect(typeof statsResponse.total).toBe('number');
-      expect(typeof statsResponse.active).toBe('number');
-      expect(typeof statsResponse.admins).toBe('number');
-      expect(typeof statsResponse.providers).toBe('object');
-    });
   });
 
   describe('Data Validation Rules', () => {
@@ -293,13 +240,14 @@ describe('API Contract Tests', () => {
         domain: 'example.com',
         provider: 'google',
         isAdmin: false,
-        isActive: true,
+        isModerator: false,
         lastLogin: '2024-01-01T00:00:00.000Z',
         created: '2024-01-01T00:00:00.000Z',
+        token: 'header.payload.signature',
       };
 
       expect(typeof userResponse.isAdmin).toBe('boolean');
-      expect(typeof userResponse.isActive).toBe('boolean');
+      expect(typeof userResponse.isModerator).toBe('boolean');
     });
   });
 

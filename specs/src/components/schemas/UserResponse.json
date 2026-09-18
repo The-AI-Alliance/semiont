@@ -27,9 +27,6 @@
     "isModerator": {
       "type": "boolean"
     },
-    "isActive": {
-      "type": "boolean"
-    },
     "lastLogin": {
       "type": "string",
       "nullable": true
@@ -51,7 +48,6 @@
     "provider",
     "isAdmin",
     "isModerator",
-    "isActive",
     "lastLogin",
     "created",
     "token"

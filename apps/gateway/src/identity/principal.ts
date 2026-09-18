@@ -35,16 +35,20 @@ function issuerOf(token: string): string | undefined {
 }
 
 /**
- * A gateway-signed token: verified against the HMAC key ring, and its User row
- * read so the Semiont-owned facts on it (`isActive` above all) decide the
- * request rather than the claims the token was minted with.
+ * A gateway-signed token: verified against the HMAC key ring, then its User row
+ * read. The row is what the request runs as — the claims the token was minted
+ * with are not trusted to still describe it.
+ *
+ * There is no longer an "active" check here. Whether a person may sign in is
+ * the issuer's answer, given by refusing to mint; agent tokens have no issuer
+ * account behind them, so their lifetime is what bounds them.
  */
 export async function principalFromGatewayToken(token: AccessToken): Promise<Principal> {
   const payload = JWTService.verifyToken(token);
   const prisma = DatabaseConnection.getClient();
   const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user || !user.isActive) {
-    throw new Error('User not found or inactive');
+  if (!user) {
+    throw new Error('User not found');
   }
   return payload.agentDid ? { user, agentDid: payload.agentDid } : { user };
 }
@@ -62,6 +66,10 @@ async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVeri
     throw new Error('Token email is not verified');
   }
   const name = claims['name'];
+  // No admission check of our own. The issuer decides who may hold a token by
+  // deciding whether to mint one; a token that verifies against its keys has
+  // already passed that decision, and re-asking here only creates a second
+  // answer that can disagree with the first.
   const user = await provisionUser({
     issuer: verifier.issuer,
     subject: claims.sub,
@@ -69,9 +77,6 @@ async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVeri
     ...(isString(name) ? { name } : {}),
     lastLogin: new Date(),
   });
-  if (!user.isActive) {
-    throw new Error('User not found or inactive');
-  }
   return { user };
 }
 

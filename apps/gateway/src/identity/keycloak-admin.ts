@@ -109,13 +109,20 @@ export class KeycloakAdminApi {
    * Create the account and return its id — the `sub` its tokens will carry,
    * and so the `providerId` of the User row that backs it.
    *
-   * `enabled` is always true and no display name is sent. Both are deliberate:
-   * whether an account may sign in to THIS knowledge base is `isActive` on the
-   * Semiont row (`--inactive` sets it, and the gateway refuses the token), and
-   * the display name is read from that row too — neither is the issuer's to
-   * hold, and mirroring them would put one fact in two places.
+   * `enabled` is the issuer's answer to "may this person sign in", and it is
+   * the ONLY answer: the gateway admits every subject whose token verifies.
+   * Semiont used to hold a second answer, `isActive` on the User row, checked
+   * on every request. Two systems deciding one thing meant they could disagree,
+   * and only one of them could actually stop a token being minted.
+   *
+   * The consequence of moving it here is worth stating plainly: disabling
+   * someone stops new tokens immediately, but an access token already in hand
+   * keeps working until it expires. That window is the access token lifetime.
+   *
+   * No display name is sent. That one really is the knowledge base's, read from
+   * the User row, and mirroring it would put one fact in two places.
    */
-  async createUser(email: string, password: string): Promise<string> {
+  async createUser(email: string, password: string, enabled = true): Promise<string> {
     const response = await fetch(this.usersUrl(), {
       method: 'POST',
       headers: this.headers(),
@@ -126,7 +133,7 @@ export class KeycloakAdminApi {
         // account created here has to be verified or its owner could never
         // reach the knowledge base an administrator just granted them.
         emailVerified: true,
-        enabled: true,
+        enabled,
         credentials: [{ type: 'password', value: password, temporary: false }],
       }),
     });
@@ -151,6 +158,28 @@ export class KeycloakAdminApi {
     });
     if (!response.ok) {
       throw new Error(`Setting the password for ${userId} failed (HTTP ${response.status})`);
+    }
+  }
+
+  /**
+   * Enable or disable an existing account.
+   *
+   * Both directions, deliberately. The flag this replaces could only be turned
+   * off: `useradd --inactive` set it and nothing cleared it, so reinstating
+   * someone meant editing the database by hand. An issuer that can disable an
+   * account can also restore it, and a control with no way back is a control
+   * administrators avoid using.
+   */
+  async setEnabled(userId: string, enabled: boolean): Promise<void> {
+    const response = await fetch(this.usersUrl(`/${encodeURIComponent(userId)}`), {
+      method: 'PUT',
+      headers: this.headers(),
+      body: JSON.stringify({ enabled }),
+    });
+    if (!response.ok) {
+      throw new Error(
+        `${enabled ? 'Enabling' : 'Disabling'} ${userId} in realm ${this.realm} failed (HTTP ${response.status})`,
+      );
     }
   }
 }
