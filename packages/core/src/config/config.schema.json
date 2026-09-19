@@ -1028,33 +1028,6 @@
           },
           "additionalProperties": false
         },
-        "security": {
-          "type": "object",
-          "properties": {
-            "sessionTimeout": {
-              "type": "integer",
-              "minimum": 60,
-              "description": "Session timeout in seconds"
-            },
-            "maxLoginAttempts": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Maximum failed login attempts before lockout"
-            },
-            "corsAllowedOrigins": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "jwtSecret": {
-              "type": "string",
-              "minLength": 32,
-              "description": "JWT signing secret (base64 encoded, 32+ bytes)"
-            }
-          },
-          "additionalProperties": false
-        },
         "performance": {
           "type": "object",
           "properties": {
