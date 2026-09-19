@@ -338,12 +338,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 		}
+		var svcSecrets map[string]string
 		if role == "identity" {
-			kc, ok := identityRunExtras(x, fc, addr)
+			kc, secrets, ok := identityRunExtras(x, fc, addr)
 			if !ok {
 				return 1
 			}
 			extra = append(extra, kc...)
+			svcSecrets = secrets
 		}
 		args := providedRunArgs(role, rp, extra...)
 		id, ok := x.runDetached(args)
@@ -361,6 +363,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp), x.dim("("+took(d)+")"))
+			// The realm is up and imported; prove it honours the credentials
+			// this start is about to inject, BEFORE the first process that
+			// holds one. `identityEndpoint` is the realm as THIS host reaches
+			// it — see verifyServiceAccounts on why the token's `iss` is not
+			// compared against it.
+			if !x.preflightServiceAccounts(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
+				return 1
+			}
 			x.record(role, id, rp.Image, providedLauncher, identityEndpoint(rp), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
@@ -845,12 +855,14 @@ func flowOneService(x executor, fc flowCtx) int {
 		if !ok {
 			return 1
 		}
+		var svcSecrets map[string]string
 		if svc == "identity" {
-			kc, ok := identityRunExtras(x, fc, addr)
+			kc, secrets, ok := identityRunExtras(x, fc, addr)
 			if !ok {
 				return 1
 			}
 			extra = append(extra, kc...)
+			svcSecrets = secrets
 		}
 		args := providedRunArgs(svc, rp, extra...)
 		id, ok := x.runDetached(args)
@@ -882,6 +894,11 @@ func flowOneService(x executor, fc flowCtx) int {
 		case "identity":
 			if d, ok = x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90); !ok {
 				x.dumpLogs(roles["identity"].container, "identity")
+				return 1
+			}
+			// Same gate as a full start: a realm restarted alone must still
+			// honour the credentials every running service already holds.
+			if !x.preflightServiceAccounts(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
 				return 1
 			}
 		}

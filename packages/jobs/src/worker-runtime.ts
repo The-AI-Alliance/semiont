@@ -301,7 +301,7 @@ export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host
 }
 
 /**
- * Exchange the worker secret for this agent's JWT and its canonical DID.
+ * Exchange this process's issuer token for an agent JWT and its canonical DID.
  * The DID is minted by the gateway (from its `site.domain`) — the caller
  * carries it verbatim.
  *

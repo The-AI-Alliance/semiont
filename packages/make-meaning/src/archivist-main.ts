@@ -30,8 +30,10 @@
  * Environment variables:
  *   SEMIONT_ROOT              — project root (the KB directory). Required.
  *   SEMIONT_ANCHORED_TEXT_DIR — anchored-text store dir. Required.
- *   SEMIONT_WORKER_SECRET     — shared secret: agent auth to the gateway AND
- *                               the bearer the D1 read path requires.
+ *   SEMIONT_OIDC_CLIENT_ID    — this process's own account at the KB's issuer;
+ *   SEMIONT_OIDC_CLIENT_SECRET  buys the agent token it shows the gateway. Its
+ *                               own read path admits callers by verifying THEIR
+ *                               issuer token, not by comparing a shared string.
  *   SEMIONT_SKIP_REBUILD      — 'true' skips the startup view rebuild.
  */
 

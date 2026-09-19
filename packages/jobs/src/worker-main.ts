@@ -103,8 +103,8 @@ const credential = { issuer: issuerUrl, clientId, clientSecret };
 
 // Bytes come from the Archivist, not the gateway (SINGLE-KB-MOUNT P4).
 // Resolved at module scope so a worker with no Archivist address — or no
-// worker secret to show it — dies here, while an operator is watching,
-// rather than failing every detection job for the life of the process.
+// service-account credential to show it — dies here, while an operator is
+// watching, rather than failing every detection job for the life of the process.
 const contentReads = archivistContentReads(envConfig);
 const healthPort = 24100;
 

@@ -42,8 +42,10 @@
  * `[kb] name` in the staged config (D4), and boot refuses without it.
  *
  * Environment variables:
- *   SEMIONT_WORKER_SECRET     — shared secret for agent auth to the gateway.
- *   XDG_STATE_HOME            — the shared state mount the views live under.
+ *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
+ *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the
+ *                                gateway, and the bearer it shows the Archivist
+ *   XDG_STATE_HOME             — the shared state mount the views live under.
  */
 
 import { Subscription } from 'rxjs';
@@ -206,8 +208,12 @@ async function main() {
   // Bytes from the Archivist, not the gateway (SINGLE-KB-MOUNT P4): the
   // gateway's content routes proxy onto this same call, so dialing it added
   // a hop and put the process that is meant to stop touching the KB tree on
-  // the path to it. Throws at boot if the address or worker secret is absent.
-  const contentReads = archivistContentReads(config);
+  // the path to it. Throws at boot if the address or the credential is absent.
+  // `envConfig`, not the narrowed `config`: reaching the Archivist needs the
+  // issuer this process authenticates at, and `makeMeaningConfigFrom` carries
+  // only make-meaning's own services. Every field of `ArchivistAddressConfig`
+  // is optional, so the narrow config satisfied it and failed at runtime.
+  const contentReads = archivistContentReads(envConfig);
 
   // The progress folds, fed by the signals LIBRARIAN_INBOUND_CHANNELS pumps onto the
   // local bus — the graph grace and the settle barrier work exactly as

@@ -221,14 +221,29 @@ func publicClient(clientID, name, audience string) map[string]any {
 // password. The password is per root and persisted: Keycloak creates the
 // admin on its FIRST boot only, so a regenerated value would lock the
 // console out of a realm that already exists.
-func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, bool) {
+// serviceClientSecrets: the per-root credential for every service client.
+// Resolved once per start — the realm import needs them, and so does the
+// preflight that checks the realm honoured them.
+func serviceClientSecrets(x executor, root string) (map[string]string, bool) {
+	secrets := map[string]string{}
+	for _, svc := range serviceClients {
+		secret, ok := x.serviceClientSecret(root, svc)
+		if !ok {
+			return nil, false
+		}
+		secrets[svc] = secret
+	}
+	return secrets, true
+}
+
+func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
 	dbHost := db.Address
 	if db.Obligation == obligationProvided {
 		dbHost = addr
 		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {
-			return nil, false
+			return nil, nil, false
 		}
 	} else {
 		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, keycloakDatabase)
@@ -237,26 +252,23 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, bool) {
 	realm := keycloakRealm(issuerPath(rp.Issuer))
 	// Resolved here and persisted per root, so the container that must PRESENT
 	// each secret reads the same value out of the same file rather than having
-	// it threaded through the start flow.
-	secrets := map[string]string{}
-	for _, svc := range serviceClients {
-		secret, ok := x.serviceClientSecret(fc.root, svc)
-		if !ok {
-			return nil, false
-		}
-		secrets[svc] = secret
+	// it threaded through the start flow. Returned as well, because the
+	// preflight checks these same values against the realm that imports them.
+	secrets, ok := serviceClientSecrets(x, fc.root)
+	if !ok {
+		return nil, nil, false
 	}
 	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, secrets))
 	if !ok {
-		return nil, false
+		return nil, nil, false
 	}
 	password, ok := x.identityAdminPassword(fc.root)
 	if !ok {
-		return nil, false
+		return nil, nil, false
 	}
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
 		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, keycloakDatabase),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
-	}, true
+	}, secrets, true
 }

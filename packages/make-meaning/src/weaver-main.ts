@@ -15,7 +15,8 @@
  * membership.
  *
  * Environment variables:
- *   SEMIONT_WORKER_SECRET — shared secret for JWT auth with the KS
+ *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
+ *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the gateway
  */
 
 import { WEAVER_MANIFEST, createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit';

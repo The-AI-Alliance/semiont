@@ -15,8 +15,9 @@
  * the anchored-text mount it owns outright (ANCHORED-TEXT-TO-SMELTER P1).
  *
  * Environment variables:
- *   SEMIONT_WORKER_SECRET      — shared secret; JWT auth with the KS, and
- *                                the bearer this process shows the Archivist
+ *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
+ *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the
+ *                                gateway, and the bearer it shows the Archivist
  *   SEMIONT_ANCHORED_TEXT_DIR  — the anchored-text store's mount; no default
  */
 
@@ -171,8 +172,8 @@ async function main() {
   // The gateway's own content routes are a proxy onto this same call, so
   // going through it added a hop and put a process that is meant to stop
   // touching the KB tree on the path to it. Throws here if the address or
-  // the worker secret is missing — a boot-time refusal, not a per-resource
-  // failure.
+  // this process's service-account credential is missing — a boot-time
+  // refusal, not a per-resource failure.
   const contentReads = archivistContentReads(envConfig);
   logger.info('Content reads ready', { via: 'archivist' });
 
