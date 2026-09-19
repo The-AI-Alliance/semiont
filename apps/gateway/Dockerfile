@@ -35,9 +35,7 @@ RUN set -eu; \
 
 FROM node:24-alpine
 ARG SEMIONT_VERSION=latest
-RUN apk upgrade --no-cache && \
-    apk add --no-cache git && \
-    git config --system --add safe.directory /kb
+RUN apk upgrade --no-cache
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 semiont
