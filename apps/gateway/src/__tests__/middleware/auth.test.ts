@@ -10,10 +10,10 @@
 
 import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
 import { Context } from 'hono';
+import type { Principal } from '../../identity/principal';
 import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
 import { principalFromToken } from '../../identity/principal';
 import { JWTService } from '../../auth/jwt';
-import { User } from '@prisma/client';
 
 vi.mock('../../identity/principal', () => ({
   principalFromToken: vi.fn(),
@@ -190,28 +190,22 @@ describe('Auth Middleware', () => {
     });
 
     describe('Successful Authentication', () => {
-      const mockUser: User = {
-        id: 'user-123',
+      const mockUser: Principal = {
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-        isAdmin: false,
-        isModerator: false,
-        lastLogin: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAgent: false,
       };
 
       it('should set user context and call next for valid token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-        mockPrincipalFromToken.mockResolvedValue({ user: mockUser });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
 
         await authMiddleware(context, mockNext);
 
-        expect(context.set).toHaveBeenCalledWith('user', mockUser);
+        expect(context.set).toHaveBeenCalledWith('principal', mockUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
         expect(mockPrincipalFromToken).toHaveBeenCalledWith('valid-token');
@@ -223,7 +217,7 @@ describe('Auth Middleware', () => {
       // is the seam where that abstraction is enforced.
       it('sets `principalDid` from `userToDid(user)` for a human (no agentDid on JWT)', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer human-token' });
-        mockPrincipalFromToken.mockResolvedValue({ user: mockUser });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
 
         await authMiddleware(context, mockNext);
 
@@ -236,7 +230,7 @@ describe('Auth Middleware', () => {
       it('sets `principalDid` from the JWT `agentDid` for a software-agent token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer agent-token' });
         const agentDid = 'did:web:example.com:agents:ollama:gemma2%3A27b';
-        mockPrincipalFromToken.mockResolvedValue({ user: mockUser, agentDid });
+        mockPrincipalFromToken.mockResolvedValue({ ...mockUser, did: agentDid, isAgent: true });
 
         await authMiddleware(context, mockNext);
 
@@ -246,11 +240,11 @@ describe('Auth Middleware', () => {
       it('should handle admin users correctly', async () => {
         const adminUser = { ...mockUser, isAdmin: true };
         const context = createMockContext({ 'Authorization': 'Bearer admin-token' });
-        mockPrincipalFromToken.mockResolvedValue({ user: adminUser });
+        mockPrincipalFromToken.mockResolvedValue(adminUser);
         
         await authMiddleware(context, mockNext);
         
-        expect(context.set).toHaveBeenCalledWith('user', adminUser);
+        expect(context.set).toHaveBeenCalledWith('principal', adminUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
       });
@@ -263,11 +257,11 @@ describe('Auth Middleware', () => {
           lastLogin: null,
         };
         const context = createMockContext({ 'Authorization': 'Bearer minimal-token' });
-        mockPrincipalFromToken.mockResolvedValue({ user: minimalUser });
+        mockPrincipalFromToken.mockResolvedValue(minimalUser);
         
         await authMiddleware(context, mockNext);
         
-        expect(context.set).toHaveBeenCalledWith('user', minimalUser);
+        expect(context.set).toHaveBeenCalledWith('principal', minimalUser);
         expect(mockNext).toHaveBeenCalled();
       });
     });
@@ -359,24 +353,18 @@ describe('Auth Middleware', () => {
       });
 
       it('should handle concurrent requests safely', async () => {
-        const baseUser: User = {
-          id: 'user-base',
+        const baseUser: Principal = {
+          did: 'did:web:example.com:users:base%40example.com',
           email: 'base@example.com',
           name: 'Base User',
           image: null,
           domain: 'example.com',
-          provider: 'google',
-          providerId: 'google-base',
-          isAdmin: false,
-          isModerator: false,
-          lastLogin: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          isAgent: false,
         };
 
-        const mockUser1 = { ...baseUser, id: 'user-1', email: 'user1@example.com' };
-        const mockUser2 = { ...baseUser, id: 'user-2', email: 'user2@example.com' };
-        const mockUser3 = { ...baseUser, id: 'user-3', email: 'user3@example.com' };
+        const mockUser1 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user1@example.com')}`, email: 'user1@example.com' };
+        const mockUser2 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user2@example.com')}`, email: 'user2@example.com' };
+        const mockUser3 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user3@example.com')}`, email: 'user3@example.com' };
 
         const contexts = [
           createMockContext({ 'Authorization': 'Bearer token1' }),
@@ -385,17 +373,17 @@ describe('Auth Middleware', () => {
         ];
 
         mockPrincipalFromToken
-          .mockResolvedValueOnce({ user: mockUser1 })
-          .mockResolvedValueOnce({ user: mockUser2 })
-          .mockResolvedValueOnce({ user: mockUser3 });
+          .mockResolvedValueOnce(mockUser1)
+          .mockResolvedValueOnce(mockUser2)
+          .mockResolvedValueOnce(mockUser3);
 
         // Process all requests concurrently
         await Promise.all(contexts.map(context => authMiddleware(context, mockNext)));
 
         // Verify each request was handled correctly
-        expect(contexts[0]?.set).toHaveBeenCalledWith('user', mockUser1);
-        expect(contexts[1]?.set).toHaveBeenCalledWith('user', mockUser2);
-        expect(contexts[2]?.set).toHaveBeenCalledWith('user', mockUser3);
+        expect(contexts[0]?.set).toHaveBeenCalledWith('principal', mockUser1);
+        expect(contexts[1]?.set).toHaveBeenCalledWith('principal', mockUser2);
+        expect(contexts[2]?.set).toHaveBeenCalledWith('principal', mockUser3);
         expect(mockNext).toHaveBeenCalledTimes(3);
       });
     });
@@ -558,28 +546,22 @@ describe('Auth Middleware', () => {
     });
 
     describe('Optional Authentication Success', () => {
-      const mockUser: User = {
-        id: 'user-123',
+      const mockUser: Principal = {
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-        isAdmin: true,
-        isModerator: false,
-        lastLogin: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAgent: false,
       };
 
       it('should set user context for valid tokens', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-        mockPrincipalFromToken.mockResolvedValue({ user: mockUser });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
         
         await optionalAuthMiddleware(context, mockNext);
         
-        expect(context.set).toHaveBeenCalledWith('user', mockUser);
+        expect(context.set).toHaveBeenCalledWith('principal', mockUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
         expect(mockPrincipalFromToken).toHaveBeenCalledWith('valid-token');
@@ -595,12 +577,12 @@ describe('Auth Middleware', () => {
         for (const token of testTokens) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
-          mockPrincipalFromToken.mockResolvedValue({ user: mockUser });
+          mockPrincipalFromToken.mockResolvedValue(mockUser);
           
           await optionalAuthMiddleware(context, mockNext);
           
           expect(mockPrincipalFromToken).toHaveBeenCalledWith(token);
-          expect(context.set).toHaveBeenCalledWith('user', mockUser);
+          expect(context.set).toHaveBeenCalledWith('principal', mockUser);
         }
       });
     });
@@ -651,23 +633,17 @@ describe('Auth Middleware', () => {
 
   describe('Middleware Integration', () => {
     it('should work correctly in middleware chain', async () => {
-      const mockUser: User = {
-        id: 'user-123',
+      const mockUser: Principal = {
+        did: `did:web:example.com:users:${encodeURIComponent('user@example.com')}`,
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-        isAdmin: false,
-        isModerator: false,
-        lastLogin: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAgent: false,
       };
 
       const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-      mockPrincipalFromToken.mockResolvedValue({ user: mockUser });
+      mockPrincipalFromToken.mockResolvedValue(mockUser);
       
       // Mock next middleware that checks for user
       const nextMiddleware = vi.fn(async () => {
@@ -677,7 +653,7 @@ describe('Auth Middleware', () => {
       
       await authMiddleware(context, nextMiddleware);
       
-      expect(context.set).toHaveBeenCalledWith('user', mockUser);
+      expect(context.set).toHaveBeenCalledWith('principal', mockUser);
       expect(nextMiddleware).toHaveBeenCalled();
     });
 

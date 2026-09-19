@@ -119,10 +119,12 @@ export class KeycloakAdminApi {
    * someone stops new tokens immediately, but an access token already in hand
    * keeps working until it expires. That window is the access token lifetime.
    *
-   * No display name is sent. That one really is the knowledge base's, read from
-   * the User row, and mirroring it would put one fact in two places.
+   * The display name goes here too. It used to live on a Semiont row, which is
+   * gone: the gateway now reads a caller's name from the `name` claim on their
+   * token, and that claim is built by the issuer from the profile below. One
+   * fact, one owner.
    */
-  async createUser(email: string, password: string, enabled = true): Promise<string> {
+  async createUser(email: string, password: string, enabled = true, name?: string): Promise<string> {
     const response = await fetch(this.usersUrl(), {
       method: 'POST',
       headers: this.headers(),
@@ -134,6 +136,11 @@ export class KeycloakAdminApi {
         // reach the knowledge base an administrator just granted them.
         emailVerified: true,
         enabled,
+        // Keycloak composes its `name` claim from firstName and lastName. A
+        // display name is one string to an administrator typing it, so it goes
+        // in whole rather than being guessed apart on a space — "van der Berg"
+        // and "Mary Jane" would both be split wrongly.
+        ...(name === undefined ? {} : { firstName: name }),
         credentials: [{ type: 'password', value: password, temporary: false }],
       }),
     });
@@ -158,6 +165,18 @@ export class KeycloakAdminApi {
     });
     if (!response.ok) {
       throw new Error(`Setting the password for ${userId} failed (HTTP ${response.status})`);
+    }
+  }
+
+  /** Set an existing account's display name. See `createUser` on why firstName. */
+  async setDisplayName(userId: string, name: string): Promise<void> {
+    const response = await fetch(this.usersUrl(`/${encodeURIComponent(userId)}`), {
+      method: 'PUT',
+      headers: this.headers(),
+      body: JSON.stringify({ firstName: name }),
+    });
+    if (!response.ok) {
+      throw new Error(`Setting the display name for ${userId} failed (HTTP ${response.status})`);
     }
   }
 

@@ -28,7 +28,7 @@ import { configureTrustedIssuer } from '../../identity/trusted-issuer';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
 import type { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
-import { email as makeEmail, userId as makeUserId } from '@semiont/core';
+import { email as makeEmail } from '@semiont/core';
 
 const prisma = DatabaseConnection.getClient();
 const mockPrismaUser = vi.mocked(prisma.user);
@@ -76,48 +76,41 @@ async function me(token: string) {
 }
 
 describe('a token from the trusted issuer', () => {
-  it('authenticates, provisioning the subject as a User on first sight', async () => {
-    mockPrismaUser.findFirst.mockResolvedValue(null);
-    mockPrismaUser.findUnique.mockResolvedValue(null);
-    mockPrismaUser.create.mockResolvedValue(fakeUser());
-
+  /**
+   * Nothing is provisioned. The principal is built from the claims the token
+   * carries, so a subject the gateway has never seen authenticates exactly as
+   * one it has — there is no first-sight write, and no row to find or link.
+   */
+  it('authenticates a subject it has never seen, writing nothing', async () => {
     const res = await me(await issuer.token({ claims: ALICE }));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ email: 'alice@example.com' });
-    expect(mockPrismaUser.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({ email: 'alice@example.com', provider: ORIGIN, providerId: 'sub-alice', isAdmin: false }),
+    expect(await res.json()).toMatchObject({
+      did: `did:web:example.com:users:${encodeURIComponent('alice@example.com')}`,
+      email: 'alice@example.com',
+      name: 'Alice',
+      domain: 'example.com',
     });
   });
 
-  it('finds a linked subject with one read and no write', async () => {
-    mockPrismaUser.findFirst.mockResolvedValue(fakeUser());
+  it('answers identically on a second presentation of the same subject', async () => {
+    const token = await issuer.token({ claims: ALICE });
 
-    const res = await me(await issuer.token({ claims: ALICE }));
+    const first = await me(token);
+    const second = await me(token);
 
-    expect(res.status).toBe(200);
-    expect(mockPrismaUser.findFirst).toHaveBeenCalledWith({ where: { provider: ORIGIN, providerId: 'sub-alice' } });
-    expect(mockPrismaUser.findUnique).not.toHaveBeenCalled();
-    expect(mockPrismaUser.create).not.toHaveBeenCalled();
-    expect(mockPrismaUser.update).not.toHaveBeenCalled();
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    expect(await first.json()).toEqual(await second.json());
   });
 
-  it('links an existing user with the same email to the issuer subject', async () => {
-    const existing = fakeUser({ provider: 'password', providerId: 'alice@example.com' });
-    mockPrismaUser.findFirst.mockResolvedValue(null);
-    mockPrismaUser.findUnique.mockResolvedValue(existing);
-    mockPrismaUser.update.mockResolvedValue({ ...existing, provider: ORIGIN, providerId: 'sub-alice' });
+  it('carries the issuer picture claim through as the image', async () => {
+    const res = await me(await issuer.token({
+      claims: { ...ALICE, picture: 'https://example.com/alice.png' },
+    }));
 
-    const res = await me(await issuer.token({ claims: ALICE }));
-
-    expect(res.status).toBe(200);
-    expect(mockPrismaUser.update).toHaveBeenCalledWith({
-      where: { id: existing.id },
-      data: expect.objectContaining({ provider: ORIGIN, providerId: 'sub-alice' }),
-    });
-    expect(mockPrismaUser.create).not.toHaveBeenCalled();
+    expect(await res.json()).toMatchObject({ image: 'https://example.com/alice.png' });
   });
-
 });
 
 describe('a token that must not authenticate', () => {
@@ -185,12 +178,9 @@ describe('a gateway-signed token', () => {
     });
     mockPrismaUser.findUnique.mockResolvedValue(agent);
     const token = JWTService.generateToken({
-      userId: makeUserId(agent.id),
+      did: 'did:web:test.local:agents:ollama:gemma',
       email: makeEmail(agent.email),
       domain: agent.domain,
-      provider: agent.provider,
-      isAdmin: false,
-      agentDid: 'did:web:test.local:agents:ollama:gemma',
     }, '10m');
 
     const res = await me(token);

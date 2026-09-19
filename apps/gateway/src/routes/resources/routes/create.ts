@@ -22,10 +22,9 @@ type Agent = components['schemas']['Agent'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
   router.post('/resources', async (c) => {
-    const user = c.get('user');
     const principalDid = c.get('principalDid');
 
-    if (!user || !principalDid) {
+    if (!principalDid) {
       throw new HTTPException(401, { message: 'Authentication required' });
     }
 

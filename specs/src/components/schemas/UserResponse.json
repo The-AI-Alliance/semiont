@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "The authenticated principal, as this knowledge base names it.\n\nThe `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. The row id this endpoint used to return appears nowhere else in the system, so it could not be correlated with anything and is gone.\n\nThe remaining fields exist to be displayed. Roles are carried but gate nothing here.",
+  "description": "The authenticated principal, as this knowledge base names it.\n\nThe `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. The row id this endpoint used to return appears nowhere else in the system, so it could not be correlated with anything and is gone.\n\nThe remaining fields exist to be displayed, and all of them come from the token's own claims. Role flags used to ride here; they gated nothing, and the row that held them is gone.",
   "properties": {
     "did": {
       "type": "string",
@@ -20,14 +20,6 @@
     "domain": {
       "type": "string",
       "description": "Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's."
-    },
-    "isAdmin": {
-      "type": "boolean",
-      "description": "Carried, read by nothing. No gateway route grants access on this basis."
-    },
-    "isModerator": {
-      "type": "boolean",
-      "description": "Carried, read by nothing. No gateway route grants access on this basis."
     }
   },
   "required": [
@@ -35,8 +27,6 @@
     "email",
     "name",
     "image",
-    "domain",
-    "isAdmin",
-    "isModerator"
+    "domain"
   ]
 }

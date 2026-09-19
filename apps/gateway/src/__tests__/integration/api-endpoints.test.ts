@@ -1,5 +1,5 @@
-import { userId } from '@semiont/core';
 import { email } from '@semiont/core';
+import type { User } from '@prisma/client';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -9,9 +9,7 @@ import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
-import type { Hono } from 'hono';
-import type { User } from '@prisma/client';
-import type { EnvironmentConfig, EventBus, components } from '@semiont/core';
+import type { components } from '@semiont/core';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 import { JWTService } from '../../auth/jwt';
 
@@ -25,14 +23,13 @@ const PACKAGE_VERSION: string = JSON.parse(
   ),
 ).version;
 
-type Variables = {
-  user: User;
-  config: EnvironmentConfig;
-  eventBus: EventBus;
-};
 
 // Delay app import until after test setup to avoid Prisma validation errors
-let app: Hono<{ Variables: Variables }>;
+// Typed from the module under test rather than from a local restatement of
+// its context. The copy that stood here drifted the moment the gateway's
+// context changed, and `tsc` could only report that two structurally identical
+// types were not the same one.
+let app: typeof import('../../index').app;
 // Local type definitions to replace api-contracts imports
 interface HealthResponse {
   status: string;
@@ -169,13 +166,11 @@ describe('API Endpoints Integration Tests', () => {
     app = serverModule.app;
 
     // Generate a test token
-    testToken = JWTService.generateToken({
-      userId: userId(testUser.id),
+    testToken = JWTService.generateToken({      did: `did:web:${testUser.domain}:agents:test:model`,
+
       email: email(testUser.email),
       name: testUser.name,
       domain: testUser.domain,
-      provider: testUser.provider,
-      isAdmin: testUser.isAdmin,
     });
     
     // Mock the database to return our test user when queried
@@ -187,7 +182,14 @@ describe('API Endpoints Integration Tests', () => {
     const { principalFromToken } = await import('../../identity/principal');
     vi.mocked(principalFromToken).mockImplementation(async (token) => {
       if (token === testToken || token === 'valid-jwt-token') {
-        return { user: testUser as User };
+        return {
+          did: `did:web:${testUser.domain}:users:${encodeURIComponent(testUser.email)}`,
+          email: testUser.email,
+          name: testUser.name,
+          image: testUser.image,
+          domain: testUser.domain,
+          isAgent: false,
+        };
       }
       throw new Error('Invalid token');
     });
@@ -322,7 +324,14 @@ describe('API Endpoints Integration Tests', () => {
       const { principalFromToken } = await import('../../identity/principal');
       vi.mocked(principalFromToken).mockImplementation(async (token) => {
         if (token === 'valid-jwt-token') {
-          return { user: mockUser as User };
+          return {
+          did: `did:web:${mockUser.domain}:users:${encodeURIComponent(mockUser.email)}`,
+          email: mockUser.email,
+          name: mockUser.name,
+          image: mockUser.image,
+          domain: mockUser.domain,
+          isAgent: false,
+        };
         }
         throw new Error('Invalid token');
       });
@@ -342,8 +351,6 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.did).toBe('did:web:example.com:users:test%40example.com');
       expect(data.email).toBe('test@example.com');
       expect(data.name).toBe('Test User');
-      expect(data.isAdmin).toBe(false);
-      expect(data.isModerator).toBe(false);
     });
 
     it('GET /api/users/me should fail without token', async () => {

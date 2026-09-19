@@ -268,7 +268,7 @@ describe('Validation Library (Native JS)', () => {
       const result = OAuthUserSchema.safeParse(validUser);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.id).toBe(validUser.id);
+        expect(result.data.did).toBe(validUser.did);
         expect(result.data.email).toBe(validUser.email);
       }
 

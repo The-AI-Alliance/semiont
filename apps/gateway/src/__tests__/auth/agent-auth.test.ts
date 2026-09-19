@@ -139,37 +139,17 @@ describe('POST /api/tokens/agent', () => {
 
       const { token } = await response.json() as { token: string };
       const payload = JWTService.verifyToken(token as never);
-      expect(payload.agentDid).toBe('did:web:test.local:agents:ollama:gemma2%3A27b');
+      expect(payload.did).toBe('did:web:test.local:agents:ollama:gemma2%3A27b');
     });
 
-    it('upserts the agent User row keyed by (provider="agent", providerId)', async () => {
-      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
-
-      await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
-          provider: 'anthropic',
-          model: 'claude-3-5-sonnet',
-        }),
-      });
-
-      expect(mockPrismaUser.upsert).toHaveBeenCalledWith(expect.objectContaining({
-        where: { provider_providerId: { provider: 'agent', providerId: 'anthropic:claude-3-5-sonnet' } },
-        create: expect.objectContaining({
-          provider: 'agent',
-          providerId: 'anthropic:claude-3-5-sonnet',
-          domain: SITE_DOMAIN,
-          isAdmin: false,
-        }),
-      }));
-    });
-
+    /**
+     * No row is written any more, so the synthetic address is asserted where it
+     * actually matters: inside the minted token. That is the copy every later
+     * request validates, and an address that fails `email()` there breaks every
+     * `/bus/subscribe` the worker makes — the regression this guards.
+     */
     it('places the synthetic email in the agents.<host> namespace, not the deployment domain', async () => {
-      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
-
-      await app.request('/api/tokens/agent', {
+      const response = await app.request('/api/tokens/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -179,37 +159,37 @@ describe('POST /api/tokens/agent', () => {
         }),
       });
 
-      const call = mockPrismaUser.upsert.mock.calls[0]![0] as { create: { email: string } };
-      expect(call.create.email.endsWith(`@agents.${SITE_DOMAIN}`)).toBe(true);
+      const { token } = await response.json() as { token: string };
+      const payload = JWTService.verifyToken(token as never);
+      expect(payload.email.endsWith(`@agents.${SITE_DOMAIN}`)).toBe(true);
     });
 
     it('strips the port from a host:port deployment domain when forming the synthetic email', async () => {
-      // The DID format keeps the port (DIDs accept colons), but the
-      // synthetic User email must match RFC-5321 host syntax — so a
-      // deployment served at `localhost:8080` produces an email of
-      // `slug@agents.localhost`, not `slug@agents.localhost:8080`.
-      // This test guards against the auth-fails-after-issue regression
-      // where the JWT's email field fails the email() validator on
-      // every subsequent /bus/subscribe call.
+      // The DID format keeps the port (DIDs accept colons), but the synthetic
+      // address must match RFC-5321 host syntax — so a deployment served at
+      // `localhost:8080` produces `slug@agents.localhost`, not
+      // `slug@agents.localhost:8080`.
       JWTService.setTestConfig('localhost:8080');
-      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
+      try {
+        const response = await app.request('/api/tokens/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            secret: WORKER_SECRET,
+            provider: 'ollama',
+            model: 'gemma2:27b',
+          }),
+        });
 
-      await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
-          provider: 'ollama',
-          model: 'gemma2:27b',
-        }),
-      });
-
-      const call = mockPrismaUser.upsert.mock.calls[0]![0] as { create: { email: string } };
-      expect(call.create.email).not.toContain(':');
-      expect(call.create.email.endsWith('@agents.localhost')).toBe(true);
-
-      // Restore the test domain for subsequent tests
-      JWTService.setTestConfig(SITE_DOMAIN);
+        const { token } = await response.json() as { token: string };
+        const payload = JWTService.verifyToken(token as never);
+        expect(payload.email).not.toContain(':');
+        expect(payload.email.endsWith('@agents.localhost')).toBe(true);
+      } finally {
+        // Restored even on failure: leaking this domain fails every later test
+        // in the file for a reason that names the wrong culprit.
+        JWTService.setTestConfig(SITE_DOMAIN);
+      }
     });
 
     it('URI-encodes models containing colons in the DID', async () => {

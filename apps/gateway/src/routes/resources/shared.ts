@@ -1,6 +1,6 @@
 // Shared imports and types for resource routes
 import { Hono } from 'hono';
-import { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import { authMiddleware } from '../../middleware/auth';
 import type { EnvironmentConfig, EventBus } from '@semiont/core';
 
@@ -9,9 +9,8 @@ import type { EnvironmentConfig, EventBus } from '@semiont/core';
 // Named once — the router type and the constructor below both refer to it,
 // rather than restating it and drifting.
 type ResourceVariables = {
-  user: User;
+  principal: Principal;
   principalDid: string;
-  agentDid?: string;
   eventBus: EventBus;
   config: EnvironmentConfig;
 };

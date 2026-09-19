@@ -7,15 +7,13 @@
 
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
-import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
-import type { User } from '@prisma/client';
 import type { components } from '@semiont/core';
-import { userId as makeUserId, email as makeEmail, agentToDid } from '@semiont/core';
+import { email as makeEmail, agentToDid } from '@semiont/core';
 
 type UserResponse = components['schemas']['UserResponse'];
 
-export const authRouter = new Hono<{ Variables: { user: User; principalDid: string } }>();
+export const authRouter = new Hono();
 
 /**
  * GET /api/users/me
@@ -32,16 +30,14 @@ export const authRouter = new Hono<{ Variables: { user: User; principalDid: stri
  * caller's own token, echoed back to the caller who had just sent it.
  */
 authRouter.get('/api/users/me', authMiddleware, async (c) => {
-  const user = c.get('user');
+  const principal = c.get('principal');
 
   const response: UserResponse = {
-    did: c.get('principalDid'),
-    email: user.email,
-    name: user.name,
-    image: user.image,
-    domain: user.domain,
-    isAdmin: user.isAdmin,
-    isModerator: user.isModerator,
+    did: principal.did,
+    email: principal.email,
+    name: principal.name,
+    image: principal.image,
+    domain: principal.domain,
   };
 
   return c.json(response, 200);
@@ -128,33 +124,17 @@ authRouter.post('/api/tokens/agent', async (c) => {
   const agentEmail = `${slug}@agents.${emailHost}`;
   const agentName = `${inferenceProvider} ${model}`;
 
-  const prisma = DatabaseConnection.getClient();
-  const agentUser = await prisma.user.upsert({
-    where: { provider_providerId: { provider: 'agent', providerId } },
-    update: {
-      name: agentName,
-      lastLogin: new Date(),
-    },
-    create: {
-      email: agentEmail,
-      name: agentName,
-      provider: 'agent',
-      providerId,
-      domain: siteDomain,
-      isAdmin: false,
-    },
-  });
-
   const did = agentToDid({ domain: siteDomain, provider: inferenceProvider, model });
 
+  // No row is written. The agent's identity IS the DID, derived from the same
+  // (domain, provider, model) the caller just presented, so there was never a
+  // fact here for a database to remember — the synthetic row this replaces
+  // existed only to hand out a cuid that nothing downstream read.
   const token = JWTService.generateToken({
-    userId: makeUserId(agentUser.id),
-    email: makeEmail(agentUser.email),
-    name: agentUser.name ?? agentName,
-    domain: agentUser.domain,
-    provider: agentUser.provider,
-    isAdmin: false,
-    agentDid: did,
+    did,
+    email: makeEmail(agentEmail),
+    name: agentName,
+    domain: siteDomain,
   }, `${AGENT_TOKEN_TTL_SECONDS}s`);
 
   return c.json({ token, did }, 200);
@@ -168,7 +148,6 @@ authRouter.post('/api/tokens/agent', async (c) => {
  * via ?token= query parameter without exposing the session JWT in URLs.
  */
 authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
-  const user = c.get('user');
   let body: { resourceId: string };
   try {
     body = await c.req.json();
@@ -178,7 +157,7 @@ authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
   if (!body.resourceId || typeof body.resourceId !== 'string') {
     return c.json({ error: 'resourceId is required' }, 400);
   }
-  const token = JWTService.generateMediaToken(body.resourceId, user.id);
+  const token = JWTService.generateMediaToken(body.resourceId);
   return c.json({ token }, 200);
 });
 
@@ -247,12 +226,12 @@ authRouter.post('/api/cookies/consent', authMiddleware, async (c) => {
  * Requires authentication.
  */
 authRouter.get('/api/cookies/export', authMiddleware, async (c) => {
-  const user = c.get('user');
+  const principal = c.get('principal');
 
   const exportData = {
     user: {
-      id: user.id,
-      email: user.email,
+      did: principal.did,
+      email: principal.email,
     },
     consent: {
       necessary: true,

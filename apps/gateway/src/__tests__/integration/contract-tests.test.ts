@@ -105,16 +105,13 @@ describe('API Contract Tests', () => {
         name: 'Test User',
         image: 'https://example.com/avatar.jpg',
         domain: 'example.com',
-        isAdmin: false,
-        isModerator: false,
       };
 
       expect(mockResponse.did).toBeDefined();
       expect(mockResponse.email).toBeDefined();
       expect(mockResponse.name).toBeDefined();
       expect(mockResponse.domain).toBeDefined();
-      expect(mockResponse.isAdmin).toBeDefined();
-      expect(mockResponse.isModerator).toBeDefined();
+      expect(mockResponse.image).toBeDefined();
     });
 
     // Logout returns 204 No Content (SDK-AUTH-CORS Phase 2) — there is no
@@ -233,12 +230,10 @@ describe('API Contract Tests', () => {
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        isAdmin: false,
-        isModerator: false,
       };
 
-      expect(typeof userResponse.isAdmin).toBe('boolean');
-      expect(typeof userResponse.isModerator).toBe('boolean');
+      expect(typeof userResponse.did).toBe('string');
+      expect(userResponse.did.startsWith('did:')).toBe(true);
     });
   });
 

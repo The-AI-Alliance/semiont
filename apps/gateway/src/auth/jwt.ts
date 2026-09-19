@@ -1,16 +1,14 @@
 import jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { UserId, Email } from '@semiont/core';
-import { userId as makeUserId, email as makeEmail } from '@semiont/core';
+import type { Email } from '@semiont/core';
+import { email as makeEmail } from '@semiont/core';
 
 export interface JWTPayload {
-  userId: UserId;
+  did: string;
   email: Email;
   name?: string;
   domain: string;
-  provider: string;
-  type?: 'access' | 'refresh';
   iat?: number;
   exp?: number;
 }
@@ -205,13 +203,20 @@ export class JWTService {
     // Brand the string types for type safety
     return {
       ...result.data,
-      userId: makeUserId(result.data.userId),
       email: makeEmail(result.data.email),
     };
   }
 
-  static generateMediaToken(resourceId: string, userId: string): string {
-    const payload = { purpose: 'media', sub: resourceId, userId };
+  /**
+   * A media token names the one resource it may fetch and nothing else.
+   *
+   * It used to also carry the requester's id, which `verifyMediaToken` never
+   * read — an identity claim nobody checked, which is worse than no claim at
+   * all, because it looks like the token is principal-scoped when it is not.
+   * Anyone holding this token may fetch this resource; that is the contract.
+   */
+  static generateMediaToken(resourceId: string): string {
+    const payload = { purpose: 'media', sub: resourceId };
     return jwt.sign(payload, this.getSecret(), { expiresIn: '5m' });
   }
 

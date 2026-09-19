@@ -1,22 +1,44 @@
 import { decodeJwt } from 'jose';
-import type { User } from '@prisma/client';
 import type { AccessToken } from '@semiont/core';
-import { isString } from '@semiont/core';
-import { DatabaseConnection } from '../db';
+import { isString, userToDid } from '@semiont/core';
 import { JWTService } from '../auth/jwt';
 import { IssuerVerifier } from './issuer';
 import { trustedIssuer } from './trusted-issuer';
 
+/**
+ * Who a bearer token says its holder is.
+ *
+ * Built from the token's own claims. There is no database read here and no row
+ * behind it: the identity is the DID, which is derived from facts the token
+ * already carries, and every consumer downstream — the bus stamping `_userId`,
+ * resource creation, the signal ledger — keys on that DID rather than on any
+ * local identifier. A row would have been a second name for the same person
+ * that nothing else in the system could resolve.
+ */
 export interface Principal {
-  user: User;
-  agentDid?: string;
+  /**
+   * `did:web:<domain>:users:<email>` for a person,
+   * `did:web:<domain>:agents:<provider>:<model>` for a software agent.
+   */
+  did: string;
+  email: string;
+  name: string | null;
+  /** The issuer's `picture` claim, when it sends one. */
+  image: string | null;
+  /**
+   * The email's domain for a person; the DEPLOYMENT's domain for an agent,
+   * whose synthetic address lives in an `agents.<host>` namespace. The two
+   * differ, which is why this is carried rather than re-derived by readers.
+   */
+  domain: string;
+  /** A software agent the gateway itself minted a token for. */
+  isAgent: boolean;
 }
 
 /**
  * The principal behind a bearer token, dispatched on `iss`: a token from the
- * trusted issuer is verified against that issuer's keys and its subject
- * mapped to a User row; any other token is gateway-signed (a software
- * agent's) and takes the HMAC path.
+ * trusted issuer is verified against that issuer's keys; any other token is
+ * gateway-signed (a software agent's) and takes the HMAC path.
  */
 export async function principalFromToken(token: AccessToken): Promise<Principal> {
   const issuer = trustedIssuer();
@@ -35,25 +57,36 @@ function issuerOf(token: string): string | undefined {
 }
 
 /**
- * A gateway-signed token: verified against the HMAC key ring, then its User row
- * read. The row is what the request runs as — the claims the token was minted
- * with are not trusted to still describe it.
+ * A gateway-signed token: verified against the HMAC key ring, then read.
  *
- * There is no longer an "active" check here. Whether a person may sign in is
- * the issuer's answer, given by refusing to mint; agent tokens have no issuer
- * account behind them, so their lifetime is what bounds them.
+ * The claims are trusted here precisely because the gateway signed them — it
+ * is both the minter and the verifier of these, so a valid signature means
+ * this process asserted these facts itself.
  */
-export async function principalFromGatewayToken(token: AccessToken): Promise<Principal> {
+export function principalFromGatewayToken(token: AccessToken): Principal {
   const payload = JWTService.verifyToken(token);
-  const prisma = DatabaseConnection.getClient();
-  const user = await prisma.user.findUnique({ where: { id: payload.userId } });
-  if (!user) {
-    throw new Error('User not found');
-  }
-  return payload.agentDid ? { user, agentDid: payload.agentDid } : { user };
+  return {
+    did: payload.did,
+    email: payload.email,
+    name: payload.name ?? null,
+    image: null,
+    domain: payload.domain,
+    isAgent: true,
+  };
 }
 
-async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVerifier): Promise<Principal> {
+/**
+ * A token from the trusted issuer.
+ *
+ * No admission check of our own: the issuer decides who may hold a token by
+ * deciding whether to mint one, and a token that verifies against its keys has
+ * already passed that decision. Re-asking here would only create a second
+ * answer capable of disagreeing with the first.
+ */
+async function principalFromIssuerToken(
+  token: AccessToken,
+  verifier: IssuerVerifier,
+): Promise<Principal> {
   const claims = await verifier.verify(token);
   if (!isString(claims.sub)) {
     throw new Error('Token has no subject');
@@ -65,62 +98,18 @@ async function principalFromIssuerToken(token: AccessToken, verifier: IssuerVeri
   if (claims['email_verified'] === false) {
     throw new Error('Token email is not verified');
   }
+  const domain = email.split('@')[1];
+  if (!domain) {
+    throw new Error('Token email carries no domain');
+  }
   const name = claims['name'];
-  // No admission check of our own. The issuer decides who may hold a token by
-  // deciding whether to mint one; a token that verifies against its keys has
-  // already passed that decision, and re-asking here only creates a second
-  // answer that can disagree with the first.
-  const user = await provisionUser({
-    issuer: verifier.issuer,
-    subject: claims.sub,
+  const picture = claims['picture'];
+  return {
+    did: userToDid({ email, domain }),
     email,
-    ...(isString(name) ? { name } : {}),
-    lastLogin: new Date(),
-  });
-  return { user };
-}
-
-/**
- * The User row for an issuer subject: found by (issuer, subject); else the
- * row with the same email, which the issuer now vouches for, linked to the
- * subject; else created. A read per request, a write only on first sight.
- * `provider`/`providerId` hold the issuer and subject — the join key — as
- * they hold `agent` and `<provider>:<model>` for software agents.
- *
- * `semiont useradd` calls this too, with the id the issuer just minted and a
- * null `lastLogin`: an administrator creating an account and its owner first
- * presenting a token are the same mapping question, and answering it twice
- * would let the two answers drift.
- */
-export async function provisionUser(input: {
-  issuer: string;
-  subject: string;
-  email: string;
-  name?: string;
-  lastLogin: Date | null;
-}): Promise<User> {
-  const { issuer, subject, email, name, lastLogin } = input;
-  const prisma = DatabaseConnection.getClient();
-  const linked = await prisma.user.findFirst({ where: { provider: issuer, providerId: subject } });
-  if (linked) {
-    return linked;
-  }
-  const byEmail = await prisma.user.findUnique({ where: { email } });
-  if (byEmail) {
-    return prisma.user.update({
-      where: { id: byEmail.id },
-      data: { provider: issuer, providerId: subject, ...(name ? { name } : {}), lastLogin },
-    });
-  }
-  return prisma.user.create({
-    data: {
-      email,
-      name: name ?? null,
-      provider: issuer,
-      providerId: subject,
-      domain: email.split('@')[1] ?? '',
-      isAdmin: false,
-      lastLogin,
-    },
-  });
+    name: isString(name) ? name : null,
+    image: isString(picture) ? picture : null,
+    domain,
+    isAgent: false,
+  };
 }

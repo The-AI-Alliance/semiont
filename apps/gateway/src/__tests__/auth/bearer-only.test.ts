@@ -32,7 +32,7 @@ import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
 import type { User } from '@prisma/client';
 import { faker } from '@faker-js/faker';
-import { email as makeEmail, userId as makeUserId } from '@semiont/core';
+import { email as makeEmail } from '@semiont/core';
 
 const prisma = DatabaseConnection.getClient();
 const mockPrismaUser = vi.mocked(prisma.user);
@@ -58,12 +58,10 @@ function fakeUser(overrides: Partial<User> = {}): User {
 }
 
 function mintToken(user: User) {
-  return JWTService.generateToken({
-    userId: makeUserId(user.id),
+  return JWTService.generateToken({    did: `did:web:${user.domain}:agents:test:model`,
+
     email: makeEmail(user.email),
     domain: user.domain,
-    provider: user.provider,
-    isAdmin: user.isAdmin,
   }, '10m');
 }
 

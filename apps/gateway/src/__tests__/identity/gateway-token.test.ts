@@ -1,48 +1,27 @@
 /**
- * The HMAC path of `principalFromToken`: a gateway-signed token resolves to
- * its User row, surfaces the agent DID it carries, and is refused when the
- * signature, the row, or the revocation epoch does not hold up.
+ * The HMAC path of `principalFromToken`: a gateway-signed token resolves to a
+ * principal built from its own claims, and is refused when the signature or
+ * the payload shape does not hold up.
+ *
+ * There is no database read on this path any more, and so no "row is gone"
+ * case. The gateway is both the minter and the verifier of these tokens, so a
+ * valid signature means this process asserted these facts itself — a lookup
+ * could only have produced a second answer capable of disagreeing.
  */
 
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-import type { User } from '@prisma/client';
-import { faker } from '@faker-js/faker';
-import { accessToken, email as makeEmail, userId as makeUserId } from '@semiont/core';
-import { DatabaseConnection } from '../../db';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { accessToken, email as makeEmail } from '@semiont/core';
 import { JWTService } from '../../auth/jwt';
 import { principalFromGatewayToken } from '../../identity/principal';
 
-const prisma = DatabaseConnection.getClient();
-const mockPrismaUser = vi.mocked(prisma.user);
+const AGENT_DID = 'did:web:test.local:agents:anthropic:claude';
 
-const makeCuid = () => `c${faker.string.alphanumeric(24).toLowerCase()}`;
-
-function fakeUser(overrides: Partial<User> = {}): User {
-  return {
-    id: makeCuid(),
-    email: 'principal@example.com',
-    name: 'Principal',
-    image: null,
-    domain: 'example.com',
-    provider: 'agent',
-    providerId: 'anthropic:claude',
-    isAdmin: false,
-    isModerator: false,
-    lastLogin: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-}
-
-function mintToken(user: User, extra: { agentDid?: string } = {}) {
+function mintToken(overrides: Partial<{ did: string; email: string; name: string; domain: string }> = {}) {
   return accessToken(JWTService.generateToken({
-    userId: makeUserId(user.id),
-    email: makeEmail(user.email),
-    domain: user.domain,
-    provider: user.provider,
-    isAdmin: user.isAdmin,
-    ...(extra.agentDid ? { agentDid: extra.agentDid } : {}),
+    did: overrides.did ?? AGENT_DID,
+    email: makeEmail(overrides.email ?? 'claude@agents.test.local'),
+    name: overrides.name ?? 'anthropic claude',
+    domain: overrides.domain ?? 'test.local',
   }, '1h'));
 }
 
@@ -53,39 +32,50 @@ describe('principalFromGatewayToken', () => {
     });
   });
 
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it('builds the principal from the claims the token carries', () => {
+    const principal = principalFromGatewayToken(mintToken());
+
+    expect(principal).toEqual({
+      did: AGENT_DID,
+      email: 'claude@agents.test.local',
+      name: 'anthropic claude',
+      image: null,
+      domain: 'test.local',
+      isAgent: true,
+    });
   });
 
-  it('resolves a valid token to its User row', async () => {
-    const user = fakeUser();
-    mockPrismaUser.findUnique.mockResolvedValue(user);
+  it('carries the DID through verbatim, since it is what events attribute to', () => {
+    const did = 'did:web:test.local:agents:ollama:gemma2%3A27b';
 
-    const principal = await principalFromGatewayToken(mintToken(user));
-
-    expect(principal).toEqual({ user });
-    expect(mockPrismaUser.findUnique).toHaveBeenCalledWith({ where: { id: user.id } });
+    expect(principalFromGatewayToken(mintToken({ did })).did).toBe(did);
   });
 
-  it('surfaces the agent DID the token carries', async () => {
-    const user = fakeUser();
-    mockPrismaUser.findUnique.mockResolvedValue(user);
-    const agentDid = 'did:web:test.local:agents:anthropic:claude';
+  /**
+   * An agent's address lives in an `agents.<host>` namespace while its domain
+   * is the deployment's, so the domain is NOT the email's suffix here. Carried
+   * rather than re-derived for exactly that reason.
+   */
+  it('keeps the deployment domain, which is not the agent email suffix', () => {
+    const principal = principalFromGatewayToken(
+      mintToken({ email: 'ollama-gemma@agents.test.local', domain: 'test.local' }),
+    );
 
-    const principal = await principalFromGatewayToken(mintToken(user, { agentDid }));
-
-    expect(principal).toEqual({ user, agentDid });
+    expect(principal.domain).toBe('test.local');
+    expect(principal.email.split('@')[1]).toBe('agents.test.local');
   });
 
-  it('refuses a token the key ring did not sign', async () => {
-    await expect(principalFromGatewayToken(accessToken('not.a.token'))).rejects.toThrow();
-    expect(mockPrismaUser.findUnique).not.toHaveBeenCalled();
+  it('refuses a token the key ring did not sign', () => {
+    expect(() => principalFromGatewayToken(accessToken('not.a.token'))).toThrow();
   });
 
-  it('refuses a token whose User row is gone', async () => {
-    const user = fakeUser();
-    mockPrismaUser.findUnique.mockResolvedValue(null);
+  it('refuses a correctly signed token whose payload does not parse', () => {
+    const bad = accessToken(
+      // Signed by us, but naming no DID — the payload check is terminal and
+      // separate from the signature check.
+      JWTService.generateToken({ did: '', email: makeEmail('x@example.com'), domain: 'example.com' }, '1h'),
+    );
 
-    await expect(principalFromGatewayToken(mintToken(user))).rejects.toThrow('User not found');
+    expect(() => principalFromGatewayToken(bad)).toThrow(/Invalid token payload/);
   });
 });

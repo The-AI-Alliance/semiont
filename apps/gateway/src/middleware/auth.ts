@@ -2,26 +2,22 @@ import { Context, Next } from 'hono';
 import { principalFromToken } from '../identity/principal';
 import { bearerChallenge } from '../identity/resource-metadata';
 import { JWTService } from '../auth/jwt';
-import { User } from '@prisma/client';
-import { accessToken, userToDid } from '@semiont/core';
+import type { Principal } from '../identity/principal';
+import { accessToken } from '@semiont/core';
 
 interface Variables {
-  user: User;
+  /** The authenticated caller, built from the token's own claims. */
+  principal: Principal;
   /**
-   * The DID identifying the authenticated principal — either a Person
-   * (computed from the User) or a Software peer (from the JWT's
-   * `agentDid` field). Used as `_userId` on bus emits and as the
-   * `creator` on resource creation, so callers don't have to know
-   * whether the principal is a human or an agent.
+   * The DID identifying the authenticated principal — a Person or a Software
+   * peer. Used as `_userId` on bus emits and as the `creator` on resource
+   * creation, so callers don't have to know which they are dealing with.
+   *
+   * The same string as `principal.did`, set separately because that is how
+   * every consumer reads it and threading the whole principal to each of them
+   * would say less, not more.
    */
   principalDid: string;
-  /**
-   * Set only when the principal is a Software peer (the JWT carried
-   * `agentDid`), so a route can require an agent rather than merely an
-   * authenticated caller. `principalDid` deliberately erases that
-   * distinction; some writes need it back.
-   */
-  agentDid?: string;
 }
 
 export interface AuthContext extends Context {
@@ -86,17 +82,15 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
   }
 
   try {
-    const { user, agentDid } = await principalFromToken(accessToken(tokenStr));
+    const principal = await principalFromToken(accessToken(tokenStr));
 
-    // Add user and token to context
-    c.set('user', user);
-    c.set('principalDid', agentDid ?? userToDid(user));
-    if (agentDid) c.set('agentDid', agentDid);
+    c.set('principal', principal);
+    c.set('principalDid', principal.did);
 
     logger.debug('Authentication successful', {
       type: 'auth_success',
-      userId: user.id,
-      email: user.email,
+      did: principal.did,
+      email: principal.email,
       path: c.req.path,
       method: c.req.method
     });
@@ -123,10 +117,9 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
     const tokenStr = authHeader.substring(7);
 
     try {
-      const { user, agentDid } = await principalFromToken(accessToken(tokenStr));
-      c.set('user', user);
-      c.set('principalDid', agentDid ?? userToDid(user));
-      if (agentDid) c.set('agentDid', agentDid);
+      const principal = await principalFromToken(accessToken(tokenStr));
+      c.set('principal', principal);
+      c.set('principalDid', principal.did);
     } catch (error) {
       // Ignore auth errors for optional auth
     }

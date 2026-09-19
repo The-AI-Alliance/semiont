@@ -4436,7 +4436,7 @@ type UpdateAnnotationBodyRequest_Operations_Item struct {
 //
 // The `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. The row id this endpoint used to return appears nowhere else in the system, so it could not be correlated with anything and is gone.
 //
-// The remaining fields exist to be displayed. Roles are carried but gate nothing here.
+// The remaining fields exist to be displayed, and all of them come from the token's own claims. Role flags used to ride here; they gated nothing, and the row that held them is gone.
 type UserResponse struct {
 	// Did The authenticated principal's DID — `did:web:<domain>:users:<email>` for a person, `did:web:<domain>:agents:<provider>:<model>` for a software agent.
 	Did string `json:"did"`
@@ -4445,13 +4445,7 @@ type UserResponse struct {
 	Domain string  `json:"domain"`
 	Email  string  `json:"email"`
 	Image  *string `json:"image"`
-
-	// IsAdmin Carried, read by nothing. No gateway route grants access on this basis.
-	IsAdmin bool `json:"isAdmin"`
-
-	// IsModerator Carried, read by nothing. No gateway route grants access on this basis.
-	IsModerator bool    `json:"isModerator"`
-	Name        *string `json:"name"`
+	Name   *string `json:"name"`
 }
 
 // WeaveRebuildCommand Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.
