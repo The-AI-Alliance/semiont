@@ -176,7 +176,6 @@ interface EnvironmentSection {
     domain?: string;
     siteName?: string;
     adminEmail?: string;
-    enableLocalAuth?: boolean;
   };
   database?: {
     platform?: string;

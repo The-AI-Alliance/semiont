@@ -1047,10 +1047,6 @@
                 "type": "string"
               }
             },
-            "enableLocalAuth": {
-              "type": "boolean",
-              "description": "Enable local username/password authentication"
-            },
             "jwtSecret": {
               "type": "string",
               "minLength": 32,
