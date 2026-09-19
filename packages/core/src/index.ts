@@ -374,7 +374,6 @@ export * from './service-account';
 export type {
   EnvironmentConfig,
   SiteConfig,
-  AppConfig,
 } from './config/config.types';
 
 export {
