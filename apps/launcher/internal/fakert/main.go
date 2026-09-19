@@ -30,6 +30,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -1324,6 +1325,16 @@ var (
 	bearerUses  = map[string]int{}
 )
 
+// unsignedJWT renders claims as a JWT with `alg: none` and a stub signature.
+// Nothing that reads these tokens verifies them — the launcher's preflight
+// decodes without trusting, because verification is the gateway's job against
+// the issuer's published keys — so a fake issuer needs no key.
+func unsignedJWT(claims map[string]any) string {
+	b, _ := json.Marshal(claims)
+	enc := base64.RawURLEncoding.EncodeToString
+	return enc([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + enc(b) + ".fake"
+}
+
 func serve(ports []string) {
 	done := make(chan struct{})
 	for _, p := range ports {
@@ -1412,6 +1423,38 @@ func serve(ports []string) {
 						}
 						jsonOut(200, map[string]any{
 							"access_token": "fake-jwt-token", "refresh_token": "fake-refresh-token",
+							"token_type": "Bearer", "expires_in": 300,
+						})
+					case "client_credentials":
+						// A service account proving who it is, for the start's
+						// identity preflight. The claims are the two the
+						// launcher checks — a FLAT `roles` array and an `aud`
+						// carrying the knowledge base's resource identity —
+						// in the array form a real Keycloak emits, "account"
+						// included.
+						//
+						// The audience comes from kb-resource.txt in
+						// FAKERT_DIR, written by the test beside the KB
+						// fixture it derives from, so the expected value is
+						// stated once on that side rather than restated here.
+						if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+							_ = os.WriteFile(filepath.Join(dir, "client-credentials.txt"),
+								[]byte(r.PostForm.Get("client_id")+"\n"), 0o644)
+						}
+						aud := origin
+						if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+							if b, err := os.ReadFile(filepath.Join(dir, "kb-resource.txt")); err == nil {
+								if s := strings.TrimSpace(string(b)); s != "" {
+									aud = s
+								}
+							}
+						}
+						jsonOut(200, map[string]any{
+							"access_token": unsignedJWT(map[string]any{
+								"roles": []string{"semiont-service"},
+								"aud":   []string{aud, "account"},
+								"azp":   r.PostForm.Get("client_id"),
+							}),
 							"token_type": "Bearer", "expires_in": 300,
 						})
 					case "refresh_token":

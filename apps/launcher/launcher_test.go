@@ -131,8 +131,41 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 		fakertDir: t.TempDir(),
 	}
 	s.log = filepath.Join(s.fakertDir, "argv.log")
+	// The audience fakert's issuer stamps into service-account tokens, so the
+	// start's identity preflight sees what a real realm would emit. Derived
+	// from the SAME committed fixture the launcher reads, so the two cannot
+	// drift into disagreeing about this knowledge base's identity.
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "kb-resource.txt"),
+		[]byte(kbFixtureResource(t)), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { s.killServes() })
 	return s
+}
+
+// kbFixtureResource: the resource identifier the KB fixture's committed
+// `[site] domain` yields — the same derivation kbResource performs, which
+// lives in an internal package this binary-level test cannot import.
+func kbFixtureResource(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "domain")
+		if !ok {
+			continue
+		}
+		rest = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rest), "="))
+		domain := strings.Trim(rest, `"`)
+		if domain == "" {
+			break
+		}
+		return "https://" + strings.ReplaceAll(domain, ":", "/")
+	}
+	t.Fatalf("no [site] domain in the KB fixture — the preflight's audience cannot be derived")
+	return ""
 }
 
 func (s *scenario) mustLog(t *testing.T) []byte {
@@ -7185,4 +7218,14 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 		t.Fatalf("no exec stdin recorded — the keycloak database was never created: %v", err)
 	}
 	mustContain(t, "create database", string(in), "CREATE DATABASE keycloak", "WHERE NOT EXISTS", `\gexec`)
+	// The identity preflight ran. Without this, a start that silently SKIPPED
+	// the check would pass every assertion above: the preflight issues no
+	// container command, so the argv golden cannot see it either way.
+	cc, err := os.ReadFile(filepath.Join(s.fakertDir, "client-credentials.txt"))
+	if err != nil {
+		t.Fatalf("no client-credentials grant reached the issuer — the identity preflight did not run: %v", err)
+	}
+	if got := strings.TrimSpace(string(cc)); !strings.HasPrefix(got, "semiont-") {
+		t.Errorf("preflight presented an unexpected client id: %q", got)
+	}
 }
