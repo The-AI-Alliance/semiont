@@ -47,20 +47,6 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   };
 });
 
-// Mock the database before any imports to avoid connection attempts
-vi.mock('../db', () => ({
-  DatabaseConnection: {
-    getClient: vi.fn(() => ({
-      $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-      user: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-    })),
-    checkHealth: vi.fn().mockResolvedValue(true),
-  },
-}));
-
 describe('Main Application (index.ts)', () => {
   let app: GatewayApp;
   let testEnv: TestEnvironmentConfig;

@@ -42,12 +42,6 @@ vi.mock('jsonwebtoken', () => {
 // Import the mocked module to access the mock functions
 import jwt from 'jsonwebtoken';
 
-// Mock validation schemas - not needed anymore since JWT uses direct imports
-vi.mock('../../validation/schemas', () => ({
-  validateData: vi.fn((_schema, data) => ({ success: true, data })),
-  JWTPayloadSchema: {},
-}));
-
 // Mock the jwt-types JWTPayloadSchema
 vi.mock('../../types/jwt-types', () => ({
   JWTPayloadSchema: {

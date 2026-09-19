@@ -105,16 +105,6 @@ const testUser = {
 // Generate a test token for authenticated requests
 let testToken: string;
 
-// Mock configuration
-vi.mock('../../config', () => ({
-  CONFIG: {
-    NODE_ENV: 'test',
-    PORT: 3001,
-    JWT_SECRET: 'test-jwt-secret',
-    CORS_ORIGIN: 'http://localhost:3000',
-  },
-}));
-
 describe('API Endpoints Integration Tests', () => {
   beforeAll(async () => {
     // Set required environment variables before importing app
