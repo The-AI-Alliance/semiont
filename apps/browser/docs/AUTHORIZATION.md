@@ -2,35 +2,42 @@
 
 ## Overview
 
-The Semiont Browser implements a foundation for fine-grained access control with graceful 403 error handling and permission-aware UI components. While the current implementation is minimal, the architecture is designed to scale with future RBAC (Role-Based Access Control) requirements.
+The Semiont Browser carries the machinery for fine-grained access control, but
+nothing currently exercises it. The gateway has exactly one authorization gate —
+authenticate, or 401 — and returns no 403 anywhere, so the permission-denied path
+below is wired end to end and dormant. It is the place a future per-resource
+permission model would arrive, not a description of a system running today.
 
 ## Current State
 
-### Basic Permission System
+### What exists
 
-The current authorization system provides:
-
-- **Global 403 error handling** via event-driven architecture
+- **A complete 403 path** — transport maps the status to a `forbidden` error,
+  the session raises `notifyPermissionDenied`, the modal shows. Tested, and
+  untriggered against this gateway.
 - **PermissionDeniedModal** for user-friendly access denial messages
-- **Permission hooks** ready for expansion
 - **Type-safe error handling** with proper status codes
 
-### Core Components
+### What does NOT exist
 
-#### 1. Role flags from the active session's `user$`
-
-Role flags live on the authenticated user, exposed by the active `SemiontSession` as `user$`:
+**Role flags.** There is no `isAdmin` and no `isModerator`, on the session or
+anywhere else. The active session's `user$` emits exactly what
+`GET /api/users/me` returns:
 
 ```typescript
 import { useSemiont, useObservable } from '@semiont/react-ui';
 
 const session = useObservable(useSemiont().activeSession$);
 const user = useObservable(session?.user$);
-const isAdmin = user?.isAdmin ?? false;
-const isModerator = user?.isModerator ?? false;
+// { did, email, name, image, domain } — and nothing else
 ```
 
-These come straight from the authenticated user record and are coarse — fine-grained permission scopes are still gateway-only and a future enhancement.
+The `did` is the identity: it is what the bus stamps on every event and what a
+client compares against to recognise its own work. The rest is for display.
+
+Accounts and any roles they hold live at the knowledge base's identity provider.
+The gateway reads none of them, so the browser has none to read either, and a
+component that gates on a role flag is gating on `undefined`.
 
 #### 2. PermissionDeniedModal (`@semiont/react-ui`)
 
@@ -85,7 +92,9 @@ flowchart TD
    ```
 
 3. **Component Level**
-   - Components can read `isAdmin` / `isModerator` from the active session's `user$` (`useObservable(session?.user$)`) to disable or hide UI affordances proactively
+   - Nothing to check proactively. With no role flags and no 403s, a component
+     cannot know in advance that an action will be refused — it attempts the
+     action and handles the error.
 
 ## Security Considerations
 
@@ -192,18 +201,20 @@ Both systems use the same event-driven architecture for consistent error handlin
 
 ## Usage Examples
 
-### Checking Permissions
+### Identifying the signed-in person
+
+There is no permission to check before acting. What the session can tell you is
+who the caller is — which is what attribution and "is this mine?" need:
 
 ```typescript
 function MyComponent() {
   const session = useObservable(useSemiont().activeSession$);
-  const isAdmin = useObservable(session?.user$)?.isAdmin ?? false;
+  const me = useObservable(session?.user$);
 
-  if (!isAdmin) {
-    return <ReadOnlyMessage />;
-  }
+  // Recognise this viewer's own work in the data.
+  const mine = annotations.filter((a) => a.creator === me?.did);
 
-  return <EditableContent />;
+  return <AnnotationList items={mine} />;
 }
 ```
 
@@ -298,14 +309,17 @@ const permissions = {
 ### Common Issues
 
 1. **Modal not appearing on 403**
+   - First: confirm a 403 actually occurred. This gateway returns none — every
+     refusal is a 401 — so against it the modal is expected never to show.
    - Check that the transport surfaced a `forbidden` error on `session.errors$` (it drives `notifyPermissionDenied`)
    - Verify `PermissionDeniedModal` is mounted inside `AuthShell`
    - Confirm the page is inside the protected layout boundary — outside it, no provider is mounted and the notify call is a no-op
    - Check browser console for errors
 
-2. **Coarse role flags only**
-   - `isAdmin` / `isModerator` come straight from `getMe`
-   - Fine-grained per-resource permissions are pending gateway support
+2. **Looking for role flags**
+   - There are none. `user$` carries `did`, `email`, `name`, `image`, `domain`.
+   - Roles live at the identity provider; the gateway reads none of them, so a
+     per-resource permission model has to arrive there first.
 
 3. **403 errors not caught**
    - Ensure using `APIError` class from http-transport

@@ -59,16 +59,15 @@ import { Hono } from 'hono';
 import type { Principal } from '../identity/principal';
 import { authMiddleware } from '../middleware/auth';
 
-export const myFeatureRouter = new Hono<{ Variables: { user: User } }>();
+export const myFeatureRouter = new Hono<{ Variables: { principal: Principal } }>();
 
 // Apply auth middleware to all routes under /api/my-feature/*
 myFeatureRouter.use('/api/my-feature/*', authMiddleware);
 
 // All routes below are now protected
 myFeatureRouter.get('/api/my-feature/items', async (c) => {
-  const user = c.get('user'); // User context automatically available
-  const userId = user.id;
-  const isAdmin = user.isAdmin;
+  const principal = c.get('principal'); // derived from the token's own claims
+  const who = principal.did;            // did:web:<domain>:users:<email>
 
   // Your protected logic here
   return c.json({ data: 'protected' });
@@ -86,7 +85,7 @@ import { ResourcesRouterType } from '../shared';
 export function registerMyNewRoute(router: ResourcesRouterType) {
   // This route is AUTOMATICALLY protected by router.use() in shared.ts
   router.post('/api/resources/:id/my-action', async (c) => {
-    const user = c.get('user'); // User available automatically
+    const principal = c.get('principal'); // available automatically
     // Your logic here
   });
 }
@@ -132,10 +131,12 @@ The gateway has exactly one authorization gate: `authMiddleware`, which answers
 401 or admits the request. Nothing in the gateway reads a role to decide access,
 and no route returns 403.
 
-`isAdmin` and `isModerator` are carried on the principal and echoed by
-`GET /api/auth/me` so that a client can shape its own UI, but they gate nothing
-here. Accounts and their roles are administered at the knowledge base's identity
-provider, not through this API.
+The principal carries no role flags at all. It is derived from the token's own
+claims — DID, email, name, image, domain — and nothing more, so there is no
+admission opinion for the gateway to hold and none to leak into a response.
+Accounts are administered at the knowledge base's identity provider, and a
+token's lifetime is the revocation window: disabling an account there stops the
+issuer minting and refreshing, and a token already issued works until it expires.
 
 ## Gateway Authentication Flow
 
@@ -151,20 +152,23 @@ curl -H "Authorization: Bearer eyJhbGc..." \
 
 The auth middleware automatically:
 - Extracts the token from the `Authorization: Bearer` header (or the `?token=` media token on `GET /api/resources/:id`)
-- Verifies the JWT signature
+- Dispatches on the token's `iss`: a token from the trusted issuer is verified
+  against that issuer's published keys (JWKS), issuer and audience checked; a
+  gateway-minted agent token is verified against the gateway's own key ring
 - Checks token expiration
-- Loads the user from the database and confirms they are active
-- Attaches the user to the request context
+- Builds the principal from the verified claims — no lookup, because there is
+  no directory here to look in
+- Attaches the principal to the request context
 
 ### 3. Route Access
 
 ```typescript
-// User context available in all protected routes
+// Principal available in all protected routes
 app.get('/api/documents', async (c) => {
-  const user = c.get('user');
-  // user.sub - User ID
-  // user.email - User email
-  // user.isAdmin - Admin flag
+  const principal = c.get('principal');
+  // principal.did    - who this is, and what their events are attributed to
+  // principal.email  - from the token's claims
+  // principal.domain - the email's domain for a person; the deployment's for an agent
 });
 ```
 
@@ -212,28 +216,39 @@ its `agentDid`.
 
 ```json
 {
-  "userId": "clx0a1b2c3d4e5f6g7h8i9j0k",
-  "email": "anthropic-claude-sonnet-5@agents.example.com",
-  "domain": "example.com",
-  "provider": "agent",
-  "isAdmin": false,
-  "agentDid": "did:web:example.com:agents:anthropic:claude-sonnet-5",
+  "did": "did:web:example.github.io:my-kb:agents:anthropic:claude-sonnet-5",
+  "email": "anthropic-claude-sonnet-5@agents.example.github.io",
+  "name": "anthropic claude-sonnet-5",
+  "domain": "example.github.io:my-kb",
+  "iss": "semiont-gateway",
   "iat": 1698765432,
-  "exp": 1698851832
+  "exp": 1698769032
 }
 ```
+
+The DID is the whole identity: there is no row id beside it, and no role flag.
+The lifetime IS the revocation window — an hour — because no account exists
+anywhere to disable. That is the price of agents having no issuer accounts, and
+it is why the exchange is the gateway's only minting surface.
 
 ## Security Implementation
 
 ### JWT Validation Layers
 
-The gateway validates tokens through multiple layers:
+The gateway validates tokens through these layers:
 
-1. **Signature verification** - HMAC SHA256
-2. **Payload structure** - Zod schema validation
-3. **Expiration checking** - Token not expired
-4. **User verification** - User exists and active in database
-5. **Domain validation** - Email domain allowed
+1. **Signature verification** - RS256 against the issuer's published keys (JWKS)
+   for a token from the trusted issuer; HMAC SHA256 against the gateway's own
+   key ring for an agent token it minted itself
+2. **Issuer and audience** - `iss` names the trusted issuer, `aud` carries this
+   knowledge base's derived resource identity
+3. **Payload structure** - Zod schema validation
+4. **Expiration checking** - Token not expired
+
+There is no fifth layer. Verification once ended with a database lookup that
+confirmed the account existed and was active, and with an email-domain
+allowlist; both are gone. Admission belongs to the issuer, so a token the
+issuer signed and has not expired is admitted.
 
 ### Security Features
 
@@ -289,13 +304,15 @@ secret and always fails. See
 [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out)
 for the rotation procedure.
 
-**"Forbidden" Error (403)**:
+**Unexpected 401**:
+
+No route answers 403 — the gateway reads no role to decide access, so a refusal
+is always a failure to authenticate. Inspect the resolved principal:
 
 ```typescript
-// Inspect the resolved principal
-app.get('/api/debug-user', async (c) => {
-  const user = c.get('user');
-  return c.json({ user });
+app.get('/api/debug-principal', async (c) => {
+  const principal = c.get('principal');
+  return c.json({ principal });
 });
 ```
 
@@ -338,12 +355,12 @@ echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print "key "NR": "length($0)" chars" }
 ```typescript
 // Add debug endpoint
 app.get('/api/debug/whoami', async (c) => {
-  const user = c.get('user');
+  const principal = c.get('principal');
   return c.json({
-    authenticated: !!user,
-    userId: user?.sub,
-    email: user?.email,
-    isAdmin: user?.isAdmin
+    authenticated: !!principal,
+    did: principal?.did,
+    email: principal?.email,
+    domain: principal?.domain
   });
 });
 ```
