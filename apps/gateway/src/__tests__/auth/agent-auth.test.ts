@@ -27,7 +27,7 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
 import { configureTrustedIssuer } from '../../identity/trusted-issuer';
-import { AGENT_ROLE } from '../../identity/agent-minter';
+import { SERVICE_ROLE } from '../../identity/agent-minter';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
 import type { components } from '@semiont/core';
 
@@ -42,7 +42,7 @@ let issuer: FixtureIssuer;
 
 /** A service-account token carrying the role that authorizes minting. */
 async function sidecarToken(claims: Record<string, unknown> = {}) {
-  return issuer.token({ claims: { azp: 'semiont-weaver', roles: [AGENT_ROLE], ...claims } });
+  return issuer.token({ claims: { azp: 'semiont-weaver', roles: [SERVICE_ROLE], ...claims } });
 }
 
 /** The request every successful case makes, differing only in what it asks for. */
@@ -200,21 +200,21 @@ describe('POST /api/tokens/agent', () => {
 
       expect(response.status).toBe(401);
       const data = await response.json() as ErrorResponse;
-      expect(String(data.error)).toMatch(/semiont-agent/);
+      expect(String(data.error)).toMatch(/semiont-service/);
     });
 
     it('returns 401 when the role claim is nested rather than flat', async () => {
       // Keycloak's own shape. The gateway reads a flat `roles` array so that an
       // operator on another issuer can map into it; accepting the nested form
       // too would put a vendor's layout in the verification path.
-      const nested = await issuer.token({ claims: { realm_access: { roles: [AGENT_ROLE] } } });
+      const nested = await issuer.token({ claims: { realm_access: { roles: [SERVICE_ROLE] } } });
 
       expect((await mint(ASK, nested)).status).toBe(401);
     });
 
     it('returns 401 for a token signed by a key the issuer does not publish', async () => {
       const forged = await issuer.token({
-        claims: { roles: [AGENT_ROLE] },
+        claims: { roles: [SERVICE_ROLE] },
         privateKey: await issuer.unpublishedKey(),
       });
 
@@ -223,7 +223,7 @@ describe('POST /api/tokens/agent', () => {
 
     it('returns 401 for a token minted for another audience', async () => {
       const wrongAudience = await issuer.token({
-        claims: { roles: [AGENT_ROLE] },
+        claims: { roles: [SERVICE_ROLE] },
         audience: 'https://example.github.io/some-other-kb',
       });
 

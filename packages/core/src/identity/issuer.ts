@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { JWTPayload, RemoteJWKSet, RemoteJWKSetOptions } from 'jose';
-import { isObject, isString } from '@semiont/core';
-import type { AccessToken } from '@semiont/core';
+import { isObject, isString } from '../type-guards';
+import type { AccessToken } from '../branded-types';
 
 export interface IssuerVerifierOptions {
   /** The issuer URL, exactly as it appears in `iss`; discovery is read beneath it. */
@@ -12,6 +12,16 @@ export interface IssuerVerifierOptions {
 
 /**
  * Verifies tokens from one OIDC issuer against the keys that issuer publishes.
+ *
+ * Lives in core rather than in the gateway because the gateway is no longer the
+ * only verifier: the Archivist authenticates its own callers, and two copies of
+ * a verifier is exactly how two services come to disagree about which tokens
+ * are acceptable.
+ *
+ * Reachable ONLY as `@semiont/core/identity`. That subpath is what keeps `jose`
+ * out of the browser bundle — a bundler includes what is imported, and nothing
+ * in the browser imports this. Re-exporting it from core's root index would
+ * pull jose into every bundle silently, which is why a lint forbids it.
  * Discovery is read once and kept; keys are selected by `kid` and refetched on
  * an unknown `kid` no more often than the cooldown.
  */

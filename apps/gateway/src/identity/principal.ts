@@ -2,7 +2,7 @@ import { decodeJwt } from 'jose';
 import type { AccessToken } from '@semiont/core';
 import { isString, userToDid } from '@semiont/core';
 import { JWTService } from '../auth/jwt';
-import { IssuerVerifier } from './issuer';
+import { IssuerVerifier } from '@semiont/core/identity';
 import { trustedIssuer } from './trusted-issuer';
 
 /**

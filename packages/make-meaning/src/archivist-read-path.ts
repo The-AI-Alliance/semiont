@@ -42,17 +42,31 @@
  * the Stower still `register`s the bytes from disk and does the one `git add`
  * on event apply (GATEWAY.md D4b, single-writer).
  *
- * Auth: callers authenticate with the same SEMIONT_WORKER_SECRET the
- * agent-token flow uses — service-to-service, one shared deployment fact.
- * With no secret configured, every path but /health refuses loudly (503)
- * rather than serving unauthenticated: absence fails, it is never a
- * default-open.
+ * Auth: callers present a token from the knowledge base's trusted issuer
+ * carrying the `semiont-service` role — the same credential a sidecar uses to
+ * buy an agent token from the gateway. This is a real boundary, not a
+ * formality: these paths serve the EVENT LOG and accept BYTE WRITES into the
+ * working tree.
+ *
+ * It used to be a shared static string compared by equality, held by six
+ * processes and rotatable only by restarting the stack. With no verifier
+ * configured, every path but /health refuses rather than serving
+ * unauthenticated: absence fails, it is never a default-open.
  */
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'http';
 import { pipeline } from 'stream/promises';
-import type { Logger } from '@semiont/core';
+import type { AccessToken, Logger } from '@semiont/core';
 import { resourceId as makeResourceId, errField } from '@semiont/core';
+import type { IssuerVerifier } from '@semiont/core/identity';
+
+/**
+ * The role a caller's token must carry. Must equal SERVICE_ROLE in
+ * apps/gateway/src/identity/agent-minter.ts and `serviceRole` in the
+ * launcher's identity.go — one string, three readers, and the realm is what
+ * stamps it.
+ */
+const SERVICE_ROLE = 'semiont-service';
 import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
 import { ChecksumMismatchError, RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
 import { resolveRepresentation } from './representation';
@@ -65,8 +79,11 @@ export interface ArchivistServerDeps {
   content: Pick<WorkingTreeStore, 'store' | 'retrieveStream'>;
   /** The record's views — the resource half of the one resolution. */
   views: Pick<ViewStorage, 'get'>;
-  /** Shared service secret; empty disables everything but /health (503), never opens it. */
-  workerSecret: string;
+  /**
+   * Verifies caller tokens against the issuer this knowledge base trusts.
+   * `null` disables everything but /health, never opens it.
+   */
+  verifier: IssuerVerifier | null;
   /** Liveness payload for /health — actor states, counters. */
   health: () => Record<string, unknown>;
   /**
@@ -87,22 +104,38 @@ const json = (res: ServerResponse, status: number, body: unknown): void => {
 };
 
 export function createArchivistServer(deps: ArchivistServerDeps): Server {
-  const { events, content, views, workerSecret, health, branch, logger } = deps;
+  const { events, content, views, verifier, health, branch, logger } = deps;
 
-  /** The 503/401 posture every authenticated path shares. True = request may proceed. */
-  const authorized = (req: IncomingMessage, res: ServerResponse): boolean => {
-    if (!workerSecret) {
-      json(res, 503, { error: 'disabled: no SEMIONT_WORKER_SECRET configured' });
+  /**
+   * The 401 posture every authenticated path shares. True = request may proceed.
+   *
+   * Every refusal is 401, including "no issuer is configured here". That is
+   * deployment state, and a caller who has not proved who they are has not
+   * earned it — the same reason the gateway's agent exchange answers one
+   * status for every refusal.
+   */
+  const authorized = async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
+    const header = req.headers.authorization;
+    const bearer = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
+    if (!bearer || !verifier) {
+      json(res, 401, { error: 'unauthorized' });
       return false;
     }
-    if (req.headers.authorization !== `Bearer ${workerSecret}`) {
+    try {
+      const claims = await verifier.verify(bearer as AccessToken);
+      const roles = claims['roles'];
+      if (!Array.isArray(roles) || !roles.includes(SERVICE_ROLE)) {
+        json(res, 401, { error: 'unauthorized' });
+        return false;
+      }
+    } catch {
       json(res, 401, { error: 'unauthorized' });
       return false;
     }
     return true;
   };
 
-  return createServer((req, res) => {
+  return createServer((req, res) => void (async () => {
     const url = new URL(req.url ?? '/', 'http://archivist');
 
     if (req.method === 'GET' && url.pathname === '/health') {
@@ -114,13 +147,13 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
     // P5). A KB-tree read like every other path here, and authenticated like
     // them: a branch name says which line of work a knowledge base is on.
     if (req.method === 'GET' && url.pathname === '/kb/branch') {
-      if (!authorized(req, res)) return;
+      if (!(await authorized(req, res))) return;
       json(res, 200, { branch: branch() });
       return;
     }
 
     if (req.method === 'GET' && url.pathname.startsWith('/events/')) {
-      if (!authorized(req, res)) return;
+      if (!(await authorized(req, res))) return;
 
       const rawId = decodeURIComponent(url.pathname.slice('/events/'.length));
       const rawFrom = url.searchParams.get('fromSequence');
@@ -149,7 +182,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
     // resourceId containing '/' cannot masquerade as another route.
     const contentMatch = req.method === 'GET' && /^\/resources\/(.+)\/content$/.exec(url.pathname);
     if (contentMatch) {
-      if (!authorized(req, res)) return;
+      if (!(await authorized(req, res))) return;
 
       const rid = decodeURIComponent(contentMatch[1]!);
       resolveRepresentation({ views, content }, makeResourceId(rid))
@@ -177,7 +210,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
     }
 
     if (req.method === 'PUT' && url.pathname.startsWith('/content/')) {
-      if (!authorized(req, res)) return;
+      if (!(await authorized(req, res))) return;
 
       const storageUri = decodeURIComponent(url.pathname.slice('/content/'.length));
       if (!storageUri) {
@@ -206,5 +239,11 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
 
     res.writeHead(404);
     res.end();
-  });
+  })().catch((error: unknown) => {
+    // An async handler's rejection has nowhere to go but here: without this the
+    // socket would hang and the process would log an unhandled rejection.
+    logger.error('Archivist request failed', { error: errField(error) });
+    if (!res.headersSent) json(res, 500, { error: 'internal error' });
+    else res.end();
+  }));
 }

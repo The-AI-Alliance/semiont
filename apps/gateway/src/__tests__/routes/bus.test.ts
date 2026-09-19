@@ -113,11 +113,21 @@ interface QueryEventsStub {
  * assertions on WHAT was asked survive the transport change.
  */
 const ARCHIVIST_HOST = 'archivist.test';
-process.env.SEMIONT_WORKER_SECRET ??= 'bus-test-worker-secret';
+const ISSUER = 'https://issuer.test';
+process.env.SEMIONT_OIDC_CLIENT_ID ??= 'semiont-gateway';
+process.env.SEMIONT_OIDC_CLIENT_SECRET ??= 'bus-test-client-secret';
 
 function withArchivistReplay(queryEvents: QueryEventsStub = async () => []) {
   vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
     const u = new URL(String(url));
+    // The hop to the Archivist authenticates with a service-account token now,
+    // so the stub answers the issuer as well: discovery, then the grant.
+    if (u.pathname.includes('/.well-known/openid-configuration')) {
+      return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
+    }
+    if (u.pathname.endsWith('/token')) {
+      return Response.json({ access_token: 'a-service-account-token', expires_in: 300 });
+    }
     const rid = decodeURIComponent(u.pathname.slice('/events/'.length));
     const events = await queryEvents(rid, { fromSequence: Number(u.searchParams.get('fromSequence')) });
     return new Response(JSON.stringify({ events }), {
@@ -142,7 +152,7 @@ function buildApp(
     c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);
-    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 } } });
+    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 }, identity: { issuer: ISSUER } } });
     await next();
   });
   app.route('/', router);

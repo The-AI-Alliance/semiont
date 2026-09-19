@@ -17,13 +17,13 @@ const (
 	// Browser is machine-level, so one public client (PKCE) serves it.
 	browserClientID = "semiont-browser"
 
-	// agentRole: what a token must carry, in a FLAT `roles` array, for the
+	// serviceRole: what a token must carry, in a FLAT `roles` array, for the
 	// gateway to mint a software-agent token for its bearer. Flat and
 	// vendor-neutral by design — the gateway's verification path names no
 	// Keycloak structure, so an operator federating another issuer maps their
-	// own groups into the same claim. Must equal AGENT_ROLE in
+	// own groups into the same claim. Must equal SERVICE_ROLE in
 	// apps/gateway/src/identity/agent-minter.ts.
-	agentRole = "semiont-agent"
+	serviceRole = "semiont-service"
 
 	// keycloakAccessTokenLifespan: how long an access token the realm mints
 	// stays valid, in seconds.
@@ -82,16 +82,18 @@ func identityEndpoint(rp rolePlan) string {
 	return fmt.Sprintf("http://localhost:%d%s", rp.Port, issuerPath(rp.Issuer))
 }
 
-// sidecarClients: the processes that exchange a service-account token for a
-// software-agent token, and so need an account at the realm.
+// serviceClients: every process that PRESENTS a token to another Semiont
+// service, and so needs an account at the realm.
 //
-// The gateway is deliberately NOT among them. It VERIFIES these tokens; it
-// never presents one, and giving it a credential it does not use would be a
-// standing one it could leak.
-var sidecarClients = []string{"archivist", "librarian", "smelter", "weaver", "worker"}
+// The gateway is among them, which it was not at first. The argument for
+// leaving it out — "it verifies tokens, it never presents one" — was true of
+// the agent exchange and false in general: the gateway dials the Archivist for
+// content, events and the working tree's branch, and has to prove who it is
+// like anyone else.
+var serviceClients = []string{"archivist", "gateway", "librarian", "smelter", "weaver", "worker"}
 
-// sidecarClientID: the realm client id for a sidecar's service account.
-func sidecarClientID(svc string) string { return "semiont-" + svc }
+// serviceClientID: the realm client id for one service's account.
+func serviceClientID(svc string) string { return "semiont-" + svc }
 
 // serviceAccountClient: a confidential client that can obtain a token for
 // ITSELF (the client-credentials grant) and nothing else — no browser flow, no
@@ -104,7 +106,7 @@ func sidecarClientID(svc string) string { return "semiont-" + svc }
 // without needing a realm role created and assigned in the same import.
 func serviceAccountClient(svc, secret, audience string) map[string]any {
 	return map[string]any{
-		"clientId":                  sidecarClientID(svc),
+		"clientId":                  serviceClientID(svc),
 		"name":                      "Semiont " + svc,
 		"enabled":                   true,
 		"protocol":                  "openid-connect",
@@ -127,13 +129,13 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 				},
 			},
 			{
-				"name":            "semiont agent role",
+				"name":            "semiont service role",
 				"protocol":        "openid-connect",
 				"protocolMapper":  "oidc-hardcoded-claim-mapper",
 				"consentRequired": false,
 				"config": map[string]string{
 					"claim.name":         "roles",
-					"claim.value":        `["` + agentRole + `"]`,
+					"claim.value":        `["` + serviceRole + `"]`,
 					"jsonType.label":     "JSON",
 					"access.token.claim": "true",
 					"id.token.claim":     "false",
@@ -168,9 +170,9 @@ func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]s
 		"oauth2.device.authorization.grant.enabled": "true",
 	}
 	clients := []map[string]any{browser, cli}
-	// Ordered by `sidecarClients`, not by map iteration: the rendered document
+	// Ordered by `serviceClients`, not by map iteration: the rendered document
 	// is compared against a golden, and Go randomises map order.
-	for _, svc := range sidecarClients {
+	for _, svc := range serviceClients {
 		clients = append(clients, serviceAccountClient(svc, sidecarSecrets[svc], audience))
 	}
 	doc := map[string]any{
@@ -237,8 +239,8 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, bool) {
 	// each secret reads the same value out of the same file rather than having
 	// it threaded through the start flow.
 	secrets := map[string]string{}
-	for _, svc := range sidecarClients {
-		secret, ok := x.sidecarClientSecret(fc.root, svc)
+	for _, svc := range serviceClients {
+		secret, ok := x.serviceClientSecret(fc.root, svc)
 		if !ok {
 			return nil, false
 		}

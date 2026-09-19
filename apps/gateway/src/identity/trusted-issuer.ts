@@ -1,5 +1,5 @@
 import type { EnvironmentConfig } from '@semiont/core';
-import { IssuerVerifier } from './issuer';
+import { IssuerVerifier } from '@semiont/core/identity';
 
 let verifier: IssuerVerifier | null = null;
 

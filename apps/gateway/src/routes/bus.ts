@@ -57,7 +57,7 @@ async function fetchArchivistReplay(
   resourceId: string,
   fromSequence: number,
 ): Promise<StoredEvent[]> {
-  const { base, headers } = archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config);
   // A CLIENT span for the same reason lib/archivist.ts wraps its three calls:
   // this crosses to another service, and without it a slow replay is
   // indistinguishable from a slow gateway.

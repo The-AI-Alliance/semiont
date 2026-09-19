@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SignJWT, errors } from 'jose';
 import { accessToken } from '@semiont/core';
-import { IssuerVerifier, type IssuerVerifierOptions } from '../../identity/issuer';
+import { IssuerVerifier, type IssuerVerifierOptions } from '@semiont/core/identity';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
 
 const ORIGIN = 'https://issuer.test';

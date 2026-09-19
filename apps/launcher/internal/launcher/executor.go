@@ -47,11 +47,9 @@ type executor interface {
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
 	either(cond func() bool, then, els func() int) int
 	otelDetect(addr string) []string                     // --service: OTel iff the collector is up
-	recoverSecret() (string, bool)                       // --service: rejoin the running stack's secret
-	workerSecret() (string, bool)                        // full start: env or generated
 	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
 	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
-	sidecarClientSecret(root, svc string) (string, bool) // a sidecar's service-account credential, per root
+	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
 	stageRealm(realm string, doc []byte) (string, bool)  // the realm file Keycloak imports; returns its staged path
 	createDatabase(user, name string) bool               // a database on the launcher-run PostgreSQL, if absent
 	ollamaVolume(opts startOptions) string               // model-cache choice (prompt is live-only)
@@ -550,14 +548,6 @@ func (x *liveExec) otelDetect(addr string) []string {
 	return nil
 }
 
-func (x *liveExec) recoverSecret() (string, bool) {
-	return serviceSecret(x.u, x.rt)
-}
-
-func (x *liveExec) workerSecret() (string, bool) {
-	return fullStartSecret(x.u)
-}
-
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
 // the SAME value a full start did — no inspect-based recovery needed (contrast
 // recoverSecret, which exists because the worker secret is never persisted).
@@ -578,8 +568,8 @@ func (x *liveExec) identityAdminPassword(root string) (string, bool) {
 	return loadOrCreateKeycloakAdminPassword(x.u, root)
 }
 
-func (x *liveExec) sidecarClientSecret(root, svc string) (string, bool) {
-	return loadOrCreateSidecarClientSecret(x.u, root, svc)
+func (x *liveExec) serviceClientSecret(root, svc string) (string, bool) {
+	return loadOrCreateServiceClientSecret(x.u, root, svc)
 }
 
 func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
@@ -1074,13 +1064,6 @@ func (x *planExec) otelDetect(string) []string {
 	return nil
 }
 
-func (x *planExec) recoverSecret() (string, bool) {
-	x.c("worker secret: recovered from a running Semiont container's env (inspect), else $SEMIONT_WORKER_SECRET, else generated")
-	return "<worker-secret>", true
-}
-
-func (x *planExec) workerSecret() (string, bool) { return "<worker-secret>", true }
-
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
 // never has the side effect of creating a root's signing key.
 func (x *planExec) jwtSecret(root string) (string, bool) { return "<jwt-secret>", true }
@@ -1089,7 +1072,7 @@ func (x *planExec) identityAdminPassword(string) (string, bool) {
 	return "<keycloak-admin-password>", true
 }
 
-func (x *planExec) sidecarClientSecret(_, svc string) (string, bool) {
+func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
 	return "<" + svc + "-client-secret>", true
 }
 

@@ -22,14 +22,19 @@ import { trustedIssuer } from './trusted-issuer';
  */
 
 /**
- * The claim, and the role within it, that authorizes minting.
+ * The claim, and the role within it, that marks a Semiont service account.
+ *
+ * Named for what it IS, not for one thing it permits: the Archivist checks the
+ * same role to admit its own callers. Two roles held by exactly the same set of
+ * accounts would be ceremony; if the two ever need to diverge, that is the
+ * moment to add the second, not before.
  *
  * A FLAT array of strings under `roles` — deliberately not Keycloak's nested
  * `realm_access.roles`. The gateway's verification path carries no vendor
  * names, so an operator federating a different issuer maps their own groups
  * into this same claim and nothing here has to know the difference.
  */
-export const AGENT_ROLE = 'semiont-agent';
+export const SERVICE_ROLE = 'semiont-service';
 const ROLES_CLAIM = 'roles';
 
 export class AgentMinterRefused extends Error {
@@ -72,10 +77,10 @@ export async function authorizeAgentMinter(authorization: string | undefined): P
 
   const roles = claims[ROLES_CLAIM];
   const authorized =
-    Array.isArray(roles) && roles.some((role) => isString(role) && role === AGENT_ROLE);
+    Array.isArray(roles) && roles.some((role) => isString(role) && role === SERVICE_ROLE);
   if (!authorized) {
     throw new AgentMinterRefused(
-      `Agent token carries no '${AGENT_ROLE}' role in its '${ROLES_CLAIM}' claim`,
+      `Agent token carries no '${SERVICE_ROLE}' role in its '${ROLES_CLAIM}' claim`,
     );
   }
 

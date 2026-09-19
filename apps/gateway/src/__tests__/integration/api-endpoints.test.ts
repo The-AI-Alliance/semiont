@@ -111,8 +111,6 @@ vi.mock('../../config', () => ({
     NODE_ENV: 'test',
     PORT: 3001,
     JWT_SECRET: 'test-jwt-secret',
-    GOOGLE_CLIENT_ID: 'test-google-client-id',
-    GOOGLE_CLIENT_SECRET: 'test-google-client-secret',
     ADMIN_EMAIL: 'admin@example.com',
     DATABASE_URL: 'postgresql://test:test@localhost:5432/test_db',
     CORS_ORIGIN: 'http://localhost:3000',
@@ -345,24 +343,23 @@ describe('API Endpoints Integration Tests', () => {
       expect(res.status).toBe(404);
     });
 
-    it('should handle malformed JSON in request body', async () => {
-      // The agent route is the one public POST; it answers 503 without its secret.
-      const priorSecret = process.env.SEMIONT_WORKER_SECRET;
-      process.env.SEMIONT_WORKER_SECRET = 'api-endpoints-worker-secret';
-      try {
-        const res = await app.request('/api/tokens/agent', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: '{invalid json',
-        });
+    /**
+     * Authentication happens BEFORE the body is read.
+     *
+     * This asserted 400 while the agent route was the one public POST. It no
+     * longer is — every POST the gateway serves requires a bearer — so an
+     * unauthenticated caller sending rubbish gets 401 and the body is never
+     * parsed. That ordering is the property worth holding: a parser should not
+     * run on input from someone who has not identified themselves.
+     */
+    it('authenticates before parsing a malformed request body', async () => {
+      const res = await app.request('/api/tokens/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{invalid json',
+      });
 
-        expect(res.status).toBe(400);
-      } finally {
-        if (priorSecret === undefined) delete process.env.SEMIONT_WORKER_SECRET;
-        else process.env.SEMIONT_WORKER_SECRET = priorSecret;
-      }
+      expect(res.status).toBe(401);
     });
 
   });

@@ -24,6 +24,8 @@ import type { AddressInfo } from 'net';
 import type { EnvironmentConfig, EventBus as EventBusType, Logger, ResourceId } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
+import { createServer } from 'http';
+import type { IssuerVerifier } from '@semiont/core/identity';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
 import { createArchivistServer } from '@semiont/make-meaning';
@@ -42,6 +44,40 @@ const mockLogger: Logger = {
 
 type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
 
+/**
+ * A minimal issuer and a stub verifier, so this suite still drives a REAL
+ * Archivist across the process boundary now that the hop authenticates with a
+ * service-account token rather than a shared string.
+ */
+const SERVICE_TOKEN = 'a-service-account-token';
+const stubVerifier = {
+  issuer: 'https://issuer.test',
+  audience: 'https://example.github.io/kb',
+  verify: async (token: string) => {
+    if (token !== SERVICE_TOKEN) throw new Error('bad signature');
+    return { sub: 'service-account-semiont-gateway', roles: ['semiont-service'] };
+  },
+} as unknown as IssuerVerifier;
+
+/** Serves discovery and the token endpoint; hands out the one accepted token. */
+async function startStubIssuer(): Promise<{ url: string; close: () => Promise<void> }> {
+  let url = '';
+  const server = createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    if (req.url?.includes('/.well-known/openid-configuration')) {
+      res.end(JSON.stringify({ issuer: url, token_endpoint: `${url}/token` }));
+      return;
+    }
+    res.end(JSON.stringify({ access_token: SERVICE_TOKEN, expires_in: 300 }));
+  });
+  await new Promise<void>((resolve) => server.listen(0, resolve));
+  url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  return {
+    url,
+    close: () => new Promise((resolve, reject) => server.close((e) => (e ? reject(e) : resolve()))),
+  };
+}
+
 describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () => {
   let testEnv: TestEnvironmentConfig;
   let project: SemiontProject;
@@ -49,8 +85,8 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
   let content: WorkingTreeStore;
   let app: Hono<{ Variables: Variables }>;
   let archivist: Server;
+  let issuer: { url: string; close: () => Promise<void> };
   let seq = 0;
-  const WORKER_SECRET = 'raw-mode-test-worker-secret';
 
   beforeAll(async () => {
     initializeLogger('error');
@@ -61,12 +97,11 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
 
     // The bytes live behind a real Archivist (SINGLE-KB-MOUNT P3), so the
     // property crosses the wire the deployment actually uses.
-    process.env.SEMIONT_WORKER_SECRET = WORKER_SECRET;
     archivist = createArchivistServer({
       events: { queryEvents: async () => [] },
       content,
       views,
-      workerSecret: WORKER_SECRET,
+      verifier: stubVerifier,
       health: () => ({ status: 'ok' }),
       branch: () => 'main',
       logger: mockLogger,
@@ -74,10 +109,17 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
     await new Promise<void>((resolve) => archivist.listen(0, resolve));
     const archivistPort = (archivist.address() as AddressInfo).port;
 
+    issuer = await startStubIssuer();
+    process.env.SEMIONT_OIDC_CLIENT_ID = 'semiont-gateway';
+    process.env.SEMIONT_OIDC_CLIENT_SECRET = 'a-client-secret';
+
     app = new Hono<{ Variables: Variables }>();
     app.use('*', async (c, next) => {
       c.set('config', {
-        services: { archivist: { host: '127.0.0.1', port: archivistPort } },
+        services: {
+          archivist: { host: '127.0.0.1', port: archivistPort },
+          identity: { issuer: issuer.url },
+        },
       } as unknown as EnvironmentConfig);
       await next();
     });
@@ -86,6 +128,7 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
 
   afterAll(async () => {
     await new Promise<void>((resolve, reject) => archivist.close((e) => (e ? reject(e) : resolve())));
+    await issuer.close();
     await testEnv.cleanup();
   });
 

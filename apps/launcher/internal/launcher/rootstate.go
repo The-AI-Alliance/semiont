@@ -418,11 +418,11 @@ func keycloakAdminPassword(root string) (secret, source string) {
 	return "", ""
 }
 
-// sidecarClientSecretPath: where a sidecar's service-account secret is kept for
+// serviceClientSecretPath: where a sidecar's service-account secret is kept for
 // this root. One file per client, so rotating one sidecar's credential is a
 // single deletion rather than a stack-wide reset — which is the whole point of
 // giving them separate accounts instead of one shared string.
-func sidecarClientSecretPath(root, svc string) string {
+func serviceClientSecretPath(root, svc string) string {
 	dir := stateRootDir(root)
 	if dir == "" {
 		return ""
@@ -430,26 +430,26 @@ func sidecarClientSecretPath(root, svc string) string {
 	return filepath.Join(dir, "oidc-client-secret-"+svc)
 }
 
-// sidecarClientSecretEnv: the environment variable that pins one sidecar's
+// serviceClientSecretEnv: the environment variable that pins one sidecar's
 // credential, e.g. SEMIONT_OIDC_CLIENT_SECRET_WEAVER.
-func sidecarClientSecretEnv(svc string) string {
+func serviceClientSecretEnv(svc string) string {
 	return "SEMIONT_OIDC_CLIENT_SECRET_" + strings.ToUpper(svc)
 }
 
-// loadOrCreateSidecarClientSecret: the persisted per-root credential for one
+// loadOrCreateServiceClientSecret: the persisted per-root credential for one
 // sidecar's Keycloak service account, generating and persisting one on first
 // use. The same value reaches two places — the realm document Keycloak imports
 // and the container that has to present it — so both read it from here rather
 // than passing it between them.
-func loadOrCreateSidecarClientSecret(u *ui, root, svc string) (string, bool) {
+func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
 	// An explicit value wins, the same precedence $SEMIONT_WORKER_SECRET and
 	// $KC_BOOTSTRAP_ADMIN_PASSWORD have. Per service rather than one for all:
 	// separate credentials are the point of this, and an override that collapsed
 	// them back to one shared string would quietly undo it.
-	if s := os.Getenv(sidecarClientSecretEnv(svc)); s != "" {
+	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {
 		return s, true
 	}
-	p := sidecarClientSecretPath(root, svc)
+	p := serviceClientSecretPath(root, svc)
 	if p == "" {
 		u.fail("No home directory resolvable, so the %s service-account secret cannot be persisted.", svc)
 		return "", false

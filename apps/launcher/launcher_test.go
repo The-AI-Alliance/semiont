@@ -110,17 +110,16 @@ func mkKB(t *testing.T) string {
 }
 
 type scenario struct {
-	shim           string
-	kb             string // also FAKERT_GIT_ROOT unless gitRoot overridden
-	noGitRoot      bool
-	noWorkerSecret bool   // drop SEMIONT_WORKER_SECRET from the env
-	noJWTSecret    bool   // drop JWT_SECRET from the env (exercise generate + persist)
-	cwd            string // launcher working dir; defaults to kb
-	home           string
-	fakertDir      string
-	log            string
-	extraEnv       []string
-	stdin          string
+	shim        string
+	kb          string // also FAKERT_GIT_ROOT unless gitRoot overridden
+	noGitRoot   bool
+	noJWTSecret bool   // drop JWT_SECRET from the env (exercise generate + persist)
+	cwd         string // launcher working dir; defaults to kb
+	home        string
+	fakertDir   string
+	log         string
+	extraEnv    []string
+	stdin       string
 }
 
 func newScenario(t *testing.T, runtimes ...string) *scenario {
@@ -182,16 +181,16 @@ func (s *scenario) env() []string {
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
 	}
-	if !s.noWorkerSecret {
-		env = append(env, "SEMIONT_WORKER_SECRET=test-worker-secret")
+	{
 		// Pinned so the boot goldens are deterministic: an unpinned run
-		// generates a fresh credential per sidecar and every golden would
+		// generates a fresh credential per service and every golden would
 		// differ from the last.
-		// Tracks `sidecarClients` in internal/launcher, which this external test
-		// package cannot see. Drift is loud rather than silent: a sidecar missing
+		//
+		// Tracks `serviceClients` in internal/launcher, which this external test
+		// package cannot see. Drift is loud rather than silent: a service missing
 		// from this list gets a generated credential and its boot golden differs
 		// on the very next run.
-		for _, svc := range []string{"archivist", "librarian", "smelter", "weaver", "worker"} {
+		for _, svc := range []string{"archivist", "gateway", "librarian", "smelter", "weaver", "worker"} {
 			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
 		}
 	}
@@ -364,10 +363,12 @@ func TestStartDefaultBoot(t *testing.T) {
 	)
 	// The worker secret must never reach the terminal: echoed commands
 	// redact secret-valued envs (the real argv, in the argv log, keeps it).
-	if strings.Contains(stdout, "test-worker-secret") {
-		t.Error("worker secret leaked into stdout")
+	// Six of them now, one per service account, so the allowlist doing the
+	// work matters more than it did with one shared string.
+	if strings.Contains(stdout, "test-gateway-client-secret") {
+		t.Error("a service-account secret leaked into stdout")
 	}
-	mustContain(t, "stdout", stdout, "SEMIONT_WORKER_SECRET=<redacted>")
+	mustContain(t, "stdout", stdout, "SEMIONT_OIDC_CLIENT_SECRET=<redacted>")
 }
 
 // The launcher half of the split supervision gate (ORCHESTRATOR-NATIVE-IMAGES
@@ -4480,7 +4481,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 }
 
 // An explicit $JWT_SECRET is the operator's override — it wins over the
-// persisted one, the same precedence $SEMIONT_WORKER_SECRET has.
+// persisted one, the same precedence a service's client secret has.
 func TestStartJWTSecretEnvWins(t *testing.T) {
 	s := newScenario(t, "container")
 	s.noJWTSecret = true // replace the harness default with our own value
@@ -4569,10 +4570,14 @@ func findFile(t *testing.T, dir, name string) string {
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
-	// Gateway already running with a secret in its env; Jaeger up on 16686.
-	// Restarting the worker must rejoin the recovered secret (not the env
-	// one), auto-enable OTel, stage a fresh private config, and leave the
-	// rest of the stack untouched.
+	// Gateway already running; Jaeger up on 16686. Restarting the worker must
+	// present its OWN persisted credential, auto-enable OTel, stage a fresh
+	// private config, and leave the rest of the stack untouched.
+	//
+	// It used to assert a secret recovered out of the gateway's env, because
+	// the shared one was generated per start and never persisted. Each service
+	// holds its own now, written per root, so a restart reads the same file the
+	// full start wrote and no container needs inspecting.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_gateway=running",
@@ -4582,7 +4587,6 @@ func TestStartServiceWorker(t *testing.T) {
 		// to say the container exists rather than relying on stop/rm being
 		// fired blindly at a name that was never there.
 		"FAKERT_STATE_worker=running",
-		"FAKERT_SECRET=recovered-secret-123",
 	)
 	// 24110: --service OTel keys off the collector (the export target), not
 	// Jaeger's UI.
@@ -4594,21 +4598,19 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting worker",
 		"OTel collector detected — export enabled",
-		"Worker secret: (recovered from semiont-gateway)",
-		"SEMIONT_WORKER_SECRET=<redacted>",
+		"SEMIONT_OIDC_CLIENT_SECRET=<redacted>",
 		"🚀 worker is up",
 		"semiont status",
 	)
-	if strings.Contains(stdout, "recovered-secret-123") {
-		t.Error("recovered secret leaked into stdout")
+	if strings.Contains(stdout, "test-worker-client-secret") {
+		t.Error("a service-account secret leaked into stdout")
 	}
 	argv := s.argv(t)
 	mustContain(t, "argv", argv,
 		"stop semiont-worker",
 		"rm semiont-worker",
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"inspect semiont-gateway",
-		"--env SEMIONT_WORKER_SECRET=recovered-secret-123",
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
 	)
@@ -4702,7 +4704,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 		"--publish 24104:24104",
 		"librarian.toml:/home/semiont/.semiontconfig:ro",
 		"state:/semiont-state",
-		"--env SEMIONT_WORKER_SECRET=")
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
 	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", ":/kb", "anchored-text:"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
@@ -4742,7 +4744,7 @@ func TestStartServiceArchivist(t *testing.T) {
 		":/kb",
 		"archivist.toml:/home/semiont/.semiontconfig:ro",
 		"anchored-text:/anchored-text",
-		"--env SEMIONT_WORKER_SECRET=")
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-archivist")
 	if strings.Contains(log, "JWT_SECRET") {
 		t.Errorf("the Archivist must not receive JWT_SECRET — it signs nothing:\n%s", log)
 	}
@@ -4758,7 +4760,6 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"worker secret: recovered from a running Semiont container's env",
 		"<config-stage>/worker.toml",
 		"wait: http://localhost:24100/health (30s)",
 	)
@@ -4792,43 +4793,19 @@ func TestStartServiceRejections(t *testing.T) {
 	}
 }
 
-func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
-	// A Semiont container EXISTS but yields no secret (the inspect-schema
-	// break case): without an explicit $SEMIONT_WORKER_SECRET the restart
-	// fails with instructions — never a silently generated secret that would
-	// break sidecar auth.
-	s := newScenario(t, "container")
-	s.noWorkerSecret = true
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_gateway=running") // no FAKERT_SECRET
-	_, stderr, code := s.run(t, "start", "--service", "worker")
-	if code != 1 {
-		t.Fatalf("want exit 1, got %d\nstderr:\n%s", code, stderr)
-	}
-	mustContain(t, "stderr", stderr,
-		"worker secret could not be recovered",
-		"inspect schema may have changed",
-		"set SEMIONT_WORKER_SECRET",
-		"semiont start")
-
-	// With an explicit env secret: proceeds, but warns about the mismatch
-	// risk instead of pretending recovery worked.
-	s.noWorkerSecret = false
-	// NO serveHealth(24100) here: 24100 is the WORKER's own port, and the
-	// launcher must find it free to start the container that then serves it
-	// (the fake run -d binds it, as in TestStartServiceWorker). Pre-binding
-	// it modelled a foreign process squatting the port — fiction that only
-	// passed while the fake lsof lied about real listeners; now the launcher
-	// correctly refuses. serveHealth is for services the launcher does NOT
-	// start (an already-running gateway, Jaeger, a host Ollama).
-	stdout, stderr2, code := s.run(t, "start", "--service", "worker")
-	if code != 0 {
-		t.Fatalf("env-secret path: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr2)
-	}
-	mustContain(t, "stdout+stderr", stdout+stderr2,
-		"exists but its worker secret could not be read",
-		"using $SEMIONT_WORKER_SECRET",
-		"Worker secret: (from environment)")
-}
+/*
+ * TestStartServiceSecretUnreadableIsLoud stood here. Its subject was recovering
+ * $SEMIONT_WORKER_SECRET out of a running container on a `--service` restart,
+ * because that secret was generated per start and never persisted. Both halves
+ * are gone: each service holds its own credential, persisted per root, so a
+ * partial restart reads the same file the full start wrote and there is nothing
+ * to recover.
+ *
+ * The property it protected — a restart must not silently substitute a
+ * credential that breaks auth — is NOT fully re-covered. It now fails a
+ * different way: deleting a per-root secret file makes the launcher generate
+ * one the realm has never seen. Detecting that is `.plans/IDENTITY-PREFLIGHT.md`.
+ */
 
 // --- stop --service ---
 

@@ -18,6 +18,10 @@ export default defineConfig({
     // `@semiont/core/openapi` — generated spec validators (~1.3 MB). A subpath
     // precisely so it never enters `.`, which every browser consumer imports.
     'src/openapi.ts',
+    // `@semiont/core/identity` — OIDC token verification, for the same reason:
+    // it pulls `jose`, and nothing in a browser verifies an issuer's signature.
+    // `scripts/lint/check-core-subpath-isolation.mjs` fails if `.` re-exports it.
+    'src/identity/issuer.ts',
     'src/testing.ts',
     'src/testing/axioms.ts',
   ],

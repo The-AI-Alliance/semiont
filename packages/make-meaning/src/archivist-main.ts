@@ -41,7 +41,9 @@ import {
   EventBus,
   PERSISTED_EVENT_TYPES,
   baseUrl as makeBaseUrl,
-  withDeadline } from '@semiont/core';
+  withDeadline,
+  kbResource } from '@semiont/core';
+import { IssuerVerifier } from '@semiont/core/identity';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
@@ -106,22 +108,25 @@ if (config.services.vectors.type === 'memory') {
 }
 
 /**
- * The Archivist's READ PATH still authenticates callers with the shared secret.
- * That is a different direction — other services calling the Archivist, not the
- * Archivist calling the gateway — and it is the last use of this secret. It is
- * narrowed from "grants any agent identity" to "reads the Archivist", and
- * replacing it is its own change.
- */
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
-
-/**
  * This process's own account at the issuer. The credential authenticates the
  * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
  */
-const issuerUrl = envConfig.services?.identity?.issuer;
-if (!issuerUrl) {
+// The audience every token in this knowledge base is minted for: the KB's own
+// did:web-derived resource identity. Derived with the SAME function the gateway
+// and the launcher use, from the SAME committed domain — a second derivation is
+// exactly how a deployment that looks correct comes to refuse every token.
+const maybeSiteDomain = envConfig.site?.domain;
+if (!maybeSiteDomain) {
+  throw new Error('site.domain is required: it is the audience this knowledge base accepts tokens for');
+}
+// Re-bind after the guard: module-level narrowing does not carry into main().
+const siteDomain = maybeSiteDomain;
+
+const maybeIssuerUrl = envConfig.services?.identity?.issuer;
+if (!maybeIssuerUrl) {
   throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
 }
+const issuerUrl = maybeIssuerUrl;
 const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
 const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
 if (!clientId || !clientSecret) {
@@ -323,7 +328,10 @@ async function main() {
     events: eventStore.log,
     content,
     views,
-    workerSecret,
+    // The Archivist verifies its OWN callers now. It serves the event log and
+    // accepts byte writes, so it is the one place in the stack where a shared
+    // static string was guarding the most valuable thing in it.
+    verifier: new IssuerVerifier({ issuer: issuerUrl, audience: kbResource(siteDomain) }),
     health: () => ({
       status: 'ok',
       actors: ['stower', 'browser', 'cloneTokenManager'],

@@ -178,15 +178,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
-	secret, ok := x.workerSecret()
 	if !ok {
 		return 1
 	}
 
 	x.banner("Starting Gateway")
 	x.say(sayLog, "http://localhost:%d", fc.plan.GatewayPort)
-	x.say(sayLog, "Worker secret: %s", x.dim("(generated)"))
-	if code := flowGateway(x, fc, addr, stage, secret, otel); code != 0 {
+	if code := flowGateway(x, fc, addr, stage, otel); code != 0 {
 		return code
 	}
 
@@ -210,11 +208,11 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// with browse:resources), and its /health only turns on after its bus
 	// pumps attach — so gating here closes the startup race a 3.5-second
 	// head start once lost a smelter to.
-	if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
+	if code := flowArchivist(x, fc, addr, stage, otel); code != 0 {
 		return code
 	}
 
-	if code := flowLibrarian(x, fc, addr, stage, secret, otel); code != 0 {
+	if code := flowLibrarian(x, fc, addr, stage, otel); code != 0 {
 		return code
 	}
 
@@ -223,7 +221,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// buildKnowledgeGraph barrier.
 	for _, sc := range sidecarSpecs {
 		x.banner(sc.banner)
-		if code := flowSidecar(x, fc, sc, addr, stage, secret, otel); code != 0 {
+		if code := flowSidecar(x, fc, sc, addr, stage, otel); code != 0 {
 			return code
 		}
 	}
@@ -574,7 +572,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 // flowGateway: run + host-side health gate + container-gateway reachability
 // gate (the sidecars dial addr:port and fatally exit if their first gateway
 // fetch fails — host health alone doesn't prove the path they need).
-func flowGateway(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	port := fc.plan.GatewayPort
 	jwt, ok := x.jwtSecret(fc.root)
 	if !ok {
@@ -591,7 +589,11 @@ func flowGateway(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, addr, secret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	gatewayClientSecret, ok := x.serviceClientSecret(fc.root, "gateway")
+	if !ok {
+		return 1
+	}
+	bArgs := gatewayArgs(stage, addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -611,7 +613,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage, secret string, otel []stri
 	return 0
 }
 
-func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret string, otel []string) int {
+func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, otel []string) int {
 	// The Smelter derives the anchored-text artifacts, so it HOLDS the store
 	// (ANCHORED-TEXT-TO-SMELTER P1) rather than reaching it over the content
 	// transport — and since P5 it owns the STAMP too, stamped with its own
@@ -630,11 +632,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 		}
 		extra = m
 	}
-	clientSecret, ok := x.sidecarClientSecret(fc.root, sc.svc)
+	clientSecret, ok := x.serviceClientSecret(fc.root, sc.svc)
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := sidecarArgs(sc.svc, sc.port, stage, addr, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -655,7 +657,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 // (the gateway constructs no actors; this service owns event appends, the
 // projection rebuild, and the git index, D4b), so the sidecars' boot-time
 // bus requests are answered here and must find the pumps attached.
-func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner("Starting Archivist")
 	// anchored-text is a shared read (the Smelter holds that stamp); the
 	// state tree is the inverse — the Archivist holds it as the projection
@@ -669,11 +671,11 @@ func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []st
 		return 1
 	}
 	extra = append(extra, state...)
-	clientSecret, ok := x.sidecarClientSecret(fc.root, "archivist")
+	clientSecret, ok := x.serviceClientSecret(fc.root, "archivist")
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -695,17 +697,17 @@ func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []st
 // question moot rather than racy (the smelter's 3.5s boot race against the
 // Archivist is the cautionary tale). It reads everything and writes nothing
 // durable — see librarianArgs.
-func flowLibrarian(x executor, fc flowCtx, addr, stage, secret string, otel []string) int {
+func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner("Starting Librarian")
 	state, ok := x.stateMountsShared("state", fc.root)
 	if !ok {
 		return 1
 	}
-	clientSecret, ok := x.sidecarClientSecret(fc.root, "librarian")
+	clientSecret, ok := x.serviceClientSecret(fc.root, "librarian")
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, addr, secret, clientSecret, fc.version, fc.userEnv, otel, state...)
+	args := librarianArgs(stage, addr, clientSecret, fc.version, fc.userEnv, otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -779,12 +781,9 @@ func flowOneService(x executor, fc flowCtx) int {
 	if isConfigConsumer(svc) {
 		otel = x.otelDetect(addr)
 	}
-	secret, stage := "", ""
+	stage := ""
 	if isConfigConsumer(svc) {
 		var ok bool
-		if secret, ok = x.recoverSecret(); !ok {
-			return 1
-		}
 		if stage, ok = x.stageOne(svc, fc.configFile, fc.plan.EnvName, addr); !ok {
 			return 1
 		}
@@ -899,21 +898,21 @@ func flowOneService(x executor, fc flowCtx) int {
 			return code
 		}
 	case "gateway":
-		if code := flowGateway(x, fc, addr, stage, secret, otel); code != 0 {
+		if code := flowGateway(x, fc, addr, stage, otel); code != 0 {
 			return code
 		}
 	case "archivist":
-		if code := flowArchivist(x, fc, addr, stage, secret, otel); code != 0 {
+		if code := flowArchivist(x, fc, addr, stage, otel); code != 0 {
 			return code
 		}
 	case "librarian":
-		if code := flowLibrarian(x, fc, addr, stage, secret, otel); code != 0 {
+		if code := flowLibrarian(x, fc, addr, stage, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":
 		for _, sc := range sidecarSpecs {
 			if sc.svc == svc {
-				if code := flowSidecar(x, fc, sc, addr, stage, secret, otel); code != 0 {
+				if code := flowSidecar(x, fc, sc, addr, stage, otel); code != 0 {
 					return code
 				}
 			}

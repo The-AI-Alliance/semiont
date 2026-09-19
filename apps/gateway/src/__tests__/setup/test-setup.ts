@@ -13,13 +13,8 @@ beforeAll(async () => {
   // Ensure integration test environment is properly configured
   process.env.NODE_ENV = 'test';
 
-  // Configure Testcontainers early to avoid Node.js crashes
-  process.env.TESTCONTAINERS_RYUK_DISABLED = 'true';
-
   // Set test secrets
   process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
-  process.env.GOOGLE_CLIENT_ID = 'test-google-client-id';
-  process.env.GOOGLE_CLIENT_SECRET = 'test-google-client-secret';
 
   // Only set up database for integration tests
   // No database is started. The gateway holds no database: it reads every

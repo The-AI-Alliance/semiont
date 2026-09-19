@@ -2,8 +2,6 @@ package launcher
 
 import (
 	"bufio"
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -121,8 +119,6 @@ Environment:
                         from the current directory looking for .semiont/.
   SEMIONT_VERSION       Image tag to run (default: latest; 'local' uses
                         locally-built :local images and skips the pull)
-  SEMIONT_WORKER_SECRET Shared gateway/sidecar secret (default: generated per
-                        run; --service rejoins the running stack's secret)
   JWT_SECRET            The gateway's token-signing key, min 32 chars (default:
                         generated ONCE per KB root and kept, so tokens survive
                         a restart). An ordered, comma-separated LIST rotates
@@ -804,7 +800,7 @@ const kbMountTarget = "/kb"
 // it once read off the tree — the KB name, the committed did:web domain — the
 // launcher stages into its config copy. What is left is that copy and the
 // gateway's own state.
-func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+func gatewayArgs(stage, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["gateway"].mem,
 		"--volume", stage + "/gateway.toml:/home/semiont/.semiontconfig:ro"}
@@ -824,7 +820,10 @@ func gatewayArgs(stage, addr, secret, jwt, version string, port int, userEnv, ot
 		// honours, and the env and its mount live in this one builder —
 		// no cross-file pair for imagepaths_test to guard.
 		"--env", "XDG_STATE_HOME=/semiont-state",
-		"--env", "SEMIONT_WORKER_SECRET="+secret,
+		// The gateway's own account at the realm. It dials the Archivist for
+		// content, events and the branch, and proves who it is like any caller.
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("gateway"),
+		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret,
 		"--env", "JWT_SECRET="+jwt)
 	a = append(a, superviseEnv()...)
 	return append(a, image("gateway", version))
@@ -858,7 +857,7 @@ func superviseEnv() []string {
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, addr, secret, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
+func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", roles[svc].mem, "--publish", p + ":" + p,
@@ -873,14 +872,10 @@ func sidecarArgs(svc string, port int, stage, addr, secret, clientSecret, versio
 		"--env", "KEYCLOAK_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
-		// Interpolation requirement only: loadEnvironmentConfig expands the
-		// WHOLE TOML eagerly, so every consumer needs every ${VAR} defined
-		// (the same reason the Archivist gets POSTGRES_HOST).
-		"--env", "SEMIONT_WORKER_SECRET="+secret,
 		// This process's own credential at the realm. It buys an agent token
 		// from the gateway; it is not the agent identity, which is per
 		// (provider, model) and named in the request.
-		"--env", "SEMIONT_OIDC_CLIENT_ID="+sidecarClientID(svc),
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID(svc),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
 	a = append(a, extra...)
@@ -896,7 +891,7 @@ func sidecarArgs(svc string, port int, stage, addr, secret, clientSecret, versio
 // copy. Env is the sidecar set, which already carries every ${VAR} the
 // config interpolates. Deliberately NO JWT_SECRET: it signs nothing; agent
 // auth presents the worker secret (the same fact D1's read path relies on).
-func archivistArgs(kbRoot, stage, addr, secret, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", roles["archivist"].mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
@@ -913,8 +908,7 @@ func archivistArgs(kbRoot, stage, addr, secret, clientSecret, version string, us
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
-		"--env", "SEMIONT_WORKER_SECRET="+secret,
-		"--env", "SEMIONT_OIDC_CLIENT_ID="+sidecarClientID("archivist"),
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
 	return append(a, image("archivist", version))
@@ -931,7 +925,7 @@ func archivistArgs(kbRoot, stage, addr, secret, clientSecret, version string, us
 // it reads bytes from the record directly, SINGLE-KB-MOUNT P4). NO
 // JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
 // service; it dials the gateway for the bus and the Archivist for bytes.
-func librarianArgs(stage, addr, secret, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", roles["librarian"].mem, "--publish", "24104:24104",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
@@ -947,8 +941,7 @@ func librarianArgs(stage, addr, secret, clientSecret, version string, userEnv, o
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
-		"--env", "SEMIONT_WORKER_SECRET="+secret,
-		"--env", "SEMIONT_OIDC_CLIENT_ID="+sidecarClientID("librarian"),
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
 	return append(a, image("librarian", version))
@@ -1051,19 +1044,6 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))
 	fmt.Println()
 	return 0
-}
-
-// fullStartSecret: $SEMIONT_WORKER_SECRET or freshly generated.
-func fullStartSecret(u *ui) (string, bool) {
-	if secret := os.Getenv("SEMIONT_WORKER_SECRET"); secret != "" {
-		return secret, true
-	}
-	b := make([]byte, 32)
-	if _, err := rand.Read(b); err != nil {
-		u.fail("Generating worker secret: %v", err)
-		return "", false
-	}
-	return hex.EncodeToString(b), true
 }
 
 // chooseOllamaVolume: --ollama-cache override, else the ~/.ollama share

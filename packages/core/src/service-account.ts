@@ -29,6 +29,23 @@ export interface ServiceAccountCredential {
 /** Cache discovery per issuer: it is a fixed document and the process is long-lived. */
 const tokenEndpoints = new Map<string, Promise<string>>();
 
+/**
+ * Cached tokens, keyed by issuer and client.
+ *
+ * Without this, a caller that resolves its credential per request — the
+ * Archivist's content reads do, because a token held for the life of the
+ * process would expire in it — would hit the issuer on every read.
+ *
+ * The lifetime comes from `expires_in` on the grant response, which is the
+ * protocol's own field rather than a number restated here. Deliberately not
+ * the JWT's `exp`: a client-credentials access token is not required to be a
+ * JWT, and reading one would be assuming a shape the grant does not promise.
+ */
+const tokens = new Map<string, { token: string; expiresAt: number }>();
+
+/** Renew this long before expiry, so a token never expires mid-flight. */
+const RENEW_BEFORE_EXPIRY_MS = 30_000;
+
 async function tokenEndpoint(issuer: string): Promise<string> {
   let endpoint = tokenEndpoints.get(issuer);
   if (!endpoint) {
@@ -66,6 +83,13 @@ async function tokenEndpoint(issuer: string): Promise<string> {
  */
 export async function serviceAccountToken(credential: ServiceAccountCredential): Promise<string> {
   const { issuer, clientId, clientSecret } = credential;
+
+  const key = `${issuer}\u0000${clientId}`;
+  const cached = tokens.get(key);
+  if (cached && cached.expiresAt - RENEW_BEFORE_EXPIRY_MS > Date.now()) {
+    return cached.token;
+  }
+
   const endpoint = await tokenEndpoint(issuer);
 
   const response = await fetch(endpoint, {
@@ -90,5 +114,14 @@ export async function serviceAccountToken(credential: ServiceAccountCredential):
   if (!isObject(body) || !isString(body['access_token'])) {
     throw new Error(`Token endpoint for ${issuer} returned no \`access_token\``);
   }
-  return body['access_token'];
+
+  const token = body['access_token'];
+  const expiresIn = body['expires_in'];
+  // An issuer that reports no lifetime gets no cache entry rather than a
+  // guessed one: serving a token past its expiry fails at the far end, where
+  // the cause is hardest to see.
+  if (typeof expiresIn === 'number' && Number.isFinite(expiresIn)) {
+    tokens.set(key, { token, expiresAt: Date.now() + expiresIn * 1000 });
+  }
+  return token;
 }

@@ -98,12 +98,14 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 	}
 }
 
-func TestKeycloakRealmJSONOmitsGatewayServiceAccount(t *testing.T) {
+func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
 	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", nil))
-	// The gateway VERIFIES these tokens and never presents one. A credential it
-	// does not use is a credential it can only leak.
-	if strings.Contains(doc, `"clientId": "semiont-gateway"`) {
-		t.Error("realm document registers a service account for the gateway, which mints nothing")
+	// This assertion was the other way round for one commit, on the reasoning
+	// that the gateway verifies tokens and never presents one. True of the agent
+	// exchange, false in general: the gateway dials the Archivist for content,
+	// events and the working tree's branch, and proves who it is like any caller.
+	if !strings.Contains(doc, `"clientId": "semiont-gateway"`) {
+		t.Error("realm document has no service account for the gateway, which dials the Archivist")
 	}
 }
 
@@ -134,7 +136,7 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		// The gateway reads a FLAT roles array; Keycloak's nested realm_access
 		// shape is deliberately not what this stamps.
 		`"claim.name": "roles"`,
-		`"claim.value": "[\"semiont-agent\"]"`,
+		`"claim.value": "[\"semiont-service\"]"`,
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("realm document missing %s", want)
