@@ -1101,8 +1101,30 @@ func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
 	return "<" + svc + "-client-secret>", true
 }
 
-func (x *planExec) stageRealm(realm string, _ []byte) (string, bool) {
-	x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; the realm, the Browser's public client, the gateway audience mapper)", realm)
+// The clients are read OUT OF the document rather than described alongside it.
+// The sentence that stood here listed the realm, the Browser's public client
+// and the audience mapper — written when that was all there was, and still
+// saying so after six service accounts joined. A restatement of someone else's
+// shape drifts the moment that shape grows; this cannot, because adding a
+// client to keycloakRealmJSON adds it here too.
+func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
+	var parsed struct {
+		Clients []struct {
+			ClientID string `json:"clientId"`
+		} `json:"clients"`
+	}
+	if err := json.Unmarshal(doc, &parsed); err != nil || len(parsed.Clients) == 0 {
+		// No fallback sentence: a realm document this cannot read is a real
+		// problem, and a plausible-looking line would hide it.
+		x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; UNREADABLE — its clients could not be listed)", realm)
+		return "<config-stage>/keycloak-" + realm + "-realm.json", true
+	}
+	ids := make([]string, 0, len(parsed.Clients))
+	for _, c := range parsed.Clients {
+		ids = append(ids, c.ClientID)
+	}
+	x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; realm %q, clients: %s)",
+		realm, realm, strings.Join(ids, ", "))
 	return "<config-stage>/keycloak-" + realm + "-realm.json", true
 }
 

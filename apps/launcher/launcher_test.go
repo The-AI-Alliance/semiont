@@ -7193,11 +7193,10 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 // realm file staged and imported, the bootstrap admin password per root — and
 // every service's env carries KEYCLOAK_HOST. The no-identity-section case is
 // proven by every other boot golden: only the preflight logs snapshot grows.
-func TestStartKeycloakIdentityBoot(t *testing.T) {
-	s := newScenario(t, "container")
-	// Pinned like JWT_SECRET: a generated password is random and the golden
-	// compares argv verbatim.
-	s.extraEnv = append(s.extraEnv, "KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin")
+// writeKeycloakConfig adds an [identity] section to the KB's config and
+// returns the config name to select with --config.
+func writeKeycloakConfig(t *testing.T, s *scenario) string {
+	t.Helper()
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
 	b, err := os.ReadFile(src)
 	if err != nil {
@@ -7207,7 +7206,34 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "keycloak.toml"), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "start", "--config", "keycloak"); code != 0 {
+	return "keycloak"
+}
+
+// The identity path in PLAN mode. Both dry-run goldens take the "no [identity]
+// section" branch, so everything the launched-Keycloak path narrates — the
+// realm document's clients, the database creation, and the service-account
+// preflight — was covered by no golden at all. That is how the realm line came
+// to describe a document six clients smaller than the one it writes.
+func TestStartDryRunKeycloakIdentity(t *testing.T) {
+	s := newScenario(t, "container")
+	cfg := writeKeycloakConfig(t, s)
+	stdout, stderr, code := s.run(t, "start", "--config", cfg, "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-dryrun-keycloak-identity.txt", s.norm(stdout))
+	if got := s.argv(t); got != "git -C <kb-root> rev-parse --show-toplevel\n" {
+		t.Errorf("dry run executed external commands:\n%s", got)
+	}
+}
+
+func TestStartKeycloakIdentityBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	// Pinned like JWT_SECRET: a generated password is random and the golden
+	// compares argv verbatim.
+	s.extraEnv = append(s.extraEnv, "KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin")
+	cfg := writeKeycloakConfig(t, s)
+	if _, stderr, code := s.run(t, "start", "--config", cfg); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	checkGolden(t, "start-keycloak-identity-boot.argv", s.argv(t))
