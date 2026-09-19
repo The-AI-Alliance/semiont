@@ -22,37 +22,25 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 });
 
 import { app } from '../../index';
-import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
 import { configureTrustedIssuer } from '../../identity/trusted-issuer';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
-import type { User } from '@prisma/client';
-import { faker } from '@faker-js/faker';
+import type { Principal } from '../../identity/principal';
 import { email as makeEmail } from '@semiont/core';
 
-const prisma = DatabaseConnection.getClient();
-const mockPrismaUser = vi.mocked(prisma.user);
 
 const ORIGIN = 'https://issuer.test';
 const AUDIENCE = 'semiont-gateway';
 const SITE_DOMAIN = 'test.local';
 
-const makeCuid = () => `c${faker.string.alphanumeric(24).toLowerCase()}`;
-
-function fakeUser(overrides: Partial<User> = {}): User {
+function fakeUser(overrides: Partial<Principal> = {}): Principal {
   return {
-    id: makeCuid(),
+    did: `did:web:${'example.com'}:users:${encodeURIComponent('alice@example.com')}`,
     email: 'alice@example.com',
     name: 'Alice',
     image: null,
     domain: 'example.com',
-    provider: ORIGIN,
-    providerId: 'sub-alice',
-    isAdmin: false,
-    isModerator: false,
-    lastLogin: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    isAgent: false,
     ...overrides,
   };
 }
@@ -66,7 +54,6 @@ beforeAll(() => {
 });
 
 beforeEach(async () => {
-  for (const fn of Object.values(mockPrismaUser)) fn.mockReset();
   issuer = await fixtureIssuer(ORIGIN, { audience: AUDIENCE });
   configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN }, AUDIENCE);
 });
@@ -115,31 +102,25 @@ describe('a token from the trusted issuer', () => {
 
 describe('a token that must not authenticate', () => {
   it('is for another audience', async () => {
-    mockPrismaUser.findFirst.mockResolvedValue(fakeUser());
 
     const res = await me(await issuer.token({ claims: ALICE, audience: 'someone-else' }));
 
     expect(res.status).toBe(401);
-    expect(mockPrismaUser.findFirst).not.toHaveBeenCalled();
   });
 
   it('is from an issuer the gateway does not trust', async () => {
     const other = await fixtureIssuer('https://other.test', { audience: AUDIENCE });
-    mockPrismaUser.findFirst.mockResolvedValue(fakeUser());
 
     const res = await me(await other.token({ claims: ALICE }));
 
     expect(res.status).toBe(401);
-    expect(mockPrismaUser.findFirst).not.toHaveBeenCalled();
   });
 
   it('carries an email the issuer has not verified', async () => {
-    mockPrismaUser.findFirst.mockResolvedValue(fakeUser());
 
     const res = await me(await issuer.token({ claims: { ...ALICE, email_verified: false } }));
 
     expect(res.status).toBe(401);
-    expect(mockPrismaUser.findFirst).not.toHaveBeenCalled();
   });
 
   it('carries no email claim', async () => {
@@ -160,7 +141,6 @@ describe('a token that must not authenticate', () => {
 
   it('is an issuer token when no issuer is trusted', async () => {
     configureTrustedIssuer(undefined, AUDIENCE);
-    mockPrismaUser.findFirst.mockResolvedValue(fakeUser());
 
     const res = await me(await issuer.token({ claims: ALICE }));
 
@@ -172,11 +152,9 @@ describe('a gateway-signed token', () => {
   it('still authenticates a software agent: dispatch is by iss', async () => {
     const agent = fakeUser({
       email: 'ollama-gemma@agents.test.local',
-      provider: 'agent',
-      providerId: 'ollama:gemma',
       domain: SITE_DOMAIN,
+      isAgent: true,
     });
-    mockPrismaUser.findUnique.mockResolvedValue(agent);
     const token = JWTService.generateToken({
       did: 'did:web:test.local:agents:ollama:gemma',
       email: makeEmail(agent.email),
@@ -186,6 +164,5 @@ describe('a gateway-signed token', () => {
     const res = await me(token);
 
     expect(res.status).toBe(200);
-    expect(mockPrismaUser.findFirst).not.toHaveBeenCalled();
   });
 });

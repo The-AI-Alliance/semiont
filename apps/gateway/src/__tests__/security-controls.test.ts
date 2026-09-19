@@ -10,9 +10,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import type { Hono } from 'hono';
-import type { User } from '@prisma/client';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
@@ -34,11 +31,10 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   };
 });
 
-type Variables = {
-  user: User;
-  config: EnvironmentConfig;
-  eventBus: EventBus;
-};
+// Typed from the module under test rather than from a local restatement of its
+// context. The copy that stood here could only ever report that two
+// structurally identical types were not the same one.
+type GatewayApp = typeof import('../index').app;
 
 type ErrorResponse = {
   error: string;
@@ -46,7 +42,7 @@ type ErrorResponse = {
 };
 
 describe('Security Controls', () => {
-  let app: Hono<{ Variables: Variables }>;
+  let app: GatewayApp;
   let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {

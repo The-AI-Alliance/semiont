@@ -7,14 +7,11 @@ import { describe, it, expect } from 'vitest';
 import type { components } from '@semiont/core';
 
 // Local type definitions to replace api-contracts imports
-interface HealthResponse {
-  status: string;
-  message: string;
-  version: string;
-  timestamp: string;
-  database: 'connected' | 'disconnected' | 'unknown';
-  environment: string;
-}
+// Derived, not restated. The local copy that stood here kept a `database`
+// field for a while after the spec dropped it, and typechecked happily against
+// a contract the gateway had stopped serving — which is the whole argument
+// against hand-written copies in a file whose job is checking contracts.
+type HealthResponse = components['schemas']['HealthResponse'];
 
 interface StatusResponse {
   status: string;
@@ -50,7 +47,6 @@ describe('API Contract Tests', () => {
         message: 'Semiont API is running',
         version: '0.1.0',
         timestamp: '2024-01-01T00:00:00.000Z',
-        database: 'connected',
         environment: 'test',
       };
 
@@ -58,7 +54,6 @@ describe('API Contract Tests', () => {
       expect(mockResponse.message).toBeDefined();
       expect(mockResponse.version).toBeDefined();
       expect(mockResponse.timestamp).toBeDefined();
-      expect(mockResponse.database).toBeDefined();
       expect(mockResponse.environment).toBeDefined();
     });
 
@@ -86,14 +81,12 @@ describe('API Contract Tests', () => {
         message: 'Semiont API is running',
         version: '0.1.0',
         timestamp: '2024-01-01T00:00:00.000Z',
-        database: 'connected',
         environment: 'production',
       };
 
       expect(mockResponse.status).toBeDefined();
       expect(mockResponse.timestamp).toBeDefined();
       expect(mockResponse.version).toBeDefined();
-      expect(mockResponse.database).toBeDefined();
     });
 
 

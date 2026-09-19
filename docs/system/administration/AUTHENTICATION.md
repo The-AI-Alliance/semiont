@@ -189,7 +189,6 @@ export function initResourcesRouter(router: Hono) {
 
 ```bash
 JWT_SECRET=your-jwt-secret                 # signs agent and media tokens only
-DATABASE_URL=postgresql://user:pass@localhost:5432/semiont
 SEMIONT_WORKER_SECRET=...                  # gates POST /api/tokens/agent
 ```
 
@@ -275,7 +274,7 @@ The decisions that used to sit here now sit in the realm: who may register, whic
 - [Architecture Overview](../README.md) - Application architecture and service communication
 - [Security](./SECURITY.md) - CORS posture, secrets, hardening
 - [Running Semiont on AWS](../platforms/AWS.md) - what you must wire up yourself
-- [Database Management](./DATABASE.md) - User table schema and Prisma setup
+- [Database Management](./DATABASE.md) - the PostgreSQL Keycloak uses; Semiont keeps no schema
 
 ---
 

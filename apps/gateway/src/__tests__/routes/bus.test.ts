@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
 import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
-import type { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import type {
   EventBus as EventBusType,
   StoredEvent,
@@ -85,24 +85,21 @@ function fakeStoredYieldCreated(
 }
 
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
+type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
   initializeLogger('error');
 });
 
-function fakeUser(): User {
+function fakeUser(): Principal {
   return {
-    id: 'user-1',
+    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    provider: 'worker',
-    isAdmin: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as User;
+    isAgent: false,
+  } as Principal;
 }
 
 interface QueryEventsStub {
@@ -141,7 +138,7 @@ function buildApp(
   const logger = initializeLogger('error');
   const principalDid = options.principalDid ?? 'did:web:test.local:users:test%40test.local';
   app.use('*', async (c, next) => {
-    c.set('user', fakeUser());
+    c.set('principal', fakeUser());
     c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);

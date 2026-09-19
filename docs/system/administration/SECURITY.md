@@ -59,7 +59,7 @@ Comprehensive security test coverage ensures no authentication regressions:
 - **Environment Variables**: Sensitive configuration stored in environment variables
 - **HTTPS in Production**: TLS encryption for all production traffic (when deployed behind a reverse proxy)
 - **Input Validation**: Zod schemas for request/response validation
-- **SQL Injection Prevention**: Parameterized queries via Prisma ORM (when using SQL databases)
+- **SQL Injection Prevention**: not applicable — the gateway issues no SQL and holds no database
 
 #### Storage
 
@@ -82,7 +82,6 @@ export GITHUB_CLIENT_ID="<oauth-client-id>"
 export GITHUB_CLIENT_SECRET="<oauth-client-secret>"
 export GITLAB_CLIENT_ID="<oauth-client-id>"
 export GITLAB_CLIENT_SECRET="<oauth-client-secret>"
-export DATABASE_URL="<your-database-connection-string>"
 ```
 
 ### Production Deployment

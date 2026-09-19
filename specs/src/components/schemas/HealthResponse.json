@@ -13,14 +13,6 @@
     "timestamp": {
       "type": "string"
     },
-    "database": {
-      "type": "string",
-      "enum": [
-        "connected",
-        "disconnected",
-        "unknown"
-      ]
-    },
     "environment": {
       "type": "string"
     }
@@ -30,7 +22,6 @@
     "message",
     "version",
     "timestamp",
-    "database",
     "environment"
   ]
 }

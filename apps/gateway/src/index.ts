@@ -1,20 +1,11 @@
-// DATABASE_URL arrives already set: the container's CMD derives it from
-// services.database (src/cli/db-url.ts) before this process starts, and an
-// explicitly-provided one takes precedence over that.
+// The gateway holds no database.
 //
-// It is deliberately NOT assembled here. A DB_HOST/DB_USER/DB_PASSWORD component
-// form used to live at the top of this file, claiming "MUST be done before any
-// Prisma imports!" — a requirement it could not meet, for two reasons:
-//
-//   1. `prisma migrate deploy` runs as a separate process before the server and
-//      reads process.env.DATABASE_URL via prisma.config.ts, so it never saw a
-//      value assembled in here at all.
-//   2. The bundler emits module bodies in dependency order, so src/db.ts's
-//      module-scope client construction ran BEFORE this file's top-level code.
-//      The adapter got `connectionString: undefined`.
-//
-// Deriving it outside the process fixes both. Do not reintroduce an in-process
-// assembly here without re-checking those two facts.
+// A long note stood here about deriving DATABASE_URL outside the process,
+// because `prisma migrate deploy` and this file's module order both had to
+// agree on where the connection string came from. None of that applies: every
+// caller's identity is read off their token, there is no row to store, and the
+// Prisma client, the schema and the boot-time migration are gone. Keycloak
+// keeps its own PostgreSQL; this process does not speak to one.
 
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
@@ -31,9 +22,8 @@ import {
 } from '@semiont/make-meaning';
 import { JOB_QUEUE_EMITS } from '@semiont/jobs';
 import { loadEnvironmentConfig } from '@semiont/core/node';
+import type { Principal } from './identity/principal';
 
-import { User } from '@prisma/client';
-import { DatabaseConnection } from './db';
 
 // Load configuration from .semiont/config + ~/.semiontconfig (TOML).
 // The environment is resolved by the loader from `[defaults] environment` — the
@@ -229,7 +219,7 @@ import { requestLoggerMiddleware } from './middleware/request-logger';
 import { errorLoggerMiddleware } from './middleware/error-logger';
 
 type Variables = {
-  user: User;
+  principal: Principal;
   config: EnvironmentConfig;
   eventBus: EventBus;
 };
@@ -522,7 +512,6 @@ if (config.env?.NODE_ENV !== 'test') {
             .catch((error: unknown) => logger.warn('Signal Plane drain timed out; in-flight frames may be lost', { error: errField(error) }));
         }
         eventBus.destroy();
-        await DatabaseConnection.disconnect();
         logger.info('Shutdown complete');
         process.exit(0);
       } catch (error) {

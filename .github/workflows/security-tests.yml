@@ -249,10 +249,6 @@ jobs:
             'model = "llama3"' \
             'baseURL = "http://localhost:11434"' \
             > ~/.semiontconfig
-          cd apps/gateway
-          npx prisma db push --url "$DATABASE_URL"
-        env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
 
       # `test:coverage` below runs the FULL gateway suite, which includes the
       # signal-plane fixtures spawning a real nats-server from PATH

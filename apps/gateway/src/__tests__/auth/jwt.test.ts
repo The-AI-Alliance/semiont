@@ -11,7 +11,7 @@ import { email } from '@semiont/core';
 
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { JWTService } from '../../auth/jwt';
-import { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import type { JWTPayload } from '../../types/jwt-types';
 
 // Mock jsonwebtoken - must be defined inline in the factory due to hoisting
@@ -56,19 +56,13 @@ vi.mock('../../types/jwt-types', () => ({
 }));
 
 describe('JWT Service', () => {
-  const mockUser: User = {
-    id: 'clh1o0p0f0000qzrmn831i7rn', // Valid CUID format
+  const mockUser: Principal = {
+    did: `did:web:${'example.com'}:users:${encodeURIComponent('user@example.com')}`,
     email: 'user@example.com',
     name: 'Test User',
     image: 'https://example.com/avatar.jpg',
     domain: 'example.com',
-    provider: 'google',
-    providerId: 'google-123',
-    isAdmin: false,
-    isModerator: false,
-    lastLogin: new Date(),
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    isAgent: false,
   };
   
   const testDomain = 'test.example.com';

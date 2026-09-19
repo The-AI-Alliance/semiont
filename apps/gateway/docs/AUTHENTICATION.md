@@ -56,7 +56,7 @@ When creating a new router, apply auth middleware to protect all routes:
 ```typescript
 // src/routes/my-feature.ts
 import { Hono } from 'hono';
-import { User } from '@prisma/client';
+import type { Principal } from '../identity/principal';
 import { authMiddleware } from '../middleware/auth';
 
 export const myFeatureRouter = new Hono<{ Variables: { user: User } }>();
@@ -241,7 +241,7 @@ The gateway validates tokens through multiple layers:
 - **Comprehensive test coverage** - route-spec-coverage.test.ts validates all routes
 - **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
 - **Request validation** - All inputs validated with Zod schemas
-- **SQL injection prevention** - Prisma ORM with parameterized queries
+- **SQL injection prevention** - not applicable; the gateway issues no SQL and holds no database
 - **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
 - **Domain restrictions** - OAuth limited to allowed domains
 

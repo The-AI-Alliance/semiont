@@ -9,9 +9,9 @@
   "scripts": {
     "dev": "tsup && node --watch --conditions=development dist/index.js",
     "build": "npm run build:app",
-    "build:app": "prisma generate && npm run typecheck && tsup",
-    "build:clean": "npm run clean && prisma generate && npm run typecheck && tsup",
-    "build:fast": "prisma generate && npm run typecheck && tsup",
+    "build:app": "npm run typecheck && tsup",
+    "build:clean": "npm run clean && npm run typecheck && tsup",
+    "build:fast": "npm run typecheck && tsup",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist *.tsbuildinfo",
     "start": "node dist/index.js",
@@ -22,16 +22,11 @@
     "test:unit": "vitest run --testNamePattern=\"^(?!.*integration).*\"",
     "test:integration": "vitest run --config=vitest.integration.config.mjs",
     "test:api": "vitest run src/__tests__/middleware/auth.test.ts",
-    "test:security": "vitest run --reporter=verbose --testNamePattern=security",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:studio": "prisma studio"
+    "test:security": "vitest run --reporter=verbose --testNamePattern=security"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.1",
     "@hono/swagger-ui": "^0.6.1",
-    "@prisma/adapter-pg": "^7.10.0",
-    "@prisma/client": "^7.10.0",
     "@semiont/core": "*",
     "@semiont/jobs": "*",
     "@semiont/make-meaning": "*",
@@ -57,7 +52,6 @@
     "@vitest/ui": "^4.1.11",
     "fast-check": "^4.9.0",
     "msw": "^2.15.0",
-    "prisma": "^7.10.0",
     "tsup": "^8.5.1",
     "tsx": "^4.23.13",
     "typescript": "^6.0.2",

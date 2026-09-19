@@ -8,10 +8,6 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install @semiont/gateway@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
       --prefix /home/semiont/.local/share/semiont
 
-RUN cd /home/semiont/.local/share/semiont/node_modules/@semiont/gateway && \
-    npx prisma generate --schema=prisma/schema.prisma && \
-    test -d /home/semiont/.local/share/semiont/node_modules/.prisma/client
-
 # Self-retiring CVE patches: when a guard here fails, DELETE the entry it names.
 RUN set -eu; \
     patch_dep() { \
@@ -65,7 +61,6 @@ RUN chown semiont:nodejs /kb
 RUN apk add --no-cache tini
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
-COPY scripts/container/gateway-boot.sh /usr/local/bin/gateway-boot.sh
 
 USER semiont
 
@@ -81,10 +76,6 @@ ENV PATH="/home/semiont/.local/share/semiont/node_modules/.bin:${PATH}"
 
 RUN test -f "$GATEWAY_DIR/dist/index.js" \
       || { echo "GATEWAY_DIR does not contain dist/index.js: $GATEWAY_DIR"; exit 1; }; \
-    test -f "$GATEWAY_DIR/prisma/schema.prisma" \
-      || { echo "no prisma schema under $GATEWAY_DIR — migrate deploy would fail at start"; exit 1; }; \
-    test -d /home/semiont/.local/share/semiont/node_modules/.prisma/client \
-      || { echo "generated prisma client missing from the runtime image (pruned?)"; exit 1; }; \
     test -f "$GATEWAY_DIR/dist/cli/db-url.js" \
       || { echo "@semiont/gateway@${SEMIONT_VERSION} predates dist/cli/db-url.js, which this CMD needs to derive DATABASE_URL — build with a version that ships it"; exit 1; }; \
     command -v semiont-useradd >/dev/null \
@@ -92,5 +83,5 @@ RUN test -f "$GATEWAY_DIR/dist/index.js" \
 
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health
-ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/gateway-boot.sh"]
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
 CMD ["node", "/home/semiont/.local/share/semiont/node_modules/@semiont/gateway/dist/index.js"]

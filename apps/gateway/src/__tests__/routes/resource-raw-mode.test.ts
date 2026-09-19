@@ -18,7 +18,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import * as fc from 'fast-check';
 import { Hono } from 'hono';
-import type { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
 import type { EnvironmentConfig, EventBus as EventBusType, Logger, ResourceId } from '@semiont/core';
@@ -40,7 +40,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
+type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
 
 describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () => {
   let testEnv: TestEnvironmentConfig;

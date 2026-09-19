@@ -45,7 +45,7 @@ See [Container Images](IMAGES.md) for the full publishing process and how to ver
 
 ## Upgrading a stack
 
-The image version selects the schema version — migrations ship inside the image, and `prisma migrate deploy` runs before the server starts. So upgrading is:
+No schema migration is involved: the gateway holds no database, and Keycloak manages its own schema on its first boot with a given image. So upgrading is:
 
 ```bash
 semiont stop

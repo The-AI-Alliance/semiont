@@ -7,37 +7,13 @@ import { email } from '@semiont/core';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { JWTService } from '../../auth/jwt';
-import { DatabaseConnection } from '../../db';
-
-// Mock database connection
-vi.mock('../../db', () => ({
-  DatabaseConnection: {
-    getClient: vi.fn(() => ({
-      user: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        count: vi.fn()
-      }
-    }))
-  }
-}));
-
 describe('MCP Authentication security', () => {
-  let mockPrisma: any;
   
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
     
     // Setup database mock
-    mockPrisma = {
-      user: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        count: vi.fn()
-      }
-    };
-    (DatabaseConnection.getClient as any).mockReturnValue(mockPrisma);
     
     // Setup JWT service test config
     JWTService.setTestConfig('test.semiont.com');

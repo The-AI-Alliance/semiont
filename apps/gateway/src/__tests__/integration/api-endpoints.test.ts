@@ -1,5 +1,4 @@
 import { email } from '@semiont/core';
-import type { User } from '@prisma/client';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -24,7 +23,7 @@ const PACKAGE_VERSION: string = JSON.parse(
 ).version;
 
 
-// Delay app import until after test setup to avoid Prisma validation errors
+// Delay app import until after test setup has staged the config
 // Typed from the module under test rather than from a local restatement of
 // its context. The copy that stood here drifted the moment the gateway's
 // context changed, and `tsc` could only report that two structurally identical
@@ -87,27 +86,6 @@ vi.mock('../../identity/principal', () => ({
 }));
 
 // Create a shared mock client that tests can modify
-const sharedMockClient = {
-  $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-  user: {
-    findUnique: vi.fn(),
-    findMany: vi.fn().mockResolvedValue([]),
-    count: vi.fn().mockResolvedValue(0),
-    update: vi.fn(),
-    delete: vi.fn(),
-    groupBy: vi.fn().mockResolvedValue([]),
-  },
-};
-
-// Mock database
-vi.mock('../../db', () => ({
-  DatabaseConnection: {
-    getClient: vi.fn(() => sharedMockClient),
-    checkHealth: vi.fn().mockResolvedValue(true),
-  },
-  prisma: sharedMockClient,
-}));
-
 // Create a test user for authenticated requests
 const testUser = {
   id: 'test-user-id',
@@ -161,7 +139,7 @@ describe('API Endpoints Integration Tests', () => {
     const config = loadEnvironmentConfig(null, 'integration');
     JWTService.initialize(config);
 
-    // Import app after test setup has set DATABASE_URL to avoid Prisma validation errors
+    // Import app after test setup has staged the config
     const serverModule = await import('../../index');
     app = serverModule.app;
 
@@ -172,11 +150,6 @@ describe('API Endpoints Integration Tests', () => {
       name: testUser.name,
       domain: testUser.domain,
     });
-    
-    // Mock the database to return our test user when queried
-    const { DatabaseConnection } = await import('../../db');
-    const prisma = DatabaseConnection.getClient();
-    vi.mocked(prisma.user.findUnique).mockResolvedValue(testUser as User);
     
     // Resolve the test token to the test user
     const { principalFromToken } = await import('../../identity/principal');
@@ -249,10 +222,6 @@ describe('API Endpoints Integration Tests', () => {
 
   describe('Public Endpoints (No Auth Required)', () => {
     it('GET /api/health should return health status without auth', async () => {
-      // Mock successful database query
-      const { prisma } = await import('../../db');
-      vi.mocked(prisma.$queryRaw).mockResolvedValue([{ '?column?': 1 }]);
-      
       const res = await app.request('/api/health');
       expect(res.status).toBe(200);
       
@@ -261,23 +230,15 @@ describe('API Endpoints Integration Tests', () => {
       expect(data.message).toBe('Semiont API is running');
       expect(data.version).toBe(PACKAGE_VERSION);
       expect(data.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.\d{3}Z$/);
-      expect(data.database).toBe('connected');
       expect(data.environment).toBeDefined();
     });
 
-    it('GET /api/health should handle database errors', async () => {
-      // Mock database health check failure
-      const { DatabaseConnection } = await import('../../db');
-      vi.mocked(DatabaseConnection.checkHealth).mockResolvedValue(false);
-
-      const res = await app.request('/api/health');
-      expect(res.status).toBe(200);
-
-      const data = await res.json() as HealthResponse;
-      expect(data.status).toBe('operational');
-      expect(data.database).toBe('disconnected');
-    });
-
+    /*
+     * "should handle database errors" stood here. The gateway has no database:
+     * it reads every caller's identity off their token and holds no row, so
+     * there is no connection whose failure health could report. The response
+     * no longer carries a `database` field at all.
+     */
 
     it('GET /api/openapi.json should return OpenAPI specification', async () => {
       const res = await app.request('/api/openapi.json');

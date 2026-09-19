@@ -25,19 +25,19 @@ const (
 
 // Defines values for AnchoredTextAbsentKind.
 const (
-	AnchoredTextAbsentKindNoMap   AnchoredTextAbsentKind = "no-map"
-	AnchoredTextAbsentKindNotYet  AnchoredTextAbsentKind = "not-yet"
-	AnchoredTextAbsentKindUnknown AnchoredTextAbsentKind = "unknown"
+	NoMap   AnchoredTextAbsentKind = "no-map"
+	NotYet  AnchoredTextAbsentKind = "not-yet"
+	Unknown AnchoredTextAbsentKind = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextAbsentKind enum.
 func (e AnchoredTextAbsentKind) Valid() bool {
 	switch e {
-	case AnchoredTextAbsentKindNoMap:
+	case NoMap:
 		return true
-	case AnchoredTextAbsentKindNotYet:
+	case NotYet:
 		return true
-	case AnchoredTextAbsentKindUnknown:
+	case Unknown:
 		return true
 	default:
 		return false
@@ -548,27 +548,6 @@ const (
 func (e GraphResourceNodeType) Valid() bool {
 	switch e {
 	case GraphResourceNodeTypeResource:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for HealthResponseDatabase.
-const (
-	HealthResponseDatabaseConnected    HealthResponseDatabase = "connected"
-	HealthResponseDatabaseDisconnected HealthResponseDatabase = "disconnected"
-	HealthResponseDatabaseUnknown      HealthResponseDatabase = "unknown"
-)
-
-// Valid indicates whether the value is a known member of the HealthResponseDatabase enum.
-func (e HealthResponseDatabase) Valid() bool {
-	switch e {
-	case HealthResponseDatabaseConnected:
-		return true
-	case HealthResponseDatabaseDisconnected:
-		return true
-	case HealthResponseDatabaseUnknown:
 		return true
 	default:
 		return false
@@ -2752,16 +2731,12 @@ type GraphResourceNodeType string
 
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
-	Database    HealthResponseDatabase `json:"database"`
-	Environment string                 `json:"environment"`
-	Message     string                 `json:"message"`
-	Status      string                 `json:"status"`
-	Timestamp   string                 `json:"timestamp"`
-	Version     string                 `json:"version"`
+	Environment string `json:"environment"`
+	Message     string `json:"message"`
+	Status      string `json:"status"`
+	Timestamp   string `json:"timestamp"`
+	Version     string `json:"version"`
 }
-
-// HealthResponseDatabase defines model for HealthResponse.Database.
-type HealthResponseDatabase string
 
 // InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
 type InferenceLimits struct {

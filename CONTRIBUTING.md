@@ -306,7 +306,7 @@ All contributions should include appropriate tests. We have comprehensive testin
 ### Testing Documentation
 
 - **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, Browser testing
-- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - Jest, unit tests, Prisma database tests
+- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - unit and integration tests
 
 ### Quick Start
 

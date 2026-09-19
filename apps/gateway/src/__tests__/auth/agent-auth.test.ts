@@ -19,42 +19,14 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 });
 
 import { app } from '../../index';
-import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
-import { User } from '@prisma/client';
-import { faker } from '@faker-js/faker';
 import type { components } from '@semiont/core';
 
 type ErrorResponse = components['schemas']['ErrorResponse'];
 
-const prisma = DatabaseConnection.getClient();
-const mockPrismaUser = vi.mocked(prisma.user);
 
 const SITE_DOMAIN = 'test.local';
 const WORKER_SECRET = 'test-worker-secret';
-
-// JWTPayloadSchema requires CUID format: /^c[a-z0-9]{24,}$/
-function makeCuid(): string {
-  return `c${faker.string.alphanumeric(24).toLowerCase()}`;
-}
-
-function makeAgentUser(overrides: Partial<User> = {}): User {
-  return {
-    id: makeCuid(),
-    email: 'ollama-gemma2-27b@agents.test.local',
-    name: 'ollama gemma2:27b',
-    image: null,
-    domain: SITE_DOMAIN,
-    provider: 'agent',
-    providerId: 'ollama:gemma2:27b',
-    isAdmin: false,
-    isModerator: false,
-    lastLogin: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    ...overrides,
-  };
-}
 
 describe('POST /api/tokens/agent', () => {
   beforeAll(() => {
@@ -70,8 +42,6 @@ describe('POST /api/tokens/agent', () => {
 
   describe('successful exchange', () => {
     it('issues a JWT and returns the agent DID for valid (provider, model)', async () => {
-      const mockUser = makeAgentUser();
-      mockPrismaUser.upsert.mockResolvedValue(mockUser);
 
       const response = await app.request('/api/tokens/agent', {
         method: 'POST',
@@ -104,7 +74,6 @@ describe('POST /api/tokens/agent', () => {
      * number, so this is the only place it can be checked.
      */
     it('signs a lifetime short enough to serve as the revocation window', async () => {
-      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
 
       const response = await app.request('/api/tokens/agent', {
         method: 'POST',
@@ -125,7 +94,6 @@ describe('POST /api/tokens/agent', () => {
     });
 
     it('JWT carries the agent DID in `agentDid` so the bus uses it as `_userId`', async () => {
-      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
 
       const response = await app.request('/api/tokens/agent', {
         method: 'POST',
@@ -193,7 +161,6 @@ describe('POST /api/tokens/agent', () => {
     });
 
     it('URI-encodes models containing colons in the DID', async () => {
-      mockPrismaUser.upsert.mockResolvedValue(makeAgentUser());
 
       const response = await app.request('/api/tokens/agent', {
         method: 'POST',
@@ -224,7 +191,6 @@ describe('POST /api/tokens/agent', () => {
       });
 
       expect(response.status).toBe(401);
-      expect(mockPrismaUser.upsert).not.toHaveBeenCalled();
     });
 
     it('returns 400 when `provider` is missing', async () => {

@@ -34,9 +34,6 @@ semiont start
 # Install dependencies
 npm install
 
-# Run database migrations
-npx prisma db push
-
 # Start development server (with auto-restart on changes)
 npm run dev
 
@@ -240,9 +237,6 @@ npm install
 cp .env.example .env
 # Edit .env with your local settings
 
-# Initialize database
-npx prisma generate
-npx prisma db push
 ```
 
 **2. Start Development Server**
@@ -252,19 +246,6 @@ npx prisma db push
 npm run dev
 
 # Server starts on http://localhost:4000
-```
-
-**3. Database Development**
-
-```bash
-# Open Prisma Studio (database GUI)
-npx prisma studio
-
-# Reset database (caution: deletes all data)
-npx prisma db push --force-reset
-
-# Generate Prisma client after schema changes
-npx prisma generate
 ```
 
 ## Environment Configuration
@@ -310,12 +291,6 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Development Tools
 
-### Prisma Studio
-
-Visual database editor:
-
-```bash
-npx prisma studio
 # Opens at http://localhost:5555
 ```
 
@@ -326,47 +301,12 @@ Recommended tools:
 - [Postman](https://www.postman.com/) - GUI API testing
 - [Thunder Client](https://marketplace.visualstudio.com/items?itemName=rangav.vscode-thunder-client) - VS Code extension
 
-### Database Migrations
-
-```bash
-# Create migration from schema changes
-npx prisma migrate dev --name add_user_role
-
-# Apply migrations
-npx prisma migrate deploy
-
-# Reset database
-npx prisma migrate reset
-```
-
 ## Common Development Tasks
 
 ### Adding Test Data
 
-Create `prisma/seed.ts`:
-
-```typescript
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-async function main() {
-  await prisma.user.create({
-    data: {
-      email: 'test@example.com',
-      name: 'Test User',
-      provider: 'google',
-      providerId: 'test-id',
-    },
-  });
-}
-
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
-```
-
-Run: `npx ts-node prisma/seed.ts`
+There is no user table to seed. Accounts live at the identity provider; create
+one with `semiont useradd --email you@example.com --generate-password`.
 
 ### Debugging
 
@@ -408,15 +348,11 @@ PRISMA_LOG=query,info,warn,error
 
 ```typescript
 // Temporarily add to see SQL queries
-const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
-});
 ```
 
 ## Performance Tips
 
 1. **Database Connection Pooling**
-   - Prisma handles this automatically
    - Default pool size: 10 connections
 
 2. **Hot Reload Optimization**
@@ -429,9 +365,6 @@ const prisma = new PrismaClient({
 
 ## Troubleshooting
 
-### "Cannot connect to database"
-
-```bash
 # Check PostgreSQL is running
 docker ps | grep postgres
 
@@ -447,12 +380,6 @@ echo $DATABASE_URL
 - Each key must be at least 32 characters — the check is per key, not on the whole
   string, since `JWT_SECRET` may be a comma-separated rotation ring
 - Generate secure secret: `openssl rand -hex 32`
-
-### "Prisma client not found"
-
-```bash
-# Regenerate Prisma client
-npx prisma generate
 
 # Clear node_modules and reinstall
 rm -rf node_modules

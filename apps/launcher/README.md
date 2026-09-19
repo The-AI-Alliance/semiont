@@ -659,13 +659,12 @@ Support/semiont/roots/<key>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>`
 `.semiont/config` declares one (identity travels with the KB, so a moved
 clone keeps its state), else by a hash of the root path. `start`
 bind-mounts each store's subdir into its container: PostgreSQL rows —
-including users, which the event log does **not** record — survive `stop`
-and restart. A `meta.json` stamp records which image wrote each store; a
+Keycloak's accounts and realms, which the event log does **not** record —
+survive `stop` and restart. A `meta.json` stamp records which image wrote each store; a
 start whose config names a *different* database image over existing data
 refuses with a fix-it line rather than risk it (Postgres data is never
-auto-deleted). The gateway applies its schema with `prisma migrate deploy`,
-which only applies not-yet-applied migrations — a populated database
-no-ops on restart.
+auto-deleted). Keycloak manages its own schema on first boot; Semiont applies
+no migrations of its own, because the gateway keeps no database.
 
 Qdrant (`qdrant/`) and Neo4j (`neo4j/`) state persists the same way, with
 the opposite mismatch rule: they are *projections* of the event log, so a

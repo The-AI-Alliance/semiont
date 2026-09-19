@@ -34,11 +34,14 @@ function log(msg) {
 
 /**
  * Curated source `devDependencies` that the *published* gateway needs at
- * runtime even though source treats them as dev-only. `prisma` is the CLI that
- * runs database migrations against the deployed schema, so the published tarball
- * must depend on it.
+ * runtime even though source treats them as dev-only.
+ *
+ * Nothing currently needs promoting. `prisma` was the only entry — the gateway
+ * ran migrations at startup — and the gateway holds no database now. The hook
+ * stays because the next runtime devDependency would otherwise have to
+ * rediscover the problem; the throw below guards whatever is added here.
  */
-const GATEWAY_RUNTIME_DEVDEPS = ['prisma'];
+const GATEWAY_RUNTIME_DEVDEPS = [];
 
 /**
  * Derive the published gateway's `dependencies` from source — the single source
@@ -78,7 +81,7 @@ function stageGateway(version) {
 
   if (DRY_RUN) {
     log(`  Would stage to: ${stageDir}`);
-    log(`  Would copy: dist/, prisma/`);
+    log(`  Would copy: dist/`);
     log(`  Would use: package.publish.json with version ${version}`);
     log(`  Would derive dependencies from apps/gateway/package.json (promoted: ${GATEWAY_RUNTIME_DEVDEPS.join(', ')})`);
     return stageDir;
@@ -90,19 +93,12 @@ function stageGateway(version) {
     throw new Error(`Gateway not built: ${distIndex} not found. Run 'npm run build' in apps/gateway first.`);
   }
 
-  const prismaSchema = resolve(gatewayDir, 'prisma/schema.prisma');
-  if (!existsSync(prismaSchema)) {
-    throw new Error(`Prisma schema not found: ${prismaSchema}`);
-  }
-
   // Clean and create staging directory
   if (existsSync(stageDir)) rmSync(stageDir, { recursive: true });
   mkdirSync(stageDir, { recursive: true });
 
   // Copy built artifacts
   execFileSync('cp', ['-r', resolve(gatewayDir, 'dist'), resolve(stageDir, 'dist')]);
-  execFileSync('cp', ['-r', resolve(gatewayDir, 'prisma'), resolve(stageDir, 'prisma')]);
-  execFileSync('cp', [resolve(gatewayDir, 'prisma.config.ts'), resolve(stageDir, 'prisma.config.ts')]);
 
   // Copy and update publish package.json. `package.publish.json` holds only the
   // publish metadata that differs from source (name, bin, files, …) — NOT deps.
@@ -122,7 +118,7 @@ function stageGateway(version) {
 
   log(`  Derived ${Object.keys(publishPkg.dependencies).length} runtime deps from source (promoted: ${GATEWAY_RUNTIME_DEVDEPS.join(', ')})`);
   log(`  Staged @semiont/gateway@${version} to ${stageDir}`);
-  log(`  Files: dist/, prisma/, prisma.config.ts, package.json, README.md`);
+  log(`  Files: dist/, package.json, README.md`);
 
   return stageDir;
 }

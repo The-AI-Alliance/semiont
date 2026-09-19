@@ -34,12 +34,6 @@ container ps --all | grep semiont
 container inspect semiont-gateway
 ```
 
-The gateway image sets `GATEWAY_DIR` to the installed package, which prisma commands need:
-
-```bash
-container exec semiont-gateway sh -c 'cd "$GATEWAY_DIR" && npx prisma migrate status'
-```
-
 ## Common failures
 
 ### The stack starts but nothing responds
@@ -50,7 +44,7 @@ semiont status
 
 Read which service is unhealthy before anything else. The Browser has no health probe — it is a static file server — so a "Browser problem" is usually a gateway problem seen through the browser.
 
-If the gateway shows `exited`, the usual cause is that `prisma migrate deploy` failed at startup. The gateway's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
+If the gateway shows `exited`, read its logs — it starts no subprocesses of its own and has no database to reach, so the cause is in the server's own startup. The gateway's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
 
 ```bash
 semiont logs --service gateway
@@ -65,7 +59,6 @@ Its startup contract is strict, and each unmet requirement throws:
 | `SEMIONT_ROOT` | `SEMIONT_ROOT environment variable is not set` |
 | `services.gateway` in the environment config | `services.gateway is required in environment config` |
 | `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
-| `DATABASE_URL` (or the `DB_*` set) | Prisma connection error during `migrate deploy` |
 | `JWT_SECRET` under 32 characters | Startup validation failure |
 | `SEMIONT_WORKER_SECRET` | Gateway starts, but no agent can get a token — see below |
 
@@ -110,7 +103,7 @@ If `semiont status` shows the stack green while emits still fail, the served-hea
 container ps --all | grep semiont-postgres
 container exec semiont-postgres pg_isready -U postgres
 semiont logs --service database
-semiont logs --service gateway | grep -iE "prisma|database|connection"
+semiont logs --service gateway | grep -iE "error|connection"
 ```
 
 A full `semiont start` should not race the database: it waits for PostgreSQL to open its port **and** to be reachable from inside a container before it starts anything that depends on it, and dumps the database's logs if that wait times out (20s). So on a launcher-managed start, "the gateway came up before the database was ready" is a bug worth reporting, not a retry.

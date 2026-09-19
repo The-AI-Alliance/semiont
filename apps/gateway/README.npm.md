@@ -24,8 +24,6 @@ This package is what the `semiont-gateway` container image runs inside.
 
 ```bash
 npm install @semiont/gateway
-
-npx prisma migrate deploy --schema=node_modules/@semiont/gateway/prisma/schema.prisma
 node node_modules/@semiont/gateway/dist/index.js
 ```
 
@@ -36,16 +34,12 @@ Requires in the environment:
   KB's `.semiont/semiontconfig/<name>.toml` there; running the package directly
   means placing or symlinking one yourself. The environment block comes from its
   `[defaults] environment`.
-- `DATABASE_URL` — Postgres connection string. The container image derives one
-  from `services.database` in the config when this is unset; running the package
-  directly has no such step, so set it yourself.
 - `JWT_SECRET` — minimum 32 characters
 - `SEMIONT_WORKER_SECRET` — for the software-agent token exchange
 
 ## What's included
 
 - `dist/` — compiled gateway application (Hono server)
-- `prisma/` — Prisma schema and migrations
 
 ## Links
 

@@ -51,9 +51,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import type { Hono } from 'hono';
-import type { User } from '@prisma/client';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
@@ -66,11 +63,10 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   };
 });
 
-type Variables = {
-  user: User;
-  config: EnvironmentConfig;
-  eventBus: EventBus;
-};
+// Typed from the module under test rather than from a local restatement of its
+// context. The copy that stood here could only ever report that two
+// structurally identical types were not the same one.
+type GatewayApp = typeof import('../index').app;
 
 // Meta-routes that serve the API documentation itself (self-referential, not in spec)
 const DOCUMENTATION_META_ROUTES = [
@@ -169,7 +165,7 @@ function enumerateSpecRoutes(spec: any): RouteKey[] {
  * attached to a path). They aren't routes users can call; they
  * wrap real routes. The spec describes endpoints, not middleware.
  */
-function enumerateAppRoutes(app: Hono<{ Variables: Variables }>): RouteKey[] {
+function enumerateAppRoutes(app: GatewayApp): RouteKey[] {
   const seen = new Set<string>();
   const out: RouteKey[] = [];
   for (const route of app.routes) {
@@ -237,7 +233,7 @@ function routePatternToTestPath(pattern: string): string {
 // Every describe block below reads from this closure; `beforeAll`
 // populates it once per file run so neither the Hono app nor the
 // spec is parsed more than once.
-let app: Hono<{ Variables: Variables }>;
+let app: GatewayApp;
 let testEnv: TestEnvironmentConfig;
 let spec: any;
 let publicRoutes: Set<string>;

@@ -18,7 +18,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Server } from 'http';
 import type { AddressInfo } from 'net';
-import type { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import { EventBus, resourceId as makeResourceId } from '@semiont/core';
 import type { EventBus as EventBusType, EnvironmentConfig, EventMap, Logger } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
@@ -38,7 +38,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
+type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
 
 describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
   let testEnv: TestEnvironmentConfig;
