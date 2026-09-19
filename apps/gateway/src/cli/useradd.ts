@@ -167,10 +167,10 @@ async function main(argv: string[]): Promise<number> {
   const o = parseArgs(argv);
   validate(o);
 
-  // `null` for the same reason db-url.ts passes null: this bin is exec'd INSIDE
-  // the gateway container (`container exec semiont-gateway semiont-useradd`),
-  // which mounts no knowledge base and sets no SEMIONT_ROOT. The staged
-  // ~/.semiontconfig is the config, and the loader reads it either way.
+  // `null`: this bin is exec'd INSIDE the gateway container
+  // (`container exec semiont-gateway semiont-useradd`), which mounts no
+  // knowledge base and sets no SEMIONT_ROOT. The staged ~/.semiontconfig is
+  // the config, and the loader reads it either way.
   const config = loadEnvironmentConfig(null);
   const target = keycloakTarget(config.services.identity);
   const keycloak = await KeycloakAdminApi.connect(target.issuer, target.username, target.password);

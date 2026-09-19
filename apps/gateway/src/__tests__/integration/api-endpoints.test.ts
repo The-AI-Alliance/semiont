@@ -111,8 +111,6 @@ vi.mock('../../config', () => ({
     NODE_ENV: 'test',
     PORT: 3001,
     JWT_SECRET: 'test-jwt-secret',
-    ADMIN_EMAIL: 'admin@example.com',
-    DATABASE_URL: 'postgresql://test:test@localhost:5432/test_db',
     CORS_ORIGIN: 'http://localhost:3000',
   },
 }));

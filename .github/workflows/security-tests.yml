@@ -135,21 +135,6 @@ jobs:
       run:
         working-directory: ./apps/gateway
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_USER: testuser
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -264,18 +249,12 @@ jobs:
         run: npm run test:security
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Run all tests with coverage
         run: npm run test:coverage
         env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Run TypeScript type checking
         run: npm run typecheck
@@ -285,10 +264,7 @@ jobs:
       - name: Build application (fast)
         run: npm run build:fast
         env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Start gateway for API security verification
         run: |
@@ -299,10 +275,7 @@ jobs:
           # no piece of the knowledge base (SINGLE-KB-MOUNT P6), so it reads
           # ~/.semiontconfig alone and neither variable names anything it opens.
           export NODE_ENV=test
-          export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-key-for-testing-32char
-          export GOOGLE_CLIENT_ID=test-client-id
-          export GOOGLE_CLIENT_SECRET=test-client-secret
 
           echo "Starting gateway in the ci environment..."
           cd apps/gateway
@@ -389,12 +362,6 @@ jobs:
             exit 1
           fi
           echo "✅ Proper JSON error format returned"
-
-          # The password-endpoint suite that stood here (missing email, missing
-          # password, invalid credentials, no data leakage, SQL injection) tested
-          # POST /api/tokens/password — an endpoint this gateway does not have.
-          # People authenticate at the trusted issuer; the gateway verifies, and
-          # never sees a password. It answered 404 to every probe.
 
           echo "🎉 All gateway API security checks passed!"
 

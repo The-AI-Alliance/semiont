@@ -1,12 +1,3 @@
-// The gateway holds no database.
-//
-// A long note stood here about deriving DATABASE_URL outside the process,
-// because `prisma migrate deploy` and this file's module order both had to
-// agree on where the connection string came from. None of that applies: every
-// caller's identity is read off their token, there is no row to store, and the
-// Prisma client, the schema and the boot-time migration are gone. Keycloak
-// keeps its own PostgreSQL; this process does not speak to one.
-
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';

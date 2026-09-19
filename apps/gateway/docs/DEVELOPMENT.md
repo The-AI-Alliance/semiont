@@ -185,10 +185,8 @@ semiont start --runtime podman
 - **Lower Resource Usage**: More efficient than Docker Desktop
 - **No Background Daemon**: Containers run without persistent daemon
 
-`DOCKER_HOST` matters for the gateway's **integration tests**, which provision
-PostgreSQL with `@testcontainers/postgresql`; the launcher itself is told which
-runtime to use by `--runtime`. Ryuk is disabled by the test setup, so there is no
-`TESTCONTAINERS_RYUK_DISABLED` to export.
+The launcher is told which runtime to use by `--runtime`. The gateway's tests
+need no container runtime of their own.
 
 ## Manual Setup (Alternative)
 
@@ -418,9 +416,9 @@ Beyond that, the gateway reads from the environment directly:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string. In the container image the CMD derives it from `services.database` (`src/cli/db-url.ts`) when unset; set it explicitly to override, e.g. for an external or TLS-requiring database |
 | `JWT_SECRET` | Token signing. An ordered, comma-separated key ring: the first key signs, every key verifies; minimum 32 characters **per key**. A single value is the one-key case. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
-| `SEMIONT_WORKER_SECRET` | Shared secret for the software-agent token exchange |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the knowledge base's issuer. It exchanges these for an access token to reach the Archivist; without them the first Archivist call fails |
+| `KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD` | Master-realm credentials, read only by `semiont-useradd` when it administers accounts at a launcher-run Keycloak |
 
 `semiont init` generates both TOML files. See the
 [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the

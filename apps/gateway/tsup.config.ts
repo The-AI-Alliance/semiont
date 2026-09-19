@@ -14,11 +14,7 @@ export default defineConfig({
   // 619ms build. Failures still fail the command; build.sh prints the per-package
   // check mark. Drop this line temporarily when you want the size column.
   silent: true,
-  // One entry besides the server:
-  //   useradd — `semiont useradd` execs it via `container exec`
-  //
-  // `db-url` stood here too, deriving DATABASE_URL ahead of the migration and
-  // the server. The gateway holds no database, so there is nothing to derive.
+  // `semiont useradd` execs the second entry by name via `container exec`.
   entry: ['src/index.ts', 'src/cli/useradd.ts'],
   format: ['esm'],
   dts: false,
