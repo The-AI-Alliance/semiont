@@ -318,8 +318,6 @@ vi.mock('@semiont/make-meaning', () => ({
   startMakeMeaning: vi.fn().mockResolvedValue({ /* ... */ })
 }));
 
-vi.mock('../../db', () => ({ /* ... */ }));
-vi.mock('../../auth/oauth', () => ({ /* ... */ }));
 
 describe('My Feature HTTP Contract', () => {
   let app: Hono;

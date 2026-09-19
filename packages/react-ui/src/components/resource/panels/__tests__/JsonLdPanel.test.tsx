@@ -26,10 +26,6 @@ vi.mock('@codemirror/language', () => ({
   syntaxHighlighting: vi.fn(),
   HighlightStyle: { define: vi.fn(() => ({})) },
 }));
-vi.mock('../../../lib/codemirror-json-theme', () => ({
-  jsonLightTheme: {},
-  jsonLightHighlightStyle: {},
-}));
 
 // Mock the hooks the panel consumes — NOT the session/client stack.
 vi.mock('@/contexts/LineNumbersContext', async () => {
