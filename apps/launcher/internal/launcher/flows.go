@@ -630,7 +630,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage, secret str
 		}
 		extra = m
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
+	clientSecret, ok := x.sidecarClientSecret(fc.root, sc.svc)
+	if !ok {
+		return 1
+	}
+	args := sidecarArgs(sc.svc, sc.port, stage, addr, secret, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -665,7 +669,11 @@ func flowArchivist(x executor, fc flowCtx, addr, stage, secret string, otel []st
 		return 1
 	}
 	extra = append(extra, state...)
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, fc.version, fc.userEnv, otel, extra...)
+	clientSecret, ok := x.sidecarClientSecret(fc.root, "archivist")
+	if !ok {
+		return 1
+	}
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, secret, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -693,7 +701,11 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage, secret string, otel []st
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, addr, secret, fc.version, fc.userEnv, otel, state...)
+	clientSecret, ok := x.sidecarClientSecret(fc.root, "librarian")
+	if !ok {
+		return 1
+	}
+	args := librarianArgs(stage, addr, secret, clientSecret, fc.version, fc.userEnv, otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")

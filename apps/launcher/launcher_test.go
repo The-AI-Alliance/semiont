@@ -184,6 +184,16 @@ func (s *scenario) env() []string {
 	}
 	if !s.noWorkerSecret {
 		env = append(env, "SEMIONT_WORKER_SECRET=test-worker-secret")
+		// Pinned so the boot goldens are deterministic: an unpinned run
+		// generates a fresh credential per sidecar and every golden would
+		// differ from the last.
+		// Tracks `sidecarClients` in internal/launcher, which this external test
+		// package cannot see. Drift is loud rather than silent: a sidecar missing
+		// from this list gets a generated credential and its boot golden differs
+		// on the very next run.
+		for _, svc := range []string{"archivist", "librarian", "smelter", "weaver", "worker"} {
+			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
+		}
 	}
 	// Pinned for the same reason as the worker secret: a generated one is
 	// random, and the boot goldens compare argv verbatim. Tests that need the

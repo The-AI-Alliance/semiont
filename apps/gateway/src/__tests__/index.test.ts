@@ -166,22 +166,27 @@ describe('Main Application (index.ts)', () => {
       expect(response.status).toBe(404);
     });
 
-    it('should handle invalid JSON in POST requests', async () => {
-      // The agent route is the one public POST; it answers 503 without its secret.
-      const priorSecret = process.env.SEMIONT_WORKER_SECRET;
-      process.env.SEMIONT_WORKER_SECRET = 'index-test-worker-secret';
-      try {
-        const response = await app.request('http://localhost/api/tokens/agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: 'invalid-json',
-        });
+    /**
+     * Authentication happens BEFORE the body is read.
+     *
+     * This used to assert a 400 for malformed JSON on the agent route, which
+     * was then the one public POST. It no longer is — every POST the gateway
+     * serves now requires a bearer — so an unauthenticated caller sending
+     * rubbish gets 401 and the body is never parsed. That ordering is the
+     * property worth holding: a parser should not run on input from someone
+     * who has not identified themselves.
+     *
+     * The 400-for-malformed-JSON case lives with the route that can produce
+     * it, in the agent exchange's own tests, where the caller is authenticated.
+     */
+    it('authenticates before parsing a POST body', async () => {
+      const response = await app.request('http://localhost/api/tokens/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'invalid-json',
+      });
 
-        expect(response.status).toBe(400);
-      } finally {
-        if (priorSecret === undefined) delete process.env.SEMIONT_WORKER_SECRET;
-        else process.env.SEMIONT_WORKER_SECRET = priorSecret;
-      }
+      expect(response.status).toBe(401);
     });
   });
 

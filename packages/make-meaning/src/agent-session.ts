@@ -1,15 +1,23 @@
 /**
  * The agent token session a long-lived sidecar holds.
  *
- * Every sidecar in this package authenticates the same way: present the shared
- * `SEMIONT_WORKER_SECRET` to `POST /api/tokens/agent` under a stable
- * (provider, model) identity, hold the resulting token, and keep it fresh for
- * as long as the process runs. That was four byte-identical copies of the same
- * twenty-five lines, which meant four copies of the token lifetime — a number
- * the GATEWAY owns, written here as `12 * 60 * 60 * 1000`, "half the TTL".
- * When the gateway's lifetime changed, the copies did not, and the listen-only
- * path (SSE, which reads `token$` on reconnect rather than driving an HTTP
- * request that could 401) would have gone quiet with nothing in the logs.
+ * Every sidecar in this package authenticates the same way: prove who the
+ * PROCESS is at the trusted issuer with its own service-account credential,
+ * exchange that token at `POST /api/tokens/agent` for an agent token naming a
+ * (provider, model) identity, hold it, and keep it fresh for as long as the
+ * process runs.
+ *
+ * Two identities on purpose. The service account is rotatable on its own and
+ * its tokens expire; the agent DID is what events are attributed to. They used
+ * to be one shared static secret that granted any agent identity to anyone
+ * holding it.
+ *
+ * This lives in one place because it was four byte-identical copies, which
+ * meant four copies of the token lifetime — a number the GATEWAY owns, written
+ * as `12 * 60 * 60 * 1000`, "half the TTL". When the gateway's lifetime
+ * changed, the copies did not, and the listen-only path (SSE, which reads
+ * `token$` on reconnect rather than driving a request that could 401) would
+ * have gone quiet with nothing in the logs.
  *
  * So the lifetime is not restated here. When a token expires is that token's
  * own `exp` claim, and how long before expiry to renew is `REFRESH_BEFORE_EXP_MS`
@@ -28,8 +36,10 @@ import {
   accessToken as makeAccessToken,
   retryWithBackoff,
   isTransientFetchError,
+  serviceAccountToken,
   STARTUP_FETCH_RETRY,
 } from '@semiont/core';
+import type { ServiceAccountCredential } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { parseJwtExpiry, REFRESH_BEFORE_EXP_MS } from '@semiont/sdk';
 
@@ -43,8 +53,8 @@ interface SessionLogger {
 export interface AgentSessionOptions {
   /** Gateway base URL, e.g. `http://gateway:4000`. */
   baseUrl: string;
-  /** Shared secret. Empty means "unconfigured", which is tolerated here. */
-  workerSecret: string;
+  /** This process's own account at the issuer. */
+  credential: ServiceAccountCredential;
   /** The agent identity's inference provider, e.g. `semiont`. */
   provider: string;
   /** The agent identity's model, e.g. `weaver`. */
@@ -67,22 +77,26 @@ export interface AgentSession {
  * Connection-level failures are retried with backoff: the gateway may be
  * mid-restart or the container network still warming up when a sidecar starts,
  * and orchestration runs these with `--rm` and no restart policy, so exiting on
- * the first failed fetch is permanent death. HTTP-level rejections (a bad
- * secret) are NOT retried; the gateway is up and said no.
+ * the first failed fetch is permanent death. HTTP-level rejections (a refused
+ * credential) are NOT retried; the far end is up and said no.
  */
 async function authenticate(opts: AgentSessionOptions): Promise<string> {
-  const { baseUrl, workerSecret, provider, model, logger } = opts;
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
+  const { baseUrl, credential, provider, model, logger } = opts;
 
   return retryWithBackoff(
     async () => {
+      // Both round trips sit inside the retry: the issuer and the gateway come
+      // up independently of this process, and either being slow to boot is the
+      // transient case this exists for.
+      const caller = await serviceAccountToken(credential);
+
       const response = await fetch(`${baseUrl}/api/tokens/agent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: workerSecret, provider, model }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${caller}`,
+        },
+        body: JSON.stringify({ provider, model }),
       });
 
       if (!response.ok) {
@@ -116,7 +130,11 @@ async function authenticate(opts: AgentSessionOptions): Promise<string> {
 export async function startAgentSession(opts: AgentSessionOptions): Promise<AgentSession> {
   const { logger, provider, model } = opts;
 
-  logger.info('Authenticating', { baseUrl: opts.baseUrl, agent: `${provider}:${model}` });
+  logger.info('Authenticating', {
+    baseUrl: opts.baseUrl,
+    agent: `${provider}:${model}`,
+    as: opts.credential.clientId,
+  });
   const first = await authenticate(opts);
   const token$ = new BehaviorSubject<AccessToken | null>(makeAccessToken(first));
   logger.info('Authenticated', { expiresAt: parseJwtExpiry(first)?.toISOString() ?? null });
@@ -129,8 +147,7 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
    * gateway is free to change the lifetime, and the very next token teaches
    * this process the new schedule with no release on this side.
    *
-   * A token with no readable `exp` (the unconfigured empty string) schedules
-   * nothing — there is no credential to keep alive. The floor keeps a token
+   * A token with no readable `exp` schedules nothing. The floor keeps a token
    * that arrives already near expiry from spinning the loop hot.
    */
   const rearm = (token: string): void => {

@@ -46,14 +46,15 @@ type executor interface {
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
 	either(cond func() bool, then, els func() int) int
-	otelDetect(addr string) []string                    // --service: OTel iff the collector is up
-	recoverSecret() (string, bool)                      // --service: rejoin the running stack's secret
-	workerSecret() (string, bool)                       // full start: env or generated
-	jwtSecret(root string) (string, bool)               // gateway token-signing key: env, else persisted per-root, else generated
-	identityAdminPassword(root string) (string, bool)   // Keycloak's bootstrap admin password: same three sources
-	stageRealm(realm string, doc []byte) (string, bool) // the realm file Keycloak imports; returns its staged path
-	createDatabase(user, name string) bool              // a database on the launcher-run PostgreSQL, if absent
-	ollamaVolume(opts startOptions) string              // model-cache choice (prompt is live-only)
+	otelDetect(addr string) []string                     // --service: OTel iff the collector is up
+	recoverSecret() (string, bool)                       // --service: rejoin the running stack's secret
+	workerSecret() (string, bool)                        // full start: env or generated
+	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
+	sidecarClientSecret(root, svc string) (string, bool) // a sidecar's service-account credential, per root
+	stageRealm(realm string, doc []byte) (string, bool)  // the realm file Keycloak imports; returns its staged path
+	createDatabase(user, name string) bool               // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string               // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
@@ -577,6 +578,10 @@ func (x *liveExec) identityAdminPassword(root string) (string, bool) {
 	return loadOrCreateKeycloakAdminPassword(x.u, root)
 }
 
+func (x *liveExec) sidecarClientSecret(root, svc string) (string, bool) {
+	return loadOrCreateSidecarClientSecret(x.u, root, svc)
+}
+
 func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
@@ -1082,6 +1087,10 @@ func (x *planExec) jwtSecret(root string) (string, bool) { return "<jwt-secret>"
 
 func (x *planExec) identityAdminPassword(string) (string, bool) {
 	return "<keycloak-admin-password>", true
+}
+
+func (x *planExec) sidecarClientSecret(_, svc string) (string, bool) {
+	return "<" + svc + "-client-secret>", true
 }
 
 func (x *planExec) stageRealm(realm string, _ []byte) (string, bool) {

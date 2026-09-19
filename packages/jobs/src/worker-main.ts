@@ -3,7 +3,8 @@
  *
  * One worker host runs N parallel worker processes, one per distinct
  * `(inferenceProvider, model)` configured in `~/.semiontconfig`. Each
- * authenticates with the KS via `/api/tokens/agent` for *its* agent
+ * authenticates as its own service account, then exchanges that at
+ * `/api/tokens/agent` for *its* agent
  * identity, and that JWT is what the bus stamps onto every event the
  * process emits — so `_userId` on the bus and the `generator` on every
  * annotation refer to the same software peer.
@@ -13,7 +14,7 @@
  * mean different processes and different agents.
  *
  * Environment variables (only two):
- *   SEMIONT_WORKER_SECRET — shared secret for /api/tokens/agent auth
+ *   SEMIONT_OIDC_CLIENT_ID / _SECRET — this process's service account
  *   ANTHROPIC_API_KEY     — only when using Anthropic inference
  *
  * Everything else comes from ~/.semiontconfig.
@@ -88,7 +89,17 @@ if (!gatewayPublicURL) {
 }
 const gatewayBaseUrl: string = gatewayPublicURL;
 
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+const issuerUrl = envConfig.services?.identity?.issuer;
+if (!issuerUrl) {
+  throw new Error('services.identity.issuer is required: a worker authenticates at the knowledge base\'s issuer');
+}
+const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+if (!clientId || !clientSecret) {
+  throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
+}
+/** This process's account. The agent DIDs it buys are per (provider, model). */
+const credential = { issuer: issuerUrl, clientId, clientSecret };
 
 // Bytes come from the Archivist, not the gateway (SINGLE-KB-MOUNT P4).
 // Resolved at module scope so a worker with no Archivist address — or no
@@ -159,7 +170,7 @@ async function main() {
 
   const workers = await Promise.all(
     Array.from(groups.values()).map((group) =>
-      startAgentWorker({ group, gatewayBaseUrl, workerSecret, contentReads, logger }),
+      startAgentWorker({ group, gatewayBaseUrl, credential, contentReads, logger }),
     ),
   );
 

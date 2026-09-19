@@ -4583,9 +4583,6 @@ type PostApiTokensAgentJSONBody struct {
 
 	// Provider Inference provider (e.g. ollama, anthropic)
 	Provider string `json:"provider"`
-
-	// Secret The shared secret (SEMIONT_WORKER_SECRET)
-	Secret string `json:"secret"`
 }
 
 // PostResourcesMultipartBody defines parameters for PostResources.
@@ -12040,7 +12037,6 @@ type PostApiTokensAgentResponse struct {
 	}
 	JSON400 *ErrorResponse
 	JSON401 *ErrorResponse
-	JSON503 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -12669,13 +12665,6 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 			return nil, err
 		}
 		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
 
 	}
 

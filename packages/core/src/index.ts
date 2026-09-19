@@ -368,6 +368,7 @@ export * from './storage-uri';
 export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
+export * from './service-account';
 
 // Configuration types
 export type {

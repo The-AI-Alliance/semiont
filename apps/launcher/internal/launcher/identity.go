@@ -17,6 +17,14 @@ const (
 	// Browser is machine-level, so one public client (PKCE) serves it.
 	browserClientID = "semiont-browser"
 
+	// agentRole: what a token must carry, in a FLAT `roles` array, for the
+	// gateway to mint a software-agent token for its bearer. Flat and
+	// vendor-neutral by design — the gateway's verification path names no
+	// Keycloak structure, so an operator federating another issuer maps their
+	// own groups into the same claim. Must equal AGENT_ROLE in
+	// apps/gateway/src/identity/agent-minter.ts.
+	agentRole = "semiont-agent"
+
 	// keycloakAccessTokenLifespan: how long an access token the realm mints
 	// stays valid, in seconds.
 	//
@@ -74,8 +82,69 @@ func identityEndpoint(rp rolePlan) string {
 	return fmt.Sprintf("http://localhost:%d%s", rp.Port, issuerPath(rp.Issuer))
 }
 
+// sidecarClients: the processes that exchange a service-account token for a
+// software-agent token, and so need an account at the realm.
+//
+// The gateway is deliberately NOT among them. It VERIFIES these tokens; it
+// never presents one, and giving it a credential it does not use would be a
+// standing one it could leak.
+var sidecarClients = []string{"archivist", "librarian", "smelter", "weaver", "worker"}
+
+// sidecarClientID: the realm client id for a sidecar's service account.
+func sidecarClientID(svc string) string { return "semiont-" + svc }
+
+// serviceAccountClient: a confidential client that can obtain a token for
+// ITSELF (the client-credentials grant) and nothing else — no browser flow, no
+// password grant, no user behind it.
+//
+// Two mappers ride on it. The audience mapper is the same one the public
+// clients carry, so the gateway's audience check passes. The roles mapper
+// hardcodes the agent role: an operator creating this client IS the assertion
+// that this process may mint agent identities, and a hardcoded claim says that
+// without needing a realm role created and assigned in the same import.
+func serviceAccountClient(svc, secret, audience string) map[string]any {
+	return map[string]any{
+		"clientId":                  sidecarClientID(svc),
+		"name":                      "Semiont " + svc,
+		"enabled":                   true,
+		"protocol":                  "openid-connect",
+		"publicClient":              false,
+		"secret":                    secret,
+		"serviceAccountsEnabled":    true,
+		"standardFlowEnabled":       false,
+		"implicitFlowEnabled":       false,
+		"directAccessGrantsEnabled": false,
+		"protocolMappers": []map[string]any{
+			{
+				"name":            "gateway audience",
+				"protocol":        "openid-connect",
+				"protocolMapper":  "oidc-audience-mapper",
+				"consentRequired": false,
+				"config": map[string]string{
+					"included.custom.audience": audience,
+					"access.token.claim":       "true",
+					"id.token.claim":           "false",
+				},
+			},
+			{
+				"name":            "semiont agent role",
+				"protocol":        "openid-connect",
+				"protocolMapper":  "oidc-hardcoded-claim-mapper",
+				"consentRequired": false,
+				"config": map[string]string{
+					"claim.name":         "roles",
+					"claim.value":        `["` + agentRole + `"]`,
+					"jsonType.label":     "JSON",
+					"access.token.claim": "true",
+					"id.token.claim":     "false",
+				},
+			},
+		},
+	}
+}
+
 // keycloakRealmJSON renders the realm Keycloak imports on FIRST BOOT: the
-// realm itself and two public clients — the Browser's (authorization code
+// realm itself, two public clients — the Browser's (authorization code
 // with PKCE) and the launcher's (the device grant) — each with an audience
 // mapper that stamps the gateway's client id into every access token, the
 // value the gateway's verifier checks.
@@ -84,7 +153,7 @@ func identityEndpoint(rp rolePlan) string {
 // including the values here. A deployment whose realm predates a change to this
 // function keeps the settings it was created with; adjusting those is a console
 // or admin-API job, not a restart.
-func keycloakRealmJSON(realm, audience, addr string) []byte {
+func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]string) []byte {
 	browser := publicClient(browserClientID, "Semiont Browser", audience)
 	browser["standardFlowEnabled"] = true
 	browser["redirectUris"] = []string{"http://localhost:3000/*", "http://" + addr + ":3000/*"}
@@ -98,12 +167,18 @@ func keycloakRealmJSON(realm, audience, addr string) []byte {
 	cli["attributes"] = map[string]string{
 		"oauth2.device.authorization.grant.enabled": "true",
 	}
+	clients := []map[string]any{browser, cli}
+	// Ordered by `sidecarClients`, not by map iteration: the rendered document
+	// is compared against a golden, and Go randomises map order.
+	for _, svc := range sidecarClients {
+		clients = append(clients, serviceAccountClient(svc, sidecarSecrets[svc], audience))
+	}
 	doc := map[string]any{
 		"realm":               realm,
 		"enabled":             true,
 		"sslRequired":         "none",
 		"accessTokenLifespan": keycloakAccessTokenLifespan,
-		"clients":             []map[string]any{browser, cli},
+		"clients":             clients,
 	}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
@@ -158,7 +233,18 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, bool) {
 		x.note("identity: external PostgreSQL at %s — the %q database must already exist there", dbHost, keycloakDatabase)
 	}
 	realm := keycloakRealm(issuerPath(rp.Issuer))
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr))
+	// Resolved here and persisted per root, so the container that must PRESENT
+	// each secret reads the same value out of the same file rather than having
+	// it threaded through the start flow.
+	secrets := map[string]string{}
+	for _, svc := range sidecarClients {
+		secret, ok := x.sidecarClientSecret(fc.root, svc)
+		if !ok {
+			return nil, false
+		}
+		secrets[svc] = secret
+	}
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, secrets))
 	if !ok {
 		return nil, false
 	}

@@ -77,7 +77,20 @@ const chunkingConfig: ChunkingConfig = {
   overlap: embedding.chunking?.overlap ?? 64,
 };
 
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+/**
+ * This process's own account at the issuer. The credential authenticates the
+ * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
+ */
+const issuerUrl = envConfig.services?.identity?.issuer;
+if (!issuerUrl) {
+  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
+}
+const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+if (!clientId || !clientSecret) {
+  throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
+}
+const credential = { issuer: issuerUrl, clientId, clientSecret };
 
 const healthPort = 24101;
 
@@ -110,7 +123,7 @@ async function main() {
   // gateway's to decide; see `startAgentSession`.
   const session = await startAgentSession({
     baseUrl,
-    workerSecret,
+    credential,
     provider: embeddingType,
     model: embeddingModel,
     logger,

@@ -418,6 +418,56 @@ func keycloakAdminPassword(root string) (secret, source string) {
 	return "", ""
 }
 
+// sidecarClientSecretPath: where a sidecar's service-account secret is kept for
+// this root. One file per client, so rotating one sidecar's credential is a
+// single deletion rather than a stack-wide reset — which is the whole point of
+// giving them separate accounts instead of one shared string.
+func sidecarClientSecretPath(root, svc string) string {
+	dir := stateRootDir(root)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "oidc-client-secret-"+svc)
+}
+
+// sidecarClientSecretEnv: the environment variable that pins one sidecar's
+// credential, e.g. SEMIONT_OIDC_CLIENT_SECRET_WEAVER.
+func sidecarClientSecretEnv(svc string) string {
+	return "SEMIONT_OIDC_CLIENT_SECRET_" + strings.ToUpper(svc)
+}
+
+// loadOrCreateSidecarClientSecret: the persisted per-root credential for one
+// sidecar's Keycloak service account, generating and persisting one on first
+// use. The same value reaches two places — the realm document Keycloak imports
+// and the container that has to present it — so both read it from here rather
+// than passing it between them.
+func loadOrCreateSidecarClientSecret(u *ui, root, svc string) (string, bool) {
+	// An explicit value wins, the same precedence $SEMIONT_WORKER_SECRET and
+	// $KC_BOOTSTRAP_ADMIN_PASSWORD have. Per service rather than one for all:
+	// separate credentials are the point of this, and an override that collapsed
+	// them back to one shared string would quietly undo it.
+	if s := os.Getenv(sidecarClientSecretEnv(svc)); s != "" {
+		return s, true
+	}
+	p := sidecarClientSecretPath(root, svc)
+	if p == "" {
+		u.fail("No home directory resolvable, so the %s service-account secret cannot be persisted.", svc)
+		return "", false
+	}
+	if s := readPersistedSecret(p); s != "" {
+		return s, true
+	}
+	secret, ok := generateHexSecret(u, 16, "the "+svc+" service-account secret")
+	if !ok {
+		return "", false
+	}
+	if !persistSecret(u, p, secret) {
+		return "", false
+	}
+	u.log("%s service account: %s", svc, u.dim("generated and persisted at "+p))
+	return secret, true
+}
+
 // loadOrCreateKeycloakAdminPassword resolves Keycloak's bootstrap admin
 // password for one root: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted
 // per-root value, else a freshly generated one persisted before use.

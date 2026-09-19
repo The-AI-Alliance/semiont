@@ -105,7 +105,29 @@ if (config.services.vectors.type === 'memory') {
   throw new Error("services.vectors.type 'memory' is a test-only sink; the Archivist requires a server-backed vector store");
 }
 
+/**
+ * The Archivist's READ PATH still authenticates callers with the shared secret.
+ * That is a different direction — other services calling the Archivist, not the
+ * Archivist calling the gateway — and it is the last use of this secret. It is
+ * narrowed from "grants any agent identity" to "reads the Archivist", and
+ * replacing it is its own change.
+ */
 const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+
+/**
+ * This process's own account at the issuer. The credential authenticates the
+ * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
+ */
+const issuerUrl = envConfig.services?.identity?.issuer;
+if (!issuerUrl) {
+  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
+}
+const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+if (!clientId || !clientSecret) {
+  throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
+}
+const credential = { issuer: issuerUrl, clientId, clientSecret };
 const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
 
 /** Claimed as a portNeed in the launcher (P2b): worker 24100, smelter 24101, weaver 24102. */
@@ -138,7 +160,7 @@ async function main() {
   // gateway's to decide; see `startAgentSession`.
   const session = await startAgentSession({
     baseUrl,
-    workerSecret,
+    credential,
     provider: 'semiont',
     model: 'archivist',
     logger,

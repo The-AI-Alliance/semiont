@@ -1,9 +1,15 @@
 /**
  * Tests for `/api/tokens/agent` — software-agent token exchange.
  *
- * The endpoint takes (secret, provider, model) and issues a JWT whose
- * `agentDid` field carries the agent's identity (so the bus stamps the
- * agent on `_userId`, not the synthetic User row backing the token).
+ * The caller authenticates at the trusted issuer as its own SERVICE ACCOUNT and
+ * presents that token here; what it receives is an agent token for a
+ * (provider, model) identity. Two different identities on purpose: the service
+ * account is the process, the agent DID is the work, and one process holds
+ * several agent identities when job types are configured with different models.
+ *
+ * This replaced a single shared secret in the request body, which granted any
+ * agent identity to anyone holding it and could only be rotated by restarting
+ * the stack.
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
@@ -20,13 +26,34 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
+import { configureTrustedIssuer } from '../../identity/trusted-issuer';
+import { AGENT_ROLE } from '../../identity/agent-minter';
+import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
 import type { components } from '@semiont/core';
 
 type ErrorResponse = components['schemas']['ErrorResponse'];
 
 
 const SITE_DOMAIN = 'test.local';
-const WORKER_SECRET = 'test-worker-secret';
+const ORIGIN = 'https://issuer.test';
+const AUDIENCE = 'https://example.github.io/test-kb';
+
+let issuer: FixtureIssuer;
+
+/** A service-account token carrying the role that authorizes minting. */
+async function sidecarToken(claims: Record<string, unknown> = {}) {
+  return issuer.token({ claims: { azp: 'semiont-weaver', roles: [AGENT_ROLE], ...claims } });
+}
+
+/** The request every successful case makes, differing only in what it asks for. */
+async function mint(body: Record<string, unknown>, token?: string) {
+  const bearer = token ?? (await sidecarToken());
+  return app.request('/api/tokens/agent', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${bearer}` },
+    body: JSON.stringify(body),
+  });
+}
 
 describe('POST /api/tokens/agent', () => {
   beforeAll(() => {
@@ -35,22 +62,18 @@ describe('POST /api/tokens/agent', () => {
     });
   });
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
-    process.env.SEMIONT_WORKER_SECRET = WORKER_SECRET;
+    issuer = await fixtureIssuer(ORIGIN, { audience: AUDIENCE });
+    configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN }, AUDIENCE);
   });
 
   describe('successful exchange', () => {
     it('issues a JWT and returns the agent DID for valid (provider, model)', async () => {
 
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           provider: 'ollama',
           model: 'gemma2:27b',
-        }),
       });
 
       expect(response.status).toBe(200);
@@ -75,14 +98,9 @@ describe('POST /api/tokens/agent', () => {
      */
     it('signs a lifetime short enough to serve as the revocation window', async () => {
 
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           provider: 'ollama',
           model: 'gemma2:27b',
-        }),
       });
 
       const { token } = await response.json() as { token: string };
@@ -95,14 +113,9 @@ describe('POST /api/tokens/agent', () => {
 
     it('JWT carries the agent DID in `agentDid` so the bus uses it as `_userId`', async () => {
 
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           provider: 'ollama',
           model: 'gemma2:27b',
-        }),
       });
 
       const { token } = await response.json() as { token: string };
@@ -117,14 +130,9 @@ describe('POST /api/tokens/agent', () => {
      * `/bus/subscribe` the worker makes — the regression this guards.
      */
     it('places the synthetic email in the agents.<host> namespace, not the deployment domain', async () => {
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           provider: 'ollama',
           model: 'gemma2:27b',
-        }),
       });
 
       const { token } = await response.json() as { token: string };
@@ -139,15 +147,10 @@ describe('POST /api/tokens/agent', () => {
       // `slug@agents.localhost:8080`.
       JWTService.setTestConfig('localhost:8080');
       try {
-        const response = await app.request('/api/tokens/agent', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            secret: WORKER_SECRET,
+        const response = await mint({
             provider: 'ollama',
             model: 'gemma2:27b',
-          }),
-        });
+      });
 
         const { token } = await response.json() as { token: string };
         const payload = JWTService.verifyToken(token as never);
@@ -162,14 +165,9 @@ describe('POST /api/tokens/agent', () => {
 
     it('URI-encodes models containing colons in the DID', async () => {
 
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           provider: 'ollama',
           model: 'gemma2:27b',
-        }),
       });
 
       const { did } = await response.json() as { did: string };
@@ -179,28 +177,62 @@ describe('POST /api/tokens/agent', () => {
   });
 
   describe('rejected requests', () => {
-    it('returns 401 for the wrong secret', async () => {
+    const ASK = { provider: 'ollama', model: 'gemma2:27b' };
+
+    it('returns 401 with no bearer at all', async () => {
       const response = await app.request('/api/tokens/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: 'wrong-secret',
-          provider: 'ollama',
-          model: 'gemma2:27b',
-        }),
+        body: JSON.stringify(ASK),
       });
 
       expect(response.status).toBe(401);
     });
 
+    /**
+     * The load-bearing case. A service account that exists in the realm but was
+     * never granted the agent role must NOT be able to mint agent identities —
+     * otherwise every client in the realm inherits what the shared secret used
+     * to grant, and the change buys nothing.
+     */
+    it('returns 401 for a verifiable token without the agent role', async () => {
+      const response = await mint(ASK, await issuer.token({ claims: { azp: 'semiont-browser' } }));
+
+      expect(response.status).toBe(401);
+      const data = await response.json() as ErrorResponse;
+      expect(String(data.error)).toMatch(/semiont-agent/);
+    });
+
+    it('returns 401 when the role claim is nested rather than flat', async () => {
+      // Keycloak's own shape. The gateway reads a flat `roles` array so that an
+      // operator on another issuer can map into it; accepting the nested form
+      // too would put a vendor's layout in the verification path.
+      const nested = await issuer.token({ claims: { realm_access: { roles: [AGENT_ROLE] } } });
+
+      expect((await mint(ASK, nested)).status).toBe(401);
+    });
+
+    it('returns 401 for a token signed by a key the issuer does not publish', async () => {
+      const forged = await issuer.token({
+        claims: { roles: [AGENT_ROLE] },
+        privateKey: await issuer.unpublishedKey(),
+      });
+
+      expect((await mint(ASK, forged)).status).toBe(401);
+    });
+
+    it('returns 401 for a token minted for another audience', async () => {
+      const wrongAudience = await issuer.token({
+        claims: { roles: [AGENT_ROLE] },
+        audience: 'https://example.github.io/some-other-kb',
+      });
+
+      expect((await mint(ASK, wrongAudience)).status).toBe(401);
+    });
+
     it('returns 400 when `provider` is missing', async () => {
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           model: 'gemma2:27b',
-        }),
       });
 
       expect(response.status).toBe(400);
@@ -209,13 +241,8 @@ describe('POST /api/tokens/agent', () => {
     });
 
     it('returns 400 when `model` is missing', async () => {
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: WORKER_SECRET,
+      const response = await mint({
           provider: 'ollama',
-        }),
       });
 
       expect(response.status).toBe(400);
@@ -226,27 +253,30 @@ describe('POST /api/tokens/agent', () => {
     it('returns 400 for malformed JSON', async () => {
       const response = await app.request('/api/tokens/agent', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${await sidecarToken()}`,
+        },
         body: 'not-json',
       });
 
       expect(response.status).toBe(400);
     });
 
-    it('returns 503 when SEMIONT_WORKER_SECRET is not configured on the gateway', async () => {
-      delete process.env.SEMIONT_WORKER_SECRET;
+    /**
+     * 401, not a distinct status. A deployment trusting no issuer is
+     * configuration state, and answering an unverified caller differently here
+     * would tell them something about this gateway that they have not earned —
+     * and would put a hole in the route-coverage contract, which requires every
+     * non-public route to answer 401.
+     */
+    it('returns 401, not a configuration status, when no issuer is trusted', async () => {
+      const bearer = await sidecarToken();
+      configureTrustedIssuer(undefined, AUDIENCE);
 
-      const response = await app.request('/api/tokens/agent', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: 'anything',
-          provider: 'ollama',
-          model: 'gemma2:27b',
-        }),
-      });
+      const response = await mint({ provider: 'ollama', model: 'gemma2:27b' }, bearer);
 
-      expect(response.status).toBe(503);
+      expect(response.status).toBe(401);
     });
   });
 });

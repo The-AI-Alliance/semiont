@@ -8,6 +8,7 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import { JWTService } from '../auth/jwt';
+import { authorizeAgentMinter, AgentMinterRefused } from '../identity/agent-minter';
 import type { components } from '@semiont/core';
 import { email as makeEmail, agentToDid } from '@semiont/core';
 
@@ -65,35 +66,38 @@ const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
 /**
  * POST /api/tokens/agent
  *
- * Software-agent token exchange. A worker process presents the shared
- * `SEMIONT_WORKER_SECRET` along with the inference (provider, model)
- * the token is being issued for. The gateway upserts a User row that
- * backs the agent identity and returns a JWT carrying both the
- * synthetic User and the agent's DID.
+ * Software-agent token exchange. A sidecar authenticates at the trusted issuer
+ * as its own service account and presents that token here, along with the
+ * inference (provider, model) the agent token is being issued for.
+ *
+ * Two identities, deliberately: the service account is the PROCESS, and the
+ * agent DID is the WORK. One worker process holds several agent identities at
+ * once when a deployment configures different models for different job types,
+ * so the caller's credential cannot be the agent's identity.
  *
  * The agent's DID has the shape `did:web:<host>:agents:<provider>:<model>`
  * (see `agentToDid` in @semiont/core). It is what the bus stamps onto
  * `_userId` on every event the worker emits — so events the agent
  * produces attribute to the agent, not to a generic worker pool.
- *
- * Public endpoint (no authentication required — this IS the auth step).
  */
 authRouter.post('/api/tokens/agent', async (c) => {
-  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
-  if (!workerSecret) {
-    return c.json({ error: 'Agent authentication not configured' }, 503);
+  let minter: string;
+  try {
+    minter = await authorizeAgentMinter(c.req.header('Authorization'));
+  } catch (error) {
+    if (error instanceof AgentMinterRefused) {
+      return c.json({ error: error.message }, 401);
+    }
+    throw error;
   }
 
-  let body: { secret?: string; provider?: string; model?: string };
+  let body: { provider?: string; model?: string };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: 'Invalid request body' }, 400);
   }
 
-  if (body.secret !== workerSecret) {
-    return c.json({ error: 'Invalid agent secret' }, 401);
-  }
   if (!body.provider || typeof body.provider !== 'string') {
     return c.json({ error: 'provider is required' }, 400);
   }
@@ -125,6 +129,11 @@ authRouter.post('/api/tokens/agent', async (c) => {
   const agentName = `${inferenceProvider} ${model}`;
 
   const did = agentToDid({ domain: siteDomain, provider: inferenceProvider, model });
+
+  // Which service account asked for which agent identity. Worth a line: the two
+  // are deliberately different, so an operator tracing an event back to its
+  // agent DID otherwise has no record of which process requested it.
+  c.get('logger')?.info('Agent token issued', { minter, did });
 
   // No row is written. The agent's identity IS the DID, derived from the same
   // (domain, provider, model) the caller just presented, so there was never a

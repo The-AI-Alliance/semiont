@@ -98,8 +98,18 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 	}
 }
 
+func TestKeycloakRealmJSONOmitsGatewayServiceAccount(t *testing.T) {
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", nil))
+	// The gateway VERIFIES these tokens and never presents one. A credential it
+	// does not use is a credential it can only leak.
+	if strings.Contains(doc, `"clientId": "semiont-gateway"`) {
+		t.Error("realm document registers a service account for the gateway, which mints nothing")
+	}
+}
+
 func TestKeycloakRealmJSON(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1"))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1",
+		map[string]string{"archivist": "archivist-secret", "weaver": "weaver-secret"}))
 	for _, want := range []string{
 		`"realm": "semiont"`,
 		`"clientId": "semiont-browser"`,
@@ -114,6 +124,17 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		// good until it expires. A realm imported without this would take whatever
 		// Keycloak defaults to that release.
 		`"accessTokenLifespan": 300`,
+		// Each sidecar that exchanges a service-account token for an agent token
+		// needs a confidential client of its own. A shared one would be the
+		// static secret this replaced, wearing a realm's clothes.
+		`"clientId": "semiont-archivist"`,
+		`"clientId": "semiont-weaver"`,
+		`"serviceAccountsEnabled": true`,
+		`"secret": "archivist-secret"`,
+		// The gateway reads a FLAT roles array; Keycloak's nested realm_access
+		// shape is deliberately not what this stamps.
+		`"claim.name": "roles"`,
+		`"claim.value": "[\"semiont-agent\"]"`,
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("realm document missing %s", want)
