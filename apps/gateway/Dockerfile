@@ -76,8 +76,6 @@ ENV PATH="/home/semiont/.local/share/semiont/node_modules/.bin:${PATH}"
 
 RUN test -f "$GATEWAY_DIR/dist/index.js" \
       || { echo "GATEWAY_DIR does not contain dist/index.js: $GATEWAY_DIR"; exit 1; }; \
-    test -f "$GATEWAY_DIR/dist/cli/db-url.js" \
-      || { echo "@semiont/gateway@${SEMIONT_VERSION} predates dist/cli/db-url.js, which this CMD needs to derive DATABASE_URL — build with a version that ships it"; exit 1; }; \
     command -v semiont-useradd >/dev/null \
       || { echo "semiont-useradd is not on PATH — \`semiont useradd\` execs it by name; check the package's bin entry and the PATH above"; exit 1; }
 

@@ -472,7 +472,7 @@ Like `system`, the `auth` namespace lives on `IGatewayOperations` and is `undefi
 
 ```typescript
 const user = await semiont.auth!.me();
-await semiont.auth!.acceptTerms();
+const metadata = await semiont.auth!.protectedResourceMetadata();  // which issuers this KB trusts
 const { token } = await semiont.auth!.mediaToken(resourceId);
 ```
 
