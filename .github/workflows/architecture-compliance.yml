@@ -83,10 +83,11 @@ jobs:
       - name: Run Boot Contract Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Boot Contract Audit (B1-B3 env/config census + H1 test-env hygiene)"
+          echo "::group::Boot Contract Audit (B1-B3 env/config census + H1 test-env hygiene + vi.mock targets)"
           fail=0
           ./scripts/compliance/audit-boot-contract.sh || fail=1
           ./scripts/compliance/audit-test-env-hygiene.sh || fail=1
+          ./scripts/compliance/audit-mock-targets.sh || fail=1
           echo "::endgroup::"
           exit $fail
 
