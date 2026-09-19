@@ -21,7 +21,8 @@ import (
 // launcher injects itself and never demands from the user.
 var injectedVars = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "SEMIONT_WORKER_SECRET": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true,
+	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
 
 var envRefRe = regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`)
@@ -88,10 +89,11 @@ type envConfig struct {
 	Database   *databaseCfg           `toml:"database"`
 	// Jobs selects the gateway's job-queue driver (JOB-QUEUE-DRIVER P2).
 	// Absent = the in-gateway fs driver; nothing to launch.
-	Jobs    *jobsCfg              `toml:"jobs"`
-	Signal  *signalCfg            `toml:"signal"`
-	Actors  map[string]bindingCfg `toml:"actors"`
-	Workers map[string]bindingCfg `toml:"workers"`
+	Jobs     *jobsCfg              `toml:"jobs"`
+	Signal   *signalCfg            `toml:"signal"`
+	Identity *identityCfg          `toml:"identity"`
+	Actors   map[string]bindingCfg `toml:"actors"`
+	Workers  map[string]bindingCfg `toml:"workers"`
 	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
 	// The launcher never writes one — confgen.go emits no [site] section — so
 	// its presence means a human added it, and the gateway's TOML loader then
@@ -170,6 +172,17 @@ type jobsCfg struct {
 type signalCfg struct {
 	Type    string `toml:"type"`
 	Servers string `toml:"servers"`
+}
+
+// identityCfg mirrors the TypeScript IdentityServiceConfig: type "keycloak" |
+// "oidc", the issuer URL the gateway trusts (a keycloak issuer on the
+// launcher-injected ${KEYCLOAK_HOST} is provided; any other host, and every
+// oidc issuer, is external). The audience is NOT configured: it is derived
+// from the KB's committed did:web domain (kbResource).
+type identityCfg struct {
+	Type   string `toml:"type"`
+	Issuer string `toml:"issuer"`
+	Image  string `toml:"image"` // optional: override the catalog's default image
 }
 
 type bindingCfg struct {

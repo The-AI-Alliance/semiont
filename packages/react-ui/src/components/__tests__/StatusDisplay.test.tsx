@@ -7,7 +7,7 @@ import { StatusDisplay } from '../StatusDisplay';
 
 let mockGetStatus: ReturnType<typeof vi.fn>;
 const stableMockClient = {
-  admin: {
+  system: {
     get status() { return mockGetStatus; },
   },
 };

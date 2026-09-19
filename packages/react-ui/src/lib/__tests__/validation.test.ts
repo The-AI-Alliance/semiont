@@ -159,7 +159,7 @@ describe('ImageURLSchema', () => {
 
 describe('OAuthUserSchema', () => {
   const validUser: OAuthUser = {
-    id: 'user123',
+    did: 'did:web:example.com:users:user%40example.com',
     email: 'user@example.com',
     domain: 'example.com',
     isAdmin: false,
@@ -172,6 +172,22 @@ describe('OAuthUserSchema', () => {
         const result = OAuthUserSchema.parse(validUser);
 
         expect(result).toEqual(validUser);
+      });
+
+      /**
+       * The role flags are optional on purpose. No gateway route reads them and
+       * where they should live is undecided, so a knowledge base that omits
+       * them is valid — this validator must not be what forces that decision.
+       * Consumers read `?? false`, so an omitted flag hides the affordance.
+       */
+      it('should accept a user carrying neither role flag', () => {
+        const { isAdmin, isModerator, ...noRoles } = validUser;
+
+        const result = OAuthUserSchema.parse(noRoles);
+
+        expect(result).toEqual(noRoles);
+        expect(result.isAdmin).toBeUndefined();
+        expect(result.isModerator).toBeUndefined();
       });
 
       it('should accept user with optional name field', () => {
@@ -236,19 +252,21 @@ describe('OAuthUserSchema', () => {
         expect(() => OAuthUserSchema.parse(123)).toThrow('User data must be an object');
       });
 
-      it('should reject missing id', () => {
-        const { id, ...userWithoutId } = validUser;
-        expect(() => OAuthUserSchema.parse(userWithoutId)).toThrow('User ID is required');
+      it('should reject a missing did', () => {
+        const { did, ...userWithoutDid } = validUser;
+        expect(() => OAuthUserSchema.parse(userWithoutDid)).toThrow('A did is required');
       });
 
-      it('should reject empty id', () => {
-        const userWithEmptyId = { ...validUser, id: '' };
-        expect(() => OAuthUserSchema.parse(userWithEmptyId)).toThrow('User ID is required');
+      it('should reject a value that is not a did', () => {
+        // The row id this replaced would have passed any non-empty check, which
+        // is why the check is on the scheme and not merely on the length.
+        const userWithRowId = { ...validUser, did: 'user123' };
+        expect(() => OAuthUserSchema.parse(userWithRowId)).toThrow('A did is required');
       });
 
-      it('should reject non-string id', () => {
-        const userWithNumberId = { ...validUser, id: 123 };
-        expect(() => OAuthUserSchema.parse(userWithNumberId)).toThrow('User ID is required');
+      it('should reject a non-string did', () => {
+        const userWithNumberDid = { ...validUser, did: 123 };
+        expect(() => OAuthUserSchema.parse(userWithNumberDid)).toThrow('A did is required');
       });
 
       it('should reject missing email', () => {
@@ -296,9 +314,9 @@ describe('OAuthUserSchema', () => {
         );
       });
 
-      it('should reject missing isAdmin', () => {
-        const { isAdmin, ...userWithoutAdmin } = validUser;
-        expect(() => OAuthUserSchema.parse(userWithoutAdmin)).toThrow(
+      it('should reject null isAdmin, which is a value and not an absence', () => {
+        const userWithNullAdmin = { ...validUser, isAdmin: null };
+        expect(() => OAuthUserSchema.parse(userWithNullAdmin)).toThrow(
           'isAdmin must be a boolean'
         );
       });
@@ -310,9 +328,9 @@ describe('OAuthUserSchema', () => {
         );
       });
 
-      it('should reject missing isModerator', () => {
-        const { isModerator, ...userWithoutMod } = validUser;
-        expect(() => OAuthUserSchema.parse(userWithoutMod)).toThrow(
+      it('should reject null isModerator, which is a value and not an absence', () => {
+        const userWithNullMod = { ...validUser, isModerator: null };
+        expect(() => OAuthUserSchema.parse(userWithNullMod)).toThrow(
           'isModerator must be a boolean'
         );
       });

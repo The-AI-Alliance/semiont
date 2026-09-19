@@ -29,10 +29,6 @@ import type {
   AccessToken,
   BaseUrl,
   ContentFormat,
-  Email,
-  GoogleCredential,
-  RefreshToken,
-  UserDID,
 } from './branded-types';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { EventMap } from './bus-protocol';
@@ -78,10 +74,7 @@ export type ConnectionState =
 
 // ── Response type helpers (shape-equivalent to the OpenAPI surface) ─────
 
-type AuthResponse = components['schemas']['AuthResponse'];
-type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
-type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
-type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
+type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 type ResponseContent<T> = T extends { responses: { 200: { content: { 'application/json': infer R } } } }
   ? R
@@ -91,16 +84,9 @@ type ResponseContent<T> = T extends { responses: { 200: { content: { 'applicatio
       ? R
       : never;
 
-type RequestContent<T> = T extends { requestBody?: { content: { 'application/json': infer R } } }
-  ? R
-  : never;
-
 export type HealthCheckResponse = ResponseContent<paths['/api/health']['get']>;
 export type StatusResponse = ResponseContent<paths['/api/status']['get']>;
 export type UserResponse = ResponseContent<paths['/api/users/me']['get']>;
-export type UpdateUserRequest = RequestContent<paths['/api/admin/users/{id}']['patch']>;
-export type UpdateUserResponse = ResponseContent<paths['/api/admin/users/{id}']['patch']>;
-export type ListUsersResponse = ResponseContent<paths['/api/admin/users']['get']>;
 
 // ── ITransport ──────────────────────────────────────────────────────────
 
@@ -230,7 +216,7 @@ export interface ITransport {
  * `SemiontClient` constructor takes a `IGatewayOperations` argument
  * separately from the bus transport so non-HTTP transports
  * (`LocalTransport`) can implement just the bus surface and the
- * SemiontClient cleanly omits `client.auth` / `client.admin`.
+ * SemiontClient cleanly omits `client.auth` / `client.system`.
  *
  * Implementations should map their native error codes to
  * `TransportErrorCode` (see `errors.ts`) so the routing layer
@@ -239,20 +225,10 @@ export interface ITransport {
 export interface IGatewayOperations {
   // ── Auth ──────────────────────────────────────────────────────────────
 
-  authenticatePassword(email: Email, password: string): Promise<AuthResponse>;
-  authenticateGoogle(credential: GoogleCredential): Promise<AuthResponse>;
-  refreshAccessToken(token: RefreshToken): Promise<TokenRefreshResponse>;
-  logout(): Promise<void>;
-  acceptTerms(): Promise<void>;
   getCurrentUser(): Promise<UserResponse>;
   getMediaToken(resourceId: ResourceId): Promise<{ token: string }>;
-
-  // ── Admin ─────────────────────────────────────────────────────────────
-
-  listUsers(): Promise<ListUsersResponse>;
-  getUserStats(): Promise<AdminUserStatsResponse>;
-  updateUser(id: UserDID, data: UpdateUserRequest): Promise<UpdateUserResponse>;
-  getOAuthConfig(): Promise<OAuthConfigResponse>;
+  /** RFC 9728: which issuer the knowledge base trusts. Public; read before any token exists. */
+  getProtectedResourceMetadata(): Promise<ProtectedResourceMetadata>;
 
   // ── System ────────────────────────────────────────────────────────────
 

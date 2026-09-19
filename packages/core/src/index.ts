@@ -16,9 +16,7 @@ export type {
   // Authentication & tokens
   Email,
   AuthCode,
-  GoogleCredential,
   AccessToken,
-  RefreshToken,
   MCPToken,
   CloneToken,
   // System identifiers
@@ -36,9 +34,7 @@ export {
   // Helper functions
   email,
   authCode,
-  googleCredential,
   accessToken,
-  refreshToken,
   mcpToken,
   cloneToken,
   jobId,
@@ -245,9 +241,6 @@ export type {
   HealthCheckResponse,
   StatusResponse,
   UserResponse,
-  UpdateUserRequest,
-  UpdateUserResponse,
-  ListUsersResponse,
 } from './transport';
 
 // Channel set every concrete transport bridges into the client's bus.
@@ -360,7 +353,6 @@ export type { Annotation, AnnotationCategory, CreateAnnotationInternal } from '.
 export type { TagSchema, TagCategory } from './tag-schemas';
 
 // Auth types
-export type { GoogleAuthRequest } from './auth-types';
 
 // ID generation
 export { generateUuid, uuidV4 } from './id-generation';
@@ -376,12 +368,12 @@ export * from './storage-uri';
 export * from './type-guards';
 export * from './errors';
 export * from './did-utils';
+export * from './service-account';
 
 // Configuration types
 export type {
   EnvironmentConfig,
   SiteConfig,
-  AppConfig,
 } from './config/config.types';
 
 export {

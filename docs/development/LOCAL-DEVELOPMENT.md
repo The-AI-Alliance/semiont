@@ -78,17 +78,11 @@ semiont stop --service browser   # stop one service
 
 ## Database operations
 
-Prisma is driven from the gateway workspace:
+The gateway holds no database. It reads every caller's identity off their token and stores no row,
+so there is no schema to migrate and no client to generate.
 
-```bash
-cd apps/gateway
-npx prisma studio          # database browser
-npx prisma migrate dev     # create + apply a migration
-npx prisma generate        # regenerate the client
-```
-
-The gateway container runs `npx prisma migrate deploy` itself at startup, so a fresh stack needs no
-manual migration step.
+The PostgreSQL in the table above belongs to **Keycloak**, which manages its own schema on first
+boot. See [Database Management](../system/administration/DATABASE.md).
 
 ## Additional Documentation
 

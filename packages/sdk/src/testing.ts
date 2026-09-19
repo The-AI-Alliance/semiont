@@ -155,7 +155,7 @@ export interface TestClientOptions {
  * A COMPLETE `IGatewayOperations` whose every method rejects loudly with its
  * own name — so a unit that touches an op the test didn't script fails with
  * "not scripted: <op>" instead of a fabricated success. Script behavior via
- * `AuthNamespace.prototype` / `AdminNamespace.prototype` spies, or spread
+ * `AuthNamespace.prototype` / `SystemNamespace.prototype` spies, or spread
  * overrides over this stub. tsc enforces completeness: a new gateway op is a
  * compile error HERE, not a silent gap.
  */
@@ -163,17 +163,9 @@ export function stubGateway(): IGatewayOperations {
   const notScripted = (name: string) => () =>
     Promise.reject(new Error(`stubGateway: not scripted: ${name}`));
   return {
-    authenticatePassword: notScripted('authenticatePassword'),
-    authenticateGoogle: notScripted('authenticateGoogle'),
-    refreshAccessToken: notScripted('refreshAccessToken'),
-    logout: notScripted('logout'),
-    acceptTerms: notScripted('acceptTerms'),
     getCurrentUser: notScripted('getCurrentUser'),
     getMediaToken: notScripted('getMediaToken'),
-    listUsers: notScripted('listUsers'),
-    getUserStats: notScripted('getUserStats'),
-    updateUser: notScripted('updateUser'),
-    getOAuthConfig: notScripted('getOAuthConfig'),
+    getProtectedResourceMetadata: notScripted('getProtectedResourceMetadata'),
     // Observable-returning ops error their stream, same loudness.
     healthCheck: notScripted('healthCheck'),
     getStatus: notScripted('getStatus'),

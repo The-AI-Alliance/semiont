@@ -30,6 +30,11 @@
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js",
       "default": "./dist/openapi.js"
+    },
+    "./identity": {
+      "types": "./dist/identity/issuer.d.ts",
+      "import": "./dist/identity/issuer.js",
+      "default": "./dist/identity/issuer.js"
     }
   },
   "engines": {
@@ -89,6 +94,7 @@
   "dependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
+    "jose": "^6.2.8",
     "rxjs": "^7.8.1",
     "smol-toml": "^1.8.0"
   },

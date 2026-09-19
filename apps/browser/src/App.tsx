@@ -10,20 +10,14 @@ const AboutPage = React.lazy(() => import('./app/[locale]/about/page'));
 const PrivacyPage = React.lazy(() => import('./app/[locale]/privacy/page'));
 const TermsPage = React.lazy(() => import('./app/[locale]/terms/page'));
 const ConnectPage = React.lazy(() => import('./app/[locale]/auth/connect/page'));
-const SignUpPage = React.lazy(() => import('./app/[locale]/auth/signup/page'));
 const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'));
-const WelcomePage = React.lazy(() => import('./app/[locale]/auth/welcome/page'));
+const AuthCallbackPage = React.lazy(() => import('./app/[locale]/auth/callback/page'));
 import { AuthShell } from './contexts/AuthShell';
 const KnowledgeLayout = React.lazy(() => import('./app/[locale]/know/layout'));
 const KnowledgePage = React.lazy(() => import('./app/[locale]/know/page'));
 const KnowledgeDiscoverPage = React.lazy(() => import('./app/[locale]/know/discover/page'));
 const KnowledgeComposePage = React.lazy(() => import('./app/[locale]/know/compose/page'));
 const KnowledgeResourcePage = React.lazy(() => import('./app/[locale]/know/resource/[id]/page'));
-const AdminLayout = React.lazy(() => import('./app/[locale]/admin/layout'));
-const AdminPage = React.lazy(() => import('./app/[locale]/admin/page'));
-const AdminUsersPage = React.lazy(() => import('./app/[locale]/admin/users/client'));
-const AdminSecurityPage = React.lazy(() => import('./app/[locale]/admin/security/client'));
-const AdminDevOpsPage = React.lazy(() => import('./app/[locale]/admin/devops/page'));
 const ModerateLayout = React.lazy(() => import('./app/[locale]/moderate/layout'));
 const ModeratePage = React.lazy(() => import('./app/[locale]/moderate/page'));
 const ModerateRecentPage = React.lazy(() => import('./app/[locale]/moderate/recent/page'));
@@ -56,8 +50,8 @@ function LocaleGuard({ children }: { children: React.ReactNode }) {
 
 /**
  * ProtectedLayout — pathless wrapper that mounts AuthShell once for every
- * authenticated route group below it. Section layouts (know/, admin/,
- * moderate/, auth/welcome) live under this route so cross-section
+ * authenticated route group below it. Section layouts (know/,
+ * moderate/) live under this route so cross-section
  * navigation keeps the AuthShell tree (ProtectedErrorBoundary + the two
  * auth-failure modals) mounted instead of tearing it down and rebuilding.
  */
@@ -107,12 +101,11 @@ export default function App() {
 
           {/* Auth routes (pre-app — no AuthShell) */}
           <Route path="auth/connect" element={<ConnectPage />} />
-          <Route path="auth/signup" element={<SignUpPage />} />
           <Route path="auth/error" element={<AuthErrorPage />} />
+          <Route path="auth/callback" element={<AuthCallbackPage />} />
 
           {/* Protected routes — single AuthShell parent across every authenticated section */}
           <Route element={<ProtectedLayout />}>
-            <Route path="auth/welcome" element={<WelcomePage />} />
 
             {/* Knowledge section */}
             <Route path="know" element={<KnowledgeLayout />}>
@@ -120,14 +113,6 @@ export default function App() {
               <Route path="discover" element={<KnowledgeDiscoverPage />} />
               <Route path="compose" element={<KnowledgeComposePage />} />
               <Route path="resource/:id" element={<KnowledgeResourcePage />} />
-            </Route>
-
-            {/* Admin section */}
-            <Route path="admin" element={<AdminLayout />}>
-              <Route index element={<AdminPage />} />
-              <Route path="users" element={<AdminUsersPage />} />
-              <Route path="security" element={<AdminSecurityPage />} />
-              <Route path="devops" element={<AdminDevOpsPage />} />
             </Route>
 
             {/* Moderation section */}

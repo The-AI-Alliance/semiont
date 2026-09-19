@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
-import type { User } from '@prisma/client';
 import type { Context, Next } from 'hono';
 import type { EventBus, StoredEvent, EnvironmentConfig } from '@semiont/core';
 import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
@@ -58,7 +57,7 @@ async function fetchArchivistReplay(
   resourceId: string,
   fromSequence: number,
 ): Promise<StoredEvent[]> {
-  const { base, headers } = archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config);
   // A CLIENT span for the same reason lib/archivist.ts wraps its three calls:
   // this crosses to another service, and without it a slow replay is
   // indistinguishable from a slow gateway.
@@ -233,7 +232,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
  * behavior. The router owns no plane or registry state of its own anymore.
  */
 export function createBusRouter(authMiddleware: AuthMiddleware) {
-  const busRouter = new Hono<{ Variables: { user: User; principalDid: string; eventBus: EventBus; config: EnvironmentConfig } }>();
+  const busRouter = new Hono<{ Variables: { principalDid: string; eventBus: EventBus; config: EnvironmentConfig } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 

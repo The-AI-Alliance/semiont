@@ -2,10 +2,7 @@
  * The e2e suite's signed-in SDK session — ONE construction, shared.
  *
  * Every spec that drives the gateway directly (rather than through the
- * browser) needs the same thing: credentials in, a wired client out. That was
- * fourteen copies of `SemiontClient.signInHttp({ baseUrl, email, password })`
- * before SSE-AUTH-RESILIENCE P5 deleted that factory as the non-refreshing
- * trap it was; collapsing them here is the other half of that change.
+ * browser) needs the same thing: a signed-in, refreshing session.
  *
  * This is the suite's constants bound to `lib/session.ts`'s config-free
  * builder — the split exists so `scripts/seed.ts`, which takes its connection

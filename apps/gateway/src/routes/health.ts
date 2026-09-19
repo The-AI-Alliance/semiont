@@ -6,7 +6,6 @@
  */
 
 import { Hono } from 'hono';
-import { DatabaseConnection } from '../db';
 import type { components } from '@semiont/core';
 
 type HealthResponse = components['schemas']['HealthResponse'];
@@ -26,14 +25,11 @@ healthRouter.get('/api/health', async (c) => {
     throw new Error('NODE_ENV environment variable is required');
   }
 
-  const dbStatus = await DatabaseConnection.checkHealth();
-
   const response: HealthResponse = {
     status: 'operational',
     message: 'Semiont API is running',
     version: __SEMIONT_VERSION__,
     timestamp: new Date().toISOString(),
-    database: dbStatus ? 'connected' : 'disconnected',
     environment: nodeEnv,
   };
 

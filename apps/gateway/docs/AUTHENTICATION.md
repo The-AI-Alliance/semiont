@@ -35,9 +35,6 @@ export function createResourceRouter(): ResourcesRouterType {
 export const entityTypesRouter = new Hono<{ Variables: { user: User } }>();
 entityTypesRouter.use('/api/entity-types/*', authMiddleware);
 
-// Example: Admin router with layered middleware
-export const adminRouter = new Hono<{ Variables: { user: User } }>();
-adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
 ```
 
 ### Public Endpoints
@@ -45,9 +42,8 @@ adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
 These endpoints are documented in the OpenAPI spec as public (no `security` field):
 
 - `GET /api/health` - Health check for load balancer monitoring
-- `POST /api/tokens/password` - Password authentication
-- `POST /api/tokens/google` - Google OAuth authentication
-- `POST /api/tokens/refresh` - Exchange a refresh token for a new access token (driven by the SDK `Session`)
+- `GET /.well-known/oauth-protected-resource` - Which issuer this gateway trusts (RFC 9728)
+- `POST /api/tokens/agent` - Software-agent token exchange (the shared worker secret is the credential)
 
 All other routes require JWT authentication via router-level middleware.
 
@@ -60,7 +56,7 @@ When creating a new router, apply auth middleware to protect all routes:
 ```typescript
 // src/routes/my-feature.ts
 import { Hono } from 'hono';
-import { User } from '@prisma/client';
+import type { Principal } from '../identity/principal';
 import { authMiddleware } from '../middleware/auth';
 
 export const myFeatureRouter = new Hono<{ Variables: { user: User } }>();
@@ -130,31 +126,16 @@ publicRouter.get('/api', async (c) => {
 }
 ```
 
-### Admin-Only Routes
+### Role Gates
 
-For admin-only endpoints, use layered middleware:
+The gateway has exactly one authorization gate: `authMiddleware`, which answers
+401 or admits the request. Nothing in the gateway reads a role to decide access,
+and no route returns 403.
 
-```typescript
-adminRouter.use('/api/admin/*', authMiddleware, adminMiddleware);
-```
-
-The `adminMiddleware` returns 403 if `user.isAdmin !== true`.
-
-### Moderator Routes
-
-Moderator endpoints use similar layered middleware, allowing both moderators and admins:
-
-```typescript
-const moderatorMiddleware = async (c: any, next: any) => {
-  const user = c.get('user');
-  if (!user || (!user.isModerator && !user.isAdmin)) {
-    return c.json({ error: 'Forbidden: Moderator or Admin access required' }, 403);
-  }
-  return next();
-};
-
-moderateRouter.use('/api/moderate/*', authMiddleware, moderatorMiddleware);
-```
+`isAdmin` and `isModerator` are carried on the principal and echoed by
+`GET /api/auth/me` so that a client can shape its own UI, but they gate nothing
+here. Accounts and their roles are administered at the knowledge base's identity
+provider, not through this API.
 
 ## Gateway Authentication Flow
 
@@ -173,7 +154,6 @@ The auth middleware automatically:
 - Verifies the JWT signature
 - Checks token expiration
 - Loads the user from the database and confirms they are active
-- Enforces revocation: rejects the token when `payload.tokenVersion !== user.tokenVersion` (a logout bump invalidates every live token)
 - Attaches the user to the request context
 
 ### 3. Route Access
@@ -190,33 +170,9 @@ app.get('/api/documents', async (c) => {
 
 ## Token & Session Endpoints
 
-Gateway-specific endpoints beyond the public login routes (`/api/tokens/password`,
-`/api/tokens/google`). Align behavior to the canonical
+People sign in at the trusted issuer and refresh there; the gateway mints only the
+tokens below. Align behavior to the canonical
 [System Authentication](../../../docs/system/administration/AUTHENTICATION.md).
-
-### `POST /api/tokens/refresh`
-
-Exchange a refresh token for a new access token. This is the path
-the SDK `Session` drives to keep a client signed in without re-prompting.
-
-- **Auth**: Public (the refresh token is supplied in the request body)
-- **Revocation-aware**: rejected if the token's `tokenVersion` is behind the user's current value (see logout)
-- **Returns**: `{ access_token: string }`
-
-```typescript
-// The SDK Session exchanges a refresh token for a fresh access token
-const response = await fetch('https://api.semiont.com/api/tokens/refresh', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ refreshToken })
-});
-const { access_token } = await response.json();
-
-// Use the access token for API requests
-const documents = await fetch('https://api.semiont.com/api/documents', {
-  headers: { 'Authorization': `Bearer ${access_token}` }
-});
-```
 
 ### `POST /api/tokens/media`
 
@@ -229,49 +185,43 @@ Mint a short-lived, resource-scoped **media token** for header-less fetches
   presented as `GET /api/resources/:id?token=…` and verified by the auth
   middleware's media path
 
-### `POST /api/users/logout`
+### Signing out
 
-Revoke the caller's sessions. Increments the user's `tokenVersion`, which instantly
-invalidates the refresh token **and** every live access token on its next
-request — server-side, all devices.
-
-- **Auth**: Requires a valid access token
-- **Returns**: `204 No Content`
+The gateway has no logout endpoint, because it never issued the session. A client
+signs out by forgetting its stored session and revoking the refresh token at the
+issuer (RFC 7009), which is what stops a new access token from being minted. The
+access token already in hand stays valid until it expires, minutes later. Nothing
+server-side has to be consulted per request to make that true, which is what lets
+the gateway run N replicas without a shared revocation table.
 
 > **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
 > **removed**. Today `packages/mcp-server` runs single-gateway with a **static**
-> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working when
-> the access token expires, or when a logout bumps `tokenVersion`. A refreshing
-> provisioning flow is being rebuilt; this guide will document it once it lands.
+> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working
+> once the access token expires. A refreshing provisioning flow is being rebuilt;
+> this guide will document it once it lands.
 
 ## JWT Token Structure
 
-Access and refresh tokens carry the **same claim set** (validated by
-`JWTPayloadSchema` in [src/types/jwt-types.ts](../src/types/jwt-types.ts)); they
-differ only in lifetime. Every token carries the user's `tokenVersion` at mint
-time — the middleware rejects it once the stored `tokenVersion` moves ahead (see
-logout, above). Software-agent tokens additionally carry an `agentDid`.
+A person's token is the issuer's: its claims are the issuer's, and the gateway
+reads `sub`, `email`, `email_verified`, and `name` from it. A gateway-minted
+token carries the claim set validated by `JWTPayloadSchema` in
+[src/types/jwt-types.ts](../src/types/jwt-types.ts) and, for a software agent,
+its `agentDid`.
 
-### Access Token
+### Agent Token
 
 ```json
 {
   "userId": "clx0a1b2c3d4e5f6g7h8i9j0k",
-  "email": "user@example.com",
+  "email": "anthropic-claude-sonnet-5@agents.example.com",
   "domain": "example.com",
-  "provider": "google",
+  "provider": "agent",
   "isAdmin": false,
-  "tokenVersion": 0,
+  "agentDid": "did:web:example.com:agents:anthropic:claude-sonnet-5",
   "iat": 1698765432,
-  "exp": 1698766032
+  "exp": 1698851832
 }
 ```
-
-### Refresh Token
-
-Held by the SDK `Session`, which exchanges it for fresh access tokens via
-`POST /api/tokens/refresh`. Same claims as the access token (including
-`tokenVersion`, so a logout revokes it) — only `exp` differs.
 
 ## Security Implementation
 
@@ -288,10 +238,10 @@ The gateway validates tokens through multiple layers:
 ### Security Features
 
 - **Router-level protection** - Routes protected via router.use() middleware
-- **Comprehensive test coverage** - route-auth-coverage.test.ts validates all routes
+- **Comprehensive test coverage** - route-spec-coverage.test.ts validates all routes
 - **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
 - **Request validation** - All inputs validated with Zod schemas
-- **SQL injection prevention** - Prisma ORM with parameterized queries
+- **SQL injection prevention** - not applicable; the gateway issues no SQL and holds no database
 - **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
 - **Domain restrictions** - OAuth limited to allowed domains
 
@@ -342,7 +292,7 @@ for the rotation procedure.
 **"Forbidden" Error (403)**:
 
 ```typescript
-// Check admin flag
+// Inspect the resolved principal
 app.get('/api/debug-user', async (c) => {
   const user = c.get('user');
   return c.json({ user });
@@ -357,11 +307,11 @@ DEBUG=hono:*
 LOG_LEVEL=debug
 ```
 
-**Refresh Token Exchange Fails**:
+**Issuer Token Rejected**:
 
-- Check the refresh token hasn't expired or been revoked by a logout (`tokenVersion` bump)
-- Verify the `POST /api/tokens/refresh` endpoint is accessible
-- Ensure the refresh token is sent as `{ "refreshToken": "…" }` in the body
+- The token's `iss` must equal the configured identity `issuer` exactly (scheme, host, port, path)
+- The token's `aud` must carry the configured `audience`
+- The issuer's JWKS must be reachable from the gateway; a signing key the gateway has not seen triggers one re-fetch
 
 ### Gateway Debugging Tools
 
@@ -422,12 +372,11 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 - No global authentication middleware
 - No PUBLIC_ENDPOINTS array
 - OpenAPI spec defines public vs protected routes
-- Comprehensive test coverage via route-auth-coverage.test.ts
+- Comprehensive test coverage via route-spec-coverage.test.ts
 
 **Implementation Files**:
 - [src/middleware/auth.ts](../src/middleware/auth.ts) - JWT validation middleware
 - [src/routes/resources/shared.ts](../src/routes/resources/shared.ts) - Resources router with auth
-- [src/routes/admin.ts](../src/routes/admin.ts) - Admin router with layered auth
 
 ---
 

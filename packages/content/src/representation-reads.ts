@@ -21,7 +21,7 @@
  */
 
 import type { IContentTransport, ResourceId } from '@semiont/core';
-import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
+import { archivistAddress, archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 
 /**
  * The byte read, and nothing else — DERIVED from the transport contract so it
@@ -62,10 +62,18 @@ export class RepresentationMissing extends Error {
  * a hop away. `reason` rides the wire precisely so this side need not guess.
  */
 export function archivistContentReads(config: ArchivistAddressConfig): ContentReads {
-  const { base, headers } = archivistEndpoint(config);
+  // Boot-time, not first-read: a Smelter with no Archivist address or no
+  // credential must die while an operator is watching, not fail every resource
+  // quietly. Only the TOKEN is deferred, because only the token is async.
+  archivistAddress(config);
 
   return {
     getBinary: async (resourceId: ResourceId) => {
+      // Resolved per read, not once at construction: the credential is a token
+      // now, and one held for the life of the process would expire in it. The
+      // issuer round trip is not per read — `serviceAccountToken` keeps the
+      // token until shortly before the lifetime the grant reported.
+      const { base, headers } = await archivistEndpoint(config);
       const url = `${base}/resources/${encodeURIComponent(String(resourceId))}/content`;
       const res = await fetch(url, { headers });
 

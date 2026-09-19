@@ -3,8 +3,8 @@
  * KBs. Owns every HTTP-specific construction concern that used to live in
  * `SemiontBrowser`: building `HttpTransport`/`HttpContentTransport`,
  * wiring the `tokenRefresher` callback, deduplicating concurrent 401
- * refresh round trips, and invoking the auth endpoints for token refresh
- * and user-validate.
+ * refresh round trips, renewing the session at its issuer, and validating
+ * the user against the gateway.
  *
  * Returned as a closure so a single `inFlightRefreshes` map is shared
  * across every session this factory builds — the dedup is meaningful
@@ -18,7 +18,8 @@ import { SemiontClient } from '../client';
 import { coupledLastEventId } from '../cache-persister';
 import { SemiontSession, type UserInfo } from './semiont-session';
 import { SemiontSessionError } from './errors';
-import { kbGatewayUrl, getStoredSession, setStoredSession } from './storage';
+import { kbGatewayUrl } from './storage';
+import { refreshStoredSession } from './oauth';
 import type { SessionFactory, SessionFactoryOptions } from './session-factory';
 
 export function createHttpSessionFactory(): SessionFactory {
@@ -37,33 +38,15 @@ export function createHttpSessionFactory(): SessionFactory {
     const endpoint = kb.endpoint;
 
     /**
-     * Refresh the KB's access token. Concurrent calls for the same KB
-     * dedup through `inFlightRefreshes`, so simultaneous 401s trigger
-     * only one `/api/tokens/refresh` round trip. Uses a throwaway
-     * `SemiontClient` with no `tokenRefresher` — a refresh call
-     * returning 401 would otherwise re-enter this function infinitely.
+     * Renew the KB's access token at the issuer the stored session names.
+     * Concurrent calls for the same KB dedup through `inFlightRefreshes`,
+     * so simultaneous 401s trigger only one refresh grant.
      */
     const performRefresh = async (): Promise<string | null> => {
       const existing = inFlightRefreshes.get(kb.id);
       if (existing) return existing;
 
-      const promise = (async () => {
-        const stored = getStoredSession(storage, kb.id);
-        if (!stored) return null;
-        const throwawayTransport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(endpoint)) });
-        const throwaway = new SemiontClient(throwawayTransport, new HttpContentTransport(throwawayTransport), throwawayTransport);
-        try {
-          const response = await throwaway.auth!.refresh(stored.refresh);
-          const newAccess = response.access_token;
-          if (!newAccess) return null;
-          setStoredSession(storage, kb.id, { access: newAccess, refresh: stored.refresh });
-          return newAccess;
-        } catch {
-          return null;
-        } finally {
-          throwaway.dispose();
-        }
-      })();
+      const promise = refreshStoredSession(storage, kb.id);
 
       inFlightRefreshes.set(kb.id, promise);
       try {

@@ -1,9 +1,15 @@
 {
   "post": {
     "summary": "Software-Agent Token Exchange",
-    "description": "Exchange the shared secret plus an inference (provider, model) pair for a bearer JWT issued for that agent identity. Used by worker processes that emit on behalf of one or more software peers.\n\nThe issued JWT carries the agent's DID (shape `did:web:<host>:agents:<provider>:<model>`); the bus stamps that DID onto `_userId` so events the agent emits attribute to the agent rather than to a generic worker pool.",
-    "tags": ["Authentication"],
-    "security": [],
+    "description": "Exchange a service-account token for a bearer JWT issued for a software-agent identity.\n\nThe caller authenticates at the knowledge base's trusted issuer as its own service account and presents that token here; it must carry `semiont-service` in a flat `roles` claim. What comes back names a (provider, model) agent identity, which is a different thing from the caller: one worker process holds several agent identities at once when a deployment configures different models for different job types, so the credential and the identity cannot be the same.\n\nThe issued JWT carries the agent's DID (shape `did:web:<host>:agents:<provider>:<model>`); the bus stamps that DID onto `_userId` so events the agent emits attribute to the agent rather than to a generic worker pool.",
+    "tags": [
+      "Authentication"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
     "requestBody": {
       "required": true,
       "content": {
@@ -11,10 +17,6 @@
           "schema": {
             "type": "object",
             "properties": {
-              "secret": {
-                "type": "string",
-                "description": "The shared secret (SEMIONT_WORKER_SECRET)"
-              },
               "provider": {
                 "type": "string",
                 "description": "Inference provider (e.g. ollama, anthropic)"
@@ -24,7 +26,10 @@
                 "description": "Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)"
               }
             },
-            "required": ["secret", "provider", "model"]
+            "required": [
+              "provider",
+              "model"
+            ]
           }
         }
       }
@@ -46,7 +51,10 @@
                   "description": "DID of the software-agent identity the token is acting as"
                 }
               },
-              "required": ["token", "did"]
+              "required": [
+                "token",
+                "did"
+              ]
             }
           }
         }
@@ -62,17 +70,7 @@
         }
       },
       "401": {
-        "description": "Invalid agent secret",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
-      },
-      "503": {
-        "description": "Agent authentication not configured",
+        "description": "Missing, unverifiable, or insufficiently privileged caller token. Also the answer when this knowledge base trusts no issuer: configuration state is not an unverified caller's business.",
         "content": {
           "application/json": {
             "schema": {

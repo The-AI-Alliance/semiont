@@ -9,4 +9,3 @@ sync = true
 domain = "example.github.io:test-kb"
 siteName = "Test Knowledge Base"
 adminEmail = ""
-oauthAllowedDomains = ["example.com"]

@@ -307,7 +307,7 @@ ${MINIMAL_TOML}`;
     });
   });
 
-  it("emits no jobs service when the section is absent (the consumer's 'fs' default, until P3)", () => {
+  it("emits no jobs service when the section is absent (the consumer's 'fs' default)", () => {
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
     expect(cfg.services.jobs).toBeUndefined();
   });
@@ -391,13 +391,82 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.signal?.servers).toBe('10.0.0.9:4222');
   });
 
+  // EXTERNAL-IDENTITY P3: the gateway reads services.identity for the issuer
+  // it trusts. Same missing-middle shape as [jobs] and [signal], and every key
+  // the verifier needs is required — typed-but-incomplete refuses, naming the
+  // key. There is no `audience` key: the audience is the KB's own resource
+  // identifier, derived from its committed did:web domain.
+  it('maps [identity] to services.identity — type and issuer pass through', () => {
+    const toml = `
+[environments.local.identity]
+type = "oidc"
+issuer = "https://login.example.com/realms/acme"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.services.identity).toEqual({
+      type: 'oidc',
+      issuer: 'https://login.example.com/realms/acme',
+    });
+  });
+
+  it('ignores a leftover audience key rather than carrying it through', () => {
+    // Fleet configs in other repos still declare one. It decides nothing now,
+    // and must not reappear in the resolved services shape where a reader
+    // could mistake it for the value tokens are checked against.
+    const toml = `
+[environments.local.identity]
+type = "oidc"
+issuer = "https://login.example.com/realms/acme"
+audience = "semiont-gateway"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+    expect(cfg.services.identity).toEqual({
+      type: 'oidc',
+      issuer: 'https://login.example.com/realms/acme',
+    });
+  });
+
+  it('emits no identity service when the section is absent', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
+    expect(cfg.services.identity).toBeUndefined();
+  });
+
+  it('refuses an [identity] section that names no type', () => {
+    const toml = `
+[environments.local.identity]
+issuer = "https://login.example.com/realms/acme"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.identity\].*type/);
+  });
+
+  it('refuses [identity] with no issuer — typed-but-incomplete never falls through', () => {
+    const toml = `
+[environments.local.identity]
+type = "keycloak"
+audience = "semiont-gateway"
+${MINIMAL_TOML}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.identity\].*issuer/);
+  });
+
+  it('resolves ${VAR} placeholders in identity.issuer from the loader env', () => {
+    const toml = `
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { KEYCLOAK_HOST: '10.0.0.9' });
+    expect(cfg.services.identity?.issuer).toBe('http://10.0.0.9:8080/realms/semiont');
+  });
+
   // SINGLE-KB-MOUNT D4: the launcher stages the KB's committed identity into
   // the config it hands a container, under its own TOP-LEVEL key — never
   // [site], whose domain an environment section can override into an identity
   // the KB never declared. [kb] lives beside [defaults] in the file root, so
   // an environment section cannot reach it by construction.
-  // A `[site]` section is routinely added for an unrelated key — most often
-  // `oauthAllowedDomains` — and the loader used to fill in the missing `domain`
+  // A `[site]` section is routinely added for an unrelated key — `siteName`,
+  // say — and the loader used to fill in the missing `domain`
   // with the literal 'localhost'. That silently renamed the KB's agents to
   // did:web:localhost, an identity every other domain-less KB on the machine
   // also claims. Absent must stay absent so a consumer can fall back to the
@@ -413,7 +482,7 @@ platform = "posix"
 port = 3001
 
 [environments.local.site]
-oauthAllowedDomains = ["example.com"]
+siteName = "Example"
 
 [environments.local.make-meaning.graph]
 type = "memory"
@@ -422,19 +491,17 @@ ${SERVICES_LOCAL}`;
 
     expect(config.site?.domain).toBeUndefined();
     // The section still carries what it was actually added for.
-    expect(config.site?.oauthAllowedDomains).toEqual(['example.com']);
+    expect(config.site?.siteName).toBe('Example');
   });
 
-  it('carries the staged [kb] sign-in policy, so a gateway with no [site] can still authenticate', () => {
+  it('carries the staged [kb] identity, so a gateway with no [site] still knows which KB it serves', () => {
     // SINGLE-KB-MOUNT: the gateway stopped mounting the tree that holds
-    // `.semiont/config`, so the launcher stages both committed facts under
-    // [kb]. Staging the identity but not the policy left a well-formed KB
-    // unable to start.
+    // `.semiont/config`, so the launcher stages the committed identity under
+    // [kb]. Without it a well-formed KB could not start.
     const toml = `
 [kb]
 name = "example-kb"
 domain = "example.github.io:test-kb"
-oauthAllowedDomains = ["example.com"]
 
 [defaults]
 environment = "local"
@@ -448,8 +515,8 @@ type = "memory"
 ${SERVICES_LOCAL}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
 
+    expect(config.kb?.name).toBe('example-kb');
     expect(config.kb?.domain).toBe('example.github.io:test-kb');
-    expect(config.kb?.oauthAllowedDomains).toEqual(['example.com']);
     expect(config.site).toBeUndefined();
   });
 

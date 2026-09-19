@@ -8,7 +8,6 @@
 // Fields that should never be logged
 const SENSITIVE_FIELDS = [
   'password',
-  'passwordHash',
   'token',
   'accessToken',
   'refreshToken',
@@ -113,18 +112,6 @@ function partialMaskValue(value: any): string {
   const mask = '*'.repeat(maskLength);
 
   return `${firstChars}${mask}${lastChars}`;
-}
-
-/**
- * Create a safe logging context by sanitizing all data
- *
- * @param context - The logging context
- * @returns Sanitized context safe for logging
- */
-export function createSafeLogContext(context: Record<string, any>): Record<string, any> {
-  return sanitizeForLogging(context, {
-    partialMask: true
-  });
 }
 
 /**

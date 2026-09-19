@@ -27,7 +27,8 @@ Options that command understands:
   --name <name>         Display name
   --admin               Grant admin privileges
   --moderator           Grant moderator privileges
-  --inactive            Create the user inactive
+  --inactive            Disable the account at the identity provider
+  --active              Re-enable a disabled account
   --update              Update an existing user
   --upsert              Create if absent, succeed silently if present
   --password-stdin      Set the password (implied when creating; say it
@@ -195,6 +196,19 @@ func Useradd(args []string) int {
 	if password != "" {
 		head = append(head, "-i")
 	}
+	// The realm administrator's credentials, for the one command that needs
+	// them. They ride a ONE-SHOT exec rather than the gateway's own container
+	// environment on purpose: a long-running service holding a credential that
+	// can create any account is a far larger blast radius than a command that
+	// exits. `redactEnvArgs` blanks the value in the echoed line, and when no
+	// password is resolvable nothing is passed — the gateway then refuses and
+	// names both variables, which is more use than a launcher-side guess about
+	// whether this KB even has a realm.
+	if secret, _ := keycloakAdminPassword(cwdKBRoot()); secret != "" {
+		head = append(head,
+			"--env", "KC_BOOTSTRAP_ADMIN_USERNAME="+keycloakAdminUser,
+			"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD="+secret)
+	}
 	execArgs := append(append(head, handle, "semiont-useradd"), rest...)
 	u.echoCmd(rt, execArgs...)
 	if err := runVisibleWithStdin(password, rt, execArgs...); err != nil {
@@ -246,6 +260,13 @@ func remoteUseraddCmd(args []string, stdin bool) string {
 	if stdin {
 		cmd += " -i"
 	}
+	// The realm administrator's password is read from the CODESPACE's own
+	// environment by the remote shell — written as a variable reference, never
+	// a value, so this machine's secret never crosses the wire and there is
+	// nothing in the echoed command to redact. Unset there, it arrives empty
+	// and the gateway refuses by name.
+	cmd += ` -e KC_BOOTSTRAP_ADMIN_USERNAME=` + shellQuote(keycloakAdminUser) +
+		` -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"`
 	cmd += " semiont-gateway semiont-useradd"
 	for _, a := range args {
 		cmd += " " + shellQuote(a)

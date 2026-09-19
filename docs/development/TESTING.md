@@ -989,33 +989,20 @@ container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
 
 `tsc --noEmit` is libc-agnostic and runs under either image.
 
-### Integration tests need a container runtime
+### The gateway's two vitest configs
 
-Gateway integration tests provision a real PostgreSQL with
-[`@testcontainers/postgresql`](https://node.testcontainers.org/) rather than
-mocking the database — see `apps/gateway/src/__tests__/setup/database.ts`. Docker
-works with no configuration. For Podman, point testcontainers at its socket:
+`apps/gateway` runs its tests under two configs, and a plain `vitest run` uses
+only the first:
 
-**Linux (rootless):**
 ```bash
-systemctl --user enable --now podman.socket
-export DOCKER_HOST="unix:///run/user/$(id -u)/podman/podman.sock"
+npm run test --workspace=apps/gateway
+npm run test:integration --workspace=apps/gateway
 ```
 
-**macOS:**
-```bash
-podman machine init && podman machine start
-export DOCKER_HOST="$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')"
-```
-
-Ryuk (the testcontainers reaper) is disabled by the test setup itself, so there
-is no `TESTCONTAINERS_RYUK_DISABLED` to export. If you prefer file-based
-configuration, a `.testcontainers.properties` in the repo root works too:
-
-```properties
-docker.host=unix:///run/user/1000/podman/podman.sock
-ryuk.disabled=true
-```
+Despite the name, the integration suite needs no database and no container
+runtime — the gateway holds no database. It is a second suite with its own
+setup file, and CI runs both in the same job, so running only the default one
+locally can leave a failure to be discovered in CI.
 
 ### Coverage
 
@@ -1075,16 +1062,13 @@ what passes. It runs on every push and pull request, on Node 24, with these jobs
 | Job | What it covers |
 |---|---|
 | `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
-| `test-gateway` | typecheck, `npm test`, and `npm run test:integration` for `apps/gateway`, against a `postgres:15` service container |
-| `test-comprehensive` | Browser and gateway suites again, gateway integration included, against a `postgres:15` service container |
+| `test-gateway` | typecheck, `npm test`, and `npm run test:integration` for `apps/gateway` |
+| `test-comprehensive` | Browser and gateway suites again, gateway integration included |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
 | `check-phantom-deps` | imports not declared in the importing package's `package.json` |
 | `build-all` | every workspace builds, and `tsc --noEmit` across the monorepo |
 | `generated-artifacts` | drift checks: bus registry vs generated code, the bundled OpenAPI spec vs `packages/sdk-go/client_gen.go`, and Go schema coverage |
 | `test-launcher` | `apps/launcher` Go tests |
-
-In CI the gateway's integration tests reach the `postgres:15` service container
-via `DATABASE_URL` rather than starting testcontainers.
 
 Four other workflows carry test gates of their own:
 [`security-tests.yml`](../../.github/workflows/security-tests.yml),

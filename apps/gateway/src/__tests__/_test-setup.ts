@@ -48,7 +48,6 @@ model = "llama3"
 domain = "test.local"
 siteName = "Test"
 adminEmail = "admin@test.local"
-oauthAllowedDomains = ["test.local"]
 
 [environments.unit]
 [environments.unit.gateway]
@@ -75,7 +74,6 @@ model = "llama3"
 domain = "test.local"
 siteName = "Test"
 adminEmail = "admin@test.local"
-oauthAllowedDomains = ["test.local"]
 `;
 
 export interface TestEnvironmentConfig {
@@ -170,7 +168,6 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
       domain: 'test.local',
       siteName: 'Test',
       adminEmail: 'admin@test.local',
-      oauthAllowedDomains: ['test.local'],
     },
     _metadata: {
       environment,

@@ -22,14 +22,12 @@ describe('NavigationMenu Component', () => {
   const mockRoutes = {
     knowledge: vi.fn(() => '/knowledge'),
     moderate: vi.fn(() => '/moderate'),
-    admin: vi.fn(() => '/admin'),
   };
 
   const mockTranslate = vi.fn((key: string) => {
     const translations: Record<string, string> = {
       'know': 'Knowledge',
       'moderate': 'Moderate',
-      'administer': 'Administer',
     };
     return translations[key] || key;
   });
@@ -40,7 +38,6 @@ describe('NavigationMenu Component', () => {
     mockLink.mockClear();
     mockRoutes.knowledge.mockClear();
     mockRoutes.moderate.mockClear();
-    mockRoutes.admin.mockClear();
     mockTranslate.mockClear();
     mockOnItemClick.mockClear();
   });
@@ -59,7 +56,7 @@ describe('NavigationMenu Component', () => {
       expect(mockTranslate).toHaveBeenCalledWith('know');
     });
 
-    it('should render only knowledge link when no permissions', () => {
+    it('should render both links, with a divider between them', () => {
       const { container } = render(
         <NavigationMenu
           Link={mockLink}
@@ -68,21 +65,10 @@ describe('NavigationMenu Component', () => {
         />
       );
 
-      const links = container.querySelectorAll('a');
-      expect(links.length).toBe(1);
-    });
-
-    it('should not render dividers when only knowledge link visible', () => {
-      const { container } = render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      const dividers = container.querySelectorAll('hr');
-      expect(dividers.length).toBe(0);
+      // Knowledge and Moderate. The menu takes no permission input any more,
+      // so there is no "no permissions" case to render differently.
+      expect(container.querySelectorAll('a').length).toBe(2);
+      expect(container.querySelectorAll('hr').length).toBe(1);
     });
   });
 
@@ -122,7 +108,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -139,7 +124,6 @@ describe('NavigationMenu Component', () => {
           Link={mockLink}
           routes={routesWithoutModerate}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
@@ -147,203 +131,25 @@ describe('NavigationMenu Component', () => {
       expect(moderateLink).toHaveAttribute('href', '/moderate');
     });
 
-    it('should use routes.admin for admin link', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-        />
-      );
-
-      expect(mockRoutes.admin).toHaveBeenCalled();
-      const adminLink = screen.getByText('Administer').closest('a');
-      expect(adminLink).toHaveAttribute('href', '/admin');
-    });
-
-    it('should fallback to /admin if routes.admin is undefined', () => {
-      const routesWithoutAdmin = { ...mockRoutes, admin: undefined };
-
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={routesWithoutAdmin}
-          t={mockTranslate}
-          isAdmin={true}
-        />
-      );
-
-      const adminLink = screen.getByText('Administer').closest('a');
-      expect(adminLink).toHaveAttribute('href', '/admin');
-    });
   });
 
-  describe('Moderator Access', () => {
-    it('should show moderate link when isModerator is true', () => {
+  describe('Moderation Link', () => {
+    /**
+     * The moderation surface is shown to every authenticated user. The link
+     * used to be gated on an `isModerator` prop, which gated nothing real —
+     * the gateway grants no access on that basis and never did, so hiding the
+     * link only obscured a page anyone could reach by typing its path.
+     */
+    it('should always render the moderate link', () => {
       render(
         <NavigationMenu
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
         />
       );
 
       expect(screen.getByText('Moderate')).toBeInTheDocument();
-    });
-
-    it('should hide moderate link when isModerator is false', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isModerator={false}
-        />
-      );
-
-      expect(screen.queryByText('Moderate')).not.toBeInTheDocument();
-    });
-
-    it('should hide moderate link by default', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      expect(screen.queryByText('Moderate')).not.toBeInTheDocument();
-    });
-
-    it('should show moderate link when isAdmin is true', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-        />
-      );
-
-      expect(screen.getByText('Moderate')).toBeInTheDocument();
-    });
-
-    it('should show divider before moderate link', () => {
-      const { container } = render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isModerator={true}
-        />
-      );
-
-      const dividers = container.querySelectorAll('hr');
-      expect(dividers.length).toBe(1);
-    });
-  });
-
-  describe('Admin Access', () => {
-    it('should show admin link when isAdmin is true', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-        />
-      );
-
-      expect(screen.getByText('Administer')).toBeInTheDocument();
-    });
-
-    it('should hide admin link when isAdmin is false', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={false}
-        />
-      );
-
-      expect(screen.queryByText('Administer')).not.toBeInTheDocument();
-    });
-
-    it('should hide admin link by default', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-        />
-      );
-
-      expect(screen.queryByText('Administer')).not.toBeInTheDocument();
-    });
-
-    it('should not show extra divider after admin link', () => {
-      render(
-<NavigationMenu
-Link={mockLink}
-routes={mockRoutes}
-t={mockTranslate}
-isAdmin={true} />
-);
-
-      const adminLink = screen.getByText('Administer').closest('a');
-      const nextSibling = adminLink?.nextElementSibling;
-      expect(nextSibling?.tagName).not.toBe('HR');
-    });
-  });
-
-  describe('Combined Permissions', () => {
-    it('should show both moderate and admin links for admin user', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-        />
-      );
-
-      expect(screen.getByText('Moderate')).toBeInTheDocument();
-      expect(screen.getByText('Administer')).toBeInTheDocument();
-    });
-
-    it('should show only moderate link for moderator user', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isModerator={true}
-          isAdmin={false}
-        />
-      );
-
-      expect(screen.getByText('Moderate')).toBeInTheDocument();
-      expect(screen.queryByText('Administer')).not.toBeInTheDocument();
-    });
-
-    it('should show all links for admin and moderator user', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-          isModerator={true}
-        />
-      );
-
-      expect(screen.getByText('Knowledge')).toBeInTheDocument();
-      expect(screen.getByText('Moderate')).toBeInTheDocument();
-      expect(screen.getByText('Administer')).toBeInTheDocument();
     });
   });
 
@@ -370,30 +176,12 @@ isAdmin={true} />
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isModerator={true}
           onItemClick={mockOnItemClick}
         />
       );
 
       const moderateLink = screen.getByText('Moderate');
       fireEvent.click(moderateLink);
-
-      expect(mockOnItemClick).toHaveBeenCalledTimes(1);
-    });
-
-    it('should call onItemClick when admin link is clicked', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={true}
-          onItemClick={mockOnItemClick}
-        />
-      );
-
-      const adminLink = screen.getByText('Administer');
-      fireEvent.click(adminLink);
 
       expect(mockOnItemClick).toHaveBeenCalledTimes(1);
     });
@@ -445,7 +233,6 @@ isAdmin={true} />
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
         />
       );
 
@@ -506,7 +293,6 @@ isAdmin={true} />
           routes={mockRoutes}
           t={mockTranslate}
           currentPath="/knowledge"
-          isModerator={true}
         />
       );
 
@@ -532,14 +318,13 @@ isAdmin={true} />
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
         />
       );
 
       const nav = container.querySelector('nav');
       expect(nav).toBeInTheDocument();
       const links = nav?.querySelectorAll('a');
-      expect(links).toHaveLength(3); // Knowledge, Moderate, Admin
+      expect(links).toHaveLength(2); // Knowledge, Moderate
     });
   });
 
@@ -550,13 +335,11 @@ isAdmin={true} />
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          isAdmin={true}
         />
       );
 
       expect(mockTranslate).toHaveBeenCalledWith('know');
       expect(mockTranslate).toHaveBeenCalledWith('moderate');
-      expect(mockTranslate).toHaveBeenCalledWith('administer');
     });
 
     it('should use custom translations', () => {
@@ -564,7 +347,6 @@ isAdmin={true} />
         const translations: Record<string, string> = {
           'know': 'Conocimiento',
           'moderate': 'Moderar',
-          'administer': 'Administrar',
         };
         return translations[key] || key;
       });
@@ -574,30 +356,13 @@ isAdmin={true} />
           Link={mockLink}
           routes={mockRoutes}
           t={customTranslate}
-          isAdmin={true}
         />
       );
 
       expect(screen.getByText('Conocimiento')).toBeInTheDocument();
       expect(screen.getByText('Moderar')).toBeInTheDocument();
-      expect(screen.getByText('Administrar')).toBeInTheDocument();
     });
 
-    it('should only translate visible items', () => {
-      render(
-        <NavigationMenu
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          isAdmin={false}
-          isModerator={false}
-        />
-      );
-
-      expect(mockTranslate).toHaveBeenCalledWith('know');
-      expect(mockTranslate).not.toHaveBeenCalledWith('moderate');
-      expect(mockTranslate).not.toHaveBeenCalledWith('administer');
-    });
   });
 
   describe('Edge Cases', () => {
@@ -617,7 +382,6 @@ isAdmin={true} />
       const nullRoutes = {
         knowledge: () => null as any,
         moderate: () => null as any,
-        admin: () => null as any,
       };
 
       render(
@@ -625,7 +389,6 @@ isAdmin={true} />
           Link={mockLink}
           routes={nullRoutes}
           t={mockTranslate}
-          isAdmin={true}
         />
       );
 
@@ -634,29 +397,5 @@ isAdmin={true} />
       expect(knowledgeLink).toHaveAttribute('href', '/know');
     });
 
-    it('should handle all combinations of permissions', () => {
-      const permutations = [
-        { isAdmin: false, isModerator: false, expectedCount: 1 }, // Knowledge only
-        { isAdmin: false, isModerator: true, expectedCount: 2 }, // Knowledge + Moderate
-        { isAdmin: true, isModerator: false, expectedCount: 3 }, // Knowledge + Moderate + Administer
-        { isAdmin: true, isModerator: true, expectedCount: 3 }, // Knowledge + Moderate + Administer
-      ];
-
-      permutations.forEach(({ isAdmin, isModerator, expectedCount }) => {
-        const { unmount, container } = render(
-          <NavigationMenu
-            Link={mockLink}
-            routes={mockRoutes}
-            t={mockTranslate}
-            isAdmin={isAdmin}
-            isModerator={isModerator}
-          />
-        );
-
-        const links = container.querySelectorAll('a');
-        expect(links).toHaveLength(expectedCount);
-        unmount();
-      });
-    });
   });
 });

@@ -13,7 +13,7 @@
  * whatever the passed-in `SessionStorage` does.
  */
 
-import { uuidV4 } from '@semiont/core';
+import { isObject, isString, uuidV4 } from '@semiont/core';
 
 import type { HttpEndpoint, KnowledgeBase } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
@@ -35,10 +35,17 @@ export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
 /** Refresh the access token this many milliseconds before it expires. */
 export const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;
 
-/** The shape persisted per KB. */
+/**
+ * The shape persisted per KB: the tokens an issuer issued, the client they
+ * were issued to, and the issuer endpoints a renewal and a sign-out need —
+ * discovered once at sign-in, so no session re-asks.
+ */
 export interface StoredSession {
   access: string;
   refresh: string;
+  clientId: string;
+  tokenEndpoint: string;
+  revocationEndpoint?: string;
 }
 
 export function sessionKey(kbId: string): string {
@@ -51,9 +58,19 @@ export function getStoredSession(storage: SessionStorage, kbId: string): StoredS
   const raw = storage.get(sessionKey(kbId));
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.access === 'string' && typeof parsed.refresh === 'string') {
-      return { access: parsed.access, refresh: parsed.refresh };
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      isObject(parsed)
+      && isString(parsed['access']) && isString(parsed['refresh'])
+      && isString(parsed['clientId']) && isString(parsed['tokenEndpoint'])
+    ) {
+      return {
+        access: parsed['access'],
+        refresh: parsed['refresh'],
+        clientId: parsed['clientId'],
+        tokenEndpoint: parsed['tokenEndpoint'],
+        ...(isString(parsed['revocationEndpoint']) ? { revocationEndpoint: parsed['revocationEndpoint'] } : {}),
+      };
     }
   } catch {
     // malformed entry — treat as no session

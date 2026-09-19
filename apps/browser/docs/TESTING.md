@@ -550,27 +550,31 @@ vi.mock('@semiont/react-ui', () => ({
 ```typescript
 // ✅ Good: Test pure component
 import { render, screen } from '@testing-library/react';
-import { AdminSecurityPage } from '../components/AdminSecurityPage';
+import { EntityTagsPage } from '@semiont/react-ui';
 
 it('renders page title', () => {
   const props = {
-    providers: [],
-    allowedDomains: [],
+    entityTypes: [],
     isLoading: false,
+    error: '',
+    newTag: '',
+    onNewTagChange: vi.fn(),
+    onAddTag: vi.fn(),
+    isAddingTag: false,
     theme: 'light' as const,
-    onThemeChange: vi.fn(),
+    activePanel: null,
     translations: {
-      title: 'Security Settings',
-      subtitle: 'Configure authentication',
+      pageTitle: 'Entity Tags',
+      pageDescription: 'Govern the entity type vocabulary',
       // ... rest of translations
     },
     Toolbar: () => <div>Toolbar</div>,
     ToolbarPanels: () => <div>Panels</div>,
   };
 
-  render(<AdminSecurityPage {...props} />);
+  render(<EntityTagsPage {...props} />);
 
-  expect(screen.getByText('Security Settings')).toBeInTheDocument();
+  expect(screen.getByText('Entity Tags')).toBeInTheDocument();
 });
 ```
 
@@ -602,14 +606,14 @@ it('renders page', () => {
 **@semiont/react-ui (1250+ tests):**
 - Core UI components: `Button`, `Card`, `Toast`, `StatusDisplay`
 - Resource components: `ResourceViewer`, `AnnotateView`, `BrowseView`
-- Auth components: `SignUpForm`, `AuthErrorDisplay`, `WelcomePage`
+- Auth components: `AuthErrorDisplay`
 - Annotation components: All annotation UI and popups
 - Hooks: `useObservable`, `useResourceContent`, `useMediaToken`, `useToast`, etc.
 - Utilities: Validation, annotation registry
 
 **apps/browser:**
 - App shell & routing: providers, AuthShell, route guards
-- Integration tests: Multi-step user flows (e.g. sign-up)
+- Integration tests: Multi-step user flows
 - App-specific components: Home, About, Privacy, CookieBanner
 
 ### Reference Examples
@@ -623,7 +627,7 @@ npm test
 # Example test locations
 packages/react-ui/src/components/__tests__/Button.test.tsx
 packages/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
-packages/react-ui/src/features/auth/__tests__/SignUpForm.test.tsx
+packages/react-ui/src/features/auth/__tests__/AuthErrorDisplay.test.tsx
 ```
 
 **Testing Browser integration:**

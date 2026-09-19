@@ -365,35 +365,17 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 		return "", false
 	}
 
-	if b, err := os.ReadFile(p); err == nil {
-		if s := strings.TrimSpace(string(b)); s != "" {
-			u.log("Token-signing key: %s", u.dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
-			return s, true
-		}
+	if s := readPersistedSecret(p); s != "" {
+		u.log("Token-signing key: %s", u.dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
+		return s, true
 	}
 
-	b := make([]byte, 32) // 64 hex chars — comfortably over the gateway's 32 minimum
-	if _, err := rand.Read(b); err != nil {
-		u.fail("Generating the gateway's JWT secret: %v", err)
+	// 32 bytes → 64 hex chars, comfortably over the gateway's 32 minimum.
+	secret, ok := generateHexSecret(u, 32, "the gateway's JWT secret")
+	if !ok {
 		return "", false
 	}
-	secret := hex.EncodeToString(b)
-
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		u.fail("Creating %s: %v", filepath.Dir(p), err)
-		return "", false
-	}
-	// Not best-effort, unlike saveRootMeta: a secret we failed to persist would
-	// be a DIFFERENT secret next start, and the resulting token failures are far
-	// harder to diagnose than this error.
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
-		u.fail("Writing %s: %v", p, err)
-		return "", false
-	}
-	if err := os.Rename(tmp, p); err != nil {
-		_ = os.Remove(tmp)
-		u.fail("Writing %s: %v", p, err)
+	if !persistSecret(u, p, secret) {
 		return "", false
 	}
 	// Say so loudly. A silently regenerated key invalidates every token already
@@ -402,6 +384,159 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 	// the key had changed underneath them.
 	u.log("Token-signing key: %s", u.dim(jwtProvenance("generated and persisted at "+p, 1)))
 	return secret, true
+}
+
+// keycloakAdminPasswordPath: <stateRootDir>/keycloak-admin-password — a VALUE,
+// so its own 0600 file beside jwt-secret.
+func keycloakAdminPasswordPath(root string) string {
+	dir := stateRootDir(root)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "keycloak-admin-password")
+}
+
+// keycloakAdminPassword resolves the bootstrap admin password WITHOUT creating
+// one — $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted per-root value, else
+// "" — and names where it came from, for the caller that logs it.
+//
+// The read-only half exists for `semiont useradd`, which administers the realm
+// Keycloak already created: generating a password there would hand the gateway
+// a credential the realm has never seen, and the admin API would refuse it with
+// nothing to explain why.
+func keycloakAdminPassword(root string) (secret, source string) {
+	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
+		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment"
+	}
+	p := keycloakAdminPasswordPath(root)
+	if p == "" {
+		return "", ""
+	}
+	if s := readPersistedSecret(p); s != "" {
+		return s, "reused from " + p
+	}
+	return "", ""
+}
+
+// serviceClientSecretPath: where a sidecar's service-account secret is kept for
+// this root. One file per client, so rotating one sidecar's credential is a
+// single deletion rather than a stack-wide reset — which is the whole point of
+// giving them separate accounts instead of one shared string.
+func serviceClientSecretPath(root, svc string) string {
+	dir := stateRootDir(root)
+	if dir == "" {
+		return ""
+	}
+	return filepath.Join(dir, "oidc-client-secret-"+svc)
+}
+
+// serviceClientSecretEnv: the environment variable that pins one sidecar's
+// credential, e.g. SEMIONT_OIDC_CLIENT_SECRET_WEAVER.
+func serviceClientSecretEnv(svc string) string {
+	return "SEMIONT_OIDC_CLIENT_SECRET_" + strings.ToUpper(svc)
+}
+
+// loadOrCreateServiceClientSecret: the persisted per-root credential for one
+// sidecar's Keycloak service account, generating and persisting one on first
+// use. The same value reaches two places — the realm document Keycloak imports
+// and the container that has to present it — so both read it from here rather
+// than passing it between them.
+func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
+	// An explicit value wins, the same precedence $SEMIONT_WORKER_SECRET and
+	// $KC_BOOTSTRAP_ADMIN_PASSWORD have. Per service rather than one for all:
+	// separate credentials are the point of this, and an override that collapsed
+	// them back to one shared string would quietly undo it.
+	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {
+		return s, true
+	}
+	p := serviceClientSecretPath(root, svc)
+	if p == "" {
+		u.fail("No home directory resolvable, so the %s service-account secret cannot be persisted.", svc)
+		return "", false
+	}
+	if s := readPersistedSecret(p); s != "" {
+		return s, true
+	}
+	secret, ok := generateHexSecret(u, 16, "the "+svc+" service-account secret")
+	if !ok {
+		return "", false
+	}
+	if !persistSecret(u, p, secret) {
+		return "", false
+	}
+	u.log("%s service account: %s", svc, u.dim("generated and persisted at "+p))
+	return secret, true
+}
+
+// loadOrCreateKeycloakAdminPassword resolves Keycloak's bootstrap admin
+// password for one root: $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted
+// per-root value, else a freshly generated one persisted before use.
+//
+// Per-root and persisted for the JWT secret's reason: Keycloak creates the
+// admin on its FIRST boot against an empty database and never reads the
+// variable again, so the value must outlive the stack with the database that
+// holds the admin it created — a regenerated one locks the console out.
+func loadOrCreateKeycloakAdminPassword(u *ui, root string) (string, bool) {
+	if s, source := keycloakAdminPassword(root); s != "" {
+		u.log("Keycloak admin password: %s", u.dim(source+" (console user: "+keycloakAdminUser+")"))
+		return s, true
+	}
+	p := keycloakAdminPasswordPath(root)
+	if p == "" {
+		u.fail("No home directory resolvable, so Keycloak's admin password cannot be persisted.")
+		fmt.Fprintln(os.Stderr, "  Export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
+		return "", false
+	}
+	secret, ok := generateHexSecret(u, 16, "Keycloak's admin password")
+	if !ok {
+		return "", false
+	}
+	if !persistSecret(u, p, secret) {
+		return "", false
+	}
+	u.log("Keycloak admin password: %s", u.dim("generated and persisted at "+p+" (console user: "+keycloakAdminUser+")"))
+	return secret, true
+}
+
+// readPersistedSecret: the trimmed contents of a per-root secret file, or ""
+// when there is none to read.
+func readPersistedSecret(p string) string {
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+func generateHexSecret(u *ui, bytes int, what string) (string, bool) {
+	b := make([]byte, bytes)
+	if _, err := rand.Read(b); err != nil {
+		u.fail("Generating %s: %v", what, err)
+		return "", false
+	}
+	return hex.EncodeToString(b), true
+}
+
+// persistSecret writes a per-root secret to its own 0600 file, atomically.
+// Not best-effort, unlike saveRootMeta: a secret we failed to persist would be
+// a DIFFERENT secret next start, and the resulting failures are far harder to
+// diagnose than this error.
+func persistSecret(u *ui, p, secret string) bool {
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		u.fail("Creating %s: %v", filepath.Dir(p), err)
+		return false
+	}
+	tmp := p + ".tmp"
+	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
+		u.fail("Writing %s: %v", p, err)
+		return false
+	}
+	if err := os.Rename(tmp, p); err != nil {
+		_ = os.Remove(tmp)
+		u.fail("Writing %s: %v", p, err)
+		return false
+	}
+	return true
 }
 
 // jwtProvenance renders one provenance line. The VALUE never appears — this

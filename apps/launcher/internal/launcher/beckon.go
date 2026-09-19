@@ -29,7 +29,7 @@ Options:
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
 
-Requires a session:  semiont login --email <address>
+Requires a session:  semiont login
 
 This is a broadcast signal: it has no reply, so the command can confirm only
 that the signal was sent — not that a participant is watching.

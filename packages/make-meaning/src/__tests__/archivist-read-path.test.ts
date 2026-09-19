@@ -20,6 +20,8 @@ import { EventBus, resourceId, userId, type Logger, type ResourceId, type Stored
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
 import type { StoredResource } from '@semiont/core';
+import { createServer, type Server } from 'http';
+import type { IssuerVerifier } from '@semiont/core/identity';
 import { createArchivistServer } from '../archivist-read-path';
 import { archivistContentReads } from '@semiont/content';
 import type { ArchivistAddressConfig } from '@semiont/core/node';
@@ -33,7 +35,21 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-const SECRET = 'test-worker-secret';
+/**
+ * A stub verifier standing in for the real one. The Archivist's contract is
+ * "a token the trusted issuer signed, carrying the service role"; exercising
+ * jose's signature checking here would test jose, not the Archivist.
+ * `identity/issuer.test.ts` in core owns that.
+ */
+const SERVICE_TOKEN = 'a-service-account-token';
+const stubVerifier = {
+  issuer: 'https://issuer.test',
+  audience: 'https://example.github.io/kb',
+  verify: async (token: string) => {
+    if (token !== SERVICE_TOKEN) throw new Error('bad signature');
+    return { sub: 'service-account-semiont-gateway', roles: ['semiont-service'] };
+  },
+} as unknown as IssuerVerifier;
 
 describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   let tp: TestProject;
@@ -70,7 +86,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       events: eventStore.log,
       content: new WorkingTreeStore(tp.project, mockLogger),
       views: eventStore.viewStorage,
-      workerSecret: SECRET,
+      verifier: stubVerifier,
       health: () => ({ status: 'ok' }),
       branch: () => 'main',
       logger: mockLogger,
@@ -90,7 +106,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     // The gateway's reconnect shape: a client held sequence 3, so the
     // gateway asks from 3 + 1 (bus.ts passes fromSequence: parsed.sequence + 1).
     const res = await fetch(`${baseUrl}/events/${encodeURIComponent(String(rid))}?fromSequence=4`, {
-      headers: { authorization: `Bearer ${SECRET}` },
+      headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
     });
     expect(res.status).toBe(200);
 
@@ -103,7 +119,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
   it('fromSequence past the head replays nothing — an empty page, still not an error', async () => {
     const res = await fetch(`${baseUrl}/events/${encodeURIComponent(String(rid))}?fromSequence=99`, {
-      headers: { authorization: `Bearer ${SECRET}` },
+      headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
     });
     expect(res.status).toBe(200);
     const { events } = await res.json() as { events: StoredEvent[] };
@@ -117,7 +133,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
   it('refuses a read without fromSequence — the seam is sequence-ranged, never whole-log', async () => {
     const res = await fetch(`${baseUrl}/events/${encodeURIComponent(String(rid))}`, {
-      headers: { authorization: `Bearer ${SECRET}` },
+      headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
     });
     expect(res.status).toBe(400);
   });
@@ -146,7 +162,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       });
 
     it('writes the bytes and returns the stored record', async () => {
-      const res = await put(URI, BODY, { auth: `Bearer ${SECRET}` });
+      const res = await put(URI, BODY, { auth: `Bearer ${SERVICE_TOKEN}` });
       expect(res.status).toBe(200);
 
       const stored = await res.json() as StoredResource;
@@ -160,13 +176,13 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     });
 
     it('accepts a matching checksum', async () => {
-      const res = await put(URI, BODY, { auth: `Bearer ${SECRET}`, checksum: calculateChecksum(BODY) });
+      const res = await put(URI, BODY, { auth: `Bearer ${SERVICE_TOKEN}`, checksum: calculateChecksum(BODY) });
       expect(res.status).toBe(200);
     });
 
     it('rejects a disagreeing checksum before anything is written', async () => {
       const res = await put('file://docs/evil.md', BODY, {
-        auth: `Bearer ${SECRET}`,
+        auth: `Bearer ${SERVICE_TOKEN}`,
         checksum: calculateChecksum('different bytes'),
       });
       expect(res.status).toBe(409);
@@ -182,12 +198,12 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       await expect(fs.access(path.join(tp.project.root, 'docs/note.md'))).rejects.toThrow();
     });
 
-    it('refuses to serve open when no secret is configured — 503, never default-open', async () => {
+    it('refuses to serve open when no verifier is configured — 401, never default-open', async () => {
       const secretless = createArchivistServer({
         events: eventStore.log,
         content: new WorkingTreeStore(tp.project, mockLogger),
         views: eventStore.viewStorage,
-        workerSecret: '',
+        verifier: null,
         health: () => ({ status: 'ok' }),
       branch: () => 'main',
         logger: mockLogger,
@@ -199,7 +215,9 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
           method: 'PUT',
           body: BODY,
         });
-        expect(res.status).toBe(503);
+        // 401, not a distinct status: an unverified caller does not learn
+        // whether this deployment is configured.
+        expect(res.status).toBe(401);
       } finally {
         await new Promise<void>((resolve, reject) => secretless.close((e) => (e ? reject(e) : resolve())));
       }
@@ -209,7 +227,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       const res = await fetch(`${baseUrl}/content/`, {
         method: 'PUT',
         body: BODY,
-        headers: { authorization: `Bearer ${SECRET}` },
+        headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
       });
       expect(res.status).toBe(400);
     });
@@ -239,7 +257,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
     // `null` means "send no Authorization header" — deliberately not
     // `undefined`, which would silently trigger the default and test nothing.
-    const get = (id: string, auth: string | null = `Bearer ${SECRET}`) =>
+    const get = (id: string, auth: string | null = `Bearer ${SERVICE_TOKEN}`) =>
       fetch(`${baseUrl}/resources/${encodeURIComponent(id)}/content`, {
         ...(auth !== null ? { headers: { authorization: auth } } : {}),
       });
@@ -276,12 +294,12 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       expect((await get(String(SERVED), null)).status).toBe(401);
     });
 
-    it('refuses to serve open when no secret is configured', async () => {
+    it('refuses to serve open when no verifier is configured', async () => {
       const secretless = createArchivistServer({
         events: eventStore.log,
         content: new WorkingTreeStore(tp.project, mockLogger),
         views: eventStore.viewStorage,
-        workerSecret: '',
+        verifier: null,
         health: () => ({ status: 'ok' }),
       branch: () => 'main',
         logger: mockLogger,
@@ -290,7 +308,9 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       const port = (secretless.address() as AddressInfo).port;
       try {
         const res = await fetch(`http://127.0.0.1:${port}/resources/${encodeURIComponent(String(SERVED))}/content`);
-        expect(res.status).toBe(503);
+        // 401, not a distinct status: configuration state is not an
+        // unverified caller's business.
+        expect(res.status).toBe(401);
       } finally {
         await new Promise<void>((resolve, reject) => secretless.close((e) => (e ? reject(e) : resolve())));
       }
@@ -300,13 +320,45 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     // live server rather than a mock: this pair is the whole point of the two
     // halves living in one package, and a mock would let either side drift.
     describe('archivistContentReads (SINGLE-KB-MOUNT P4)', () => {
+      /**
+       * A minimal issuer: discovery and a token endpoint that hands out the
+       * one token the stub verifier accepts. Stood up for real rather than
+       * mocked, for the same reason the Archivist is: this test exists to
+       * prove the client and the server agree, and a mock on either side
+       * would let them drift apart unnoticed.
+       */
+      let issuer: Server;
+      let issuerUrl: string;
+
+      beforeEach(async () => {
+        issuer = createServer((req, res) => {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          if (req.url?.includes('/.well-known/openid-configuration')) {
+            res.end(JSON.stringify({ issuer: issuerUrl, token_endpoint: `${issuerUrl}/token` }));
+            return;
+          }
+          res.end(JSON.stringify({ access_token: SERVICE_TOKEN, expires_in: 300 }));
+        });
+        await new Promise<void>((resolve) => issuer.listen(0, resolve));
+        issuerUrl = `http://127.0.0.1:${(issuer.address() as AddressInfo).port}`;
+        vi.stubEnv('SEMIONT_OIDC_CLIENT_ID', 'semiont-librarian');
+        vi.stubEnv('SEMIONT_OIDC_CLIENT_SECRET', 'a-client-secret');
+      });
+
+      afterEach(async () => {
+        vi.unstubAllEnvs();
+        await new Promise<void>((resolve, reject) => issuer.close((e) => (e ? reject(e) : resolve())));
+      });
+
       const addressOf = (url: string): ArchivistAddressConfig => {
         const { hostname, port } = new URL(url);
-        return { services: { archivist: { host: hostname, port: Number(port) } } };
+        return {
+          services: {
+            archivist: { host: hostname, port: Number(port) },
+            identity: { issuer: issuerUrl },
+          },
+        };
       };
-
-      beforeEach(() => vi.stubEnv('SEMIONT_WORKER_SECRET', SECRET));
-      afterEach(() => vi.unstubAllEnvs());
 
       it('reads the bytes and the stored media type — the same shape the in-process face returns', async () => {
         const { data, contentType } = await archivistContentReads(addressOf(baseUrl)).getBinary(SERVED);
@@ -336,13 +388,13 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         });
       });
 
-      it('refuses at CONSTRUCTION when the address or the secret is missing', () => {
+      it('refuses when the address or the credential is missing', () => {
         // Boot-time, not first-read: a Smelter with no Archivist address must
         // die while an operator is watching, not fail every resource quietly.
         expect(() => archivistContentReads({})).toThrow(/services\.archivist\.host/);
 
-        vi.stubEnv('SEMIONT_WORKER_SECRET', '');
-        expect(() => archivistContentReads(addressOf(baseUrl))).toThrow(/SEMIONT_WORKER_SECRET/);
+        vi.stubEnv('SEMIONT_OIDC_CLIENT_SECRET', '');
+        expect(() => archivistContentReads(addressOf(baseUrl))).toThrow(/SEMIONT_OIDC_CLIENT_SECRET/);
       });
     });
   });

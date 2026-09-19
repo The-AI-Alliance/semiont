@@ -61,17 +61,12 @@ builder_for() {
 # by design (a documented fallback exists) or produced inside the container
 # before the server starts. An entry with neither property is a bug here.
 ALLOW="
-gateway DATABASE_URL — derived in-container by dist/cli/db-url.js, the first line of the image CMD
-gateway DATABASE_PASSWORD — optional input to that same derivation
-gateway OAUTH_ALLOWED_DOMAINS — optional env override; the staged [kb] identity is the primary source
-gateway GOOGLE_CLIENT_ID — optional OAuth provider config
-gateway GOOGLE_CLIENT_SECRET — optional OAuth provider config
+gateway KC_BOOTSTRAP_ADMIN_USERNAME — read by semiont useradd only, which runs via container exec with the OPERATOR's environment; the image must never carry realm-admin credentials
+gateway KC_BOOTSTRAP_ADMIN_PASSWORD — same: administering the realm is an operator act, not a service capability
 gateway LOG_DIR — optional logging knob with a default
 gateway LOG_LEVEL — optional logging knob with a default
 gateway LOG_FORMAT — optional logging knob with a default
 gateway HOME — present in every image runtime (config path resolution)
-gateway TESTCONTAINERS_RYUK_DISABLED — test-infra guard read, inert in production
-gateway VITEST_DATABASE_TESTS — test-infra guard read, inert in production
 archivist SEMIONT_SKIP_REBUILD — operator escape hatch; default is to rebuild
 archivist HOME — present in every image runtime (config path resolution)
 librarian HOME — present in every image runtime (config path resolution)

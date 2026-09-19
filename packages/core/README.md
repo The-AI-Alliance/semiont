@@ -302,7 +302,6 @@ import type {
   ResourceFilter,
   CreateAnnotationInternal,
   AnnotationCategory,
-  GoogleAuthRequest,
   GraphConnection,
   GraphPath,
   EntityTypeStats,

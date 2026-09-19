@@ -20,12 +20,9 @@ const S_OLD = 'old-secret-bbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const S_FOREIGN = 'foreign-secret-cccccccccccccccccccccccc';
 
 const PAYLOAD = {
-  userId: 'clx0a1b2c3d4e5f6g7h8i9j0k',
+  did: 'did:web:example.com:agents:test:model',
   email: 'user@example.com',
   domain: 'example.com',
-  provider: 'google',
-  isAdmin: false,
-  tokenVersion: 0,
 };
 
 function signWith(secret: string, overrides: Record<string, unknown> = {}, opts: jwt.SignOptions = {}) {
@@ -36,7 +33,7 @@ let originalSecret: string | undefined;
 
 beforeEach(() => {
   originalSecret = process.env.JWT_SECRET;
-  JWTService.setTestConfig('example.com', ['example.com']);
+  JWTService.setTestConfig('example.com');
 });
 
 afterEach(() => {
@@ -52,7 +49,7 @@ describe('JWT_SECRET as an ordered key ring', () => {
     process.env.JWT_SECRET = `${S_NEW},${S_OLD}`;
 
     const payload = JWTService.verifyToken(token);
-    expect(payload.userId).toBe(PAYLOAD.userId);
+    expect(payload.did).toBe(PAYLOAD.did);
     expect(payload.email).toBe(PAYLOAD.email);
   });
 
@@ -78,7 +75,7 @@ describe('JWT_SECRET as an ordered key ring', () => {
     const token = signWith(S_NEW);
     process.env.JWT_SECRET = S_NEW;
 
-    expect(JWTService.verifyToken(token).userId).toBe(PAYLOAD.userId);
+    expect(JWTService.verifyToken(token).did).toBe(PAYLOAD.did);
     expect(() => JWTService.verifyToken(signWith(S_FOREIGN))).toThrow('Invalid token signature');
   });
 
@@ -86,7 +83,7 @@ describe('JWT_SECRET as an ordered key ring', () => {
     const token = signWith(S_OLD);
     process.env.JWT_SECRET = `${S_NEW} , ${S_OLD}`;
 
-    expect(JWTService.verifyToken(token).userId).toBe(PAYLOAD.userId);
+    expect(JWTService.verifyToken(token).did).toBe(PAYLOAD.did);
   });
 
   it('validates EACH member of the ring, not the concatenated string', () => {
@@ -122,8 +119,8 @@ describe('error precedence — the ring must not mask non-signature failures', (
   });
 
   it('surfaces a payload-validation failure rather than a signature error', () => {
-    // Correctly signed, but missing required claims (tokenVersion, domain, ...).
-    const token = jwt.sign({ userId: PAYLOAD.userId }, S_NEW, { expiresIn: '10m' });
+    // Correctly signed, but missing required claims (email, domain, ...).
+    const token = jwt.sign({ did: PAYLOAD.did }, S_NEW, { expiresIn: '10m' });
     process.env.JWT_SECRET = `${S_NEW},${S_OLD}`;
 
     expect(() => JWTService.verifyToken(token)).toThrow(/Invalid token payload/);

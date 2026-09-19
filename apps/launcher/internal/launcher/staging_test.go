@@ -55,7 +55,7 @@ func TestPatchArchivistTopologyOtherEnvSectionDoesNotBlock(t *testing.T) {
 // the KB's committed name under a TOP-LEVEL [kb] — beside [defaults], out of
 // any environment section's reach, which is what "not overridable" means.
 func TestPatchKBIdentityAppends(t *testing.T) {
-	out := patchKBIdentity([]byte(stagingFixture), "example-kb", "example.org:kb", []string{"example.com"})
+	out := patchKBIdentity([]byte(stagingFixture), "example-kb", "example.org:kb")
 	var doc map[string]any
 	if err := toml.Unmarshal(out, &doc); err != nil {
 		t.Fatalf("patched config is not valid TOML: %v\n%s", err, out)
@@ -74,10 +74,10 @@ func TestPatchKBIdentityAppends(t *testing.T) {
 	}
 }
 
-// The read half, pinned against the shape a real KB commits: both the identity
-// and the sign-in policy live in `[site]` of `.semiont/config`, and the launcher
-// is now the only thing that can carry either to the gateway.
-func TestParseKBIdentityReadsSitePolicy(t *testing.T) {
+// The read half, pinned against the shape a real KB commits: the identity
+// lives in `[site]` of `.semiont/config`, and the launcher is now the only
+// thing that can carry it to the gateway.
+func TestParseKBIdentityReadsSiteIdentity(t *testing.T) {
 	committed := `
 [project]
 name = "Example Knowledge Base"
@@ -86,7 +86,6 @@ version = "0.1.0"
 [site]
 domain = "example.org:kb"
 siteName = "Example Knowledge Base"
-oauthAllowedDomains = ["example.com"]
 `
 	id := parseKBIdentity([]byte(committed))
 	if id == nil {
@@ -95,38 +94,15 @@ oauthAllowedDomains = ["example.com"]
 	if id.Domain != "example.org:kb" {
 		t.Errorf("Domain = %q, want the committed did:web identity", id.Domain)
 	}
-	if len(id.OAuthAllowedDomains) != 1 || id.OAuthAllowedDomains[0] != "example.com" {
-		t.Errorf("OAuthAllowedDomains = %v, want the committed sign-in policy", id.OAuthAllowedDomains)
-	}
-}
-
-// The sign-in policy rides along for the same reason the domain does: it is
-// committed in `.semiont/config`, the gateway REFUSES to start without it, and
-// the gateway no longer mounts the tree that holds it. Staging the identity but
-// not the policy is what made a well-formed KB unstartable.
-func TestPatchKBIdentityStagesOAuthAllowedDomains(t *testing.T) {
-	out := patchKBIdentity([]byte(stagingFixture), "example-kb", "example.org:kb",
-		[]string{"example.com", "partner.example"})
-	var doc map[string]any
-	if err := toml.Unmarshal(out, &doc); err != nil {
-		t.Fatalf("patched config is not valid TOML: %v\n%s", err, out)
-	}
-	kb := doc["kb"].(map[string]any)
-	got, ok := kb["oauthAllowedDomains"].([]any)
-	if !ok {
-		t.Fatalf("no oauthAllowedDomains in [kb]:\n%s", out)
-	}
-	if len(got) != 2 || got[0] != "example.com" || got[1] != "partner.example" {
-		t.Fatalf("oauthAllowedDomains = %v, want both committed domains in order", got)
+	if id.SiteName != "Example Knowledge Base" {
+		t.Errorf("SiteName = %q, want the committed site name", id.SiteName)
 	}
 }
 
 // A KB that declares no domain stages NONE — the consumer's refusal is the
-// point, and a fabricated identity is the one outcome worse than failing. The
-// same holds for the sign-in policy: inventing one would silently widen who
-// may authenticate.
+// point, and a fabricated identity is the one outcome worse than failing.
 func TestPatchKBIdentityOmitsAnUndeclaredDomain(t *testing.T) {
-	out := patchKBIdentity([]byte(stagingFixture), "example-kb", "", nil)
+	out := patchKBIdentity([]byte(stagingFixture), "example-kb", "")
 	var doc map[string]any
 	if err := toml.Unmarshal(out, &doc); err != nil {
 		t.Fatalf("patched config is not valid TOML: %v\n%s", err, out)
@@ -135,9 +111,6 @@ func TestPatchKBIdentityOmitsAnUndeclaredDomain(t *testing.T) {
 	if _, has := kb["domain"]; has {
 		t.Fatalf("staged a domain the KB never declared:\n%s", out)
 	}
-	if _, has := kb["oauthAllowedDomains"]; has {
-		t.Fatalf("staged a sign-in policy the KB never declared:\n%s", out)
-	}
 }
 
 func TestPatchKBIdentityRespectsHandWrittenSection(t *testing.T) {
@@ -145,7 +118,7 @@ func TestPatchKBIdentityRespectsHandWrittenSection(t *testing.T) {
 	// state tree under the old name pins [kb] by hand and the launcher
 	// defers, same stance as patchArchivistTopology.
 	handWritten := "[kb]\nname = \"pinned-elsewhere\"\n\n" + stagingFixture
-	out := patchKBIdentity([]byte(handWritten), "example-kb", "example.org:kb", []string{"example.com"})
+	out := patchKBIdentity([]byte(handWritten), "example-kb", "example.org:kb")
 	if string(out) != handWritten {
 		t.Fatalf("a hand-written [kb] section must pass through untouched")
 	}

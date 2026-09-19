@@ -114,17 +114,9 @@ export function gatewayOperationSpies(
   overrides: Partial<IGatewayOperations> = {},
 ): IGatewayOperations {
   return {
-    authenticatePassword: vi.fn<IGatewayOperations['authenticatePassword']>(),
-    authenticateGoogle: vi.fn<IGatewayOperations['authenticateGoogle']>(),
-    refreshAccessToken: vi.fn<IGatewayOperations['refreshAccessToken']>(),
-    logout: vi.fn<IGatewayOperations['logout']>(),
-    acceptTerms: vi.fn<IGatewayOperations['acceptTerms']>(),
     getCurrentUser: vi.fn<IGatewayOperations['getCurrentUser']>(),
+    getProtectedResourceMetadata: vi.fn<IGatewayOperations['getProtectedResourceMetadata']>(),
     getMediaToken: vi.fn<IGatewayOperations['getMediaToken']>(),
-    listUsers: vi.fn<IGatewayOperations['listUsers']>(),
-    getUserStats: vi.fn<IGatewayOperations['getUserStats']>(),
-    updateUser: vi.fn<IGatewayOperations['updateUser']>(),
-    getOAuthConfig: vi.fn<IGatewayOperations['getOAuthConfig']>(),
     healthCheck: vi.fn<IGatewayOperations['healthCheck']>(),
     getStatus: vi.fn<IGatewayOperations['getStatus']>(),
     ...overrides,

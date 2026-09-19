@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
 import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
-import type { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import type {
   EventBus as EventBusType,
   StoredEvent,
@@ -85,24 +85,21 @@ function fakeStoredYieldCreated(
 }
 
 
-type Variables = { user: User; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
+type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
   initializeLogger('error');
 });
 
-function fakeUser(): User {
+function fakeUser(): Principal {
   return {
-    id: 'user-1',
+    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    provider: 'worker',
-    isAdmin: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as User;
+    isAgent: false,
+  } as Principal;
 }
 
 interface QueryEventsStub {
@@ -116,11 +113,21 @@ interface QueryEventsStub {
  * assertions on WHAT was asked survive the transport change.
  */
 const ARCHIVIST_HOST = 'archivist.test';
-process.env.SEMIONT_WORKER_SECRET ??= 'bus-test-worker-secret';
+const ISSUER = 'https://issuer.test';
+process.env.SEMIONT_OIDC_CLIENT_ID ??= 'semiont-gateway';
+process.env.SEMIONT_OIDC_CLIENT_SECRET ??= 'bus-test-client-secret';
 
 function withArchivistReplay(queryEvents: QueryEventsStub = async () => []) {
   vi.stubGlobal('fetch', vi.fn(async (url: string | URL) => {
     const u = new URL(String(url));
+    // The hop to the Archivist authenticates with a service-account token now,
+    // so the stub answers the issuer as well: discovery, then the grant.
+    if (u.pathname.includes('/.well-known/openid-configuration')) {
+      return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
+    }
+    if (u.pathname.endsWith('/token')) {
+      return Response.json({ access_token: 'a-service-account-token', expires_in: 300 });
+    }
     const rid = decodeURIComponent(u.pathname.slice('/events/'.length));
     const events = await queryEvents(rid, { fromSequence: Number(u.searchParams.get('fromSequence')) });
     return new Response(JSON.stringify({ events }), {
@@ -141,11 +148,11 @@ function buildApp(
   const logger = initializeLogger('error');
   const principalDid = options.principalDid ?? 'did:web:test.local:users:test%40test.local';
   app.use('*', async (c, next) => {
-    c.set('user', fakeUser());
+    c.set('principal', fakeUser());
     c.set('principalDid', principalDid);
     c.set('eventBus', eventBus);
     c.set('logger', logger);
-    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 } } });
+    c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 }, identity: { issuer: ISSUER } } });
     await next();
   });
   app.route('/', router);

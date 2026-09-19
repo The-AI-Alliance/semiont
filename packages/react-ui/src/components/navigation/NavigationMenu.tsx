@@ -10,8 +10,6 @@ interface NavigationMenuProps {
   Link: React.ComponentType<LinkComponentProps>;
   routes: Partial<RouteBuilder>;
   t: TranslateFn;
-  isAdmin?: boolean;
-  isModerator?: boolean;
   brandingLink?: string;
   onItemClick?: () => void;
   className?: string;
@@ -22,8 +20,6 @@ export function NavigationMenu({
   Link,
   routes,
   t,
-  isAdmin = false,
-  isModerator = false,
   onItemClick,
   className = "",
   currentPath
@@ -48,33 +44,15 @@ export function NavigationMenu({
         {t('know')}
       </Link>
 
-      {(isModerator || isAdmin) && (
-        <>
-          <hr className="semiont-navigation-menu__divider" />
-          <Link
-            href={routes.moderate?.() || '/moderate'}
-            {...(onItemClick && { onClick: onItemClick })}
-            className="semiont-navigation-menu__link"
-            aria-current={isCurrentPage(routes.moderate?.() || '/moderate') ? 'page' : undefined}
-          >
-            {t('moderate')}
-          </Link>
-        </>
-      )}
-
-      {isAdmin && (
-        <>
-          <hr className="semiont-navigation-menu__divider" />
-          <Link
-            href={routes.admin?.() || '/admin'}
-            {...(onItemClick && { onClick: onItemClick })}
-            className="semiont-navigation-menu__link"
-            aria-current={isCurrentPage(routes.admin?.() || '/admin') ? 'page' : undefined}
-          >
-            {t('administer')}
-          </Link>
-        </>
-      )}
+      <hr className="semiont-navigation-menu__divider" />
+      <Link
+        href={routes.moderate?.() || '/moderate'}
+        {...(onItemClick && { onClick: onItemClick })}
+        className="semiont-navigation-menu__link"
+        aria-current={isCurrentPage(routes.moderate?.() || '/moderate') ? 'page' : undefined}
+      >
+        {t('moderate')}
+      </Link>
     </nav>
   );
 }

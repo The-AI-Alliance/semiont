@@ -40,6 +40,7 @@ type rolePlan struct {
 	Models           []string // models this role uses, whoever serves them (sorted, deduped)
 	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
 	Env              []string // container env derived from config (creds)
+	Issuer           string   // identity: the OIDC issuer URL as configured
 }
 
 type launchPlan struct {
@@ -114,6 +115,16 @@ var driverCatalog = map[string]map[string]driverSpec{
 		"jetstream": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS",
 			cmd: []string{"-js", "-sd", "/data"}},
 		"nats": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS"},
+	},
+	// EXTERNAL-IDENTITY D5: the OIDC issuer the gateway trusts. "keycloak" is
+	// an upstream pin like postgres — the dev-mode server, importing the
+	// realm the launcher stages, on its own database of the [database]
+	// PostgreSQL (D6). "oidc" carries no image: an external issuer the
+	// launcher verifies and never launches.
+	"identity": {
+		"keycloak": {image: "quay.io/keycloak/keycloak:26.7.4", display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
+			cmd: []string{"start-dev", "--import-realm"}},
+		"oidc": {display: "OIDC issuer", defaultPort: 443},
 	},
 	"inference": {
 		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
@@ -334,6 +345,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	addRole("vectors")
 	addRole("database")
 	addRole("messaging")
+	addRole("identity")
 	checks = append(checks,
 		portNeed{plan.GatewayPort, "Gateway"},
 		portNeed{24100, "Worker"},
@@ -633,6 +645,68 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			rp.Address = host
 		}
 		plan.Roles["messaging"] = rp
+	}
+
+	// identity — the OIDC issuer the gateway trusts (EXTERNAL-IDENTITY D5).
+	// One shape for both types: the issuer is stated, never inferred. The
+	// AUDIENCE is not configured at all — it is the KB's own resource
+	// identifier, derived from the committed did:web domain, so it cannot
+	// disagree with the identity the KB already publishes. keycloak on the launcher-injected ${KEYCLOAK_HOST} is
+	// provided — launched with the staged realm, its database on the
+	// PostgreSQL the [database] section names (D6). Any other host, and
+	// every oidc issuer, is external: verified, never launched.
+	if id := env.Identity; id == nil {
+		plan.Roles["identity"] = rolePlan{Role: "identity", Obligation: obligationAbsent}
+	} else {
+		switch id.Type {
+		case "":
+			return nil, secErr("identity", "missing required key %q", "type")
+		case "keycloak", "oidc":
+		default:
+			return nil, secErr("identity", "unknown type %q (use \"keycloak\", or \"oidc\")", id.Type)
+		}
+		if id.Issuer == "" {
+			return nil, secErr("identity", "missing required key %q (e.g. \"http://${KEYCLOAK_HOST}:8080/realms/semiont\")", "issuer")
+		}
+		spec := driverCatalog["identity"][id.Type]
+		host, port, path, err := splitIssuer(id.Issuer)
+		if err != nil {
+			return nil, secErr("identity", "issuer %q %v", id.Issuer, err)
+		}
+		if port == 0 {
+			port = spec.defaultPort
+		}
+		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer}
+		switch {
+		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == obligationProvided:
+			if keycloakRealm(path) == "" {
+				return nil, secErr("identity", "issuer %q must end in /realms/<realm> for type \"keycloak\"", id.Issuer)
+			}
+			d := env.Database
+			if d == nil {
+				return nil, secErr("identity", "type = \"keycloak\" needs a [database] section — Keycloak keeps its realm in its own database on that PostgreSQL")
+			}
+			if d.Password == "" {
+				return nil, secErr("identity", "[database] names no password — Keycloak dials PostgreSQL with it")
+			}
+			user := d.User
+			if user == "" {
+				user = "postgres"
+			}
+			rp.Obligation = obligationProvided
+			rp.Image = spec.image
+			if id.Image != "" {
+				rp.Image = id.Image
+			}
+			rp.Env = []string{"KC_DB=postgres", "KC_DB_USERNAME=" + user, "KC_DB_PASSWORD=" + d.Password,
+				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser}
+		case strings.HasPrefix(host, "${"):
+			return nil, secErr("identity", "issuer %q names a launcher-injected host, which only type = \"keycloak\" on ${KEYCLOAK_HOST} can be", id.Issuer)
+		default:
+			rp.Obligation = obligationExternal
+			rp.Address = host
+		}
+		plan.Roles["identity"] = rp
 	}
 
 	// embedding — REQUIRED, and a role the launcher never launches. Its

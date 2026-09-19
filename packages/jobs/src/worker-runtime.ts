@@ -45,6 +45,8 @@ import {
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
 import type { ContentReads } from '@semiont/content';
 import { BehaviorSubject } from 'rxjs';
+import { serviceAccountToken } from '@semiont/core';
+import type { ServiceAccountCredential } from '@semiont/core';
 
 type Agent = components['schemas']['Agent'];
 
@@ -68,9 +70,9 @@ export interface WorkerRuntimeOptions {
   group: AgentGroup;
   /** The gateway URL this worker dials — connection topology ONLY, never identity. */
   gatewayBaseUrl: string;
-  /** Shared secret for `/api/tokens/agent`, and the bearer the byte reads
+  /** This process's own account at the issuer, and the bearer the byte reads
    *  below show the Archivist. */
-  workerSecret: string;
+  credential: ServiceAccountCredential;
   /**
    * The resource's bytes, for detection's extraction seam. Built by the
    * entrypoint (`worker-main`) rather than here, so a worker with no
@@ -299,7 +301,7 @@ export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host
 }
 
 /**
- * Exchange the worker secret for this agent's JWT and its canonical DID.
+ * Exchange this process's issuer token for an agent JWT and its canonical DID.
  * The DID is minted by the gateway (from its `site.domain`) — the caller
  * carries it verbatim.
  *
@@ -312,23 +314,28 @@ export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host
  */
 export async function authenticateAgent(opts: {
   gatewayBaseUrl: string;
-  workerSecret: string;
+  credential: ServiceAccountCredential;
   provider: string;
   model: string;
   logger?: Logger;
   retry?: RetryPolicy;
 }): Promise<{ token: string; did: string }> {
-  const { gatewayBaseUrl, workerSecret, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
-  if (!workerSecret) {
-    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate worker agents');
-  }
+  const { gatewayBaseUrl, credential, provider, model, logger, retry = STARTUP_FETCH_RETRY } = opts;
 
   return retryWithBackoff(
     async () => {
+      // The process proves who IT is, then asks for the agent identity it wants.
+      // One worker holds several of the latter when job types are configured
+      // with different models, which is why they are separate exchanges.
+      const caller = await serviceAccountToken(credential);
+
       const response = await fetch(`${gatewayBaseUrl}/api/tokens/agent`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ secret: workerSecret, provider, model }),
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${caller}`,
+        },
+        body: JSON.stringify({ provider, model }),
       });
 
       if (!response.ok) {
@@ -354,13 +361,13 @@ export async function authenticateAgent(opts: {
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, gatewayBaseUrl, workerSecret, contentReads, logger } = opts;
+  const { group, gatewayBaseUrl, credential, contentReads, logger } = opts;
   const { inference } = group;
 
   const { protocol, host, port } = parseGatewayUrl(gatewayBaseUrl);
   const { token: initialToken, did } = await authenticateAgent({
     gatewayBaseUrl,
-    workerSecret,
+    credential,
     provider: inference.type,
     model: inference.model,
     logger,
@@ -382,7 +389,16 @@ export async function startAgentWorker(
     endpoint,
   };
   const storage = new InMemorySessionStorage();
-  setStoredSession(storage, kbId, { access: initialToken, refresh: '' });
+  // No refresh token: a worker renews by re-authenticating as its service
+  // account, not by presenting a refresh grant. The client id and token
+  // endpoint are its own, so the stored session names the credential that
+  // actually backs it rather than leaving them blank.
+  setStoredSession(storage, kbId, {
+    access: initialToken,
+    refresh: '',
+    clientId: credential.clientId,
+    tokenEndpoint: credential.issuer,
+  });
 
   const token$ = new BehaviorSubject<AccessToken | null>(null);
   let session!: SemiontSession;
@@ -405,7 +421,7 @@ export async function startAgentWorker(
       try {
         const { token } = await authenticateAgent({
           gatewayBaseUrl,
-          workerSecret,
+          credential,
           provider: inference.type,
           model: inference.model,
           logger,

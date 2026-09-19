@@ -15,7 +15,7 @@
  *
  * Configuration:
  *   ~/.semiontconfig       — services.gateway.publicURL
- *   SEMIONT_WORKER_SECRET  — shared secret for the token exchange
+ *   SEMIONT_OIDC_CLIENT_ID / _SECRET — the host sidecar's service account
  */
 
 import { BehaviorSubject } from 'rxjs';
@@ -25,6 +25,7 @@ import {
   baseUrl as makeBaseUrl,
   accessToken as makeAccessToken,
   createTomlConfigLoader,
+  serviceAccountToken,
   type AccessToken,
 } from '@semiont/core';
 import { readFileSync, existsSync } from 'fs';
@@ -52,15 +53,26 @@ async function rebuildGraph(rId?: string) {
     throw new Error('services.gateway.publicURL is required in ~/.semiontconfig');
   }
 
-  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
-  if (!workerSecret) {
-    throw new Error('SEMIONT_WORKER_SECRET is required to authenticate with the gateway');
+  // This CLI runs inside a sidecar container, so it reuses that sidecar's
+  // service account rather than having one of its own: the account identifies
+  // the PROCESS, and the agent identity it asks for names the work.
+  const issuerUrl = envConfig.services?.identity?.issuer;
+  if (!issuerUrl) {
+    throw new Error('services.identity.issuer is required in ~/.semiontconfig');
   }
+  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate with the gateway',
+    );
+  }
+  const caller = await serviceAccountToken({ issuer: issuerUrl, clientId, clientSecret });
 
   const response = await fetch(`${gatewayPublicURL}/api/tokens/agent`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret: workerSecret, provider: 'semiont', model: 'rebuild-graph' }),
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${caller}` },
+    body: JSON.stringify({ provider: 'semiont', model: 'rebuild-graph' }),
   });
   if (!response.ok) {
     throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);

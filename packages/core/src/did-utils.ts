@@ -44,6 +44,28 @@ export function kbDid(domain: string): string {
 }
 
 /**
+ * The knowledge base's RESOURCE identifier: its did:web rendered as the https
+ * URL that DID method resolves to, and the single value a token's `aud` must
+ * carry (EXTERNAL-IDENTITY). `did:web` turns the colon path into a slash path,
+ * so `did:web:example.github.io:my-kb` identifies
+ * `https://example.github.io/my-kb`.
+ *
+ * This is an IDENTIFIER, not an address. Nothing dereferences it, and it does
+ * not have to equal the origin a request happened to arrive on — a knowledge
+ * base reached over http in local development still identifies itself by the
+ * https form, because its identity is declared, not observed. That is what
+ * makes the value stable across every host, port and proxy it is reached
+ * through, which is the whole reason `aud` can be checked at all.
+ *
+ * Derived from the SAME committed `[site] domain` as `kbDid`, so the two
+ * cannot drift; the launcher mints the identical string in Go
+ * (`kbconfig.go` `kbResource`) and the two MUST agree byte-for-byte.
+ */
+export function kbResource(domain: string): string {
+  return `https://${domain.split(':').join('/')}`;
+}
+
+/**
  * Convert a user object to a DID:WEB identifier.
  *
  * Format: did:web:<domain>:users:<email%40domain>

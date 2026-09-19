@@ -46,24 +46,27 @@ type executor interface {
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
 	either(cond func() bool, then, els func() int) int
-	otelDetect(addr string) []string       // --service: OTel iff the collector is up
-	recoverSecret() (string, bool)         // --service: rejoin the running stack's secret
-	workerSecret() (string, bool)          // full start: env or generated
-	jwtSecret(root string) (string, bool)  // gateway token-signing key: env, else persisted per-root, else generated
-	ollamaVolume(opts startOptions) string // model-cache choice (prompt is live-only)
+	otelDetect(addr string) []string                     // --service: OTel iff the collector is up
+	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
+	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
+	stageRealm(realm string, doc []byte) (string, bool)  // the realm file Keycloak imports; returns its staged path
+	createDatabase(user, name string) bool               // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string               // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *serviceState         // the machine-level browser record
 	recordBrowser(id, image, version string, port int)
-	dumpLogs(container, svc string)                             // failed health gate: show the crash where it is
-	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
-	ensureModels(base string, models []modelNeed)               // pull configured ollama models that are absent
-	stateMounts(role, image, root string) ([]string, bool)      // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)       // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                         // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
-	val(live, plan string) string                               // mode-scoped value (kb root, admin password)
+	dumpLogs(container, svc string)                                                       // failed health gate: show the crash where it is
+	verifyRemoteModels(role, base, key string, models []string)                           // record /v1/models metadata; warn on unlisted
+	preflightServiceAccounts(issuerBase, audience string, secrets map[string]string) bool // every service account grants a usable token, before anything holds one
+	ensureModels(base string, models []modelNeed)                                         // pull configured ollama models that are absent
+	stateMounts(role, image, root string) ([]string, bool)                                // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)                                 // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                                                   // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	val(live, plan string) string                                                         // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -299,7 +302,7 @@ func (x *liveExec) stagedConfig(svc string, cfg []byte, envName, addr string) []
 		cfg = patchArchivistTopology(cfg, envName, addr)
 	}
 	if kbIdentityStaged[svc] {
-		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root), committedOAuthAllowedDomains(x.root))
+		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root))
 	}
 	return cfg
 }
@@ -347,7 +350,7 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 // operator whose state tree lives under a name the current root would not
 // derive. Invalid TOML passes through untouched; the consumer's own loader
 // owns that error.
-func patchKBIdentity(cfg []byte, name, domain string, oauthAllowedDomains []string) []byte {
+func patchKBIdentity(cfg []byte, name, domain string) []byte {
 	var doc map[string]any
 	if err := toml.Unmarshal(cfg, &doc); err != nil {
 		return cfg
@@ -358,16 +361,6 @@ func patchKBIdentity(cfg []byte, name, domain string, oauthAllowedDomains []stri
 	stanza := fmt.Sprintf("\n# Staged by the launcher: this KB's committed identity (SINGLE-KB-MOUNT D4).\n[kb]\nname = %q\n", name)
 	if domain != "" {
 		stanza += fmt.Sprintf("domain = %q\n", domain)
-	}
-	// Same rule as domain: staged when declared, omitted when not, so a KB
-	// that declares no sign-in policy still meets the gateway's refusal
-	// instead of inheriting a fabricated one.
-	if len(oauthAllowedDomains) > 0 {
-		quoted := make([]string, len(oauthAllowedDomains))
-		for i, d := range oauthAllowedDomains {
-			quoted[i] = fmt.Sprintf("%q", d)
-		}
-		stanza += fmt.Sprintf("oauthAllowedDomains = [%s]\n", strings.Join(quoted, ", "))
 	}
 	return append(cfg, []byte(stanza)...)
 }
@@ -556,14 +549,6 @@ func (x *liveExec) otelDetect(addr string) []string {
 	return nil
 }
 
-func (x *liveExec) recoverSecret() (string, bool) {
-	return serviceSecret(x.u, x.rt)
-}
-
-func (x *liveExec) workerSecret() (string, bool) {
-	return fullStartSecret(x.u)
-}
-
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
 // the SAME value a full start did — no inspect-based recovery needed (contrast
 // recoverSecret, which exists because the worker secret is never persisted).
@@ -578,6 +563,47 @@ func (x *liveExec) workerSecret() (string, bool) {
 // wrong directory.
 func (x *liveExec) jwtSecret(root string) (string, bool) {
 	return loadOrCreateJWTSecret(x.u, root)
+}
+
+func (x *liveExec) identityAdminPassword(root string) (string, bool) {
+	return loadOrCreateKeycloakAdminPassword(x.u, root)
+}
+
+func (x *liveExec) serviceClientSecret(root, svc string) (string, bool) {
+	return loadOrCreateServiceClientSecret(x.u, root, svc)
+}
+
+func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
+	stage, ok := x.stageDir()
+	if !ok {
+		return "", false
+	}
+	p := filepath.Join(stage, "keycloak-"+realm+"-realm.json")
+	if err := os.WriteFile(p, doc, 0o644); err != nil {
+		x.u.fail("Staging the Keycloak realm: %v", err)
+		return "", false
+	}
+	return p, true
+}
+
+// createDatabase creates a database on the launcher-run PostgreSQL if it is
+// absent — idempotent by construction (psql's \gexec runs the CREATE only when
+// the WHERE finds nothing), so a second start is a no-op. Retried: the TCP
+// gate proves the server is listening, not yet that it accepts sessions.
+func (x *liveExec) createDatabase(user, name string) bool {
+	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
+	args := []string{"exec", "-i", roles["database"].container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	x.u.echoCmd(x.rt, args...)
+	var err error
+	for i := 0; i < 5; i++ {
+		if err = runWithStdin(x.rt, sql, args...); err == nil {
+			x.u.ok("PostgreSQL has database %q", name)
+			return true
+		}
+		time.Sleep(time.Second)
+	}
+	x.u.fail("Creating database %q on PostgreSQL: %v", name, err)
+	return false
 }
 
 func (x *liveExec) ollamaVolume(opts startOptions) string {
@@ -658,6 +684,30 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	e.RemoteModels = metas
 	x.st.Services[role] = e
 	saveStack(x.st)
+}
+
+// preflightServiceAccounts refuses the start when the realm will not honour
+// the credentials this run is about to inject.
+//
+// Refuses rather than warning: proceeding past a known-bad credential produces
+// six services failing to authenticate and a log that explains none of it,
+// while the operator could have been told up front which client and why.
+func (x *liveExec) preflightServiceAccounts(issuerBase, audience string, secrets map[string]string) bool {
+	findings := verifyServiceAccounts(issuerBase, audience, secrets)
+	if len(findings) == 0 {
+		x.u.log("Service accounts: %s", x.u.dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))
+		return true
+	}
+	x.u.fail("The issuer does not honour the service-account credentials this start would inject.")
+	for _, f := range findings {
+		fmt.Fprintln(os.Stderr, "  "+f.String())
+	}
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so one created before")
+	fmt.Fprintln(os.Stderr, "  these clients existed will not have them. For an issuer you run yourself,")
+	fmt.Fprintln(os.Stderr, "  create one client per service and supply its secret as")
+	fmt.Fprintln(os.Stderr, "  SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>.")
+	return false
 }
 
 // dumpLogs prints the tail of a just-launched container's own logs when its
@@ -1039,16 +1089,49 @@ func (x *planExec) otelDetect(string) []string {
 	return nil
 }
 
-func (x *planExec) recoverSecret() (string, bool) {
-	x.c("worker secret: recovered from a running Semiont container's env (inspect), else $SEMIONT_WORKER_SECRET, else generated")
-	return "<worker-secret>", true
-}
-
-func (x *planExec) workerSecret() (string, bool) { return "<worker-secret>", true }
-
 // Dry-run reaches for nothing: no file is read and none is minted, so a plan
 // never has the side effect of creating a root's signing key.
 func (x *planExec) jwtSecret(root string) (string, bool) { return "<jwt-secret>", true }
+
+func (x *planExec) identityAdminPassword(string) (string, bool) {
+	return "<keycloak-admin-password>", true
+}
+
+func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
+	return "<" + svc + "-client-secret>", true
+}
+
+// The clients are read OUT OF the document rather than described alongside it.
+// The sentence that stood here listed the realm, the Browser's public client
+// and the audience mapper — written when that was all there was, and still
+// saying so after six service accounts joined. A restatement of someone else's
+// shape drifts the moment that shape grows; this cannot, because adding a
+// client to keycloakRealmJSON adds it here too.
+func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
+	var parsed struct {
+		Clients []struct {
+			ClientID string `json:"clientId"`
+		} `json:"clients"`
+	}
+	if err := json.Unmarshal(doc, &parsed); err != nil || len(parsed.Clients) == 0 {
+		// No fallback sentence: a realm document this cannot read is a real
+		// problem, and a plausible-looking line would hide it.
+		x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; UNREADABLE — its clients could not be listed)", realm)
+		return "<config-stage>/keycloak-" + realm + "-realm.json", true
+	}
+	ids := make([]string, 0, len(parsed.Clients))
+	for _, c := range parsed.Clients {
+		ids = append(ids, c.ClientID)
+	}
+	x.c("write <config-stage>/keycloak-%s-realm.json (launcher-owned; realm %q, clients: %s)",
+		realm, realm, strings.Join(ids, ", "))
+	return "<config-stage>/keycloak-" + realm + "-realm.json", true
+}
+
+func (x *planExec) createDatabase(user, name string) bool {
+	x.c("create database %s on PostgreSQL if absent: %s exec -i semiont-postgres psql -U %s (SQL on stdin)", name, x.rt, user)
+	return true
+}
 
 func (x *planExec) ollamaVolume(opts startOptions) string {
 	volume := "<ollama-volume>"
@@ -1079,6 +1162,17 @@ func (x *planExec) dumpLogs(string, string) {}
 func (x *planExec) browserCurrent(string) bool                { return false }
 func (x *planExec) browserRecord() *serviceState              { return nil }
 func (x *planExec) recordBrowser(string, string, string, int) {}
+
+// --dry-run reaches for nothing: whether the realm honours a credential is a
+// runtime fact. Name the grant each client would be asked for, and what the
+// answer must carry.
+func (x *planExec) preflightServiceAccounts(issuerBase, audience string, _ map[string]string) bool {
+	for _, svc := range serviceClients {
+		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
+			issuerBase, serviceClientID(svc), serviceRole, audience)
+	}
+	return true
+}
 
 // --dry-run reaches for nothing; name the query a real run would make.
 func (x *planExec) verifyRemoteModels(role, base, _ string, models []string) {

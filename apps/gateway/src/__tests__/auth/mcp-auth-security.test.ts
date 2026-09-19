@@ -1,4 +1,3 @@
-import { userId } from '@semiont/core';
 import { email } from '@semiont/core';
 /**
  * Auth security tests — the token-refresh endpoint and token-handling best
@@ -8,41 +7,16 @@ import { email } from '@semiont/core';
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { JWTService } from '../../auth/jwt';
-import { DatabaseConnection } from '../../db';
-import type { User } from '@prisma/client';
-
-// Mock database connection
-vi.mock('../../db', () => ({
-  DatabaseConnection: {
-    getClient: vi.fn(() => ({
-      user: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        count: vi.fn()
-      }
-    }))
-  }
-}));
-
 describe('MCP Authentication security', () => {
-  let mockPrisma: any;
   
   beforeEach(() => {
     // Reset mocks
     vi.clearAllMocks();
     
     // Setup database mock
-    mockPrisma = {
-      user: {
-        findUnique: vi.fn(),
-        findMany: vi.fn(),
-        count: vi.fn()
-      }
-    };
-    (DatabaseConnection.getClient as any).mockReturnValue(mockPrisma);
     
     // Setup JWT service test config
-    JWTService.setTestConfig('test.semiont.com', ['example.com']);
+    JWTService.setTestConfig('test.semiont.com');
   });
 
   afterEach(() => {
@@ -50,169 +24,21 @@ describe('MCP Authentication security', () => {
   });
 
 
-  describe('/api/auth/refresh Security', () => {
-    it('security: should reject invalid refresh tokens', async () => {
-      const invalidTokens = [
-        'invalid.token.here',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.invalid',
-        '',
-        null,
-        undefined
-      ];
-      
-      invalidTokens.forEach(token => {
-        if (token) {
-          expect(() => JWTService.verifyToken(token)).toThrow();
-        }
-      });
-    });
-
-    it('security: should reject access tokens used as refresh tokens', () => {
-      // This test resources that access and refresh tokens are differentiated by expiration time
-      // What is under test is the DIFFERENTIATION, not the production TTLs — the
-      // literals below are this test's own. Real lifetimes live in one table:
-      // docs/system/administration/AUTHENTICATION.md (access is minutes, not hours).
-      const accessToken = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0002356tmf4mt8fb'),
-        email: email('test@example.com'),
-        domain: 'example.com',
-        provider: 'google',
-        isAdmin: false
-      }, '1h'); // arbitrary: any access-shorter-than-refresh pair proves the point
-      
-      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0002356tmf4mt8fb'),
-        email: email('test@example.com'),
-        domain: 'example.com',
-        provider: 'google',
-        isAdmin: false
-      }, '30d'); // Refresh token: 30 day expiry
-      
-      // Verify tokens are valid
-      const accessPayload = JWTService.verifyToken(accessToken);
-      const refreshPayload = JWTService.verifyToken(refreshToken);
-      
-      // Access token should have much shorter expiration
-      const accessExp = accessPayload.exp!;
-      const refreshExp = refreshPayload.exp!;
-      const now = Math.floor(Date.now() / 1000);
-      
-      // This test's access token expires well before its refresh token
-      expect(accessExp - now).toBeLessThanOrEqual(3600 + 5); // 1 hour + 5s margin
-      // Refresh token expires in ~30 days  
-      expect(refreshExp - now).toBeGreaterThan(86400 * 29); // At least 29 days
-    });
-
-    it('security: should reject refresh tokens for deleted users', async () => {
-      // Setup: User doesn't exist in database
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-      
-      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0003356tmf4mt8fb'),
-        email: email('deleted@example.com'),
-        domain: 'example.com',
-        provider: 'google',
-        isAdmin: false,
-      }, '30d');
-      
-      // Token is valid JWT but user doesn't exist
-      const payload = JWTService.verifyToken(refreshToken);
-      expect(payload.userId).toBe('clh0vssng0003356tmf4mt8fb');
-      
-      // When refresh endpoint checks database, user won't be found
-      const user = await mockPrisma.user.findUnique({ where: { id: payload.userId } });
-      expect(user).toBeNull();
-    });
-
-    it('security: should reject expired refresh tokens', () => {
-      // We can't easily create an expired token with the current time,
-      // but we can verify that expired tokens throw errors
-      const expiredToken = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJ0ZXN0IiwiZXhwIjoxMDAwMDAwMDAwfQ.invalid';
-      
-      expect(() => JWTService.verifyToken(expiredToken)).toThrow();
-    });
-
-    it('security: should limit refresh token usage rate', () => {
-      // This resources that the implementation should have rate limiting
-      // to prevent refresh token abuse
-      const maxRefreshesPerMinute = 10; // Reasonable limit
-      
-      // In production, this would be enforced by rate limiting middleware
-      expect(maxRefreshesPerMinute).toBeLessThanOrEqual(10);
-    });
-
-    it('security: should not expose sensitive data in error responses', async () => {
-      // Test various error conditions
-      const errorConditions = [
-        { refresh_token: null, expectedError: 'Refresh token required' },
-        { refresh_token: 'invalid', expectedError: 'Invalid token' },
-        { refresh_token: 'expired.token.here', expectedError: 'Token expired' }
-      ];
-      
-      errorConditions.forEach(({ expectedError }) => {
-        // Error message should not contain:
-        // - Stack traces
-        // - Database connection strings
-        // - Internal file paths
-        // - JWT secrets
-        expect(expectedError).not.toMatch(/at.*\.js:[0-9]+/); // No stack traces
-        expect(expectedError).not.toMatch(/postgresql:\/\//); // No DB URLs
-        expect(expectedError).not.toMatch(/\/home\/|\/Users\//); // No file paths
-        expect(expectedError).not.toMatch(/secret|key/i); // No secrets
-      });
-    });
-
-    it('security: should generate short-lived access tokens from refresh tokens', () => {
-      const mockUser: User = {
-        id: 'clh0vssng0004356tmf4mt8fb',
-        email: email('test@example.com'),
-        name: 'Test User',
-        domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-    passwordHash: null,
-        image: null,
-        isActive: true,
-        isAdmin: false,
-        isModerator: false, tokenVersion: 0,
-        lastLogin: null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        termsAcceptedAt: new Date()
-      };
-      
-      mockPrisma.user.findUnique.mockResolvedValue(mockUser);
-      
-      // Generate access token (would be done by refresh endpoint)
-      const accessToken = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId(mockUser.id),
-        email: email(mockUser.email),
-        name: mockUser.name || undefined,
-        domain: mockUser.domain,
-        provider: mockUser.provider,
-        isAdmin: mockUser.isAdmin,
-      }, '1h'); // 1 hour expiration
-      
-      const payload = JWTService.verifyToken(accessToken);
-      
-      // Verify short expiration (1 hour from now)
-      const expTime = payload.exp! * 1000; // Convert to milliseconds
-      const now = Date.now();
-      const oneHourInMs = 60 * 60 * 1000;
-      
-      expect(expTime - now).toBeLessThanOrEqual(oneHourInMs + 5000); // Allow 5s margin
-      expect(expTime - now).toBeGreaterThan(oneHourInMs - 5000);
-    });
-  });
+  /*
+   * The `/api/auth/refresh Security` suite that stood here tested an endpoint
+   * this gateway does not have. Refresh is the trusted issuer's job — people
+   * get tokens there and renew them there — and the suite's remaining cases
+   * ("reject refresh tokens for deleted users") also depended on a User row
+   * that no longer exists. It asserted against JWTService directly rather than
+   * through the app, so it went on passing the whole time the route was gone.
+   */
 
   describe('Token Security Best Practices', () => {
     it('security: should use secure JWT algorithm', () => {
-      const token = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0005356tmf4mt8fb'),
+      const token = JWTService.generateToken({        did: `did:web:${'example.com'}:agents:test:model`,
+
         email: email('test@example.com'),
         domain: 'example.com',
-        provider: 'google',
-        isAdmin: false
       });
       
       // Decode header to check algorithm
@@ -227,18 +53,16 @@ describe('MCP Authentication security', () => {
     });
 
     it('security: should include proper token claims', () => {
-      const token = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0002356tmf4mt8fb'),
+      const token = JWTService.generateToken({        did: `did:web:${'example.com'}:agents:test:model`,
+
         email: email('test@example.com'),
         domain: 'example.com',
-        provider: 'google',
-        isAdmin: false,
       }, '30d');
       
       const payload = JWTService.verifyToken(token);
       
       // Should include required claims
-      expect(payload.userId).toBeDefined();
+      expect(payload.did).toBeDefined();
       expect(payload.email).toBeDefined();
       expect(payload.iat!).toBeDefined(); // Issued at
       expect(payload.exp!).toBeDefined(); // Expiration
@@ -249,30 +73,26 @@ describe('MCP Authentication security', () => {
       // Refresh tokens: long-lived (30 days), used only to get new access tokens
       // Access tokens are short-lived and used for API calls (TTL: see AUTHENTICATION.md)
       
-      const refreshToken = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0005356tmf4mt8fb'),
+      const refreshToken = JWTService.generateToken({        did: `did:web:${'example.com'}:agents:test:model`,
+
         email: email('test@example.com'),
         domain: 'example.com',
-        provider: 'google',
-        isAdmin: false
       }, '30d');
       
       const refreshPayload = JWTService.verifyToken(refreshToken);
       
       // Access tokens should be used for API calls
-      const accessToken = JWTService.generateToken({ tokenVersion: 0,
-        userId: userId('clh0vssng0005356tmf4mt8fb'),
+      const accessToken = JWTService.generateToken({        did: `did:web:${'example.com'}:agents:test:model`,
+
         email: email('test@example.com'),
         domain: 'example.com',
-        provider: 'google',
-        isAdmin: false
       }, '1h');
       
       const accessPayload = JWTService.verifyToken(accessToken);
       
-      // Both tokens include permissions
-      expect(refreshPayload.isAdmin).toBeDefined();
-      expect(accessPayload.isAdmin).toBeDefined();
+      // Both name the principal they were minted for
+      expect(refreshPayload.did).toBeDefined();
+      expect(accessPayload.did).toBeDefined();
       
       // Differentiated by expiration time
       const refreshExp = refreshPayload.exp!;

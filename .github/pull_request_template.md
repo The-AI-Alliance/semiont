@@ -43,16 +43,16 @@ Brief description of the changes in this PR.
 - [ ] Session data comes from secure sources (database, not client claims)
 - [ ] No hardcoded secrets or credentials
 
-### Admin Route Security (Browser)
+### Route Security (Browser)
 
-- [ ] Admin/moderate routes protected by middleware (proxy.ts)
-- [ ] No admin content rendered for unauthorized users
+- [ ] Privileged routes protected by middleware (proxy.ts)
+- [ ] No privileged content rendered for unauthorized users
 - [ ] No sensitive information in error responses
 
 ### API Security (Gateway)
 
-- [ ] Admin endpoints protected with `adminMiddleware`
-- [ ] All endpoints return proper HTTP status codes (401/403/500)
+- [ ] New routes declare `security` in the OpenAPI spec, or are deliberately public
+- [ ] All endpoints return proper HTTP status codes (401/500)
 - [ ] Error messages don't leak sensitive information
 - [ ] Database queries protected behind authentication
 - [ ] Input validation implemented

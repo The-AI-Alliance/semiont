@@ -274,7 +274,7 @@ for external version ranges.** At staging, `stageGateway`
    external ranges and the internal `@semiont/*` set. They are read from source,
    so they **can never drift** from it.
 2. Promoting the curated runtime deps that source keeps as `devDependencies`
-   (`GATEWAY_RUNTIME_DEVDEPS` — currently just `prisma`, the migration CLI the
+   (`GATEWAY_RUNTIME_DEVDEPS` — currently empty, since the gateway holds no database; it was `prisma`, the migration CLI the
    deployed package runs). Their ranges also come from source.
 3. Pinning the internal `@semiont/*` deps to the exact release version via the
    shared `stampInternalDeps` (see **Internal dependency pinning** above).

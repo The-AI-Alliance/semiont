@@ -32,7 +32,7 @@ import { JWTService } from '../../auth/jwt';
 describe('SDK-AUTH-CORS Phase 6 — actionable 401 (diagnosability)', () => {
   beforeAll(() => {
     JWTService.initialize({
-      site: { domain: 'test.local', oauthAllowedDomains: ['test.local', 'example.com'] },
+      site: { domain: 'test.local' },
     });
   });
 

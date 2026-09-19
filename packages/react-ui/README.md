@@ -222,10 +222,10 @@ See [docs/SESSION.md](docs/SESSION.md) for details.
 
 `@semiont/react-ui` houses the framework-neutral state machinery for the Semiont Browser's specific pages and shell. These are RxJS-based factories (no React inside; pure observables and async functions) but they're shaped around the Browser's page taxonomy, so they belong with the components that render them rather than in `@semiont/sdk`:
 
-- **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy), `createSessionStateUnit` (session-scoped logout)
+- **Shell** — `createShellStateUnit` (toolbar panel state with `'knowledge-base' | 'common' | 'resource'` taxonomy)
 - **Pages** — `createComposePageStateUnit`, `createResourceViewerPageStateUnit`, `createResourceLoaderStateUnit`
-- **Admin** — `createAdminUsersStateUnit`, `createAdminSecurityStateUnit`, `createExchangeStateUnit` (backup/restore + import/export)
-- **Auth + discovery + moderation** — `createWelcomeStateUnit`, `createDiscoverStateUnit`, `createEntityTagsStateUnit`
+- **Exchange** — `createExchangeStateUnit` (backup/restore + import/export)
+- **Auth + discovery + moderation** — `createDiscoverStateUnit`, `createEntityTagsStateUnit`
 
 Adjacent to the state units: `useKBDiscovery` binds the sdk's
 launcher-KB discovery subscription (`subscribeDiscovery`) to React state —

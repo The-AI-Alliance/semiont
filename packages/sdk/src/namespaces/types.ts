@@ -43,7 +43,6 @@ import type {
   GatheredContext,
   TagSchema,
   CollaboratorEntry,
-  UserDID,
 } from '@semiont/core';
 
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
@@ -58,10 +57,7 @@ type JobProgress = components['schemas']['JobProgress'];
 export type GatherAnnotationComplete = components['schemas']['GatherAnnotationComplete'];
 type SupportedMediaType = components['schemas']['SupportedMediaType'];
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
-type AuthResponse = components['schemas']['AuthResponse'];
-type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
-type OAuthConfigResponse = components['schemas']['OAuthConfigResponse'];
-type AdminUserStatsResponse = components['schemas']['AdminUserStatsResponse'];
+type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
 
 // ── Response type helpers (extract JSON body from OpenAPI path types) ────────
 
@@ -181,8 +177,8 @@ export type ReferencedByEntry = components['schemas']['GetReferencedByResponse']
 /** Annotation history from browse.annotationHistory() */
 export type AnnotationHistoryResponse = components['schemas']['GetAnnotationHistoryResponse'];
 
-/** User object from auth/admin responses */
-export type User = AuthResponse['user'];
+/** The signed-in user, as `GET /api/users/me` returns it. */
+export type User = components['schemas']['UserResponse'];
 
 // ── Progress types for long-running Observable operations ───────────────────
 
@@ -550,23 +546,16 @@ export interface JobNamespace {
  * Auth — authentication
  */
 export interface AuthNamespace {
-  password(email: string, password: string): Promise<AuthResponse>;
-  google(credential: string): Promise<AuthResponse>;
-  refresh(token: string): Promise<TokenRefreshResponse>;
-  logout(): Promise<void>;
   me(): Promise<User>;
-  acceptTerms(): Promise<void>;
   mediaToken(resourceId: ResourceId): Promise<{ token: string }>;
+  /** RFC 9728: which issuer the knowledge base trusts — where to send a user to sign in. */
+  protectedResourceMetadata(): Promise<ProtectedResourceMetadata>;
 }
 
 /**
- * Admin — administration
+ * System — what the knowledge base says about itself (health, status).
  */
-export interface AdminNamespace {
-  users(): Promise<User[]>;
-  userStats(): Promise<AdminUserStatsResponse>;
-  updateUser(userId: UserDID, data: RequestContent<paths['/api/admin/users/{id}']['patch']>): Promise<User>;
-  oauthConfig(): Promise<OAuthConfigResponse>;
+export interface SystemNamespace {
   healthCheck(): Promise<ResponseContent<paths['/api/health']['get']>>;
   status(): Promise<ResponseContent<paths['/api/status']['get']>>;
 }

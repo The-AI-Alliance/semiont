@@ -244,7 +244,6 @@ describe('LeftSidebar Component', () => {
           routes={mockRoutes}
           t={mockT}
           tHome={mockTHome}
-          isAdmin={true}
         >
           {mockChildren}
         </LeftSidebar>

@@ -1,335 +1,44 @@
 /**
- * Authentication Routes - Spec-First Version (Proof of Concept)
- *
- * This demonstrates the new spec-first architecture with:
- * - Plain Hono (no @hono/zod-openapi)
- * - Ajv validation middleware (validates against OpenAPI schemas)
- * - Types from generated OpenAPI types
- * - OpenAPI spec as source of truth
+ * Authentication routes — the signed-in principal and the tokens the gateway
+ * itself mints. Humans sign in at the trusted issuer; the gateway only
+ * verifies their tokens (see `identity/`). Plain Hono, response types from
+ * the generated OpenAPI types.
  */
 
 import { Hono } from 'hono';
-import { validateRequestBody } from '../middleware/validate-openapi';
 import { authMiddleware } from '../middleware/auth';
-import { DatabaseConnection } from '../db';
 import { JWTService } from '../auth/jwt';
-import { OAuthService } from '../auth/oauth';
-import * as argon2 from 'argon2';
-import type { User } from '@prisma/client';
-import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
+import { authorizeAgentMinter, AgentMinterRefused } from '../identity/agent-minter';
 import type { components } from '@semiont/core';
-import { userId as makeUserId, googleCredential, email as makeEmail, agentToDid } from '@semiont/core';
-import { getLogger } from '../logger';
-import { createSafeLogContext } from '../utils/log-sanitizer';
-import { validators } from '@semiont/core/openapi';
+import { email as makeEmail, agentToDid } from '@semiont/core';
 
-// Lazy initialization to avoid calling getLogger() at module load time
-const getRouteLogger = () => getLogger().child({ component: 'auth' });
-
-// Types from OpenAPI spec (generated)
-type PasswordAuthRequest = components['schemas']['PasswordAuthRequest'];
-type GoogleAuthRequest = components['schemas']['GoogleAuthRequest'];
-type TokenRefreshRequest = components['schemas']['TokenRefreshRequest'];
-type AuthResponse = components['schemas']['AuthResponse'];
-type TokenRefreshResponse = components['schemas']['TokenRefreshResponse'];
 type UserResponse = components['schemas']['UserResponse'];
-type AcceptTermsResponse = components['schemas']['AcceptTermsResponse'];
 
-// Create auth router with plain Hono
-export const authRouter = new Hono<{ Variables: { user: User; validatedBody: unknown; token: string } }>();
-
-/**
- * POST /api/tokens/password
- *
- * Password Authentication
- * Authenticate with email and password
- *
- * Request validation: Uses validateRequestBody middleware with 'PasswordAuthRequest' schema
- * Response type: AuthResponse from OpenAPI spec
- */
-authRouter.post('/api/tokens/password',
-  validateRequestBody(validators.PasswordAuthRequest),
-  async (c) => {
-    try {
-      const body = c.get('validatedBody') as PasswordAuthRequest;
-      const { email, password } = body;
-
-      getRouteLogger().debug('Password auth attempt', { email });
-
-      // Get user from database by email
-      const prisma = DatabaseConnection.getClient();
-      const user = await prisma.user.findUnique({
-        where: { email }
-      });
-
-      // Return same error for user not found and wrong password (security)
-      if (!user) {
-        getRouteLogger().debug('Password auth failed: user not found', { email });
-        return c.json({
-          error: 'Invalid credentials'
-        }, 401);
-      }
-
-      getRouteLogger().debug('User found', createSafeLogContext({
-        email,
-        provider: user.provider,
-        isActive: user.isActive,
-        hasPasswordHash: !!user.passwordHash
-      }));
-
-      // Verify user is password provider
-      if (user.provider !== 'password') {
-        getRouteLogger().debug('Password auth failed: wrong provider', {
-          email,
-          provider: user.provider
-        });
-        return c.json({
-          error: 'This account uses OAuth. Please sign in with Google.'
-        }, 400);
-      }
-
-      // Verify password hash exists
-      if (!user.passwordHash) {
-        getRouteLogger().debug('Password auth failed: no password hash', { email });
-        return c.json({
-          error: 'Password not set for this account'
-        }, 400);
-      }
-
-      // Verify password
-      const isValid = await argon2.verify(user.passwordHash, password);
-      if (!isValid) {
-        getRouteLogger().debug('Password auth failed: invalid password', { email });
-        return c.json({
-          error: 'Invalid credentials'
-        }, 401);
-      }
-
-      // Check if user is active
-      if (!user.isActive) {
-        getRouteLogger().debug('Password auth failed: inactive account', { email });
-        return c.json({
-          error: 'Account is not active'
-        }, 403);
-      }
-
-      getRouteLogger().debug('Password auth successful', { email });
-
-      // Generate access (10m) and refresh (30d) tokens
-      const jwtPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-        userId: makeUserId(user.id),
-        email: makeEmail(user.email),
-        ...(user.name && { name: user.name }),
-        domain: user.domain,
-        provider: user.provider,
-        isAdmin: user.isAdmin,
-        tokenVersion: user.tokenVersion,
-      };
-
-      const token = JWTService.generateToken(jwtPayload, '10m');
-      const refreshToken = JWTService.generateToken(jwtPayload, '30d');
-
-      // Update last login
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { lastLogin: new Date() }
-      });
-
-      const response: AuthResponse = {
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          domain: user.domain,
-          isAdmin: user.isAdmin,
-        },
-        token,
-        refreshToken,
-        isNewUser: false,
-      };
-
-      return c.json(response, 200);
-    } catch (error) {
-      getRouteLogger().error('Password auth error', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      return c.json({
-        error: 'Authentication failed'
-      }, 400);
-    }
-  }
-);
-
-/**
- * POST /api/tokens/google
- *
- * Google OAuth Authentication - Spec-First Version
- * Authenticate with Google OAuth access token
- *
- * Request validation: Uses validateRequestBody middleware with 'GoogleAuthRequest' schema
- * Response type: AuthResponse from OpenAPI spec
- */
-authRouter.post('/api/tokens/google',
-  validateRequestBody(validators.GoogleAuthRequest),
-  async (c) => {
-    try {
-      const body = c.get('validatedBody') as GoogleAuthRequest;
-      const { access_token } = body;
-
-      if (!access_token) {
-        return c.json({
-          error: 'Missing access token'
-        }, 400);
-      }
-
-      // Verify Google token and get user info
-      const googleUser = await OAuthService.verifyGoogleToken(googleCredential(access_token));
-
-      // Create or update user (returns access + refresh tokens)
-      const { user, token, refreshToken, isNewUser } = await OAuthService.createOrUpdateUser(googleUser);
-
-      const response: AuthResponse = {
-        success: true,
-        user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          image: user.image,
-          domain: user.domain,
-          isAdmin: user.isAdmin,
-        },
-        token,
-        refreshToken,
-        isNewUser,
-      };
-
-      return c.json(response, 200);
-    } catch (error) {
-      getRouteLogger().error('OAuth authentication error', {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-      const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
-      return c.json({ error: errorMessage }, 400);
-    }
-  }
-);
-
-/**
- * POST /api/tokens/refresh
- *
- * Refresh Access Token - Spec-First Version
- * Exchange a refresh token for a new access token
- *
- * Request validation: Uses validateRequestBody middleware with 'TokenRefreshRequest' schema
- * Response type: TokenRefreshResponse from OpenAPI spec
- */
-authRouter.post('/api/tokens/refresh',
-  validateRequestBody(validators.TokenRefreshRequest),
-  async (c) => {
-    getRouteLogger().debug('Refresh endpoint hit');
-    const body = c.get('validatedBody') as TokenRefreshRequest;
-    const { refreshToken } = body;
-
-    if (!refreshToken) {
-      getRouteLogger().debug('Refresh endpoint: No refresh token provided');
-      return c.json({ error: 'Refresh token required' }, 401);
-    }
-
-    getRouteLogger().debug('Refresh endpoint: Attempting to verify token');
-
-    try {
-      // Verify refresh token
-      const payload = JWTService.verifyToken(refreshToken);
-      getRouteLogger().debug('Refresh endpoint: Token verified', { userId: payload.userId });
-
-      if (!payload.userId) {
-        getRouteLogger().debug('Refresh endpoint: No userId in token payload');
-        return c.json({ error: 'Invalid token payload' }, 401);
-      }
-
-      // Get user from database to ensure they still exist and are active
-      const prisma = DatabaseConnection.getClient();
-      const user = await prisma.user.findUnique({
-        where: { id: payload.userId }
-      });
-
-      if (!user || !user.isActive) {
-        return c.json({ error: 'User not found or inactive' }, 401);
-      }
-
-      // Per-user revocation epoch (SDK-AUTH-CORS Phase 2): a refresh token
-      // whose tokenVersion is behind the user's current value has been revoked
-      // (e.g. by logout).
-      if (payload.tokenVersion !== user.tokenVersion) {
-        return c.json({ error: 'Token revoked' }, 401);
-      }
-
-      // Generate new short-lived access token (10 minutes)
-      const accessTokenPayload: Omit<ValidatedJWTPayload, 'iat' | 'exp'> = {
-        userId: makeUserId(user.id),
-        email: makeEmail(user.email),
-        domain: user.domain,
-        provider: user.provider,
-        isAdmin: user.isAdmin,
-        ...(user.name && { name: user.name }),
-        tokenVersion: user.tokenVersion,
-      };
-      const accessToken = JWTService.generateToken(accessTokenPayload, '10m'); // 10 minute expiration
-
-      const response: TokenRefreshResponse = {
-        access_token: accessToken
-      };
-
-      return c.json(response, 200);
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      getRouteLogger().error('Token refresh error', {
-        error: errorMessage,
-        stack: error instanceof Error ? error.stack : undefined
-      });
-
-      // Provide specific error messages for different failure modes
-      if (errorMessage.includes('expired')) {
-        return c.json({ error: 'Refresh token expired - please re-provision' }, 401);
-      }
-      if (errorMessage.includes('signature')) {
-        return c.json({ error: 'Invalid refresh token' }, 401);
-      }
-
-      return c.json({ error: 'Failed to refresh token' }, 401);
-    }
-  }
-);
+export const authRouter = new Hono();
 
 /**
  * GET /api/users/me
  *
- * Get Current User - Get information about the authenticated user
- * Requires authentication
- * Response type: UserResponse from OpenAPI spec
+ * Who the bearer of this token is, as this knowledge base names them.
+ *
+ * The answer is the DID, taken from the context the auth middleware already
+ * computed — so a software agent gets its agent DID and a person gets theirs,
+ * by the same rule that decides what every event they cause is attributed to.
+ *
+ * What this used to return and no longer does: the User row's id, which
+ * appears nowhere else in the system and so answered a question nobody could
+ * act on; `provider`, `lastLogin` and `created`, which nothing read; and the
+ * caller's own token, echoed back to the caller who had just sent it.
  */
 authRouter.get('/api/users/me', authMiddleware, async (c) => {
-  const user = c.get('user');
-  const token = c.get('token');
+  const principal = c.get('principal');
 
   const response: UserResponse = {
-    id: user.id,
-    email: user.email,
-    name: user.name,
-    image: user.image,
-    domain: user.domain,
-    provider: user.provider,
-    isAdmin: user.isAdmin,
-    isModerator: user.isModerator,
-    isActive: user.isActive,
-    termsAcceptedAt: user.termsAcceptedAt?.toISOString() || null,
-    lastLogin: user.lastLogin?.toISOString() || null,
-    created: user.createdAt.toISOString(),
-    token,
+    did: principal.did,
+    email: principal.email,
+    name: principal.name,
+    image: principal.image,
+    domain: principal.domain,
   };
 
   return c.json(response, 200);
@@ -337,37 +46,58 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
 
 
 /**
+ * How long a software-agent token lives, in seconds.
+ *
+ * This is the ONLY place the lifetime is decided. It is signed into the token
+ * and nowhere else: a long-lived agent schedules its re-authentication by
+ * reading the `exp` claim off the token it was handed, so there is no second
+ * copy of this number to drift. Four sidecars used to hold such a copy, as
+ * `12 * 60 * 60 * 1000`, "half the TTL" of a value they did not own.
+ *
+ * An hour rather than a day because an agent token is the one credential here
+ * with no revocation behind it: the account is synthetic, so there is nothing
+ * at the issuer to disable, and rotating the shared secret stops new mints
+ * without touching tokens already handed out. The lifetime IS the revocation
+ * window, so it is short enough to matter and long enough that re-minting
+ * stays cheap.
+ */
+const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
+
+/**
  * POST /api/tokens/agent
  *
- * Software-agent token exchange. A worker process presents the shared
- * `SEMIONT_WORKER_SECRET` along with the inference (provider, model)
- * the token is being issued for. The gateway upserts a User row that
- * backs the agent identity and returns a JWT carrying both the
- * synthetic User and the agent's DID.
+ * Software-agent token exchange. A sidecar authenticates at the trusted issuer
+ * as its own service account and presents that token here, along with the
+ * inference (provider, model) the agent token is being issued for.
+ *
+ * Two identities, deliberately: the service account is the PROCESS, and the
+ * agent DID is the WORK. One worker process holds several agent identities at
+ * once when a deployment configures different models for different job types,
+ * so the caller's credential cannot be the agent's identity.
  *
  * The agent's DID has the shape `did:web:<host>:agents:<provider>:<model>`
  * (see `agentToDid` in @semiont/core). It is what the bus stamps onto
  * `_userId` on every event the worker emits — so events the agent
  * produces attribute to the agent, not to a generic worker pool.
- *
- * Public endpoint (no authentication required — this IS the auth step).
  */
 authRouter.post('/api/tokens/agent', async (c) => {
-  const workerSecret = process.env.SEMIONT_WORKER_SECRET;
-  if (!workerSecret) {
-    return c.json({ error: 'Agent authentication not configured' }, 503);
+  let minter: string;
+  try {
+    minter = await authorizeAgentMinter(c.req.header('Authorization'));
+  } catch (error) {
+    if (error instanceof AgentMinterRefused) {
+      return c.json({ error: error.message }, 401);
+    }
+    throw error;
   }
 
-  let body: { secret?: string; provider?: string; model?: string };
+  let body: { provider?: string; model?: string };
   try {
     body = await c.req.json();
   } catch {
     return c.json({ error: 'Invalid request body' }, 400);
   }
 
-  if (body.secret !== workerSecret) {
-    return c.json({ error: 'Invalid agent secret' }, 401);
-  }
   if (!body.provider || typeof body.provider !== 'string') {
     return c.json({ error: 'provider is required' }, 400);
   }
@@ -398,37 +128,23 @@ authRouter.post('/api/tokens/agent', async (c) => {
   const agentEmail = `${slug}@agents.${emailHost}`;
   const agentName = `${inferenceProvider} ${model}`;
 
-  const prisma = DatabaseConnection.getClient();
-  const agentUser = await prisma.user.upsert({
-    where: { provider_providerId: { provider: 'agent', providerId } },
-    update: {
-      name: agentName,
-      isActive: true,
-      lastLogin: new Date(),
-    },
-    create: {
-      email: agentEmail,
-      name: agentName,
-      provider: 'agent',
-      providerId,
-      domain: siteDomain,
-      isActive: true,
-      isAdmin: false,
-    },
-  });
-
   const did = agentToDid({ domain: siteDomain, provider: inferenceProvider, model });
 
+  // Which service account asked for which agent identity. Worth a line: the two
+  // are deliberately different, so an operator tracing an event back to its
+  // agent DID otherwise has no record of which process requested it.
+  c.get('logger')?.info('Agent token issued', { minter, did });
+
+  // No row is written. The agent's identity IS the DID, derived from the same
+  // (domain, provider, model) the caller just presented, so there was never a
+  // fact here for a database to remember — the synthetic row this replaces
+  // existed only to hand out a cuid that nothing downstream read.
   const token = JWTService.generateToken({
-    userId: makeUserId(agentUser.id),
-    email: makeEmail(agentUser.email),
-    name: agentUser.name ?? agentName,
-    domain: agentUser.domain,
-    provider: agentUser.provider,
-    isAdmin: false,
-    agentDid: did,
-    tokenVersion: agentUser.tokenVersion,
-  }, '24h');
+    did,
+    email: makeEmail(agentEmail),
+    name: agentName,
+    domain: siteDomain,
+  }, `${AGENT_TOKEN_TTL_SECONDS}s`);
 
   return c.json({ token, did }, 200);
 });
@@ -441,7 +157,6 @@ authRouter.post('/api/tokens/agent', async (c) => {
  * via ?token= query parameter without exposing the session JWT in URLs.
  */
 authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
-  const user = c.get('user');
   let body: { resourceId: string };
   try {
     body = await c.req.json();
@@ -451,50 +166,8 @@ authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
   if (!body.resourceId || typeof body.resourceId !== 'string') {
     return c.json({ error: 'resourceId is required' }, 400);
   }
-  const token = JWTService.generateMediaToken(body.resourceId, user.id);
+  const token = JWTService.generateMediaToken(body.resourceId);
   return c.json({ token }, 200);
-});
-
-/**
- * POST /api/users/accept-terms
- *
- * Accept Terms - Mark terms as accepted for the current user
- * Requires authentication
- * Response type: AcceptTermsResponse from OpenAPI spec
- */
-authRouter.post('/api/users/accept-terms', authMiddleware, async (c) => {
-  const user = c.get('user');
-
-  // Update the user's terms acceptance
-  await OAuthService.acceptTerms(makeUserId(user.id));
-
-  const response: AcceptTermsResponse = {
-    success: true,
-    message: 'Terms accepted',
-  };
-
-  return c.json(response, 200);
-});
-
-/**
- * POST /api/users/logout
- *
- * Logout - Logout the current user
- * Requires authentication
- * In JWT-based auth, logout is handled client-side
- * This endpoint exists for consistency and future session management
- */
-authRouter.post('/api/users/logout', authMiddleware, async (c) => {
-  // Revoke every outstanding token for this user by bumping the per-user
-  // revocation epoch (SDK-AUTH-CORS Phase 2) — refresh and live access tokens
-  // minted at the old version are rejected from here on.
-  const user = c.get('user');
-  const prisma = DatabaseConnection.getClient();
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { tokenVersion: { increment: 1 } },
-  });
-  return c.body(null, 204);
 });
 
 /**
@@ -562,12 +235,12 @@ authRouter.post('/api/cookies/consent', authMiddleware, async (c) => {
  * Requires authentication.
  */
 authRouter.get('/api/cookies/export', authMiddleware, async (c) => {
-  const user = c.get('user');
+  const principal = c.get('principal');
 
   const exportData = {
     user: {
-      id: user.id,
-      email: user.email,
+      did: principal.did,
+      email: principal.email,
     },
     consent: {
       necessary: true,

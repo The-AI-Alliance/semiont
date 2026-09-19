@@ -59,9 +59,14 @@ var roles = map[string]roleSpec{
 	"metrics": {"Prometheus", "semiont-prometheus", []portNeed{{9090, "Prometheus UI"}}, "1G"},
 	// NATS keeps its product port (tier 2). 512M ceiling: measured 26 MiB
 	// idle with JetStream on (2026-09-15); the headroom is for stream
-	// replay after restart. Runs only when the config selects the
-	// jetstream jobs driver (JOB-QUEUE-DRIVER P2).
+	// replay after restart. Runs when [jobs] selects jetstream or [signal]
+	// selects nats (SIGNAL-PLANE D9).
 	"messaging": {"NATS", "semiont-nats", []portNeed{{4222, "NATS"}}, "512M"},
+	// Keycloak keeps its product port (tier 2). A JVM like graph, but its
+	// image caps the heap at 70% of the container ceiling, so 1G leaves
+	// ~700M of heap — ample for one KB's realm. Runs when [identity]
+	// selects keycloak on the launcher-injected ${KEYCLOAK_HOST}.
+	"identity": {"Keycloak", "semiont-keycloak", []portNeed{{8080, "Keycloak"}}, "1G"},
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default was the known-tight spot on Apple container.
 	"graph":   {"Neo4j", "semiont-neo4j", []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}}, "2G"},
@@ -86,7 +91,7 @@ var roles = map[string]roleSpec{
 	"browser": {"", "semiont-browser", nil, "1G"},
 }
 
-const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, jobs, inference, embedding, traces, metrics, or collector"
+const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, messaging, identity, inference, embedding, traces, metrics, or collector"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {
@@ -275,6 +280,8 @@ func serviceEndpoint(svc string, plan *launchPlan) string {
 		return "http://localhost:24110/metrics"
 	case "messaging":
 		return "tcp:localhost:4222"
+	case "identity":
+		return identityEndpoint(plan.Roles[svc])
 	case "metrics":
 		return "http://localhost:9090/-/healthy"
 	case "browser":

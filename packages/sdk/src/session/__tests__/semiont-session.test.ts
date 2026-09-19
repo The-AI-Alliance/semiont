@@ -240,10 +240,10 @@ describe('SemiontSession — refresh', () => {
   });
 
   it('a revoked refresh (refresh→null) clears the stored session so the dead token is not reused (SDK-AUTH-CORS Phase 2)', async () => {
-    // When the gateway revokes the per-user epoch (logout), /api/tokens/refresh
-    // returns 401, the factory's performRefresh resolves null, and the session
-    // must end: token cleared, stored session cleared (so the dead refresh
-    // token is never replayed), and the expiry signal fired.
+    // When the issuer refuses the refresh (the grant was revoked), the factory's
+    // performRefresh resolves null, and the session must end: token cleared,
+    // stored session cleared (so the dead refresh token is never replayed),
+    // and the expiry signal fired.
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'revoked-refresh-tok');
     refresh.mockResolvedValue(null);

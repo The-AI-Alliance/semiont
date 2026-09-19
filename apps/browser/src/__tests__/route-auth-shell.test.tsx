@@ -2,9 +2,9 @@
  * Route-level AuthShell Wrapping Test
  *
  * Verifies that the App.tsx route definition wraps every authenticated
- * route group (auth/welcome + know/* + admin/* + moderate/*) in a single
+ * route group (know/* + moderate/*) in a single
  * shared AuthShell — mounted once at the ProtectedLayout parent — while
- * the pre-app routes (auth/connect, auth/signup, auth/error, landing,
+ * the pre-app routes (auth/connect, auth/error, landing,
  * about) do NOT mount AuthShell.
  *
  * Catches regressions where someone reorganizes routes and accidentally
@@ -41,9 +41,7 @@ vi.mock('@/app/[locale]/about/page', () => ({ default: () => <div data-testid="a
 vi.mock('@/app/[locale]/privacy/page', () => ({ default: () => <div data-testid="privacy-page">Privacy</div> }));
 vi.mock('@/app/[locale]/terms/page', () => ({ default: () => <div data-testid="terms-page">Terms</div> }));
 vi.mock('@/app/[locale]/auth/connect/page', () => ({ default: () => <div data-testid="connect-page">Connect</div> }));
-vi.mock('@/app/[locale]/auth/signup/page', () => ({ default: () => <div data-testid="signup-page">Signup</div> }));
 vi.mock('@/app/[locale]/auth/error/page', () => ({ default: () => <div data-testid="error-page">Error</div> }));
-vi.mock('@/app/[locale]/auth/welcome/page', () => ({ default: () => <div data-testid="welcome-page">Welcome</div> }));
 vi.mock('@/app/[locale]/know/layout', () => ({
   default: () => {
     const { Outlet } = require('react-router');
@@ -54,16 +52,6 @@ vi.mock('@/app/[locale]/know/page', () => ({ default: () => <div data-testid="kn
 vi.mock('@/app/[locale]/know/discover/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/know/compose/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/know/resource/[id]/page', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/layout', () => ({
-  default: () => {
-    const { Outlet } = require('react-router');
-    return <div data-testid="admin-layout"><Outlet /></div>;
-  },
-}));
-vi.mock('@/app/[locale]/admin/page', () => ({ default: () => <div data-testid="admin-index">Admin</div> }));
-vi.mock('@/app/[locale]/admin/users/client', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/security/client', () => ({ default: () => null }));
-vi.mock('@/app/[locale]/admin/devops/page', () => ({ default: () => null }));
 vi.mock('@/app/[locale]/moderate/layout', () => ({
   default: () => {
     const { Outlet } = require('react-router');
@@ -122,14 +110,6 @@ describe('App route definitions — AuthShell wrapping', () => {
       expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
     });
 
-    it('auth/signup does not mount AuthShell', async () => {
-      renderAppAt('/en/auth/signup');
-      await waitFor(() => {
-        expect(screen.getByTestId('signup-page')).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
-    });
-
     it('auth/error does not mount AuthShell', async () => {
       renderAppAt('/en/auth/error');
       await waitFor(() => {
@@ -148,17 +128,6 @@ describe('App route definitions — AuthShell wrapping', () => {
   });
 
   describe('routes that should mount AuthShell (under ProtectedLayout)', () => {
-    it('auth/welcome mounts AuthShell wrapping the WelcomePage', async () => {
-      renderAppAt('/en/auth/welcome');
-      await waitFor(() => {
-        expect(screen.getByTestId('welcome-page')).toBeInTheDocument();
-      });
-
-      const marker = screen.getByTestId('auth-shell-marker');
-      expect(marker).toBeInTheDocument();
-      expect(marker).toContainElement(screen.getByTestId('welcome-page'));
-    });
-
     it('know section mounts AuthShell wrapping the KnowledgeLayout', async () => {
       renderAppAt('/en/know');
       await waitFor(() => {
@@ -166,15 +135,6 @@ describe('App route definitions — AuthShell wrapping', () => {
       });
       const marker = screen.getByTestId('auth-shell-marker');
       expect(marker).toContainElement(screen.getByTestId('know-layout'));
-    });
-
-    it('admin section mounts AuthShell wrapping the AdminLayout', async () => {
-      renderAppAt('/en/admin');
-      await waitFor(() => {
-        expect(screen.getByTestId('admin-layout')).toBeInTheDocument();
-      });
-      const marker = screen.getByTestId('auth-shell-marker');
-      expect(marker).toContainElement(screen.getByTestId('admin-layout'));
     });
 
     it('moderate section mounts AuthShell wrapping the ModerateLayout', async () => {

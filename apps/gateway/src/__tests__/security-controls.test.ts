@@ -10,9 +10,6 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import type { Hono } from 'hono';
-import type { User } from '@prisma/client';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
@@ -34,11 +31,10 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   };
 });
 
-type Variables = {
-  user: User;
-  config: EnvironmentConfig;
-  eventBus: EventBus;
-};
+// Typed from the module under test rather than from a local restatement of its
+// context. The copy that stood here could only ever report that two
+// structurally identical types were not the same one.
+type GatewayApp = typeof import('../index').app;
 
 type ErrorResponse = {
   error: string;
@@ -46,7 +42,7 @@ type ErrorResponse = {
 };
 
 describe('Security Controls', () => {
-  let app: Hono<{ Variables: Variables }>;
+  let app: GatewayApp;
   let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
@@ -268,34 +264,11 @@ describe('Security Controls', () => {
       console.log(`\n✅ 401 Error - Generic message, no details leaked`);
     });
 
-    it('should not leak sensitive information in 403 errors', async () => {
-      // Try to access admin route without admin privileges (with invalid token)
-      const res = await app.request('/api/admin/users', {
-        method: 'GET',
-        headers: {
-          'Authorization': 'Bearer invalid-token-123',
-        },
-      });
-
-      // Will return 401 (invalid token) or 403 (valid token, not admin)
-      expect([401, 403]).toContain(res.status);
-
-      const body = await res.json() as ErrorResponse;
-      const errorMessage = JSON.stringify(body).toLowerCase();
-
-      // Should not leak sensitive information
-      expect(errorMessage).not.toMatch(/password|secret|key|database|postgresql/);
-      expect(errorMessage).not.toMatch(/\.js:\d+|\.ts:\d+/);
-      expect(errorMessage).not.toMatch(/stack.*trace/i);
-
-      console.log(`\n✅ 403/401 Error - No sensitive data leaked`);
-    });
-
     it('should not leak stack traces in error responses', async () => {
       // Test various error-prone scenarios
       const testCases = [
         { path: '/api/users/me', method: 'GET', desc: 'Missing auth' },
-        { path: '/api/admin/users', method: 'GET', desc: 'Admin route' },
+        { path: '/resources', method: 'GET', desc: 'Protected route' },
         { path: '/resources/invalid-id', method: 'GET', desc: 'Invalid resource' },
       ];
 
@@ -324,7 +297,7 @@ describe('Security Controls', () => {
       // Test potential database error scenarios
       const testCases = [
         { path: '/api/users/me', method: 'GET' },
-        { path: '/api/admin/users', method: 'GET' },
+        { path: '/resources', method: 'GET' },
         { path: '/api/status', method: 'GET' },
       ];
 
@@ -386,7 +359,6 @@ describe('Security Controls', () => {
     it('should not expose environment variables in errors', async () => {
       const testPaths = [
         '/api/users/me',
-        '/api/admin/users',
         '/api/nonexistent',
       ];
 

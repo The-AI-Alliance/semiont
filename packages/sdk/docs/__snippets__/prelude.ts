@@ -26,6 +26,7 @@ import type {
   StateUnit as _StateUnit,
   JobId as _JobId,
   UserDID as _UserDID,
+  DeviceCode as _DeviceCode,
 } from '@semiont/sdk';
 import type { FaultyTransport as _FaultyTransport } from '@semiont/sdk/testing';
 import type { ShellStateUnit as _ShellStateUnit } from '@semiont/react-ui';
@@ -109,6 +110,12 @@ declare global {
   const end: number;
 
   // ── the app around the snippet (UI callbacks, logging, IO, tests) ────
+  /**
+   * Where the device grant shows a person the code to approve. Typed against
+   * the real callback, not the loose stand-ins below: its argument is the only
+   * thing a reader of that snippet needs to know the shape of.
+   */
+  const onCode: (code: _DeviceCode) => void;
   /** Stand-ins for "your app's UI reacts here" — shape deliberately loose. */
   const render: (...args: unknown[]) => void;
   const highlight: (...args: unknown[]) => void;
