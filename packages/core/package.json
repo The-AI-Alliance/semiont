@@ -26,6 +26,11 @@
       "import": "./dist/testing/axioms.js",
       "default": "./dist/testing/axioms.js"
     },
+    "./testing/issuer": {
+      "types": "./dist/testing/issuer.d.ts",
+      "import": "./dist/testing/issuer.js",
+      "default": "./dist/testing/issuer.js"
+    },
     "./openapi": {
       "types": "./dist/openapi.d.ts",
       "import": "./dist/openapi.js",

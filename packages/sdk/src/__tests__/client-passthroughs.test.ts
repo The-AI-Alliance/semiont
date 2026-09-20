@@ -128,7 +128,6 @@ describe('SemiontClient lifecycle + namespace routing', () => {
         kb: {
           id: 'kb-test',
           label: 'Test',
-          email: 'test@example.com',
           endpoint: { kind: 'http', host: 'test.local', port: 80, protocol: 'http' },
         },
         storage: new TestStorage(),

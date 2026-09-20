@@ -40,7 +40,6 @@
 export interface KbTarget {
   id: string;
   label: string;
-  email: string;
   gitBranch?: string;
   endpoint: KbEndpoint;
 }
@@ -105,7 +104,6 @@ export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unre
  * const kb = httpKb({
  *   id: 'my-watcher',
  *   label: 'My Watcher',
- *   email: 'me@example.com',
  *   host: 'localhost',
  *   port: 4000,
  *   protocol: 'http',
@@ -116,7 +114,7 @@ export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unre
  *
  * ```ts
  * const kb: KbTarget = {
- *   id, label, email,
+ *   id, label,
  *   endpoint: { kind: 'http', host, port, protocol },
  * };
  * ```
@@ -130,17 +128,15 @@ export type KbSessionStatus = 'authenticated' | 'expired' | 'signed-out' | 'unre
 export function httpKb(opts: {
   id: string;
   label: string;
-  email: string;
   host: string;
   port: number;
   protocol: 'http' | 'https';
   gitBranch?: string;
 }): KbTarget {
-  const { id, label, email, host, port, protocol, gitBranch } = opts;
+  const { id, label, host, port, protocol, gitBranch } = opts;
   return {
     id,
     label,
-    email,
     ...(gitBranch !== undefined ? { gitBranch } : {}),
     endpoint: { kind: 'http', host, port, protocol },
   };

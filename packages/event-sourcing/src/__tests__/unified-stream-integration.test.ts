@@ -63,7 +63,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         name: 'CorrelationTest',
@@ -76,7 +76,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         annotation: {
@@ -103,7 +103,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
       {
         type: 'mark:body-updated',
         resourceId: rId,
-        userId: userId('user-1'),
+        userId: userId('did:web:test:users:user-1'),
         version: 1,
         payload: {
           annotationId: annotationId('ann-corr-1'),
@@ -136,7 +136,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         name: 'TwoTabTest',
@@ -149,7 +149,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         annotation: {
@@ -178,7 +178,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
       {
         type: 'mark:body-updated',
         resourceId: rId,
-        userId: userId('user-1'),
+        userId: userId('did:web:test:users:user-1'),
         version: 1,
         payload: {
           annotationId: annotationId('ann-tab-1'),
@@ -246,7 +246,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         name: 'OrderingTest',
@@ -270,7 +270,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         annotation: {

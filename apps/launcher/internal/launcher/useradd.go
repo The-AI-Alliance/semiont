@@ -10,29 +10,31 @@ const useraddUsage = `Usage: semiont useradd --email <email> [--generate-passwor
 
 Create or update a user in a RUNNING Semiont stack, local or codespace. The
 launcher execs 'semiont-useradd' inside the gateway container and passes every
-other flag through verbatim — the gateway owns the user schema, the password
-hashing, and the database write; this launcher only decides which stack is
-meant.
+other flag through verbatim — the ISSUER holds the account, the profile and the
+password; this launcher only decides which stack is meant.
 
 The password is never typed as an argument. Creating a user prompts for one on
 a terminal, or reads it from stdin when piped:
 
-  semiont useradd --email admin@example.com --admin        # prompts
-  cat pw | semiont useradd --email bot@example.com         # scripted
+  semiont useradd --email admin@example.com               # prompts
+  cat pw | semiont useradd --email bot@example.com        # scripted
 
-Options that command understands:
+Options that command understands (its own --help is authoritative; this list
+restates apps/gateway/src/cli/useradd.ts and an unknown flag is refused there):
 
   --email <email>       User email address (required)
   --generate-password   Generate a random 16-char password (printed once)
-  --name <name>         Display name
-  --admin               Grant admin privileges
-  --moderator           Grant moderator privileges
   --inactive            Disable the account at the identity provider
   --active              Re-enable a disabled account
   --update              Update an existing user
   --upsert              Create if absent, succeed silently if present
   --password-stdin      Set the password (implied when creating; say it
                         explicitly with --update to CHANGE a password)
+
+There are no role flags. No Semiont route grants access on the basis of a role,
+so there is nothing here to grant. There is no display name either: the realm
+requires a first and last name, and asks the person for their own at first
+sign-in rather than have an administrator guess how to split one string.
 
 Launcher-owned (consumed here, not forwarded):
 
@@ -46,13 +48,13 @@ is running means local; a clone whose origin names a codespace stack, with
 no local stack, means that one) — anywhere less certain, useradd refuses to
 guess: say which with --repo or --runtime.
 
-NOTHING auto-creates an account — local and codespace alike. A fresh stack has
-no users at all, so this is how the first admin comes to exist, and how every
-later user, role grant, and password change happens.
+NOTHING auto-creates an account — local and codespace alike. A fresh realm has
+no users at all, so this is how the first one comes to exist, and how every
+later user and password change happens.
 
 Examples:
-  # First admin after a fresh local start (prompts for the password)
-  semiont useradd --email admin@example.com --admin
+  # First user after a fresh local start (prompts for the password)
+  semiont useradd --email admin@example.com
 
   # A second user on a codespace KB
   semiont useradd --repo The-AI-Alliance/my-kb --email alice@example.com --generate-password
@@ -61,17 +63,16 @@ Examples:
 // Useradd implements `semiont useradd` — a thin exec bridge to the gateway's
 // own `semiont-useradd`. The launcher contributes only what it knows: which
 // stack is meant, and the sharpest handle into its gateway. Everything else
-// passes through verbatim — the gateway owns validation, hashing, and the
-// database write.
+// passes through verbatim — the ISSUER owns the account, the profile and the
+// password hashing, and `semiont-useradd` is what speaks to it.
 //
-// It goes through the container rather than dialing postgres directly on
-// purpose. Two columns have no database-side default (`id` via `@default(cuid())`
-// and `updatedAt` via `@updatedAt`, both applied client-side by Prisma), so an
-// outside writer would have to reproduce those, the physical column names, and
-// argon2's PHC parameters — and would then break SILENTLY on any future
-// migration that adds a NOT NULL column. Keeping the write with the schema's
-// owner also keeps this launcher technology-agnostic: it runs containers, and
-// need not know that postgres or argon2 exist.
+// It goes through the container rather than administering the realm directly
+// on purpose. The gateway container is where the trusted issuer's URL is
+// already resolved from the KB's config, and where the admin API client lives;
+// an outside writer would have to re-derive both. Keeping the write with the
+// process that already knows the issuer also keeps this launcher
+// technology-agnostic: it runs containers, and need not know that Keycloak
+// exists.
 //
 // (The exec target is the gateway image's own `semiont-useradd` bin, not a
 // `semiont useradd` subcommand: there is no CLI inside the image to host one.)
@@ -127,8 +128,8 @@ func Useradd(args []string) int {
 			// `ps` on the host and in the container, kept by the runtime's
 			// container record, and written to the caller's shell history.
 			u.fail("--password is no longer accepted: a password in argv is visible to every process on the host.")
-			fmt.Fprintln(os.Stderr, "  Let it prompt:   semiont useradd --email <email> --admin")
-			fmt.Fprintln(os.Stderr, "  Or pipe it:      cat pw | semiont useradd --email <email> --admin")
+			fmt.Fprintln(os.Stderr, "  Let it prompt:   semiont useradd --email <email>")
+			fmt.Fprintln(os.Stderr, "  Or pipe it:      cat pw | semiont useradd --email <email>")
 			fmt.Fprintln(os.Stderr, "  Or generate it:  semiont useradd --email <email> --generate-password")
 			return 1
 		case "--generate-password":

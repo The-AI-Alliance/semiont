@@ -69,7 +69,7 @@ describe('Entity Types Bootstrap', () => {
       const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
       const addedEvents = systemEvents.filter(e => e.type === 'frame:entity-type-added');
 
-      const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
+      const SYSTEM_USER_ID = userId('did:semiont:system');
       addedEvents.forEach(event => {
         expect(event.userId).toBe(SYSTEM_USER_ID);
       });
@@ -101,7 +101,7 @@ describe('Entity Types Bootstrap', () => {
 
     it('should only emit missing types when some already exist', async () => {
       // Manually add a few entity types
-      const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
+      const SYSTEM_USER_ID = userId('did:semiont:system');
       for (const tag of ['Person', 'Organization']) {
         eventBus.emit('frame:add-entity-type', { tag, _userId: SYSTEM_USER_ID });
         await new Promise(r => setTimeout(r, 50));

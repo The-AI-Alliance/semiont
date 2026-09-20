@@ -27,7 +27,7 @@ import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
   kb: httpKb({
-    id: 'semiont-ingest', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    id: 'semiont-ingest', label: 'Semiont',
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
@@ -163,7 +163,7 @@ async function ingest(): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
   const session = await SemiontSession.signInDevice({
     kb: httpKb({
-      id: 'semiont-ingest', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      id: 'semiont-ingest', label: 'Semiont',
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),

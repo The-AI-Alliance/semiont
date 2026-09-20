@@ -6,9 +6,11 @@ differently: it generates and keeps the gateway's token-signing key, and it only
 
 ## The gateway's JWT secret
 
-`JWT_SECRET` signs and validates bearer tokens. The Browser never sees it — it
-holds only the bearer token the gateway returns. The gateway refuses to start if
-it is unset or shorter than 32 characters.
+`JWT_SECRET` signs and validates the tokens the gateway itself mints: software-agent
+tokens and media tokens. It does **not** sign people's tokens — those are the trusted
+issuer's, and the gateway verifies them against that issuer's published keys. The
+Browser never sees it; it holds only the access token the issuer granted. The gateway
+refuses to start if it is unset or shorter than 32 characters.
 
 `semiont start` resolves it in this order:
 
@@ -20,16 +22,22 @@ it is unset or shorter than 32 characters.
 macOS; `$XDG_DATA_HOME/semiont/roots/<root>/jwt-secret` on Linux
 (`~/.local/share/semiont/` when that variable is unset).
 
-Per-root and persistent, both deliberately: the secret signs tokens for the users
-in that root's PostgreSQL store, so it shares their lifecycle. A new secret
-invalidates every token already issued. An unscoped `semiont clean` removes the
-root's state directory and this secret with it — consistent, since the accounts
-those tokens name are in the PostgreSQL data being removed. A `--store` clean
-keeps it.
+Per-root and persistent, both deliberately: the secret belongs to one deployment's
+agents, so it shares that deployment's lifecycle. Replacing it invalidates every
+agent and media token already issued — sidecars recover on their own, because a 401
+sends them back to `/api/tokens/agent`, but every in-flight request fails first.
+Rotate through the comma-separated key ring instead; see
+[Authentication](../administration/AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars).
+An unscoped `semiont clean` removes the root's state directory and this secret with
+it — consistent, since the realm those agents authenticate against is in the
+PostgreSQL data being removed. A `--store` clean keeps it.
 
-`SEMIONT_WORKER_SECRET` (the gateway/sidecar agent-token exchange) follows the
-opposite rule: generated per run unless you export one, because every consumer is
-a container started in that same run and nothing outlives it.
+The per-service account credentials (`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`, one
+each for the gateway, archivist, librarian, worker, smelter and weaver) follow the
+same rule as the admin password: generated on first use and persisted per root,
+because the realm Keycloak imports and the container that has to present the
+credential must read the same value. An explicit export wins — per service, never
+one shared across all of them, since separate credentials are the entire point.
 
 ## Config secrets — pointers, not values
 

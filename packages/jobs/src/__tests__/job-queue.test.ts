@@ -140,12 +140,12 @@ describe('FsJobQueue (driver-specific)', () => {
     test('should filter by userId', async () => {
       const job1 = createPendingDetectionJob('job-1');
       const base = createPendingDetectionJob('job-2');
-      const job2 = { ...base, metadata: { ...base.metadata, userId: userId('user-2') } };
+      const job2 = { ...base, metadata: { ...base.metadata, userId: userId('did:web:test:users:user-2') } };
 
       await jobQueue.createJob(job1);
       await jobQueue.createJob(job2);
 
-      const user1Jobs = await jobQueue.listJobs({ userId: userId('user-1') });
+      const user1Jobs = await jobQueue.listJobs({ userId: userId('did:web:test:users:user-1') });
 
       expect(user1Jobs.length).toBe(1);
       expect(user1Jobs[0]?.metadata.id).toBe(jobId('job-1'));

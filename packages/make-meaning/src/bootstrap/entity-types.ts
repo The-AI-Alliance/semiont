@@ -44,7 +44,16 @@ export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: Event
 
   logger?.info('Bootstrapping missing entity types', { missing: missing.length, existing: existingTypes.size });
 
-  const SYSTEM_USER_ID = userId('00000000-0000-0000-0000-000000000000');
+  // Semiont itself, seeding the defaults — not a person and not a software
+  // peer, so neither `did:web:<domain>:users:…` nor `…:agents:…` fits, and no
+  // domain is in scope here anyway. A method-specific DID says plainly which
+  // actor this is.
+  //
+  // It replaces a nil UUID, which was a row id in the shape identities no
+  // longer take. Event logs written before this keep that value on their
+  // bootstrap events; `_userId` is an opaque string on the wire and nothing
+  // parses it, so both read back fine.
+  const SYSTEM_USER_ID = userId('did:semiont:system');
 
   for (const entityType of missing) {
     logger?.debug('Adding entity type via EventBus', { entityType });

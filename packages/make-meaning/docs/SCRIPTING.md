@@ -213,7 +213,7 @@ import { resourceId, annotationId } from '@semiont/core';
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
   kb: httpKb({
-    id: 'script', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    id: 'script', label: 'Semiont',
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),

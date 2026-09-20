@@ -162,8 +162,6 @@ describe('OAuthUserSchema', () => {
     did: 'did:web:example.com:users:user%40example.com',
     email: 'user@example.com',
     domain: 'example.com',
-    isAdmin: false,
-    isModerator: false,
   };
 
   describe('parse', () => {
@@ -172,22 +170,6 @@ describe('OAuthUserSchema', () => {
         const result = OAuthUserSchema.parse(validUser);
 
         expect(result).toEqual(validUser);
-      });
-
-      /**
-       * The role flags are optional on purpose. No gateway route reads them and
-       * where they should live is undecided, so a knowledge base that omits
-       * them is valid — this validator must not be what forces that decision.
-       * Consumers read `?? false`, so an omitted flag hides the affordance.
-       */
-      it('should accept a user carrying neither role flag', () => {
-        const { isAdmin, isModerator, ...noRoles } = validUser;
-
-        const result = OAuthUserSchema.parse(noRoles);
-
-        expect(result).toEqual(noRoles);
-        expect(result.isAdmin).toBeUndefined();
-        expect(result.isModerator).toBeUndefined();
       });
 
       it('should accept user with optional name field', () => {
@@ -229,18 +211,22 @@ describe('OAuthUserSchema', () => {
         expect(result).toEqual(userWithNullImage);
       });
 
-      it('should accept admin users', () => {
-        const adminUser = { ...validUser, isAdmin: true };
-        const result = OAuthUserSchema.parse(adminUser);
+      /**
+       * Role flags are not part of this shape. A knowledge base that still
+       * sends them must not be rejected over a field nobody consumes — they
+       * are dropped, not refused, and never reach a consumer that could
+       * branch on them.
+       */
+      it('should drop role flags rather than reject or carry them', () => {
+        const result = OAuthUserSchema.parse({
+          ...validUser,
+          isAdmin: true,
+          isModerator: true,
+        });
 
-        expect(result.isAdmin).toBe(true);
-      });
-
-      it('should accept moderator users', () => {
-        const modUser = { ...validUser, isModerator: true };
-        const result = OAuthUserSchema.parse(modUser);
-
-        expect(result.isModerator).toBe(true);
+        expect(result).toEqual(validUser);
+        expect('isAdmin' in result).toBe(false);
+        expect('isModerator' in result).toBe(false);
       });
     });
 
@@ -307,33 +293,6 @@ describe('OAuthUserSchema', () => {
         );
       });
 
-      it('should reject non-boolean isAdmin', () => {
-        const userWithStringAdmin = { ...validUser, isAdmin: 'true' };
-        expect(() => OAuthUserSchema.parse(userWithStringAdmin)).toThrow(
-          'isAdmin must be a boolean'
-        );
-      });
-
-      it('should reject null isAdmin, which is a value and not an absence', () => {
-        const userWithNullAdmin = { ...validUser, isAdmin: null };
-        expect(() => OAuthUserSchema.parse(userWithNullAdmin)).toThrow(
-          'isAdmin must be a boolean'
-        );
-      });
-
-      it('should reject non-boolean isModerator', () => {
-        const userWithStringMod = { ...validUser, isModerator: 'true' };
-        expect(() => OAuthUserSchema.parse(userWithStringMod)).toThrow(
-          'isModerator must be a boolean'
-        );
-      });
-
-      it('should reject null isModerator, which is a value and not an absence', () => {
-        const userWithNullMod = { ...validUser, isModerator: null };
-        expect(() => OAuthUserSchema.parse(userWithNullMod)).toThrow(
-          'isModerator must be a boolean'
-        );
-      });
     });
   });
 

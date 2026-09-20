@@ -57,7 +57,7 @@ const apiUrlObj = new URL(apiUrl);
 const kb: KnowledgeBase = {
   id: 'my-worker',                              // unique storage key per worker
   label: 'My job worker',
-  email: process.env.SEMIONT_OIDC_CLIENT_ID!,   // storage key: a daemon has no person behind it
+  did: 'did:web:my-kb.example',                 // the KB's own identity, as it reports it
   endpoint: {
     kind: 'http',
     host: apiUrlObj.hostname,

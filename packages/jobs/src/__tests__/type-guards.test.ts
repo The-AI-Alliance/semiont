@@ -27,7 +27,7 @@ function createPendingJob(): PendingJob<DetectionParams> {
     metadata: {
       id: jobId('test-pending'),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -48,7 +48,7 @@ function createRunningJob(): RunningJob<DetectionParams, DetectionProgress> {
     metadata: {
       id: jobId('test-running'),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -76,7 +76,7 @@ function createCompleteJob(): CompleteJob<DetectionParams, JobReferenceAnnotatio
     metadata: {
       id: jobId('test-complete'),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -105,7 +105,7 @@ function createFailedJob(): FailedJob<DetectionParams> {
     metadata: {
       id: jobId('test-failed'),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -129,7 +129,7 @@ function createCancelledJob(): CancelledJob<DetectionParams> {
     metadata: {
       id: jobId('test-cancelled'),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',

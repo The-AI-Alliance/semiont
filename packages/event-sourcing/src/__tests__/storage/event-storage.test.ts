@@ -39,7 +39,7 @@ describe('EventStorage', () => {
     it('should generate ID and timestamp for new events', async () => {
       const stored = await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain' as const, contentChecksum: 'checksum1' as const },
@@ -57,7 +57,7 @@ describe('EventStorage', () => {
     it('should track sequence numbers per resource', async () => {
       const e1 = await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -65,7 +65,7 @@ describe('EventStorage', () => {
 
       const e2 = await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -73,7 +73,7 @@ describe('EventStorage', () => {
 
       const e3 = await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -87,7 +87,7 @@ describe('EventStorage', () => {
     it('should track separate sequences for different resources', async () => {
       const doc1e1 = await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -95,7 +95,7 @@ describe('EventStorage', () => {
 
       const doc2e1 = await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc2'),
         version: 1,
         payload: {},
@@ -103,7 +103,7 @@ describe('EventStorage', () => {
 
       const doc1e2 = await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -118,7 +118,7 @@ describe('EventStorage', () => {
       // Append 2 events
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -126,7 +126,7 @@ describe('EventStorage', () => {
 
       await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -146,7 +146,7 @@ describe('EventStorage', () => {
       // Next event should be sequence 3
       const e3 = await newStorage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -183,7 +183,7 @@ describe('EventStorage', () => {
     it('should store events in correct shard directory', async () => {
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -202,7 +202,7 @@ describe('EventStorage', () => {
       // maxEventsPerFile = 3 in setup
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -210,7 +210,7 @@ describe('EventStorage', () => {
 
       await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -218,7 +218,7 @@ describe('EventStorage', () => {
 
       await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -227,7 +227,7 @@ describe('EventStorage', () => {
       // 4th event should trigger rotation
       await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -244,7 +244,7 @@ describe('EventStorage', () => {
       for (let i = 0; i < 5; i++) {
         await storage.appendEvent({
           type: 'mark:added',
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: resourceId('doc1'),
           version: 1,
           payload: {
@@ -271,7 +271,7 @@ describe('EventStorage', () => {
       for (let i = 0; i < 7; i++) {
         await storage.appendEvent({
           type: 'mark:added',
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: resourceId('doc1'),
           version: 1,
           payload: {
@@ -296,7 +296,7 @@ describe('EventStorage', () => {
     it('should store __system__ events in dedicated directory', async () => {
       await storage.appendEvent({
         type: 'frame:entity-type-added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'Person' },
       }, resourceId('__system__'));
@@ -309,14 +309,14 @@ describe('EventStorage', () => {
     it('should track sequence for __system__ events', async () => {
       const e1 = await storage.appendEvent({
         type: 'frame:entity-type-added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'Person' },
       }, resourceId('__system__'));
 
       const e2 = await storage.appendEvent({
         type: 'frame:entity-type-added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'Organization' },
       }, resourceId('__system__'));
@@ -328,14 +328,14 @@ describe('EventStorage', () => {
     it('should retrieve all __system__ events', async () => {
       await storage.appendEvent({
         type: 'frame:entity-type-added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'Person' },
       }, resourceId('__system__'));
 
       await storage.appendEvent({
         type: 'frame:entity-type-added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'Organization' },
       }, resourceId('__system__'));
@@ -351,7 +351,7 @@ describe('EventStorage', () => {
       // Add some test events
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1' as const },
@@ -359,7 +359,7 @@ describe('EventStorage', () => {
 
       await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {
@@ -376,7 +376,7 @@ describe('EventStorage', () => {
 
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc2'),
         version: 1,
         payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2' as const },
@@ -434,7 +434,7 @@ describe('EventStorage', () => {
     it('should write valid JSONL (one object per line)', async () => {
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -442,7 +442,7 @@ describe('EventStorage', () => {
 
       await storage.appendEvent({
         type: 'mark:added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},
@@ -468,7 +468,7 @@ describe('EventStorage', () => {
     it('should handle empty lines gracefully', async () => {
       await storage.appendEvent({
         type: 'yield:created',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {},

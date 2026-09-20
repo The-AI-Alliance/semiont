@@ -66,7 +66,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:completed', // DOT notation
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -101,7 +101,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -137,7 +137,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId1,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: job1,
@@ -150,7 +150,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId2,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: job2,
@@ -192,7 +192,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: { jobId: testJobId, jobType: 'tag-annotation', totalSteps: 2 }
     });
@@ -200,7 +200,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: { jobId: testJobId, jobType: 'tag-annotation' as const, result: { tagsCreated: 7 } }
     });
@@ -235,7 +235,7 @@ describe('EventStore Channel Routing Integration', () => {
     await eventStore.appendEvent({
       type: 'job:failed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,

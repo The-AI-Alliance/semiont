@@ -75,7 +75,7 @@ const harness = vi.hoisted(() => {
     // same KB, which is exactly the re-authentication case.
     id: `session-${++sessionSeq}`,
     client: { tag: clientTag },
-    kb: { id: kbId, label: 'localhost', host: 'localhost', port: 4000, protocol: 'http', email: 'admin@example.com' },
+    kb: { id: kbId, label: 'localhost', host: 'localhost', port: 4000, protocol: 'http' },
     streamState$: new BehaviorSubject('initial'),
   });
   const session$ = new BehaviorSubject<any>(makeSession('c1'));

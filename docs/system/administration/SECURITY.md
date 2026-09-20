@@ -8,30 +8,30 @@ This document describes the current security implementation in Semiont and provi
 
 For gateway implementation details, see the [Gateway Authentication Guide](../../../apps/gateway/docs/AUTHENTICATION.md).
 
-Semiont implements **bearer-only** authentication — an `Authorization: Bearer` JWT on every request, no session cookies (see [Authentication](./AUTHENTICATION.md)) — with OAuth sign-in support for:
+Semiont implements **bearer-only** authentication — an `Authorization: Bearer` JWT on every request, no session cookies (see [Authentication](./AUTHENTICATION.md)).
 
-- **Google OAuth**: Secure authentication via Google Identity Platform (production environments)
-- **GitHub OAuth**: Secure authentication via GitHub (production environments)
-- **GitLab OAuth**: Secure authentication via GitLab (production environments)
-- **Bearer JWTs**: short-lived access tokens and long-lived refresh tokens (TTLs in [Authentication](./AUTHENTICATION.md)), with a per-user `tokenVersion` revocation epoch (logout revokes all of a user's tokens)
+**Semiont is a resource server, not an auth server.** It runs no sign-in flow, mints no human credential, and holds no password. People and sidecars obtain tokens from the knowledge base's trusted issuer; the gateway verifies them against that issuer's published keys (JWKS, RS256).
+
+- **Sign-in happens at the issuer**: authorization code + PKCE for a browser, the device authorization grant for a script or the CLI, client credentials for a sidecar's service account. Which providers the issuer federates — Google, GitHub, an enterprise SAML IdP — is the issuer's configuration, not Semiont's.
+- **Bearer JWTs**: short-lived access tokens minted by the issuer (TTLs in [Authentication](./AUTHENTICATION.md)). The gateway signs only agent and media tokens, with HMAC-SHA256 against its own key ring.
+- **Revocation is the issuer's**: disabling an account stops new tokens at once and stops the refresh grant. Signing out revokes the refresh token at the issuer (RFC 7009); the access token already in hand stays valid until it expires, and that lifetime is the window. There is no token-version epoch and no gateway logout route.
 
 ### Authorization
 
-The current implementation includes:
+The gateway makes exactly one authorization decision: **authenticated, or 401**.
 
-- **Router-Level Authentication**: Each gateway router applies JWT authentication middleware to protected routes
-- **JWT Token Validation**: Bearer token authentication for API access with HMAC SHA256 signature verification
-- **User Identification**: Each request includes user context (id, email, isAdmin, isModerator) for audit trails
-- **Role-Based Access Control**: Admin and moderator roles implemented with middleware enforcement (see [RBAC.md](../../protocol/RBAC.md))
-- **OpenAPI Security Spec**: All routes documented with security requirements in OpenAPI specification
+- **Router-Level Authentication**: each gateway router applies `authMiddleware` to its protected routes
+- **JWT Validation**: issuer tokens verified against published JWKS; gateway-signed agent and media tokens verified against the HMAC key ring
+- **Caller Identification**: each request carries a `Principal` — DID, email, name, domain — built from the token's own claims, with no database read behind it
+- **One service role**: `semiont-service`, carried in a flat `roles` claim, gates `POST /api/tokens/agent` and the Archivist read path. It marks a sidecar process, not a person
+- **OpenAPI Security Spec**: the spec is the single source of truth for which routes are public
 
 **Access Levels**:
-- **Public**: Health checks, API documentation, OAuth endpoints (no authentication required)
-- **Authenticated**: All resources, annotations, entity types (requires valid JWT)
-- **Moderator**: Entity type management (requires isModerator=true or isAdmin=true)
-- **Admin**: User management, exchange operations, system configuration (requires isAdmin=true)
+- **Public**: `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the documentation meta-routes
+- **Authenticated**: everything else — resources, annotations, entity types, search, the bus
+- **Service account**: `POST /api/tokens/agent` and the Archivist read path also require the `semiont-service` role
 
-**Important limitation**: All authenticated users have full read/write access to all content. There is no per-resource, per-annotation, or per-user access control. The Admin and Moderator roles only gate access to administrative features, not to content. Content-level access control is planned for future releases. See [RBAC.md](../../protocol/RBAC.md) for details.
+**No gateway route returns 403, and no gateway route reads a human role.** The `isAdmin` and `isModerator` flags were removed along with the user table; they are not deprecated, they do not exist. Every authenticated caller has full read/write access to all content — there is no per-resource, per-annotation, or per-user access control. Content-level access control is planned for future releases. See [RBAC.md](../../protocol/RBAC.md) for details.
 
 ### Security Testing
 
@@ -74,15 +74,11 @@ Comprehensive security test coverage ensures no authentication regressions:
 ### Environment Configuration
 
 ```bash
-# Required environment variables (keep secure)
-export JWT_SECRET="<strong-random-string-32-chars-minimum>"
-export GOOGLE_CLIENT_ID="<oauth-client-id>"
-export GOOGLE_CLIENT_SECRET="<oauth-client-secret>"
-export GITHUB_CLIENT_ID="<oauth-client-id>"
-export GITHUB_CLIENT_SECRET="<oauth-client-secret>"
-export GITLAB_CLIENT_ID="<oauth-client-id>"
-export GITLAB_CLIENT_SECRET="<oauth-client-secret>"
+# Required environment variable (keep secure)
+export JWT_SECRET="<strong-random-string-32-chars-minimum>"   # signs agent and media tokens only
 ```
+
+That is the whole list. There are **no** OAuth client credentials here: the gateway never speaks to an identity provider on a person's behalf, so it holds no client secret. The issuer a deployment trusts is named in the knowledge base's `[identity]` configuration, and the per-service-account credentials the sidecars use are generated and persisted per root by `semiont start`.
 
 ### Production Deployment
 
@@ -97,7 +93,7 @@ export GITLAB_CLIENT_SECRET="<oauth-client-secret>"
 
 | Feature | Development | Production |
 |---------|------------|------------|
-| Authentication | OAuth (optional) | Required (OAuth) |
+| Authentication | Required (trusted issuer) | Required (trusted issuer) |
 | HTTPS | Optional | Required |
 | Error Details | Full stack traces | Generic error messages |
 | Debug Logging | Enabled | Disabled |
@@ -110,14 +106,13 @@ export GITLAB_CLIENT_SECRET="<oauth-client-secret>"
 
 1. **Issuer Configuration**: Configure the trusted issuer's own registration and domain admission rules
 2. **Admission is the issuer's job**: the gateway performs no domain or allowlist check of its own
-3. **Token Expiration**: Access tokens are short-lived and refresh tokens long-lived; a logout revokes all of a user's tokens (TTLs and revocation in [Authentication](./AUTHENTICATION.md))
-4. **API Keys**: Rotate API keys and secrets regularly
-5. **Treat every authenticated user as full-access**: no gateway route consults a role
+3. **Token Expiration**: access tokens are short-lived and the access-token lifetime is the revocation window — disabling an account at the issuer prevents a replacement rather than cancelling the one in hand (TTLs and revocation in [Authentication](./AUTHENTICATION.md))
+4. **Secret Rotation**: rotate `JWT_SECRET` and the service-account credentials regularly
+5. **Treat every authenticated user as full-access**: no gateway route consults a human role
 
 ### Monitoring
 
-- Monitor authentication failures (401 responses)
-- Track authorization failures (403 responses)
+- Monitor authentication failures (401 responses) — this is the only refusal the gateway issues, so a 403 in your logs came from a proxy, not from Semiont
 - Monitor API usage patterns for anomalies
 - Review error logs for security-related issues
 - Set up alerts for suspicious activities
@@ -134,16 +129,18 @@ full request trace, and the `bus.dispatch:*` server spans on
 1. **Backups**: Implement regular backup procedures for event store and projections
 2. **File Permissions**: Ensure proper file system permissions on `SEMIONT_ROOT`
 3. **Database Security**: Follow database-specific security guidelines
-4. **Audit Trails**: Retain logs for security analysis (all events include userId)
-5. **Secret Rotation**: Regularly rotate JWT_SECRET and OAuth credentials
+4. **Audit Trails**: Retain logs for security analysis (every event carries the actor's DID)
+5. **Secret Rotation**: Regularly rotate `JWT_SECRET` — see [Authentication](./AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars) for rotating it without an outage
 
 ### Supply-Chain Integrity
 
-The published `semiont-browser` container image is Trivy-scanned for
-HIGH/CRITICAL CVEs before push and signed with Sigstore-backed
-build-provenance + SBOM attestations stored as OCI artifacts in
-GHCR. Operators pulling the image should verify the attestations
-before running it in production. See
+Every published Semiont container image — `semiont-browser` and the service
+images alike — is Trivy-scanned for HIGH/CRITICAL CVEs before push and signed
+with Sigstore-backed build-provenance + SBOM attestations stored as OCI
+artifacts in GHCR. The service images additionally pass a license-policy gate
+over the same SBOM. These gates fail the publish, not just the report.
+Operators pulling an image should verify the attestations before running it in
+production. See
 [Supply-chain verification](./IMAGES.md#supply-chain-verification)
 for the verify command and what it confirms.
 
@@ -152,24 +149,28 @@ for the verify command and what it confirms.
 The following security features are **not yet implemented** and are planned for future releases:
 
 - **Content-level access control** (per-resource, per-annotation, per-user visibility/permissions)
-- Automated vulnerability scanning in CI/CD
+- Dependency vulnerability scanning on pull requests (container images are scanned at publish; npm dependencies are not gated in PR CI)
 - End-to-end encryption for stored documents
-- Multi-factor authentication (MFA) beyond OAuth provider support
 - Comprehensive audit logging UI
 - Data loss prevention (DLP) policies
 - Rate limiting per user/IP
 - IP allowlisting/blocklisting
-- Session revocation API
+- An operator-facing API to revoke another caller's session. A person can revoke
+  their own refresh token by signing out; cutting off someone else means
+  disabling their account at the issuer and waiting out the access-token TTL
+
+Multi-factor authentication is **not** on this list: it is the issuer's to
+enforce, and enabling it there applies to every Semiont deployment trusting that
+realm without any change here.
 
 ## Roadmap
 
 ### Short-term
 - Rate limiting middleware
-- Session management UI (view/revoke sessions)
 - Enhanced audit logging with queryable interface
 
 ### Medium-term
-- Automated security scanning in CI/CD
+- Dependency scanning gated on pull requests
 - Data encryption at rest
 - Advanced threat detection
 
@@ -232,7 +233,7 @@ When reviewing PRs involving authentication/authorization:
 - [ ] New routes apply appropriate authentication middleware
 - [ ] Public routes are documented in OpenAPI spec (no `security` field)
 - [ ] Protected routes documented with `security: [{ bearerAuth: [] }]`
-- [ ] Admin/moderator routes check role flags
+- [ ] A route needing a service account checks the `semiont-service` role; no route reads a human role
 - [ ] No hardcoded secrets or credentials
 - [ ] Input validation uses Zod schemas
 - [ ] Error messages don't leak sensitive information
@@ -251,6 +252,6 @@ Semiont is an open-source project and is provided "as-is". Organizations deployi
 
 ---
 
-Last Updated: March 2026
+Last Updated: September 2026
 
 For the latest security updates and patches, see the [GitHub repository](https://github.com/The-AI-Alliance/semiont).

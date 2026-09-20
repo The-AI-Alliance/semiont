@@ -35,9 +35,9 @@ const (
 	//
 	// Pinned rather than left to Keycloak's default so the window is a decision
 	// somebody made and can read back, not a value that moves with a Keycloak
-	// upgrade. Five minutes matches the default this was written against, so
-	// pinning it changes no existing behaviour — the point is that changing it
-	// now requires editing this line.
+	// upgrade. A knowledge base that wants a different one sets
+	// `accessTokenLifespan` in its [identity] section; this is what it gets
+	// otherwise.
 	keycloakAccessTokenLifespan = 300
 )
 
@@ -155,10 +155,25 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 // including the values here. A deployment whose realm predates a change to this
 // function keeps the settings it was created with; adjusting those is a console
 // or admin-API job, not a restart.
-func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]string) []byte {
+func keycloakRealmJSON(realm, audience, addr string, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
 	browser := publicClient(browserClientID, "Semiont Browser", audience)
 	browser["standardFlowEnabled"] = true
-	browser["redirectUris"] = []string{"http://localhost:3000/*", "http://" + addr + ":3000/*"}
+	// Loopback entries carry NO PORT, which is what makes any port match.
+	//
+	// RFC 8252 §7.3 requires an authorization server to accept any port on a
+	// loopback redirect, because only software already on the user's machine can
+	// bind one — the port carries no security meaning there. Keycloak honours
+	// that rule, but only when the registered URI omits the port: pinning
+	// `localhost:3000` opts back out of it, and `semiont start --service browser
+	// --port 3001` then produces a healthy stack nobody can sign in to.
+	//
+	// The LAN address stays pinned. It is not loopback, so the rule does not
+	// apply and a wildcard port there would be a real widening.
+	browser["redirectUris"] = []string{
+		"http://localhost/*",
+		"http://127.0.0.1/*",
+		"http://" + addr + ":3000/*",
+	}
 	browser["webOrigins"] = []string{"+"}
 	browser["attributes"] = map[string]string{
 		"pkce.code.challenge.method": "S256",
@@ -179,14 +194,83 @@ func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]s
 		"realm":               realm,
 		"enabled":             true,
 		"sslRequired":         "none",
-		"accessTokenLifespan": keycloakAccessTokenLifespan,
+		"accessTokenLifespan": accessTokenLifespan,
 		"clients":             clients,
+		"components": map[string]any{
+			"org.keycloak.userprofile.UserProfileProvider": []map[string]any{{
+				"providerId":    "declarative-user-profile",
+				"subComponents": map[string]any{},
+				"config": map[string]any{
+					"kc.user.profile.config": []string{keycloakUserProfile()},
+				},
+			}},
+		},
 	}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		panic(err)
 	}
 	return append(b, '\n')
+}
+
+// keycloakUserProfile: the realm's declarative user profile, rendered as the
+// JSON string Keycloak stores for it.
+//
+// `firstName` and `lastName` are required, so a person an administrator created
+// an account for NAMES THEMSELVES at first login — Keycloak collects both before
+// it lets them through. That is deliberate: Keycloak composes the `name` claim
+// from these two, and that claim is what every event a person authors carries.
+// The alternative is an administrator typing one string that something then has
+// to split, and splitting a display name on a space gets "Mary Jane" and
+// "van der Berg" wrong. Nobody here is willing to guess, so the person says.
+//
+// This is Keycloak's own default written out, so it changes nothing today. It is
+// pinned for the reason keycloakAccessTokenLifespan is: inherited, the first-run
+// experience moves with a Keycloak upgrade and differs on any other issuer, with
+// no line to read back. An operator federating a different issuer owes Semiont
+// only `email` — the gateway refuses a token carrying none, or carrying
+// `email_verified` false.
+func keycloakUserProfile() string {
+	attribute := func(name string, required bool, validations map[string]any) map[string]any {
+		a := map[string]any{
+			"name":        name,
+			"displayName": "${" + name + "}",
+			"validations": validations,
+			"permissions": map[string][]string{
+				"view": {"admin", "user"},
+				"edit": {"admin", "user"},
+			},
+			"multivalued": false,
+		}
+		if required {
+			a["required"] = map[string][]string{"roles": {"user"}}
+		}
+		return a
+	}
+	personName := map[string]any{
+		"length":                            map[string]int{"max": 255},
+		"person-name-prohibited-characters": map[string]any{},
+	}
+	// encoding/json sorts map keys, so this renders identically every call —
+	// which the realm golden depends on.
+	doc := map[string]any{"attributes": []map[string]any{
+		attribute("username", false, map[string]any{
+			"length":                         map[string]int{"min": 3, "max": 255},
+			"username-prohibited-characters": map[string]any{},
+			"up-username-not-idn-homograph":  map[string]any{},
+		}),
+		attribute("email", true, map[string]any{
+			"email":  map[string]any{},
+			"length": map[string]int{"max": 255},
+		}),
+		attribute("firstName", true, personName),
+		attribute("lastName", true, personName),
+	}}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 // publicClient: the shape both of Semiont's clients share — public (no
@@ -258,7 +342,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	if !ok {
 		return nil, nil, false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, rp.AccessTokenLifespan, secrets))
 	if !ok {
 		return nil, nil, false
 	}

@@ -157,10 +157,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "")
 	otel := otelArgs(addr)
 
-	// Database, then Gateway, AHEAD of the stores the actors use. The gateway
-	// dials no graph/vector/embedding client — its boot needs Postgres alone
-	// (its CMD runs `prisma migrate deploy`, which the 120s health budget
-	// pays for) — and it has the most ways to fail, so it goes first.
+	// Database, messaging and identity — everything the Gateway itself needs —
+	// AHEAD of the stores the actors use. The gateway dials no graph, vector or
+	// embedding client, and no database of its own: the PostgreSQL started here
+	// is Keycloak's, whose realm lives in it. What the gateway does wait for is
+	// the broker its job queue dials and the issuer whose keys it verifies
+	// tokens against, both below. It has the most ways to fail, so it precedes
+	// the stores.
 	// Invariant: everything below needs the Gateway; nothing above it does.
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
@@ -368,7 +371,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `identityEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightServiceAccounts(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
+			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, identityEndpoint(rp), rp.Driver)
@@ -422,6 +425,24 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		x.note("%s: externally provided at %s:%d — verify reachability, launch nothing", role, rp.Address, rp.Port)
 		if !x.probeTCP(role, rp) {
 			return 1
+		}
+		// An issuer someone ELSE runs gets the same preflight as one the
+		// launcher starts, and needs it more: a launcher-run realm is imported
+		// from the launcher's own document and is correct by construction,
+		// while an external one had its clients created by hand. Reachability
+		// alone says nothing about whether the six service accounts grant a
+		// usable token, or whether anybody can sign in.
+		//
+		// The base is the CONFIGURED issuer, not identityEndpoint's localhost
+		// form — nothing of this one is on this host.
+		if role == "identity" {
+			secrets, ok := serviceClientSecrets(x, fc.root)
+			if !ok {
+				return 1
+			}
+			if !x.preflightIdentity(rp.Issuer, committedResource(fc.root), secrets, 0) {
+				return 1
+			}
 		}
 		// A role sharing another's Ollama reports how that Ollama is
 		// provided, not a flat "external" — same process, same answer.
@@ -898,7 +919,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 			// Same gate as a full start: a realm restarted alone must still
 			// honour the credentials every running service already holds.
-			if !x.preflightServiceAccounts(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
+			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan) {
 				return 1
 			}
 		}

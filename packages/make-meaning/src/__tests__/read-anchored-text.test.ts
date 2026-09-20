@@ -37,7 +37,7 @@ const silentLogger: Logger = {
   child: () => silentLogger,
 };
 
-const TEST_USER_ID = makeUserId('test-host');
+const TEST_USER_ID = makeUserId('did:web:test:users:test-host');
 
 const config: MakeMeaningConfig = {
   gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },

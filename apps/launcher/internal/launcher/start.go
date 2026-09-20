@@ -74,7 +74,7 @@ Options:
                         of the stack untouched: gateway, worker, smelter, weaver,
                         archivist, librarian, browser, database, graph, vectors,
                         inference, traces, metrics, or collector.
-                        Rejoins a running stack's worker secret automatically;
+                        Reads its own credential from this root's state;
                         OTel export is enabled iff the collector is up.
   --port <n>            Browser port (--service browser only; default 3000).
                         The one port a flag may move — every other port
@@ -889,8 +889,9 @@ func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string
 // shape is the GATEWAY's minus the database — the KB root read-write (it is
 // the git single-writer, D4b), the anchored-text store, and a staged config
 // copy. Env is the sidecar set, which already carries every ${VAR} the
-// config interpolates. Deliberately NO JWT_SECRET: it signs nothing; agent
-// auth presents the worker secret (the same fact D1's read path relies on).
+// config interpolates. Deliberately NO JWT_SECRET: it signs nothing. It
+// authenticates as its own service account at the issuer, and admits callers by
+// verifying theirs (the same fact D1's read path relies on).
 func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", roles["archivist"].mem, "--publish", "24103:24103",

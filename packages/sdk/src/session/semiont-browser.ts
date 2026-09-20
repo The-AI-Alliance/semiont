@@ -320,13 +320,13 @@ export class SemiontBrowser {
         : undefined;
     const branch = identity.gitBranch ? { gitBranch: identity.gitBranch } : {};
     if (existing) {
-      const kb: KnowledgeBase = { ...existing, label: identity.label, email: identity.email, ...branch };
-      this.updateKb(existing.id, { label: identity.label, email: identity.email, ...branch });
+      const kb: KnowledgeBase = { ...existing, label: identity.label, ...branch };
+      this.updateKb(existing.id, { label: identity.label, ...branch });
       await this.signIn(existing.id, session);
       return { kb, ...(expected ? { expected } : {}) };
     }
     const kb = this.addKb(
-      { did: identity.did, label: identity.label, email: identity.email, endpoint: pending.target, ...branch },
+      { did: identity.did, label: identity.label, endpoint: pending.target, ...branch },
       session,
     );
     return { kb, ...(expected ? { expected } : {}) };

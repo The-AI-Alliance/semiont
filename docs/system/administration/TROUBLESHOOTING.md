@@ -44,7 +44,7 @@ semiont status
 
 Read which service is unhealthy before anything else. The Browser has no health probe — it is a static file server — so a "Browser problem" is usually a gateway problem seen through the browser.
 
-If the gateway shows `exited`, read its logs — it starts no subprocesses of its own and has no database to reach, so the cause is in the server's own startup. The gateway's `CMD` runs migrations *before* `exec node`, so a migration failure means the server never started:
+If the gateway shows `exited`, read its logs — it starts no subprocesses of its own and has no database to reach, so the cause is in the server's own startup. Its `CMD` is `node` on the built server and nothing else: no migration step, and nothing that can fail before the process begins.
 
 ```bash
 semiont logs --service gateway
@@ -60,19 +60,22 @@ Its startup contract is strict, and each unmet requirement throws:
 | `services.gateway` in the environment config | `services.gateway is required in environment config` |
 | `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
 | `JWT_SECRET` under 32 characters | Startup validation failure |
-| `SEMIONT_WORKER_SECRET` | Gateway starts, but no agent can get a token — see below |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The service refuses to boot: it cannot authenticate as its own service account — see below |
+| `[identity]` in the environment config | Sidecars refuse to boot; there is no issuer to trust |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
 ### Workers, smelter, or weaver never pick up work
 
-These three authenticate by exchanging `SEMIONT_WORKER_SECRET` at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. If the secret does not match the gateway's, the exchange fails and they sit idle:
+These three authenticate at the knowledge base's issuer as their own service accounts (client credentials), then exchange that issuer token at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. Either leg can fail and leave them idle: the issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, or a realm that never imported the client), or the gateway may refuse the exchange because the token carries no `semiont-service` role in its flat `roles` claim.
 
 ```bash
-semiont logs --service worker | grep -iE "token|auth|secret"
+semiont logs --service worker | grep -iE "token|auth|oidc|client"
 ```
 
-A service restarted with `semiont start --service worker` rejoins the running stack's worker secret automatically. One started by hand with a stale secret will not.
+`semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client up front rather than leaving you to find it here.
+
+A service restarted with `semiont start --service worker` reads the same per-root credential the full start wrote, so it rejoins with nothing to recover. One started by hand must be given its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 
 ### A job sits in "Yielding" forever
 
@@ -86,7 +89,7 @@ Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invali
 
 ### Commands hang, or real-time updates stop, on a NATS stack
 
-Applies only when `[signal] type = "nats"` or `[jobs] type = "jetstream"` is selected (a `messaging` container is running). If the broker is down, the gateway keeps serving and **`/api/health` stays 200** — it checks PostgreSQL, not the broker — but every bus emit fails: a command like a `job:create` runs to the full 30-second `busRequest` timeout instead of failing fast, and SSE clients stop receiving frames.
+Applies only when `[signal] type = "nats"` or `[jobs] type = "jetstream"` is selected (a `messaging` container is running). If the broker is down, the gateway keeps serving and **`/api/health` stays 200** — it does not check the broker — but every bus emit fails: a command like a `job:create` runs to the full 30-second `busRequest` timeout instead of failing fast, and SSE clients stop receiving frames.
 
 ```bash
 container ps --all | grep semiont-nats
@@ -110,10 +113,10 @@ A full `semiont start` should not race the database: it waits for PostgreSQL to 
 
 Two cases where you *are* on your own:
 
-- **`semiont start --service gateway`** restarts one service without re-checking its dependencies. If you restart the gateway while the database is down, it will fail to migrate.
+- **`semiont start --service gateway`** restarts one service without re-checking its dependencies. The gateway itself needs no database, but it does need the issuer: restart it while Keycloak is down and it cannot verify a token.
 - **An external database** (`platform = "external"` pointing off-stack) is verified for reachability but never waited on — the launcher does not own its lifecycle.
 
-For schema drift, migration state, and reset procedures, see the [Database Guide](DATABASE.md).
+Semiont keeps no schema of its own here — this PostgreSQL is Keycloak's. See the [Database Guide](DATABASE.md).
 
 ### Port already in use
 
@@ -243,7 +246,7 @@ container inspect semiont-gateway > gateway-inspect.json
 semiont logs --service gateway > gateway.log 2>&1     # Ctrl-C when you have enough
 ```
 
-Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, `ANTHROPIC_API_KEY`, and database passwords all live in container environments.
+Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_SECRET`, `ANTHROPIC_API_KEY`, and database passwords all live in container environments.
 
 ## Dry-run anything
 
@@ -252,7 +255,7 @@ Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_WORKER_SECRET`,
 ## Related
 
 - [Observability](OBSERVABILITY.md) — traces, metrics, and the `busLog` timeline
-- [Database Guide](DATABASE.md) — migrations, schema drift, resets
+- [Database Guide](DATABASE.md) — the PostgreSQL Keycloak uses; Semiont keeps no schema
 - [Configuration Guide](CONFIGURATION.md) — where every setting comes from
 - [Authentication](AUTHENTICATION.md) — accounts, JWTs, OAuth
 - [Container Topology](../CONTAINER-TOPOLOGY.md) — which container talks to which

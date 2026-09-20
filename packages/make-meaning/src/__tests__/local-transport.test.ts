@@ -66,7 +66,7 @@ const config: MakeMeaningConfig = {
 };
 
 const TEST_USER_DID = userDID('did:semiont:test-host');
-const TEST_USER_ID  = makeUserId('test-host');
+const TEST_USER_ID  = makeUserId('did:web:test:users:test-host');
 
 interface Harness {
   client: SemiontClient;

@@ -107,8 +107,8 @@ semiont start --service database   # Just PostgreSQL
 
 `--service` takes one name: `gateway`, `worker`, `smelter`, `weaver`, `browser`,
 `database`, `graph`, `vectors`, `inference`, `embedding`, or `traces`. The rest of the stack is
-left untouched, and a restarted service rejoins the running stack's worker secret
-automatically.
+left untouched. Each service reads its own credential from the per-root state the full start
+wrote, so a partial restart needs nothing recovered from the running stack.
 
 ### Browser against a mock API
 
@@ -195,32 +195,19 @@ If you prefer manual setup or need to understand the internals:
 ### Prerequisites
 
 - Node.js 18+ (recommend using nvm)
-- Docker (for PostgreSQL container)
-- A KB with `.semiont/semiontconfig/<name>.toml` holding credentials for the database, graph, and inference — `semiont init` generates one
+- Docker (for the infrastructure containers)
+- A KB with `.semiont/semiontconfig/<name>.toml` holding credentials for the graph, vectors, inference, and an `[identity]` section naming the issuer — `semiont init` generates one
 
-### Manual Database Setup
+### There is no gateway database to set up
 
-**Option 1: Manual Docker (if not using Semiont CLI)**
+The gateway holds no database and issues no SQL. It reads every caller's
+identity off their token, and the record lives in the KB's event log
+(`.semiont/events/`). There is no ORM, no migration step, and no schema of ours
+to create.
 
-```bash
-# Start PostgreSQL in Docker
-docker run --name semiont-postgres-dev \
-  -e POSTGRES_PASSWORD=dev_password \
-  -e POSTGRES_DB=semiont_dev \
-  -e POSTGRES_USER=dev_user \
-  -p 5432:5432 \
-  -d postgres:15-alpine
-```
-
-**Option 2: Local PostgreSQL**
-
-```bash
-# Create database
-createdb semiont_dev
-
-# Connection string for .env
-DATABASE_URL="postgresql://dev_user:dev_password@localhost:5432/semiont_dev"
-```
+PostgreSQL still runs in a Semiont stack, but it belongs to **Keycloak** — it
+holds the realm and its accounts. `semiont start` provisions it and creates the
+database itself; see [Database](../../../docs/system/administration/DATABASE.md).
 
 ### Manual Development Workflow
 
@@ -255,16 +242,15 @@ Create `.env` file with these local development settings:
 NODE_ENV=development
 PORT=4000
 
-# Database
-DATABASE_URL="postgresql://postgres:localpassword@localhost:5432/semiont"
-
-# JWT (use a long random string for local dev). May also be an ordered,
+# JWT (use a long random string for local dev). Signs agent and media tokens
+# only — people's tokens are the issuer's. May also be an ordered,
 # comma-separated key ring during a rotation — first key signs, all verify.
 JWT_SECRET="local-development-secret-min-32-characters-long"
 
-# OAuth (optional for local dev)
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
+# The gateway's own service account at the knowledge base's issuer, which it
+# exchanges for a token to reach the Archivist.
+SEMIONT_OIDC_CLIENT_ID="semiont-gateway"
+SEMIONT_OIDC_CLIENT_SECRET="the-secret-the-realm-was-imported-with"
 
 ```
 
@@ -339,7 +325,6 @@ LOG_LEVEL=debug npm start
 ```env
 # In .env (legacy)
 DEBUG=hono:*
-PRISMA_LOG=query,info,warn,error
 ```
 
 **3. Inspect Database Queries**
@@ -363,14 +348,14 @@ PRISMA_LOG=query,info,warn,error
 
 ## Troubleshooting
 
-# Check PostgreSQL is running
-docker ps | grep postgres
+# Check Keycloak and its PostgreSQL are running
+container ps --all | grep -E "semiont-postgres|semiont-keycloak"
 
-# Test connection
-psql $DATABASE_URL -c "SELECT 1"
+# Is the realm there? (it imports on FIRST boot only, never again)
+container exec semiont-postgres psql -U postgres -lqt | grep keycloak
 
-# Check connection string format
-echo $DATABASE_URL
+# Does the gateway trust an issuer, and does the issuer answer?
+curl -s http://localhost:4000/.well-known/oauth-protected-resource
 ```
 
 ### "JWT_SECRET too short"

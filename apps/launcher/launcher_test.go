@@ -227,7 +227,7 @@ func (s *scenario) env() []string {
 			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
 		}
 	}
-	// Pinned for the same reason as the worker secret: a generated one is
+	// Pinned for the same reason the retired worker secret was: a generated one is
 	// random, and the boot goldens compare argv verbatim. Tests that need the
 	// generate-and-persist path set noJWTSecret.
 	if !s.noJWTSecret {
@@ -394,7 +394,7 @@ func TestStartDefaultBoot(t *testing.T) {
 		"semiont logs",
 		"semiont stop",
 	)
-	// The worker secret must never reach the terminal: echoed commands
+	// A service credential must never reach the terminal: echoed commands
 	// redact secret-valued envs (the real argv, in the argv log, keeps it).
 	// Six of them now, one per service account, so the allowlist doing the
 	// work matters more than it did with one shared string.
@@ -1789,15 +1789,16 @@ func TestUseradd(t *testing.T) {
 	// Name-scan fallback: the runtime whose listing shows semiont-gateway.
 	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
 	s.stdin = secret + "\n"
-	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--admin")
+	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--upsert")
 	if code != 0 {
 		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
 	// -i so the pipe reaches the container; --password-stdin tells the gateway
-	// to read it there.
+	// to read it there. `--upsert` is here as a flag the launcher does NOT
+	// consume: it must cross verbatim.
 	mustContain(t, "argv log", string(log),
-		"docker exec -i semiont-gateway semiont-useradd --email a@b.co --admin --password-stdin")
+		"docker exec -i semiont-gateway semiont-useradd --email a@b.co --upsert --password-stdin")
 	// The secret reached the gateway — through the PIPE, not the command line.
 	stdinSeen, err := os.ReadFile(filepath.Join(s.fakertDir, "exec-stdin.txt"))
 	if err != nil {
@@ -1855,7 +1856,7 @@ func TestUseradd(t *testing.T) {
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--update", "--admin"); code != 0 {
+	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--update"); code != 0 {
 		t.Fatalf("update useradd: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if log, _ = os.ReadFile(s.log); strings.Contains(string(log), "--password-stdin") {
@@ -1886,9 +1887,17 @@ func TestUseradd(t *testing.T) {
 	if code != 0 {
 		t.Error("useradd --help should exit 0")
 	}
-	mustContain(t, "help", stdout, "--generate-password", "--admin", "--upsert")
+	mustContain(t, "help", stdout, "--generate-password", "--inactive", "--upsert")
 	if strings.Contains(stdout, "--password <") {
 		t.Error("help still advertises the removed --password flag")
+	}
+	// Role flags do not exist at the target (`semiont-useradd` refuses an
+	// unknown flag), so advertising them here would send people to a command
+	// that fails.
+	for _, gone := range []string{"--admin", "--moderator"} {
+		if strings.Contains(stdout, gone) {
+			t.Errorf("help advertises %s, which semiont-useradd rejects", gone)
+		}
 	}
 }
 
@@ -2734,7 +2743,10 @@ func TestUseraddCodespace(t *testing.T) {
 	nasty := "p a$s'w\"o`rd;rm -rf /"
 	s.stdin = nasty + "\n"
 	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
-		"--name", "A $NAME with spaces", "--admin")
+		// A flag the launcher does not know. Forwarding argv verbatim is the
+		// promise, so an argument it has never heard of must cross intact and
+		// quoted — that is what breaks if this path starts interpreting flags.
+		"--future-flag", "A $NAME with spaces", "--upsert")
 	if code != 0 {
 		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -2747,7 +2759,7 @@ func TestUseraddCodespace(t *testing.T) {
 	mustContain(t, "remote command", remote,
 		"docker exec -i ",                 // -i keeps the pipe open through ssh
 		"semiont-gateway semiont-useradd", // the exec target inside the codespace
-		"'alice@example.com'", "'--admin'", "'--password-stdin'")
+		"'alice@example.com'", "'--upsert'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
@@ -2763,7 +2775,7 @@ func TestUseraddCodespace(t *testing.T) {
 	// argv there is nothing left to redact.
 	echoed := stdout[strings.Index(stdout, "$ gh"):]
 	echoed = echoed[:strings.IndexByte(echoed, '\n')]
-	mustContain(t, "echoed command", echoed, "'alice@example.com'", "'--admin'", "'A $NAME with spaces'")
+	mustContain(t, "echoed command", echoed, "'alice@example.com'", "'--upsert'", "'A $NAME with spaces'")
 	if strings.Contains(echoed, "rm -rf") || strings.Contains(echoed, "redacted") {
 		t.Errorf("echoed command should carry no secret and need no redaction:\n%s", echoed)
 	}
@@ -7253,5 +7265,55 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 	}
 	if got := strings.TrimSpace(string(cc)); !strings.HasPrefix(got, "semiont-") {
 		t.Errorf("preflight presented an unexpected client id: %q", got)
+	}
+}
+
+// writeExternalIssuerConfig: an [identity] naming an issuer on a host the
+// launcher does NOT run — `type = "oidc"`, the bring-your-own-IdP shape.
+func writeExternalIssuerConfig(t *testing.T, s *scenario) string {
+	t.Helper()
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "external-oidc.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return "external-oidc"
+}
+
+// An issuer someone else runs gets the SAME preflight as one the launcher
+// starts — and needs it more. A launcher-run realm is imported from the
+// launcher's own document and is correct by construction; an external one had
+// its clients created by hand.
+//
+// Until this, `type = "oidc"` reached NO preflight at all: the external branch
+// verified TCP reachability and launched nothing, so a realm missing every
+// service account — or one nobody could sign in to — started nine containers
+// happily. Reachability is not configuration.
+func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
+	s := newScenario(t, "container")
+	cfg := writeExternalIssuerConfig(t, s)
+	stdout, stderr, code := s.run(t, "start", "--config", cfg, "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	const iss = "https://id.example.com/realms/semiont"
+	mustContain(t, "plan", stdout,
+		// the six machine identities, against the CONFIGURED issuer rather
+		// than identityEndpoint's localhost form
+		"client-credentials grant at "+iss+" as semiont-gateway",
+		"client-credentials grant at "+iss+" as semiont-worker",
+		// and the two clients people sign in through
+		"device authorization at "+iss+" as semiont-cli",
+		"authorization request at "+iss+" as semiont-browser",
+		"PKCE is enforced rather than merely offered",
+		"sending no credential — require both to refuse it",
+	)
+	// Verified, never launched.
+	if strings.Contains(stdout, "--name semiont-keycloak") {
+		t.Error("an external issuer was launched")
 	}
 }

@@ -43,7 +43,7 @@ const job: PendingJob<DetectionParams> = {
   metadata: {
     id: jobId('job-abc123'),
     type: 'reference-annotation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
@@ -137,7 +137,7 @@ Lists jobs with optional filters. Reads from filesystem, sorted by creation time
 
 ```typescript
 const pending = await queue.listJobs({ status: 'pending' });
-const userJobs = await queue.listJobs({ userId: userId('user@example.com'), limit: 10 });
+const userJobs = await queue.listJobs({ userId: userId('did:web:example.com:users:user%40example.com'), limit: 10 });
 const allJobs = await queue.listJobs();
 ```
 

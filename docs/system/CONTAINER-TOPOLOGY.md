@@ -78,10 +78,11 @@ config:
 ---
 graph TB
     subgraph G1 [" "]
-        GW["semiont-gateway<br/>bus hub · identity · job queue · content proxy"]
+        GW["semiont-gateway<br/>bus hub · token verifier · job queue · content proxy"]
         NATS["semiont-nats<br/>messaging — signal plane · job queue"]
         JS[("JetStream store")]
-        PG["semiont-postgres<br/>PostgreSQL — users · auth"]
+        KC["semiont-keycloak<br/>identity — the issuer this KB trusts"]
+        PG["semiont-postgres<br/>PostgreSQL — Keycloak's realm"]
     end
 
     subgraph G2 [" "]
@@ -124,7 +125,8 @@ graph TB
     ARCH --> OL
     LIB --> OL
     WORKER --> OL
-    GW --> PG
+    KC --> PG
+    GW -.->|verifies tokens against its keys| KC
 
     GW -.-> COLL
     ARCH -.-> COLL
@@ -143,7 +145,7 @@ graph TB
 
     class LIB,WORKER,SMELT,WEAVE,ARCH svc
     class GW hub
-    class NEO,QD,OL,PG,COLL,TRACES,METRICS,NATS infra
+    class NEO,QD,OL,PG,KC,COLL,TRACES,METRICS,NATS infra
     class ANCH,VIEWS,JS store
     class TREE record
 
@@ -163,7 +165,7 @@ graph TB
 
 Cylinders are file state on the host; their edges are mounts and the direction of use — `rw`/`ro` marked where it matters, and the working tree has exactly one writer. The deep-blue cylinder is the KB working tree — the git-tracked system of record; every purple cylinder is derived state, rebuildable from it. Rectangle-to-rectangle edges are each service's infrastructure attachments; dotted edges are telemetry — OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus off the collector's readout (a pull, drawn in the direction the data flows). The dashed frames are groupings, not components — the edges alone carry the attachment facts. The Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
 
-Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`, which exchanges a shared secret (`SEMIONT_WORKER_SECRET`) plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a user's. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
+Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`. Each sidecar first authenticates at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then presents that issuer token as a bearer here along with a `(provider, model)` identity, and receives a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a person's. Two identities, deliberately: the service account is the process, the agent DID is the work. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
 
 ### Who mounts what
 
@@ -220,7 +222,7 @@ Two layers, easy to conflate:
 
 - **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml`.
   In **Codespaces both are true at once**, at different layers: `semiont start --runtime codespace` drives the outside (create/resume the VM, wait for health, forward the KB, read credentials, stop or delete), while *inside* the codespace the devcontainer hooks bring the stack up with `docker compose` exactly as above. The launcher never reaches into the container to manage services.
-- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE` for local runs. The gateway image derives `DATABASE_URL` and applies pending Prisma migrations (once per container) before handing off to `node dist/index.js`; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
+- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE` for local runs. The gateway image hands straight off to `node dist/index.js` — it derives no database URL and runs no migration step, because it holds no database; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
 
 See **[the launcher](../../apps/launcher/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
 

@@ -64,7 +64,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       id: `event-created-${uuidv4()}`,
       type: 'yield:created',
       timestamp: new Date().toISOString(),
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: rid,
       version: 1,
       payload: {
@@ -80,7 +80,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       id: `event-mark-${annotationIndex}-${uuidv4()}`,
       type: 'mark:added',
       timestamp: new Date().toISOString(),
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: rid,
       version: 1,
       payload: {
@@ -107,7 +107,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       id: `event-job-started-${uuidv4()}`,
       type: 'job:started',
       timestamp: new Date().toISOString(),
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: rid,
       version: 1,
       payload: {
@@ -122,7 +122,7 @@ describe('ViewManager — integration (real FilesystemViewStorage)', () => {
       id: `event-job-completed-${uuidv4()}`,
       type: 'job:completed',
       timestamp: new Date().toISOString(),
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: rid,
       version: 1,
       payload: {

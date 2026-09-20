@@ -49,8 +49,9 @@ they did in-process.
 Nothing. It appends no events, serves no bytes, and never mounts the KB tree. Its one
 filesystem read is the materialized views the Archivist maintains, through the shared state
 mount — read-only, never rebuilt here — located by the `[kb] name` in the staged config.
-The whole environment contract is two variables: `SEMIONT_WORKER_SECRET` (agent auth) and
-`XDG_STATE_HOME` (the shared state mount).
+The whole environment contract is three variables: `SEMIONT_OIDC_CLIENT_ID` and
+`SEMIONT_OIDC_CLIENT_SECRET` (its own service account at the KB's issuer, which buys the agent
+token it shows the gateway) and `XDG_STATE_HOME` (the shared state mount).
 
 ## Why it is separate from the Archivist
 

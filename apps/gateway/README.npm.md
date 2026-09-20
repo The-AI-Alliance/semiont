@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
 [![License](https://img.shields.io/npm/l/@semiont/gateway.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Pre-built Semiont gateway server for npm consumption. This package contains the compiled gateway application with Prisma schema and migrations.
+Pre-built Semiont gateway server for npm consumption. This package contains the compiled gateway application. It holds no database and carries no schema or migrations.
 
 ## Running Semiont
 
@@ -35,7 +35,8 @@ Requires in the environment:
   means placing or symlinking one yourself. The environment block comes from its
   `[defaults] environment`.
 - `JWT_SECRET` — minimum 32 characters
-- `SEMIONT_WORKER_SECRET` — for the software-agent token exchange
+- `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own service
+  account at the knowledge base's issuer
 
 ## What's included
 

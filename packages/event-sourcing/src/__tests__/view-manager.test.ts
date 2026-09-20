@@ -61,7 +61,7 @@ describe('ViewManager', () => {
         id: 'event1',
         type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 1,
         payload: {
@@ -88,7 +88,7 @@ describe('ViewManager', () => {
         id: 'event1',
         type: 'yield:representation-added' as const,
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 1,
         payload: {
@@ -107,7 +107,7 @@ describe('ViewManager', () => {
             id: 'event0',
             type: 'yield:created' as const,
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -176,7 +176,7 @@ describe('ViewManager', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -228,7 +228,7 @@ describe('ViewManager', () => {
         id: 'event1',
         type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 1,
         payload: {
@@ -273,7 +273,7 @@ describe('ViewManager', () => {
       id: `event-${rid}`,
       type: 'yield:created' as const,
       timestamp: new Date().toISOString(),
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: rid,
       version: 1,
       payload: {

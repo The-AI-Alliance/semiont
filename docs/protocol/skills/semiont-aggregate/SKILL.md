@@ -50,7 +50,7 @@ import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@sem
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
 const session = await SemiontSession.signInDevice({
   kb: httpKb({
-    id: 'semiont-aggregate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+    id: 'semiont-aggregate', label: 'Semiont',
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
@@ -165,7 +165,7 @@ async function aggregate(anchorIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
   const session = await SemiontSession.signInDevice({
     kb: httpKb({
-      id: 'semiont-aggregate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
+      id: 'semiont-aggregate', label: 'Semiont',
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),

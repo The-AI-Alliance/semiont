@@ -126,7 +126,7 @@ was a trap rather than a shortcut.
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const session = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'my-watcher', label: 'My Watcher', email: 'me@example.com',
+  kb: httpKb({ id: 'my-watcher', label: 'My Watcher',
                host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),

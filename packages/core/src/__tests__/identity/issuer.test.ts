@@ -3,20 +3,53 @@
  * the keys that issuer publishes — found through OIDC discovery, selected by
  * `kid`, cached, and refreshed without a restart. Real signatures against an
  * in-process issuer; nothing here names a vendor.
+ *
+ * These live in CORE because `IssuerVerifier` is core's. They ran under the
+ * gateway until 2026-09-20, which meant `npm test --workspace=@semiont/core`
+ * could pass on a broken verifier — and `@semiont/core/identity` is a
+ * published subpath with three consumers.
+ *
+ * Imported from SOURCE, not from `@semiont/core/identity`: a suite that tests
+ * its own package through the built artifact reports on the last build, not on
+ * the working tree.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SignJWT, errors } from 'jose';
-import { accessToken } from '@semiont/core';
-import { IssuerVerifier, type IssuerVerifierOptions } from '@semiont/core/identity';
-import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
+import { accessToken } from '../../index';
+import { IssuerVerifier, type IssuerVerifierOptions } from '../../identity/issuer';
+import { fixtureIssuer, type FixtureIssuer } from '../../testing/issuer';
 
 const ORIGIN = 'https://issuer.test';
 const AUDIENCE = 'semiont-gateway';
 
 let issuer: FixtureIssuer;
 
+// Two URLs answered, so two URLs are stubbed. The gateway routes the same
+// fixture through the MSW server its whole suite already runs; core answers
+// `fetch` directly rather than take a network-interception dependency to serve
+// a discovery document and a key set.
+function serve(...issuers: FixtureIssuer[]): void {
+  const routes = new Map<string, () => unknown>();
+  for (const i of issuers) {
+    routes.set(i.discoveryUrl, () => i.discoveryDocument());
+    routes.set(i.jwksUrl, () => i.jwks());
+  }
+  vi.stubGlobal('fetch', async (input: string | URL | Request) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    const body = routes.get(url);
+    if (!body) throw new Error(`unstubbed fetch: ${url}`);
+    return new Response(JSON.stringify(body()), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  });
+}
+
+afterEach(() => vi.unstubAllGlobals());
+
 beforeEach(async () => {
   issuer = await fixtureIssuer(ORIGIN, { audience: AUDIENCE });
+  serve(issuer);
 });
 
 function verifier(jwks: IssuerVerifierOptions['jwks'] = { cooldownDuration: 0 }): IssuerVerifier {
@@ -123,7 +156,7 @@ describe('the key cache', () => {
 describe('discovery', () => {
   it('refuses a document whose `issuer` is not the configured one', async () => {
     const origin = 'https://mislabeled.test';
-    await fixtureIssuer(origin, { audience: AUDIENCE, advertisedIssuer: 'https://other.test' });
+    serve(await fixtureIssuer(origin, { audience: AUDIENCE, advertisedIssuer: 'https://other.test' }));
     const v = new IssuerVerifier({ issuer: origin, audience: AUDIENCE, jwks: { cooldownDuration: 0 } });
 
     await expect(v.verify(accessToken('any.token.here'))).rejects.toThrow(/different issuer/);

@@ -104,43 +104,41 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 
 ### Environment Setup
 Both Browser and gateway security tests use:
-- **Node.js 20**: Latest LTS version
-- **PostgreSQL 15**: Test database for gateway
-- **Environment Variables**: Test credentials and configuration
+- **Node.js 24**
+- **Environment Variables**: only what the code actually reads
 - **Dependency Caching**: npm cache for faster builds
+
+No database service. The gateway holds no database, so nothing here provisions
+one, and there are no OAuth client credentials: people authenticate at the
+knowledge base's issuer, never at the gateway.
 
 ### Test Environment Variables
 ```bash
 # Browser
-SERVER_API_URL=http://localhost:3001
-NEXT_PUBLIC_SITE_NAME=Semiont Test
-NEXT_PUBLIC_OAUTH_ALLOWED_DOMAINS=example.com
+NODE_OPTIONS=--max-old-space-size=4096
 
-# Gateway  
-DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
+# Gateway
+NODE_OPTIONS=--max-old-space-size=4096
 JWT_SECRET=test-secret-key-for-testing-32char   # requireJwtSecret() rejects < 32 chars
-GOOGLE_CLIENT_ID=test-client-id
-GOOGLE_CLIENT_SECRET=test-client-secret
 ```
 
 ### Security Verification Commands
 The workflows run these security checks:
 
-**Browser Admin Route Security**:
+**Browser moderate-route security**:
 ```bash
-# Check status code (must be 200, not 307)
-status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/admin)
+# This is a Vite SPA: the server returns 200 + index.html for every route, so
+# 200 is the expected answer and proves nothing on its own. What the probe
+# checks is that the shell carries no server-rendered content and no secrets.
+status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/moderate)
 
-# Check for admin content leakage
-response=$(curl -s http://localhost:3000/admin)
-echo "$response" | grep -qi "admin.*dashboard\|user.*management"
-
-# Verify access denied message
-echo "$response" | grep -q "Access Denied"
-
-# Check for sensitive data patterns
-echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
+response=$(curl -s http://localhost:3000/moderate)
+echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"
 ```
+
+There is no `/admin` probe: the admin section is deleted. A shell probe against
+a route that no longer exists passes for the wrong reason — it reads a 404 as a
+refusal — so it was removed rather than left to go green on nothing.
 
 **Gateway API Security**:
 ```bash

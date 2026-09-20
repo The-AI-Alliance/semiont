@@ -22,7 +22,7 @@ supported paths and the contract each one must satisfy.
 
 What the launcher adds on top of `run` is the part those platforms leave to
 you: per-root state directories with ownership stamps and mismatch rules,
-config staging and `${VAR}` delivery, the shared worker secret, the discovery
+config staging and `${VAR}` delivery, the per-service issuer credentials, the discovery
 document, explicit memory ceilings, start ordering, and readiness gates.
 
 What it deliberately is **not** is a scheduler. `semiont start` brings the
@@ -78,7 +78,7 @@ births a startable KB in one command (identity from your git origin). Then:
 
 ```sh
 semiont start
-semiont useradd --email admin@example.com --admin   # prompts for the password
+semiont useradd --email admin@example.com   # prompts for the password
 semiont status
 semiont logs
 semiont stop
@@ -201,10 +201,10 @@ semiont stop
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the gateway's own `semiont-useradd` inside the gateway
   container (record-driven runtime + container ID, name-scan fallback) and
-  passes every other flag through verbatim (`--admin`, `--generate-password`,
-  `--update`, `--upsert`, …). The gateway owns the user schema, the password
-  hashing and the database write; this launcher only decides which stack is
-  meant. The password is the one thing it does NOT pass as an argument: it is
+  passes every other flag through verbatim (`--generate-password`,
+  `--update`, `--upsert`, …; there are no role flags, because no route grants
+  access on the basis of a role). The ISSUER owns the account, the profile and
+  the password hashing; this launcher only decides which stack is meant. The password is the one thing it does NOT pass as an argument: it is
   prompted for on a terminal (or read from stdin when piped) and fed to
   `--password-stdin` down the exec's pipe, because argv is readable by every
   process on the host via `ps` and lands in the caller's shell history. It works against **codespace stacks too** — one hop further out,
@@ -436,9 +436,9 @@ semiont stop
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
   (named by role: gateway, worker, smelter, weaver, archivist, librarian,
   browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
-  Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start rejoins the running stack's
-  worker secret automatically (recovered from a running container's env via
-  the runtime's inspect), auto-enables OTel iff Jaeger is up, and stages a
+  Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start reads the
+  service's own credential from the per-root state a full start persisted —
+  nothing is recovered out of a running container — auto-enables OTel iff Jaeger is up, and stages a
   fresh private config copy; a `--service` stop leaves the staged configs in
   place (the rest of the stack still mounts them); a `--service` status exits
   0/1 on that service alone.

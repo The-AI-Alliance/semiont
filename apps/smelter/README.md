@@ -45,10 +45,11 @@ Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Req
 | `services.gateway.publicURL` | the bus it subscribes to and emits on |
 | `services.embedding.{type,model}` | the embedding provider |
 
-Two environment variables:
+Three environment variables:
 
-- **`SEMIONT_WORKER_SECRET`** — JWT auth with the knowledge system, and the bearer this
-  process shows the Archivist.
+- **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — this process's own service
+  account at the knowledge base's issuer. It exchanges them for an issuer token, which buys an
+  agent token from the gateway and is the bearer it shows the Archivist.
 - **`SEMIONT_ANCHORED_TEXT_DIR`** — where the anchored-text store lives. No default, and it
   refuses to boot without one. A default would write a full OCR pass per representation into
   a directory nobody mounted, lose it on the next stop, and re-derive forever.

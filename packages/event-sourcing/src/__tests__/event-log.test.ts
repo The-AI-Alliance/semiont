@@ -52,7 +52,7 @@ describe('EventLog', () => {
     it('should append event and return stored event', async () => {
       const event = {
         type: 'yield:created' as const,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {
@@ -73,7 +73,7 @@ describe('EventLog', () => {
     it('should delegate to storage.appendEvent', async () => {
       const event = {
         type: 'mark:added' as const,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: resourceId('doc1'),
         version: 1,
         payload: {
@@ -99,7 +99,7 @@ describe('EventLog', () => {
   describe('getEvents()', () => {
     it('should retrieve all events for a resource', async () => {
       const rid = resourceId('doc1');
-      const uid = userId('user1');
+      const uid = userId('did:web:test:users:user1');
 
       await log.append({
         type: 'yield:created' as const,
@@ -146,7 +146,7 @@ describe('EventLog', () => {
     it('should return all resource IDs', async () => {
       const rid1 = resourceId('doc1');
       const rid2 = resourceId('doc2');
-      const uid = userId('user1');
+      const uid = userId('did:web:test:users:user1');
 
       await log.append({
         type: 'yield:created' as const,
@@ -188,8 +188,8 @@ describe('EventLog', () => {
   describe('queryEvents()', () => {
     beforeEach(async () => {
       const rid = resourceId('doc1');
-      const uid1 = userId('user1');
-      const uid2 = userId('user2');
+      const uid1 = userId('did:web:test:users:user1');
+      const uid2 = userId('did:web:test:users:user2');
 
       // Create multiple events
       await log.append({
@@ -274,11 +274,11 @@ describe('EventLog', () => {
 
     it('should filter by userId', async () => {
       const events = await log.queryEvents(resourceId('doc1'), {
-        userId: userId('user2'),
+        userId: userId('did:web:test:users:user2'),
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0].userId).toBe(userId('user2'));
+      expect(events[0].userId).toBe(userId('did:web:test:users:user2'));
     });
 
     it('should filter by fromTimestamp', async () => {
@@ -308,11 +308,11 @@ describe('EventLog', () => {
     it('should combine multiple filters', async () => {
       const events = await log.queryEvents(resourceId('doc1'), {
         eventTypes: ['yield:created', 'yield:representation-added'],
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
       });
 
       expect(events).toHaveLength(2);
-      expect(events.every(e => e.userId === userId('user1'))).toBe(true);
+      expect(events.every(e => e.userId === userId('did:web:test:users:user1'))).toBe(true);
     });
   });
 });

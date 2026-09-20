@@ -19,6 +19,7 @@
  * carries on its Agent record.
  */
 
+import type { UserId } from './identifiers';
 import type { components } from './types';
 
 type Agent = components['schemas']['Agent'];
@@ -70,8 +71,8 @@ export function kbResource(domain: string): string {
  *
  * Format: did:web:<domain>:users:<email%40domain>
  */
-export function userToDid(user: { email: string; domain: string }): string {
-  return `did:web:${user.domain}:users:${encodeURIComponent(user.email)}`;
+export function userToDid(user: { email: string; domain: string }): UserId {
+  return `did:web:${user.domain}:users:${encodeURIComponent(user.email)}` as UserId;
 }
 
 /**
@@ -85,8 +86,8 @@ export function userToDid(user: { email: string; domain: string }): string {
  * `library/llama3`); both must be URI-encoded so DID parsing isn't
  * ambiguous.
  */
-export function agentToDid(agent: { domain: string; provider: string; model: string }): string {
-  return `did:web:${agent.domain}:agents:${encodeURIComponent(agent.provider)}:${encodeURIComponent(agent.model)}`;
+export function agentToDid(agent: { domain: string; provider: string; model: string }): UserId {
+  return `did:web:${agent.domain}:agents:${encodeURIComponent(agent.provider)}:${encodeURIComponent(agent.model)}` as UserId;
 }
 
 /**

@@ -78,14 +78,12 @@ const tokenEndpointAnswers = (answer: Response | Error) =>
 const KB_A = {
   id: 'kb-a',
   label: 'KB A',
-  email: 'a@example.com',
   did: 'did:web:example.github.io:kb-a',
   endpoint: { kind: 'http' as const, host: 'localhost', port: 4000, protocol: 'http' as const },
 };
 const KB_B = {
   id: 'kb-b',
   label: 'KB B',
-  email: 'b@example.com',
   did: 'did:web:example.github.io:kb-b',
   endpoint: { kind: 'http' as const, host: 'example.com', port: 443, protocol: 'https' as const },
 };
@@ -160,7 +158,7 @@ describe('SemiontBrowser — KB list', () => {
   it('addKb persists to storage and activates the new KB', async () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
+      { label: KB_A.label, did: KB_A.did, endpoint: KB_A.endpoint },
       testSession(freshJwt(), 'refresh'),
     );
 
@@ -182,7 +180,7 @@ describe('SemiontBrowser — KB list', () => {
     const DID = 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb';
     const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, endpoint: KB_A.endpoint, did: DID },
+      { label: KB_A.label, endpoint: KB_A.endpoint, did: DID },
       testSession(freshJwt(), 'refresh'),
     );
 
@@ -222,11 +220,11 @@ describe('SemiontBrowser — KB list', () => {
   it('removeKb clears the KB and, if active, activates a fallback (or null)', async () => {
     const browser = makeBrowser();
     const a = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
+      { label: KB_A.label, did: KB_A.did, endpoint: KB_A.endpoint },
       testSession(freshJwt(), 'r'),
     );
     const b = browser.addKb(
-      { label: KB_B.label, email: KB_B.email, did: KB_B.did, endpoint: KB_B.endpoint },
+      { label: KB_B.label, did: KB_B.did, endpoint: KB_B.endpoint },
       testSession(freshJwt(), 'r'),
     );
     expect(browser.activeKbId$.getValue()).toBe(b.id);
@@ -242,7 +240,7 @@ describe('SemiontBrowser — KB list', () => {
   it('updateKb edits the record in kbs$', async () => {
     const browser = makeBrowser();
     const kb = browser.addKb(
-      { label: KB_A.label, email: KB_A.email, did: KB_A.did, endpoint: KB_A.endpoint },
+      { label: KB_A.label, did: KB_A.did, endpoint: KB_A.endpoint },
       testSession(freshJwt(), 'r'),
     );
     browser.updateKb(kb.id, { label: 'New Label' });
@@ -1087,13 +1085,18 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
     await browser.dispose();
   });
 
-  it('completeSignIn registers the KB with the identity it reports and the email the issuer vouched for', async () => {
+  it('completeSignIn registers the KB with the identity it reports, and caches no user of its own', async () => {
     const browser = makeBrowser();
     const { callback } = await begin(browser);
 
     const outcome = await browser.completeSignIn(callback);
 
-    expect(outcome.kb).toMatchObject({ did: KB_A.did, label: 'KB A', email: 'alice@example.com', gitBranch: 'main', endpoint: TARGET });
+    expect(outcome.kb).toMatchObject({ did: KB_A.did, label: 'KB A', gitBranch: 'main', endpoint: TARGET });
+    // Who signed in is the session's to report, read from the verified token.
+    // A copy on the KB record would be a second answer to that question, and
+    // the one that goes stale — it is what showed a previous run's address on
+    // a card nobody had signed into.
+    expect(outcome.kb).not.toHaveProperty('email');
     expect(outcome.expected).toBeUndefined();
     expect(browser.kbs$.getValue()).toHaveLength(1);
     expect(browser.activeKbId$.getValue()).toBe(outcome.kb.id);
@@ -1125,7 +1128,12 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
     const outcome = await browser.completeSignIn(callback);
 
     expect(outcome.kb.id).toBe(KB_A.id);
-    expect(outcome.kb).toMatchObject({ label: 'KB A', email: 'alice@example.com' });
+    expect(outcome.kb).toMatchObject({ label: 'KB A' });
+    // The seeded record carries `email: 'old@example.com'` from a release that
+    // cached one. It must not come back out: a stored address from whoever
+    // last used this browser is exactly what surfaced under a KB card as the
+    // account someone was about to sign in as.
+    expect(outcome.kb).not.toHaveProperty('email');
     expect(outcome.expected).toEqual({ did: KB_A.did, name: 'Old name' });
     expect(browser.kbs$.getValue()).toHaveLength(1);
     expect(storage.get(storageKey(KB_A.id))).not.toBeNull();

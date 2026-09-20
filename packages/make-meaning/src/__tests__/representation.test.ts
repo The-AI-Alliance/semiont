@@ -70,7 +70,7 @@ describe('resolveRepresentation — every face agrees', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: rid,
-      userId: userId('user-rep'),
+      userId: userId('did:web:test:users:user-rep'),
       version: 1,
       payload: {
         name: 'Note',
@@ -105,7 +105,7 @@ describe('resolveRepresentation — every face agrees', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: makeResourceId('res-bodiless'),
-      userId: userId('user-rep'),
+      userId: userId('did:web:test:users:user-rep'),
       version: 1,
       payload: { name: 'Bodiless', format: 'text/plain', contentChecksum: 'h2' },
     });

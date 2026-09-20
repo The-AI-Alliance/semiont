@@ -49,7 +49,7 @@ describe('Event Store', () => {
     const event1 = await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: {
         name: 'Test',
@@ -71,7 +71,7 @@ describe('Event Store', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: { name: 'Doc', format: 'text/plain', contentChecksum: 'h1' },
     });
@@ -79,7 +79,7 @@ describe('Event Store', () => {
     await eventStore.appendEvent({
       type: 'mark:entity-tag-added',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: { entityType: 'note' },
     });
@@ -110,7 +110,7 @@ describe('Event Store', () => {
       {
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {
           name: 'Doc',
@@ -141,7 +141,7 @@ describe('Event Store', () => {
     const stored = await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: {
         name: 'Doc',
@@ -172,7 +172,7 @@ describe('Event Store', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: {
         name: 'Ordering Test Doc',
@@ -185,7 +185,7 @@ describe('Event Store', () => {
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: {
         annotation: {
@@ -210,7 +210,7 @@ describe('Event Store', () => {
     await eventStore.appendEvent({
       type: 'mark:body-updated',
       resourceId: docId,
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       version: 1,
       payload: {
         annotationId: annId,

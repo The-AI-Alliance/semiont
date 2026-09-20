@@ -31,7 +31,6 @@ export interface ConnectionIdentity {
   did: string;
   /** The KB's own name; '' when it reports none — the word for that absence is a render concern. */
   label: string;
-  email: string;
   gitBranch?: string;
 }
 
@@ -50,11 +49,9 @@ export async function describeConnection(target: HttpEndpoint, access: string): 
       throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
     }
     if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
-    const me = await client.auth!.me();
     return {
       did: status.did,
       label: status.projectName ?? '',
-      email: me.email,
       ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
     };
   } finally {

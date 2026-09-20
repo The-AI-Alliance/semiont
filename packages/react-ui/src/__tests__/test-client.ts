@@ -72,7 +72,6 @@ export function makeTestSession(
     kb: httpKb({
       id: 'test-kb',
       label: 'Test KB',
-      email: 'test@example.com',
       host: 'localhost',
       port: 4000,
       protocol: 'http',
@@ -102,7 +101,6 @@ export function sessionOf(client: SemiontClient): SemiontSession {
     kb: httpKb({
       id: 'test-kb',
       label: 'Test KB',
-      email: 'test@example.com',
       host: 'localhost',
       port: 4000,
       protocol: 'http',

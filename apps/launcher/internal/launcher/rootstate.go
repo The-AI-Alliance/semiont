@@ -328,9 +328,11 @@ func jwtSecretPath(root string) string {
 // token already issued, surfacing as `Invalid token signature` and jobs that
 // hang in Yielding forever rather than as an error anyone can read.
 //
-// Contrast the worker secret (fullStartSecret): that one may be regenerated per
-// start because every consumer is a container started in the same run, so
-// nothing outlives it. Tokens DO outlive the stack. Hence the different rule.
+// The retired shared worker secret was the contrast: regenerated per start,
+// because every consumer was a container started in that same run and nothing
+// outlived it. Tokens DO outlive the stack, which is why this one is persisted —
+// and why the per-service issuer credentials are too, since the realm that
+// honours them is written once, on first boot.
 func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		// The gateway reads this as an ordered RING: the first value signs,
@@ -442,8 +444,8 @@ func serviceClientSecretEnv(svc string) string {
 // and the container that has to present it — so both read it from here rather
 // than passing it between them.
 func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
-	// An explicit value wins, the same precedence $SEMIONT_WORKER_SECRET and
-	// $KC_BOOTSTRAP_ADMIN_PASSWORD have. Per service rather than one for all:
+	// An explicit value wins, the same precedence $KC_BOOTSTRAP_ADMIN_PASSWORD
+	// has. Per service rather than one for all:
 	// separate credentials are the point of this, and an override that collapsed
 	// them back to one shared string would quietly undo it.
 	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {

@@ -69,7 +69,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -81,7 +81,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -125,7 +125,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -137,7 +137,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -179,7 +179,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -192,7 +192,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:failed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -237,7 +237,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: jobId1,
@@ -248,7 +248,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: jobId2,
@@ -259,7 +259,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: jobId1,
@@ -305,7 +305,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -317,7 +317,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:completed',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,
@@ -348,7 +348,7 @@ describe('SSE Event Flow - End-to-End', () => {
     await eventStore.appendEvent({
       type: 'job:started',
       resourceId: rId,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         jobId: testJobId,

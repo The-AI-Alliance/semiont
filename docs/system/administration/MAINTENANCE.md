@@ -11,7 +11,7 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 | Concern | Cadence | Why |
 |---|---|---|
 | [Dependency and CVE updates](#dependencies-and-cves) | Weekly (automated) | Published images fail their own CVE gate otherwise |
-| [Image upgrades](#upgrading-a-stack) | When a version ships | Database migrations ride along with the image |
+| [Image upgrades](#upgrading-a-stack) | When a version ships | New images, no migration — Semiont keeps no schema |
 | [Event log git hygiene](#the-event-log-is-the-thing-to-protect) | Continuous | The event log is the system of record |
 | [Secret rotation](#secret-rotation) | On compromise or policy | Rotation invalidates live tokens |
 | [Persistent state growth](#persistent-state-and-disk) | Occasionally | Stores grow; orphaned state accumulates |
@@ -19,7 +19,7 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 
 ## Dependencies and CVEs
 
-[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across five ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`). Related packages are grouped so they move together: `react`, `bundler-binaries`, `opentelemetry`, and `prisma`.
+[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across four ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher` and `packages/sdk-go`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the six service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, and `opentelemetry`.
 
 Two things to know when reviewing those PRs:
 
@@ -37,7 +37,7 @@ Image publishing enforces this rather than trusting it. [`publish-service-images
 4. Pushes with version, `sha-<commit>`, and optionally `latest` tags
 5. Publishes build-provenance and SBOM attestations as OCI artifacts
 
-These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. The `semiont-gateway` image faces the longest stack of them, because it keeps npm at runtime — so npm's own bundle and prisma's dependency tree are both in scope.
+These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. Every service image strips npm from its runtime stage, so only the application's own dependencies are in scope.
 
 The exceptions file is permissive-only by principle: it records licenses judged acceptable, never suppressions of findings.
 
@@ -52,7 +52,7 @@ semiont stop
 SEMIONT_VERSION=0.5.21 semiont start
 ```
 
-Watch the gateway come up. A migration failure means the container exits rather than serving against a mismatched schema:
+Watch the gateway come up. It refuses to start rather than serve half-configured — a missing signing key or service-account credential exits the container:
 
 ```bash
 semiont logs --service gateway
@@ -78,19 +78,19 @@ Untracked event files are not disposable. If events appear to be missing, check 
 
 With `gitSync` enabled, every append stages the event log file, and once committed, git's object hashes make tampering evident. See [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md).
 
-For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds user accounts only — backing it up is not backing up the knowledge base.
+For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds Keycloak's realm and its accounts — backing it up is not backing up the knowledge base.
 
 ## Secret rotation
 
 Three secrets matter, and rotating them is not free:
 
-**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
+**`JWT_SECRET`** — signs the tokens the gateway itself mints: software-agent and media tokens. It does NOT sign people's, which are the issuer's and verify against its published keys. Rotating it invalidates every agent and media token previously issued, including ones held by running workers; people are unaffected. Rotate through the comma-separated ring rather than replacing the value outright ([Authentication](AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars)). The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
 
-**`SEMIONT_WORKER_SECRET`** — the shared secret the worker, smelter, and weaver exchange at `POST /api/tokens/agent` for a JWT. It must match across the whole stack. `semiont start --service worker` rejoins the running stack's secret automatically; a service started by hand does not.
+**`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`** — each service's own credential at the knowledge base's issuer, generated and persisted per root on first use. They do not have to match each other; separate credentials are the point. Rotating one means changing it at the issuer and in that root's state, and restarting only that service. The realm imports **only on first boot**, so a client added after a realm already exists will not appear in it.
 
 **Provider API keys** (`ANTHROPIC_API_KEY` and friends) — referenced from config as `${ANTHROPIC_API_KEY}` and read from the launcher's environment, so rotating one is an environment change plus a restart of whatever consumes it.
 
-Individual user sessions can be revoked without touching `JWT_SECRET`: `tokenVersion` on the user row is bumped on logout, invalidating that user's tokens alone.
+Revoking one person's session is not a `JWT_SECRET` operation and not a Semiont operation at all: disable the account at the issuer. That stops new tokens and the refresh grant immediately; the access token they hold works until it expires. Signing out in a client revokes that client's refresh token at the issuer (RFC 7009) and drops the access token locally. There is no server-side session to invalidate, because the gateway stores nothing about a caller.
 
 See [SECRETS.md](../services/SECRETS.md) and [AUTHENTICATION.md](AUTHENTICATION.md).
 

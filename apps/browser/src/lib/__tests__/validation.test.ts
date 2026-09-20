@@ -189,8 +189,6 @@ describe('Validation Library (Native JS)', () => {
       name: 'John Doe',
       image: 'https://example.com/avatar.jpg',
       domain: 'example.com',
-      isAdmin: false,
-      isModerator: false,
     };
 
     it('should validate complete user objects', () => {
@@ -246,22 +244,14 @@ describe('Validation Library (Native JS)', () => {
       });
     });
 
-    it('should validate isAdmin as boolean', () => {
-      const invalidBooleanValues = [
-        { data: { ...validUser, isAdmin: 'true' }, error: 'isAdmin must be a boolean' },
-        { data: { ...validUser, isAdmin: 1 }, error: 'isAdmin must be a boolean' },
-        { data: { ...validUser, isAdmin: null }, error: 'isAdmin must be a boolean' },
-      ];
+    // Role flags are not part of this shape. A knowledge base still sending
+    // them is not rejected over a field nobody consumes — they are dropped.
+    it('should drop role flags rather than reject or carry them', () => {
+      const result = OAuthUserSchema.parse({ ...validUser, isAdmin: true, isModerator: true });
 
-      invalidBooleanValues.forEach(({ data, error }) => {
-        expect(() => OAuthUserSchema.parse(data)).toThrow(error);
-      });
-    });
-
-    it('should accept a user with no role flags at all', () => {
-      const { isAdmin, isModerator, ...noRoles } = validUser;
-
-      expect(() => OAuthUserSchema.parse(noRoles)).not.toThrow();
+      expect(result).toEqual(validUser);
+      expect('isAdmin' in result).toBe(false);
+      expect('isModerator' in result).toBe(false);
     });
 
     it('should use safeParse correctly', () => {
@@ -370,8 +360,6 @@ describe('Validation Library (Native JS)', () => {
         name: 'John Doe',
         image: 'https://example.com/avatar.jpg',
         domain: 'example.com',
-        isAdmin: false,
-        isModerator: false,
       };
 
       const result = validateData(OAuthUserSchema, validUser);
@@ -387,8 +375,6 @@ describe('Validation Library (Native JS)', () => {
         did: '',
         email: 'invalid-email',
         domain: 'example.com',
-        isAdmin: false,
-        isModerator: false,
       };
 
       const result = validateData(OAuthUserSchema, invalidUser);

@@ -35,7 +35,7 @@ describe('EventQuery', () => {
     // Create test events for doc1
     await storage.appendEvent({
       type: 'yield:created',
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: resourceId('doc1'),
       version: 1,
       payload: { name: 'Doc1', format: 'text/plain' as const, contentChecksum: 'checksum1' as const },
@@ -43,7 +43,7 @@ describe('EventQuery', () => {
 
     await storage.appendEvent({
       type: 'mark:added',
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
@@ -51,7 +51,7 @@ describe('EventQuery', () => {
 
     await storage.appendEvent({
       type: 'mark:added',
-      userId: userId('user2'),
+      userId: userId('did:web:test:users:user2'),
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
@@ -59,7 +59,7 @@ describe('EventQuery', () => {
 
     await storage.appendEvent({
       type: 'mark:removed',
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
@@ -67,7 +67,7 @@ describe('EventQuery', () => {
 
     await storage.appendEvent({
       type: 'mark:entity-tag-added',
-      userId: userId('user2'),
+      userId: userId('did:web:test:users:user2'),
       resourceId: resourceId('doc1'),
       version: 1,
       payload: {},
@@ -76,7 +76,7 @@ describe('EventQuery', () => {
     // Create events for doc2
     await storage.appendEvent({
       type: 'yield:created',
-      userId: userId('user1'),
+      userId: userId('did:web:test:users:user1'),
       resourceId: resourceId('doc2'),
       version: 1,
       payload: { name: 'Doc2', format: 'text/plain' as const, contentChecksum: 'checksum2' as const },
@@ -136,31 +136,31 @@ describe('EventQuery', () => {
     it('should filter events by userId', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
       });
 
       expect(events).toHaveLength(3);
       events.forEach(e => {
-        expect(e.userId).toBe('user1');
+        expect(e.userId).toBe('did:web:test:users:user1');
       });
     });
 
     it('should filter events by different userId', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user2'),
+        userId: userId('did:web:test:users:user2'),
       });
 
       expect(events).toHaveLength(2);
       events.forEach(e => {
-        expect(e.userId).toBe('user2');
+        expect(e.userId).toBe('did:web:test:users:user2');
       });
     });
 
     it('should return empty for nonexistent user', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user-nonexistent'),
+        userId: userId('did:web:test:users:user-nonexistent'),
       });
 
       expect(events).toEqual([]);
@@ -360,25 +360,25 @@ describe('EventQuery', () => {
     it('should combine userId + eventTypes', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         eventTypes: ['mark:added'],
       });
 
       expect(events).toHaveLength(1);
-      expect(events[0]?.userId).toBe('user1');
+      expect(events[0]?.userId).toBe('did:web:test:users:user1');
       expect(events[0]?.type).toBe('mark:added');
     });
 
     it('should combine userId + limit', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         limit: 2,
       });
 
       expect(events).toHaveLength(2);
       events.forEach(e => {
-        expect(e.userId).toBe('user1');
+        expect(e.userId).toBe('did:web:test:users:user1');
       });
     });
 
@@ -402,7 +402,7 @@ describe('EventQuery', () => {
 
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         eventTypes: ['mark:added', 'mark:removed'],
         fromTimestamp: allEvents[0]?.timestamp!,
         toTimestamp: allEvents[4]?.timestamp!,
@@ -411,7 +411,7 @@ describe('EventQuery', () => {
       });
 
       events.forEach(e => {
-        expect(e.userId).toBe('user1');
+        expect(e.userId).toBe('did:web:test:users:user1');
         expect(['mark:added', 'mark:removed']).toContain(e.type);
       });
     });
@@ -446,7 +446,7 @@ describe('EventQuery', () => {
     it('should handle filters that match no events', async () => {
       const events = await query.queryEvents({
         resourceId: resourceId('doc1'),
-        userId: userId('user-nonexistent'),
+        userId: userId('did:web:test:users:user-nonexistent'),
         eventTypes: ['nonexistent.type' as any],
         fromSequence: 999,
         limit: 1,
@@ -461,7 +461,7 @@ describe('EventQuery', () => {
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
           type: 'mark:added',
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: resourceId('doc-perf'),
           version: 1,
           payload: {
@@ -489,7 +489,7 @@ describe('EventQuery', () => {
       for (let i = 0; i < 100; i++) {
         await storage.appendEvent({
           type: i % 2 === 0 ? 'mark:added' : 'mark:removed',
-          userId: i % 3 === 0 ? userId('user1') : userId('user2'),
+          userId: i % 3 === 0 ? userId('did:web:test:users:user1') : userId('did:web:test:users:user2'),
           resourceId: resourceId('doc-filter'),
           version: 1,
           payload: i % 2 === 0
@@ -510,7 +510,7 @@ describe('EventQuery', () => {
       const start = Date.now();
       const events = await query.queryEvents({
         resourceId: resourceId('doc-filter'),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         eventTypes: ['mark:added'],
         limit: 10,
       });

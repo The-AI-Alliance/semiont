@@ -37,6 +37,24 @@ export function annotationId(id: string): AnnotationId {
   return id as AnnotationId;
 }
 
+/**
+ * Brand a DID as the identity of whoever caused something.
+ *
+ * Validates, like its two siblings — a branded type whose constructor accepts
+ * anything is a comment with extra syntax. Every value that reaches here is a
+ * `did:` URI: the bus stamps `_userId` with the authenticated DID, events are
+ * attributed to it, and `userToDid`/`agentToDid` are what produce them.
+ *
+ * It rejects the shape this identity USED to have. A bare `user-123` was a row
+ * id in a table that no longer exists, and a bare email is not an identity
+ * either — it is one input to `userToDid`.
+ *
+ * This is the entry-boundary brander (see `.plans/BRAND-UPSTREAM.md`): brand
+ * once where a string arrives, not at every bus hop after.
+ */
 export function userId(id: string): UserId {
+  if (!id.startsWith('did:')) {
+    throw new TypeError(`Expected a DID, got: ${id}`);
+  }
   return id as UserId;
 }

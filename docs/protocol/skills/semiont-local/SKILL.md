@@ -16,8 +16,9 @@ Node.js are required.
   `docker --version`, or `podman --version`.
 - **Homebrew** — to install the launcher.
 - **Inference** — either `ANTHROPIC_API_KEY` (cloud) or [Ollama](https://ollama.com/) (local, no key).
-- **`SEMIONT_WORKER_SECRET`** — any random value, e.g.
-  `export SEMIONT_WORKER_SECRET=$(openssl rand -hex 32)`.
+
+No credentials to set by hand: `semiont start` generates and persists each service account's
+secret per KB root, and imports the matching clients into the realm on first boot.
 
 ## Fastest path
 
@@ -71,7 +72,8 @@ launcher manages.
 ## Guidance for the AI assistant
 
 - **Check prerequisites first.** The most common failures are a missing container runtime, no
-  inference key, and an unset `SEMIONT_WORKER_SECRET`.
+  inference key, and a knowledge base whose config has no `[identity]` section — the sidecars
+  refuse to boot without an issuer.
 - **`semiont status` is the diagnostic command.** If something isn't working after `start`, run it to
   see which service is unhealthy, then `semiont logs --service <name>`.
 - **Config lives in the KB, at `.semiont/semiontconfig/<name>.toml`.** If inference or the database

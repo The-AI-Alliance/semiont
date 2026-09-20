@@ -31,13 +31,13 @@ See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for how the containers rel
 
 The images are self-contained; the work is entirely in the surrounding platform wiring. The
 platform-neutral checklist — config delivery, secrets, service discovery, persistence, the KB
-working tree, migrations, restart and liveness, and multiple gateway replicas — is
+working tree, restart and liveness, and multiple gateway replicas — is
 [DEPLOYMENT.md § Everything else — your own integration](../administration/DEPLOYMENT.md).
 What is specifically AWS about it:
 
 - **Secrets.** Semiont reads environment variables, not Secrets Manager or SSM — the
-  task-definition `secrets` mapping from your store to `JWT_SECRET`, `SEMIONT_WORKER_SECRET`,
-  and inference API keys is yours to write.
+  task-definition `secrets` mapping from your store to `JWT_SECRET`, each service's
+  `SEMIONT_OIDC_CLIENT_SECRET`, and inference API keys is yours to write.
 - **Config delivery.** Every service reads `~/.semiontconfig` (TOML); on ECS that means a
   volume, an init container, or a baked layer per task.
 - **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`; on Fargate that

@@ -61,10 +61,11 @@ Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Req
 `type = "memory"` is refused at startup: the in-memory graph lives in one process's heap and
 cannot be shared with the gateway's readers.
 
-Two environment variables:
+Three environment variables:
 
-- **`SEMIONT_WORKER_SECRET`** — JWT auth with the knowledge system. It authenticates as the
-  stable identity `(semiont, weaver)` — `did:web:<host>:agents:semiont:weaver`.
+- **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — its own service account at
+  the knowledge base's issuer, exchanged for an issuer token and then for an agent token naming
+  the stable identity `(semiont, weaver)` — `did:web:<host>:agents:semiont:weaver`.
 - **`XDG_STATE_HOME`** — where the catch-up checkpoint is written (default `~/.local/state`).
   The checkpoint is an optimization, never a correctness input: losing it degrades the next
   catch-up to a full replay.
