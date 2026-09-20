@@ -58,6 +58,10 @@ export {
   isAnnotationId,
 } from './identifiers';
 
+// Attribution: who a record is attributed to, as a chain rather than a choice.
+export type { Principal } from './principal';
+export { principal } from './principal';
+
 // Graph types
 export type {
   GraphConnection,

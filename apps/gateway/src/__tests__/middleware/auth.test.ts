@@ -9,6 +9,7 @@
  */
 
 import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
+import { userId } from '@semiont/core';
 import { Context } from 'hono';
 import type { Principal } from '../../identity/principal';
 import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
@@ -191,12 +192,11 @@ describe('Auth Middleware', () => {
 
     describe('Successful Authentication', () => {
       const mockUser: Principal = {
-        did: 'did:web:example.com:users:user%40example.com',
+        did: userId('did:web:example.com:users:user%40example.com'),
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        isAgent: false,
       };
 
       it('should set user context and call next for valid token', async () => {
@@ -229,8 +229,8 @@ describe('Auth Middleware', () => {
 
       it('sets `principalDid` from the JWT `agentDid` for a software-agent token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer agent-token' });
-        const agentDid = 'did:web:example.com:agents:ollama:gemma2%3A27b';
-        mockPrincipalFromToken.mockResolvedValue({ ...mockUser, did: agentDid, isAgent: true });
+        const agentDid = userId('did:web:example.com:agents:ollama:gemma2%3A27b');
+        mockPrincipalFromToken.mockResolvedValue({ ...mockUser, did: agentDid });
 
         await authMiddleware(context, mockNext);
 
@@ -354,17 +354,16 @@ describe('Auth Middleware', () => {
 
       it('should handle concurrent requests safely', async () => {
         const baseUser: Principal = {
-          did: 'did:web:example.com:users:base%40example.com',
+          did: userId('did:web:example.com:users:base%40example.com'),
           email: 'base@example.com',
           name: 'Base User',
           image: null,
           domain: 'example.com',
-          isAgent: false,
         };
 
-        const mockUser1 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user1@example.com')}`, email: 'user1@example.com' };
-        const mockUser2 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user2@example.com')}`, email: 'user2@example.com' };
-        const mockUser3 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user3@example.com')}`, email: 'user3@example.com' };
+        const mockUser1 = { ...baseUser, did: userId(`did:web:example.com:users:${encodeURIComponent('user1@example.com')}`), email: 'user1@example.com' };
+        const mockUser2 = { ...baseUser, did: userId(`did:web:example.com:users:${encodeURIComponent('user2@example.com')}`), email: 'user2@example.com' };
+        const mockUser3 = { ...baseUser, did: userId(`did:web:example.com:users:${encodeURIComponent('user3@example.com')}`), email: 'user3@example.com' };
 
         const contexts = [
           createMockContext({ 'Authorization': 'Bearer token1' }),
@@ -547,12 +546,11 @@ describe('Auth Middleware', () => {
 
     describe('Optional Authentication Success', () => {
       const mockUser: Principal = {
-        did: 'did:web:example.com:users:user%40example.com',
+        did: userId('did:web:example.com:users:user%40example.com'),
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        isAgent: false,
       };
 
       it('should set user context for valid tokens', async () => {
@@ -634,12 +632,11 @@ describe('Auth Middleware', () => {
   describe('Middleware Integration', () => {
     it('should work correctly in middleware chain', async () => {
       const mockUser: Principal = {
-        did: `did:web:example.com:users:${encodeURIComponent('user@example.com')}`,
+        did: userId(`did:web:example.com:users:${encodeURIComponent('user@example.com')}`),
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        isAgent: false,
       };
 
       const context = createMockContext({ 'Authorization': 'Bearer valid-token' });

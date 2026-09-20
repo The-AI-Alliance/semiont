@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Principal } from '../../identity/principal';
-import { EventBus } from '@semiont/core';
+import { EventBus, userId } from '@semiont/core';
 import type { EventBus as EventBusType } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { registerCreateResource } from '../../routes/resources/routes/create';
@@ -56,11 +56,10 @@ const putContentMock = vi.mocked(putContent);
 
 function fakeUser(): Principal {
   return {
-    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
+    did: userId(`did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`),
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    isAgent: false,
   } as Principal;
 }
 

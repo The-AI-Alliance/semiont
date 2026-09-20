@@ -32,12 +32,27 @@ export type Brand<T, Overrides> =
 
 // ── Core event shape ─────────────────────────────────────────────────────────
 
-/** Fields common to ALL domain events (system and resource-scoped). */
+/**
+ * Fields common to ALL domain events (system and resource-scoped).
+ *
+ * `userId`, `actor` and `client` are the three legs of a `Principal` — see
+ * `principal.ts` for what each means and why the record keeps all three rather
+ * than choosing between the human and the software peer.
+ *
+ * The leg names differ from `Principal`'s in one place: the authority is
+ * `userId` here and `did` there. That is not a second vocabulary, it is an
+ * append-only log refusing to rename a field it has already written millions
+ * of times — and the two new legs are ADDITIVE, so every event written before
+ * them reads back unchanged, carrying an absent `actor` that correctly means
+ * "no delegation was recorded".
+ */
 export interface EventBase {
   id: string;                    // Unique event ID (UUID)
   timestamp: string;             // ISO 8601 timestamp (for humans, NOT for ordering)
   resourceId?: ResourceId;       // Present for resource-scoped events, absent for system events
-  userId: UserId;                // DID format: did:web:org.com:users:alice
+  userId: UserId;                // The AUTHORITY the act was performed under. DID format.
+  actor?: UserId;                // The software peer that performed it, when it differs.
+  client?: UserId;               // The application that carried the request.
   version: number;               // Event schema version
 }
 

@@ -1,4 +1,4 @@
-import { email } from '@semiont/core';
+import { email, userId } from '@semiont/core';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -142,12 +142,11 @@ describe('API Endpoints Integration Tests', () => {
     vi.mocked(principalFromToken).mockImplementation(async (token) => {
       if (token === testToken || token === 'valid-jwt-token') {
         return {
-          did: `did:web:${testUser.domain}:users:${encodeURIComponent(testUser.email)}`,
+          did: userId(`did:web:${testUser.domain}:users:${encodeURIComponent(testUser.email)}`),
           email: testUser.email,
           name: testUser.name,
           image: testUser.image,
           domain: testUser.domain,
-          isAgent: false,
         };
       }
       throw new Error('Invalid token');
@@ -272,12 +271,11 @@ describe('API Endpoints Integration Tests', () => {
       vi.mocked(principalFromToken).mockImplementation(async (token) => {
         if (token === 'valid-jwt-token') {
           return {
-          did: `did:web:${mockUser.domain}:users:${encodeURIComponent(mockUser.email)}`,
+          did: userId(`did:web:${mockUser.domain}:users:${encodeURIComponent(mockUser.email)}`),
           email: mockUser.email,
           name: mockUser.name,
           image: mockUser.image,
           domain: mockUser.domain,
-          isAgent: false,
         };
         }
         throw new Error('Invalid token');

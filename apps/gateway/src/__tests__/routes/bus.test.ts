@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
-import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId, resourceId as makeResourceId, userId } from '@semiont/core';
 import type { Principal } from '../../identity/principal';
 import type {
   EventBus as EventBusType,
@@ -94,11 +94,10 @@ beforeAll(() => {
 
 function fakeUser(): Principal {
   return {
-    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
+    did: userId(`did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`),
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    isAgent: false,
   } as Principal;
 }
 

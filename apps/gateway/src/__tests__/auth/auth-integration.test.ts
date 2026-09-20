@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
+import { userId } from '@semiont/core';
 
 import { makeMeaningMock } from '../helpers/make-meaning-mock';
 
@@ -43,12 +44,11 @@ describe('Authentication Integration', () => {
     const makeTokenAndUser = () => {
       const { email: makeEmail } = require('@semiont/core');
       const user: Principal = {
-        did: `did:web:${'example.com'}:users:${encodeURIComponent('cookieauth@example.com')}`,
+        did: userId(`did:web:${'example.com'}:users:${encodeURIComponent('cookieauth@example.com')}`),
         email: 'cookieauth@example.com',
         name: 'Cookie Auth User',
         image: null,
         domain: 'example.com',
-        isAgent: false,
       };
       const token = JWTService.generateToken({        did: `did:web:${user.domain}:agents:test:model`,
 
@@ -79,12 +79,11 @@ describe('Authentication Integration', () => {
     it('ignores a stray cookie; a bearer token still authenticates', async () => {
       const { email: makeEmail } = require('@semiont/core');
       const bearerUser: Principal = {
-        did: `did:web:${'example.com'}:users:${encodeURIComponent('bearer@example.com')}`,
+        did: userId(`did:web:${'example.com'}:users:${encodeURIComponent('bearer@example.com')}`),
         email: 'bearer@example.com',
         name: 'Bearer User',
         image: null,
         domain: 'example.com',
-        isAgent: false,
       };
       const bearerToken = JWTService.generateToken({        did: `did:web:${bearerUser.domain}:agents:test:model`,
 
