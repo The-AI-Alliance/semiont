@@ -1356,6 +1356,10 @@ func serve(ports []string) {
 				//   FAKERT_NO_ISSUER=1        the KB trusts no issuer (404 metadata)
 				//   FAKERT_DEVICE_PENDING=n   polls answered authorization_pending first (default 1)
 				//   FAKERT_DEVICE_DENY=1      the user denies at the issuer
+				//   FAKERT_MISSING_CLIENT=id  the realm has no such client (401 invalid_client)
+				//   FAKERT_NO_DEVICE_GRANT=id that client may not use the device grant
+				//   FAKERT_PIN_REDIRECT_PORT=1 the realm pins loopback redirects to :3000,
+				//                             like one imported before RFC 8252 §7.3 was honoured
 				origin := "http://" + r.Host
 				issuer := origin + "/realms/semiont"
 				jsonOut := func(status int, body any) {
@@ -1379,16 +1383,53 @@ func serve(ports []string) {
 				if r.URL.Path == "/realms/semiont/.well-known/openid-configuration" {
 					jsonOut(200, map[string]any{
 						"issuer":                        issuer,
+						"authorization_endpoint":        issuer + "/protocol/openid-connect/auth",
 						"device_authorization_endpoint": issuer + "/protocol/openid-connect/auth/device",
 						"token_endpoint":                issuer + "/protocol/openid-connect/token",
 						"revocation_endpoint":           issuer + "/protocol/openid-connect/revoke",
 					})
 					return
 				}
+				// The authorization endpoint, as far as the identity preflight
+				// needs it: 200 is the login page — the client resolved and the
+				// redirect URI is registered. Keycloak renders an HTML error for
+				// either failure, which is why existence is decided at the device
+				// endpoint instead.
+				if r.URL.Path == "/realms/semiont/protocol/openid-connect/auth" {
+					q := r.URL.Query()
+					if m := os.Getenv("FAKERT_MISSING_CLIENT"); m != "" && q.Get("client_id") == m {
+						http.Error(w, "Client not found.", 400)
+						return
+					}
+					// A realm that registers the loopback host WITHOUT a port
+					// accepts any port (RFC 8252 §7.3); one that pinned :3000
+					// does not. This models the pinned kind.
+					if os.Getenv("FAKERT_PIN_REDIRECT_PORT") != "" && !strings.Contains(q.Get("redirect_uri"), ":3000/") {
+						http.Error(w, "Invalid parameter: redirect_uri", 400)
+						return
+					}
+					w.Header().Set("Content-Type", "text/html")
+					w.WriteHeader(200)
+					_, _ = w.Write([]byte("<html><body>Sign in to semiont</body></html>"))
+					return
+				}
 				if r.URL.Path == "/realms/semiont/protocol/openid-connect/auth/device" {
 					_ = r.ParseForm()
-					if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+					// Only a real device-authorization request is recorded. The
+					// identity preflight also probes this endpoint, sending
+					// `client_id` alone — recording that too would overwrite what
+					// `semiont login` wrote and the login assertions would read
+					// the probe instead of the grant.
+					if dir := os.Getenv("FAKERT_DIR"); dir != "" && r.PostForm.Get("scope") != "" {
 						_ = os.WriteFile(filepath.Join(dir, "device-auth.txt"), []byte(r.PostForm.Encode()+"\n"), 0o644)
+					}
+					if m := os.Getenv("FAKERT_MISSING_CLIENT"); m != "" && r.PostForm.Get("client_id") == m {
+						jsonOut(401, map[string]any{"error": "invalid_client"})
+						return
+					}
+					if n := os.Getenv("FAKERT_NO_DEVICE_GRANT"); n != "" && r.PostForm.Get("client_id") == n {
+						jsonOut(400, map[string]any{"error": "unauthorized_client"})
+						return
 					}
 					jsonOut(200, map[string]any{
 						"device_code":               "fake-device-code",

@@ -117,6 +117,12 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		`"clientId": "semiont-browser"`,
 		`"publicClient": true`,
 		`"pkce.code.challenge.method": "S256"`,
+		// Loopback carries NO port, which is what makes `--port` work: RFC 8252
+		// §7.3 has the issuer accept any port on a loopback redirect, and
+		// Keycloak honours that only when the registered URI omits it. The LAN
+		// address is not loopback, so it stays pinned.
+		`"http://localhost/*"`,
+		`"http://127.0.0.1/*"`,
 		`"http://192.168.64.1:3000/*"`,
 		`"included.custom.audience": "https://example.github.io/my-kb"`,
 		`"clientId": "semiont-cli"`,

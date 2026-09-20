@@ -368,7 +368,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `identityEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightServiceAccounts(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
+			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, identityEndpoint(rp), rp.Driver)
@@ -898,7 +898,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 			// Same gate as a full start: a realm restarted alone must still
 			// honour the credentials every running service already holds.
-			if !x.preflightServiceAccounts(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
+			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets) {
 				return 1
 			}
 		}

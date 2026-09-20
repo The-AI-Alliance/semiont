@@ -50,6 +50,13 @@ func (f serviceAccountFinding) String() string {
 // a slow answer here is a symptom, not something to wait out.
 var preflightHTTP = &http.Client{Timeout: 10 * time.Second}
 
+// preflightNoRedirect: the same, for the authorization probe. See
+// authorizationProbe on why a redirect must not be followed.
+var preflightNoRedirect = &http.Client{
+	Timeout:       10 * time.Second,
+	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+}
+
 // verifyServiceAccounts performs the client-credentials grant for every entry
 // in `serviceClients` against `issuerBase`, and checks what comes back.
 //
@@ -61,7 +68,8 @@ var preflightHTTP = &http.Client{Timeout: 10 * time.Second}
 // own configuration whatever this function used. Checking it here would
 // refuse a healthy realm.
 func verifyServiceAccounts(issuerBase, audience string, secrets map[string]string) []serviceAccountFinding {
-	endpoint, err := discoverTokenEndpoint(issuerBase)
+	eps, err := discoverEndpoints(issuerBase)
+	endpoint := eps.token
 	if err != nil {
 		// One finding, not six: the issuer is the common cause, and six copies
 		// of the same sentence buries it.
@@ -114,6 +122,183 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 	return serviceAccountFinding{}, false
 }
 
+// publicClientFinding: one human-facing client's problem. `warnOnly` findings
+// describe a realm that works but is older than a change to it — the stack runs,
+// so saying so and continuing beats refusing to start an otherwise healthy
+// deployment.
+type publicClientFinding struct {
+	clientID string
+	reason   string
+	fix      string
+	warnOnly bool
+}
+
+func (f publicClientFinding) String() string {
+	s := f.clientID + ": " + f.reason
+	if f.fix != "" {
+		s += " — " + f.fix
+	}
+	return s
+}
+
+// probeRedirect: the loopback callback the browser client must accept. Any port
+// would do — the realm matches this as a string and nothing listens on it
+// during the probe — but the one a default start uses is the honest choice.
+const probeRedirect = "http://localhost:3000/en/auth/callback"
+
+// probeRedirectOtherPort: the same callback on a port no default start uses.
+// A realm that registers loopback WITHOUT a port (RFC 8252 §7.3, which is what
+// keycloakRealmJSON writes) accepts this; one that pins `localhost:3000` does
+// not. So a rejection here dates the realm rather than condemning it.
+const probeRedirectOtherPort = "http://localhost:61234/en/auth/callback"
+
+// verifyPublicClients proves the two clients PEOPLE authenticate through.
+//
+// verifyServiceAccounts covers the six machine identities and says nothing about
+// whether anyone can log in: a realm missing `semiont-browser` passes it and
+// starts a stack nobody can reach. These clients are public — no secret, so no
+// client-credentials grant to run — and are instead probed on the very endpoints
+// a real sign-in uses, with no credential involved.
+//
+// Existence is decided by the DEVICE endpoint for both, because it answers JSON
+// with documented OAuth error codes: `invalid_client` means the realm has no
+// such client, while a client that exists but may not use the grant is refused
+// as `unauthorized_client`. That distinction is unavailable from the
+// authorization endpoint, which renders an HTML error page for either.
+func verifyPublicClients(issuerBase string) []publicClientFinding {
+	eps, err := discoverEndpoints(issuerBase)
+	if err != nil {
+		return []publicClientFinding{{
+			clientID: browserClientID,
+			reason:   fmt.Sprintf("OIDC discovery at %s failed: %v", issuerBase, err),
+			fix:      "is the issuer reachable from this host?",
+		}}
+	}
+
+	var findings []publicClientFinding
+
+	// `semiont-cli` — the device grant, which is how a script or the launcher
+	// itself signs a person in. 200 is the only passing answer: it means the
+	// client exists AND may use the grant.
+	if eps.device == "" {
+		findings = append(findings, publicClientFinding{
+			clientID: cliClientID,
+			reason:   "the issuer publishes no device_authorization_endpoint",
+			fix:      "`semiont login` cannot work against this issuer",
+		})
+	} else {
+		switch code, oauthErr, err := deviceGrantProbe(eps.device, cliClientID); {
+		case err != nil:
+			findings = append(findings, publicClientFinding{clientID: cliClientID, reason: err.Error()})
+		case code == http.StatusOK:
+			// exists, and the grant is enabled
+		case oauthErr == "invalid_client":
+			findings = append(findings, publicClientFinding{
+				clientID: cliClientID,
+				reason:   "the realm has no such client",
+				fix:      "a realm imported before this client existed will not have it",
+			})
+		default:
+			findings = append(findings, publicClientFinding{
+				clientID: cliClientID,
+				reason:   fmt.Sprintf("device authorization refused (HTTP %d, %s)", code, oauthErr),
+				fix:      "the client exists but may not use the device grant",
+			})
+		}
+	}
+
+	// `semiont-browser` — existence first, so a missing client is not reported
+	// as a redirect problem.
+	browserExists := true
+	if eps.device != "" {
+		if _, oauthErr, err := deviceGrantProbe(eps.device, browserClientID); err == nil && oauthErr == "invalid_client" {
+			browserExists = false
+			findings = append(findings, publicClientFinding{
+				clientID: browserClientID,
+				reason:   "the realm has no such client",
+				fix:      "a realm imported before this client existed will not have it; nobody can sign in from a browser",
+			})
+		}
+	}
+
+	if browserExists && eps.authorization == "" {
+		findings = append(findings, publicClientFinding{
+			clientID: browserClientID,
+			reason:   "the issuer publishes no authorization_endpoint",
+			fix:      "nobody could sign in from a browser against this issuer",
+		})
+	} else if browserExists {
+		if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect); err != nil {
+			findings = append(findings, publicClientFinding{clientID: browserClientID, reason: err.Error()})
+		} else if code != http.StatusOK {
+			findings = append(findings, publicClientFinding{
+				clientID: browserClientID,
+				reason:   fmt.Sprintf("the realm will not redirect to %s (HTTP %d)", probeRedirect, code),
+				fix:      "its registered redirect URIs do not cover the Browser; sign-in would fail at the issuer",
+			})
+		} else if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirectOtherPort); err == nil && code != http.StatusOK {
+			findings = append(findings, publicClientFinding{
+				clientID: browserClientID,
+				warnOnly: true,
+				reason:   "the realm pins the Browser to port 3000",
+				fix:      "`--port` will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
+			})
+		}
+	}
+	return findings
+}
+
+// deviceGrantProbe asks the device endpoint for a code as `clientID`, with no
+// credential. Returns the status and the `error` field of the JSON body.
+//
+// A passing probe leaves a device code pending at the issuer. Nothing redeems
+// it and it expires on its own — the cost of proving the grant works is one
+// unused code per start.
+func deviceGrantProbe(endpoint, clientID string) (int, string, error) {
+	resp, err := preflightHTTP.PostForm(endpoint, url.Values{"client_id": {clientID}})
+	if err != nil {
+		return 0, "", fmt.Errorf("device authorization request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Error string `json:"error"`
+	}
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	_ = json.Unmarshal(b, &body)
+	return resp.StatusCode, body.Error, nil
+}
+
+// authorizationProbe issues the authorization request a browser sign-in starts
+// with, and reports the status. 200 is the login page: the client resolved and
+// the redirect URI is registered.
+//
+// Redirects are NOT followed. Some authorization errors are returned by
+// redirecting to the registered callback, and following that would have the
+// launcher issue a request against the Browser's own port mid-start.
+func authorizationProbe(endpoint, clientID, redirectURI string) (int, error) {
+	q := url.Values{
+		"response_type": {"code"},
+		"scope":         {"openid"},
+		"client_id":     {clientID},
+		"redirect_uri":  {redirectURI},
+		// A syntactically valid S256 challenge. Never redeemed: this request is
+		// abandoned at the login page, so the verifier behind it is irrelevant.
+		"code_challenge":        {"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"},
+		"code_challenge_method": {"S256"},
+	}
+	req, err := http.NewRequest(http.MethodGet, endpoint+"?"+q.Encode(), nil)
+	if err != nil {
+		return 0, err
+	}
+	resp, err := preflightNoRedirect.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("authorization request failed: %v", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	return resp.StatusCode, nil
+}
+
 // flatRolesContain: `roles` as a flat array of strings, the vendor-neutral
 // shape the gateway reads. JSON numbers and objects in the array are simply
 // not the role, so they do not match.
@@ -147,28 +332,42 @@ func audienceContains(claim any, want string) bool {
 	return false
 }
 
-// discoverTokenEndpoint reads `token_endpoint` from the issuer's discovery
-// document. Discovered rather than constructed: every issuer publishes it, and
-// guessing a vendor's path would put that vendor's layout in a launcher that
-// has no other reason to know it.
-func discoverTokenEndpoint(issuerBase string) (string, error) {
+// oidcEndpoints: the three endpoints this preflight uses, as the issuer
+// publishes them.
+type oidcEndpoints struct {
+	token         string
+	authorization string
+	device        string
+}
+
+// discoverEndpoints reads the issuer's discovery document. Discovered rather
+// than constructed: every issuer publishes these, and guessing a vendor's paths
+// would put that vendor's layout in a launcher that has no other reason to know
+// it.
+//
+// Only `token_endpoint` is required. An issuer that publishes no device
+// endpoint cannot serve `semiont login`, but that is a finding for the check
+// that needs it to report, not a reason discovery itself fails.
+func discoverEndpoints(issuerBase string) (oidcEndpoints, error) {
 	base := strings.TrimSuffix(issuerBase, "/")
 	resp, err := preflightHTTP.Get(base + "/.well-known/openid-configuration")
 	if err != nil {
-		return "", err
+		return oidcEndpoints{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("HTTP %d", resp.StatusCode)
+		return oidcEndpoints{}, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
 	var doc struct {
 		TokenEndpoint string `json:"token_endpoint"`
+		AuthEndpoint  string `json:"authorization_endpoint"`
+		DeviceEnder   string `json:"device_authorization_endpoint"`
 	}
 	b, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil || json.Unmarshal(b, &doc) != nil || doc.TokenEndpoint == "" {
-		return "", fmt.Errorf("discovery document names no token_endpoint")
+		return oidcEndpoints{}, fmt.Errorf("discovery document names no token_endpoint")
 	}
-	return doc.TokenEndpoint, nil
+	return oidcEndpoints{token: doc.TokenEndpoint, authorization: doc.AuthEndpoint, device: doc.DeviceEnder}, nil
 }
 
 // serviceAccountClaims runs the grant and decodes what comes back.

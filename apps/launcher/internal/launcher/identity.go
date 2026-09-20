@@ -158,7 +158,22 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]string) []byte {
 	browser := publicClient(browserClientID, "Semiont Browser", audience)
 	browser["standardFlowEnabled"] = true
-	browser["redirectUris"] = []string{"http://localhost:3000/*", "http://" + addr + ":3000/*"}
+	// Loopback entries carry NO PORT, which is what makes any port match.
+	//
+	// RFC 8252 §7.3 requires an authorization server to accept any port on a
+	// loopback redirect, because only software already on the user's machine can
+	// bind one — the port carries no security meaning there. Keycloak honours
+	// that rule, but only when the registered URI omits the port: pinning
+	// `localhost:3000` opts back out of it, and `semiont start --service browser
+	// --port 3001` then produces a healthy stack nobody can sign in to.
+	//
+	// The LAN address stays pinned. It is not loopback, so the rule does not
+	// apply and a wildcard port there would be a real widening.
+	browser["redirectUris"] = []string{
+		"http://localhost/*",
+		"http://127.0.0.1/*",
+		"http://" + addr + ":3000/*",
+	}
 	browser["webOrigins"] = []string{"+"}
 	browser["attributes"] = map[string]string{
 		"pkce.code.challenge.method": "S256",

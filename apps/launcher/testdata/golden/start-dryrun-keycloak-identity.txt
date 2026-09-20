@@ -67,6 +67,8 @@ container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-sta
 # client-credentials grant at http://localhost:8080/realms/semiont as semiont-smelter — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
 # client-credentials grant at http://localhost:8080/realms/semiont as semiont-weaver — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
 # client-credentials grant at http://localhost:8080/realms/semiont as semiont-worker — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# device authorization at http://localhost:8080/realms/semiont as semiont-cli — require the grant to be enabled for it
+# authorization request at http://localhost:8080/realms/semiont as semiont-browser — require a redirect to http://localhost:3000/en/auth/callback
 # mount state state (shared; the stamp stays with its owning service)
 container run -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET=<gateway-client-secret> --env JWT_SECRET=<jwt-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest
 # wait: http://localhost:4000/api/health (120s)
