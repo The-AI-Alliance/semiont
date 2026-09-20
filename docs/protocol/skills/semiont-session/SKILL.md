@@ -41,7 +41,7 @@ const apiUrlObj = new URL(apiUrl);
 const kb: KnowledgeBase = {
   id: 'watcher',                                 // storage key — must be unique per script
   label: 'Long-running watcher',
-  email: process.env.SEMIONT_USER_EMAIL!,
+ 
   endpoint: {
     kind: 'http',
     host: apiUrlObj.hostname,

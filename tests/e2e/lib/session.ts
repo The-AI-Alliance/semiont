@@ -73,7 +73,6 @@ export async function sessionFor(opts: {
     kb: httpKb({
       id: opts.id ?? 'e2e',
       label: 'E2E',
-      email: opts.email,
       host: endpoint.host,
       port: endpoint.port,
       protocol: endpoint.protocol,

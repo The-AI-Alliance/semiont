@@ -59,7 +59,6 @@ const KB_ID = 'kb-1';
 const KB = {
   id: KB_ID,
   label: 'Test',
-  email: 'test@example.com',
   // A registered KB carries its identity: `did` is required, and
   // `loadKnowledgeBases` FILTERS OUT stored entries without one
   // (KB-IDENTITY-VS-ADDRESS decision 8 — a knowledge base declares its

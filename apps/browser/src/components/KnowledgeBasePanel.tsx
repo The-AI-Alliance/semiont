@@ -133,9 +133,8 @@ function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFo
 }
 
 /** A registered KB whose session ended: one button back to its issuer. */
-function ReauthPrompt({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
+function ReauthPrompt({ t, onSubmit, onCancel, error, isSubmitting }: {
   t: T;
-  kb: KnowledgeBase;
   onSubmit: () => Promise<void>;
   onCancel: () => void;
   error: string | null;
@@ -143,7 +142,6 @@ function ReauthPrompt({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
 }) {
   return (
     <div style={{ padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
-      <div style={{ fontSize: '0.75rem', color: 'var(--semiont-color-neutral-400)' }}>{kb.email}</div>
       {error && <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{error}</div>}
       <div style={{ display: 'flex', gap: '0.375rem' }}>
         <button type="button" className="semiont-button semiont-button--primary" style={{ flex: 1, fontSize: '0.8rem' }} disabled={isSubmitting} onClick={() => { void onSubmit(); }}>
@@ -424,7 +422,6 @@ export function KnowledgeBasePanel() {
                 {isReauthing && (
                   <ReauthPrompt
                     t={t}
-                    kb={kb}
                     onSubmit={() => handleReauth(kb.id)}
                     onCancel={() => setReauthKbId(null)}
                     error={reauthError}

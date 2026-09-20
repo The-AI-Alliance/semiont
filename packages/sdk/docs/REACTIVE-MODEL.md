@@ -110,7 +110,7 @@ Plain `Observable<T>` does not appear on the public verb-namespace surface. (It 
 import { SemiontSession, InMemorySessionStorage, httpKb, isReady, readyValue } from '@semiont/sdk';
 
 const session = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'demo', label: 'Demo', email, host: 'localhost', port: 4000, protocol: 'http' }),
+  kb: httpKb({ id: 'demo', label: 'Demo', host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });

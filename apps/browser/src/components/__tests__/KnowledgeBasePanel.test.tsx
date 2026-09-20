@@ -47,7 +47,6 @@ const kb1: KnowledgeBase = {
   id: 'kb-1',
   did: 'did:web:prod.example',
   label: 'Production',
-  email: 'admin@prod.com',
   gitBranch: 'main',
   endpoint: { kind: 'http', host: 'prod.example.com', port: 4000, protocol: 'https' },
 };
@@ -55,7 +54,6 @@ const kb2: KnowledgeBase = {
   id: 'kb-2',
   did: 'did:web:staging.example',
   label: 'Staging',
-  email: 'admin@staging.com',
   endpoint: { kind: 'http', host: 'staging.example.com', port: 4000, protocol: 'http' },
 };
 
@@ -254,8 +252,13 @@ describe('KnowledgeBasePanel', () => {
 
       // kb2 reads 'signed-out'; clicking it opens the re-auth prompt.
       await user.click(screen.getByText('Staging'));
-      expect(screen.getByText('admin@staging.com')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Sign in' })).toBeInTheDocument();
       expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
+      // And it names NOBODY. The prompt used to show the address cached on the
+      // KB record — whoever last signed in on this browser — as though it were
+      // the account about to be used. The issuer decides that, and until it
+      // does there is no one to name.
+      expect(screen.queryByText(/@/)).not.toBeInTheDocument();
       await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
       await waitFor(() => expect(assign).toHaveBeenCalledWith(ISSUER_URL));

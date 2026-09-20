@@ -26,7 +26,7 @@ a `localStorage`-backed one for the browser — and `dispose()` when done.
 import { SemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
 
 const session = await SemiontSession.signInDevice({
-  kb: httpKb({ id: 'my-app', label: 'My KB', email, host: 'localhost', port: 4000, protocol: 'http' }),
+  kb: httpKb({ id: 'my-app', label: 'My KB', host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
   onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });

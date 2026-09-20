@@ -111,7 +111,7 @@ export function isJwtExpired(token: string): boolean {
 function isKnowledgeBase(entry: unknown): entry is KnowledgeBase {
   if (!entry || typeof entry !== 'object') return false;
   const e = entry as Record<string, unknown>;
-  if (typeof e.id !== 'string' || typeof e.label !== 'string' || typeof e.email !== 'string') {
+  if (typeof e.id !== 'string' || typeof e.label !== 'string') {
     return false;
   }
   // `did` is required (KB-IDENTITY-VS-ADDRESS decision 8). Entries persisted
@@ -148,7 +148,19 @@ export function loadKnowledgeBases(storage: SessionStorage): KnowledgeBase[] {
     const raw = storage.get(STORAGE_KEY);
     if (!raw) return [];
     const entries = JSON.parse(raw) as unknown[];
-    return entries.filter(isKnowledgeBase);
+    // PROJECTED, not passed through. A guard proves the known fields are
+    // there; it says nothing about what else a record written by an older
+    // release carries, and a spread of one of those (`{ ...existing }`) would
+    // carry the extra straight back out. `email` was such a field — a copy of
+    // whoever last signed in, which then surfaced under a KB card as the
+    // account someone was about to sign in AS.
+    return entries.filter(isKnowledgeBase).map((e) => ({
+      id: e.id,
+      label: e.label,
+      did: e.did,
+      endpoint: e.endpoint,
+      ...(e.gitBranch !== undefined ? { gitBranch: e.gitBranch } : {}),
+    }));
   } catch {
     return [];
   }
