@@ -74,7 +74,7 @@ func TestPreflightRefusesWhenGrantIsRefused(t *testing.T) {
 		})
 	})
 
-	findings := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
 
 	if len(findings) != 1 {
 		t.Fatalf("want exactly one finding, got %d: %v", len(findings), findings)
@@ -96,7 +96,7 @@ func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 		})
 	})
 
-	findings := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
 
 	if len(findings) != len(serviceClients) {
 		t.Fatalf("want a finding per client, got %d", len(findings))
@@ -116,7 +116,7 @@ func TestPreflightRefusesWrongAudience(t *testing.T) {
 		})
 	})
 
-	findings := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
 
 	if len(findings) != len(serviceClients) {
 		t.Fatalf("want a finding per client, got %d", len(findings))
@@ -138,7 +138,7 @@ func TestPreflightPassesOnTheLiveShape(t *testing.T) {
 		})
 	})
 
-	if findings := verifyServiceAccounts(srv.URL, testAudience, testSecrets()); len(findings) != 0 {
+	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets()); len(findings) != 0 {
 		t.Fatalf("healthy realm produced findings: %v", findings)
 	}
 }
@@ -153,7 +153,7 @@ func TestPreflightAcceptsScalarAudience(t *testing.T) {
 		})
 	})
 
-	if findings := verifyServiceAccounts(srv.URL, testAudience, testSecrets()); len(findings) != 0 {
+	if findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets()); len(findings) != 0 {
 		t.Fatalf("scalar aud refused: %v", findings)
 	}
 }
@@ -166,7 +166,8 @@ func TestPreflightNeverPrintsASecret(t *testing.T) {
 		return 400, fmt.Sprintf(`{"error":"invalid_client","detail":"client_secret=%s rejected"}`, "secret-weaver")
 	})
 
-	for _, f := range verifyServiceAccounts(srv.URL, testAudience, testSecrets()) {
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+	for _, f := range findings {
 		if strings.Contains(f.String(), "secret-") {
 			t.Fatalf("a finding leaked a client secret: %q", f)
 		}
@@ -176,7 +177,7 @@ func TestPreflightNeverPrintsASecret(t *testing.T) {
 // An unreachable issuer is a finding, not a panic or a silent pass: the realm
 // answered its health gate a moment ago, so this means something else.
 func TestPreflightRefusesWhenDiscoveryIsUnreachable(t *testing.T) {
-	findings := verifyServiceAccounts("http://127.0.0.1:1", testAudience, testSecrets())
+	findings, _ := verifyServiceAccounts("http://127.0.0.1:1", testAudience, testSecrets())
 	if len(findings) == 0 {
 		t.Fatal("a dead issuer produced no finding")
 	}
@@ -491,5 +492,67 @@ func TestFlagProbesSendNoCredential(t *testing.T) {
 
 	if sawCredential.Load() {
 		t.Fatal("a preflight probe sent a credential to the issuer")
+	}
+}
+
+// --- the realm's ACTUAL revocation window ------------------------------------
+//
+// A realm imports on first boot and never again, so a knowledge base can
+// configure a lifespan its realm has never heard of. `exp - iat` on a
+// service-account token is what the realm really stamps, and the only reading
+// available without administrator credentials.
+
+func lifespanToken(t *testing.T, seconds int) string {
+	t.Helper()
+	return grantBody(map[string]any{
+		"roles": []string{serviceRole},
+		"aud":   []string{testAudience, "account"},
+		"iat":   1700000000,
+		"exp":   1700000000 + seconds,
+	})
+}
+
+func TestPreflightReadsTheRealmsActualLifespan(t *testing.T) {
+	srv := stubIssuer(t, func(string) (int, string) { return 200, lifespanToken(t, 900) })
+
+	findings, observed := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+
+	if len(findings) != 0 {
+		t.Fatalf("healthy realm produced findings: %v", findings)
+	}
+	if observed != 900 {
+		t.Errorf("lifespan read off the token: got %d, want 900", observed)
+	}
+}
+
+// Missing or nonsensical claims report 0 — "unknown" — rather than a number
+// the caller would compare against and warn about.
+func TestTokenLifespanIsZeroWhenUnreadable(t *testing.T) {
+	for _, c := range []struct {
+		name   string
+		claims map[string]any
+	}{
+		{"no iat", map[string]any{"exp": float64(1700000300)}},
+		{"no exp", map[string]any{"iat": float64(1700000000)}},
+		{"exp before iat", map[string]any{"iat": float64(1700000300), "exp": float64(1700000000)}},
+		{"equal", map[string]any{"iat": float64(1700000000), "exp": float64(1700000000)}},
+		{"not numbers", map[string]any{"iat": "soon", "exp": "later"}},
+		{"empty", map[string]any{}},
+	} {
+		if got := tokenLifespan(c.claims); got != 0 {
+			t.Errorf("%s: want 0 (unknown), got %d", c.name, got)
+		}
+	}
+}
+
+// The realm agreeing with the config must read as agreement, not as a warning
+// nobody can act on.
+func TestPreflightLifespanMatchesWhenTheRealmAgrees(t *testing.T) {
+	srv := stubIssuer(t, func(string) (int, string) { return 200, lifespanToken(t, keycloakAccessTokenLifespan) })
+
+	_, observed := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+
+	if observed != keycloakAccessTokenLifespan {
+		t.Fatalf("got %d, want %d", observed, keycloakAccessTokenLifespan)
 	}
 }

@@ -67,7 +67,7 @@ var preflightNoRedirect = &http.Client{
 // services — which ask through ${KEYCLOAK_HOST} — get an `iss` matching their
 // own configuration whatever this function used. Checking it here would
 // refuse a healthy realm.
-func verifyServiceAccounts(issuerBase, audience string, secrets map[string]string) []serviceAccountFinding {
+func verifyServiceAccounts(issuerBase, audience string, secrets map[string]string) ([]serviceAccountFinding, int) {
 	eps, err := discoverEndpoints(issuerBase)
 	endpoint := eps.token
 	if err != nil {
@@ -77,10 +77,11 @@ func verifyServiceAccounts(issuerBase, audience string, secrets map[string]strin
 			svc:    serviceClients[0],
 			reason: fmt.Sprintf("OIDC discovery at %s failed: %v", issuerBase, err),
 			fix:    "is the issuer reachable from this host?",
-		}}
+		}}, 0
 	}
 
 	var findings []serviceAccountFinding
+	observedLifespan := 0
 	for _, svc := range serviceClients {
 		claims, err := serviceAccountClaims(endpoint, serviceClientID(svc), secrets[svc])
 		if err != nil {
@@ -91,11 +92,35 @@ func verifyServiceAccounts(issuerBase, audience string, secrets map[string]strin
 			})
 			continue
 		}
+		if observedLifespan == 0 {
+			observedLifespan = tokenLifespan(claims)
+		}
 		if f, bad := checkServiceAccountClaims(svc, claims, audience); bad {
 			findings = append(findings, f)
 		}
 	}
-	return findings
+	return findings, observedLifespan
+}
+
+// tokenLifespan: `exp - iat`, the lifetime the realm actually stamped. 0 when
+// either claim is missing or the arithmetic is nonsense.
+//
+// This is the only reading of the realm's accessTokenLifespan available without
+// administrator credentials, and it is a faithful one for THESE tokens: a
+// client-credentials grant has no session behind it, so nothing caps the
+// lifetime below the realm's setting the way an SSO idle timeout can for a
+// person's token. The clients the launcher writes set no per-client override.
+func tokenLifespan(claims map[string]any) int {
+	num := func(k string) (int, bool) {
+		f, ok := claims[k].(float64) // encoding/json decodes every number as float64
+		return int(f), ok
+	}
+	iat, okIat := num("iat")
+	exp, okExp := num("exp")
+	if !okIat || !okExp || exp <= iat {
+		return 0
+	}
+	return exp - iat
 }
 
 // checkServiceAccountClaims: the two assertions that decide whether a token

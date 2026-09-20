@@ -59,14 +59,14 @@ type executor interface {
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *serviceState         // the machine-level browser record
 	recordBrowser(id, image, version string, port int)
-	dumpLogs(container, svc string)                                                // failed health gate: show the crash where it is
-	verifyRemoteModels(role, base, key string, models []string)                    // record /v1/models metadata; warn on unlisted
-	preflightIdentity(issuerBase, audience string, secrets map[string]string) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one
-	ensureModels(base string, models []modelNeed)                                  // pull configured ollama models that are absent
-	stateMounts(role, image, root string) ([]string, bool)                         // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)                          // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                                            // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
-	val(live, plan string) string                                                  // mode-scoped value (kb root, admin password)
+	dumpLogs(container, svc string)                                                                  // failed health gate: show the crash where it is
+	verifyRemoteModels(role, base, key string, models []string)                                      // record /v1/models metadata; warn on unlisted
+	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one
+	ensureModels(base string, models []modelNeed)                                                    // pull configured ollama models that are absent
+	stateMounts(role, image, root string) ([]string, bool)                                           // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)                                            // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                                                              // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	val(live, plan string) string                                                                    // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -696,8 +696,8 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 // while the operator could have been told up front which client and why. The
 // one exception is a finding marked warnOnly — a realm that works but predates
 // a change to the document, where refusing would strand a healthy deployment.
-func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string) bool {
-	findings := verifyServiceAccounts(issuerBase, audience, secrets)
+func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int) bool {
+	findings, observedLifespan := verifyServiceAccounts(issuerBase, audience, secrets)
 	if len(findings) > 0 {
 		x.u.fail("The issuer does not honour the service-account credentials this start would inject.")
 		for _, f := range findings {
@@ -711,6 +711,18 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		return false
 	}
 	x.u.log("Service accounts: %s", x.u.dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))
+
+	// The realm imports on FIRST BOOT and never again, so a knowledge base can
+	// configure a revocation window its realm has never heard of and nothing
+	// would say so. The tokens just minted carry what the realm actually
+	// stamps, which is the only reading available without administrator
+	// credentials — see tokenLifespan.
+	if wantLifespan > 0 && observedLifespan > 0 && observedLifespan != wantLifespan {
+		x.u.warn("This realm mints access tokens that live %ds, but the config asks for %ds.", observedLifespan, wantLifespan)
+		fmt.Fprintln(os.Stderr, "    A realm is imported once, on its first boot — a lifespan changed afterwards does")
+		fmt.Fprintln(os.Stderr, "    not reach it. The revocation window in force is the realm's, not the config's.")
+		fmt.Fprintln(os.Stderr, "    Change it in the Keycloak console, or `semiont clean --store database` and start again.")
+	}
 
 	// The six machine identities being sound says nothing about whether a
 	// PERSON can get in. Checked second so a broken realm reports its cause
@@ -1195,7 +1207,7 @@ func (x *planExec) recordBrowser(string, string, string, int) {}
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the
 // answer must carry.
-func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string) bool {
+func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string, wantLifespan int) bool {
 	for _, svc := range serviceClients {
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
@@ -1204,6 +1216,9 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, browserClientID, probeRedirect)
 	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")
 	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, browserClientID, cliClientID)
+	if wantLifespan > 0 {
+		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was imported with another", wantLifespan)
+	}
 	return true
 }
 
