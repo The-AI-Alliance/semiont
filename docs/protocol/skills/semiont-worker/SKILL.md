@@ -57,7 +57,7 @@ const apiUrlObj = new URL(apiUrl);
 const kb: KnowledgeBase = {
   id: 'my-worker',                              // unique storage key per worker
   label: 'My job worker',
-  email: process.env.SEMIONT_USER_EMAIL!,
+  email: process.env.SEMIONT_OIDC_CLIENT_ID!,   // storage key: a daemon has no person behind it
   endpoint: {
     kind: 'http',
     host: apiUrlObj.hostname,
@@ -66,15 +66,42 @@ const kb: KnowledgeBase = {
   },
 };
 
-const session = await SemiontSession.signInHttp({
+// A daemon does NOT sign in as a person. There is nobody at a browser to
+// approve a device grant, so it authenticates as ITSELF — a service account at
+// the knowledge base's issuer — and then exchanges that for a software-agent
+// identity. Two different identities on purpose: the credential is the
+// PROCESS, the agent DID is the WORK. One worker holds several agent
+// identities at once when a deployment binds different job types to different
+// models, so they could never have been the same thing.
+//
+// Step 1: prove who this process is (standard OIDC client credentials — any
+// library, or a plain form POST to the issuer's token endpoint).
+const issuerToken = await clientCredentialsToken({
+  issuer: process.env.SEMIONT_OIDC_ISSUER!,
+  clientId: process.env.SEMIONT_OIDC_CLIENT_ID!,
+  clientSecret: process.env.SEMIONT_OIDC_CLIENT_SECRET!,
+});
+
+// Step 2: buy the agent identity this worker's output is attributed to. The
+// gateway refuses unless the token carries `semiont-service` in a flat `roles`
+// claim — see the gateway's agent minter.
+const res = await fetch(`${apiUrl}/api/tokens/agent`, {
+  method: 'POST',
+  headers: { authorization: `Bearer ${issuerToken}`, 'content-type': 'application/json' },
+  body: JSON.stringify({ provider: 'anthropic', model: 'claude-sonnet-5' }),
+});
+const { token, did } = await res.json() as { token: string; did: string };
+logger.info('authenticated', { as: did });
+
+// The agent token lives an hour and has no refresh — its lifetime IS its
+// revocation window, because no account exists anywhere to disable. Supply a
+// `refresh` that repeats the two steps above.
+const session = SemiontSession.fromHttp({
   kb,
   storage: new InMemorySessionStorage(),
   baseUrl: apiUrl,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
-  // Service-principal sessions usually omit `validate` — they have a token
-  // but no associated user record. User-attended workers can populate
-  // session.user$ via `async () => session.client.auth!.me()`.
+  token,
+  refresh: async () => (await mintAgentToken()).token,
   onError: (err) => logger.error('session error', { code: err.code, message: err.message }),
 });
 

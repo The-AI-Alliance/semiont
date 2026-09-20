@@ -18,7 +18,7 @@ This skill builds **Layer #2 (Annotations)** of the layered data model — `high
 
 ## Client setup
 
-`SemiontSession.signInHttp(...)` is the credentials-first construction. It calls `auth.password(email, password)`, then owns the token lifecycle — the access token lives **ten minutes**, so a session (not a bare client) is what keeps a script working past that. Construct once at the top and reuse `session.client` for every verb call; `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant (RFC 8628): the issuer mints a code, `onCode` shows the person where to approve it, and no password ever passes through the script. It then owns the token lifecycle — the realm pins an access token to **five minutes**, so a session (not a bare client) is what keeps a script working past that. Construct once at the top and reuse `session.client` for every verb call; `await session.dispose()` when done.
 
 Already hold an access token (cached from a prior auth, or supplied by an embedding host)? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip — but you then own refresh yourself.
 
@@ -26,16 +26,17 @@ Already hold an access token (cached from a prior auth, or supplied by an embedd
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-highlight', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
   storage: new InMemorySessionStorage(),
-  baseUrl: url.href,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
+  onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+    console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+    if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+  },
 });
 const semiont = session.client;
 ```
@@ -98,16 +99,17 @@ import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@sem
 
 async function highlight(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInHttp({
+  const session = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-highlight', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),
     storage: new InMemorySessionStorage(),
-    baseUrl: url.href,
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
   });
   const semiont = session.client;
   const rId = resourceId(resourceIdStr);

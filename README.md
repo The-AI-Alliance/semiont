@@ -76,7 +76,7 @@ Here is a grounded answer — gather context by traversing the graph, then gener
 ```typescript
 import { SemiontSession } from '@semiont/sdk';
 
-const { client } = await SemiontSession.signInHttp({ kb, storage, baseUrl, email, password });
+const { client } = await SemiontSession.signInDevice({ kb, storage, onCode });
 
 const context = await client.gather.resource(questionId, { excludeEntityTypes: ['Question'] });
 

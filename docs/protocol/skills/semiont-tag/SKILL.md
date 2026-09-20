@@ -33,16 +33,17 @@ Tag schemas are runtime-registered per KB. The dispatcher resolves `schemaId` â†
 import { SemiontSession, InMemorySessionStorage, httpKb, type TagSchema, resourceId } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-tag', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
   storage: new InMemorySessionStorage(),
-  baseUrl: url.href,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
+  onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+    console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+    if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+  },
 });
 const semiont = session.client;
 ```
@@ -161,16 +162,17 @@ import { LEGAL_IRAC_SCHEMA } from '../../src/tag-schemas.js';
 
 async function tagIRAC(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInHttp({
+  const session = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-tag', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),
     storage: new InMemorySessionStorage(),
-    baseUrl: url.href,
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
   });
   const semiont = session.client;
 
