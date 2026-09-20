@@ -174,8 +174,8 @@ func (u *ui) stamp(event string) {
 }
 
 // echoEnvAllowlist: the --env values safe to show in echoed commands. Names
-// off this list — the worker secret and every user-supplied config var (API
-// keys) — are redacted in the ECHO ONLY; the real argv is untouched.
+// off this list — the per-service client secrets and every user-supplied config
+// var (API keys) — are redacted in the ECHO ONLY; the real argv is untouched.
 // Terminal scrollback and CI logs are not places for credentials. (Infra
 // `-e` values like NEO4J_AUTH=neo4j/localpass stay visible: fixed,
 // well-known local-dev values the summary table prints anyway.)

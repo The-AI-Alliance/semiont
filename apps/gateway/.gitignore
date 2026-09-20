@@ -99,10 +99,6 @@ temp/
 Thumbs.db
 ehthumbs.db
 
-# Prisma
-# Keep the schema and migrations, but ignore generated client if using custom output
-# node_modules/@prisma/client is already covered by node_modules/
-
 # Database files (if using SQLite for local dev)
 *.db
 *.sqlite

@@ -31,7 +31,7 @@ See [CONTAINER-TOPOLOGY.md](../CONTAINER-TOPOLOGY.md) for how the containers rel
 
 The images are self-contained; the work is entirely in the surrounding platform wiring. The
 platform-neutral checklist — config delivery, secrets, service discovery, persistence, the KB
-working tree, migrations, restart and liveness, and multiple gateway replicas — is
+working tree, restart and liveness, and multiple gateway replicas — is
 [DEPLOYMENT.md § Everything else — your own integration](../administration/DEPLOYMENT.md).
 What is specifically AWS about it:
 

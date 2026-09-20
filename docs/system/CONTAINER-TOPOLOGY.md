@@ -78,10 +78,11 @@ config:
 ---
 graph TB
     subgraph G1 [" "]
-        GW["semiont-gateway<br/>bus hub · identity · job queue · content proxy"]
+        GW["semiont-gateway<br/>bus hub · token verifier · job queue · content proxy"]
         NATS["semiont-nats<br/>messaging — signal plane · job queue"]
         JS[("JetStream store")]
-        PG["semiont-postgres<br/>PostgreSQL — users · auth"]
+        KC["semiont-keycloak<br/>identity — the issuer this KB trusts"]
+        PG["semiont-postgres<br/>PostgreSQL — Keycloak's realm"]
     end
 
     subgraph G2 [" "]
@@ -124,7 +125,8 @@ graph TB
     ARCH --> OL
     LIB --> OL
     WORKER --> OL
-    GW --> PG
+    KC --> PG
+    GW -.->|verifies tokens against its keys| KC
 
     GW -.-> COLL
     ARCH -.-> COLL
@@ -143,7 +145,7 @@ graph TB
 
     class LIB,WORKER,SMELT,WEAVE,ARCH svc
     class GW hub
-    class NEO,QD,OL,PG,COLL,TRACES,METRICS,NATS infra
+    class NEO,QD,OL,PG,KC,COLL,TRACES,METRICS,NATS infra
     class ANCH,VIEWS,JS store
     class TREE record
 
@@ -220,7 +222,7 @@ Two layers, easy to conflate:
 
 - **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml`.
   In **Codespaces both are true at once**, at different layers: `semiont start --runtime codespace` drives the outside (create/resume the VM, wait for health, forward the KB, read credentials, stop or delete), while *inside* the codespace the devcontainer hooks bring the stack up with `docker compose` exactly as above. The launcher never reaches into the container to manage services.
-- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE` for local runs. The gateway image derives `DATABASE_URL` and applies pending Prisma migrations (once per container) before handing off to `node dist/index.js`; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
+- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE` for local runs. The gateway image hands straight off to `node dist/index.js` — it derives no database URL and runs no migration step, because it holds no database; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
 
 See **[the launcher](../../apps/launcher/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
 

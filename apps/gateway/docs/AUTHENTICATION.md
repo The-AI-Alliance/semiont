@@ -43,7 +43,8 @@ These endpoints are documented in the OpenAPI spec as public (no `security` fiel
 
 - `GET /api/health` - Health check for load balancer monitoring
 - `GET /.well-known/oauth-protected-resource` - Which issuer this gateway trusts (RFC 9728)
-- `POST /api/tokens/agent` - Software-agent token exchange (the shared worker secret is the credential)
+- `POST /api/tokens/agent` - Software-agent token exchange. NOT public: the caller presents its own
+  service-account token from the trusted issuer, carrying `semiont-service` in a flat `roles` claim
 
 All other routes require JWT authentication via router-level middleware.
 

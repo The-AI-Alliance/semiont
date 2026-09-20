@@ -107,8 +107,8 @@ semiont start --service database   # Just PostgreSQL
 
 `--service` takes one name: `gateway`, `worker`, `smelter`, `weaver`, `browser`,
 `database`, `graph`, `vectors`, `inference`, `embedding`, or `traces`. The rest of the stack is
-left untouched, and a restarted service rejoins the running stack's worker secret
-automatically.
+left untouched. Each service reads its own credential from the per-root state the full start
+wrote, so a partial restart needs nothing recovered from the running stack.
 
 ### Browser against a mock API
 
@@ -325,7 +325,6 @@ LOG_LEVEL=debug npm start
 ```env
 # In .env (legacy)
 DEBUG=hono:*
-PRISMA_LOG=query,info,warn,error
 ```
 
 **3. Inspect Database Queries**

@@ -157,10 +157,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "")
 	otel := otelArgs(addr)
 
-	// Database, then Gateway, AHEAD of the stores the actors use. The gateway
-	// dials no graph/vector/embedding client — its boot needs Postgres alone
-	// (its CMD runs `prisma migrate deploy`, which the 120s health budget
-	// pays for) — and it has the most ways to fail, so it goes first.
+	// Database, messaging and identity — everything the Gateway itself needs —
+	// AHEAD of the stores the actors use. The gateway dials no graph, vector or
+	// embedding client, and no database of its own: the PostgreSQL started here
+	// is Keycloak's, whose realm lives in it. What the gateway does wait for is
+	// the broker its job queue dials and the issuer whose keys it verifies
+	// tokens against, both below. It has the most ways to fail, so it precedes
+	// the stores.
 	// Invariant: everything below needs the Gateway; nothing above it does.
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code

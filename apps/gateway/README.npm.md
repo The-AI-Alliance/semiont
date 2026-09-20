@@ -4,7 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/gateway.svg)](https://www.npmjs.com/package/@semiont/gateway)
 [![License](https://img.shields.io/npm/l/@semiont/gateway.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Pre-built Semiont gateway server for npm consumption. This package contains the compiled gateway application with Prisma schema and migrations.
+Pre-built Semiont gateway server for npm consumption. This package contains the compiled gateway application. It holds no database and carries no schema or migrations.
 
 ## Running Semiont
 

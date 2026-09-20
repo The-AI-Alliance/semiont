@@ -11,7 +11,7 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 | Concern | Cadence | Why |
 |---|---|---|
 | [Dependency and CVE updates](#dependencies-and-cves) | Weekly (automated) | Published images fail their own CVE gate otherwise |
-| [Image upgrades](#upgrading-a-stack) | When a version ships | Database migrations ride along with the image |
+| [Image upgrades](#upgrading-a-stack) | When a version ships | New images, no migration — Semiont keeps no schema |
 | [Event log git hygiene](#the-event-log-is-the-thing-to-protect) | Continuous | The event log is the system of record |
 | [Secret rotation](#secret-rotation) | On compromise or policy | Rotation invalidates live tokens |
 | [Persistent state growth](#persistent-state-and-disk) | Occasionally | Stores grow; orphaned state accumulates |
@@ -52,7 +52,7 @@ semiont stop
 SEMIONT_VERSION=0.5.21 semiont start
 ```
 
-Watch the gateway come up. A migration failure means the container exits rather than serving against a mismatched schema:
+Watch the gateway come up. It refuses to start rather than serve half-configured — a missing signing key or service-account credential exits the container:
 
 ```bash
 semiont logs --service gateway
@@ -78,13 +78,13 @@ Untracked event files are not disposable. If events appear to be missing, check 
 
 With `gitSync` enabled, every append stages the event log file, and once committed, git's object hashes make tampering evident. See [Storage Layout](../../../packages/event-sourcing/docs/STORAGE-LAYOUT.md).
 
-For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds user accounts only — backing it up is not backing up the knowledge base.
+For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds Keycloak's realm and its accounts — backing it up is not backing up the knowledge base.
 
 ## Secret rotation
 
 Three secrets matter, and rotating them is not free:
 
-**`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
+**`JWT_SECRET`** — signs the tokens the gateway itself mints: software-agent and media tokens. It does NOT sign people's, which are the issuer's and verify against its published keys. Rotating it invalidates every agent and media token previously issued, including ones held by running workers; people are unaffected. Rotate through the comma-separated ring rather than replacing the value outright ([Authentication](AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars)). The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
 
 **`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`** — each service's own credential at the knowledge base's issuer, generated and persisted per root on first use. They do not have to match each other; separate credentials are the point. Rotating one means changing it at the issuer and in that root's state, and restarting only that service. The realm imports **only on first boot**, so a client added after a realm already exists will not appear in it.
 

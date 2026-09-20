@@ -550,8 +550,9 @@ func (x *liveExec) otelDetect(addr string) []string {
 }
 
 // jwtSecret is per-root and persisted, so a --service gateway restart resolves
-// the SAME value a full start did — no inspect-based recovery needed (contrast
-// recoverSecret, which exists because the worker secret is never persisted).
+// the SAME value a full start did. Every credential the launcher hands out now
+// works this way; the inspect-based recovery that once read a never-persisted
+// shared secret out of a running container is gone with the secret itself.
 //
 // root is PASSED rather than read off x, which is only populated on the
 // --service path. Today x.root would still resolve correctly on a full start —

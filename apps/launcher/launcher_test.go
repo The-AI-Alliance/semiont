@@ -227,7 +227,7 @@ func (s *scenario) env() []string {
 			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
 		}
 	}
-	// Pinned for the same reason as the worker secret: a generated one is
+	// Pinned for the same reason the retired worker secret was: a generated one is
 	// random, and the boot goldens compare argv verbatim. Tests that need the
 	// generate-and-persist path set noJWTSecret.
 	if !s.noJWTSecret {
@@ -394,7 +394,7 @@ func TestStartDefaultBoot(t *testing.T) {
 		"semiont logs",
 		"semiont stop",
 	)
-	// The worker secret must never reach the terminal: echoed commands
+	// A service credential must never reach the terminal: echoed commands
 	// redact secret-valued envs (the real argv, in the argv log, keeps it).
 	// Six of them now, one per service account, so the allowlist doing the
 	// work matters more than it did with one shared string.
