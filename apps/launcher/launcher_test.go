@@ -7267,3 +7267,53 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 		t.Errorf("preflight presented an unexpected client id: %q", got)
 	}
 }
+
+// writeExternalIssuerConfig: an [identity] naming an issuer on a host the
+// launcher does NOT run — `type = "oidc"`, the bring-your-own-IdP shape.
+func writeExternalIssuerConfig(t *testing.T, s *scenario) string {
+	t.Helper()
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "external-oidc.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return "external-oidc"
+}
+
+// An issuer someone else runs gets the SAME preflight as one the launcher
+// starts — and needs it more. A launcher-run realm is imported from the
+// launcher's own document and is correct by construction; an external one had
+// its clients created by hand.
+//
+// Until this, `type = "oidc"` reached NO preflight at all: the external branch
+// verified TCP reachability and launched nothing, so a realm missing every
+// service account — or one nobody could sign in to — started nine containers
+// happily. Reachability is not configuration.
+func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
+	s := newScenario(t, "container")
+	cfg := writeExternalIssuerConfig(t, s)
+	stdout, stderr, code := s.run(t, "start", "--config", cfg, "--dry-run")
+	if code != 0 {
+		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	const iss = "https://id.example.com/realms/semiont"
+	mustContain(t, "plan", stdout,
+		// the six machine identities, against the CONFIGURED issuer rather
+		// than identityEndpoint's localhost form
+		"client-credentials grant at "+iss+" as semiont-gateway",
+		"client-credentials grant at "+iss+" as semiont-worker",
+		// and the two clients people sign in through
+		"device authorization at "+iss+" as semiont-cli",
+		"authorization request at "+iss+" as semiont-browser",
+		"PKCE is enforced rather than merely offered",
+		"sending no credential — require both to refuse it",
+	)
+	// Verified, never launched.
+	if strings.Contains(stdout, "--name semiont-keycloak") {
+		t.Error("an external issuer was launched")
+	}
+}

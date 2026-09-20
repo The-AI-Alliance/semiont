@@ -423,6 +423,24 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		if !x.probeTCP(role, rp) {
 			return 1
 		}
+		// An issuer someone ELSE runs gets the same preflight as one the
+		// launcher starts, and needs it more: a launcher-run realm is imported
+		// from the launcher's own document and is correct by construction,
+		// while an external one had its clients created by hand. Reachability
+		// alone says nothing about whether the six service accounts grant a
+		// usable token, or whether anybody can sign in.
+		//
+		// The base is the CONFIGURED issuer, not identityEndpoint's localhost
+		// form — nothing of this one is on this host.
+		if role == "identity" {
+			secrets, ok := serviceClientSecrets(x, fc.root)
+			if !ok {
+				return 1
+			}
+			if !x.preflightIdentity(rp.Issuer, committedResource(fc.root), secrets) {
+				return 1
+			}
+		}
 		// A role sharing another's Ollama reports how that Ollama is
 		// provided, not a flat "external" — same process, same answer.
 		provided := providedExternal
