@@ -25,12 +25,10 @@ a `localStorage`-backed one for the browser — and `dispose()` when done.
 ```typescript
 import { SemiontSession, httpKb, InMemorySessionStorage } from '@semiont/sdk';
 
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'my-app', label: 'My KB', email, host: 'localhost', port: 4000, protocol: 'http' }),
-  storage: new InMemorySessionStorage(),   // browser: a localStorage-backed SessionStorage
-  baseUrl: 'http://localhost:4000',
-  email,
-  password,
+  storage: new InMemorySessionStorage(),
+  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
 
 // … use session.client.{browse,gather,yield,mark,bind,match,frame,beckon} …
@@ -38,10 +36,13 @@ const session = await SemiontSession.signInHttp({
 await session.dispose();
 ```
 
-`SemiontSession.signInHttp(...)` is the only credentials-first construction — even for a
-short script. The `SemiontClient` variant that skipped `kb` and storage was deleted: it
-handed out a token that lives ten minutes with nothing to renew it, and a script that ran
-longer simply started failing. Already hold a JWT? Use the `fromHttp(...)` variants.
+Sign-in happens at the knowledge base's identity provider, never at the gateway:
+`SemiontSession.signInDevice(...)` for a script (the device grant — it prints a URL, the person
+approves in any browser) and `SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app
+(authorization code with PKCE). Both come back as a session that refreshes at the issuer.
+`SemiontClient` has no sign-in of its own: a bare token lives ten minutes with nothing to renew
+it. Already hold an access and refresh pair? `SemiontSession.fromIssuedSession(...)`. A bare
+JWT? The `fromHttp(...)` variants.
 → [Usage § Setup](./Usage.md#setup).
 
 **Discover local KBs (launcher-managed).** Before there's a session at all: on a machine

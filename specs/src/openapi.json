@@ -15,14 +15,8 @@
     "/api/health": {
       "$ref": "paths/api_health.json"
     },
-    "/api/tokens/password": {
-      "$ref": "paths/api_tokens_password.json"
-    },
-    "/api/tokens/google": {
-      "$ref": "paths/api_tokens_google.json"
-    },
-    "/api/tokens/refresh": {
-      "$ref": "paths/api_tokens_refresh.json"
+    "/.well-known/oauth-protected-resource": {
+      "$ref": "paths/well-known_oauth-protected-resource.json"
     },
     "/api/tokens/media": {
       "$ref": "paths/api_tokens_media.json"
@@ -33,26 +27,8 @@
     "/api/users/me": {
       "$ref": "paths/api_users_me.json"
     },
-    "/api/users/accept-terms": {
-      "$ref": "paths/api_users_accept-terms.json"
-    },
-    "/api/users/logout": {
-      "$ref": "paths/api_users_logout.json"
-    },
     "/api/status": {
       "$ref": "paths/api_status.json"
-    },
-    "/api/admin/users": {
-      "$ref": "paths/api_admin_users.json"
-    },
-    "/api/admin/users/stats": {
-      "$ref": "paths/api_admin_users_stats.json"
-    },
-    "/api/admin/users/{id}": {
-      "$ref": "paths/api_admin_users_{id}.json"
-    },
-    "/api/admin/oauth/config": {
-      "$ref": "paths/api_admin_oauth_config.json"
     },
     "/api/cookies/consent": {
       "$ref": "paths/api_cookies_consent.json"
@@ -81,18 +57,6 @@
   },
   "components": {
     "schemas": {
-      "AcceptTermsResponse": {
-        "$ref": "components/schemas/AcceptTermsResponse.json"
-      },
-      "AdminUpdateUserResponse": {
-        "$ref": "components/schemas/AdminUpdateUserResponse.json"
-      },
-      "AdminUserStatsResponse": {
-        "$ref": "components/schemas/AdminUserStatsResponse.json"
-      },
-      "AdminUsersListResponse": {
-        "$ref": "components/schemas/AdminUsersListResponse.json"
-      },
       "Agent": {
         "$ref": "components/schemas/Agent.json"
       },
@@ -125,9 +89,6 @@
       },
       "AnnotationTarget": {
         "$ref": "components/schemas/AnnotationTarget.json"
-      },
-      "AuthResponse": {
-        "$ref": "components/schemas/AuthResponse.json"
       },
       "BeckonFocusEvent": {
         "$ref": "components/schemas/BeckonFocusEvent.json"
@@ -327,9 +288,6 @@
       "CreateResourceResponse": {
         "$ref": "components/schemas/CreateResourceResponse.json"
       },
-      "DeleteUserResponse": {
-        "$ref": "components/schemas/DeleteUserResponse.json"
-      },
       "DirEntry": {
         "$ref": "components/schemas/DirEntry.json"
       },
@@ -437,9 +395,6 @@
       },
       "GetTagSchemasResponse": {
         "$ref": "components/schemas/GetTagSchemasResponse.json"
-      },
-      "GoogleAuthRequest": {
-        "$ref": "components/schemas/GoogleAuthRequest.json"
       },
       "HealthResponse": {
         "$ref": "components/schemas/HealthResponse.json"
@@ -636,11 +591,8 @@
       "Motivation": {
         "$ref": "components/schemas/Motivation.json"
       },
-      "OAuthConfigResponse": {
-        "$ref": "components/schemas/OAuthConfigResponse.json"
-      },
-      "PasswordAuthRequest": {
-        "$ref": "components/schemas/PasswordAuthRequest.json"
+      "ProtectedResourceMetadata": {
+        "$ref": "components/schemas/ProtectedResourceMetadata.json"
       },
       "Representation": {
         "$ref": "components/schemas/Representation.json"
@@ -729,20 +681,8 @@
       "TextualBody": {
         "$ref": "components/schemas/TextualBody.json"
       },
-      "TokenRefreshRequest": {
-        "$ref": "components/schemas/TokenRefreshRequest.json"
-      },
-      "TokenRefreshResponse": {
-        "$ref": "components/schemas/TokenRefreshResponse.json"
-      },
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
-      },
-      "UpdateUserRequest": {
-        "$ref": "components/schemas/UpdateUserRequest.json"
-      },
-      "UpdateUserResponse": {
-        "$ref": "components/schemas/UpdateUserResponse.json"
       },
       "UserResponse": {
         "$ref": "components/schemas/UserResponse.json"

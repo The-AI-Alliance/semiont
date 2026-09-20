@@ -431,16 +431,6 @@
   background-color: var(--semiont-color-neutral-500);
 }
 
-/* Additional button styles from base.css */
-.semiont-button__icon {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
-.semiont-button--full-width {
-  width: 100%;
-}
-
 /* ============================================
    Panel Buttons (Settings Panel, User Panel)
    ============================================ */

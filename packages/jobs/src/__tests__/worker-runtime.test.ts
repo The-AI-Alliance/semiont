@@ -36,6 +36,8 @@ vi.mock('../worker-process', () => ({
 }));
 
 // The skew fixture: the worker DIALS a gateway IP…
+const ISSUER = 'https://issuer.test';
+const CREDENTIAL = { issuer: ISSUER, clientId: 'semiont-worker', clientSecret: 'client-secret' };
 const DIAL_URL = 'http://192.168.64.1:4000';
 // …while the exchange mints the canonical identity from the gateway's
 // site.domain — a different host, deliberately.
@@ -68,11 +70,22 @@ function makeGroup(): AgentGroup {
  * (a stream that never emits); 200 `{}` for anything else the session
  * plumbing touches.
  */
-function installFetchStub(): { exchangeCalls: Array<Record<string, unknown>> } {
+function installFetchStub(): {
+  exchangeCalls: Array<Record<string, unknown>>;
+  exchangeAuth: string[];
+} {
   const exchangeCalls: Array<Record<string, unknown>> = [];
+  const exchangeAuth: string[] = [];
   vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = String(input instanceof Request ? input.url : input);
+    if (url.includes('/.well-known/openid-configuration')) {
+      return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
+    }
+    if (url.endsWith('/token')) {
+      return Response.json({ access_token: 'service-account-token' });
+    }
     if (url.includes('/api/tokens/agent')) {
+      exchangeAuth.push(String((init?.headers as Record<string, string> | undefined)?.Authorization ?? ''));
       exchangeCalls.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
       return new Response(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }), {
         status: 200,
@@ -87,7 +100,7 @@ function installFetchStub(): { exchangeCalls: Array<Record<string, unknown>> } {
     }
     return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
   }));
-  return { exchangeCalls };
+  return { exchangeCalls, exchangeAuth };
 }
 
 describe('worker-runtime — identity is minted by the exchange, carried verbatim', () => {
@@ -105,7 +118,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     const worker = await startAgentWorker({
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
-      workerSecret: 'test-secret',
+      credential: CREDENTIAL,
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
     });
@@ -126,34 +139,56 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     await worker.dispose();
   });
 
-  it('authenticateAgent posts the secret to the dial URL and returns the mint verbatim', async () => {
-    const { exchangeCalls } = installFetchStub();
+  it('authenticateAgent presents its service-account token and returns the mint verbatim', async () => {
+    const { exchangeCalls, exchangeAuth } = installFetchStub();
 
     const result = await authenticateAgent({
       gatewayBaseUrl: DIAL_URL,
-      workerSecret: 'test-secret',
+      credential: CREDENTIAL,
       provider: 'anthropic',
       model: 'claude-haiku-4-5',
     });
 
     expect(result.did).toBe(CANONICAL_DID);
+    // The body names what is WANTED; the header proves who is asking. The two
+    // are separate because one process asks for several agent identities.
     expect(exchangeCalls).toEqual([
-      { secret: 'test-secret', provider: 'anthropic', model: 'claude-haiku-4-5' },
+      { provider: 'anthropic', model: 'claude-haiku-4-5' },
     ]);
+    expect(exchangeAuth).toEqual(['Bearer service-account-token']);
   });
 
   it('authenticateAgent throws naming the agent on a non-200 exchange', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('nope', { status: 401, statusText: 'Unauthorized' })));
+    // The credential is fine and the issuer mints; it is the GATEWAY that
+    // refuses. Distinguishing the two is why each has its own test.
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes('/.well-known/openid-configuration')) {
+        return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
+      }
+      if (url.endsWith('/token')) return Response.json({ access_token: 'service-account-token' });
+      return new Response('nope', { status: 401, statusText: 'Unauthorized' });
+    }));
 
     await expect(
-      authenticateAgent({ gatewayBaseUrl: DIAL_URL, workerSecret: 'bad', provider: 'anthropic', model: 'm1' }),
+      authenticateAgent({ gatewayBaseUrl: DIAL_URL, credential: CREDENTIAL, provider: 'anthropic', model: 'm1' }),
     ).rejects.toThrow(/anthropic:m1.*401/);
   });
 
-  it('authenticateAgent refuses to run without a worker secret', async () => {
+  it('authenticateAgent surfaces a refused service-account credential', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (input: string | URL | Request) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes('/.well-known/openid-configuration')) {
+        return Response.json({ issuer: ISSUER, token_endpoint: `${ISSUER}/token` });
+      }
+      // The issuer, not the gateway, says no — a wrong client secret never
+      // reaches the exchange at all.
+      return new Response('nope', { status: 401, statusText: 'Unauthorized' });
+    }));
+
     await expect(
-      authenticateAgent({ gatewayBaseUrl: DIAL_URL, workerSecret: '', provider: 'anthropic', model: 'm1' }),
-    ).rejects.toThrow(/SEMIONT_WORKER_SECRET/);
+      authenticateAgent({ gatewayBaseUrl: DIAL_URL, credential: CREDENTIAL, provider: 'anthropic', model: 'm1' }),
+    ).rejects.toThrow(/semiont-worker.*401/);
   });
 
   // The blip that used to be fatal: any momentary gateway unreachability
@@ -172,8 +207,21 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
 
     let gateway: Server | undefined;
     const bringUp = setTimeout(() => {
-      gateway = createServer((_req, res) => {
+      gateway = createServer((req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json' });
+        // One server answers both hops: the issuer and the gateway come up
+        // together here, which is the shape of a stack restart.
+        if (req.url?.includes('/.well-known/openid-configuration')) {
+          res.end(JSON.stringify({
+            issuer: `http://127.0.0.1:${port}`,
+            token_endpoint: `http://127.0.0.1:${port}/token`,
+          }));
+          return;
+        }
+        if (req.url?.endsWith('/token')) {
+          res.end(JSON.stringify({ access_token: 'service-account-token' }));
+          return;
+        }
         res.end(JSON.stringify({ token: fakeJwt(), did: CANONICAL_DID }));
       });
       gateway.listen(port, '127.0.0.1');
@@ -183,7 +231,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     try {
       const result = await authenticateAgent({
         gatewayBaseUrl: `http://127.0.0.1:${port}`,
-        workerSecret: 'test-secret',
+        credential: { ...CREDENTIAL, issuer: `http://127.0.0.1:${port}` },
         provider: 'anthropic',
         model: 'claude-haiku-4-5',
         logger: { ...noopLogger, warn } as unknown as Logger,
@@ -215,7 +263,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     await expect(
       authenticateAgent({
         gatewayBaseUrl: DIAL_URL,
-        workerSecret: 'test-secret',
+        credential: CREDENTIAL,
         provider: 'anthropic',
         model: 'm1',
         retry: { attempts: 3, initialDelayMs: 1, maxDelayMs: 2 },
@@ -231,7 +279,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
     await expect(
       authenticateAgent({
         gatewayBaseUrl: DIAL_URL,
-        workerSecret: 'bad',
+        credential: CREDENTIAL,
         provider: 'anthropic',
         model: 'm1',
         retry: { attempts: 5, initialDelayMs: 1, maxDelayMs: 2 },
@@ -261,7 +309,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
     const worker = await startAgentWorker({
       group: makeGroup(),
       gatewayBaseUrl: DIAL_URL,
-      workerSecret: 'test-secret',
+      credential: CREDENTIAL,
       contentReads: { getBinary: vi.fn() },
       logger: noopLogger,
     });

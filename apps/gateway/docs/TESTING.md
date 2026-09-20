@@ -88,14 +88,13 @@ describe('POST /resources', () => {
 
 ```
 src/__tests__/
-├── route-auth-coverage.test.ts  # Comprehensive route authentication testing
-├── gateway-security.test.ts     # Security requirements documentation
+├── route-spec-coverage.test.ts  # Comprehensive route authentication testing
 └── security-controls.test.ts    # CORS and security headers
 ```
 
 **Key Security Tests**:
 
-- **route-auth-coverage.test.ts** - **Critical comprehensive test**
+- **route-spec-coverage.test.ts** - **Critical comprehensive test**
   - Tests ALL registered Hono routes dynamically
   - Uses OpenAPI spec as single source of truth for public routes
   - Validates all non-public routes return 401 without authentication
@@ -289,7 +288,7 @@ describe('Resource Creation Flow', () => {
 
 ### Security Tests
 
-- **route-auth-coverage.test.ts** - Comprehensive authentication coverage
+- **route-spec-coverage.test.ts** - Comprehensive authentication coverage
 - All routes tested for 401 without authentication
 - OpenAPI spec validation
 
@@ -319,8 +318,6 @@ vi.mock('@semiont/make-meaning', () => ({
   startMakeMeaning: vi.fn().mockResolvedValue({ /* ... */ })
 }));
 
-vi.mock('../../db', () => ({ /* ... */ }));
-vi.mock('../../auth/oauth', () => ({ /* ... */ }));
 
 describe('My Feature HTTP Contract', () => {
   let app: Hono;
@@ -458,15 +455,14 @@ Security tests are critical and run automatically in CI/CD:
 
 ```bash
 # Run all security tests
-npm test -- src/__tests__/route-auth-coverage.test.ts
-npm test -- src/__tests__/gateway-security.test.ts
+npm test -- src/__tests__/route-spec-coverage.test.ts
 npm test -- src/__tests__/security-controls.test.ts
 
 # Watch mode
 npm run test:watch -- --testNamePattern=security
 ```
 
-### Understanding route-auth-coverage.test.ts
+### Understanding route-spec-coverage.test.ts
 
 This test is the **cornerstone of gateway security testing**:
 
@@ -529,7 +525,7 @@ When adding new gateway routes:
 
 4. **Run security tests**:
    ```bash
-   npm test -- route-auth-coverage.test.ts
+   npm test -- route-spec-coverage.test.ts
    ```
 
 **For admin/moderator routes**:

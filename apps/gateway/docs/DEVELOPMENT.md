@@ -34,9 +34,6 @@ semiont start
 # Install dependencies
 npm install
 
-# Run database migrations
-npx prisma db push
-
 # Start development server (with auto-restart on changes)
 npm run dev
 
@@ -188,10 +185,8 @@ semiont start --runtime podman
 - **Lower Resource Usage**: More efficient than Docker Desktop
 - **No Background Daemon**: Containers run without persistent daemon
 
-`DOCKER_HOST` matters for the gateway's **integration tests**, which provision
-PostgreSQL with `@testcontainers/postgresql`; the launcher itself is told which
-runtime to use by `--runtime`. Ryuk is disabled by the test setup, so there is no
-`TESTCONTAINERS_RYUK_DISABLED` to export.
+The launcher is told which runtime to use by `--runtime`. The gateway's tests
+need no container runtime of their own.
 
 ## Manual Setup (Alternative)
 
@@ -240,9 +235,6 @@ npm install
 cp .env.example .env
 # Edit .env with your local settings
 
-# Initialize database
-npx prisma generate
-npx prisma db push
 ```
 
 **2. Start Development Server**
@@ -252,19 +244,6 @@ npx prisma db push
 npm run dev
 
 # Server starts on http://localhost:4000
-```
-
-**3. Database Development**
-
-```bash
-# Open Prisma Studio (database GUI)
-npx prisma studio
-
-# Reset database (caution: deletes all data)
-npx prisma db push --force-reset
-
-# Generate Prisma client after schema changes
-npx prisma generate
 ```
 
 ## Environment Configuration
@@ -310,12 +289,6 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Development Tools
 
-### Prisma Studio
-
-Visual database editor:
-
-```bash
-npx prisma studio
 # Opens at http://localhost:5555
 ```
 
@@ -326,47 +299,12 @@ Recommended tools:
 - [Postman](https://www.postman.com/) - GUI API testing
 - [Thunder Client](https://marketplace.visualstudio.com/items?itemName=rangav.vscode-thunder-client) - VS Code extension
 
-### Database Migrations
-
-```bash
-# Create migration from schema changes
-npx prisma migrate dev --name add_user_role
-
-# Apply migrations
-npx prisma migrate deploy
-
-# Reset database
-npx prisma migrate reset
-```
-
 ## Common Development Tasks
 
 ### Adding Test Data
 
-Create `prisma/seed.ts`:
-
-```typescript
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
-
-async function main() {
-  await prisma.user.create({
-    data: {
-      email: 'test@example.com',
-      name: 'Test User',
-      provider: 'google',
-      providerId: 'test-id',
-    },
-  });
-}
-
-main()
-  .catch(console.error)
-  .finally(() => prisma.$disconnect());
-```
-
-Run: `npx ts-node prisma/seed.ts`
+There is no user table to seed. Accounts live at the identity provider; create
+one with `semiont useradd --email you@example.com --generate-password`.
 
 ### Debugging
 
@@ -408,15 +346,11 @@ PRISMA_LOG=query,info,warn,error
 
 ```typescript
 // Temporarily add to see SQL queries
-const prisma = new PrismaClient({
-  log: ['query', 'info', 'warn', 'error'],
-});
 ```
 
 ## Performance Tips
 
 1. **Database Connection Pooling**
-   - Prisma handles this automatically
    - Default pool size: 10 connections
 
 2. **Hot Reload Optimization**
@@ -429,9 +363,6 @@ const prisma = new PrismaClient({
 
 ## Troubleshooting
 
-### "Cannot connect to database"
-
-```bash
 # Check PostgreSQL is running
 docker ps | grep postgres
 
@@ -447,12 +378,6 @@ echo $DATABASE_URL
 - Each key must be at least 32 characters — the check is per key, not on the whole
   string, since `JWT_SECRET` may be a comma-separated rotation ring
 - Generate secure secret: `openssl rand -hex 32`
-
-### "Prisma client not found"
-
-```bash
-# Regenerate Prisma client
-npx prisma generate
 
 # Clear node_modules and reinstall
 rm -rf node_modules
@@ -491,9 +416,9 @@ Beyond that, the gateway reads from the environment directly:
 
 | Variable | Purpose |
 |---|---|
-| `DATABASE_URL` | Postgres connection string. In the container image the CMD derives it from `services.database` (`src/cli/db-url.ts`) when unset; set it explicitly to override, e.g. for an external or TLS-requiring database |
 | `JWT_SECRET` | Token signing. An ordered, comma-separated key ring: the first key signs, every key verifies; minimum 32 characters **per key**. A single value is the one-key case. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
-| `SEMIONT_WORKER_SECRET` | Shared secret for the software-agent token exchange |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the knowledge base's issuer. It exchanges these for an access token to reach the Archivist; without them the first Archivist call fails |
+| `KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD` | Master-realm credentials, read only by `semiont-useradd` when it administers accounts at a launcher-run Keycloak |
 
 `semiont init` generates both TOML files. See the
 [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the

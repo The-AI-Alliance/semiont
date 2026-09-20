@@ -19,7 +19,7 @@ export default defineConfig({
     // JSON reporter for consistent test count reporting
     reporters: ['default', 'json'],
     outputFile: './test-results.json',
-    // Unit tests only use the unit test setup (mocks Prisma, uses SEMIONT_ENV=unit)
+    // Unit tests only use the unit test setup (SEMIONT_ENV=unit)
     setupFiles: ['./src/__tests__/setup.ts'],
     // Don't fail on uncaught exceptions from intentional error tests
     dangerouslyIgnoreUnhandledErrors: true,

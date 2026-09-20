@@ -55,16 +55,17 @@ jobs:
           ./scripts/compliance/audit-raw-bus.sh
           echo "::endgroup::"
 
-      - name: Run CSS Gates
+      - name: Run Lint Gates
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::CSS Gates (stylelint + every var() resolves + no utility frameworks)"
+          echo "::group::Lint Gates (stylelint + every var() resolves + no utility frameworks + core subpath isolation)"
           fail=0
           npm run lint:css || fail=1
           npm run lint:css-variables || fail=1
           npm run lint:css-classes || fail=1
           npm run lint:translations || fail=1
           npm run lint:no-utility-classes || fail=1
+          npm run lint:core-subpaths || fail=1
           echo "::endgroup::"
           exit $fail
 
@@ -82,10 +83,11 @@ jobs:
       - name: Run Boot Contract Audit
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Boot Contract Audit (B1-B3 env/config census + H1 test-env hygiene)"
+          echo "::group::Boot Contract Audit (B1-B3 env/config census + H1 test-env hygiene + vi.mock targets)"
           fail=0
           ./scripts/compliance/audit-boot-contract.sh || fail=1
           ./scripts/compliance/audit-test-env-hygiene.sh || fail=1
+          ./scripts/compliance/audit-mock-targets.sh || fail=1
           echo "::endgroup::"
           exit $fail
 

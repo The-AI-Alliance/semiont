@@ -1,23 +1,20 @@
 import jwt from 'jsonwebtoken';
 import { JWTPayloadSchema } from '../types/jwt-types';
 import type { JWTPayload as ValidatedJWTPayload } from '../types/jwt-types';
-import type { UserId, Email } from '@semiont/core';
-import { userId as makeUserId, email as makeEmail } from '@semiont/core';
+import type { Email } from '@semiont/core';
+import { email as makeEmail } from '@semiont/core';
 
 export interface JWTPayload {
-  userId: UserId;
+  did: string;
   email: Email;
   name?: string;
   domain: string;
-  provider: string;
-  type?: 'access' | 'refresh';
   iat?: number;
   exp?: number;
 }
 
 interface SiteConfig {
   domain?: string;
-  oauthAllowedDomains?: string[];
 }
 
 /**
@@ -79,17 +76,12 @@ export class JWTService {
       throw new Error('site.domain is required in environment config');
     }
 
-    if (!config.site?.oauthAllowedDomains || !Array.isArray(config.site.oauthAllowedDomains)) {
-      throw new Error('site.oauthAllowedDomains is required in environment config');
-    }
-
     // Fail here rather than at first use: validating the same rules getSecret
     // enforces, at a point where the process can still decline to start.
     this.requireSecret();
 
     this.siteConfig = {
       domain: config.site.domain,
-      oauthAllowedDomains: config.site.oauthAllowedDomains
     };
   }
 
@@ -121,24 +113,11 @@ export class JWTService {
   }
 
   /**
-   * The email domains permitted to authenticate — `site.oauthAllowedDomains`,
-   * validated at startup by initialize().
-   *
-   * Exposed so nothing has to re-read this from the environment. The admin
-   * endpoint GET /api/admin/oauth/config used to parse an OAUTH_ALLOWED_DOMAINS
-   * env var, which made two sources of truth for one fact; the retired CLI set
-   * that var, so when it went the endpoint became a guaranteed 500.
-   */
-  static getAllowedDomains(): string[] {
-    return this.getSiteConfig().oauthAllowedDomains ?? [];
-  }
-
-  /**
    * Override configuration for testing purposes
    * @param config The configuration to use
    */
-  static setTestConfig(domain: string, oauthAllowedDomains: string[]): void {
-    this.siteConfig = { domain, oauthAllowedDomains };
+  static setTestConfig(domain: string): void {
+    this.siteConfig = { domain };
   }
 
   /**
@@ -224,13 +203,20 @@ export class JWTService {
     // Brand the string types for type safety
     return {
       ...result.data,
-      userId: makeUserId(result.data.userId),
       email: makeEmail(result.data.email),
     };
   }
 
-  static generateMediaToken(resourceId: string, userId: string): string {
-    const payload = { purpose: 'media', sub: resourceId, userId };
+  /**
+   * A media token names the one resource it may fetch and nothing else.
+   *
+   * It used to also carry the requester's id, which `verifyMediaToken` never
+   * read — an identity claim nobody checked, which is worse than no claim at
+   * all, because it looks like the token is principal-scoped when it is not.
+   * Anyone holding this token may fetch this resource; that is the contract.
+   */
+  static generateMediaToken(resourceId: string): string {
+    const payload = { purpose: 'media', sub: resourceId };
     return jwt.sign(payload, this.getSecret(), { expiresIn: '5m' });
   }
 
@@ -244,16 +230,5 @@ export class JWTService {
     }
     if (decoded['purpose'] !== 'media') throw new Error('Invalid media token');
     if (decoded['sub'] !== resourceId) throw new Error('Media token resource mismatch');
-  }
-
-  static isAllowedDomain(email: Email): boolean {
-    const parts = email.split('@');
-    if (parts.length !== 2 || !parts[0] || !parts[1]) {
-      return false;
-    }
-    const domain = parts[1];
-    const config = this.getSiteConfig();
-    const allowedDomains = config.oauthAllowedDomains || [];
-    return allowedDomains.includes(domain);
   }
 }

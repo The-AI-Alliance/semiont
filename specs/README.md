@@ -136,7 +136,7 @@ All 79 schemas are defined in [src/components/schemas/](src/components/schemas/)
 - `UpdateResourceRequest.json`, etc.
 
 **Authentication:**
-- `AuthResponse.json`, `TokenRefreshRequest.json`, `UserResponse.json`
+- `ProtectedResourceMetadata.json`, `UserResponse.json`
 
 **Entity Management:**
 - `AddEntityTypeRequest.json`, `GetEntityTypesResponse.json`
@@ -158,9 +158,9 @@ All 37 path definitions in [src/paths/](src/paths/):
 - `resources_{resourceId}_annotations_{annotationId}_body.json` - Update body
 
 **Authentication:**
-- `api_tokens_google.json` - Google OAuth
-- `api_tokens_local.json` - Local dev auth
-- `api_tokens_refresh.json` - Token refresh
+- `well-known_oauth-protected-resource.json` - Which issuer this gateway trusts (RFC 9728)
+- `api_tokens_agent.json` - Software-agent token exchange
+- `api_tokens_media.json` - Resource-scoped media token
 - `api_users_me.json` - Current user profile
 
 **Admin:**

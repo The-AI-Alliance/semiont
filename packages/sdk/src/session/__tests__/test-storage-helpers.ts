@@ -4,13 +4,29 @@
  */
 
 import { InMemorySessionStorage, type SessionStorage } from '../session-storage';
+import type { StoredSession } from '../storage';
 
 const PREFIX = 'semiont.session.';
 
 export const SESSION_PREFIX_RE = new RegExp(`^${PREFIX.replace('.', '\\.')}`);
 
+/** The issuer every seeded session came from; refresh tests point their fetch stub here. */
+export const TEST_TOKEN_ENDPOINT = 'https://issuer.test/realms/semiont/protocol/openid-connect/token';
+export const TEST_REVOCATION_ENDPOINT = 'https://issuer.test/realms/semiont/protocol/openid-connect/revoke';
+
 export function storageKey(kbId: string): string {
   return `${PREFIX}${kbId}`;
+}
+
+/** A stored session as the Browser's sign-in would persist it. */
+export function testSession(access: string, refresh: string): StoredSession {
+  return {
+    access,
+    refresh,
+    clientId: 'semiont-browser',
+    tokenEndpoint: TEST_TOKEN_ENDPOINT,
+    revocationEndpoint: TEST_REVOCATION_ENDPOINT,
+  };
 }
 
 export function seedStoredSession(
@@ -19,7 +35,7 @@ export function seedStoredSession(
   access: string,
   refresh: string,
 ): void {
-  storage.set(storageKey(kbId), JSON.stringify({ access, refresh }));
+  storage.set(storageKey(kbId), JSON.stringify(testSession(access, refresh)));
 }
 
 /**

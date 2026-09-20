@@ -16,7 +16,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
-import type { User } from '@prisma/client';
+import type { Principal } from '../../identity/principal';
 import { EventBus } from '@semiont/core';
 import type { EventBus as EventBusType } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
@@ -46,7 +46,7 @@ vi.mock('../../lib/archivist', () => ({
 // full one here would be noise, and asserting a fake into the wide type
 // would hide a real mismatch instead of catching it.
 type Variables = {
-  user: User;
+  principal: Principal;
   principalDid: string;
   eventBus: EventBusType;
   config: ArchivistAddressConfig;
@@ -54,22 +54,19 @@ type Variables = {
 
 const putContentMock = vi.mocked(putContent);
 
-function fakeUser(): User {
+function fakeUser(): Principal {
   return {
-    id: 'user-1',
+    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    provider: 'worker',
-    isAdmin: false,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  } as User;
+    isAgent: false,
+  } as Principal;
 }
 
 const app = new Hono<{ Variables: Variables }>();
 app.use('*', async (c, next) => {
-  c.set('user', fakeUser());
+  c.set('principal', fakeUser());
   c.set('principalDid', 'did:web:test.local:users:test%40test.local');
   c.set('eventBus', new EventBus());
   c.set('config', { services: { archivist: { host: 'archivist.test', port: 9999 } } });

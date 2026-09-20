@@ -311,12 +311,6 @@ sync = %t
 # never env-templated, never a machine address.
 domain = %q
 siteName = %q
-# Google-OAuth sign-in allowlist: an email's domain must match this list
-# exactly. Local password sign-in does not consult it. RFC 2606 reserved, so
-# it admits nobody — widen it deliberately. NOT `+"`[]`"+`: the launcher stages this
-# key only when the list is non-empty, and the gateway refuses to start
-# without it.
-oauthAllowedDomains = ["example.com"]
 `, name, !noGit, domain, siteName)
 
 	if dryRun {

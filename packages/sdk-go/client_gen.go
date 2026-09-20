@@ -25,19 +25,19 @@ const (
 
 // Defines values for AnchoredTextAbsentKind.
 const (
-	AnchoredTextAbsentKindNoMap   AnchoredTextAbsentKind = "no-map"
-	AnchoredTextAbsentKindNotYet  AnchoredTextAbsentKind = "not-yet"
-	AnchoredTextAbsentKindUnknown AnchoredTextAbsentKind = "unknown"
+	NoMap   AnchoredTextAbsentKind = "no-map"
+	NotYet  AnchoredTextAbsentKind = "not-yet"
+	Unknown AnchoredTextAbsentKind = "unknown"
 )
 
 // Valid indicates whether the value is a known member of the AnchoredTextAbsentKind enum.
 func (e AnchoredTextAbsentKind) Valid() bool {
 	switch e {
-	case AnchoredTextAbsentKindNoMap:
+	case NoMap:
 		return true
-	case AnchoredTextAbsentKindNotYet:
+	case NotYet:
 		return true
-	case AnchoredTextAbsentKindUnknown:
+	case Unknown:
 		return true
 	default:
 		return false
@@ -548,27 +548,6 @@ const (
 func (e GraphResourceNodeType) Valid() bool {
 	switch e {
 	case GraphResourceNodeTypeResource:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for HealthResponseDatabase.
-const (
-	HealthResponseDatabaseConnected    HealthResponseDatabase = "connected"
-	HealthResponseDatabaseDisconnected HealthResponseDatabase = "disconnected"
-	HealthResponseDatabaseUnknown      HealthResponseDatabase = "unknown"
-)
-
-// Valid indicates whether the value is a known member of the HealthResponseDatabase enum.
-func (e HealthResponseDatabase) Valid() bool {
-	switch e {
-	case HealthResponseDatabaseConnected:
-		return true
-	case HealthResponseDatabaseDisconnected:
-		return true
-	case HealthResponseDatabaseUnknown:
 		return true
 	default:
 		return false
@@ -1097,6 +1076,21 @@ func (e Motivation) Valid() bool {
 	}
 }
 
+// Defines values for ProtectedResourceMetadataBearerMethodsSupported.
+const (
+	Header ProtectedResourceMetadataBearerMethodsSupported = "header"
+)
+
+// Valid indicates whether the value is a known member of the ProtectedResourceMetadataBearerMethodsSupported enum.
+func (e ProtectedResourceMetadataBearerMethodsSupported) Valid() bool {
+	switch e {
+	case Header:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for RepresentationRel.
 const (
 	Derived   RepresentationRel = "derived"
@@ -1424,69 +1418,6 @@ func (e TextualBodyType) Valid() bool {
 	}
 }
 
-// AcceptTermsResponse defines model for AcceptTermsResponse.
-type AcceptTermsResponse struct {
-	Message string `json:"message"`
-	Success bool   `json:"success"`
-}
-
-// AdminUpdateUserResponse defines model for AdminUpdateUserResponse.
-type AdminUpdateUserResponse struct {
-	Success bool `json:"success"`
-	User    struct {
-		Created   string  `json:"created"`
-		Domain    string  `json:"domain"`
-		Email     string  `json:"email"`
-		Id        string  `json:"id"`
-		Image     *string `json:"image"`
-		IsActive  bool    `json:"isActive"`
-		IsAdmin   bool    `json:"isAdmin"`
-		LastLogin *string `json:"lastLogin"`
-		Name      *string `json:"name"`
-		Provider  string  `json:"provider"`
-		UpdatedAt string  `json:"updatedAt"`
-	} `json:"user"`
-}
-
-// AdminUserStatsResponse defines model for AdminUserStatsResponse.
-type AdminUserStatsResponse struct {
-	Stats struct {
-		ActiveUsers     float32 `json:"activeUsers"`
-		AdminUsers      float32 `json:"adminUsers"`
-		DomainBreakdown []struct {
-			Count  float32 `json:"count"`
-			Domain string  `json:"domain"`
-		} `json:"domainBreakdown"`
-		RecentSignups []struct {
-			Created string  `json:"created"`
-			Email   string  `json:"email"`
-			Id      string  `json:"id"`
-			Name    *string `json:"name"`
-		} `json:"recentSignups"`
-		RegularUsers float32 `json:"regularUsers"`
-		TotalUsers   float32 `json:"totalUsers"`
-	} `json:"stats"`
-	Success bool `json:"success"`
-}
-
-// AdminUsersListResponse defines model for AdminUsersListResponse.
-type AdminUsersListResponse struct {
-	Success bool `json:"success"`
-	Users   []struct {
-		Created   string  `json:"created"`
-		Domain    string  `json:"domain"`
-		Email     string  `json:"email"`
-		Id        string  `json:"id"`
-		Image     *string `json:"image"`
-		IsActive  bool    `json:"isActive"`
-		IsAdmin   bool    `json:"isAdmin"`
-		LastLogin *string `json:"lastLogin"`
-		Name      *string `json:"name"`
-		Provider  string  `json:"provider"`
-		UpdatedAt string  `json:"updatedAt"`
-	} `json:"users"`
-}
-
 // Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 type Agent struct {
 	union json.RawMessage
@@ -1709,26 +1640,6 @@ type AnnotationTarget_Selector_4_Item struct {
 // AnnotationTarget_Selector Optional selector to identify a specific segment of the source resource
 type AnnotationTarget_Selector struct {
 	union json.RawMessage
-}
-
-// AuthResponse defines model for AuthResponse.
-type AuthResponse struct {
-	IsNewUser bool `json:"isNewUser"`
-
-	// RefreshToken Long-lived refresh token (30 days). Exchange via POST /api/tokens/refresh for a fresh access token.
-	RefreshToken string `json:"refreshToken"`
-	Success      bool   `json:"success"`
-
-	// Token Short-lived access token. Use as Authorization: Bearer header on API calls. The TTL is deliberately NOT restated here — docs/system/administration/AUTHENTICATION.md holds the one table of token lifetimes, and a second copy is how this description came to claim an hour for a ten-minute token. A client must refresh from the refresh token rather than assume any particular window.
-	Token string `json:"token"`
-	User  struct {
-		Domain  string  `json:"domain"`
-		Email   string  `json:"email"`
-		Id      string  `json:"id"`
-		Image   *string `json:"image"`
-		IsAdmin bool    `json:"isAdmin"`
-		Name    *string `json:"name"`
-	} `json:"user"`
 }
 
 // BeckonFocusEvent Emitted when an annotation receives focus for beckoning. resourceId is a guard, not navigation: it names the resource this focus applies to, and a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
@@ -2236,12 +2147,6 @@ type CreateAnnotationRequest_Body struct {
 type CreateResourceResponse struct {
 	// ResourceId The id of the newly-created resource. Assigned by Stower when it persists yield:create.
 	ResourceId string `json:"resourceId"`
-}
-
-// DeleteUserResponse defines model for DeleteUserResponse.
-type DeleteUserResponse struct {
-	Message string `json:"message"`
-	Success bool   `json:"success"`
 }
 
 // DirEntry defines model for DirEntry.
@@ -2788,11 +2693,6 @@ type GetTagSchemasResponse struct {
 	TagSchemas []TagSchema `json:"tagSchemas"`
 }
 
-// GoogleAuthRequest defines model for GoogleAuthRequest.
-type GoogleAuthRequest struct {
-	AccessToken string `json:"access_token"`
-}
-
 // GraphAnnotationNode An annotation's graph presence. The node IS the annotation, so the full W3C object is required — selectors and body included, which is what lets a client place context annotations without a second fetch. Citations ride here too: an inbound reference is its linking annotation, anchored by an `annotation-of` edge to the resource it lives on and a `cites` edge to the focal resource.
 type GraphAnnotationNode struct {
 	Annotation Annotation `json:"annotation"`
@@ -2831,16 +2731,12 @@ type GraphResourceNodeType string
 
 // HealthResponse defines model for HealthResponse.
 type HealthResponse struct {
-	Database    HealthResponseDatabase `json:"database"`
-	Environment string                 `json:"environment"`
-	Message     string                 `json:"message"`
-	Status      string                 `json:"status"`
-	Timestamp   string                 `json:"timestamp"`
-	Version     string                 `json:"version"`
+	Environment string `json:"environment"`
+	Message     string `json:"message"`
+	Status      string `json:"status"`
+	Timestamp   string `json:"timestamp"`
+	Version     string `json:"version"`
 }
-
-// HealthResponseDatabase defines model for HealthResponse.Database.
-type HealthResponseDatabase string
 
 // InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
 type InferenceLimits struct {
@@ -3686,25 +3582,6 @@ type MediaTokenResponse struct {
 // Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 type Motivation string
 
-// OAuthConfigResponse defines model for OAuthConfigResponse.
-type OAuthConfigResponse struct {
-	AllowedDomains []string `json:"allowedDomains"`
-	Providers      []struct {
-		ClientId     string `json:"clientId"`
-		IsConfigured bool   `json:"isConfigured"`
-		Name         string `json:"name"`
-	} `json:"providers"`
-}
-
-// PasswordAuthRequest defines model for PasswordAuthRequest.
-type PasswordAuthRequest struct {
-	// Email User email address
-	Email openapi_types.Email `json:"email"`
-
-	// Password User password (minimum 8 characters)
-	Password string `json:"password"`
-}
-
 // PdfTextItem One positioned text run. Coordinates are PDF points with the origin at the bottom-left of the page, Y increasing upward; the flip to canvas pixels happens in the browser.
 type PdfTextItem struct {
 	// End Char offset into AnchoredText.text, exclusive.
@@ -3720,6 +3597,24 @@ type PdfTextItem struct {
 	X     float32 `json:"x"`
 	Y     float32 `json:"y"`
 }
+
+// ProtectedResourceMetadata OAuth 2.0 Protected Resource Metadata (RFC 9728): which authorization server this knowledge base trusts, served at /.well-known/oauth-protected-resource so a client — the Browser, an MCP client — learns where to send a user to sign in without configuration. A 401 from any protected route points here in its WWW-Authenticate challenge.
+type ProtectedResourceMetadata struct {
+	// AuthorizationServers Issuer identifiers whose tokens this resource accepts — the configured identity issuer.
+	AuthorizationServers []string `json:"authorization_servers"`
+
+	// BearerMethodsSupported How a bearer token reaches this resource: the Authorization header only.
+	BearerMethodsSupported []ProtectedResourceMetadataBearerMethodsSupported `json:"bearer_methods_supported"`
+
+	// Resource This knowledge base's resource identifier: its did:web identity resolved to an https URL (did:web:example.github.io:my-kb identifies https://example.github.io/my-kb). This is the exact value a token's aud claim must carry. It is an identifier, not an address — nothing dereferences it, and a knowledge base reached over http in local development still names itself by the https form, which is what makes the value stable across every host, port and proxy it is reached through.
+	Resource string `json:"resource"`
+
+	// ResourceName The knowledge base's name, for a client's sign-in prompt.
+	ResourceName *string `json:"resource_name,omitempty"`
+}
+
+// ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
+type ProtectedResourceMetadataBearerMethodsSupported string
 
 // Representation A specific, byte-addressable rendition of a resource (file/asset/variant).
 type Representation struct {
@@ -4479,17 +4374,6 @@ type TextualBody struct {
 // TextualBodyType defines model for TextualBody.Type.
 type TextualBodyType string
 
-// TokenRefreshRequest defines model for TokenRefreshRequest.
-type TokenRefreshRequest struct {
-	// RefreshToken Refresh token obtained during login
-	RefreshToken string `json:"refreshToken"`
-}
-
-// TokenRefreshResponse defines model for TokenRefreshResponse.
-type TokenRefreshResponse struct {
-	AccessToken string `json:"access_token"`
-}
-
 // UnitCursor How far a single unit got, for a resume that starts mid-unit rather than redoing it (CHUNK-GRAIN-RESUME P2). A unit is an entity type for reference-annotation, and the job's own motivation for the other annotation types — which is why a unit-grain checkpoint alone was too coarse: those jobs have exactly one unit, so nothing could be recorded until the whole document was done.
 //
 // MERGE IS MONOTONE PER UNIT, not a union. `completedUnits` is a set and converges under concurrent snapshots because a set only grows; a cursor converges only if a stale snapshot can never move it backward.
@@ -4523,48 +4407,20 @@ type UpdateAnnotationBodyRequest_Operations_Item struct {
 	union json.RawMessage
 }
 
-// UpdateUserRequest defines model for UpdateUserRequest.
-type UpdateUserRequest struct {
-	IsActive *bool   `json:"isActive,omitempty"`
-	IsAdmin  *bool   `json:"isAdmin,omitempty"`
-	Name     *string `json:"name,omitempty"`
-}
-
-// UpdateUserResponse defines model for UpdateUserResponse.
-type UpdateUserResponse struct {
-	Success bool `json:"success"`
-	User    struct {
-		Created   string  `json:"created"`
-		Domain    string  `json:"domain"`
-		Email     string  `json:"email"`
-		Id        string  `json:"id"`
-		Image     *string `json:"image,omitempty"`
-		IsActive  bool    `json:"isActive"`
-		IsAdmin   bool    `json:"isAdmin"`
-		LastLogin *string `json:"lastLogin,omitempty"`
-		Name      *string `json:"name,omitempty"`
-		Provider  string  `json:"provider"`
-		UpdatedAt string  `json:"updatedAt"`
-	} `json:"user"`
-}
-
-// UserResponse defines model for UserResponse.
+// UserResponse The authenticated principal, as this knowledge base names it.
+//
+// The `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. The row id this endpoint used to return appears nowhere else in the system, so it could not be correlated with anything and is gone.
+//
+// The remaining fields exist to be displayed, and all of them come from the token's own claims. Role flags used to ride here; they gated nothing, and the row that held them is gone.
 type UserResponse struct {
-	Created         string  `json:"created"`
-	Domain          string  `json:"domain"`
-	Email           string  `json:"email"`
-	Id              string  `json:"id"`
-	Image           *string `json:"image"`
-	IsActive        bool    `json:"isActive"`
-	IsAdmin         bool    `json:"isAdmin"`
-	IsModerator     bool    `json:"isModerator"`
-	LastLogin       *string `json:"lastLogin"`
-	Name            *string `json:"name"`
-	Provider        string  `json:"provider"`
-	TermsAcceptedAt *string `json:"termsAcceptedAt"`
+	// Did The authenticated principal's DID — `did:web:<domain>:users:<email>` for a person, `did:web:<domain>:agents:<provider>:<model>` for a software agent.
+	Did string `json:"did"`
 
-	// Token The validated JWT token string for the current session
-	Token string `json:"token"`
+	// Domain Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's.
+	Domain string  `json:"domain"`
+	Email  string  `json:"email"`
+	Image  *string `json:"image"`
+	Name   *string `json:"name"`
 }
 
 // WeaveRebuildCommand Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.
@@ -4727,9 +4583,6 @@ type PostApiTokensAgentJSONBody struct {
 
 	// Provider Inference provider (e.g. ollama, anthropic)
 	Provider string `json:"provider"`
-
-	// Secret The shared secret (SEMIONT_WORKER_SECRET)
-	Secret string `json:"secret"`
 }
 
 // PostResourcesMultipartBody defines parameters for PostResources.
@@ -4768,26 +4621,14 @@ type PostResourcesMultipartBody struct {
 	StorageUri string `json:"storageUri"`
 }
 
-// PatchApiAdminUsersIdJSONRequestBody defines body for PatchApiAdminUsersId for application/json ContentType.
-type PatchApiAdminUsersIdJSONRequestBody = UpdateUserRequest
-
 // PostApiCookiesConsentJSONRequestBody defines body for PostApiCookiesConsent for application/json ContentType.
 type PostApiCookiesConsentJSONRequestBody = CookieConsentRequest
 
 // PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
 type PostApiTokensAgentJSONRequestBody PostApiTokensAgentJSONBody
 
-// PostApiTokensGoogleJSONRequestBody defines body for PostApiTokensGoogle for application/json ContentType.
-type PostApiTokensGoogleJSONRequestBody = GoogleAuthRequest
-
 // PostApiTokensMediaJSONRequestBody defines body for PostApiTokensMedia for application/json ContentType.
 type PostApiTokensMediaJSONRequestBody = MediaTokenRequest
-
-// PostApiTokensPasswordJSONRequestBody defines body for PostApiTokensPassword for application/json ContentType.
-type PostApiTokensPasswordJSONRequestBody = PasswordAuthRequest
-
-// PostApiTokensRefreshJSONRequestBody defines body for PostApiTokensRefresh for application/json ContentType.
-type PostApiTokensRefreshJSONRequestBody = TokenRefreshRequest
 
 // PostBusEmitJSONRequestBody defines body for PostBusEmit for application/json ContentType.
 type PostBusEmitJSONRequestBody = BusEmitRequest
@@ -11135,22 +10976,8 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// GetApiAdminOauthConfig request
-	GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetApiAdminUsers request
-	GetApiAdminUsers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetApiAdminUsersStats request
-	GetApiAdminUsersStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// DeleteApiAdminUsersId request
-	DeleteApiAdminUsersId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PatchApiAdminUsersIdWithBody request with any body
-	PatchApiAdminUsersIdWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PatchApiAdminUsersId(ctx context.Context, id string, body PatchApiAdminUsersIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// GetWellKnownOauthProtectedResource request
+	GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiCookiesConsent request
 	GetApiCookiesConsent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11177,31 +11004,10 @@ type ClientInterface interface {
 
 	PostApiTokensAgent(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// PostApiTokensGoogleWithBody request with any body
-	PostApiTokensGoogleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiTokensGoogle(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// PostApiTokensMediaWithBody request with any body
 	PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiTokensPasswordWithBody request with any body
-	PostApiTokensPasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiTokensPassword(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiTokensRefreshWithBody request with any body
-	PostApiTokensRefreshWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiTokensRefresh(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiUsersAcceptTerms request
-	PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiUsersLogout request
-	PostApiUsersLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// GetApiUsersMe request
 	GetApiUsersMe(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -11226,68 +11032,8 @@ type ClientInterface interface {
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) GetApiAdminOauthConfig(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiAdminOauthConfigRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetApiAdminUsers(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiAdminUsersRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetApiAdminUsersStats(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiAdminUsersStatsRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) DeleteApiAdminUsersId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewDeleteApiAdminUsersIdRequest(c.Server, id)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PatchApiAdminUsersIdWithBody(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPatchApiAdminUsersIdRequestWithBody(c.Server, id, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PatchApiAdminUsersId(ctx context.Context, id string, body PatchApiAdminUsersIdJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPatchApiAdminUsersIdRequest(c.Server, id, body)
+func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetWellKnownOauthProtectedResourceRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11406,30 +11152,6 @@ func (c *Client) PostApiTokensAgent(ctx context.Context, body PostApiTokensAgent
 	return c.Client.Do(req)
 }
 
-func (c *Client) PostApiTokensGoogleWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensGoogleRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensGoogle(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensGoogleRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
 func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiTokensMediaRequestWithBody(c.Server, contentType, body)
 	if err != nil {
@@ -11444,78 +11166,6 @@ func (c *Client) PostApiTokensMediaWithBody(ctx context.Context, contentType str
 
 func (c *Client) PostApiTokensMedia(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostApiTokensMediaRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensPasswordWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensPasswordRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensPassword(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensPasswordRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensRefreshWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensRefreshRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiTokensRefresh(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiTokensRefreshRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiUsersAcceptTerms(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiUsersAcceptTermsRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiUsersLogout(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiUsersLogoutRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11622,8 +11272,8 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors
 	return c.Client.Do(req)
 }
 
-// NewGetApiAdminOauthConfigRequest generates requests for GetApiAdminOauthConfig
-func NewGetApiAdminOauthConfigRequest(server string) (*http.Request, error) {
+// NewGetWellKnownOauthProtectedResourceRequest generates requests for GetWellKnownOauthProtectedResource
+func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -11631,7 +11281,7 @@ func NewGetApiAdminOauthConfigRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/api/admin/oauth/config")
+	operationPath := fmt.Sprintf("/.well-known/oauth-protected-resource")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11645,141 +11295,6 @@ func NewGetApiAdminOauthConfigRequest(server string) (*http.Request, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	return req, nil
-}
-
-// NewGetApiAdminUsersRequest generates requests for GetApiAdminUsers
-func NewGetApiAdminUsersRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetApiAdminUsersStatsRequest generates requests for GetApiAdminUsersStats
-func NewGetApiAdminUsersStatsRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users/stats")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewDeleteApiAdminUsersIdRequest generates requests for DeleteApiAdminUsersId
-func NewDeleteApiAdminUsersIdRequest(server string, id string) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("DELETE", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPatchApiAdminUsersIdRequest calls the generic PatchApiAdminUsersId builder with application/json body
-func NewPatchApiAdminUsersIdRequest(server string, id string, body PatchApiAdminUsersIdJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPatchApiAdminUsersIdRequestWithBody(server, id, "application/json", bodyReader)
-}
-
-// NewPatchApiAdminUsersIdRequestWithBody generates requests for PatchApiAdminUsersId with any type of body
-func NewPatchApiAdminUsersIdRequestWithBody(server string, id string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	var pathParam0 string
-
-	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "id", id, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
-	if err != nil {
-		return nil, err
-	}
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/admin/users/%s", pathParam0)
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("PATCH", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -12006,46 +11521,6 @@ func NewPostApiTokensAgentRequestWithBody(server string, contentType string, bod
 	return req, nil
 }
 
-// NewPostApiTokensGoogleRequest calls the generic PostApiTokensGoogle builder with application/json body
-func NewPostApiTokensGoogleRequest(server string, body PostApiTokensGoogleJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensGoogleRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiTokensGoogleRequestWithBody generates requests for PostApiTokensGoogle with any type of body
-func NewPostApiTokensGoogleRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/google")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
 // NewPostApiTokensMediaRequest calls the generic PostApiTokensMedia builder with application/json body
 func NewPostApiTokensMediaRequest(server string, body PostApiTokensMediaJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -12082,140 +11557,6 @@ func NewPostApiTokensMediaRequestWithBody(server string, contentType string, bod
 	}
 
 	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostApiTokensPasswordRequest calls the generic PostApiTokensPassword builder with application/json body
-func NewPostApiTokensPasswordRequest(server string, body PostApiTokensPasswordJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensPasswordRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiTokensPasswordRequestWithBody generates requests for PostApiTokensPassword with any type of body
-func NewPostApiTokensPasswordRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/password")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostApiTokensRefreshRequest calls the generic PostApiTokensRefresh builder with application/json body
-func NewPostApiTokensRefreshRequest(server string, body PostApiTokensRefreshJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiTokensRefreshRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiTokensRefreshRequestWithBody generates requests for PostApiTokensRefresh with any type of body
-func NewPostApiTokensRefreshRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/tokens/refresh")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewPostApiUsersAcceptTermsRequest generates requests for PostApiUsersAcceptTerms
-func NewPostApiUsersAcceptTermsRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/accept-terms")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostApiUsersLogoutRequest generates requests for PostApiUsersLogout
-func NewPostApiUsersLogoutRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/users/logout")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
 
 	return req, nil
 }
@@ -12467,22 +11808,8 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GetApiAdminOauthConfigWithResponse request
-	GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error)
-
-	// GetApiAdminUsersWithResponse request
-	GetApiAdminUsersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminUsersResponse, error)
-
-	// GetApiAdminUsersStatsWithResponse request
-	GetApiAdminUsersStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminUsersStatsResponse, error)
-
-	// DeleteApiAdminUsersIdWithResponse request
-	DeleteApiAdminUsersIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiAdminUsersIdResponse, error)
-
-	// PatchApiAdminUsersIdWithBodyWithResponse request with any body
-	PatchApiAdminUsersIdWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiAdminUsersIdResponse, error)
-
-	PatchApiAdminUsersIdWithResponse(ctx context.Context, id string, body PatchApiAdminUsersIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiAdminUsersIdResponse, error)
+	// GetWellKnownOauthProtectedResourceWithResponse request
+	GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error)
 
 	// GetApiCookiesConsentWithResponse request
 	GetApiCookiesConsentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiCookiesConsentResponse, error)
@@ -12509,31 +11836,10 @@ type ClientWithResponsesInterface interface {
 
 	PostApiTokensAgentWithResponse(ctx context.Context, body PostApiTokensAgentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensAgentResponse, error)
 
-	// PostApiTokensGoogleWithBodyWithResponse request with any body
-	PostApiTokensGoogleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error)
-
-	PostApiTokensGoogleWithResponse(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error)
-
 	// PostApiTokensMediaWithBodyWithResponse request with any body
 	PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
 
 	PostApiTokensMediaWithResponse(ctx context.Context, body PostApiTokensMediaJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error)
-
-	// PostApiTokensPasswordWithBodyWithResponse request with any body
-	PostApiTokensPasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error)
-
-	PostApiTokensPasswordWithResponse(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error)
-
-	// PostApiTokensRefreshWithBodyWithResponse request with any body
-	PostApiTokensRefreshWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error)
-
-	PostApiTokensRefreshWithResponse(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error)
-
-	// PostApiUsersAcceptTermsWithResponse request
-	PostApiUsersAcceptTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersAcceptTermsResponse, error)
-
-	// PostApiUsersLogoutWithResponse request
-	PostApiUsersLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersLogoutResponse, error)
 
 	// GetApiUsersMeWithResponse request
 	GetApiUsersMeWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiUsersMeResponse, error)
@@ -12558,90 +11864,15 @@ type ClientWithResponsesInterface interface {
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
 }
 
-type GetApiAdminOauthConfigResponse struct {
+type GetWellKnownOauthProtectedResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *OAuthConfigResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiAdminOauthConfigResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiAdminOauthConfigResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetApiAdminUsersResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AdminUsersListResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiAdminUsersResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiAdminUsersResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetApiAdminUsersStatsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AdminUserStatsResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiAdminUsersStatsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiAdminUsersStatsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type DeleteApiAdminUsersIdResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AcceptTermsResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
+	JSON200      *ProtectedResourceMetadata
 	JSON404      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
-func (r DeleteApiAdminUsersIdResponse) Status() string {
+func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -12649,33 +11880,7 @@ func (r DeleteApiAdminUsersIdResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r DeleteApiAdminUsersIdResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PatchApiAdminUsersIdResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AdminUpdateUserResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-	JSON404      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PatchApiAdminUsersIdResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PatchApiAdminUsersIdResponse) StatusCode() int {
+func (r GetWellKnownOauthProtectedResourceResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12832,7 +12037,6 @@ type PostApiTokensAgentResponse struct {
 	}
 	JSON400 *ErrorResponse
 	JSON401 *ErrorResponse
-	JSON503 *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -12845,29 +12049,6 @@ func (r PostApiTokensAgentResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostApiTokensAgentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiTokensGoogleResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthResponse
-	JSON400      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiTokensGoogleResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensGoogleResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12891,98 +12072,6 @@ func (r PostApiTokensMediaResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r PostApiTokensMediaResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiTokensPasswordResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AuthResponse
-	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
-	JSON403      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiTokensPasswordResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensPasswordResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiTokensRefreshResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *TokenRefreshResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiTokensRefreshResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiTokensRefreshResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiUsersAcceptTermsResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *AcceptTermsResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiUsersAcceptTermsResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiUsersAcceptTermsResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiUsersLogoutResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiUsersLogoutResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiUsersLogoutResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -13130,57 +12219,13 @@ func (r GetResourcesIdJsonldResponse) StatusCode() int {
 	return 0
 }
 
-// GetApiAdminOauthConfigWithResponse request returning *GetApiAdminOauthConfigResponse
-func (c *ClientWithResponses) GetApiAdminOauthConfigWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminOauthConfigResponse, error) {
-	rsp, err := c.GetApiAdminOauthConfig(ctx, reqEditors...)
+// GetWellKnownOauthProtectedResourceWithResponse request returning *GetWellKnownOauthProtectedResourceResponse
+func (c *ClientWithResponses) GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error) {
+	rsp, err := c.GetWellKnownOauthProtectedResource(ctx, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGetApiAdminOauthConfigResponse(rsp)
-}
-
-// GetApiAdminUsersWithResponse request returning *GetApiAdminUsersResponse
-func (c *ClientWithResponses) GetApiAdminUsersWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminUsersResponse, error) {
-	rsp, err := c.GetApiAdminUsers(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetApiAdminUsersResponse(rsp)
-}
-
-// GetApiAdminUsersStatsWithResponse request returning *GetApiAdminUsersStatsResponse
-func (c *ClientWithResponses) GetApiAdminUsersStatsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiAdminUsersStatsResponse, error) {
-	rsp, err := c.GetApiAdminUsersStats(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetApiAdminUsersStatsResponse(rsp)
-}
-
-// DeleteApiAdminUsersIdWithResponse request returning *DeleteApiAdminUsersIdResponse
-func (c *ClientWithResponses) DeleteApiAdminUsersIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*DeleteApiAdminUsersIdResponse, error) {
-	rsp, err := c.DeleteApiAdminUsersId(ctx, id, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseDeleteApiAdminUsersIdResponse(rsp)
-}
-
-// PatchApiAdminUsersIdWithBodyWithResponse request with arbitrary body returning *PatchApiAdminUsersIdResponse
-func (c *ClientWithResponses) PatchApiAdminUsersIdWithBodyWithResponse(ctx context.Context, id string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PatchApiAdminUsersIdResponse, error) {
-	rsp, err := c.PatchApiAdminUsersIdWithBody(ctx, id, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePatchApiAdminUsersIdResponse(rsp)
-}
-
-func (c *ClientWithResponses) PatchApiAdminUsersIdWithResponse(ctx context.Context, id string, body PatchApiAdminUsersIdJSONRequestBody, reqEditors ...RequestEditorFn) (*PatchApiAdminUsersIdResponse, error) {
-	rsp, err := c.PatchApiAdminUsersId(ctx, id, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePatchApiAdminUsersIdResponse(rsp)
+	return ParseGetWellKnownOauthProtectedResourceResponse(rsp)
 }
 
 // GetApiCookiesConsentWithResponse request returning *GetApiCookiesConsentResponse
@@ -13262,23 +12307,6 @@ func (c *ClientWithResponses) PostApiTokensAgentWithResponse(ctx context.Context
 	return ParsePostApiTokensAgentResponse(rsp)
 }
 
-// PostApiTokensGoogleWithBodyWithResponse request with arbitrary body returning *PostApiTokensGoogleResponse
-func (c *ClientWithResponses) PostApiTokensGoogleWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error) {
-	rsp, err := c.PostApiTokensGoogleWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensGoogleResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiTokensGoogleWithResponse(ctx context.Context, body PostApiTokensGoogleJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensGoogleResponse, error) {
-	rsp, err := c.PostApiTokensGoogle(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensGoogleResponse(rsp)
-}
-
 // PostApiTokensMediaWithBodyWithResponse request with arbitrary body returning *PostApiTokensMediaResponse
 func (c *ClientWithResponses) PostApiTokensMediaWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensMediaResponse, error) {
 	rsp, err := c.PostApiTokensMediaWithBody(ctx, contentType, body, reqEditors...)
@@ -13294,58 +12322,6 @@ func (c *ClientWithResponses) PostApiTokensMediaWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParsePostApiTokensMediaResponse(rsp)
-}
-
-// PostApiTokensPasswordWithBodyWithResponse request with arbitrary body returning *PostApiTokensPasswordResponse
-func (c *ClientWithResponses) PostApiTokensPasswordWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error) {
-	rsp, err := c.PostApiTokensPasswordWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensPasswordResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiTokensPasswordWithResponse(ctx context.Context, body PostApiTokensPasswordJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensPasswordResponse, error) {
-	rsp, err := c.PostApiTokensPassword(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensPasswordResponse(rsp)
-}
-
-// PostApiTokensRefreshWithBodyWithResponse request with arbitrary body returning *PostApiTokensRefreshResponse
-func (c *ClientWithResponses) PostApiTokensRefreshWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error) {
-	rsp, err := c.PostApiTokensRefreshWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensRefreshResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiTokensRefreshWithResponse(ctx context.Context, body PostApiTokensRefreshJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiTokensRefreshResponse, error) {
-	rsp, err := c.PostApiTokensRefresh(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiTokensRefreshResponse(rsp)
-}
-
-// PostApiUsersAcceptTermsWithResponse request returning *PostApiUsersAcceptTermsResponse
-func (c *ClientWithResponses) PostApiUsersAcceptTermsWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersAcceptTermsResponse, error) {
-	rsp, err := c.PostApiUsersAcceptTerms(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiUsersAcceptTermsResponse(rsp)
-}
-
-// PostApiUsersLogoutWithResponse request returning *PostApiUsersLogoutResponse
-func (c *ClientWithResponses) PostApiUsersLogoutWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*PostApiUsersLogoutResponse, error) {
-	rsp, err := c.PostApiUsersLogout(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiUsersLogoutResponse(rsp)
 }
 
 // GetApiUsersMeWithResponse request returning *GetApiUsersMeResponse
@@ -13418,221 +12394,26 @@ func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Conte
 	return ParseGetResourcesIdJsonldResponse(rsp)
 }
 
-// ParseGetApiAdminOauthConfigResponse parses an HTTP response from a GetApiAdminOauthConfigWithResponse call
-func ParseGetApiAdminOauthConfigResponse(rsp *http.Response) (*GetApiAdminOauthConfigResponse, error) {
+// ParseGetWellKnownOauthProtectedResourceResponse parses an HTTP response from a GetWellKnownOauthProtectedResourceWithResponse call
+func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWellKnownOauthProtectedResourceResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GetApiAdminOauthConfigResponse{
+	response := &GetWellKnownOauthProtectedResourceResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest OAuthConfigResponse
+		var dest ProtectedResourceMetadata
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiAdminUsersResponse parses an HTTP response from a GetApiAdminUsersWithResponse call
-func ParseGetApiAdminUsersResponse(rsp *http.Response) (*GetApiAdminUsersResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiAdminUsersResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminUsersListResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiAdminUsersStatsResponse parses an HTTP response from a GetApiAdminUsersStatsWithResponse call
-func ParseGetApiAdminUsersStatsResponse(rsp *http.Response) (*GetApiAdminUsersStatsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiAdminUsersStatsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminUserStatsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseDeleteApiAdminUsersIdResponse parses an HTTP response from a DeleteApiAdminUsersIdWithResponse call
-func ParseDeleteApiAdminUsersIdResponse(rsp *http.Response) (*DeleteApiAdminUsersIdResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &DeleteApiAdminUsersIdResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AcceptTermsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePatchApiAdminUsersIdResponse parses an HTTP response from a PatchApiAdminUsersIdWithResponse call
-func ParsePatchApiAdminUsersIdResponse(rsp *http.Response) (*PatchApiAdminUsersIdResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PatchApiAdminUsersIdResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AdminUpdateUserResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
@@ -13885,46 +12666,6 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 		}
 		response.JSON401 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON503 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiTokensGoogleResponse parses an HTTP response from a PostApiTokensGoogleWithResponse call
-func ParsePostApiTokensGoogleResponse(rsp *http.Response) (*PostApiTokensGoogleResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiTokensGoogleResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
 	}
 
 	return response, nil
@@ -13958,135 +12699,6 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 		}
 		response.JSON401 = &dest
 
-	}
-
-	return response, nil
-}
-
-// ParsePostApiTokensPasswordResponse parses an HTTP response from a PostApiTokensPasswordWithResponse call
-func ParsePostApiTokensPasswordResponse(rsp *http.Response) (*PostApiTokensPasswordResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiTokensPasswordResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AuthResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON403 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiTokensRefreshResponse parses an HTTP response from a PostApiTokensRefreshWithResponse call
-func ParsePostApiTokensRefreshResponse(rsp *http.Response) (*PostApiTokensRefreshResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiTokensRefreshResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest TokenRefreshResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiUsersAcceptTermsResponse parses an HTTP response from a PostApiUsersAcceptTermsWithResponse call
-func ParsePostApiUsersAcceptTermsResponse(rsp *http.Response) (*PostApiUsersAcceptTermsResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiUsersAcceptTermsResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest AcceptTermsResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiUsersLogoutResponse parses an HTTP response from a PostApiUsersLogoutWithResponse call
-func ParsePostApiUsersLogoutResponse(rsp *http.Response) (*PostApiUsersLogoutResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiUsersLogoutResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
 	}
 
 	return response, nil

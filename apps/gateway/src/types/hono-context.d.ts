@@ -6,14 +6,17 @@
  */
 
 import 'hono';
-import type { User } from '@prisma/client';
+import type { Principal } from '../identity/principal';
 
 declare module 'hono' {
   interface ContextVariableMap {
     /**
-     * Authenticated user object set by authMiddleware
+     * The authenticated caller, set by authMiddleware from the token's claims.
      */
-    user: User;
+    principal: Principal;
+
+    /** That principal's DID — the identity every consumer downstream keys on. */
+    principalDid: string;
 
     /**
      * Validated request body set by validateRequestBody middleware

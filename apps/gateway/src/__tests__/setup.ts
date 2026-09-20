@@ -10,36 +10,6 @@ import { promises as fs, mkdirSync, writeFileSync } from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import type { EnvironmentConfig } from '@semiont/core';
 
-// Create mock Prisma client that will be used by all tests
-const mockPrismaClient = {
-  user: {
-    findUnique: vi.fn(),
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    count: vi.fn(),
-    update: vi.fn(),
-    upsert: vi.fn(),
-    delete: vi.fn(),
-  },
-  $queryRaw: vi.fn(),
-  $disconnect: vi.fn().mockResolvedValue(undefined),
-};
-
-// Mock the database module before any imports
-vi.mock('../db', () => ({
-  DatabaseConnection: {
-    getClient: () => mockPrismaClient,
-    setClient: vi.fn(),
-    reset: vi.fn().mockResolvedValue(undefined),
-    disconnect: vi.fn().mockResolvedValue(undefined),
-    checkHealth: vi.fn().mockResolvedValue(true),
-  },
-  getDatabase: () => mockPrismaClient,
-  // Keep prisma export for any legacy tests
-  prisma: mockPrismaClient,
-}));
-
 // Use a unique directory per worker thread to avoid race conditions
 const testDir = `/tmp/semiont-test-${process.pid}-${uuidv4()}`;
 
@@ -81,7 +51,6 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
       siteName: 'Test Site',
       domain: 'localhost',
       adminEmail: 'admin@test.local',
-      oauthAllowedDomains: ['test.local'],
     },
     // The KB's committed identity, as the launcher stages it (SINGLE-KB-MOUNT
     // P5). The gateway mounts no KB tree, so this is the ONLY place it can see
@@ -160,4 +129,4 @@ afterAll(async () => {
 });
 
 // Export mocks and testDir for tests that need direct access
-export { mockPrismaClient, server, testDir };
+export { server, testDir };

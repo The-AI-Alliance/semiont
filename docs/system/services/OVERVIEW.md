@@ -52,7 +52,7 @@ For what the actors inside those containers are responsible for, see [Knowledge 
 | **Content store** | `@semiont/content` | The git working tree — files where they live, addressed by a `file://` storage URI on the resource's primary representation ([API](../../../packages/content/docs/API.md)) |
 | **Graph** | `@semiont/graph` | Neo4j or in-memory ([API](../../../packages/graph/docs/API.md), [Architecture](../../../packages/graph/docs/ARCHITECTURE.md)) |
 | **Vectors** | `@semiont/vectors` | Qdrant or in-memory ([Package](../../../packages/vectors/)) |
-| **Users** | Prisma / PostgreSQL | The `users` table, nothing else |
+| **Users** | none | Accounts live at the trusted issuer; Semiont stores no user record |
 
 The event log is the system of record; the graph, the vector store, and the materialized views are projections of it. A disagreement between a projection and the log is a bug in the projection.
 
@@ -270,6 +270,6 @@ More at [TROUBLESHOOTING.md](../administration/TROUBLESHOOTING.md).
 - [Container Images](../administration/IMAGES.md) — what is published, and its supply-chain attestations
 - [Knowledge System](../KNOWLEDGE-SYSTEM.md) — the actors and how knowledge flows
 - [Configuration Guide](../administration/CONFIGURATION.md) — the full config schema
-- [Database Guide](../administration/DATABASE.md) — PostgreSQL and Prisma
+- [Database Guide](../administration/DATABASE.md) — the PostgreSQL Keycloak uses
 - [Filesystem Patterns](../FILESYSTEM.md) — storage layout on disk
 - [launcher README](../../../apps/launcher/README.md) — every verb, in detail

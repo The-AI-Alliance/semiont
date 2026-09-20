@@ -1,27 +1,9 @@
-// DATABASE_URL arrives already set: the container's CMD derives it from
-// services.database (src/cli/db-url.ts) before this process starts, and an
-// explicitly-provided one takes precedence over that.
-//
-// It is deliberately NOT assembled here. A DB_HOST/DB_USER/DB_PASSWORD component
-// form used to live at the top of this file, claiming "MUST be done before any
-// Prisma imports!" — a requirement it could not meet, for two reasons:
-//
-//   1. `prisma migrate deploy` runs as a separate process before the server and
-//      reads process.env.DATABASE_URL via prisma.config.ts, so it never saw a
-//      value assembled in here at all.
-//   2. The bundler emits module bodies in dependency order, so src/db.ts's
-//      module-scope client construction ran BEFORE this file's top-level code.
-//      The adapter got `connectionString: undefined`.
-//
-// Deriving it outside the process fixes both. Do not reintroduce an in-process
-// assembly here without re-checking those two facts.
-
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
 import { SemiontState } from '@semiont/core/node';
-import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, withDeadline, errField } from '@semiont/core';
+import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, kbResource, withDeadline, errField } from '@semiont/core';
 import {
   GATEWAY_HANDLER_CHANNELS,
   GATEWAY_HANDLER_EMITS,
@@ -31,9 +13,8 @@ import {
 } from '@semiont/make-meaning';
 import { JOB_QUEUE_EMITS } from '@semiont/jobs';
 import { loadEnvironmentConfig } from '@semiont/core/node';
+import type { Principal } from './identity/principal';
 
-import { User } from '@prisma/client';
-import { DatabaseConnection } from './db';
 
 // Load configuration from .semiont/config + ~/.semiontconfig (TOML).
 // The environment is resolved by the loader from `[defaults] environment` — the
@@ -90,11 +71,11 @@ requireJwtSecret();
 // when the KB declares none — so an undeclared identity still arrives here as
 // absent, and still refuses below.
 //
-// Both resolved values escape the block so JWTService.initialize can be handed
-// them, rather than re-deriving them from a config shape this process no longer
-// fully has.
+// All three resolved values escape the block so JWTService.initialize and the
+// trusted issuer can be handed them, rather than re-deriving them from a config
+// shape this process no longer fully has.
 let effectiveDomain: string;
-let effectiveOAuthAllowedDomains: string[] | undefined;
+let committedKbDomain: string;
 
 {
   const committedDomain = config.kb?.domain;
@@ -126,6 +107,7 @@ let effectiveOAuthAllowedDomains: string[] | undefined;
   // refusal in JWTService, which is how a KB that was perfectly well-formed
   // could not start.
   effectiveDomain = config.site?.domain ?? committedDomain;
+  committedKbDomain = committedDomain;
 
   if (config.site?.domain !== undefined && config.site.domain !== committedDomain) {
     // eslint-disable-next-line no-console
@@ -138,13 +120,21 @@ let effectiveOAuthAllowedDomains: string[] | undefined;
     );
   }
 
-  // Sign-in policy travels the same road as the domain: committed in the KB's
-  // `.semiont/config`, staged by the launcher under `[kb]` because this process
-  // no longer mounts the tree that holds it. An environment `[site]` may
-  // override it; absent both, JWTService refuses — which is correct, and is why
-  // nothing is defaulted here.
-  effectiveOAuthAllowedDomains = config.site?.oauthAllowedDomains ?? config.kb?.oauthAllowedDomains;
 }
+
+// The issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY): keys are
+// discovered on first use, so a configured issuer that is unreachable surfaces
+// at the first human request, not here. No section, no trusted issuer — only
+// gateway-signed tokens authenticate.
+//
+// The AUDIENCE is not configured. It is this knowledge base's own resource
+// identifier, derived from the committed did:web domain resolved above, which
+// is why this runs after that block rather than before it. One declared fact
+// decides both what the KB calls itself and what it requires in `aud`, so the
+// two cannot be configured into disagreement — and a disagreement here refuses
+// every token while looking like a working deployment.
+const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
+configureTrustedIssuer(config.services.identity, kbResource(committedKbDomain));
 
 const gatewayService = config.services.gateway;
 
@@ -193,9 +183,9 @@ const makeMeaning = await startMakeMeaningGateway(
 // Import route definitions
 import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
+import { wellKnownRouter } from './routes/well-known';
 import { authRouter } from './routes/auth';
 import { statusRouter } from './routes/status';
-import { adminRouter } from './routes/admin';
 import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
@@ -220,7 +210,7 @@ import { requestLoggerMiddleware } from './middleware/request-logger';
 import { errorLoggerMiddleware } from './middleware/error-logger';
 
 type Variables = {
-  user: User;
+  principal: Principal;
   config: EnvironmentConfig;
   eventBus: EventBus;
 };
@@ -251,9 +241,9 @@ app.use('*', async (c, next) => {
 // Mount route routers
 app.route('/', rootRouter);
 app.route('/', healthRouter);
+app.route('/', wellKnownRouter);
 app.route('/', authRouter);
 app.route('/', statusRouter);
-app.route('/', adminRouter);
 const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
 // ── Signal Plane selection (SIGNAL-PLANE P2, D6) ─────────────────────────
@@ -427,9 +417,9 @@ if (config.env?.NODE_ENV !== 'test') {
   const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
   registerSupervisorRestartCount();
 
-  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET,
-  // site.domain, and site.oauthAllowedDomains — without all three the process
-  // cannot authenticate anyone, so it must not accept connections.
+  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET and
+  // site.domain — without both the process cannot mint or attribute a token,
+  // so it must not accept connections.
   //
   // It used to run inside the serve callback wrapped in a try/catch that only
   // logged, which meant a missing secret or site config produced a container
@@ -437,11 +427,11 @@ if (config.env?.NODE_ENV !== 'test') {
   // unconditionally), reported healthy in `semiont status` — and failed every
   // sign-in. Failing here instead makes the misconfiguration undeployable.
   const { JWTService } = await import('./auth/jwt');
-  // The RESOLVED pair, not `config`: both values may come from the staged
-  // `[kb]` identity rather than a `[site]` section, and the resolution above is
-  // their one home. Passing the raw config made JWTService reach for
-  // `config.site`, which a KB with no environment `[site]` does not have.
-  JWTService.initialize({ site: { domain: effectiveDomain, oauthAllowedDomains: effectiveOAuthAllowedDomains } });
+  // The RESOLVED domain, not `config`: it may come from the staged `[kb]`
+  // identity rather than a `[site]` section, and the resolution above is its one
+  // home. Passing the raw config made JWTService reach for `config.site`, which
+  // a KB with no environment `[site]` does not have.
+  JWTService.initialize({ site: { domain: effectiveDomain } });
 
   const server = serve({
     fetch: app.fetch,
@@ -513,7 +503,6 @@ if (config.env?.NODE_ENV !== 'test') {
             .catch((error: unknown) => logger.warn('Signal Plane drain timed out; in-flight frames may be lost', { error: errField(error) }));
         }
         eventBus.destroy();
-        await DatabaseConnection.disconnect();
         logger.info('Shutdown complete');
         process.exit(0);
       } catch (error) {

@@ -15,19 +15,18 @@
  * the anchored-text mount it owns outright (ANCHORED-TEXT-TO-SMELTER P1).
  *
  * Environment variables:
- *   SEMIONT_WORKER_SECRET      — shared secret; JWT auth with the KS, and
- *                                the bearer this process shows the Archivist
+ *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
+ *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the
+ *                                gateway, and the bearer it shows the Archivist
  *   SEMIONT_ANCHORED_TEXT_DIR  — the anchored-text store's mount; no default
  */
 
-import { BehaviorSubject } from 'rxjs';
 import { archivistContentReads, createAnchoredTextStore } from '@semiont/content';
 import { SMELTER_MANIFEST, createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
 import { Smelter } from './smelter';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl, accessToken as makeAccessToken, createTomlConfigLoader, retryWithBackoff, isTransientFetchError, STARTUP_FETCH_RETRY, withDeadline } from '@semiont/core';
+import { baseUrl as makeBaseUrl, createTomlConfigLoader, withDeadline } from '@semiont/core';
 import { runBootPass } from './boot-pass';
-import type { AccessToken } from '@semiont/core';
 import { createVectorStore, createEmbeddingProvider } from '@semiont/vectors';
 import type { ChunkingConfig } from '@semiont/core';
 import { createServer } from 'http';
@@ -79,65 +78,30 @@ const chunkingConfig: ChunkingConfig = {
   overlap: embedding.chunking?.overlap ?? 64,
 };
 
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+/**
+ * This process's own account at the issuer. The credential authenticates the
+ * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
+ */
+const issuerUrl = envConfig.services?.identity?.issuer;
+if (!issuerUrl) {
+  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
+}
+const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+if (!clientId || !clientSecret) {
+  throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
+}
+const credential = { issuer: issuerUrl, clientId, clientSecret };
 
 const healthPort = 24101;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { startAgentSession } from './agent-session';
 import { registerVectorIndexSizeProvider } from '@semiont/observability';
 import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('smelter');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-
-async function authenticate(): Promise<string> {
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
-
-  // The smelter is a Software peer just like an inference agent — it
-  // authenticates with its (provider, model) so the bus stamps a typed
-  // agent DID onto every event it emits. Identity granularity follows
-  // the embedding config; two smelters with different embedding
-  // providers run as different agents.
-  //
-  // Connection-level failures are retried with backoff: the gateway may be
-  // mid-restart or the container network still warming up when this process
-  // starts, and orchestration runs it with `--rm` and no restart policy —
-  // exiting on the first failed fetch is permanent death. HTTP-level
-  // rejections (bad secret) are NOT retried; the gateway is up and said no.
-  return retryWithBackoff(
-    async () => {
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: workerSecret,
-          provider: embeddingType,
-          model: embeddingModel,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Gateway unreachable, retrying authentication', {
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -150,27 +114,21 @@ async function main() {
   // only surviving container teardown would need a mount (F2, declined).
   registerSupervisorRestartCount();
 
-  logger.info('Authenticating', { baseUrl });
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
-  logger.info('Authenticated');
-
-  // Agent tokens expire (24h — POST /api/tokens/agent). Two recovery paths
-  // keep a long-lived worker authenticated: `tokenRefresher` re-authenticates
-  // and retries once when any HTTP request 401s, and a proactive re-auth at
-  // half the TTL covers the listen-only case — SSE reconnects read `token$`
-  // fresh, so pushing here is what keeps the event feed alive.
-  const refreshToken = async (): Promise<string | null> => {
-    const token = await authenticate();
-    tokenSubject.next(makeAccessToken(token));
-    return token;
-  };
-  const reauthTimer = setInterval(() => {
-    refreshToken().catch((error) => {
-      logger.error('Proactive re-authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 12 * 60 * 60 * 1000);
+  // The smelter is a Software peer just like an inference agent — it
+  // authenticates with its (provider, model) so the bus stamps a typed
+  // agent DID onto every event it emits. Identity granularity follows
+  // the embedding config; two smelters with different embedding
+  // providers run as different agents.
+  //
+  // The token's lifetime and the refresh cadence derived from it are the
+  // gateway's to decide; see `startAgentSession`.
+  const session = await startAgentSession({
+    baseUrl,
+    credential,
+    provider: embeddingType,
+    model: embeddingModel,
+    logger,
+  });
 
   // Bounded (see the archivist's note): an unbounded await on a dependency that
   // is not up hangs the container, and `restart: on-failure` cannot rescue a
@@ -199,8 +157,8 @@ async function main() {
 
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
+    token$: session.token$,
+    tokenRefresher: session.refresh,
     // The whole manifest at construction — reply channels, the domain-event
     // fold and the command channels — not the reply set plus a later
     // widening. See SMELTER_MANIFEST.
@@ -214,8 +172,8 @@ async function main() {
   // The gateway's own content routes are a proxy onto this same call, so
   // going through it added a hop and put a process that is meant to stop
   // touching the KB tree on the path to it. Throws here if the address or
-  // the worker secret is missing — a boot-time refusal, not a per-resource
-  // failure.
+  // this process's service-account credential is missing — a boot-time
+  // refusal, not a per-resource failure.
   const contentReads = archivistContentReads(envConfig);
   logger.info('Content reads ready', { via: 'archivist' });
 
@@ -264,7 +222,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    clearInterval(reauthTimer);
+    session.stop();
     actorStateUnit.dispose();
     httpTransport.dispose();
     smelter.stop();

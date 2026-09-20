@@ -49,14 +49,6 @@ export interface MakeMeaningService {
 
 // ─── Step helpers ─────────────────────────────────────────────────────────────
 
-/**
- * Driver selection in the house shape (JOB-QUEUE-DRIVER P2): stated in
- * config, never inferred — exactly as `graph`, `vectors` and `inference`
- * are. An absent `[services.jobs]` selects 'fs' (today's behavior) until P3
- * retires that driver and flips the default. The jetstream address may name
- * environment via `${VAR}` placeholders — the CONFIG names the variable;
- * code never invents one — and refuses loudly when unset.
- */
 export function jobQueueFor(
   jobs: JobsServiceConfig | undefined,
   state: SemiontState,

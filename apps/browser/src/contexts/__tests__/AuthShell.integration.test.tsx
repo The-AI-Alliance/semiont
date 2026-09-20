@@ -13,11 +13,13 @@
  * If any link in this chain breaks, the user sees an empty page instead of
  * the modal. This is the integration the unit tests miss.
  *
- * We spy on `AuthNamespace.prototype.me` / `refresh` rather than
- * replacing the class, because `SemiontSession` constructs `SemiontClient`
- * via an internal reference inside `@semiont/sdk`'s bundle — a
- * package-level `vi.mock` would not intercept that. Prototype-level spies
- * patch every instance regardless of where it's constructed.
+ * We spy on `AuthNamespace.prototype.me` rather than replacing the class,
+ * because `SemiontSession` constructs `SemiontClient` via an internal
+ * reference inside `@semiont/sdk`'s bundle — a package-level `vi.mock`
+ * would not intercept that. Prototype-level spies patch every instance
+ * regardless of where it's constructed. Refresh is the refresh grant at the
+ * issuer the stored session names, so it is a `fetch` stub keyed on that
+ * endpoint — every other fetch (the transport's event stream) is refused.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -28,9 +30,14 @@ import { MemoryRouter } from 'react-router';
 import { SemiontProvider, WebBrowserStorage } from '@semiont/react-ui';
 import { SemiontBrowser, AuthNamespace, createHttpSessionFactory } from '@semiont/sdk';
 import { APIError } from '@semiont/http-transport';
-// Spies set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
+// Set up in beforeEach; tests configure `.mockResolvedValue` / `.mockRejectedValue` on them.
 let getMeSpy: ReturnType<typeof vi.spyOn>;
-let refreshTokenSpy: ReturnType<typeof vi.spyOn>;
+let fetchMock: ReturnType<typeof vi.fn>;
+
+const TOKEN_ENDPOINT = 'https://issuer.test/realms/semiont/protocol/openid-connect/token';
+const issuerReply = (json: unknown, status = 200): Response =>
+  ({ ok: status < 300, status, json: async () => json }) as unknown as Response;
+const refreshCalls = () => fetchMock.mock.calls.filter(([url]) => url === TOKEN_ENDPOINT);
 
 // Mock @headlessui/react to avoid jsdom portal issues
 vi.mock('@headlessui/react', () => ({
@@ -70,7 +77,7 @@ import { AuthShell } from '../AuthShell';
 function seedSession(access: string, refresh: string) {
   localStorage.setItem(
     `semiont.session.${KB_ID}`,
-    JSON.stringify({ access, refresh }),
+    JSON.stringify({ access, refresh, clientId: 'semiont-browser', tokenEndpoint: TOKEN_ENDPOINT }),
   );
 }
 
@@ -102,10 +109,12 @@ describe('AuthShell integration — KB session validation → modal', () => {
     // constructed during the test, including the throwaway clients that
     // `SemiontSession.validate` spins up.
     getMeSpy = vi.spyOn(AuthNamespace.prototype, 'me');
-    refreshTokenSpy = vi.spyOn(AuthNamespace.prototype, 'refresh');
+    fetchMock = vi.fn(async (_url: string) => issuerReply({ error: 'invalid_grant' }, 400));
+    vi.stubGlobal('fetch', fetchMock);
   });
 
   afterEach(() => {
+    vi.unstubAllGlobals();
     vi.restoreAllMocks();
     localStorage.clear();
   });
@@ -130,7 +139,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
 
   it('surfaces SessionExpiredModal when getMe AND refresh both fail with 401', async () => {
     getMeSpy.mockRejectedValue(new APIError('Unauthorized', 401, 'Unauthorized'));
-    refreshTokenSpy.mockRejectedValue(new APIError('Invalid', 401, 'Unauthorized'));
+    // The issuer refuses the refresh grant — the stub's default.
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
@@ -160,7 +169,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
 
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
-    expect(refreshTokenSpy).not.toHaveBeenCalled();
+    expect(refreshCalls()).toHaveLength(0);
 
     await browser.dispose();
   });
@@ -170,14 +179,15 @@ describe('AuthShell integration — KB session validation → modal', () => {
     getMeSpy
       .mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized'))
       .mockResolvedValueOnce({ email: 'alice@example.com' } as any);
-    refreshTokenSpy.mockResolvedValueOnce({ access_token: newAccess } as any);
+    fetchMock.mockImplementation(async (url: string) =>
+      url === TOKEN_ENDPOINT ? issuerReply({ access_token: newAccess }) : issuerReply({ error: 'invalid_grant' }, 400));
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
     );
 
     await waitFor(() => expect(getMeSpy).toHaveBeenCalledTimes(2));
-    expect(refreshTokenSpy).toHaveBeenCalledTimes(1);
+    expect(refreshCalls()).toHaveLength(1);
     expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     const stored = JSON.parse(localStorage.getItem(`semiont.session.${KB_ID}`)!);
     expect(stored.access).toBe(newAccess);

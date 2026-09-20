@@ -46,7 +46,6 @@ sync = true                # gateway stages event-log writes with git
 domain = "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
 siteName = "My Knowledge Base"
 adminEmail = ""
-oauthAllowedDomains = ["example.com"]
 ```
 
 `[site] domain` is identity, not addressing: it names the repository in
@@ -82,8 +81,6 @@ publicURL = "http://localhost:4000"
 domain = "localhost"
 siteName = "Semiont (local)"
 adminEmail = "admin@example.com"
-oauthAllowedDomains = ["localhost"]
-enableLocalAuth = true
 
 [environments.local.database]
 host = "localhost"

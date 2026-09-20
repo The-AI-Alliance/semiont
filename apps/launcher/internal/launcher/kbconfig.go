@@ -12,6 +12,7 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	toml "github.com/pelletier/go-toml/v2"
 )
@@ -21,11 +22,6 @@ type kbIdentity struct {
 	Version  string // [project] version
 	SiteName string // [site] siteName
 	Domain   string // [site] domain — did:web colon-path form
-	// [site] oauthAllowedDomains — the email domains permitted to sign in.
-	// Committed policy, not a machine fact, and the gateway REFUSES to start
-	// without it. It lives only in this file, so once the gateway stopped
-	// mounting /kb the launcher became the only thing that can carry it across.
-	OAuthAllowedDomains []string
 }
 
 // didWeb renders the full did:web identifier, "" when no domain is declared.
@@ -34,6 +30,31 @@ func (k *kbIdentity) didWeb() string {
 		return ""
 	}
 	return "did:web:" + k.Domain
+}
+
+// kbResource renders the KB's RESOURCE identifier: the did:web resolved to
+// the https URL it names, which is the single value a token's `aud` must
+// carry (EXTERNAL-IDENTITY). did:web turns the colon path into a slash path,
+// so `did:web:example.github.io:my-kb` identifies
+// `https://example.github.io/my-kb`.
+//
+// An identifier, not an address — nothing dereferences it, and a KB reached
+// over http in local development still names itself by the https form. The
+// TypeScript twin is `kbResource` in packages/core/src/did-utils.ts and the
+// two MUST agree byte-for-byte: this value goes into the realm's audience
+// mapper and the gateway checks tokens against its own copy, so a divergence
+// refuses every token with nothing to point at.
+func kbResource(domain string) string {
+	if domain == "" {
+		return ""
+	}
+	return "https://" + strings.ReplaceAll(domain, ":", "/")
+}
+
+// committedResource is the KB's resource identifier from its own committed
+// config, "" when it declares no domain — the audience half of committedDomain.
+func committedResource(root string) string {
+	return kbResource(committedDomain(root))
 }
 
 // loadKBIdentity reads <root>/.semiont/config. nil when absent or unreadable
@@ -69,20 +90,18 @@ func parseKBIdentity(b []byte) *kbIdentity {
 			Version string `toml:"version"`
 		} `toml:"project"`
 		Site struct {
-			Domain              string   `toml:"domain"`
-			SiteName            string   `toml:"siteName"`
-			OAuthAllowedDomains []string `toml:"oauthAllowedDomains"`
+			Domain   string `toml:"domain"`
+			SiteName string `toml:"siteName"`
 		} `toml:"site"`
 	}
 	if toml.Unmarshal(b, &raw) != nil {
 		return nil
 	}
 	return &kbIdentity{
-		Name:                raw.Project.Name,
-		Version:             raw.Project.Version,
-		SiteName:            raw.Site.SiteName,
-		Domain:              raw.Site.Domain,
-		OAuthAllowedDomains: raw.Site.OAuthAllowedDomains,
+		Name:     raw.Project.Name,
+		Version:  raw.Project.Version,
+		SiteName: raw.Site.SiteName,
+		Domain:   raw.Site.Domain,
 	}
 }
 
@@ -92,18 +111,6 @@ func parseKBIdentity(b []byte) *kbIdentity {
 // staging "" is deliberate — a consumer that needs an identity must refuse,
 // and a fabricated one ('localhost', the dial address) is how two knowledge
 // bases end up sharing a did.
-// committedOAuthAllowedDomains is the sign-in policy the KB's own config
-// declares, nil when it declares none. Staged for the same reason the domain
-// is: the gateway refuses to start without it and no longer has the file.
-// Staging nil is deliberate — the refusal is the correct outcome for a KB that
-// declares no policy, and inventing one would silently widen who may sign in.
-func committedOAuthAllowedDomains(root string) []string {
-	if id := loadKBIdentity(root); id != nil {
-		return id.OAuthAllowedDomains
-	}
-	return nil
-}
-
 func committedDomain(root string) string {
 	if id := loadKBIdentity(root); id != nil {
 		return id.Domain

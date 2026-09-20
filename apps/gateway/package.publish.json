@@ -9,9 +9,7 @@
     "semiont-useradd": "dist/cli/useradd.js"
   },
   "files": [
-    "dist",
-    "prisma",
-    "prisma.config.ts"
+    "dist"
   ],
   "scripts": {
     "start": "node dist/index.js"

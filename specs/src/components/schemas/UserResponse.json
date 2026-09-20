@@ -1,8 +1,10 @@
 {
   "type": "object",
+  "description": "The authenticated principal, as this knowledge base names it.\n\nThe `did` is the identity: it is what the bus stamps on every event, what resource creation is attributed to, and what a client must compare against to recognise its own work in the data. The row id this endpoint used to return appears nowhere else in the system, so it could not be correlated with anything and is gone.\n\nThe remaining fields exist to be displayed, and all of them come from the token's own claims. Role flags used to ride here; they gated nothing, and the row that held them is gone.",
   "properties": {
-    "id": {
-      "type": "string"
+    "did": {
+      "type": "string",
+      "description": "The authenticated principal's DID — `did:web:<domain>:users:<email>` for a person, `did:web:<domain>:agents:<provider>:<model>` for a software agent."
     },
     "email": {
       "type": "string"
@@ -16,49 +18,15 @@
       "nullable": true
     },
     "domain": {
-      "type": "string"
-    },
-    "provider": {
-      "type": "string"
-    },
-    "isAdmin": {
-      "type": "boolean"
-    },
-    "isModerator": {
-      "type": "boolean"
-    },
-    "isActive": {
-      "type": "boolean"
-    },
-    "termsAcceptedAt": {
       "type": "string",
-      "nullable": true
-    },
-    "lastLogin": {
-      "type": "string",
-      "nullable": true
-    },
-    "created": {
-      "type": "string"
-    },
-    "token": {
-      "type": "string",
-      "description": "The validated JWT token string for the current session"
+      "description": "Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's."
     }
   },
   "required": [
-    "id",
+    "did",
     "email",
     "name",
     "image",
-    "domain",
-    "provider",
-    "isAdmin",
-    "isModerator",
-    "isActive",
-    "termsAcceptedAt",
-    "lastLogin",
-    "created",
-    "token"
+    "domain"
   ]
 }

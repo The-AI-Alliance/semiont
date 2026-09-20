@@ -44,12 +44,6 @@ export default function AboutPage() {
           {/* Action Buttons */}
           <div className="semiont-static-action-buttons">
             <Link
-              to="/auth/signup"
-              className={buttonStyles.primary.base}
-            >
-              {t('signUp')}
-            </Link>
-            <Link
               to="/auth/connect?callbackUrl=/know"
               className={buttonStyles.primary.base}
             >

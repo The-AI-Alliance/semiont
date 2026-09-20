@@ -110,17 +110,16 @@ func mkKB(t *testing.T) string {
 }
 
 type scenario struct {
-	shim           string
-	kb             string // also FAKERT_GIT_ROOT unless gitRoot overridden
-	noGitRoot      bool
-	noWorkerSecret bool   // drop SEMIONT_WORKER_SECRET from the env
-	noJWTSecret    bool   // drop JWT_SECRET from the env (exercise generate + persist)
-	cwd            string // launcher working dir; defaults to kb
-	home           string
-	fakertDir      string
-	log            string
-	extraEnv       []string
-	stdin          string
+	shim        string
+	kb          string // also FAKERT_GIT_ROOT unless gitRoot overridden
+	noGitRoot   bool
+	noJWTSecret bool   // drop JWT_SECRET from the env (exercise generate + persist)
+	cwd         string // launcher working dir; defaults to kb
+	home        string
+	fakertDir   string
+	log         string
+	extraEnv    []string
+	stdin       string
 }
 
 func newScenario(t *testing.T, runtimes ...string) *scenario {
@@ -132,8 +131,41 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 		fakertDir: t.TempDir(),
 	}
 	s.log = filepath.Join(s.fakertDir, "argv.log")
+	// The audience fakert's issuer stamps into service-account tokens, so the
+	// start's identity preflight sees what a real realm would emit. Derived
+	// from the SAME committed fixture the launcher reads, so the two cannot
+	// drift into disagreeing about this knowledge base's identity.
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "kb-resource.txt"),
+		[]byte(kbFixtureResource(t)), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() { s.killServes() })
 	return s
+}
+
+// kbFixtureResource: the resource identifier the KB fixture's committed
+// `[site] domain` yields — the same derivation kbResource performs, which
+// lives in an internal package this binary-level test cannot import.
+func kbFixtureResource(t *testing.T) string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("testdata", "kb", ".semiont", "config"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		rest, ok := strings.CutPrefix(strings.TrimSpace(line), "domain")
+		if !ok {
+			continue
+		}
+		rest = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(rest), "="))
+		domain := strings.Trim(rest, `"`)
+		if domain == "" {
+			break
+		}
+		return "https://" + strings.ReplaceAll(domain, ":", "/")
+	}
+	t.Fatalf("no [site] domain in the KB fixture — the preflight's audience cannot be derived")
+	return ""
 }
 
 func (s *scenario) mustLog(t *testing.T) []byte {
@@ -182,8 +214,18 @@ func (s *scenario) env() []string {
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
 	}
-	if !s.noWorkerSecret {
-		env = append(env, "SEMIONT_WORKER_SECRET=test-worker-secret")
+	{
+		// Pinned so the boot goldens are deterministic: an unpinned run
+		// generates a fresh credential per service and every golden would
+		// differ from the last.
+		//
+		// Tracks `serviceClients` in internal/launcher, which this external test
+		// package cannot see. Drift is loud rather than silent: a service missing
+		// from this list gets a generated credential and its boot golden differs
+		// on the very next run.
+		for _, svc := range []string{"archivist", "gateway", "librarian", "smelter", "weaver", "worker"} {
+			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
+		}
 	}
 	// Pinned for the same reason as the worker secret: a generated one is
 	// random, and the boot goldens compare argv verbatim. Tests that need the
@@ -354,10 +396,12 @@ func TestStartDefaultBoot(t *testing.T) {
 	)
 	// The worker secret must never reach the terminal: echoed commands
 	// redact secret-valued envs (the real argv, in the argv log, keeps it).
-	if strings.Contains(stdout, "test-worker-secret") {
-		t.Error("worker secret leaked into stdout")
+	// Six of them now, one per service account, so the allowlist doing the
+	// work matters more than it did with one shared string.
+	if strings.Contains(stdout, "test-gateway-client-secret") {
+		t.Error("a service-account secret leaked into stdout")
 	}
-	mustContain(t, "stdout", stdout, "SEMIONT_WORKER_SECRET=<redacted>")
+	mustContain(t, "stdout", stdout, "SEMIONT_OIDC_CLIENT_SECRET=<redacted>")
 }
 
 // The launcher half of the split supervision gate (ORCHESTRATOR-NATIVE-IMAGES
@@ -963,13 +1007,13 @@ func TestStartWarnsWhenEnvConfigOverridesIdentity(t *testing.T) {
 		"agent identities")
 
 	// 2. A [site] section with NO domain — the shape someone gets by adding the
-	// section for `oauthAllowedDomains` alone. This USED to be the one nobody
+	// section for one unrelated key. This USED to be the one nobody
 	// intends: the loader substituted the literal 'localhost' and the agents
 	// collided with every other such KB on the machine. The loader no longer
 	// manufactures a domain, so the gateway falls back to the KB's committed
 	// identity, nothing diverges, and there is nothing to warn about.
 	s2 := newScenario(t, "container")
-	withSite(t, s2, "[environments.local.site]\noauthAllowedDomains = [\"example.com\"]\n")
+	withSite(t, s2, "[environments.local.site]\nsiteName = \"Example\"\n")
 	stdout, stderr, code = s2.run(t, "start", "--config", "sited", "--dry-run")
 	if code != 0 {
 		t.Fatalf("domain-less site must not refuse: exit %d\nstderr:\n%s", code, stderr)
@@ -1262,37 +1306,74 @@ func tokensPathFor(home string) string {
 	return filepath.Join(home, ".local", "state", "semiont", "tokens.json")
 }
 
-func TestLoginStoresTokenNeverPassword(t *testing.T) {
+// EXTERNAL-IDENTITY P4 (launcher lane): `semiont login` is the device
+// authorization grant (RFC 8628). The launcher learns the issuer from the
+// knowledge base's resource metadata, asks it for a code as the launcher's
+// own public client, and stores the tokens the issuer returns — no --email,
+// no stdin, no password anywhere in this process.
+func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	// Password arrives on stdin — never argv (ps/history), never env.
-	s.stdin = "hunter2secret\n"
-	stdout, stderr, code := s.run(t, "login", "--email", "admin@example.com")
+	stdout, stderr, code := s.run(t, "login")
 	if code != 0 {
 		t.Fatalf("login: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
+	mustContain(t, "output", stdout+stderr, "realms/semiont", "FAKE-CODE")
 	mustContain(t, "stdout", stdout, "Logged in", "admin@example.com")
+	if strings.Contains(stdout+stderr, "Password") {
+		t.Errorf("login asked for a password:\n%s\n%s", stdout, stderr)
+	}
+	// The grant went to the issuer as the launcher's own public client,
+	// asking for a refresh token that outlives the browser session.
+	da, err := os.ReadFile(filepath.Join(s.fakertDir, "device-auth.txt"))
+	if err != nil {
+		t.Fatalf("device authorization request not recorded: %v", err)
+	}
+	mustContain(t, "device authorization", string(da), "client_id=semiont-cli", "offline_access")
 	b, err := os.ReadFile(tokensPathFor(s.home))
 	if err != nil {
 		t.Fatalf("tokens.json after login: %v", err)
 	}
-	mustContain(t, "tokens.json", string(b), "fake-jwt-token", `"local"`)
+	mustContain(t, "tokens.json", string(b), "fake-jwt-token", "fake-refresh-token", `"local"`,
+		`"issuer"`, "http://localhost:4000/realms/semiont", `"tokenEndpoint"`)
 	if fi, err := os.Stat(tokensPathFor(s.home)); err == nil {
 		if perm := fi.Mode().Perm(); perm != 0o600 {
 			t.Errorf("tokens.json mode = %o, want 600 (it holds a bearer token)", perm)
 		}
 	}
-	// The password exists NOWHERE after the command: not in any launcher
-	// file, not echoed. (Same discipline as the secret tests.)
-	for _, f := range []string{tokensPathFor(s.home), statePathFor(s.home), rootsPathFor(s.home)} {
-		if fb, err := os.ReadFile(f); err == nil && strings.Contains(string(fb), "hunter2secret") {
-			t.Errorf("password persisted in %s", f)
-		}
+}
+
+func TestLoginRefusesKBWithoutIssuer(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_NO_ISSUER=1")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	if strings.Contains(stdout, "hunter2secret") {
-		t.Error("password echoed to stdout")
+	_, stderr, code := s.run(t, "login")
+	if code == 0 {
+		t.Fatal("login must refuse when the knowledge base trusts no issuer")
+	}
+	mustContain(t, "refusal", stderr, "trusts no external issuer", "[identity]")
+	if _, err := os.Stat(tokensPathFor(s.home)); err == nil {
+		t.Error("a refused login stored a token")
+	}
+}
+
+func TestLoginDeniedAtIssuer(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_DEVICE_DENY=1")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	_, stderr, code := s.run(t, "login")
+	if code == 0 {
+		t.Fatal("login must fail when the user denies the sign-in at the issuer")
+	}
+	mustContain(t, "denial", stderr, "denied")
+	if _, err := os.Stat(tokensPathFor(s.home)); err == nil {
+		t.Error("a denied login stored a token")
 	}
 }
 
@@ -1307,8 +1388,6 @@ func TestVerbStackContradictionRefuses(t *testing.T) {
 		switch verb {
 		case "useradd":
 			args = append(args, "--email", "x@y.example")
-		case "login":
-			args = append(args, "--email", "x@y.example")
 		case "yield":
 			args = append(args, "--upload", "docs/note.md")
 		}
@@ -1322,8 +1401,7 @@ func TestVerbStackContradictionRefuses(t *testing.T) {
 
 func TestLoginWithoutStackRefuses(t *testing.T) {
 	s := newScenario(t, "container")
-	s.stdin = "hunter2secret\n"
-	_, stderr, code := s.run(t, "login", "--email", "a@b.example")
+	_, stderr, code := s.run(t, "login")
 	if code == 0 {
 		t.Fatal("login with no running stack must refuse")
 	}
@@ -1343,11 +1421,9 @@ func yieldScenario(t *testing.T, login bool, extraEnv ...string) *scenario {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if login {
-		s.stdin = "hunter2secret\n"
-		if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+		if _, stderr, code := s.run(t, "login"); code != 0 {
 			t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 		}
-		s.stdin = ""
 	}
 	if err := os.MkdirAll(filepath.Join(s.kb, "docs"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1451,12 +1527,19 @@ func TestLogoutForgetsSession(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("logout: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Logged out", "local")
+	mustContain(t, "stdout", stdout, "Logged out", "local", "revoked at the issuer")
 	if tb, err := os.ReadFile(tokensPathFor(s.home)); err == nil {
 		if strings.Contains(string(tb), "fake-jwt-token") {
 			t.Errorf("token survived logout:\n%s", tb)
 		}
 	}
+	// The refresh token was revoked at the issuer (RFC 7009), as the
+	// launcher's own client — not merely forgotten locally.
+	rv, err := os.ReadFile(filepath.Join(s.fakertDir, "revoked.txt"))
+	if err != nil {
+		t.Fatalf("no revocation reached the issuer: %v", err)
+	}
+	mustContain(t, "revocation", string(rv), "token=fake-refresh-token", "client_id=semiont-cli")
 	// A second logout is a benign no-op, said plainly.
 	stdout, _, code = s.run(t, "logout")
 	if code != 0 {
@@ -1473,11 +1556,9 @@ func TestStatusVerboseShowsSessions(t *testing.T) {
 	// Before any login: the section says so, without inventing a session.
 	stdout, _, _ := s.run(t, "status", "--verbose")
 	mustContain(t, "no sessions yet", stdout, "SESSIONS", "none — semiont login")
-	s.stdin = "hunter2secret\n"
-	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+	if _, stderr, code := s.run(t, "login"); code != 0 {
 		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = ""
 	stdout, _, _ = s.run(t, "status", "--verbose")
 	mustContain(t, "session row", stdout, "SESSIONS", "local", "admin@example.com", "valid")
 }
@@ -2664,11 +2745,16 @@ func TestUseraddCodespace(t *testing.T) {
 	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
 	remote = remote[:strings.IndexByte(remote, '\n')]
 	mustContain(t, "remote command", remote,
-		"docker exec -i semiont-gateway semiont-useradd", // -i keeps the pipe open through ssh
+		"docker exec -i ",                 // -i keeps the pipe open through ssh
+		"semiont-gateway semiont-useradd", // the exec target inside the codespace
 		"'alice@example.com'", "'--admin'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
+	// The realm administrator's password is named, never carried: the remote
+	// shell expands its own variable, so this machine's secret does not cross
+	// the wire and there is nothing here to redact.
+	mustContain(t, "remote command", remote, `-e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"`)
 	// Other arguments still cross a shell, so they must still be quoted: the
 	// old bug was echoing RAW args, which would expand $NAME and split on
 	// spaces if pasted.
@@ -3885,7 +3971,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	}
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
-	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "inference", "embedding", "database",
+	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "identity", "inference", "embedding", "database",
 		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
@@ -4428,7 +4514,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 }
 
 // An explicit $JWT_SECRET is the operator's override — it wins over the
-// persisted one, the same precedence $SEMIONT_WORKER_SECRET has.
+// persisted one, the same precedence a service's client secret has.
 func TestStartJWTSecretEnvWins(t *testing.T) {
 	s := newScenario(t, "container")
 	s.noJWTSecret = true // replace the harness default with our own value
@@ -4517,10 +4603,14 @@ func findFile(t *testing.T, dir, name string) string {
 // --- start --service ---
 
 func TestStartServiceWorker(t *testing.T) {
-	// Gateway already running with a secret in its env; Jaeger up on 16686.
-	// Restarting the worker must rejoin the recovered secret (not the env
-	// one), auto-enable OTel, stage a fresh private config, and leave the
-	// rest of the stack untouched.
+	// Gateway already running; Jaeger up on 16686. Restarting the worker must
+	// present its OWN persisted credential, auto-enable OTel, stage a fresh
+	// private config, and leave the rest of the stack untouched.
+	//
+	// It used to assert a secret recovered out of the gateway's env, because
+	// the shared one was generated per start and never persisted. Each service
+	// holds its own now, written per root, so a restart reads the same file the
+	// full start wrote and no container needs inspecting.
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv,
 		"FAKERT_STATE_gateway=running",
@@ -4530,7 +4620,6 @@ func TestStartServiceWorker(t *testing.T) {
 		// to say the container exists rather than relying on stop/rm being
 		// fired blindly at a name that was never there.
 		"FAKERT_STATE_worker=running",
-		"FAKERT_SECRET=recovered-secret-123",
 	)
 	// 24110: --service OTel keys off the collector (the export target), not
 	// Jaeger's UI.
@@ -4542,21 +4631,19 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting worker",
 		"OTel collector detected — export enabled",
-		"Worker secret: (recovered from semiont-gateway)",
-		"SEMIONT_WORKER_SECRET=<redacted>",
+		"SEMIONT_OIDC_CLIENT_SECRET=<redacted>",
 		"🚀 worker is up",
 		"semiont status",
 	)
-	if strings.Contains(stdout, "recovered-secret-123") {
-		t.Error("recovered secret leaked into stdout")
+	if strings.Contains(stdout, "test-worker-client-secret") {
+		t.Error("a service-account secret leaked into stdout")
 	}
 	argv := s.argv(t)
 	mustContain(t, "argv", argv,
 		"stop semiont-worker",
 		"rm semiont-worker",
 		"image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"inspect semiont-gateway",
-		"--env SEMIONT_WORKER_SECRET=recovered-secret-123",
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-worker",
 		"--env OTEL_EXPORTER_OTLP_ENDPOINT=http://",
 		"<config-stage>/worker.toml:/home/semiont/.semiontconfig:ro",
 	)
@@ -4650,7 +4737,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 		"--publish 24104:24104",
 		"librarian.toml:/home/semiont/.semiontconfig:ro",
 		"state:/semiont-state",
-		"--env SEMIONT_WORKER_SECRET=")
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-librarian")
 	for _, banned := range []string{"JWT_SECRET", "LIBRARIAN_HOST", ":/kb", "anchored-text:"} {
 		if strings.Contains(log, banned) {
 			t.Errorf("the Librarian must not receive %s:\n%s", banned, log)
@@ -4690,7 +4777,7 @@ func TestStartServiceArchivist(t *testing.T) {
 		":/kb",
 		"archivist.toml:/home/semiont/.semiontconfig:ro",
 		"anchored-text:/anchored-text",
-		"--env SEMIONT_WORKER_SECRET=")
+		"--env SEMIONT_OIDC_CLIENT_ID=semiont-archivist")
 	if strings.Contains(log, "JWT_SECRET") {
 		t.Errorf("the Archivist must not receive JWT_SECRET — it signs nothing:\n%s", log)
 	}
@@ -4706,7 +4793,6 @@ func TestStartServiceDryRunWorker(t *testing.T) {
 		"semiont start --service worker --dry-run",
 		"container stop semiont-worker",
 		"container image pull ghcr.io/the-ai-alliance/semiont-worker:latest",
-		"worker secret: recovered from a running Semiont container's env",
 		"<config-stage>/worker.toml",
 		"wait: http://localhost:24100/health (30s)",
 	)
@@ -4740,43 +4826,19 @@ func TestStartServiceRejections(t *testing.T) {
 	}
 }
 
-func TestStartServiceSecretUnreadableIsLoud(t *testing.T) {
-	// A Semiont container EXISTS but yields no secret (the inspect-schema
-	// break case): without an explicit $SEMIONT_WORKER_SECRET the restart
-	// fails with instructions — never a silently generated secret that would
-	// break sidecar auth.
-	s := newScenario(t, "container")
-	s.noWorkerSecret = true
-	s.extraEnv = append(s.extraEnv, "FAKERT_STATE_gateway=running") // no FAKERT_SECRET
-	_, stderr, code := s.run(t, "start", "--service", "worker")
-	if code != 1 {
-		t.Fatalf("want exit 1, got %d\nstderr:\n%s", code, stderr)
-	}
-	mustContain(t, "stderr", stderr,
-		"worker secret could not be recovered",
-		"inspect schema may have changed",
-		"set SEMIONT_WORKER_SECRET",
-		"semiont start")
-
-	// With an explicit env secret: proceeds, but warns about the mismatch
-	// risk instead of pretending recovery worked.
-	s.noWorkerSecret = false
-	// NO serveHealth(24100) here: 24100 is the WORKER's own port, and the
-	// launcher must find it free to start the container that then serves it
-	// (the fake run -d binds it, as in TestStartServiceWorker). Pre-binding
-	// it modelled a foreign process squatting the port — fiction that only
-	// passed while the fake lsof lied about real listeners; now the launcher
-	// correctly refuses. serveHealth is for services the launcher does NOT
-	// start (an already-running gateway, Jaeger, a host Ollama).
-	stdout, stderr2, code := s.run(t, "start", "--service", "worker")
-	if code != 0 {
-		t.Fatalf("env-secret path: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr2)
-	}
-	mustContain(t, "stdout+stderr", stdout+stderr2,
-		"exists but its worker secret could not be read",
-		"using $SEMIONT_WORKER_SECRET",
-		"Worker secret: (from environment)")
-}
+/*
+ * TestStartServiceSecretUnreadableIsLoud stood here. Its subject was recovering
+ * $SEMIONT_WORKER_SECRET out of a running container on a `--service` restart,
+ * because that secret was generated per start and never persisted. Both halves
+ * are gone: each service holds its own credential, persisted per root, so a
+ * partial restart reads the same file the full start wrote and there is nothing
+ * to recover.
+ *
+ * The property it protected — a restart must not silently substitute a
+ * credential that breaks auth — is NOT fully re-covered. It now fails a
+ * different way: deleting a per-root secret file makes the launcher generate
+ * one the realm has never seen. Detecting that is `.plans/IDENTITY-PREFLIGHT.md`.
+ */
 
 // --- stop --service ---
 
@@ -5295,11 +5357,9 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 	if _, stderr, code := s.run(t, "start", "--config", "mixed"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = "hunter2secret\n"
-	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+	if _, stderr, code := s.run(t, "login"); code != 0 {
 		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = ""
 	return s
 }
 
@@ -5853,10 +5913,7 @@ func TestInitBirthsIdentity(t *testing.T) {
 		`name = "family-kb"`,
 		`domain = "pingel-org.github.io:family-kb"`,
 		`siteName = "Family KB"`,
-		`sync = true`,
-		// Required: the gateway refuses to boot without an allowlist, and
-		// nothing else supplies one. example.com (RFC 2606) admits nobody.
-		`oauthAllowedDomains = ["example.com"]`)
+		`sync = true`)
 	// Two fields the fleet's KBs do not carry, so a born KB must not either:
 	// `version` is bumped by nothing, and `adminEmail` reaches no reader.
 	for _, dead := range []string{"version =", "adminEmail"} {
@@ -6560,11 +6617,9 @@ func busScenario(t *testing.T, env ...string) *scenario {
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = "hunter2secret\n"
-	if _, stderr, code := s.run(t, "login", "--email", "admin@example.com"); code != 0 {
+	if _, stderr, code := s.run(t, "login"); code != 0 {
 		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.stdin = ""
 	return s
 }
 
@@ -7130,4 +7185,73 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 		t.Fatalf("start accepted mismatched [jobs]/[signal] servers")
 	}
 	mustContain(t, "mismatch refusal", stderr, "[jobs] and [signal] name different servers", "must match")
+}
+
+// EXTERNAL-IDENTITY P3 (launcher lane): a config whose [environments.*.identity]
+// selects keycloak on ${KEYCLOAK_HOST} boots Keycloak after PostgreSQL and
+// before the gateway — its database created on that PostgreSQL if absent, the
+// realm file staged and imported, the bootstrap admin password per root — and
+// every service's env carries KEYCLOAK_HOST. The no-identity-section case is
+// proven by every other boot golden: only the preflight logs snapshot grows.
+// writeKeycloakConfig adds an [identity] section to the KB's config and
+// returns the config name to select with --config.
+func writeKeycloakConfig(t *testing.T, s *scenario) string {
+	t.Helper()
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "keycloak.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return "keycloak"
+}
+
+// The identity path in PLAN mode. Both dry-run goldens take the "no [identity]
+// section" branch, so everything the launched-Keycloak path narrates — the
+// realm document's clients, the database creation, and the service-account
+// preflight — was covered by no golden at all. That is how the realm line came
+// to describe a document six clients smaller than the one it writes.
+func TestStartDryRunKeycloakIdentity(t *testing.T) {
+	s := newScenario(t, "container")
+	cfg := writeKeycloakConfig(t, s)
+	stdout, stderr, code := s.run(t, "start", "--config", cfg, "--dry-run")
+	if code != 0 {
+		t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-dryrun-keycloak-identity.txt", s.norm(stdout))
+	if got := s.argv(t); got != "git -C <kb-root> rev-parse --show-toplevel\n" {
+		t.Errorf("dry run executed external commands:\n%s", got)
+	}
+}
+
+func TestStartKeycloakIdentityBoot(t *testing.T) {
+	s := newScenario(t, "container")
+	// Pinned like JWT_SECRET: a generated password is random and the golden
+	// compares argv verbatim.
+	s.extraEnv = append(s.extraEnv, "KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin")
+	cfg := writeKeycloakConfig(t, s)
+	if _, stderr, code := s.run(t, "start", "--config", cfg); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	checkGolden(t, "start-keycloak-identity-boot.argv", s.argv(t))
+	// The database is created on stdin, where fakert records what the pipe
+	// carried — idempotently, so the second start is a no-op there too.
+	in, err := os.ReadFile(filepath.Join(s.fakertDir, "exec-stdin.txt"))
+	if err != nil {
+		t.Fatalf("no exec stdin recorded — the keycloak database was never created: %v", err)
+	}
+	mustContain(t, "create database", string(in), "CREATE DATABASE keycloak", "WHERE NOT EXISTS", `\gexec`)
+	// The identity preflight ran. Without this, a start that silently SKIPPED
+	// the check would pass every assertion above: the preflight issues no
+	// container command, so the argv golden cannot see it either way.
+	cc, err := os.ReadFile(filepath.Join(s.fakertDir, "client-credentials.txt"))
+	if err != nil {
+		t.Fatalf("no client-credentials grant reached the issuer — the identity preflight did not run: %v", err)
+	}
+	if got := strings.TrimSpace(string(cc)); !strings.HasPrefix(got, "semiont-") {
+		t.Errorf("preflight presented an unexpected client id: %q", got)
+	}
 }

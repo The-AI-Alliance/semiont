@@ -112,7 +112,6 @@ interface SemiontConfigFile {
   kb?: {
     name?: string;
     domain?: string;
-    oauthAllowedDomains?: string[];
   };
   environments?: Record<string, EnvironmentSection>;
 }
@@ -169,12 +168,14 @@ interface EnvironmentSection {
     type?: 'in-process' | 'nats';
     servers?: string;
   };
+  identity?: {
+    type?: 'keycloak' | 'oidc';
+    issuer?: string;
+  };
   site?: {
     domain?: string;
     siteName?: string;
     adminEmail?: string;
-    oauthAllowedDomains?: string[];
-    enableLocalAuth?: boolean;
   };
   database?: {
     platform?: string;
@@ -598,6 +599,33 @@ export function loadTomlConfig(
     };
   }
 
+  // The identity provider the gateway trusts (EXTERNAL-IDENTITY D5). Same
+  // refusal discipline as [signal]: a section that names no type, or a typed
+  // section missing the issuer the verifier needs, refuses at load — a
+  // verifier configured without one would reject every token and surface as
+  // "everyone is logged out" instead of a config error.
+  //
+  // There is no `audience` key. The audience is the KB's own resource
+  // identifier, derived from its committed did:web domain (`kbResource`), so
+  // it cannot be configured into disagreement with the identity the KB
+  // already publishes.
+  if (resolved.identity) {
+    if (!resolved.identity.type) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no type — add type = "keycloak" or "oidc". Semiont selects the identity provider from config; nothing is inferred.`,
+      );
+    }
+    if (!resolved.identity.issuer) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section refuses at load, never falls through.`,
+      );
+    }
+    services.identity = {
+      type: resolved.identity.type,
+      issuer: resolved.identity.issuer,
+    };
+  }
+
   // No browser service is emitted. The Browser is machine-level — one Browser
   // serves many KBs — so a KB neither knows nor affects its port or publicURL
   // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are
@@ -634,7 +662,6 @@ export function loadTomlConfig(
       ? { kb: {
           name: raw.kb.name,
           ...(raw.kb.domain ? { domain: raw.kb.domain } : {}),
-          ...(raw.kb.oauthAllowedDomains ? { oauthAllowedDomains: raw.kb.oauthAllowedDomains } : {}),
         } }
       : {}),
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
@@ -642,16 +669,15 @@ export function loadTomlConfig(
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
     site: site ? {
       // NO 'localhost' default. A `[site]` section is routinely added for an
-      // unrelated key — `oauthAllowedDomains` is the usual one — and
-      // manufacturing a domain for it silently renamed the KB's agents to
-      // `did:web:localhost`, an identity that collides with every other
-      // domain-less KB on the machine. Absent now means absent, so a consumer
-      // either falls back to the committed `[kb] domain` or refuses; neither
-      // can be done on top of a fabricated value.
+      // unrelated key — `siteName`, say — and manufacturing a domain for it
+      // silently renamed the KB's agents to `did:web:localhost`, an identity
+      // that collides with every other domain-less KB on the machine. Absent
+      // now means absent, so a consumer either falls back to the committed
+      // `[kb] domain` or refuses; neither can be done on top of a fabricated
+      // value.
       ...(site.domain ? { domain: site.domain } : {}),
       siteName: site.siteName,
       adminEmail: site.adminEmail,
-      oauthAllowedDomains: site.oauthAllowedDomains as [string, ...string[]] | undefined,
     } : undefined,
     logLevel: resolved.logLevel,
     _metadata: {

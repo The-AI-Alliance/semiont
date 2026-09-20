@@ -12,7 +12,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
-import { resourceId, userId, jobId, type Logger, EventBus as CoreEventBus } from '@semiont/core';
+import { resourceId, jobId, userId, type Logger, EventBus as CoreEventBus } from '@semiont/core';
 import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';

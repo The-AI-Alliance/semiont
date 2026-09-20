@@ -66,8 +66,8 @@ The gateway holds no bytes — both directions stream through the archivist's HT
 
 - **Bus bridge** — `POST /bus/emit`, `POST /bus/subscribe` (SSE): the transport every domain command and reply rides
 - **Content plane** — the four routes above
-- **Auth routes** — PostgreSQL/Prisma, JWT, OAuth (orthogonal to knowledge domain)
-- **Admin routes** — PostgreSQL/Prisma (orthogonal to knowledge domain)
+- **Auth routes** — token verification against the trusted issuer's keys, and the agent and media
+  tokens the gateway itself signs (orthogonal to knowledge domain)
 - **Health/Status** — infrastructure monitoring
 
 ## Related Documentation

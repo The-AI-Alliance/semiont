@@ -37,9 +37,9 @@ for (const raw of readFileSync(allowlistPath, 'utf8').split('\n')) {
 // --- Exceptions (package name → human-verified SPDX id) --------------------
 //
 // A trailing `*` is a prefix wildcard, same as the allowlist above. It exists
-// for generators that name their output with a content hash (Prisma 7 emits its
-// client as `prisma-client-<hash of the schema>`), where the name changes
-// whenever the source does and an exact entry would silently go stale.
+// for generators that name their output with a content hash, where the name
+// changes whenever the source does and an exact entry would silently go stale.
+// (Prisma 7 was the case this was built for; the gateway no longer uses it.)
 
 const exceptions = new Map();
 const exceptionPrefixes = [];

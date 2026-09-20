@@ -32,7 +32,7 @@ await semiont.frame.addEntityTypes(['Location', 'Person', 'Organization', 'Conce
 
 ## Client setup
 
-All steps share one client, reached through a session: `SemiontSession.signInHttp(...)` owns refresh, validation and storage, which a multi-step wiki build needs — the access token lives **ten minutes**. Already hold an access token? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip, but you then own refresh yourself.
+All steps share one client, reached through a session: `SemiontSession.signInDevice(...)` owns refresh, validation and storage, which a multi-step wiki build needs — the realm pins an access token to **five minutes**. Already hold an access token? `SemiontClient.fromHttp({ baseUrl, token })` skips the auth round-trip, but you then own refresh yourself.
 
 ```typescript
 import {
@@ -46,16 +46,17 @@ import {
 } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-wiki', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
   storage: new InMemorySessionStorage(),
-  baseUrl: url.href,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
+  onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+    console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+    if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+  },
 });
 const semiont = session.client;
 ```
@@ -157,16 +158,17 @@ const ENTITY_TYPES = (process.env.ENTITY_TYPES ?? 'Location')
 
 async function runWikiPipeline(resourceIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInHttp({
+  const session = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-wiki', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),
     storage: new InMemorySessionStorage(),
-    baseUrl: url.href,
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
   });
   const semiont = session.client;
   const rId = resourceId(resourceIdStr);

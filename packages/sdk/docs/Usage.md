@@ -13,7 +13,7 @@
 - [Match — Semantic Search](#match)
 - [Beckon — Attention Coordination](#beckon)
 - [Auth — Authentication](#auth)
-- [Admin — Administration](#admin)
+- [System — health and status](#system)
 - [Job — Worker Lifecycle](#job)
 - [KB Discovery — Launcher-Managed Endpoints](#kb-discovery)
 - [Bus Connection](#bus-connection)
@@ -31,7 +31,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 
 | Shape | Naming | When to reach for it |
 |---|---|---|
-| `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.password`) | atomic gateway ops — one round-trip, one value |
+| `Promise<T>` | past-tense or short noun (`mark.annotation`, `auth.me`) | atomic gateway ops — one round-trip, one value |
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
@@ -45,9 +45,9 @@ Streams and uploads are thenable, so `await` works without learning RxJS. Live q
 
 There are three idiomatic construction shapes, by audience:
 
-### Scripts with credentials: `SemiontSession.signInHttp(...)`
+### Scripts: `SemiontSession.signInDevice(...)`
 
-Credentials in, a live session out — **the only credentials-first construction**. `SemiontClient` has no signIn factory: one existed and was deleted, because it handed out a token with a **ten-minute** life and nothing to renew it, so any script outliving that window started failing in ways nothing surfaced. The session machinery is what makes credentials safe to hold: proactive refresh (using the refresh token returned by `auth.password`, automatically wired), validation, storage persistence, lifecycle observables.
+A script signs in at the knowledge base's identity provider with the device grant: the factory discovers the issuer from the gateway (RFC 9728), asks it for a code, hands the verification URL to `onCode`, and resolves once the person has approved in any browser. `SemiontClient` has no signIn factory: a bare token has a **ten-minute** life and nothing to renew it, so any script outliving that window would start failing in ways nothing surfaced. The session machinery is what makes tokens safe to hold: proactive refresh at the issuer, validation, storage persistence, lifecycle observables.
 
 `kb` is required. Its `id` is the storage key for this session — distinct scripts sharing the same `SessionStorage` instance must use distinct `id`s to avoid trampling each other's tokens. The factory does not synthesize a default; the consumer makes the choice.
 
@@ -62,12 +62,10 @@ const kb: KnowledgeBase = {
   endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
 
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb,
   storage: new InMemorySessionStorage(),
-  baseUrl: 'http://localhost:4000',
-  email: 'me@example.com',
-  password: 'pwd',
+  onCode: ({ verificationUri, userCode }) => console.log(`Open ${verificationUri} and enter ${userCode}`),
 });
 
 // session.client is the same SemiontClient surface; the session manages
@@ -77,7 +75,9 @@ const session = await SemiontSession.signInHttp({
 
 `KnowledgeBase` is a uniform shape regardless of transport kind. The transport-specific connection details live in the nested `endpoint` discriminated union (`{ kind: 'http', host, port, protocol }` for HTTP gateways, `{ kind: 'local', kbId }` for in-process). Code that doesn't construct transports never inspects `endpoint`.
 
-The default `refresh` callback uses the refresh token returned by `auth.password`. Override only for non-standard refresh flows (worker-pool shared secret, OAuth refresh-token grant, interactive re-prompt).
+The session refreshes at the issuer with the refresh token the grant returned. Override `refresh` only for non-standard flows (worker-pool shared secret, interactive re-prompt).
+
+A browser app signs in with the authorization code grant instead: `SemiontBrowser.beginSignIn` sends the person to the issuer and `completeSignIn` finishes on the callback page. Already hold an access and refresh pair from either grant? `SemiontSession.fromIssuedSession(...)`.
 
 ### Already-have-a-token: `SemiontClient.fromHttp(...)` / `SemiontSession.fromHttp(...)`
 
@@ -122,8 +122,8 @@ import { BehaviorSubject } from 'rxjs';
 const token$ = new BehaviorSubject<AccessToken | null>(accessToken('your-jwt'));
 const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000'), token$ });
 // HttpTransport implements both ITransport and IGatewayOperations; passing it
-// as the third arg wires `client.auth` and `client.admin`. Non-HTTP transports
-// implement only ITransport — omit the third arg and `client.auth` / `.admin`
+// as the third arg wires `client.auth` and `client.system`. Non-HTTP transports
+// implement only ITransport — omit the third arg and `client.auth` / `.system`
 // are `undefined`.
 const semiont = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 
@@ -468,31 +468,26 @@ in the same namespace and must stay local.
 
 ## Auth
 
-Like `admin`, the `auth` namespace lives on `IGatewayOperations` and is `undefined` on a `SemiontClient` constructed without a gateway. HTTP-context callers narrow with `!`:
+Like `system`, the `auth` namespace lives on `IGatewayOperations` and is `undefined` on a `SemiontClient` constructed without a gateway. HTTP-context callers narrow with `!`:
 
 ```typescript
-const signedIn = await semiont.auth!.password('user@example.com', 'password');
-const viaGoogle = await semiont.auth!.google(credential);
-const renewed = await semiont.auth!.refresh(refreshToken);
-await semiont.auth!.logout();
 const user = await semiont.auth!.me();
-await semiont.auth!.acceptTerms();
+const metadata = await semiont.auth!.protectedResourceMetadata();  // which issuers this KB trusts
 const { token } = await semiont.auth!.mediaToken(resourceId);
 ```
 
-For credentials-first construction, prefer `SemiontSession.signInHttp({ kb, storage, baseUrl, email, password })` over calling `auth!.password(...)` directly — the factory wires the resulting token into `token$` AND owns the refresh that keeps it alive past ten minutes.
+Signing in is not an `auth` op: it happens at the issuer, through `SemiontSession.signInDevice(...)` or `SemiontBrowser.beginSignIn` / `completeSignIn`, which wire the tokens into `token$` AND own the refresh that keeps them alive past ten minutes.
 
-## Admin
+## System
 
-The `admin` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp`, or `session.client`) has `client.admin: AdminNamespace`; one constructed without a gateway has `client.admin: undefined`. HTTP-context callers narrow with `!`:
+What a knowledge base says about itself. The `system` namespace lives on `IGatewayOperations`. A `SemiontClient` constructed with a gateway (e.g. `fromHttp`, or `session.client`) has `client.system: SystemNamespace`; one constructed without a gateway has `client.system: undefined`. HTTP-context callers narrow with `!`:
 
 ```typescript
-const users = await semiont.admin!.users();
-const stats = await semiont.admin!.userStats();
-await semiont.admin!.updateUser(userId, { isAdmin: true });
-const config = await semiont.admin!.oauthConfig();
-const health = await semiont.admin!.healthCheck();
+const status = await semiont.system!.status();   // identity, branch, features
+const health = await semiont.system!.healthCheck();
 ```
+
+There is no administration namespace. Accounts live at the knowledge base's identity provider and are administered there — `semiont useradd` for a launcher-run Keycloak, the issuer's own console otherwise.
 
 ## Job
 
@@ -721,4 +716,4 @@ const transport = new HttpTransport({
 const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
 ```
 
-The factory shorthands (`fromHttp`, `SemiontSession.signInHttp`) don't currently expose a `logger` parameter; use manual construction when you need transport-level logging.
+The factory shorthands (`fromHttp`, `SemiontSession.signInDevice`) don't currently expose a `logger` parameter; use manual construction when you need transport-level logging.

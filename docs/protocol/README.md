@@ -72,10 +72,11 @@ The eight flows are also the eight namespaces on the SDK's `SemiontClient` — `
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({ id: 'demo', label: 'Demo', email, host: 'localhost', port: 4000, protocol: 'http' }),
   storage: new InMemorySessionStorage(),
-  baseUrl: 'http://localhost:4000', email, password,
+  onCode: ({ verificationUriComplete, verificationUri }) =>
+    console.error(`Approve at ${verificationUriComplete ?? verificationUri}`),
 });
 const semiont = session.client;
 

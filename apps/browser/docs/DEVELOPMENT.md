@@ -137,8 +137,7 @@ If you prefer manual setup or need to understand the internals:
 The mock server (`npm run dev:mock`) provides:
 - `/api/health` - Health check endpoint
 - `/api/auth/session` - Mock authentication state
-- `/api/admin/stats` - Dashboard statistics
-- `/api/admin/users` - User management data
+- `/api/status` - Knowledge-base identity and features
 
 ### Tips for Faster Development
 

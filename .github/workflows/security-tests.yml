@@ -57,51 +57,6 @@ jobs:
           timeout 60 bash -c 'until curl -f http://localhost:3000/ 2>/dev/null | grep -q "</html>"; do sleep 2; done' || echo "Browser not ready yet, continuing..."
           sleep 5
 
-      - name: Verify no admin content leakage
-        run: |
-          echo "Testing admin route security..."
-
-          # This is a Vite SPA: the server returns 200 + index.html for all routes.
-          # Client-side auth guards (tested by test:security unit tests) prevent
-          # unauthorized access. We verify the server response is the SPA shell and
-          # does NOT contain server-rendered admin content or sensitive data.
-
-          # Test 1: Verify admin route returns 200 (SPA shell, not admin content)
-          status_code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/admin)
-          if [ "$status_code" != "200" ]; then
-            echo "❌ UNEXPECTED: Admin route returned $status_code instead of 200"
-            echo "SPA server should return 200 for all routes (client-side routing)"
-            exit 1
-          fi
-          echo "✅ Admin route returns 200 (SPA shell served correctly)"
-
-          # Test 2: Verify response is the SPA HTML shell, not server-rendered admin content
-          response=$(curl -s http://localhost:3000/admin)
-
-          # Verify it's a valid HTML page (the SPA entry point)
-          if ! echo "$response" | grep -qi "<html\|<!DOCTYPE"; then
-            echo "❌ UNEXPECTED: Admin route did not return an HTML page"
-            exit 1
-          fi
-          echo "✅ Admin route returns HTML shell (SPA entry point)"
-
-          # Test 3: Verify no server-rendered admin-specific content in the shell
-          # The SPA shell should only contain the app bootstrap JS, not admin UI
-          if echo "$response" | grep -qi "admin dashboard\|user management\|delete user\|admin control"; then
-            echo "❌ SECURITY FAILURE: Server-rendered admin content found in SPA shell!"
-            exit 1
-          fi
-          echo "✅ No server-rendered admin content in SPA shell"
-
-          # Test 4: Verify no sensitive data patterns in HTML shell
-          if echo "$response" | grep -qE "postgresql://|sk_[a-zA-Z0-9]+|DELETE|admin@"; then
-            echo "❌ SECURITY FAILURE: Sensitive data patterns found in response!"
-            exit 1
-          fi
-          echo "✅ No sensitive data patterns detected"
-
-          echo "🎉 All admin route security checks passed!"
-
       - name: Verify no moderate content leakage
         run: |
           echo "Testing moderate route security..."
@@ -180,21 +135,6 @@ jobs:
       run:
         working-directory: ./apps/gateway
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_USER: testuser
-          POSTGRES_DB: testdb
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
@@ -233,7 +173,6 @@ jobs:
             'domain = "localhost"' \
             'siteName = "Semiont CI"' \
             'adminEmail = "admin@localhost"' \
-            'oauthAllowedDomains = ["localhost"]' \
             > .semiont/config
           # Write ~/.semiontconfig with ci environment so gateway can start.
           # `[defaults] environment` is how the gateway selects it — the same key a real
@@ -266,7 +205,6 @@ jobs:
             'domain = "localhost"' \
             'siteName = "Semiont CI"' \
             'adminEmail = "admin@localhost"' \
-            'oauthAllowedDomains = ["localhost"]' \
             '' \
             '[environments.ci.make-meaning.graph]' \
             'type = "memory"' \
@@ -294,10 +232,6 @@ jobs:
             'model = "llama3"' \
             'baseURL = "http://localhost:11434"' \
             > ~/.semiontconfig
-          cd apps/gateway
-          npx prisma db push --url "$DATABASE_URL"
-        env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
 
       # `test:coverage` below runs the FULL gateway suite, which includes the
       # signal-plane fixtures spawning a real nats-server from PATH
@@ -313,18 +247,12 @@ jobs:
         run: npm run test:security
         env:
           NODE_OPTIONS: "--max-old-space-size=4096"
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Run all tests with coverage
         run: npm run test:coverage
         env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Run TypeScript type checking
         run: npm run typecheck
@@ -334,10 +262,7 @@ jobs:
       - name: Build application (fast)
         run: npm run build:fast
         env:
-          DATABASE_URL: postgresql://testuser:testpassword@localhost:5432/testdb
           JWT_SECRET: test-secret-key-for-testing-32char
-          GOOGLE_CLIENT_ID: test-client-id
-          GOOGLE_CLIENT_SECRET: test-client-secret
 
       - name: Start gateway for API security verification
         run: |
@@ -348,10 +273,7 @@ jobs:
           # no piece of the knowledge base (SINGLE-KB-MOUNT P6), so it reads
           # ~/.semiontconfig alone and neither variable names anything it opens.
           export NODE_ENV=test
-          export DATABASE_URL=postgresql://testuser:testpassword@localhost:5432/testdb
           export JWT_SECRET=test-secret-key-for-testing-32char
-          export GOOGLE_CLIENT_ID=test-client-id
-          export GOOGLE_CLIENT_SECRET=test-client-secret
 
           echo "Starting gateway in the ci environment..."
           cd apps/gateway
@@ -400,8 +322,8 @@ jobs:
         run: |
           echo "Testing gateway API security..."
 
-          # Test 1: Verify admin endpoints require authentication
-          endpoints=("/api/admin/users" "/api/admin/users/stats")
+          # Test 1: Verify protected endpoints require authentication
+          endpoints=("/api/status" "/api/resources/does-not-exist")
 
           for endpoint in "${endpoints[@]}"; do
             echo "Testing $endpoint..."
@@ -424,7 +346,7 @@ jobs:
           done
 
           # Test 2: Verify error responses don't leak sensitive data
-          response=$(curl -s http://localhost:4000/api/admin/users)
+          response=$(curl -s http://localhost:4000/api/status)
           if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.js:[0-9]+"; then
             echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
             echo "Response: $response"
@@ -438,78 +360,6 @@ jobs:
             exit 1
           fi
           echo "✅ Proper JSON error format returned"
-
-          # Test 4: Password authentication endpoint security
-          echo "Testing password authentication endpoint security..."
-
-          # Test 4a: Missing email field
-          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
-            -H "Content-Type: application/json" \
-            -d '{"password":"test"}')
-          status_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
-
-          if [ "$status_code" != "400" ]; then
-            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 400 for missing email"
-            exit 1
-          fi
-          echo "✅ Password endpoint returns 400 for missing email"
-
-          # Test 4b: Missing password field
-          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
-            -H "Content-Type: application/json" \
-            -d '{"email":"test@example.com"}')
-          status_code=$(echo "$response" | tail -n1)
-
-          if [ "$status_code" != "400" ]; then
-            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 400 for missing password"
-            exit 1
-          fi
-          echo "✅ Password endpoint returns 400 for missing password"
-
-          # Test 4c: Invalid credentials (should return 401)
-          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
-            -H "Content-Type: application/json" \
-            -d '{"email":"nonexistent@example.com","password":"wrongpassword"}')
-          status_code=$(echo "$response" | tail -n1)
-          body=$(echo "$response" | head -n-1)
-
-          if [ "$status_code" != "401" ]; then
-            echo "❌ SECURITY FAILURE: Password endpoint returned $status_code instead of 401 for invalid credentials"
-            exit 1
-          fi
-
-          # Verify error message doesn't reveal whether user exists (email enumeration prevention)
-          if echo "$body" | grep -qi "user.*not.*found\|email.*not.*exist\|no.*user\|unknown.*email"; then
-            echo "❌ SECURITY FAILURE: Password endpoint reveals user existence (email enumeration vulnerability)!"
-            echo "Response: $body"
-            exit 1
-          fi
-
-          if ! echo "$body" | grep -qi "invalid.*credentials\|authentication.*failed"; then
-            echo "⚠️ WARNING: Password endpoint should use generic error message like 'Invalid credentials'"
-          fi
-          echo "✅ Password endpoint returns generic error (prevents email enumeration)"
-
-          # Test 4d: No sensitive data in error responses
-          if echo "$body" | grep -qE "bcrypt|hash|salt|postgresql://|jwt.*key|\.js:[0-9]+|stack.*trace"; then
-            echo "❌ SECURITY FAILURE: Password endpoint leaks sensitive data in error response!"
-            echo "Response: $body"
-            exit 1
-          fi
-          echo "✅ No sensitive data leaked in password authentication errors"
-
-          # Test 4e: Verify SQL injection protection (basic test)
-          response=$(curl -s -w "\n%{http_code}" -X POST http://localhost:4000/api/tokens/password \
-            -H "Content-Type: application/json" \
-            -d '{"email":"admin@example.com'\'' OR '\''1'\''='\''1","password":"test"}')
-          status_code=$(echo "$response" | tail -n1)
-
-          if [ "$status_code" != "400" ] && [ "$status_code" != "401" ]; then
-            echo "❌ SECURITY FAILURE: Password endpoint may be vulnerable to SQL injection (status: $status_code)"
-            exit 1
-          fi
-          echo "✅ Password endpoint appears protected against SQL injection"
 
           echo "🎉 All gateway API security checks passed!"
 
@@ -545,7 +395,7 @@ jobs:
           
           if [ "${{ needs.browser-security.result }}" == "success" ]; then
             echo "✅ **Browser Security Tests**: PASSED" >> $GITHUB_STEP_SUMMARY
-            echo "- SPA shell serves correctly for admin/moderate routes" >> $GITHUB_STEP_SUMMARY
+            echo "- SPA shell serves correctly for the moderate route" >> $GITHUB_STEP_SUMMARY
             echo "- No server-rendered privileged content in SPA shell" >> $GITHUB_STEP_SUMMARY
             echo "- No sensitive data patterns in responses" >> $GITHUB_STEP_SUMMARY
             echo "- Client-side auth guards verified by unit tests" >> $GITHUB_STEP_SUMMARY

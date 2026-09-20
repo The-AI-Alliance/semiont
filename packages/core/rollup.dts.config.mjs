@@ -103,6 +103,14 @@ const entries = [
     prePlugins: [resolveGeneratedValidators()],
   },
   { input: 'dist-types/config/node-config-loader.d.ts', file: 'dist/config/node-config-loader.d.ts' },
+  // `@semiont/core/identity` — OIDC verification. Its own shard only; the
+  // branded types and guards it imports externalize to `@semiont/core`, which
+  // is what keeps this bundle from inlining a second copy of them.
+  {
+    input: 'dist-types/identity/issuer.d.ts',
+    file: 'dist/identity/issuer.d.ts',
+    selfExternal: { ownShards: new Set(['issuer']) },
+  },
   {
     input: 'dist-types/testing.d.ts',
     file: 'dist/testing.d.ts',

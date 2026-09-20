@@ -1,26 +1,18 @@
 /**
- * Tests for `SemiontSession.fromHttp(...)` and `SemiontSession.signInHttp(...)`.
- *
- * These exercise the factories' wiring — they construct a real
- * `SemiontClient` over a real `HttpTransport`, so we don't share the
- * module-level `SemiontClient` mock from `semiont-session.test.ts`. The
- * HTTP layer is kept off the wire by spying directly on
- * `HttpTransport.prototype.authenticatePassword` and `refreshAccessToken`.
- *
- * `fromHttp` is structural: brand the inputs, build the transport stack,
- * thread the shared `token$`, return a wired session.
- *
- * `signInHttp` is the credentials-first path: auth round-trip → persist
- * tokens → wire a default refresh that reads from storage at refresh
- * time → return the ready session. On auth failure, the transient
- * client is disposed before the error is rethrown.
+ * Tests for the `SemiontSession` factories: `fromHttp` (structural — brand
+ * the inputs, build the transport stack, thread the shared `token$`),
+ * `fromIssuedSession` (tokens an issuer already issued: persist, wire the
+ * refresh grant, return the ready session), and `signInDevice` (the device
+ * grant end to end). They construct a real `SemiontClient` over a real
+ * `HttpTransport`, so the wire is kept quiet by spying on the transport and
+ * stubbing `fetch` for the issuer.
  */
 
 import { describe, test, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HttpTransport } from '@semiont/http-transport';
 
 import { SemiontSession } from '../semiont-session';
-import { TestStorage, storageKey } from './test-storage-helpers';
+import { TestStorage, storageKey, testSession, TEST_TOKEN_ENDPOINT } from './test-storage-helpers';
 
 /**
  * A JWT-shaped string with an unexpired `exp` claim. The session's
@@ -108,144 +100,135 @@ describe('SemiontSession.fromHttp', () => {
   });
 });
 
-describe('SemiontSession.signInHttp', () => {
-  test('runs auth.password, persists both tokens, and seeds token$', async () => {
+function issuerReply(json: unknown, status = 200): Response {
+  return { ok: status < 300, status, json: async () => json } as unknown as Response;
+}
+
+describe('SemiontSession.fromIssuedSession', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  test('persists the issued session, seeds token$, and is ready', async () => {
     const accessJwt = freshJwt();
-    const passwordSpy = vi
-      .spyOn(HttpTransport.prototype, 'authenticatePassword')
-      .mockResolvedValue({
-        token: accessJwt,
-        refreshToken: 'refresh-tok',
-        user: { did: 'did:test:u' },
-      } as never);
 
-    const session = await SemiontSession.signInHttp({
+    const session = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
-      email: 'me@example.com',
-      password: 'pwd',
+      session: testSession(accessJwt, 'refresh-tok'),
     });
 
     try {
-      expect(passwordSpy).toHaveBeenCalledTimes(1);
-      const [emailArg, passwordArg] = passwordSpy.mock.calls[0]!;
-      expect(emailArg).toBe('me@example.com');
-      expect(passwordArg).toBe('pwd');
-
-      // Token populated.
       expect(session.token$.getValue()).toBe(accessJwt);
-
-      // Both access and refresh persisted under the kb-scoped key.
-      const stored = storage.get(storageKey(KB.id));
-      expect(stored).toBeTruthy();
-      const parsed = JSON.parse(stored!);
-      expect(parsed.access).toBe(accessJwt);
-      expect(parsed.refresh).toBe('refresh-tok');
+      const parsed = JSON.parse(storage.get(storageKey(KB.id))!);
+      expect(parsed).toMatchObject({ access: accessJwt, refresh: 'refresh-tok', tokenEndpoint: TEST_TOKEN_ENDPOINT });
     } finally {
       await session.dispose();
     }
   });
 
-  test('default refresh callback reads stored refresh token and exchanges it', async () => {
-    vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: freshJwt(),
-      refreshToken: 'refresh-tok',
-      user: { did: 'did:test:u' },
-    } as never);
-
+  test('refreshes at the issuer the session names, with the stored refresh token', async () => {
     const newAccess = freshJwt();
-    const refreshSpy = vi
-      .spyOn(HttpTransport.prototype, 'refreshAccessToken')
-      .mockResolvedValue({ access_token: newAccess } as never);
+    const fetchMock = vi.fn(async (_url: string) => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' }));
+    vi.stubGlobal('fetch', fetchMock);
 
-    const session = await SemiontSession.signInHttp({
+    const session = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
-      email: 'me@example.com',
-      password: 'pwd',
+      session: testSession(freshJwt(), 'refresh-tok'),
     });
 
     try {
-      const newToken = await session.refresh();
-      expect(newToken).toBe(newAccess);
-      expect(refreshSpy).toHaveBeenCalledWith('refresh-tok');
+      expect(await session.refresh()).toBe(newAccess);
       expect(session.token$.getValue()).toBe(newAccess);
+      // The live transport's event stream also fetches; only the issuer call matters here.
+      const tokenCall = fetchMock.mock.calls.find(([url]) => url === TEST_TOKEN_ENDPOINT) as unknown as [string, { body: URLSearchParams }] | undefined;
+      expect(tokenCall).toBeDefined();
+      expect(Object.fromEntries(tokenCall![1].body.entries())).toEqual({
+        grant_type: 'refresh_token', refresh_token: 'refresh-tok', client_id: 'semiont-browser',
+      });
+      // The rotation is persisted: the next refresh starts from the new token.
+      expect(JSON.parse(storage.get(storageKey(KB.id))!).refresh).toBe('refresh-2');
     } finally {
       await session.dispose();
     }
   });
 
-  test('default refresh swallows refresh failures and returns null', async () => {
-    vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: freshJwt(),
-      refreshToken: 'refresh-tok',
-      user: { did: 'did:test:u' },
-    } as never);
+  test('a refused refresh returns null', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400)));
 
-    vi.spyOn(HttpTransport.prototype, 'refreshAccessToken').mockRejectedValue(
-      new Error('refresh down'),
-    );
-
-    const session = await SemiontSession.signInHttp({
+    const session = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
-      email: 'me@example.com',
-      password: 'pwd',
+      session: testSession(freshJwt(), 'refresh-tok'),
     });
 
     try {
-      const result = await session.refresh();
-      expect(result).toBeNull();
+      expect(await session.refresh()).toBeNull();
     } finally {
       await session.dispose();
     }
   });
+});
 
-  test('disposes the transient client and rethrows when auth.password fails', async () => {
-    const failure = new Error('invalid credentials');
-    vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockRejectedValue(failure);
-    const disposeSpy = vi.spyOn(HttpTransport.prototype, 'dispose');
+describe('SemiontSession.signInDevice', () => {
+  const ISSUER = 'https://issuer.test/realms/semiont';
 
-    const before = disposeSpy.mock.calls.length;
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
 
-    await expect(
-      SemiontSession.signInHttp({
-        kb: KB,
-        storage,
-        baseUrl: 'http://test.local',
-        email: 'me@example.com',
-        password: 'wrong',
-      }),
-    ).rejects.toBe(failure);
+  test('runs the device grant against the issuer the KB trusts and returns a ready session', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(HttpTransport.prototype, 'getProtectedResourceMetadata').mockResolvedValue({
+      resource: 'http://test.local', authorization_servers: [ISSUER], bearer_methods_supported: ['header'],
+    });
+    const accessJwt = freshJwt();
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url.endsWith('/.well-known/openid-configuration')) {
+        return issuerReply({
+          issuer: ISSUER, authorization_endpoint: `${ISSUER}/auth`, token_endpoint: `${ISSUER}/token`,
+          device_authorization_endpoint: `${ISSUER}/device`, revocation_endpoint: `${ISSUER}/revoke`,
+        });
+      }
+      if (url === `${ISSUER}/device`) {
+        return issuerReply({ device_code: 'dev', user_code: 'ABCD-EFGH', verification_uri: `${ISSUER}/verify`, expires_in: 600, interval: 1 });
+      }
+      return issuerReply({ access_token: accessJwt, refresh_token: 'refresh-tok' });
+    }));
+    const onCode = vi.fn();
 
-    expect(disposeSpy.mock.calls.length).toBeGreaterThan(before);
+    const pending = SemiontSession.signInDevice({ kb: KB, storage, onCode });
+    await vi.advanceTimersByTimeAsync(1500);
+    const session = await pending;
 
-    // Storage should be untouched on failed signIn.
-    expect(storage.get(storageKey(KB.id))).toBeNull();
+    try {
+      expect(onCode).toHaveBeenCalledWith(expect.objectContaining({ userCode: 'ABCD-EFGH' }));
+      expect(session.token$.getValue()).toBe(accessJwt);
+      expect(JSON.parse(storage.get(storageKey(KB.id))!)).toMatchObject({
+        access: accessJwt, refresh: 'refresh-tok', clientId: 'semiont-cli',
+        tokenEndpoint: `${ISSUER}/token`, revocationEndpoint: `${ISSUER}/revoke`,
+      });
+    } finally {
+      await session.dispose();
+    }
   });
 
   test('forwards optional onAuthFailed / onError callbacks into the session config', async () => {
     const jwt = freshJwt();
-    vi.spyOn(HttpTransport.prototype, 'authenticatePassword').mockResolvedValue({
-      token: jwt,
-      refreshToken: 'refresh-tok',
-      user: { did: 'did:test:u' },
-    } as never);
-    vi.spyOn(HttpTransport.prototype, 'refreshAccessToken').mockResolvedValue(
-      { access_token: jwt } as never,
-    );
+    vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ access_token: jwt })));
 
     const onAuthFailed = vi.fn();
     const onError = vi.fn();
-    const session = await SemiontSession.signInHttp({
+    const session = await SemiontSession.fromIssuedSession({
       kb: KB,
       storage,
       baseUrl: 'http://test.local',
-      email: 'me@example.com',
-      password: 'pwd',
+      session: testSession(jwt, 'refresh-tok'),
       onAuthFailed,
       onError,
     });

@@ -155,37 +155,18 @@ textarea:disabled,
 
 /* Links - ensure sufficient contrast */
 a,
-.semiont-link {
-  color: var(--semiont-color-blue-600) !important;
-}
 
 a:hover,
-.semiont-link:hover {
-  color: var(--semiont-color-blue-700) !important;
-}
 
 a:visited,
-.semiont-link:visited {
-  color: var(--semiont-color-purple-600) !important;
-}
 
 [data-theme="dark"] a,
-[data-theme="dark"] .semiont-link {
-  color: var(--semiont-color-blue-400) !important;
-}
 
 [data-theme="dark"] a:hover,
-[data-theme="dark"] .semiont-link:hover {
-  color: var(--semiont-color-blue-300) !important;
-}
 
 [data-theme="dark"] a:visited,
-[data-theme="dark"] .semiont-link:visited {
-  color: var(--semiont-color-purple-400) !important;
-}
 
 /* Badge and chip text - ensure readability */
-.semiont-badge,
 .semiont-chip,
 .semiont-tag {
   font-weight: 500 !important; /* Slightly bolder for better readability */
@@ -365,24 +346,6 @@ label {
 [data-theme="dark"] .semiont-error-text,
 [data-theme="dark"] .semiont-error {
   color: var(--semiont-color-red-400) !important;
-}
-
-/* Tables - improve readability */
-.semiont-table th {
-  color: var(--semiont-color-gray-900) !important;
-  font-weight: 600 !important;
-}
-
-[data-theme="dark"] .semiont-table th {
-  color: var(--semiont-color-gray-50) !important;
-}
-
-.semiont-table td {
-  color: var(--semiont-color-gray-700) !important;
-}
-
-[data-theme="dark"] .semiont-table td {
-  color: var(--semiont-color-gray-300) !important;
 }
 
 /* Code blocks - ensure syntax highlighting has contrast */

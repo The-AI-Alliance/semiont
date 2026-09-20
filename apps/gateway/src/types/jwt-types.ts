@@ -1,28 +1,22 @@
 import { z } from 'zod';
-import type { GoogleAuthRequest, UserId } from '@semiont/core';
 import type { Email } from '@semiont/core';
 
-// JWT Payload schema - gateway-specific internal type for JWT validation
+/**
+ * The payload of a token the GATEWAY signs. Software agents only: people are
+ * minted tokens by the trusted issuer, whose claims this schema never sees.
+ *
+ * `did` replaces what used to be `userId`, a cuid naming a row in a table that
+ * no longer exists. The DID is the identity everything downstream keys on, so
+ * carrying it directly means the token says what the bus, resource creation
+ * and the signal ledger all read — with no lookup in between to disagree.
+ */
 export const JWTPayloadSchema = z.object({
-  userId: z.string().regex(/^c[a-z0-9]{24,}$/), // CUID format
+  /** `did:web:<domain>:agents:<provider>:<model>`. */
+  did: z.string().startsWith('did:'),
   email: z.string().email(),
   name: z.string().optional(),
+  /** The deployment's domain, which issues the agent's DID. */
   domain: z.string(),
-  provider: z.string(),
-  isAdmin: z.boolean(),
-  // For software-agent tokens: the agent's DID is asserted by the auth
-  // route (which knows the (inferenceProvider, model) the token is being
-  // issued for) and carried on the JWT. The bus uses this directly as
-  // `_userId` instead of recomputing `userToDid(user)`. Unset for human
-  // tokens.
-  agentDid: z.string().optional(),
-  // Per-user revocation epoch (SDK-AUTH-CORS Phase 2): every token carries the
-  // user's tokenVersion at mint; logout bumps User.tokenVersion, so a token
-  // whose tokenVersion is behind the user's current value is rejected.
-  // Required — a token minted before this feature lacks the claim and fails
-  // validation, so the holder re-authenticates. That is the intended
-  // revoke-every-session-on-rollout behavior, not a regression.
-  tokenVersion: z.number().int(),
   iat: z.number().optional(),
   exp: z.number().optional(),
 });
@@ -31,10 +25,6 @@ export const JWTPayloadSchema = z.object({
 type JWTPayloadBase = z.infer<typeof JWTPayloadSchema>;
 
 // Branded version for type safety
-export type JWTPayload = Omit<JWTPayloadBase, 'userId' | 'email'> & {
-  userId: UserId;
+export type JWTPayload = Omit<JWTPayloadBase, 'email'> & {
   email: Email;
 };
-
-// Re-export GoogleAuthRequest type from SDK
-export type { GoogleAuthRequest };

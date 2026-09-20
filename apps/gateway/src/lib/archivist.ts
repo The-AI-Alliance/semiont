@@ -49,7 +49,7 @@ const archivistSpan = <T>(op: string, run: () => Promise<T>): Promise<T> =>
  */
 export async function kbBranch(config: ArchivistAddressConfig): Promise<string | undefined> {
   try {
-    const { base, headers } = archivistEndpoint(config);
+    const { base, headers } = await archivistEndpoint(config);
     const res = await archivistSpan('kb.branch', () => fetch(`${base}/kb/branch`, { headers }));
     if (!res.ok) return undefined;
     const { branch } = await res.json() as { branch?: string | null };
@@ -91,7 +91,7 @@ export async function putContent(
   storageUri: string,
   body: Blob,
 ): Promise<StoredResource> {
-  const { base, headers } = archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config);
   const url = `${base}/content/${encodeURIComponent(storageUri)}`;
 
   let res: Response;
@@ -137,7 +137,7 @@ export async function getContent(
   config: ArchivistAddressConfig,
   resourceId: string,
 ): Promise<{ body: ReadableStream<Uint8Array>; mediaType: string }> {
-  const { base, headers } = archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config);
   const url = `${base}/resources/${encodeURIComponent(resourceId)}/content`;
 
   let res: Response;

@@ -485,8 +485,8 @@ else
   # The EXIT trap above handles cleanup instead.
   # --memory is EXPLICIT for the same reason the launcher sets it on every
   # service: the silent default is the worst value. Apple container gives 1G,
-  # and three concurrent image builds pulling tarballs through this registry —
-  # while it proxies a 68 MB @prisma/client from upstream — killed it there
+  # and three concurrent image builds pulling tarballs through this registry
+  # while it proxies large packages from upstream killed it there
   # (2026-09-03: builds died with ECONNRESET, verdaccio's log just stops
   # mid-fetch with no shutdown line).
   $RT run -d \
@@ -787,10 +787,9 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
   declare -a DONE=()
   for j in "${!PIDS[@]}"; do DONE[$j]=0; done
   # A cold npm install inside these builds runs for MINUTES with nothing on
-  # stdout — @prisma/client alone is a 68 MB cold proxy fetch, and --no-cache
-  # means every run pays it. Twice (2026-09-03) that silence was read as a
-  # hang. Name what is still in flight every 30s so a slow build is
-  # distinguishable from a stopped one without going to `ps`.
+  # stdout, and --no-cache means every run pays it. Twice (2026-09-03) that
+  # silence was read as a hang. Name what is still in flight every 30s so a
+  # slow build is distinguishable from a stopped one without going to `ps`.
   beat=$(date +%s)
   while [ "$remaining" -gt 0 ]; do
     for j in "${!PIDS[@]}"; do

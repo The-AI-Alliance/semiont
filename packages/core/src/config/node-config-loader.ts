@@ -1,3 +1,4 @@
+import { serviceAccountToken, type ServiceAccountCredential } from '../service-account';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -41,7 +42,11 @@ export function loadEnvironmentConfig(
  * `host`/`port`.
  */
 export interface ArchivistAddressConfig {
-  services?: { archivist?: Pick<ArchivistServiceConfig, 'host' | 'port'> };
+  services?: {
+    archivist?: Pick<ArchivistServiceConfig, 'host' | 'port'>;
+    /** Where this process authenticates before dialling the Archivist. */
+    identity?: { issuer: string };
+  };
 }
 
 /**
@@ -56,22 +61,49 @@ export interface ArchivistAddressConfig {
  * devDependency there, the bundler INLINED its PDF/OCR stack into an ESM
  * bundle and the process died at load on a CJS `require`.
  *
- * Absence fails loudly. A missing host or secret is a misconfiguration, never
- * a reason to fall back to reading a tree locally: the point of
+ * Absence fails loudly. A missing host or credential is a misconfiguration,
+ * never a reason to fall back to reading a tree locally: the point of
  * SINGLE-KB-MOUNT is that exactly one process touches it.
+ *
+ * Split in two on purpose. `archivistAddress` validates the configuration
+ * SYNCHRONOUSLY, so a process with no Archivist address or no credential dies
+ * at construction while an operator is watching rather than failing every read
+ * quietly later. `archivistEndpoint` adds the token, which is inherently async.
+ *
+ * The credential is a TOKEN now, obtained from the issuer with this process's
+ * own service account, rather than a shared static string read out of the
+ * environment. The Archivist verifies it against the issuer's
+ * published keys — it serves the event log and accepts byte writes, and a
+ * string compared by equality was guarding both.
  */
-export function archivistEndpoint(config: ArchivistAddressConfig): {
+export function archivistAddress(config: ArchivistAddressConfig): {
   base: string;
-  headers: { authorization: string };
+  credential: ServiceAccountCredential;
 } {
   const host = config.services?.archivist?.host;
   if (!host) {
     throw new Error('services.archivist.host is not configured — cannot reach the record');
   }
   const port = config.services?.archivist?.port ?? DEFAULT_ARCHIVIST_PORT;
-  const secret = process.env.SEMIONT_WORKER_SECRET;
-  if (!secret) {
-    throw new Error('SEMIONT_WORKER_SECRET is not set — cannot authenticate to the Archivist');
+  const issuer = config.services?.identity?.issuer;
+  if (!issuer) {
+    throw new Error('services.identity.issuer is not configured — cannot authenticate to the Archivist');
   }
-  return { base: `http://${host}:${port}`, headers: { authorization: `Bearer ${secret}` } };
+  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are not set — cannot authenticate to the Archivist',
+    );
+  }
+  return { base: `http://${host}:${port}`, credential: { issuer, clientId, clientSecret } };
+}
+
+export async function archivistEndpoint(config: ArchivistAddressConfig): Promise<{
+  base: string;
+  headers: { authorization: string };
+}> {
+  const { base, credential } = archivistAddress(config);
+  const token = await serviceAccountToken(credential);
+  return { base, headers: { authorization: `Bearer ${token}` } };
 }

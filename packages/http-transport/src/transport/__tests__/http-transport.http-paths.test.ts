@@ -104,14 +104,6 @@ describe('HttpTransport — HTTP wire shape', () => {
   });
 
   describe('Auth', () => {
-    test('logout posts to /api/users/logout', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ message: 'ok' }),
-      } as never);
-      await transport.logout();
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/logout`, { headers: {} });
-    });
-
     test('getCurrentUser gets /api/users/me', async () => {
       vi.mocked(mockKy.get).mockReturnValue({
         json: vi.fn().mockResolvedValue({ id: 'u1' }),
@@ -120,45 +112,12 @@ describe('HttpTransport — HTTP wire shape', () => {
       expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/users/me`, { headers: {} });
     });
 
-    test('authenticatePassword posts credentials to /api/tokens/password', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ token: 'tok' }),
+    test('getProtectedResourceMetadata gets /.well-known/oauth-protected-resource with no token', async () => {
+      vi.mocked(mockKy.get).mockReturnValue({
+        json: vi.fn().mockResolvedValue({ resource: testBaseUrl }),
       } as never);
-      await transport.authenticatePassword('user@test.local' as never, 'pw');
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/tokens/password`,
-        expect.objectContaining({ json: { email: 'user@test.local', password: 'pw' } }),
-      );
-    });
-
-    test('authenticateGoogle posts credential to /api/tokens/google', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ token: 'tok' }),
-      } as never);
-      await transport.authenticateGoogle('google-cred' as never);
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/tokens/google`,
-        expect.objectContaining({ json: { credential: 'google-cred' } }),
-      );
-    });
-
-    test('refreshAccessToken posts refreshToken to /api/tokens/refresh', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ access: 'a', refresh: 'r' }),
-      } as never);
-      await transport.refreshAccessToken('refresh-tok' as never);
-      expect(mockKy.post).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/tokens/refresh`,
-        expect.objectContaining({ json: { refreshToken: 'refresh-tok' } }),
-      );
-    });
-
-    test('acceptTerms posts to /api/users/accept-terms', async () => {
-      vi.mocked(mockKy.post).mockReturnValue({
-        json: vi.fn().mockResolvedValue(undefined),
-      } as never);
-      await transport.acceptTerms();
-      expect(mockKy.post).toHaveBeenCalledWith(`${testBaseUrl}/api/users/accept-terms`, { headers: {} });
+      await transport.getProtectedResourceMetadata();
+      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/.well-known/oauth-protected-resource`);
     });
 
 
@@ -171,45 +130,6 @@ describe('HttpTransport — HTTP wire shape', () => {
         `${testBaseUrl}/api/tokens/media`,
         expect.objectContaining({ json: { resourceId: testResourceId } }),
       );
-    });
-  });
-
-  describe('Admin', () => {
-    test('listUsers gets /api/admin/users', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ users: [] }),
-      } as never);
-      await transport.listUsers();
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/users`, { headers: {} });
-    });
-
-    test('getUserStats gets /api/admin/users/stats', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ count: 0 }),
-      } as never);
-      await transport.getUserStats();
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/users/stats`, { headers: {} });
-    });
-
-    test('updateUser PATCHes /api/admin/users/{id} with the patch body', async () => {
-      vi.mocked(mockKy.patch).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ updated: true }),
-      } as never);
-      const userId = 'did:web:example.com:users:alice%40example.com' as never;
-      const patch = { isAdmin: true } as never;
-      await transport.updateUser(userId, patch);
-      expect(mockKy.patch).toHaveBeenCalledWith(
-        `${testBaseUrl}/api/admin/users/${userId}`,
-        expect.objectContaining({ json: patch }),
-      );
-    });
-
-    test('getOAuthConfig gets /api/admin/oauth/config', async () => {
-      vi.mocked(mockKy.get).mockReturnValue({
-        json: vi.fn().mockResolvedValue({ google: { clientId: 'x' } }),
-      } as never);
-      await transport.getOAuthConfig();
-      expect(mockKy.get).toHaveBeenCalledWith(`${testBaseUrl}/api/admin/oauth/config`, { headers: {} });
     });
   });
 

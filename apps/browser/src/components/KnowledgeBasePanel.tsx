@@ -1,11 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { BehaviorSubject } from 'rxjs';
-import { SemiontClient, defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
+import { defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { usePathname } from '@/i18n/routing';
-import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
-import { accessToken, baseUrl, type AccessToken } from '@semiont/core';
 import type { DiscoveredKB } from '@semiont/core';
 import {
   useSemiont,
@@ -72,11 +69,16 @@ function StatusDot({ status, t }: { status: KbSessionStatus; t: T }) {
   );
 }
 
-function LoginForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000, initialEmail = 'admin@example.com' }: {
+/**
+ * Where to connect. Who the user is comes from the issuer the knowledge base
+ * trusts, so the form asks for an address and nothing else; "Connect" sends
+ * the user to sign in there.
+ */
+function ConnectForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocus, pulsing, initialHost = 'localhost', initialPort = 4000 }: {
   t: T;
   /** Overrides the generic heading — used to announce a contested ADDRESS (D). */
   title?: string;
-  onSubmit: (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => Promise<void>;
+  onSubmit: (host: string, port: number, protocol: 'http' | 'https') => Promise<void>;
   onCancel: () => void;
   error: string | null;
   isSubmitting: boolean;
@@ -84,13 +86,10 @@ function LoginForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocu
   pulsing?: boolean;
   initialHost?: string;
   initialPort?: number;
-  initialEmail?: string;
 }) {
   const [host, setHost] = useState(initialHost);
   const [port, setPort] = useState(String(initialPort));
   const [protocol, setProtocol] = useState<'http' | 'https'>(defaultProtocol(initialHost));
-  const [email, setEmail] = useState(initialEmail);
-  const [password, setPassword] = useState('');
 
   const handleHostChange = (newHost: string) => {
     setHost(newHost);
@@ -109,7 +108,7 @@ function LoginForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocu
       }}
     >
       <h3 style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem' }}>{title ?? t('connectTitle')}</h3>
-      <form onSubmit={(e) => { e.preventDefault(); if (isValidHostname(host)) onSubmit(host, parseInt(port, 10) || 4000, protocol, email, password); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <form onSubmit={(e) => { e.preventDefault(); if (isValidHostname(host)) onSubmit(host, parseInt(port, 10) || 4000, protocol); }} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
         <select value={protocol} onChange={e => setProtocol(e.target.value as 'http' | 'https')} className="semiont-input">
           <option value="http">HTTP</option>
           <option value="https">HTTPS</option>
@@ -119,8 +118,6 @@ function LoginForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocu
         {host && !isValidHostname(host) && (
           <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{t('invalidHost')}</div>
         )}
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" className="semiont-input" />
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="semiont-input" />
         {error && <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{error}</div>}
         <div style={{ display: 'flex', gap: '0.5rem' }}>
           <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1 }} disabled={isSubmitting || !isValidHostname(host)}>
@@ -135,102 +132,34 @@ function LoginForm({ t, title, onSubmit, onCancel, error, isSubmitting, autoFocu
   );
 }
 
-function ReauthForm({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
+/** A registered KB whose session ended: one button back to its issuer. */
+function ReauthPrompt({ t, kb, onSubmit, onCancel, error, isSubmitting }: {
   t: T;
   kb: KnowledgeBase;
-  onSubmit: (password: string) => Promise<void>;
+  onSubmit: () => Promise<void>;
   onCancel: () => void;
   error: string | null;
   isSubmitting: boolean;
 }) {
-  const [password, setPassword] = useState('');
-
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(password); }} style={{ padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+    <div style={{ padding: '0.5rem 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
       <div style={{ fontSize: '0.75rem', color: 'var(--semiont-color-neutral-400)' }}>{kb.email}</div>
-      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Password" className="semiont-input" style={{ fontSize: '0.8rem' }} autoFocus />
       {error && <div style={{ color: 'var(--semiont-color-error-500, #ef4444)', fontSize: '0.75rem' }}>{error}</div>}
       <div style={{ display: 'flex', gap: '0.375rem' }}>
-        <button type="submit" className="semiont-button semiont-button--primary" style={{ flex: 1, fontSize: '0.8rem' }} disabled={isSubmitting}>
+        <button type="button" className="semiont-button semiont-button--primary" style={{ flex: 1, fontSize: '0.8rem' }} disabled={isSubmitting} onClick={() => { void onSubmit(); }}>
           {isSubmitting ? t('signingIn') : t('signIn')}
         </button>
         <button type="button" className="semiont-button" onClick={onCancel} style={{ fontSize: '0.8rem' }}>
           {t('cancel')}
         </button>
       </div>
-    </form>
+    </div>
   );
-}
-
-/**
- * Thrown when authentication succeeds but the KB's identity cannot be
- * established. A registered KB REQUIRES a did (KB-IDENTITY-VS-ADDRESS
- * decision 8), and there is nothing legitimate to fall back to: inventing one
- * from the address is the exact category error that document exists to end.
- * Decision 7's third verification outcome, made explicit.
- *
- * The two reasons are kept apart deliberately: collapsing them into one
- * message made a live auth bug undiagnosable from the UI (2026-07-28).
- */
-class IdentityUnverifiableError extends Error {
-  constructor(readonly reason: 'unreachable' | 'not-reported', detail: string) {
-    super(detail);
-  }
-}
-
-async function authenticateWithGateway(host: string, port: number, protocol: 'http' | 'https', emailStr: string, password: string): Promise<{ token: string; refreshToken: string; did: string; label: string; gitBranch?: string }> {
-  const origin = `${protocol}://${host}:${port}`;
-  // `/api/status` REQUIRES authentication, so the transport needs a token
-  // source: without one the identity check goes out unauthenticated and 401s
-  // on every connect (found live 2026-07-28 — previously swallowed, which is
-  // why labels silently fell back to `host:port`). Same pattern the session
-  // factory's `performValidate` uses.
-  const token$ = new BehaviorSubject<AccessToken | null>(null);
-  const transport = new HttpTransport({ baseUrl: baseUrl(origin), token$ });
-  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
-
-  // The cleanup wraps EVERY exit, not just the status call. The transport
-  // subscribes to token$ the moment it is constructed, so a throw before the
-  // status check — a rejected password, a response missing either token —
-  // leaked it. Scoping the finally to the narrow try covered the one failure
-  // that happened to be on screen and none of the earlier ones.
-  try {
-    const authResult = await client.auth!.password(emailStr, password);
-    const token = authResult.token;
-    const refreshToken = authResult.refreshToken;
-    if (!token) throw new Error('No access token received');
-    if (!refreshToken) throw new Error('No refresh token received');
-    // Every later call on this client is now authenticated.
-    token$.next(accessToken(token));
-
-    // The KB names itself: identity is read from the KB we actually reached,
-    // never inferred from the discovered row the user happened to click.
-    let status;
-    try {
-      status = await client.admin!.status();
-    } catch (e) {
-      throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
-    }
-    if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
-
-    return {
-      token,
-      refreshToken,
-      did: status.did,
-      // Absence is stored as absence — the WORD "Unknown" is a render concern
-      // (decision 7), and `host:port` is an address, never a name.
-      label: status.projectName ?? '',
-      ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
-    };
-  } finally {
-    transport.dispose();
-    token$.complete();
-  }
 }
 
 export function KnowledgeBasePanel() {
   const pathname = usePathname();
-  const { t: _t } = useTranslation();
+  const { t: _t, i18n } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`KnowledgeBasePanel.${k}`, p as any) as string;
   const semiont = useSemiont();
   const knowledgeBases = useObservable(semiont.kbs$) ?? [];
@@ -252,19 +181,18 @@ export function KnowledgeBasePanel() {
     }
     void semiont.setActiveKb(id);
   };
-  const addKnowledgeBase = semiont.addKb.bind(semiont);
   const removeKnowledgeBase = semiont.removeKb.bind(semiont);
-  const updateKnowledgeBase = semiont.updateKb.bind(semiont);
-  const signIn = (id: string, access: string, refresh: string) => { void semiont.signIn(id, access, refresh); };
   const signOut = (id: string) => { void semiont.signOut(id); };
+  // The issuer sends the user back here; the callback page completes the
+  // sign-in. The redirect is registered per origin at the issuer, so it is
+  // this Browser's own address, not the knowledge base's.
+  const redirectUri = () => `${window.location.origin}/${i18n.language}/auth/callback`;
   // null = closed; {} = blank form; {host, port} = prefilled from a discovered
   // row. `expected*` records WHAT THE USER BELIEVED they were connecting to, so
   // the outcome can be verified against the KB that actually answers (C).
   const [addForm, setAddForm] = useState<
     { host?: string; port?: number; expectedDid?: string; expectedName?: string } | null
   >(null);
-  // Transient result of that verification — the form has closed by then.
-  const [connectNotice, setConnectNotice] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [addSubmitting, setAddSubmitting] = useState(false);
   const [reauthKbId, setReauthKbId] = useState<string | null>(null);
@@ -346,69 +274,35 @@ export function KnowledgeBasePanel() {
     setAddForm(prefill);
     setReauthKbId(null);
     setAddError(null);
-    setConnectNotice(null);
   };
 
-  // An unreachable identity check and a KB that reports no identity are
-  // different problems with different fixes; one message for both hid a live
-  // auth bug for a whole release.
-  const identityAwareMessage = (err: unknown): string => {
-    if (err instanceof IdentityUnverifiableError) {
-      return err.reason === 'unreachable' ? t('identityCheckFailed') : t('identityNotReported');
-    }
-    return err instanceof Error ? err.message : String(err);
-  };
-
-  const handleAdd = async (host: string, port: number, protocol: 'http' | 'https', email: string, password: string) => {
+  // Connecting is leaving: the sign-in happens at the issuer the KB trusts,
+  // and the callback page registers the KB when the user returns — with the
+  // identity the KB reports, verified against what they believed they
+  // clicked (C). A registered KB at the typed address is re-authenticated
+  // rather than duplicated.
+  const handleAdd = async (host: string, port: number, protocol: 'http' | 'https') => {
     setAddError(null);
     setAddSubmitting(true);
     const existing = knowledgeBases.find(
       kb => kb.endpoint.kind === 'http' && kb.endpoint.host === host && kb.endpoint.port === port,
     );
-    if (existing) {
-      try {
-        const { token, refreshToken, gitBranch } = await authenticateWithGateway(host, port, protocol, email, password);
-        updateKnowledgeBase(existing.id, { ...(gitBranch ? { gitBranch } : {}) });
-        signIn(existing.id, token, refreshToken);
-        setAddForm(null);
-      } catch (err) {
-        setAddError(identityAwareMessage(err));
-      } finally {
-        setAddSubmitting(false);
-      }
-      return;
-    }
     try {
-      const { token, refreshToken, did, label, gitBranch } = await authenticateWithGateway(host, port, protocol, email, password);
-      // (C) Verify the outcome against what the user believed they clicked.
-      // Reports; never blocks — the KB that answered is the one they reached.
-      const expectedDid = addForm?.expectedDid;
-      if (expectedDid && expectedDid !== did) {
-        setConnectNotice(t('connectedToOther', {
-          actual: label || t('unknownName'),
-          expected: addForm?.expectedName || t('unknownName'),
-        }));
-      }
-      addKnowledgeBase(
-        {
-          did,
-          label,
-          email,
-          endpoint: { kind: 'http', host, port, protocol },
-          ...(gitBranch ? { gitBranch } : {}),
-        },
-        token,
-        refreshToken,
-      );
-      setAddForm(null);
+      const url = await semiont.beginSignIn({
+        target: { kind: 'http', host, port, protocol },
+        redirectUri: redirectUri(),
+        ...(existing ? { kbId: existing.id } : {}),
+        ...(addForm?.expectedDid ? { expectedDid: addForm.expectedDid } : {}),
+        ...(addForm?.expectedName ? { expectedName: addForm.expectedName } : {}),
+      });
+      window.location.assign(url);
     } catch (err) {
-      setAddError(identityAwareMessage(err));
-    } finally {
+      setAddError(err instanceof Error ? err.message : String(err));
       setAddSubmitting(false);
     }
   };
 
-  const handleReauth = async (kbId: string, password: string) => {
+  const handleReauth = async (kbId: string) => {
     const kb = knowledgeBases.find(k => k.id === kbId);
     if (!kb) return;
     setReauthError(null);
@@ -419,15 +313,10 @@ export function KnowledgeBasePanel() {
       return;
     }
     try {
-      const { token, refreshToken, label, gitBranch } = await authenticateWithGateway(
-        kb.endpoint.host, kb.endpoint.port, kb.endpoint.protocol, kb.email, password,
-      );
-      updateKnowledgeBase(kbId, { label, ...(gitBranch ? { gitBranch } : {}) });
-      signIn(kbId, token, refreshToken);
-      setReauthKbId(null);
+      const url = await semiont.beginSignIn({ target: kb.endpoint, redirectUri: redirectUri(), kbId });
+      window.location.assign(url);
     } catch (err) {
       setReauthError(err instanceof Error ? err.message : String(err));
-    } finally {
       setReauthSubmitting(false);
     }
   };
@@ -533,10 +422,10 @@ export function KnowledgeBasePanel() {
                   </div>
                 )}
                 {isReauthing && (
-                  <ReauthForm
+                  <ReauthPrompt
                     t={t}
                     kb={kb}
-                    onSubmit={(password) => handleReauth(kb.id, password)}
+                    onSubmit={() => handleReauth(kb.id)}
                     onCancel={() => setReauthKbId(null)}
                     error={reauthError}
                     isSubmitting={reauthSubmitting}
@@ -600,17 +489,8 @@ export function KnowledgeBasePanel() {
           </div>
         )}
 
-        {connectNotice && (
-          <div
-            className="semiont-panel-text-secondary"
-            style={{ fontSize: '0.75rem', padding: '0.5rem 0.75rem', color: 'var(--semiont-color-warning-500, #eab308)', whiteSpace: 'normal' }}
-          >
-            {connectNotice}
-          </div>
-        )}
-
         {addForm !== null && (
-          <LoginForm
+          <ConnectForm
             key={`${addForm.host ?? ''}:${addForm.port ?? ''}`}
             t={t}
             {...(addFormContested && addFormAddress

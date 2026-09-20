@@ -48,16 +48,17 @@ Skipping the declaration means the aggregate's entity-type stamps end up implici
 import { SemiontSession, InMemorySessionStorage, httpKb, resourceId } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-aggregate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
   storage: new InMemorySessionStorage(),
-  baseUrl: url.href,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
+  onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+    console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+    if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+  },
 });
 const semiont = session.client;
 ```
@@ -162,16 +163,17 @@ const INCLUDE_GATHER = process.env.INCLUDE_GATHER !== '0';
 
 async function aggregate(anchorIdStr: string): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInHttp({
+  const session = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-aggregate', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),
     storage: new InMemorySessionStorage(),
-    baseUrl: url.href,
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
   });
   const semiont = session.client;
   const anchorId = resourceId(anchorIdStr);

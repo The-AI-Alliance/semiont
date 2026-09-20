@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
-import type { KnowledgeBase } from '@semiont/sdk';
+import { SignInError, type KnowledgeBase } from '@semiont/sdk';
 const translations: Record<string, string> = {
   'KnowledgeBasePanel.title': 'Knowledge Bases',
   'KnowledgeBasePanel.connectTitle': 'Connect to Knowledge Base',
@@ -19,11 +19,8 @@ const translations: Record<string, string> = {
   'KnowledgeBasePanel.statusSignedOut': 'Signed out',
   'KnowledgeBasePanel.statusUnreachable': 'Unreachable',
   'KnowledgeBasePanel.unknownName': 'Unknown',
-  'KnowledgeBasePanel.identityCheckFailed': 'Signed in, but the identity check could not reach this knowledge base.',
-  'KnowledgeBasePanel.identityNotReported': 'Signed in, but this knowledge base did not report an identity.',
   'KnowledgeBasePanel.addressConflict': '{{count}} knowledge bases claim {{address}} — one is likely stale.',
   'KnowledgeBasePanel.connectToAddress': 'Connect to {{address}}',
-  'KnowledgeBasePanel.connectedToOther': 'Connected to {{actual}}, not {{expected}}.',
   'KnowledgeBasePanel.anotherCopy': "another copy of the knowledge base you're connected to",
   'KnowledgeBasePanel.discoveredTitle': 'Found on this machine',
   'KnowledgeBasePanel.managedBadge': 'Managed by launcher',
@@ -64,7 +61,6 @@ const kb2: KnowledgeBase = {
 
 // vi.hoisted: the mock factory below needs these in scope.
 const {
-  
   kbs$, activeSession$, mockBrowser, mockEmit,
 } = vi.hoisted(() => {
   // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -79,18 +75,12 @@ const {
     addKb: vi.fn(),
     removeKb: vi.fn(),
     updateKb: vi.fn(),
-    signIn: vi.fn(),
+    beginSignIn: vi.fn(),
     signOut: vi.fn(),
     getKbSessionStatus: (id: string) => id === 'kb-1' ? 'authenticated' : 'signed-out',
     emit: vi.fn(),
   };
   return {
-    mockSetActiveKb: mockBrowser.setActiveKb,
-    mockAddKb: mockBrowser.addKb,
-    mockRemoveKb: mockBrowser.removeKb,
-    mockUpdateKb: mockBrowser.updateKb,
-    mockSignIn: mockBrowser.signIn,
-    mockSignOut: mockBrowser.signOut,
     kbs$,
     activeSession$,
     mockBrowser,
@@ -123,61 +113,20 @@ vi.mock('@semiont/react-ui', async () => {
   };
 });
 
-const { mockAuthPassword, mockAdminStatus } = vi.hoisted(() => ({
-  mockAuthPassword: vi.fn(),
-  mockAdminStatus: vi.fn(),
-}));
-
-// The panel builds a real SemiontClient inside authenticateWithGateway; mock the
-// class so the connect flow (auth → /api/status → register) is drivable.
-vi.mock('@semiont/sdk', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/sdk')>('@semiont/sdk');
-  class MockSemiontClient {
-    auth = { password: mockAuthPassword };
-    admin = { status: mockAdminStatus };
-  }
-  return { ...actual, SemiontClient: MockSemiontClient };
-});
-
-const { httpTransportConfigs, httpTransportDisposals } = vi.hoisted(() => ({
-  httpTransportConfigs: [] as any[],
-  httpTransportDisposals: [] as any[],
-}));
-
-vi.mock('@semiont/http-transport', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/http-transport')>('@semiont/http-transport');
-  // Capture the transport config so a test can see whether the identity check
-  // was given a token source at all.
-  class MockHttpTransport {
-    config: any;
-    constructor(config: any) { this.config = config; httpTransportConfigs.push(config); }
-    // The real transport subscribes to token$ and starts an SSE actor once a
-    // token arrives, so the throwaway auth client MUST be disposed. Recording
-    // the call rather than stubbing it silently: a mock that merely tolerates
-    // dispose() would let the leak come back unnoticed, and the missing method
-    // took the whole connect-flow suite red.
-    disposed = false;
-    dispose() { this.disposed = true; httpTransportDisposals.push(this.config); }
-  }
-  class MockHttpContentTransport { constructor(_t: any) {} }
-  return { ...actual, HttpTransport: MockHttpTransport, HttpContentTransport: MockHttpContentTransport };
-});
-
-vi.mock('@semiont/core', async () => {
-  const actual = await vi.importActual<typeof import('@semiont/core')>('@semiont/core');
-  return {
-    ...actual,
-    baseUrl: (url: string) => url,
-    email: (e: string) => e,
-    accessToken: (t: string) => t,
-  };
-});
+// Connecting is leaving: the panel hands the browser a target and navigates
+// to the URL it returns. jsdom's `location.assign` is not implemented, so
+// the navigation is recorded here.
+const assign = vi.fn();
+const ISSUER_URL = 'https://issuer.test/realms/semiont/protocol/openid-connect/auth?client_id=semiont-browser';
 
 describe('KnowledgeBasePanel', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    httpTransportConfigs.length = 0;
-    httpTransportDisposals.length = 0;
+    Object.defineProperty(window, 'location', {
+      configurable: true,
+      value: { origin: 'http://localhost:3000', href: 'http://localhost:3000/en/know/discover', assign },
+    });
+    mockBrowser.beginSignIn.mockResolvedValue(ISSUER_URL);
     kbs$.next([kb1, kb2]);
     // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
     // with `kb: kb1` emulates "kb1 is active".
@@ -231,7 +180,7 @@ describe('KnowledgeBasePanel', () => {
   });
 
   describe('Add knowledge base', () => {
-    it('should open the connect form when Add is clicked', async () => {
+    it('should open the connect form when Add is clicked — an address, never a credential', async () => {
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
 
@@ -240,8 +189,8 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText('Connect to Knowledge Base')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Host')).toBeInTheDocument();
       expect(screen.getByPlaceholderText('Port')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Email')).toBeInTheDocument();
-      expect(screen.getByPlaceholderText('Password')).toBeInTheDocument();
+      expect(screen.queryByPlaceholderText('Email')).not.toBeInTheDocument();
+      expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
     });
   });
 
@@ -252,110 +201,69 @@ describe('KnowledgeBasePanel', () => {
     });
   });
 
-  describe('Identity capture at connect (P3a — decisions 7 & 8)', () => {
-    // The connect flow: auth → /api/status → register. `did` is REQUIRED on a
-    // registered KB (decision 8), and it comes from the KB itself, never from
-    // the row the user happened to click (decision 2).
+  describe('Connect starts a sign-in at the issuer the KB trusts', () => {
+    // Who the user is comes from the issuer, so the panel's whole job at
+    // connect time is: hand the browser a target, go where it says. The
+    // identity capture and the (C) verification happen on the way back, in
+    // the callback page — see its tests.
     async function connect() {
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
       await user.click(screen.getByText('Add knowledge base'));
-      await user.type(screen.getByPlaceholderText('Password'), 'pw');
       await user.click(screen.getByRole('button', { name: 'Connect' }));
     }
 
-    beforeEach(() => {
-      mockAuthPassword.mockResolvedValue({ token: 'tok', refreshToken: 'ref' });
-    });
-
-    it('captures the did from /api/status and registers the KB with it', async () => {
-      mockAdminStatus.mockResolvedValue({
-        projectName: 'Caselaw Knowledge Base',
-        gitBranch: 'main',
-        did: 'did:web:the-ai-alliance.github.io:semiont-caselaw-kb',
-      });
-
+    it('asks the browser to begin a sign-in for the typed address, and navigates to the issuer', async () => {
       await connect();
 
-      await waitFor(() => expect(mockBrowser.addKb).toHaveBeenCalled());
-      const [registered] = mockBrowser.addKb.mock.calls[0]!;
-      expect(registered.did).toBe('did:web:the-ai-alliance.github.io:semiont-caselaw-kb');
-      expect(registered.label).toBe('Caselaw Knowledge Base');
+      await waitFor(() => expect(assign).toHaveBeenCalledWith(ISSUER_URL));
+      expect(mockBrowser.beginSignIn).toHaveBeenCalledWith({
+        target: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
+        redirectUri: 'http://localhost:3000/en/auth/callback',
+      });
     });
 
-    it('refuses to register when identity cannot be determined, and says so', async () => {
-      // No status response ⇒ no did ⇒ nothing legitimate to register. The old
-      // code swallowed this and registered under a `host:port` label — an
-      // address masquerading as a name (decision 7), now impossible.
-      mockAdminStatus.mockRejectedValue(new Error('status unavailable'));
+    it('re-authenticates a registered KB at the typed address by id rather than registering it twice', async () => {
+      const user = userEvent.setup();
+      render(<KnowledgeBasePanel />);
+      await user.click(screen.getByText('Add knowledge base'));
+      const host = screen.getByPlaceholderText('Host');
+      await user.clear(host);
+      await user.type(host, 'staging.example.com');
+      await user.click(screen.getByRole('button', { name: 'Connect' }));
+
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      expect(mockBrowser.beginSignIn).toHaveBeenCalledWith(expect.objectContaining({ kbId: 'kb-2' }));
+    });
+
+    it('says why when the knowledge base trusts no issuer, and stays', async () => {
+      mockBrowser.beginSignIn.mockRejectedValue(new SignInError('no-issuer', 'The knowledge base trusts no external issuer'));
 
       await connect();
 
       await waitFor(() => {
-        expect(screen.getByText(/identity check could not reach/i)).toBeInTheDocument();
+        expect(screen.getByText(/trusts no external issuer/i)).toBeInTheDocument();
       });
-      expect(mockBrowser.addKb).not.toHaveBeenCalled();
+      expect(assign).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Connect' })).toBeEnabled();
     });
 
-    it('sends the access token with the identity check', async () => {
-      // The bug this pins (found live 2026-07-28): the throwaway client was
-      // built with no token source, so `/api/status` — which REQUIRES auth —
-      // was called unauthenticated and 401'd on every connect. Before P3a the
-      // 401 was swallowed and the label silently fell back to `host:port`;
-      // after P3a it blocked connecting outright. The session factory's
-      // `performValidate` had the correct pattern (seed `token$`) all along.
-      let tokenAtIdentityCheck: string | null = null;
-      mockAdminStatus.mockImplementation(async () => {
-        const source = httpTransportConfigs.find((c) => c?.token$);
-        tokenAtIdentityCheck = source?.token$?.getValue() ?? null;
-        return { projectName: 'Caselaw Knowledge Base', did: 'did:web:caselaw.example' };
+    it('offers a signed-out KB one button back to its issuer', async () => {
+      const user = userEvent.setup();
+      render(<KnowledgeBasePanel />);
+
+      // kb2 reads 'signed-out'; clicking it opens the re-auth prompt.
+      await user.click(screen.getByText('Staging'));
+      expect(screen.getByText('admin@staging.com')).toBeInTheDocument();
+      expect(screen.queryByPlaceholderText('Password')).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Sign in' }));
+
+      await waitFor(() => expect(assign).toHaveBeenCalledWith(ISSUER_URL));
+      expect(mockBrowser.beginSignIn).toHaveBeenCalledWith({
+        target: kb2.endpoint,
+        redirectUri: 'http://localhost:3000/en/auth/callback',
+        kbId: 'kb-2',
       });
-
-      await connect();
-
-      await waitFor(() => expect(mockBrowser.addKb).toHaveBeenCalled());
-      expect(tokenAtIdentityCheck).toBe('tok');
-    });
-
-    it('disposes the throwaway transport even when auth fails', async () => {
-      // The transport subscribes to token$ as soon as it is constructed, and
-      // starts an SSE actor once a token arrives — so a connect attempt that
-      // throws must still tear it down. The original cleanup sat in a finally
-      // scoped to the /api/status call, which covered the one failure on
-      // screen and left every earlier one leaking: a rejected password, or a
-      // response missing either token.
-      mockAuthPassword.mockRejectedValue(new Error('bad password'));
-
-      await connect();
-
-      await waitFor(() => expect(httpTransportDisposals.length).toBeGreaterThan(0));
-      expect(mockBrowser.addKb).not.toHaveBeenCalled();
-    });
-
-    it('distinguishes an unreachable identity check from a KB that reports none', async () => {
-      // One message for both left the live failure undiagnosable from the UI.
-      mockAdminStatus.mockResolvedValue({ projectName: 'Nameless' });
-
-      await connect();
-
-      await waitFor(() => {
-        expect(screen.getByText(/did not report an identity/i)).toBeInTheDocument();
-      });
-      expect(screen.queryByText(/could not reach/i)).not.toBeInTheDocument();
-      expect(mockBrowser.addKb).not.toHaveBeenCalled();
-    });
-
-    it('stores no name when the KB reports none — never the address', async () => {
-      mockAdminStatus.mockResolvedValue({ did: 'did:web:nameless.example' });
-
-      await connect();
-
-      await waitFor(() => expect(mockBrowser.addKb).toHaveBeenCalled());
-      const [registered] = mockBrowser.addKb.mock.calls[0]!;
-      expect(registered.did).toBe('did:web:nameless.example');
-      // The absence is stored as an absence; the WORD is a render concern.
-      expect(registered.label).toBe('');
-      expect(registered.label).not.toContain('localhost');
     });
 
     it('renders "Unknown" for a registered KB with no name (decision 7 vocabulary)', () => {
@@ -484,7 +392,6 @@ describe('KnowledgeBasePanel', () => {
 
     beforeEach(() => {
       discoveryHolder.current = { state: null, kbs: [] };
-      mockAuthPassword.mockResolvedValue({ token: 'tok', refreshToken: 'ref' });
     });
 
     it('names the conflict when two knowledge bases claim one address', () => {
@@ -532,38 +439,22 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.queryByText('Connect to Knowledge Base')).not.toBeInTheDocument();
     });
 
-    it('reports when the KB reached is not the one whose row was clicked (C)', async () => {
+    it('records what the user believed they clicked, so the return can verify it (C)', async () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA, claimantB] }, kbs: [claimantA, claimantB] };
-      // Whoever actually answers at :4000 is Caselaw, not the clicked row.
-      mockAdminStatus.mockResolvedValue({ projectName: 'Caselaw Knowledge Base', did: 'did:web:caselaw.example' });
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
 
       await user.click(screen.getByText('Synthetic Family'));
-      await user.type(screen.getByPlaceholderText('Password'), 'pw');
       await user.click(screen.getByRole('button', { name: 'Connect' }));
 
-      await waitFor(() => {
-        expect(
-          screen.getByText(/Connected to Caselaw Knowledge Base, not Synthetic Family/i),
-        ).toBeInTheDocument();
-      });
-      // It still registered — verification reports, it does not block (C+D).
-      expect(mockBrowser.addKb).toHaveBeenCalled();
-    });
-
-    it('stays silent when the did matches the clicked row', async () => {
-      discoveryHolder.current = { state: { kind: 'managed', kbs: [claimantA] }, kbs: [claimantA] };
-      mockAdminStatus.mockResolvedValue({ projectName: 'Caselaw Knowledge Base', did: 'did:web:caselaw.example' });
-      const user = userEvent.setup();
-      render(<KnowledgeBasePanel />);
-
-      await user.click(screen.getByText('Caselaw Knowledge Base'));
-      await user.type(screen.getByPlaceholderText('Password'), 'pw');
-      await user.click(screen.getByRole('button', { name: 'Connect' }));
-
-      await waitFor(() => expect(mockBrowser.addKb).toHaveBeenCalled());
-      expect(screen.queryByText(/Connected to .*, not /i)).not.toBeInTheDocument();
+      await waitFor(() => expect(assign).toHaveBeenCalled());
+      // Recording the belief is not promising it: the browser verifies the
+      // KB that answers against this on the way back, and reports.
+      expect(mockBrowser.beginSignIn).toHaveBeenCalledWith(expect.objectContaining({
+        target: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
+        expectedDid: 'did:web:synthetic.example',
+        expectedName: 'Synthetic Family',
+      }));
     });
   });
 
@@ -618,7 +509,7 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getAllByText(/localhost:4002/)).toHaveLength(1);
     });
 
-    it('clicking a discovered KB opens the login form prefilled with its endpoint', async () => {
+    it('clicking a discovered KB opens the connect form prefilled with its endpoint', async () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [discoveredLocal] }, kbs: [discoveredLocal] };
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);

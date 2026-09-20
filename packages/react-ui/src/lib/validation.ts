@@ -72,19 +72,29 @@ export const ImageURLSchema = {
 };
 
 /**
- * OAuth user validation (Next.js NextAuth specific)
+ * Validates the authenticated user a knowledge base reports.
  *
- * Validates user objects returned from OAuth providers.
- * Includes domain validation for access control.
+ * The identity is the `did`. It used to be a row id, which named the caller in
+ * a way nothing else in the system used, so it could not be compared against
+ * anything — events, attributions and claims all carry the did.
+ *
+ * `isAdmin` and `isModerator` are OPTIONAL, and as of 2026-09-18 NOTHING reads
+ * them: no gateway route gates on them, and no component branches on them —
+ * the moderation surface is shown to every authenticated user. They survive
+ * here only because a knowledge base may still send them and rejecting a
+ * payload over a field nobody consumes would be absurd.
+ *
+ * A payload carrying neither is valid. One carrying either as a non-boolean is
+ * not, because that is a malformed value rather than an absent one.
  */
 export interface OAuthUser {
-  id: string;
+  did: string;
   email: string;
   name?: string | null;
   image?: string | null;
   domain: string;
-  isAdmin: boolean;
-  isModerator: boolean;
+  isAdmin?: boolean;
+  isModerator?: boolean;
 }
 
 export const OAuthUserSchema = {
@@ -96,8 +106,8 @@ export const OAuthUserSchema = {
     const user = data as Record<string, unknown>;
 
     // Validate required string fields
-    if (typeof user.id !== 'string' || user.id.length === 0) {
-      throw new Error('User ID is required');
+    if (typeof user.did !== 'string' || !user.did.startsWith('did:')) {
+      throw new Error('A did is required');
     }
 
     if (typeof user.email !== 'string' || !isValidEmail(user.email)) {
@@ -117,21 +127,19 @@ export const OAuthUserSchema = {
       throw new Error('Image must be a string or null');
     }
 
-    // Validate boolean fields
-    if (typeof user.isAdmin !== 'boolean') {
+    // Optional role flags: absent is fine, present-but-not-a-boolean is not.
+    if (user.isAdmin !== undefined && typeof user.isAdmin !== 'boolean') {
       throw new Error('isAdmin must be a boolean');
     }
 
-    if (typeof user.isModerator !== 'boolean') {
+    if (user.isModerator !== undefined && typeof user.isModerator !== 'boolean') {
       throw new Error('isModerator must be a boolean');
     }
 
     const result: OAuthUser = {
-      id: user.id,
+      did: user.did,
       email: user.email,
       domain: user.domain,
-      isAdmin: user.isAdmin,
-      isModerator: user.isModerator,
     };
 
     // Only add optional fields if they exist
@@ -140,6 +148,12 @@ export const OAuthUserSchema = {
     }
     if (user.image !== undefined) {
       result.image = user.image as string | null;
+    }
+    if (user.isAdmin !== undefined) {
+      result.isAdmin = user.isAdmin;
+    }
+    if (user.isModerator !== undefined) {
+      result.isModerator = user.isModerator;
     }
 
     return result;

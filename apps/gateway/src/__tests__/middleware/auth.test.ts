@@ -10,16 +10,13 @@
 
 import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
 import { Context } from 'hono';
+import type { Principal } from '../../identity/principal';
 import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
-import { OAuthService } from '../../auth/oauth';
+import { principalFromToken } from '../../identity/principal';
 import { JWTService } from '../../auth/jwt';
-import { User } from '@prisma/client';
 
-// Mock OAuthService
-vi.mock('../../auth/oauth', () => ({
-  OAuthService: {
-    getPrincipalFromToken: vi.fn(),
-  }
+vi.mock('../../identity/principal', () => ({
+  principalFromToken: vi.fn(),
 }));
 
 // Mock JWTService
@@ -29,7 +26,7 @@ vi.mock('../../auth/jwt', () => ({
   }
 }));
 
-const mockOAuthService = OAuthService as Mocked<typeof OAuthService>;
+const mockPrincipalFromToken = vi.mocked(principalFromToken);
 const mockJWTService = JWTService as Mocked<typeof JWTService>;
 
 // Helper to create mock Hono context
@@ -63,9 +60,11 @@ function createMockContext(
       query: vi.fn((name: string) => queryParams[name]),
       path,
       method,
+      url: `http://localhost${path}`,
       raw: { headers: rawHeaders },
     },
     json: mockJson,
+    header: vi.fn(),
     set: mockSet,
     get: mockGet,
   } as any;
@@ -89,7 +88,7 @@ describe('Auth Middleware', () => {
         
         expect(context.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'Unauthorized' }), 401);
         expect(mockNext).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).not.toHaveBeenCalled();
+        expect(mockPrincipalFromToken).not.toHaveBeenCalled();
       });
 
       it('should return 401 for non-Bearer Authorization header', async () => {
@@ -141,18 +140,18 @@ describe('Auth Middleware', () => {
     describe('Token Validation', () => {
       it('should return 401 for invalid JWT token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer invalid-token' });
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
+        mockPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
         
         await authMiddleware(context, mockNext);
         
         expect(context.json).toHaveBeenCalledWith({ error: 'Invalid token' }, 401);
         expect(mockNext).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith('invalid-token');
+        expect(mockPrincipalFromToken).toHaveBeenCalledWith('invalid-token');
       });
 
       it('should return 401 for expired JWT token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer expired-token' });
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Token expired'));
+        mockPrincipalFromToken.mockRejectedValue(new Error('Token expired'));
         
         await authMiddleware(context, mockNext);
         
@@ -162,7 +161,7 @@ describe('Auth Middleware', () => {
 
       it('should return 401 for malformed JWT token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer not.a.valid.jwt' });
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Malformed JWT'));
+        mockPrincipalFromToken.mockRejectedValue(new Error('Malformed JWT'));
         
         await authMiddleware(context, mockNext);
         
@@ -181,44 +180,35 @@ describe('Auth Middleware', () => {
         for (const token of testTokens) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
-          mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Test error'));
+          mockPrincipalFromToken.mockRejectedValue(new Error('Test error'));
           
           await authMiddleware(context, mockNext);
           
-          expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith(token);
+          expect(mockPrincipalFromToken).toHaveBeenCalledWith(token);
         }
       });
     });
 
     describe('Successful Authentication', () => {
-      const mockUser: User = {
-        id: 'user-123',
+      const mockUser: Principal = {
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-    passwordHash: null,
-        isAdmin: false,
-        isActive: true,
-        isModerator: false, tokenVersion: 0,
-        termsAcceptedAt: null,
-        lastLogin: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAgent: false,
       };
 
       it('should set user context and call next for valid token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
 
         await authMiddleware(context, mockNext);
 
-        expect(context.set).toHaveBeenCalledWith('user', mockUser);
+        expect(context.set).toHaveBeenCalledWith('principal', mockUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith('valid-token');
+        expect(mockPrincipalFromToken).toHaveBeenCalledWith('valid-token');
       });
 
       // Single-slot identity: bus and resource creation read `principalDid`
@@ -227,7 +217,7 @@ describe('Auth Middleware', () => {
       // is the seam where that abstraction is enforced.
       it('sets `principalDid` from `userToDid(user)` for a human (no agentDid on JWT)', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer human-token' });
-        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
 
         await authMiddleware(context, mockNext);
 
@@ -240,7 +230,7 @@ describe('Auth Middleware', () => {
       it('sets `principalDid` from the JWT `agentDid` for a software-agent token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer agent-token' });
         const agentDid = 'did:web:example.com:agents:ollama:gemma2%3A27b';
-        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser, agentDid });
+        mockPrincipalFromToken.mockResolvedValue({ ...mockUser, did: agentDid, isAgent: true });
 
         await authMiddleware(context, mockNext);
 
@@ -250,11 +240,11 @@ describe('Auth Middleware', () => {
       it('should handle admin users correctly', async () => {
         const adminUser = { ...mockUser, isAdmin: true };
         const context = createMockContext({ 'Authorization': 'Bearer admin-token' });
-        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: adminUser });
+        mockPrincipalFromToken.mockResolvedValue(adminUser);
         
         await authMiddleware(context, mockNext);
         
-        expect(context.set).toHaveBeenCalledWith('user', adminUser);
+        expect(context.set).toHaveBeenCalledWith('principal', adminUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
       });
@@ -267,11 +257,11 @@ describe('Auth Middleware', () => {
           lastLogin: null,
         };
         const context = createMockContext({ 'Authorization': 'Bearer minimal-token' });
-        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: minimalUser });
+        mockPrincipalFromToken.mockResolvedValue(minimalUser);
         
         await authMiddleware(context, mockNext);
         
-        expect(context.set).toHaveBeenCalledWith('user', minimalUser);
+        expect(context.set).toHaveBeenCalledWith('principal', minimalUser);
         expect(mockNext).toHaveBeenCalled();
       });
     });
@@ -289,7 +279,7 @@ describe('Auth Middleware', () => {
         for (const error of sensitiveErrors) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': 'Bearer token' });
-          mockOAuthService.getPrincipalFromToken.mockRejectedValue(error);
+          mockPrincipalFromToken.mockRejectedValue(error);
           
           await authMiddleware(context, mockNext);
           
@@ -318,7 +308,7 @@ describe('Auth Middleware', () => {
         for (const error of networkErrors) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': 'Bearer token' });
-          mockOAuthService.getPrincipalFromToken.mockRejectedValue(error);
+          mockPrincipalFromToken.mockRejectedValue(error);
           
           await authMiddleware(context, mockNext);
           
@@ -332,12 +322,12 @@ describe('Auth Middleware', () => {
       it('should handle extremely long tokens safely', async () => {
         const longToken = 'a'.repeat(10000);
         const context = createMockContext({ 'Authorization': `Bearer ${longToken}` });
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Token too long'));
+        mockPrincipalFromToken.mockRejectedValue(new Error('Token too long'));
         
         await authMiddleware(context, mockNext);
         
         expect(context.json).toHaveBeenCalledWith({ error: 'Invalid token' }, 401);
-        expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith(longToken);
+        expect(mockPrincipalFromToken).toHaveBeenCalledWith(longToken);
       });
 
       it('should handle tokens with newlines and special characters', async () => {
@@ -353,37 +343,28 @@ describe('Auth Middleware', () => {
         for (const token of specialTokens) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
-          mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Invalid format'));
+          mockPrincipalFromToken.mockRejectedValue(new Error('Invalid format'));
           
           await authMiddleware(context, mockNext);
           
-          expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith(token);
+          expect(mockPrincipalFromToken).toHaveBeenCalledWith(token);
           expect(context.json).toHaveBeenCalledWith({ error: 'Invalid token' }, 401);
         }
       });
 
       it('should handle concurrent requests safely', async () => {
-        const baseUser: User = {
-          id: 'user-base',
+        const baseUser: Principal = {
+          did: 'did:web:example.com:users:base%40example.com',
           email: 'base@example.com',
           name: 'Base User',
           image: null,
           domain: 'example.com',
-          provider: 'google',
-          providerId: 'google-base',
-    passwordHash: null,
-          isAdmin: false,
-          isActive: true,
-          isModerator: false, tokenVersion: 0,
-          termsAcceptedAt: null,
-          lastLogin: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          isAgent: false,
         };
 
-        const mockUser1 = { ...baseUser, id: 'user-1', email: 'user1@example.com' };
-        const mockUser2 = { ...baseUser, id: 'user-2', email: 'user2@example.com' };
-        const mockUser3 = { ...baseUser, id: 'user-3', email: 'user3@example.com' };
+        const mockUser1 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user1@example.com')}`, email: 'user1@example.com' };
+        const mockUser2 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user2@example.com')}`, email: 'user2@example.com' };
+        const mockUser3 = { ...baseUser, did: `did:web:example.com:users:${encodeURIComponent('user3@example.com')}`, email: 'user3@example.com' };
 
         const contexts = [
           createMockContext({ 'Authorization': 'Bearer token1' }),
@@ -391,18 +372,18 @@ describe('Auth Middleware', () => {
           createMockContext({ 'Authorization': 'Bearer token3' }),
         ];
 
-        mockOAuthService.getPrincipalFromToken
-          .mockResolvedValueOnce({ user: mockUser1 })
-          .mockResolvedValueOnce({ user: mockUser2 })
-          .mockResolvedValueOnce({ user: mockUser3 });
+        mockPrincipalFromToken
+          .mockResolvedValueOnce(mockUser1)
+          .mockResolvedValueOnce(mockUser2)
+          .mockResolvedValueOnce(mockUser3);
 
         // Process all requests concurrently
         await Promise.all(contexts.map(context => authMiddleware(context, mockNext)));
 
         // Verify each request was handled correctly
-        expect(contexts[0]?.set).toHaveBeenCalledWith('user', mockUser1);
-        expect(contexts[1]?.set).toHaveBeenCalledWith('user', mockUser2);
-        expect(contexts[2]?.set).toHaveBeenCalledWith('user', mockUser3);
+        expect(contexts[0]?.set).toHaveBeenCalledWith('principal', mockUser1);
+        expect(contexts[1]?.set).toHaveBeenCalledWith('principal', mockUser2);
+        expect(contexts[2]?.set).toHaveBeenCalledWith('principal', mockUser3);
         expect(mockNext).toHaveBeenCalledTimes(3);
       });
     });
@@ -418,10 +399,16 @@ describe('Auth Middleware', () => {
         await authMiddleware(context, mockNext);
 
         expect(mockJWTService.verifyMediaToken).toHaveBeenCalledWith('valid.media.token', 'res-abc');
-        expect(context.set).toHaveBeenCalledWith('token', 'valid.media.token');
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).not.toHaveBeenCalled();
+        expect(mockPrincipalFromToken).not.toHaveBeenCalled();
+
+        // A media token is resource-scoped, not principal-scoped: it names the
+        // one resource it may fetch and says nothing about who holds it. So the
+        // middleware sets NO principal on this path, and a route reached this
+        // way must not assume one. (It used to stash the raw token under
+        // `token`, which no route ever read.)
+        expect(context.set).not.toHaveBeenCalled();
       });
 
       it('should return 401 for an invalid media token', async () => {
@@ -465,10 +452,10 @@ describe('Auth Middleware', () => {
       });
 
       it('should not accept a media token on a non-resource path', async () => {
-        // /api/admin/users does not match MEDIA_TOKEN_PATH — falls through to normal auth
+        // /api/status does not match MEDIA_TOKEN_PATH — falls through to normal auth
         const context = createMockContext(
           {},
-          { path: '/api/admin/users', method: 'GET', queryParams: { token: 'some.media.token' } }
+          { path: '/api/status', method: 'GET', queryParams: { token: 'some.media.token' } }
         );
 
         await authMiddleware(context, mockNext);
@@ -496,7 +483,7 @@ describe('Auth Middleware', () => {
 
       it('should fall through to Bearer auth when no ?token= param is present', async () => {
         // Path matches but no token param — should use normal Bearer flow
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
+        mockPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
         const context = createMockContext(
           { 'Authorization': 'Bearer normal-token' },
           { path: '/api/resources/res-abc', method: 'GET' }
@@ -505,7 +492,7 @@ describe('Auth Middleware', () => {
         await authMiddleware(context, mockNext);
 
         expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith('normal-token');
+        expect(mockPrincipalFromToken).toHaveBeenCalledWith('normal-token');
       });
     });
   });
@@ -520,7 +507,7 @@ describe('Auth Middleware', () => {
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
         expect(context.set).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).not.toHaveBeenCalled();
+        expect(mockPrincipalFromToken).not.toHaveBeenCalled();
       });
 
       it('should continue without authentication for malformed header', async () => {
@@ -541,52 +528,43 @@ describe('Auth Middleware', () => {
           expect(mockNext).toHaveBeenCalled();
           expect(context.json).not.toHaveBeenCalled();
           expect(context.set).not.toHaveBeenCalled();
-          expect(mockOAuthService.getPrincipalFromToken).not.toHaveBeenCalled();
+          expect(mockPrincipalFromToken).not.toHaveBeenCalled();
         }
       });
 
       it('should continue without authentication for invalid tokens', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer invalid-token' });
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
+        mockPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
         
         await optionalAuthMiddleware(context, mockNext);
         
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
         expect(context.set).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith('invalid-token');
+        expect(mockPrincipalFromToken).toHaveBeenCalledWith('invalid-token');
       });
     });
 
     describe('Optional Authentication Success', () => {
-      const mockUser: User = {
-        id: 'user-123',
+      const mockUser: Principal = {
+        did: 'did:web:example.com:users:user%40example.com',
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-    passwordHash: null,
-        isAdmin: true,
-        isActive: true,
-        isModerator: false, tokenVersion: 0,
-        termsAcceptedAt: null,
-        lastLogin: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAgent: false,
       };
 
       it('should set user context for valid tokens', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-        mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
         
         await optionalAuthMiddleware(context, mockNext);
         
-        expect(context.set).toHaveBeenCalledWith('user', mockUser);
+        expect(context.set).toHaveBeenCalledWith('principal', mockUser);
         expect(mockNext).toHaveBeenCalled();
         expect(context.json).not.toHaveBeenCalled();
-        expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith('valid-token');
+        expect(mockPrincipalFromToken).toHaveBeenCalledWith('valid-token');
       });
 
       it('should handle token extraction correctly', async () => {
@@ -599,12 +577,12 @@ describe('Auth Middleware', () => {
         for (const token of testTokens) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': `Bearer ${token}` });
-          mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
+          mockPrincipalFromToken.mockResolvedValue(mockUser);
           
           await optionalAuthMiddleware(context, mockNext);
           
-          expect(mockOAuthService.getPrincipalFromToken).toHaveBeenCalledWith(token);
-          expect(context.set).toHaveBeenCalledWith('user', mockUser);
+          expect(mockPrincipalFromToken).toHaveBeenCalledWith(token);
+          expect(context.set).toHaveBeenCalledWith('principal', mockUser);
         }
       });
     });
@@ -622,7 +600,7 @@ describe('Auth Middleware', () => {
         for (const error of authErrors) {
           vi.clearAllMocks();
           const context = createMockContext({ 'Authorization': 'Bearer error-token' });
-          mockOAuthService.getPrincipalFromToken.mockRejectedValue(error);
+          mockPrincipalFromToken.mockRejectedValue(error);
           
           await optionalAuthMiddleware(context, mockNext);
           
@@ -635,7 +613,7 @@ describe('Auth Middleware', () => {
       it('should not log sensitive information during optional auth failures', async () => {
         const sensitiveError = new Error('User admin@secret.com token sk_secret_123 invalid');
         const context = createMockContext({ 'Authorization': 'Bearer sensitive-token' });
-        mockOAuthService.getPrincipalFromToken.mockRejectedValue(sensitiveError);
+        mockPrincipalFromToken.mockRejectedValue(sensitiveError);
         
         // Mock console.error to verify no sensitive logging
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -655,26 +633,17 @@ describe('Auth Middleware', () => {
 
   describe('Middleware Integration', () => {
     it('should work correctly in middleware chain', async () => {
-      const mockUser: User = {
-        id: 'user-123',
+      const mockUser: Principal = {
+        did: `did:web:example.com:users:${encodeURIComponent('user@example.com')}`,
         email: 'user@example.com',
         name: 'Test User',
         image: null,
         domain: 'example.com',
-        provider: 'google',
-        providerId: 'google-123',
-    passwordHash: null,
-        isAdmin: false,
-        isActive: true,
-        isModerator: false, tokenVersion: 0,
-        termsAcceptedAt: null,
-        lastLogin: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        isAgent: false,
       };
 
       const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-      mockOAuthService.getPrincipalFromToken.mockResolvedValue({ user: mockUser });
+      mockPrincipalFromToken.mockResolvedValue(mockUser);
       
       // Mock next middleware that checks for user
       const nextMiddleware = vi.fn(async () => {
@@ -684,7 +653,7 @@ describe('Auth Middleware', () => {
       
       await authMiddleware(context, nextMiddleware);
       
-      expect(context.set).toHaveBeenCalledWith('user', mockUser);
+      expect(context.set).toHaveBeenCalledWith('principal', mockUser);
       expect(nextMiddleware).toHaveBeenCalled();
     });
 

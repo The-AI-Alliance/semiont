@@ -5,7 +5,8 @@ import { JaegerCapture, attachJaegerEvidence } from './jaeger';
 import { attachPageErrors, attachPageErrorsArtifact, type PageErrorsCapture } from './page-errors';
 
 /**
- * Sign in via the real UI form: Connect → host/port/email/password → submit.
+ * Sign in via the real UI: Connect → host/port → the issuer's login page →
+ * back to the Browser's callback, which registers the knowledge base.
  *
  * Leaves the page on `/en/know/discover` with a live authenticated session.
  * Idempotent: re-invocation on an already-signed-in page is a no-op.
@@ -28,58 +29,61 @@ export async function signIn(page: Page): Promise<void> {
   // registered KBs. When at least one KB is registered, the form is
   // collapsed and we have to click "Add Knowledge Base" first. Race the
   // two states rather than assuming one.
-  const emailField = page.getByRole('textbox', { name: /^email$/i });
+  const hostField = page.getByRole('textbox', { name: /^host$/i });
   const addButton = page.getByRole('button', { name: /add knowledge base/i });
 
   await expect(async () => {
-    const emailVisible = await emailField.isVisible().catch(() => false);
+    const hostVisible = await hostField.isVisible().catch(() => false);
     const addVisible = await addButton.isVisible().catch(() => false);
-    expect(emailVisible || addVisible).toBe(true);
+    expect(hostVisible || addVisible).toBe(true);
   }).toPass({ timeout: 15_000 });
 
-  if (!(await emailField.isVisible().catch(() => false))) {
+  if (!(await hostField.isVisible().catch(() => false))) {
     await addButton.click();
-    await expect(emailField).toBeVisible({ timeout: 5_000 });
+    await expect(hostField).toBeVisible({ timeout: 5_000 });
   }
 
   // Fill the form. Fields have labels derived from their placeholder
-  // text (the LoginForm uses `placeholder="Host"` etc which Playwright's
+  // text (the ConnectForm uses `placeholder="Host"` etc which Playwright's
   // accessibility tree exposes as textbox names).
   //
   // IMPORTANT: set host BEFORE protocol. Filling the host runs
   // `handleHostChange` which calls `defaultProtocol(host)` and can flip
   // the protocol to HTTPS for IP-like hostnames, overwriting an earlier
   // protocol selection.
-  await page.getByRole('textbox', { name: /^host$/i }).fill(host);
+  await hostField.fill(host);
   await page.getByRole('combobox').first().selectOption(protocol);
   await page.getByRole('spinbutton').first().fill(port);
-  await emailField.fill(E2E_EMAIL);
-  await page.getByRole('textbox', { name: /^password$/i }).fill(E2E_PASSWORD);
 
-  // Submit — the primary button in the form is "Connect" (not "Sign in";
-  // that's the re-auth form's label).
+  // Connect leaves for the issuer the KB trusts. The credentials are
+  // entered THERE — on the launcher-run Keycloak's login page, whose default
+  // theme names its fields by these ids — never in the Browser.
   await page.getByRole('button', { name: /^connect$/i }).click();
+  await page.waitForURL(/\/realms\//, { timeout: 20_000 });
+  await page.locator('#username').fill(E2E_EMAIL);
+  await page.locator('#password').fill(E2E_PASSWORD);
+  await page.locator('#kc-login').click();
 
-  // Wait until the URL changes OR the form disappears. Either is proof
-  // the sign-in was accepted.
+  // The issuer sends the page back to /auth/callback, which registers the
+  // KB and lands on the knowledge section.
   await expect(async () => {
     const signedIn = await isAlreadySignedIn(page);
     expect(signedIn).toBe(true);
-  }).toPass({ timeout: 20_000 });
+  }).toPass({ timeout: 30_000 });
 }
 
 /**
  * Best-effort heuristic: we're signed in if the discover route is visible
- * and the sign-in form is not.
+ * and the connect form is not.
  */
 async function isAlreadySignedIn(page: Page): Promise<boolean> {
-  // No sign-in form visible implies either signed in or still loading.
-  const emailInput = page.getByRole('textbox', { name: /^email$/i });
-  const emailVisible = await emailInput.isVisible().catch(() => false);
-  if (emailVisible) return false;
+  // A visible connect form implies either signed out or still loading.
+  const hostInput = page.getByRole('textbox', { name: /^host$/i });
+  const hostVisible = await hostInput.isVisible().catch(() => false);
+  if (hostVisible) return false;
 
   // The authenticated Knowledge section uses a /know/ URL and has no
-  // sign-in form; that combination is proof-of-auth.
+  // connect form; that combination is proof-of-auth.
   const url = page.url();
   return /\/know\//.test(url);
 }

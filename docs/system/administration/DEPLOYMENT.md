@@ -102,8 +102,9 @@ solve:
   that means a shared filesystem or a different content strategy.
 - **Ingress and TLS.** The Browser serves on 3000 and the gateway on 4000; terminating TLS and
   routing to them is platform work.
-- **Migrations.** The gateway applies Prisma migrations at startup; no external migration step is
-  required, but the database must be reachable before the gateway becomes healthy.
+- **Migrations.** None are Semiont's. The gateway holds no database; Keycloak manages its own
+  schema on first boot, so PostgreSQL must be reachable before the identity service becomes healthy
+  rather than before the gateway does.
 - **Multiple gateway replicas.** The gateway scales horizontally behind a load balancer once both
   broker-backed drivers are selected — without them, replicas race the filesystem job queue and
   strand correlated replies on whichever replica saw the request:

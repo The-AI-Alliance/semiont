@@ -10,7 +10,6 @@
 
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
-import type { User } from '@prisma/client';
 import type { components, EnvironmentConfig } from '@semiont/core';
 import { kbDid } from '@semiont/core';
 import { kbBranch } from '../lib/archivist';
@@ -18,7 +17,7 @@ import { kbBranch } from '../lib/archivist';
 type StatusResponse = components['schemas']['StatusResponse'];
 
 // Create status router with plain Hono
-export const statusRouter = new Hono<{ Variables: { user: User; config: EnvironmentConfig } }>();
+export const statusRouter = new Hono<{ Variables: { config: EnvironmentConfig } }>();
 
 // Apply auth middleware
 statusRouter.use('/api/status', authMiddleware);
@@ -30,7 +29,7 @@ statusRouter.use('/api/status', authMiddleware);
  * Requires authentication
  */
 statusRouter.get('/api/status', async (c) => {
-  const user = c.get('user');
+  const principal = c.get('principal');
   const config = c.get('config');
   // Three facts about a KB tree this process does not mount (SINGLE-KB-MOUNT
   // P5). The two COMMITTED ones ride the launcher-staged `[kb]` identity card
@@ -73,7 +72,7 @@ statusRouter.get('/api/status', async (c) => {
       rbac: 'planned',
     },
     message: 'Ready to build the future of knowledge management!',
-    authenticatedAs: user?.email,
+    authenticatedAs: principal?.email,
     projectName,
     gitBranch: gitBranch ?? undefined,
     did,

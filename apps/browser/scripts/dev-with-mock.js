@@ -21,13 +21,7 @@ const mockServer = createServer((req, res) => {
   const responses = {
     '/api/health': { status: 'ok', timestamp: new Date().toISOString() },
     '/api/auth/session': { user: null }, // Not logged in by default
-    '/api/admin/stats': { users: 42, sessions: 17 },
-    '/api/admin/users': {
-      users: [
-        { id: 1, email: 'admin@example.com', name: 'Admin User', role: 'admin' },
-        { id: 2, email: 'user@example.com', name: 'Regular User', role: 'user' }
-      ]
-    }
+    '/api/status': { status: 'ok', version: 'dev', uptime: 1 }
   };
 
   const response = responses[req.url] || { error: 'Not found' };

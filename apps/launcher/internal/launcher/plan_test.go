@@ -82,7 +82,7 @@ model = "claude-sonnet-4-5-20250929"
 	}
 	var b strings.Builder
 	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n")
-	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference"} {
+	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference", "identity"} {
 		if s, ok := sections[k]; ok {
 			b.WriteString(s + "\n")
 		}

@@ -30,22 +30,22 @@
  * Environment variables:
  *   SEMIONT_ROOT              — project root (the KB directory). Required.
  *   SEMIONT_ANCHORED_TEXT_DIR — anchored-text store dir. Required.
- *   SEMIONT_WORKER_SECRET     — shared secret: agent auth to the gateway AND
- *                               the bearer the D1 read path requires.
+ *   SEMIONT_OIDC_CLIENT_ID    — this process's own account at the KB's issuer;
+ *   SEMIONT_OIDC_CLIENT_SECRET  buys the agent token it shows the gateway. Its
+ *                               own read path admits callers by verifying THEIR
+ *                               issuer token, not by comparing a shared string.
  *   SEMIONT_SKIP_REBUILD      — 'true' skips the startup view rebuild.
  */
 
-import { BehaviorSubject, Subscription, merge } from 'rxjs';
+import { Subscription, merge } from 'rxjs';
 import { HttpTransport } from '@semiont/http-transport';
 import {
   EventBus,
   PERSISTED_EVENT_TYPES,
   baseUrl as makeBaseUrl,
-  accessToken as makeAccessToken,
-  retryWithBackoff,
-  isTransientFetchError,
-  STARTUP_FETCH_RETRY,
-  type AccessToken, withDeadline } from '@semiont/core';
+  withDeadline,
+  kbResource } from '@semiont/core';
+import { IssuerVerifier } from '@semiont/core/identity';
 import { SemiontProject, loadEnvironmentConfig } from '@semiont/core/node';
 import { createEventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore } from '@semiont/content';
@@ -109,7 +109,32 @@ if (config.services.vectors.type === 'memory') {
   throw new Error("services.vectors.type 'memory' is a test-only sink; the Archivist requires a server-backed vector store");
 }
 
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+/**
+ * This process's own account at the issuer. The credential authenticates the
+ * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
+ */
+// The audience every token in this knowledge base is minted for: the KB's own
+// did:web-derived resource identity. Derived with the SAME function the gateway
+// and the launcher use, from the SAME committed domain — a second derivation is
+// exactly how a deployment that looks correct comes to refuse every token.
+const maybeSiteDomain = envConfig.site?.domain;
+if (!maybeSiteDomain) {
+  throw new Error('site.domain is required: it is the audience this knowledge base accepts tokens for');
+}
+// Re-bind after the guard: module-level narrowing does not carry into main().
+const siteDomain = maybeSiteDomain;
+
+const maybeIssuerUrl = envConfig.services?.identity?.issuer;
+if (!maybeIssuerUrl) {
+  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
+}
+const issuerUrl = maybeIssuerUrl;
+const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+if (!clientId || !clientSecret) {
+  throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
+}
+const credential = { issuer: issuerUrl, clientId, clientSecret };
 const skipRebuild = process.env.SEMIONT_SKIP_REBUILD === 'true';
 
 /** Claimed as a portNeed in the launcher (P2b): worker 24100, smelter 24101, weaver 24102. */
@@ -117,50 +142,11 @@ const healthPort = 24103;
 
 import { registerFactPumpDepthProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { startAgentSession } from './agent-session';
 import { STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 const logger = createProcessLogger('archivist');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-
-async function authenticate(): Promise<string> {
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
-
-  // A Software peer under the stable identity (semiont, archivist), the same
-  // shape as the Weaver: no inference pair, one DID for the record-keeper.
-  return retryWithBackoff(
-    async () => {
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: workerSecret,
-          provider: 'semiont',
-          model: 'archivist',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Gateway unreachable, retrying authentication', {
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -174,22 +160,18 @@ async function main() {
   const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
   registerSupervisorRestartCount();
 
-  logger.info('Authenticating', { baseUrl });
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
-  logger.info('Authenticated');
-
-  const refreshToken = async (): Promise<string | null> => {
-    const token = await authenticate();
-    tokenSubject.next(makeAccessToken(token));
-    return token;
-  };
-  const reauthTimer = setInterval(() => {
-    refreshToken().catch((error) => {
-      logger.error('Proactive re-authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 12 * 60 * 60 * 1000);
+  // A Software peer under the stable identity (semiont, archivist), the same
+  // shape as the Weaver: no inference pair, one DID for the record-keeper.
+  //
+  // The token's lifetime and the refresh cadence derived from it are the
+  // gateway's to decide; see `startAgentSession`.
+  const session = await startAgentSession({
+    baseUrl,
+    credential,
+    provider: 'semiont',
+    model: 'archivist',
+    logger,
+  });
 
   // ── The record: local, single-owner ────────────────────────────────
   const project = new SemiontProject(projectRoot, { anchoredTextDir });
@@ -296,8 +278,8 @@ async function main() {
   // ── Bus pumps ──────────────────────────────────────────────────────
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
+    token$: session.token$,
+    tokenRefresher: session.refresh,
     // Exactly the inbound roster — never the full bridged set, whose global
     // reply fan-out is the worker-OOM failure mode. This process awaits no
     // wire replies (busRequest's isSubscribed gate fails fast if one is ever
@@ -348,7 +330,10 @@ async function main() {
     events: eventStore.log,
     content,
     views,
-    workerSecret,
+    // The Archivist verifies its OWN callers now. It serves the event log and
+    // accepts byte writes, so it is the one place in the stack where a shared
+    // static string was guarding the most valuable thing in it.
+    verifier: new IssuerVerifier({ issuer: issuerUrl, audience: kbResource(siteDomain) }),
     health: () => ({
       status: 'ok',
       actors: ['stower', 'browser', 'cloneTokenManager'],
@@ -363,7 +348,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    clearInterval(reauthTimer);
+    session.stop();
     for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
     void Promise.all([stower.stop(), browser.stop(), cloneTokenManager.stop()]).then(() => {

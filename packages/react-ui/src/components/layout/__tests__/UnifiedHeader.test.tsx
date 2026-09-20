@@ -369,30 +369,6 @@ describe('UnifiedHeader Component', () => {
       expect(screen.getByText('Semiont')).toBeInTheDocument();
     });
 
-    it('should pass admin status to NavigationMenu', () => {
-      vi.mocked(useDropdown).mockReturnValue({
-        isOpen: true,
-        toggle: vi.fn(),
-        open: vi.fn(),
-        close: vi.fn(),
-        dropdownRef: { current: null },
-      });
-
-      render(
-        <UnifiedHeader
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tHome={mockTHome}
-                  isAuthenticated={true}
-          isAdmin={true}
-        />
-      );
-
-      // Real NavigationMenu renders admin link
-      expect(screen.getByText('nav.administer')).toBeInTheDocument();
-    });
-
     it('should pass moderator status to NavigationMenu', () => {
       vi.mocked(useDropdown).mockReturnValue({
         isOpen: true,
@@ -409,7 +385,6 @@ describe('UnifiedHeader Component', () => {
           t={mockT}
           tHome={mockTHome}
                   isAuthenticated={true}
-          isModerator={true}
         />
       );
 

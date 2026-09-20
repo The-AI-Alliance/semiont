@@ -9,26 +9,6 @@
    Action Button Variants
    ======================================== */
 
-.semiont-action-button--info:focus-visible,
-.semiont-action-button--warning:focus-visible,
-.semiont-action-button--danger:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-  border-radius: 2px;
-}
-
-[data-theme="dark"] .semiont-action-button--info:focus-visible,
-[data-theme="dark"] .semiont-action-button--warning:focus-visible,
-[data-theme="dark"] .semiont-action-button--danger:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-}
-
-.semiont-action-button--info:focus:not(:focus-visible),
-.semiont-action-button--warning:focus:not(:focus-visible),
-.semiont-action-button--danger:focus:not(:focus-visible) {
-  outline: none;
-}
-
 /* ========================================
    Button Variants and States
    ======================================== */
@@ -48,7 +28,6 @@
 .semiont-button[data-icon-only="true"]:focus-visible,
 .semiont-button[data-full-width="true"]:focus-visible,
 .semiont-button--flex:focus-visible,
-.semiont-button--full-width:focus-visible,
 .semiont-button--gradient:focus-visible,
 .semiont-button-icon:focus-visible,
 .semiont-button-icon-left:focus-visible,
@@ -82,7 +61,6 @@
 .semiont-button[data-size="lg"]:focus:not(:focus-visible),
 .semiont-button[data-full-width="true"]:focus:not(:focus-visible),
 .semiont-button[data-icon-only="true"]:focus:not(:focus-visible),
-.semiont-button--full-width:focus:not(:focus-visible),
 .semiont-button--flex:focus:not(:focus-visible),
 .semiont-button--gradient:focus:not(:focus-visible),
 .semiont-button-icon:focus:not(:focus-visible),
@@ -373,23 +351,6 @@ select:focus:not(:focus-visible) {
    Miscellaneous Components
    ======================================== */
 
-/* Provider Items */
-.semiont-provider-item:focus-visible,
-.semiont-provider-item[data-selected="true"]:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-}
-
-[data-theme="dark"] .semiont-provider-item:focus-visible,
-[data-theme="dark"] .semiont-provider-item[data-selected="true"]:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-}
-
-.semiont-provider-item:focus:not(:focus-visible),
-.semiont-provider-item[data-selected="true"]:focus:not(:focus-visible) {
-  outline: none;
-}
-
 /* Selection Indicator */
 .semiont-selection-indicator:focus-visible {
   outline: 2px solid var(--semiont-color-amber-500);
@@ -442,52 +403,12 @@ select:focus:not(:focus-visible) {
    Table Components (when interactive)
    ======================================== */
 
-/* Note: Tables are not usually interactive, only apply focus when tabindex is present */
-.semiont-table-container[tabindex]:focus-visible,
-.semiont-table[tabindex]:focus-visible,
-.semiont-table__head[tabindex]:focus-visible,
-.semiont-table__header[tabindex]:focus-visible,
-.semiont-table__header--actions[tabindex]:focus-visible,
-.semiont-table__body[tabindex]:focus-visible,
-.semiont-table__row[tabindex]:focus-visible,
-.semiont-table__cell[tabindex]:focus-visible,
-.semiont-table__cell--actions[tabindex]:focus-visible,
-.semiont-table__actions[tabindex]:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-  position: relative;
-  z-index: 1;
-}
-
-[data-theme="dark"] .semiont-table__head[tabindex]:focus-visible,
-[data-theme="dark"] .semiont-table__header[tabindex]:focus-visible,
-[data-theme="dark"] .semiont-table__body[tabindex]:focus-visible,
-[data-theme="dark"] .semiont-table__row[tabindex]:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-}
-
-.semiont-table-container[tabindex]:focus:not(:focus-visible),
-.semiont-table[tabindex]:focus:not(:focus-visible),
-.semiont-table__head[tabindex]:focus:not(:focus-visible),
-.semiont-table__header[tabindex]:focus:not(:focus-visible),
-.semiont-table__header--actions[tabindex]:focus:not(:focus-visible),
-.semiont-table__body[tabindex]:focus:not(:focus-visible),
-.semiont-table__row[tabindex]:focus:not(:focus-visible),
-.semiont-table__cell[tabindex]:focus:not(:focus-visible),
-.semiont-table__cell--actions[tabindex]:focus:not(:focus-visible),
-.semiont-table__actions[tabindex]:focus:not(:focus-visible) {
-  outline: none;
-}
-
 /* ========================================
    High Contrast Mode Support
    ======================================== */
 
 @media (prefers-contrast: more) {
   /* All interactive elements get stronger focus indicators in high contrast mode */
-  .semiont-action-button--info:focus-visible,
-  .semiont-action-button--warning:focus-visible,
-  .semiont-action-button--danger:focus-visible,
   .semiont-button:focus-visible,
   .semiont-button[data-variant]:focus-visible,
   .semiont-button[data-size]:focus-visible,
@@ -504,7 +425,6 @@ select:focus:not(:focus-visible) {
   .semiont-assist-widget__button--gradient:focus-visible,
   .semiont-toolbar-button:focus-visible,
   .semiont-toolbar-menu-button:focus-visible,
-  .semiont-provider-item:focus-visible,
   .semiont-modal__selection:focus-visible,
   .semiont-modal__close-button:focus-visible,
   .semiont-reference-button:focus-visible,

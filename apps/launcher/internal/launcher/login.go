@@ -1,36 +1,36 @@
 package launcher
 
-// login.go — `semiont login`: authenticate against a running stack's
-// gateway (POST /api/tokens/password, via the generated packages/sdk-go
-// client — the launcher's first use of it) and store the session token per
-// stack (tokens.go). The password is read from STDIN only: prompted with
-// echo off on a terminal, one piped line otherwise — never argv (ps, shell
-// history), never env, never disk.
+// login.go — `semiont login`: sign in to a running stack's knowledge base
+// through the issuer it trusts (oauth.go: resource metadata → discovery →
+// device grant) and store the session tokens per stack (tokens.go). The
+// launcher never sees a password: the user approves the sign-in in a browser
+// they trust, and only the tokens reach this process.
 
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 	"time"
 
-	openapi_types "github.com/oapi-codegen/runtime/types"
-
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
 
-const loginUsage = `Usage: semiont login --email <address> [--repo <owner/name> | --runtime <rt>]
+const loginUsage = `Usage: semiont login [--repo <owner/name> | --runtime <rt>]
 
-Authenticate against a running stack's gateway and store the session token
-(launcher state home, mode 0600). The password is read from STDIN —
-prompted with echo off on a terminal, or piped for scripts:
+Sign in to a running stack's knowledge base through the issuer it trusts,
+and store the session (launcher state home, mode 0600). The launcher asks
+the knowledge base which issuer it trusts, then runs the OAuth device grant:
+it prints a URL and a code, you approve the sign-in in a browser, and the
+tokens come back here. No password ever reaches this process.
 
-  echo "$PASSWORD" | semiont login --email admin@example.com
+Sessions renew themselves from the stored refresh token; sign in again only
+when the issuer says so.
 
 Options:
-  --email <address>    Account email (semiont useradd creates accounts)
   --repo <owner/name>  Target a codespace stack (default: the local stack)
   --runtime <rt>       Target the local stack explicitly
   --help               Show this help
@@ -38,16 +38,9 @@ Options:
 
 func Login(args []string) int {
 	u := newUI(false)
-	email, repo, wantLocal := "", "", false
+	repo, wantLocal := "", false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "--email":
-			if i+1 >= len(args) {
-				u.fail("Missing value for --email")
-				return 1
-			}
-			email = args[i+1]
-			i++
 		case "--repo":
 			if i+1 >= len(args) {
 				u.fail("Missing value for --repo")
@@ -70,11 +63,6 @@ func Login(args []string) int {
 			return 1
 		}
 	}
-	if email == "" {
-		u.fail("Missing --email")
-		fmt.Fprint(os.Stderr, loginUsage)
-		return 1
-	}
 
 	ss := loadStackSet()
 	target, ok := selectVerbStack(u, "login", ss, repo, wantLocal)
@@ -96,40 +84,59 @@ func Login(args []string) int {
 		key = "local"
 	}
 
-	pw, ok := readPassword(u)
-	if !ok {
-		return 1
-	}
-
 	cli, err := semiont.NewClientWithResponses(base)
 	if err != nil {
 		u.fail("client: %v", err)
 		return 1
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-	resp, err := cli.PostApiTokensPasswordWithResponse(ctx, semiont.PasswordAuthRequest{
-		Email:    openapi_types.Email(email),
-		Password: pw,
-	})
+	ep, err := discoverIssuer(ctx, cli, base)
+	cancel()
 	if err != nil {
-		u.fail("Gateway unreachable at %s: %v", base, err)
+		if errors.Is(err, errNoIssuer) {
+			u.fail("The knowledge base at %s trusts no external issuer, so there is nothing to sign in to.", base)
+			fmt.Fprintln(os.Stderr, "  Add an [identity] section to its config — the launcher runs Keycloak by default:")
+			fmt.Fprintln(os.Stderr, "    [environments.<env>.identity]")
+			fmt.Fprintln(os.Stderr, "    type = \"keycloak\"")
+			fmt.Fprintln(os.Stderr, "    issuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"")
+			return 1
+		}
+		u.fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 		return 1
 	}
-	if resp.JSON401 != nil {
-		u.fail("Invalid credentials for %s.", email)
+	u.log("Issuer: %s %s", ep.Issuer, u.dim("(named by the knowledge base's resource metadata)"))
+
+	tr, err := deviceLogin(context.Background(), u, ep)
+	if err != nil {
+		u.fail("Sign-in failed: %v", err)
 		return 1
 	}
-	if resp.JSON200 == nil || resp.JSON200.Token == "" {
-		u.fail("Login failed: HTTP %d.", resp.HTTPResponse.StatusCode)
+
+	// The gateway is the judge of the token, not the issuer: a 401 here means
+	// the realm's audience mapper and the knowledge base's own resource
+	// identifier disagree, and storing the token would only defer that error
+	// to the first verb.
+	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
+	me, err := cli.GetApiUsersMeWithResponse(ctx, bearer(tr.AccessToken))
+	cancel()
+	if err != nil {
+		u.fail("Gateway unreachable at %s: %v", base, err)
 		return 1
 	}
+	if me.JSON200 == nil {
+		u.fail("The issuer signed you in, but the gateway rejected the token (HTTP %d) — the realm's audience mapper and this knowledge base's resource identifier disagree.", me.HTTPResponse.StatusCode)
+		return 1
+	}
+	email := string(me.JSON200.Email)
 	if err := saveToken(key, tokenEntry{
-		Token:        resp.JSON200.Token,
-		RefreshToken: resp.JSON200.RefreshToken,
-		Email:        email,
-		ObtainedAt:   time.Now().UTC(),
+		Token:              tr.AccessToken,
+		RefreshToken:       tr.RefreshToken,
+		Email:              email,
+		ObtainedAt:         time.Now().UTC(),
+		Issuer:             ep.Issuer,
+		TokenEndpoint:      ep.Token,
+		RevocationEndpoint: ep.Revocation,
 	}); err != nil {
 		u.fail("Token could not be stored (%v) — NOT logged in.", err)
 		return 1

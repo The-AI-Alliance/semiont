@@ -31,7 +31,7 @@ Stack lifecycle:
 
 Identity & auth:
   useradd   Create or update a user in the running stack
-  login     Authenticate against a running stack (token stored, never the password)
+  login     Sign in through the knowledge base's issuer (device grant; tokens stored, never a password)
   logout    End the stored session (server best-effort, local token forgotten)
   secret    Register where config secrets come from (pointers, never values)
 

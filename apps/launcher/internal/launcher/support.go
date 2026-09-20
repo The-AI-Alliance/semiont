@@ -181,8 +181,11 @@ func (u *ui) stamp(event string) {
 // well-known local-dev values the summary table prints anyway.)
 var echoEnvAllowlist = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true,
 	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
+	// Not a credential, and seeing WHICH client a service presented is the
+	// first thing anyone diagnosing an authentication failure wants.
+	"SEMIONT_OIDC_CLIENT_ID": true,
 }
 
 // redactEnvArgs blanks secret --env VALUES for display. It no longer special-

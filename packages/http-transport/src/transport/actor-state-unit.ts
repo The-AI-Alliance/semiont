@@ -410,8 +410,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     // Recovery is automatic: a re-login or session refresh rotates the
     // getter's value and the next tick connects. That makes a 401 terminal
     // PER-CREDENTIAL, not per-actor — a hard stop here would kill the SPA's
-    // bus for good on an out-of-band revocation (logout elsewhere bumping
-    // `tokenVersion`) that the session's next proactive refresh heals.
+    // bus for good on an out-of-band revocation (a sign-out elsewhere
+    // revoking the grant) that the session's next proactive refresh heals.
     const token = getToken();
     if (!token || token === refusedToken) {
       if (running) {

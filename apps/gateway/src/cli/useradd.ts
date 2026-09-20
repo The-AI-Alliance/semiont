@@ -1,44 +1,31 @@
 /**
- * Create or update a user. Invoked inside the gateway container by
- * `semiont useradd`, which execs it and passes every flag through verbatim.
+ * Create or update an account at this knowledge base's identity provider.
+ * Invoked inside the gateway container by `semiont useradd`, which execs it and
+ * passes every flag through verbatim.
  *
  * (No shebang — tsup's `banner` adds one to every entry.)
  *
- * Why this lives in the gateway rather than the launcher: creating a user is a
- * schema-shaped operation. Two columns carry NO database-side default —
+ * A user is ONE thing now: the account at the issuer, which owns the credential,
+ * mints the `sub` its tokens carry, and decides whether the person may sign in
+ * (`--active` / `--inactive` set that there). Semiont keeps no row of its own —
+ * everything the gateway knows about a caller it reads off the token, and the
+ * identity is a DID derived from those claims rather than a local id.
  *
- *   "id"        TEXT NOT NULL          -- @default(cuid()), applied client-side
- *   "updatedAt" TIMESTAMP(3) NOT NULL  -- @updatedAt, applied client-side
- *
- * — so a writer outside Prisma has to generate a cuid, supply updatedAt, know the
- * physical column names, and match argon2's PHC parameters. Each is doable; the
- * durable cost is that a future migration adding a NOT NULL column breaks such a
- * writer SILENTLY, discovered the next time someone creates a user. Here, the
- * generated client changes with the schema and `tsc` fails in CI.
- *
- * It also keeps the launcher technology-agnostic: it runs containers and decides
- * which stack is meant. It does not need to know that postgres, argon2, or cuids
- * exist.
- *
- * DATABASE_URL is derived here, not inherited: `container exec` starts a process
- * from the IMAGE's env, so nothing the CMD exported is visible to it (verified).
- * That is why databaseUrlFrom is a standalone helper.
+ * So this command no longer touches a database, and there is no display name or
+ * role to pre-create: the issuer holds the profile, and nothing here grants
+ * access on the basis of a role.
  */
 
 import * as crypto from 'crypto';
-import * as argon2 from 'argon2';
-import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
 import { loadEnvironmentConfig } from '@semiont/core/node';
-import { databaseUrlFrom } from '../utils/database-url';
+import { KeycloakAdminApi } from '../identity/keycloak-admin';
 
 interface Options {
   email: string;
   passwordStdin: boolean;
   generatePassword: boolean;
   name?: string;
-  admin: boolean;
-  moderator: boolean;
+  active: boolean;
   inactive: boolean;
   update: boolean;
   upsert: boolean;
@@ -46,17 +33,21 @@ interface Options {
 
 const USAGE = `Usage: semiont-useradd --email <email> [--password-stdin | --generate-password] [options]
 
-Creating a user requires a password, so one of --password-stdin or
---generate-password. Updating an existing one does not: pass --password-stdin
-only when the point is to CHANGE the password.
+Creates the account at this knowledge base's identity provider. Creating a user
+requires a password, so one of --password-stdin or --generate-password. Updating
+an existing one does not: pass --password-stdin only when the point is to CHANGE
+the password.
+
+Semiont stores nothing of its own about a user — the issuer holds the account and
+the profile, and the gateway reads what it needs off the token. There are no role
+flags, because no route here grants access on the basis of a role.
 
   --email <email>       User email address (required)
   --password-stdin      Read the password from stdin, first line (min 8 chars)
   --generate-password   Generate a random password (printed once)
-  --name <name>         Display name
-  --admin               Grant admin privileges
-  --moderator           Grant moderator privileges
-  --inactive            Create the user inactive
+  --name <name>         Display name, set at the identity provider
+  --inactive            Disable the account at the identity provider
+  --active              Re-enable a disabled account
   --update              Update an existing user
   --upsert              Create if absent, succeed silently if present
   --help, -h            Show this help
@@ -64,8 +55,8 @@ only when the point is to CHANGE the password.
 
 function parseArgs(argv: string[]): Options {
   const o: Options = {
-    email: '', passwordStdin: false, generatePassword: false, admin: false,
-    moderator: false, inactive: false, update: false, upsert: false,
+    email: '', passwordStdin: false, generatePassword: false,
+    inactive: false, active: false, update: false, upsert: false,
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
@@ -80,9 +71,8 @@ function parseArgs(argv: string[]): Options {
       case '--name': o.name = value(); break;
       case '--password-stdin': o.passwordStdin = true; break;
       case '--generate-password': o.generatePassword = true; break;
-      case '--admin': o.admin = true; break;
-      case '--moderator': o.moderator = true; break;
       case '--inactive': o.inactive = true; break;
+      case '--active': o.active = true; break;
       case '--update': o.update = true; break;
       case '--upsert': o.upsert = true; break;
       case '--help': case '-h': process.stdout.write(USAGE); process.exit(0);
@@ -126,14 +116,6 @@ function generatePassword(): string {
   return crypto.randomBytes(12).toString('base64');
 }
 
-function domainOf(email: string): string {
-  const parts = email.split('@');
-  if (parts.length !== 2 || !parts[1]) {
-    throw new Error(`Cannot extract domain from email: ${email}`);
-  }
-  return parts[1];
-}
-
 function validate(o: Options): void {
   if (!o.email) throw new Error('--email is required');
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(o.email)) {
@@ -145,87 +127,99 @@ function validate(o: Options): void {
   if (o.update && o.upsert) {
     throw new Error('--update and --upsert are mutually exclusive');
   }
+  if (o.inactive && o.active) {
+    throw new Error('--inactive and --active are mutually exclusive');
+  }
+}
+
+/**
+ * The issuer this knowledge base trusts, and the administrator credentials for
+ * it — refusing, with the reason, wherever the answer is not this command's to
+ * give. An `oidc` issuer is somebody else's directory: Semiont has no standing
+ * to create accounts in it, and pretending otherwise would fail at the API
+ * rather than here, where the operator can read why.
+ */
+function keycloakTarget(identity: { type: string; issuer: string } | undefined): {
+  issuer: string; username: string; password: string;
+} {
+  if (!identity) {
+    throw new Error(
+      'This knowledge base configures no identity provider — add an [identity] section before creating users.',
+    );
+  }
+  if (identity.type !== 'keycloak') {
+    throw new Error(
+      `Identity type "${identity.type}" is an issuer Semiont does not administer. ` +
+        `Create the account at ${identity.issuer}, then it can sign in here.`,
+    );
+  }
+  const username = process.env.KC_BOOTSTRAP_ADMIN_USERNAME;
+  const password = process.env.KC_BOOTSTRAP_ADMIN_PASSWORD;
+  if (!username || !password) {
+    throw new Error(
+      'KC_BOOTSTRAP_ADMIN_USERNAME and KC_BOOTSTRAP_ADMIN_PASSWORD must both be set to administer the realm.',
+    );
+  }
+  return { issuer: identity.issuer, username, password };
 }
 
 async function main(argv: string[]): Promise<number> {
   const o = parseArgs(argv);
   validate(o);
 
-  // `null` for the same reason db-url.ts passes null: this bin is exec'd INSIDE
-  // the gateway container (`container exec semiont-gateway semiont-useradd`),
-  // which mounts no knowledge base and sets no SEMIONT_ROOT. The staged
-  // ~/.semiontconfig is the config, and the loader reads it either way.
+  // `null`: this bin is exec'd INSIDE the gateway container
+  // (`container exec semiont-gateway semiont-useradd`), which mounts no
+  // knowledge base and sets no SEMIONT_ROOT. The staged ~/.semiontconfig is
+  // the config, and the loader reads it either way.
   const config = loadEnvironmentConfig(null);
+  const target = keycloakTarget(config.services.identity);
+  const keycloak = await KeycloakAdminApi.connect(target.issuer, target.username, target.password);
 
-  // An explicit DATABASE_URL still wins, matching the container CMD's precedence.
-  const connectionString = process.env.DATABASE_URL || databaseUrlFrom(config);
-  const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
+  const account = await keycloak.findUserByEmail(o.email);
 
-  try {
-    const existing = await prisma.user.findUnique({ where: { email: o.email } });
-
-    let passwordHash: string | undefined;
-    if (o.generatePassword) {
-      const generated = generatePassword();
-      passwordHash = await argon2.hash(generated);
-      // Printed once and never stored: the caller's only chance to capture it.
-      process.stdout.write(`Generated password: ${generated}\n`);
-    } else if (o.passwordStdin) {
-      passwordHash = await argon2.hash(await readPasswordFromStdin());
-    } else if (!existing) {
-      throw new Error('Password required: use --password-stdin or --generate-password');
-    }
-
-    if (existing) {
-      if (o.upsert) {
-        process.stdout.write(`User already exists: ${o.email}\n`);
-        return 0;
-      }
-      if (!o.update) {
-        throw new Error(
-          `User ${o.email} already exists. Use --update to modify or --upsert to skip silently.`,
-        );
-      }
-      await prisma.user.update({
-        where: { email: o.email },
-        data: {
-          ...(passwordHash ? { passwordHash } : {}),
-          ...(o.name !== undefined ? { name: o.name } : {}),
-          ...(o.admin ? { isAdmin: true } : {}),
-          ...(o.moderator ? { isModerator: true } : {}),
-          ...(o.inactive ? { isActive: false } : {}),
-        },
-      });
-      process.stdout.write(`User updated: ${o.email}\n`);
-      return 0;
-    }
-
-    if (o.update) {
-      throw new Error(`User ${o.email} not found. Remove --update to create a new user.`);
-    }
-
-    await prisma.user.create({
-      data: {
-        email: o.email,
-        name: o.name ?? null,
-        // provider/providerId must match what POST /api/tokens/password looks
-        // for: it rejects any account whose provider is not 'password'.
-        provider: 'password',
-        providerId: o.email,
-        passwordHash: passwordHash!,
-        domain: domainOf(o.email),
-        isActive: !o.inactive,
-        isAdmin: o.admin,
-        isModerator: o.moderator,
-      },
-    });
-    process.stdout.write(`User created: ${o.email}\n`);
-    if (o.admin) process.stdout.write('  Role: Admin\n');
-    if (o.moderator) process.stdout.write('  Role: Moderator\n');
-    return 0;
-  } finally {
-    await prisma.$disconnect();
+  let password: string | undefined;
+  if (o.generatePassword) {
+    password = generatePassword();
+    // Printed once and never stored: the caller's only chance to capture it.
+    process.stdout.write(`Generated password: ${password}\n`);
+  } else if (o.passwordStdin) {
+    password = await readPasswordFromStdin();
+  } else if (!account) {
+    throw new Error('Password required: use --password-stdin or --generate-password');
   }
+
+  if (account && o.upsert) {
+    process.stdout.write(`User already exists: ${o.email}\n`);
+    return 0;
+  }
+  if (account && !o.update) {
+    throw new Error(
+      `User ${o.email} already exists. Use --update to modify or --upsert to skip silently.`,
+    );
+  }
+  if (!account && o.update) {
+    throw new Error(`User ${o.email} not found. Remove --update to create a new user.`);
+  }
+
+  // Whether the person may sign in is the issuer's to hold, so it is written
+  // there and nowhere else. Absent both flags this command does not touch the
+  // account's state, matching how the role flags behave: they grant when asked
+  // and leave everything else alone.
+  let subject: string;
+  if (account) {
+    if (password) await keycloak.setPassword(account.id, password);
+    if (o.inactive || o.active) await keycloak.setEnabled(account.id, o.active);
+    if (o.name !== undefined) await keycloak.setDisplayName(account.id, o.name);
+    subject = account.id;
+  } else {
+    subject = await keycloak.createUser(o.email, password!, !o.inactive, o.name);
+  }
+
+  process.stdout.write(`${account ? 'User updated' : 'User created'}: ${o.email}\n`);
+  process.stdout.write(`  Subject: ${subject}\n`);
+  if (o.inactive) process.stdout.write('  Disabled at the identity provider\n');
+  if (o.active) process.stdout.write('  Enabled at the identity provider\n');
+  return 0;
 }
 
 main(process.argv.slice(2))

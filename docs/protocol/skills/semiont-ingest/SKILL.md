@@ -19,22 +19,23 @@ Both operations are idempotent on the schema side (declaring an already-declared
 
 ## Client setup
 
-`SemiontSession.signInHttp(...)` is the credentials-first construction; it owns the token lifecycle, which matters because the access token lives **ten minutes** and an ingest can outrun that. Construct once and reuse `session.client` for both `frame` and `yield` calls; `await session.dispose()` when done.
+`SemiontSession.signInDevice(...)` signs a person in at the knowledge base's issuer with the device authorization grant; it owns the token lifecycle, which matters because the realm pins an access token to **five minutes** and an ingest can outrun that. Construct once and reuse `session.client` for both `frame` and `yield` calls; `await session.dispose()` when done.
 
 ```typescript
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';
 
 const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-const session = await SemiontSession.signInHttp({
+const session = await SemiontSession.signInDevice({
   kb: httpKb({
     id: 'semiont-ingest', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
     host: url.hostname, port: Number(url.port || 4000),
     protocol: url.protocol === 'https:' ? 'https' : 'http',
   }),
   storage: new InMemorySessionStorage(),
-  baseUrl: url.href,
-  email: process.env.SEMIONT_USER_EMAIL!,
-  password: process.env.SEMIONT_USER_PASSWORD!,
+  onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+    console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+    if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+  },
 });
 const semiont = session.client;
 ```
@@ -160,16 +161,17 @@ function discoverCorpus(repoRoot: string): CorpusFile[] {
 
 async function ingest(): Promise<void> {
   const url = new URL(process.env.SEMIONT_API_URL ?? 'http://localhost:4000');
-  const session = await SemiontSession.signInHttp({
+  const session = await SemiontSession.signInDevice({
     kb: httpKb({
       id: 'semiont-ingest', label: 'Semiont', email: process.env.SEMIONT_USER_EMAIL!,
       host: url.hostname, port: Number(url.port || 4000),
       protocol: url.protocol === 'https:' ? 'https' : 'http',
     }),
     storage: new InMemorySessionStorage(),
-    baseUrl: url.href,
-    email: process.env.SEMIONT_USER_EMAIL!,
-    password: process.env.SEMIONT_USER_PASSWORD!,
+    onCode: ({ verificationUri, verificationUriComplete, userCode }) => {
+      console.error(`Approve this script at ${verificationUriComplete ?? verificationUri}`);
+      if (!verificationUriComplete) console.error(`Code: ${userCode}`);
+    },
   });
   const semiont = session.client;
 

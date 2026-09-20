@@ -39,7 +39,7 @@ Options:
   --runtime <rt>        Target the local stack explicitly
   --help                Show this help
 
-Requires a session:  semiont login --email <address>
+Requires a session:  semiont login
 `
 
 func Mark(args []string) int {

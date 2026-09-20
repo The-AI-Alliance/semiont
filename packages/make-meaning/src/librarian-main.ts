@@ -42,22 +42,20 @@
  * `[kb] name` in the staged config (D4), and boot refuses without it.
  *
  * Environment variables:
- *   SEMIONT_WORKER_SECRET     — shared secret for agent auth to the gateway.
- *   XDG_STATE_HOME            — the shared state mount the views live under.
+ *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
+ *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the
+ *                                gateway, and the bearer it shows the Archivist
+ *   XDG_STATE_HOME             — the shared state mount the views live under.
  */
 
-import { BehaviorSubject, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
 import { archivistContentReads } from '@semiont/content';
 import {
   EventBus,
   baseUrl as makeBaseUrl,
-  accessToken as makeAccessToken,
-  retryWithBackoff,
-  isTransientFetchError,
-  STARTUP_FETCH_RETRY,
-  type AccessToken, withDeadline } from '@semiont/core';
+  withDeadline } from '@semiont/core';
 import { loadEnvironmentConfig, SemiontState } from '@semiont/core/node';
 import { FilesystemViewStorage } from '@semiont/event-sourcing';
 import { getGraphDatabase } from '@semiont/graph';
@@ -110,57 +108,29 @@ if (config.services.vectors.type === 'memory') {
   throw new Error("services.vectors.type 'memory' is a test-only sink; the Librarian requires a server-backed vector store");
 }
 
-const workerSecret = process.env.SEMIONT_WORKER_SECRET ?? '';
+/**
+ * This process's own account at the issuer. The credential authenticates the
+ * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
+ */
+const issuerUrl = envConfig.services?.identity?.issuer;
+if (!issuerUrl) {
+  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
+}
+const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+if (!clientId || !clientSecret) {
+  throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
+}
+const credential = { issuer: issuerUrl, clientId, clientSecret };
 
 /** Claimed as a portNeed in the launcher: worker 24100, smelter 24101, weaver 24102, archivist 24103. */
 const healthPort = 24104;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
+import { startAgentSession } from './agent-session';
 const logger = createProcessLogger('librarian');
 
 // ── Auth ─────────────────────────────────────────────────────────────
-
-async function authenticate(): Promise<string> {
-  if (!workerSecret) {
-    logger.warn('No SEMIONT_WORKER_SECRET set — using empty token');
-    return '';
-  }
-
-  // A Software peer under the stable identity (semiont, librarian), the same
-  // shape as the Archivist: one DID for the reference desk. NOT the actor's
-  // inference pair — this process hosts Matcher now and Gatherer at P3, each
-  // with its own inference config, under one token.
-  return retryWithBackoff(
-    async () => {
-      const response = await fetch(`${baseUrl}/api/tokens/agent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          secret: workerSecret,
-          provider: 'semiont',
-          model: 'librarian',
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
-      }
-
-      const { token } = await response.json() as { token: string; did: string };
-      return token;
-    },
-    isTransientFetchError,
-    STARTUP_FETCH_RETRY,
-    ({ attempt, attempts, delayMs, error }) => {
-      logger.warn('Gateway unreachable, retrying authentication', {
-        attempt,
-        attempts,
-        retryInMs: delayMs,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    },
-  );
-}
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -171,22 +141,20 @@ async function main() {
   // record already existed here — nothing read it into a metric until now.
   registerSupervisorRestartCount();
 
-  logger.info('Authenticating', { baseUrl });
-  const tokenSubject = new BehaviorSubject<AccessToken | null>(makeAccessToken(await authenticate()));
-  logger.info('Authenticated');
-
-  const refreshToken = async (): Promise<string | null> => {
-    const token = await authenticate();
-    tokenSubject.next(makeAccessToken(token));
-    return token;
-  };
-  const reauthTimer = setInterval(() => {
-    refreshToken().catch((error) => {
-      logger.error('Proactive re-authentication failed', {
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
-  }, 12 * 60 * 60 * 1000);
+  // A Software peer under the stable identity (semiont, librarian), the same
+  // shape as the Archivist: one DID for the reference desk. NOT the actor's
+  // inference pair — this process hosts Matcher now and Gatherer at P3, each
+  // with its own inference config, under one token.
+  //
+  // The token's lifetime and the refresh cadence derived from it are the
+  // gateway's to decide; see `startAgentSession`.
+  const session = await startAgentSession({
+    baseUrl,
+    credential,
+    provider: 'semiont',
+    model: 'librarian',
+    logger,
+  });
 
   // ── The stores: reads only, nothing owned ──────────────────────────
   const localBus = new EventBus();
@@ -227,8 +195,8 @@ async function main() {
   // The bus transport. Its pumps attach after the actors subscribe.
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
-    token$: tokenSubject,
-    tokenRefresher: refreshToken,
+    token$: session.token$,
+    tokenRefresher: session.refresh,
     // The inbound roster plus the awaited-reply channels — never the full
     // bridged set, whose global reply fan-out is the worker-OOM failure
     // mode. This process awaits ONE wire reply (the anchored-text ask behind
@@ -240,8 +208,12 @@ async function main() {
   // Bytes from the Archivist, not the gateway (SINGLE-KB-MOUNT P4): the
   // gateway's content routes proxy onto this same call, so dialing it added
   // a hop and put the process that is meant to stop touching the KB tree on
-  // the path to it. Throws at boot if the address or worker secret is absent.
-  const contentReads = archivistContentReads(config);
+  // the path to it. Throws at boot if the address or the credential is absent.
+  // `envConfig`, not the narrowed `config`: reaching the Archivist needs the
+  // issuer this process authenticates at, and `makeMeaningConfigFrom` carries
+  // only make-meaning's own services. Every field of `ArchivistAddressConfig`
+  // is optional, so the narrow config satisfied it and failed at runtime.
+  const contentReads = archivistContentReads(envConfig);
 
   // The progress folds, fed by the signals LIBRARIAN_INBOUND_CHANNELS pumps onto the
   // local bus — the graph grace and the settle barrier work exactly as
@@ -317,7 +289,7 @@ async function main() {
 
   const shutdown = () => {
     logger.info('Shutting down');
-    clearInterval(reauthTimer);
+    session.stop();
     for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
     void Promise.all([matcher.stop(), gatherer.stop()]).then(async () => {

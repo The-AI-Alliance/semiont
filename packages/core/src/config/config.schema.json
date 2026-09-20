@@ -973,6 +973,9 @@
         },
         "signal": {
           "$ref": "#/definitions/SignalServiceConfig"
+        },
+        "identity": {
+          "$ref": "#/definitions/IdentityServiceConfig"
         }
       },
       "required": [
@@ -1003,85 +1006,6 @@
           "type": "string",
           "format": "email",
           "description": "Support email address (optional)"
-        },
-        "oauthAllowedDomains": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "minItems": 1,
-          "description": "Email domains allowed for OAuth authentication"
-        }
-      },
-      "additionalProperties": false
-    },
-    "AppConfig": {
-      "type": "object",
-      "properties": {
-        "features": {
-          "type": "object",
-          "properties": {
-            "enableAnalytics": {
-              "type": "boolean"
-            },
-            "enableMaintenanceMode": {
-              "type": "boolean"
-            },
-            "enableDebugLogging": {
-              "type": "boolean"
-            }
-          },
-          "additionalProperties": false
-        },
-        "security": {
-          "type": "object",
-          "properties": {
-            "sessionTimeout": {
-              "type": "integer",
-              "minimum": 60,
-              "description": "Session timeout in seconds"
-            },
-            "maxLoginAttempts": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "Maximum failed login attempts before lockout"
-            },
-            "corsAllowedOrigins": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "enableLocalAuth": {
-              "type": "boolean",
-              "description": "Enable local username/password authentication"
-            },
-            "jwtSecret": {
-              "type": "string",
-              "minLength": 32,
-              "description": "JWT signing secret (base64 encoded, 32+ bytes)"
-            }
-          },
-          "additionalProperties": false
-        },
-        "performance": {
-          "type": "object",
-          "properties": {
-            "enableCaching": {
-              "type": "boolean"
-            },
-            "cacheTimeout": {
-              "type": "integer",
-              "minimum": 0,
-              "description": "Cache timeout in seconds"
-            },
-            "maxRequestSize": {
-              "type": "string",
-              "pattern": "^[0-9]+(kb|mb|gb)$",
-              "description": "Maximum request size (e.g., '10mb')"
-            }
-          },
-          "additionalProperties": false
         }
       },
       "additionalProperties": false
@@ -1124,13 +1048,6 @@
             },
             "domain": {
               "type": "string"
-            },
-            "oauthAllowedDomains": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "Sign-in policy committed in the KB's .semiont/config, staged alongside the identity because the gateway no longer mounts the tree that holds it."
             }
           },
           "required": [
@@ -1197,9 +1114,6 @@
         "site": {
           "$ref": "#/definitions/SiteConfig"
         },
-        "app": {
-          "$ref": "#/definitions/AppConfig"
-        },
         "env": {
           "type": "object",
           "properties": {
@@ -1260,9 +1174,6 @@
         "site": {
           "$ref": "#/definitions/SiteConfig"
         },
-        "app": {
-          "$ref": "#/definitions/AppConfig"
-        },
         "services": {
           "$ref": "#/definitions/ServicesConfig"
         }
@@ -1276,7 +1187,7 @@
     },
     "JobsServiceConfig": {
       "type": "object",
-      "description": "The job queue driver (JOB-QUEUE-DRIVER P2). Selection is stated here, never inferred: 'fs' is the launcher-mounted filesystem queue (retires at P3); 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs' until P3 flips the default. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
+      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream — KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one.",
       "properties": {
         "type": {
           "type": "string",
@@ -1296,7 +1207,7 @@
     },
     "ArchivistServiceConfig": {
       "type": "object",
-      "description": "The Archivist service \u2014 the out-of-process keeper of the record (EXTRACT-ARCHIVIST). Internal-only: the gateway dials host:port for the D1 sequence-ranged event read path; nothing public.",
+      "description": "The Archivist service — the out-of-process keeper of the record (EXTRACT-ARCHIVIST). Internal-only: the gateway dials host:port for the D1 sequence-ranged event read path; nothing public.",
       "properties": {
         "platform": {
           "$ref": "#/definitions/ServicePlatformConfig"
@@ -1315,7 +1226,7 @@
     },
     "SignalServiceConfig": {
       "type": "object",
-      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default \u2014 D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream \u2014 D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
+      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default — D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream — D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one.",
       "properties": {
         "type": {
           "type": "string",
@@ -1330,6 +1241,27 @@
       },
       "required": [
         "type"
+      ],
+      "additionalProperties": false
+    },
+    "IdentityServiceConfig": {
+      "type": "object",
+      "description": "The OIDC issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY D5). Selection is stated here, never inferred: 'keycloak' is the launcher-run Keycloak; 'oidc' is an external issuer the launcher never launches. 'issuer' is the issuer URL exactly as it appears in a token's iss claim (its host may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one). There is no 'audience' key: the audience is the knowledge base's own resource identifier, derived from its committed did:web domain, so it cannot be configured into disagreement with the identity the KB publishes. Both keys are required for both types.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "keycloak",
+            "oidc"
+          ]
+        },
+        "issuer": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "type",
+        "issuer"
       ],
       "additionalProperties": false
     }

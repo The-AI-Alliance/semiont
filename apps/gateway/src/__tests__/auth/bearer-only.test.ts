@@ -5,7 +5,7 @@
  * middleware authenticates by `Authorization: Bearer` (and the `?token=`
  * media path) only — a request carrying just the cookie is rejected. RED on
  * `main` today (login sets the cookie; the middleware honors it), GREEN once
- * Phase 3 lands. Prisma is mocked (same harness as the other auth tests).
+ * Phase 3 lands.
  */
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
@@ -28,55 +28,34 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 });
 
 import { app } from '../../index';
-import { DatabaseConnection } from '../../db';
 import { JWTService } from '../../auth/jwt';
-import type { User } from '@prisma/client';
-import { faker } from '@faker-js/faker';
-import * as argon2 from 'argon2';
-import { email as makeEmail, userId as makeUserId } from '@semiont/core';
+import type { Principal } from '../../identity/principal';
+import { email as makeEmail } from '@semiont/core';
 
-const prisma = DatabaseConnection.getClient();
-const mockPrismaUser = vi.mocked(prisma.user);
-
-const makeCuid = () => `c${faker.string.alphanumeric(24).toLowerCase()}`;
-
-function fakeUser(overrides: Partial<User> = {}): User {
+function fakeUser(overrides: Partial<Principal> = {}): Principal {
   return {
-    id: makeCuid(),
+    did: `did:web:${'example.com'}:users:${encodeURIComponent('bearer@example.com')}`,
     email: 'bearer@example.com',
     name: 'Bearer User',
     image: null,
     domain: 'example.com',
-    provider: 'google',
-    providerId: 'google-bearer-1',
-    passwordHash: null,
-    isAdmin: false,
-    isActive: true,
-    isModerator: false,
-    termsAcceptedAt: null,
-    lastLogin: null,
-    tokenVersion: 0,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    isAgent: false,
     ...overrides,
   };
 }
 
-function mintToken(user: User) {
-  return JWTService.generateToken({
-    userId: makeUserId(user.id),
+function mintToken(user: Principal) {
+  return JWTService.generateToken({    did: `did:web:${user.domain}:agents:test:model`,
+
     email: makeEmail(user.email),
     domain: user.domain,
-    provider: user.provider,
-    isAdmin: user.isAdmin,
-    tokenVersion: user.tokenVersion,
   }, '10m');
 }
 
 describe('SDK-AUTH-CORS Phase 3 — bearer-only (no cookie)', () => {
   beforeAll(() => {
     JWTService.initialize({
-      site: { domain: 'test.local', oauthAllowedDomains: ['test.local', 'example.com'] },
+      site: { domain: 'test.local' },
     });
   });
 
@@ -84,32 +63,9 @@ describe('SDK-AUTH-CORS Phase 3 — bearer-only (no cookie)', () => {
     vi.clearAllMocks();
   });
 
-  it('a successful password login sets no Set-Cookie (token rides the body)', async () => {
-    const passwordHash = await argon2.hash('pw-secret');
-    const user = fakeUser({
-      provider: 'password',
-      providerId: 'pw@example.com',
-      email: 'pw@example.com',
-      passwordHash,
-    });
-    mockPrismaUser.findUnique.mockResolvedValue(user);
-    mockPrismaUser.update.mockResolvedValue(user);
-
-    const res = await app.request('/api/tokens/password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'pw@example.com', password: 'pw-secret' }),
-    });
-
-    expect(res.status).toBe(200);
-    expect(res.headers.get('set-cookie')).toBeNull();
-    const data = await res.json() as { token?: string };
-    expect(data.token).toBeDefined();
-  });
 
   it('rejects a request authenticated only by the semiont-token cookie → 401', async () => {
     const user = fakeUser();
-    mockPrismaUser.findUnique.mockResolvedValue(user);
     const token = mintToken(user);
 
     const res = await app.request('/api/users/me', {
@@ -120,7 +76,6 @@ describe('SDK-AUTH-CORS Phase 3 — bearer-only (no cookie)', () => {
 
   it('still authenticates a bearer request (regression guard)', async () => {
     const user = fakeUser();
-    mockPrismaUser.findUnique.mockResolvedValue(user);
     const token = mintToken(user);
 
     const res = await app.request('/api/users/me', {

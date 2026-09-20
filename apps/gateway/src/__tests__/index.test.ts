@@ -12,17 +12,13 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'url';
-import type { Hono } from 'hono';
-import type { User } from '@prisma/client';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
 import { makeMeaningMock } from './helpers/make-meaning-mock';
 
-type Variables = {
-  user: User;
-  config: EnvironmentConfig;
-  eventBus: EventBus;
-};
+// Typed from the module under test rather than from a local restatement of its
+// context. The copy that stood here could only ever report that two
+// structurally identical types were not the same one.
+type GatewayApp = typeof import('../index').app;
 
 interface HealthResponse {
   status: string;
@@ -51,22 +47,8 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
   };
 });
 
-// Mock the database before any imports to avoid connection attempts
-vi.mock('../db', () => ({
-  DatabaseConnection: {
-    getClient: vi.fn(() => ({
-      $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
-      user: {
-        findUnique: vi.fn(),
-        update: vi.fn(),
-      },
-    })),
-    checkHealth: vi.fn().mockResolvedValue(true),
-  },
-}));
-
 describe('Main Application (index.ts)', () => {
-  let app: Hono<{ Variables: Variables }>;
+  let app: GatewayApp;
   let testEnv: TestEnvironmentConfig;
 
   beforeAll(async () => {
@@ -162,35 +144,35 @@ describe('Main Application (index.ts)', () => {
     });
   });
 
-  describe('Authentication Endpoints', () => {
-    it('should handle OAuth endpoint structure', async () => {
-      const response = await app.request('http://localhost/api/tokens/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
-      });
-
-      // Should return 400 for invalid request body
-      expect(response.status).toBe(400);
-    });
-  });
-
   describe('Error Handling', () => {
     it('should return 404 for non-existent API routes', async () => {
       const response = await app.request('http://localhost/api/nonexistent');
-      
+
       // Non-existent routes now return 404 (auth is applied per-router)
       expect(response.status).toBe(404);
     });
 
-    it('should handle invalid JSON in POST requests', async () => {
-      const response = await app.request('http://localhost/api/tokens/google', {
+    /**
+     * Authentication happens BEFORE the body is read.
+     *
+     * This used to assert a 400 for malformed JSON on the agent route, which
+     * was then the one public POST. It no longer is — every POST the gateway
+     * serves now requires a bearer — so an unauthenticated caller sending
+     * rubbish gets 401 and the body is never parsed. That ordering is the
+     * property worth holding: a parser should not run on input from someone
+     * who has not identified themselves.
+     *
+     * The 400-for-malformed-JSON case lives with the route that can produce
+     * it, in the agent exchange's own tests, where the caller is authenticated.
+     */
+    it('authenticates before parsing a POST body', async () => {
+      const response = await app.request('http://localhost/api/tokens/agent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: 'invalid-json',
       });
 
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(401);
     });
   });
 
@@ -204,8 +186,7 @@ describe('Main Application (index.ts)', () => {
   describe('Middleware Configuration', () => {
     it('should have authentication middleware configured for API routes', async () => {
       // This test verifies the middleware is set up, but doesn't test the actual auth
-      // behavior since we can't properly mock the OAuthService in unit tests.
-      // Full auth behavior is tested in integration tests.
+      // behavior — principalFromToken is not mocked here; the middleware suite covers it.
       
       // We can verify that the middleware chain exists by checking that
       // routes are registered

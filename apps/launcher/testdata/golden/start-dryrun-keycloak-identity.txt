@@ -1,0 +1,113 @@
+# semiont start --dry-run — the exact runtime commands a real run would
+# execute, in order. Values known only at runtime appear as <placeholders>.
+# probe: container run --rm busybox:1.38.0 sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
+# snapshot container logs into <state-root>/logs/<timestamp>/ before removal
+container stop semiont-otel-collector
+container rm semiont-otel-collector
+container stop semiont-prometheus
+container rm semiont-prometheus
+container stop semiont-jaeger
+container rm semiont-jaeger
+container stop semiont-neo4j
+container rm semiont-neo4j
+container stop semiont-qdrant
+container rm semiont-qdrant
+container stop semiont-nats
+container rm semiont-nats
+container stop semiont-postgres
+container rm semiont-postgres
+container stop semiont-keycloak
+container rm semiont-keycloak
+container stop semiont-gateway
+container rm semiont-gateway
+container stop semiont-worker
+container rm semiont-worker
+container stop semiont-smelter
+container rm semiont-smelter
+container stop semiont-weaver
+container rm semiont-weaver
+container stop semiont-archivist
+container rm semiont-archivist
+container stop semiont-librarian
+container rm semiont-librarian
+# remove staged config copies: /tmp/semiont-config.*
+# require free ports: 7474 7687 6333 5432 8080 4000 24100 24101 24102 24103 24104 4318 24110 16686 14318 9090
+# stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
+# write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
+# write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
+# append [environments.local.archivist] host/port (launcher-staged topology) to gateway.toml
+# append [environments.local.archivist] host/port (launcher-staged topology) to worker.toml
+# append [environments.local.archivist] host/port (launcher-staged topology) to smelter.toml
+# append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
+# resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
+container image pull ghcr.io/the-ai-alliance/semiont-gateway:latest
+container image pull ghcr.io/the-ai-alliance/semiont-worker:latest
+container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
+container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest
+container image pull ghcr.io/the-ai-alliance/semiont-archivist:latest
+container image pull ghcr.io/the-ai-alliance/semiont-librarian:latest
+container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
+# wait: http://localhost:16686 (30s)
+container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1
+# wait: http://localhost:9090/-/healthy (30s)
+container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110:24110 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0
+# wait: http://localhost:24110/metrics (30s)
+# database state: <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres (created if absent; reused across restarts)
+container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
+# wait: tcp localhost:5432 (20s)
+# probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
+# messaging: nothing to launch (jobs: fs driver; signal: in-process)
+# create database keycloak on PostgreSQL if absent: container exec -i semiont-postgres psql -U postgres (SQL on stdin)
+# write <config-stage>/keycloak-semiont-realm.json (launcher-owned; realm "semiont", clients: semiont-browser, semiont-cli, semiont-archivist, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker)
+container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-stage>/keycloak-semiont-realm.json:/opt/keycloak/data/import/semiont.json:ro -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak --env KC_BOOTSTRAP_ADMIN_PASSWORD=<keycloak-admin-password> -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_DB_PASSWORD=localpass -e KC_BOOTSTRAP_ADMIN_USERNAME=admin quay.io/keycloak/keycloak:26.7.4 start-dev --import-realm
+# wait: http://localhost:8080/realms/semiont (90s)
+# client-credentials grant at http://localhost:8080/realms/semiont as semiont-archivist — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# client-credentials grant at http://localhost:8080/realms/semiont as semiont-gateway — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# client-credentials grant at http://localhost:8080/realms/semiont as semiont-librarian — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# client-credentials grant at http://localhost:8080/realms/semiont as semiont-smelter — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# client-credentials grant at http://localhost:8080/realms/semiont as semiont-weaver — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# client-credentials grant at http://localhost:8080/realms/semiont as semiont-worker — require flat `roles` containing "semiont-service" and `aud` containing https://example.github.io/test-kb
+# mount state state (shared; the stamp stays with its owning service)
+container run -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env POSTGRES_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET=<gateway-client-secret> --env JWT_SECRET=<jwt-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest
+# wait: http://localhost:4000/api/health (120s)
+# probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:4000/api/health" (up to 20 tries)
+# graph state: <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j (created if absent; reused across restarts)
+container run -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
+# wait: http://localhost:7474 (30s)
+# vectors state: <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
+container run -d --name semiont-qdrant --memory 2G -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.18.3
+# wait: http://localhost:6333/readyz (15s)
+# probe: host Ollama at http://localhost:11434/api/version
+# if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
+# ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
+# else:
+container stop semiont-ollama
+container rm semiont-ollama
+# require free port: 11434
+container run -d --name semiont-ollama --memory 24G -p 11434:11434 -v <ollama-volume>:/root/.ollama ollama/ollama
+# wait: http://localhost:11434/api/version (30s)
+# ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
+# embedding: externally provided at localhost:11434 — verify reachability, launch nothing
+# mount anchored-text state (shared; the stamp stays with its owning service)
+# state state: <home>/.local/share/semiont/roots/example.github.io-test-kb/state (created if absent; reused across restarts)
+container run -d --name semiont-archivist --memory 2G --publish 24103:24103 --volume <kb-root>:/kb --volume <config-stage>/archivist.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/anchored-text:/anchored-text -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-archivist --env SEMIONT_OIDC_CLIENT_SECRET=<archivist-client-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-archivist:latest
+# wait: http://localhost:24103/health (30s)
+# mount state state (shared; the stamp stays with its owning service)
+container run -d --name semiont-librarian --memory 2G --publish 24104:24104 --volume <config-stage>/librarian.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-librarian --env SEMIONT_OIDC_CLIENT_SECRET=<librarian-client-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-librarian:latest
+# wait: http://localhost:24104/health (30s)
+container run -d --name semiont-worker --memory 2G --publish 24100:24100 --volume <config-stage>/worker.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-worker --env SEMIONT_OIDC_CLIENT_SECRET=<worker-client-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:latest
+# wait: http://localhost:24100/health (30s)
+# anchored-text state: <home>/.local/share/semiont/roots/example.github.io-test-kb/anchored-text (created if absent; reused across restarts)
+container run -d --name semiont-smelter --memory 2G --publish 24101:24101 --volume <config-stage>/smelter.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-smelter --env SEMIONT_OIDC_CLIENT_SECRET=<smelter-client-secret> --env SEMIONT_SUPERVISE=1 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/anchored-text:/anchored-text ghcr.io/the-ai-alliance/semiont-smelter:latest
+# wait: http://localhost:24101/health (30s)
+container run -d --name semiont-weaver --memory 2G --publish 24102:24102 --volume <config-stage>/weaver.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-weaver --env SEMIONT_OIDC_CLIENT_SECRET=<weaver-client-secret> --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-weaver:latest
+# wait: http://localhost:24102/health (30s)
+# browser: keep if running with image identity matching ghcr.io/the-ai-alliance/semiont-browser:latest; else stop/rm + pull + run
+# (the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)
+# else:
+container stop semiont-browser
+container rm semiont-browser
+# require free port: 3000
+container image pull ghcr.io/the-ai-alliance/semiont-browser:latest
+container run -d --name semiont-browser --memory 1G --publish 3000:3000 -v <home>/.local/state/semiont/discovery:/discovery:ro --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-browser:latest
+# wait: http://localhost:3000 (30s)

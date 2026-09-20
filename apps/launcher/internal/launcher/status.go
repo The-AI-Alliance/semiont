@@ -82,6 +82,7 @@ var statusServices = []struct {
 
 	{"database", "tcp:5432", true, 2},
 	{"messaging", "tcp:4222", true, 2},
+	{"identity", "http://localhost:8080/realms/master", true, 2},
 	{"graph", "http://localhost:7474", true, 2},
 	{"vectors", "http://localhost:6333/readyz", true, 2},
 	{"collector", "http://localhost:24110/metrics", true, 2},
@@ -727,7 +728,7 @@ func printSessions(u *ui, ss *stackSet) {
 	u.section("SESSIONS")
 	toks := loadTokens()
 	if len(toks) == 0 {
-		fmt.Printf("  %s\n", u.dim("(none — semiont login --email <address>)"))
+		fmt.Printf("  %s\n", u.dim("(none — semiont login)"))
 		return
 	}
 	keys := make([]string, 0, len(toks))

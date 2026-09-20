@@ -24,7 +24,7 @@
  *
  * const transport = new HttpTransport({ baseUrl: baseUrl('https://kb.example/') });
  * // HttpTransport implements both ITransport and IGatewayOperations;
- * // passing it as the third arg wires `client.auth` and `client.admin`.
+ * // passing it as the third arg wires `client.auth` and `client.system`.
  * const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
  * ```
  */
@@ -66,7 +66,7 @@ export {
 export { BeckonNamespace } from './namespaces/beckon';
 export { JobNamespace } from './namespaces/job';
 export { AuthNamespace } from './namespaces/auth';
-export { AdminNamespace } from './namespaces/admin';
+export { SystemNamespace } from './namespaces/system';
 export type * from './namespaces/types';
 
 // Re-exports from @semiont/core for one-import convenience. The principled
@@ -80,7 +80,6 @@ export type {
   AnnotationId,
   BaseUrl,
   JobId,
-  RefreshToken,
   ResourceId,
   UserDID,
   UserId,
@@ -113,7 +112,6 @@ export {
   baseUrl,
   entityType,
   jobId,
-  refreshToken,
   resourceId,
   userDID,
   userId,
@@ -127,7 +125,24 @@ export {
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
-export { SemiontBrowser, type SemiontBrowserConfig } from './session/semiont-browser';
+export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome } from './session/semiont-browser';
+export {
+  BROWSER_CLIENT_ID,
+  SCRIPT_CLIENT_ID,
+  SignInError,
+  type SignInErrorCode,
+  type IssuerEndpoints,
+  type DeviceCode,
+  type BeginAuthorizationOptions,
+  discoverIssuer,
+  beginAuthorization,
+  completeAuthorization,
+  signInWithDeviceGrant,
+  refreshAtIssuer,
+  refreshStoredSession,
+  revokeAtIssuer,
+} from './session/oauth';
+export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection } from './session/connect';
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
 export { SessionSignals } from './session/session-signals';
@@ -153,6 +168,11 @@ export {
   isValidHostname,
   kbGatewayUrl,
   setStoredSession,
+  // One refresh policy for every holder of a gateway token: when a token
+  // expires is the token's own claim, and how long before that to renew is
+  // a single number. Sidecars outside this package schedule from both.
+  parseJwtExpiry,
+  REFRESH_BEFORE_EXP_MS,
   type StoredSession,
 } from './session/storage';
 
