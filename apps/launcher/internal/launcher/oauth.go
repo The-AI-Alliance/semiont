@@ -119,18 +119,38 @@ func promptToOpen(u *ui, da deviceAuthorization, where string, expires time.Dura
 	if short == "" {
 		short = where
 	}
-	fi, err := os.Stdin.Stat()
-	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
-		u.log("To sign in, open %s and enter it.", u.bold(short))
+	// The URI is printed UNCONDITIONALLY, before any question of opening it.
+	// It is what a person needs when the browser does not open, opens on the
+	// wrong machine, or is not where they want to approve — so it must not be
+	// gated on detecting a terminal correctly.
+	u.log("To sign in, open %s and enter it.", u.bold(short))
+
+	if !stdinIsTerminal() {
 		return
 	}
-
-	fmt.Fprintf(os.Stderr, "Press Enter to open %s in your browser (Ctrl-C to open it yourself)... ", short)
+	fmt.Fprintf(os.Stderr, "Press Enter to open it in your browser (Ctrl-C to open it yourself)... ")
 	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
 	if err := openBrowser(where); err != nil {
 		u.warn("Could not open a browser (%v).", err)
-		u.log("Open %s and enter the code above.", u.bold(short))
 	}
+}
+
+// stdinIsTerminal: whether a PERSON is at stdin.
+//
+// `os.Stdin.Stat()` and `ModeCharDevice` is the usual shorthand and it is
+// wrong here: `/dev/null` is a character device, so a CI step — whose stdin is
+// commonly /dev/null — reads as interactive under it, and this prompted a
+// runner that has no browser. Asking `stty` is what the launcher already does
+// to control echo in readPassword, and it answers the real question: stty
+// fails on anything that is not a terminal.
+func stdinIsTerminal() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		return false // a pipe or a file, decided without spawning anything
+	}
+	probe := exec.Command("stty", "size")
+	probe.Stdin = os.Stdin
+	return probe.Run() == nil
 }
 
 // browserCommand: how one platform opens a URL. Separated from running it so

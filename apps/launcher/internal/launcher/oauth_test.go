@@ -9,14 +9,16 @@ import (
 	"time"
 )
 
-// `semiont login` shows the one-time code and, on a terminal, offers to open
-// the issuer's page — the shape `gh auth login` uses. Nothing is opened when
-// stdin is not a terminal: login runs from scripts, and a CI box either has no
-// browser or should not be sent to one.
-func TestPromptToOpenDoesNotOpenWithoutATerminal(t *testing.T) {
-	// The test binary's stdin is a pipe, so this exercises the non-TTY path.
-	// If it ever tried to prompt, the read would block and the test would hang
-	// rather than fail — which is itself the signal.
+// `semiont login` shows the one-time code AND the verification URI, always,
+// and only then — on a terminal — offers to open the page. The shape is
+// `gh auth login`'s; what differs is that neither piece of information is
+// gated on detecting a terminal, because a person whose browser does not open
+// still needs both.
+//
+// This failed in CI once, for the reason `stdinIsTerminal` now exists: a CI
+// step's stdin is commonly /dev/null, which IS a character device, so the
+// shorthand check read as interactive and the URI was never printed.
+func TestPromptToOpenAlwaysShowsTheCodeAndURI(t *testing.T) {
 	da := deviceAuthorization{
 		UserCode:                "ABCD-1234",
 		VerificationURI:         "https://issuer.test/device",
@@ -34,8 +36,15 @@ func TestPromptToOpenDoesNotOpenWithoutATerminal(t *testing.T) {
 	if !strings.Contains(s, "https://issuer.test/device") {
 		t.Errorf("the verification uri was not shown: %q", s)
 	}
-	if strings.Contains(s, "Press Enter") {
-		t.Errorf("prompted to open a browser without a terminal: %q", s)
+	// The prompt goes to stderr and is not captured here; what this pins is
+	// that the two facts a person needs are on stdout either way.
+}
+
+// A pipe or a regular file is decided without spawning anything — the stty
+// probe is only reached for a character device.
+func TestStdinIsNotATerminalUnderTest(t *testing.T) {
+	if stdinIsTerminal() {
+		t.Skip("this runner gave the test binary a real terminal; nothing to assert")
 	}
 }
 

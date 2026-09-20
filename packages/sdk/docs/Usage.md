@@ -58,7 +58,6 @@ const kb: KnowledgeBase = {
   id: 'my-watcher',
   label: 'My Watcher',
   did: 'did:web:my-watcher.example',
-  email: 'me@example.com',
   endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
 };
 
@@ -97,8 +96,7 @@ const session = SemiontSession.fromHttp({
   kb: {
     id: 'local',
     label: 'Local Gateway',
-    email: 'me@example.com',
-    endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
+      endpoint: { kind: 'http', host: 'localhost', port: 4000, protocol: 'http' },
   },
   storage: new InMemorySessionStorage(),
   baseUrl: 'http://localhost:4000',
