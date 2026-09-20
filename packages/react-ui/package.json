@@ -77,8 +77,8 @@
     "test:split:coverage": "npm run test:coverage"
   },
   "peerDependencies": {
-    "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
     "styled-components": "^6.0.0",
     "vitest": "^4.0.0"
   },
@@ -94,8 +94,8 @@
     "@headlessui/react": "^2.2.10",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.5.6",
     "axe-core": "^4.12.1",
