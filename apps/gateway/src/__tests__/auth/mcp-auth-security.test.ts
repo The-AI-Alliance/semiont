@@ -39,8 +39,8 @@ describe('MCP Authentication security', () => {
 
         email: email('test@example.com'),
         domain: 'example.com',
-      });
-      
+      }, '1h');
+
       // Decode header to check algorithm
       const [headerB64] = token.split('.');
       const header = JSON.parse(Buffer.from(headerB64 || '', 'base64').toString());

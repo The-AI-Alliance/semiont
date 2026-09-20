@@ -169,8 +169,8 @@ export class JWTService {
   }
 
   static generateToken(
-    payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>, 
-    expiresIn: string = '7d'
+    payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>,
+    expiresIn: string
   ): string {
     const config = this.getSiteConfig();
     // Convert payload to plain object for jwt.sign

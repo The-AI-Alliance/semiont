@@ -138,7 +138,7 @@ describe('JWT Service', () => {
         email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
-      });
+      }, '1h');
 
       expect(result).toBe(expectedToken);
       expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
@@ -150,7 +150,7 @@ domain: 'example.com',
         },
         'test-secret-key-for-testing-32char',
         {
-          expiresIn: '7d',
+          expiresIn: '1h',
           issuer: 'test.example.com',
         }
       );
@@ -164,7 +164,7 @@ domain: 'example.com',
 
         email: email(mockUser.email),
         domain: mockUser.domain,
-      });
+      }, '1h');
 
       expect(result).toBe(expectedToken);
       expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
@@ -187,7 +187,7 @@ domain: 'example.com',
         email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
-      })).toThrow('JWT signing failed');
+      }, '1h')).toThrow('JWT signing failed');
     });
 
     it('should use secure JWT options', () => {
@@ -198,14 +198,14 @@ domain: 'example.com',
         email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
-      });
+      }, '1h');
 
       const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [, secret, options] = callArgs || [];
       
       expect(secret).toBe('test-secret-key-for-testing-32char');
       expect(options).toEqual({
-        expiresIn: '7d',
+        expiresIn: '1h',
         issuer: 'test.example.com',
       });
     });
@@ -293,7 +293,7 @@ domain: 'example.com',
           email: email(mockUser.email),
           name: mockUser.name || undefined,
           domain: mockUser.domain,
-        });
+        }, '1h');
         expect.fail('Should have thrown an error');
       } catch (error) {
         const errorMessage = (error as Error).message;
@@ -313,29 +313,10 @@ domain: 'example.com',
         .mockReturnValueOnce('token-2' as any)
         .mockReturnValueOnce('token-3' as any);
 
-      const tokens = users.map(user => JWTService.generateToken(user));
+      const tokens = users.map(user => JWTService.generateToken(user, '1h'));
 
       expect(tokens).toEqual(['token-1', 'token-2', 'token-3']);
       expect(vi.mocked(jwt.sign)).toHaveBeenCalledTimes(3);
-    });
-
-    it('should validate token expiration settings', () => {
-      vi.mocked(jwt.sign).mockReturnValue('test.token' as any);
-
-      JWTService.generateToken({        did: `did:web:${mockUser.domain}:agents:test:model`,
-
-        email: email(mockUser.email),
-        name: mockUser.name || undefined,
-        domain: mockUser.domain,
-      });
-
-      const callArgs = vi.mocked(jwt.sign).mock.calls[0];
-      const [, , options] = callArgs || [];
-      
-      // Should have reasonable expiration time
-      expect(options?.expiresIn).toBe('7d');
-      expect(options?.expiresIn).not.toBe('100y'); // Should not be extremely long
-      expect(options?.expiresIn).not.toBe('1s');   // Should not be extremely short
     });
 
     it('signs exactly the claims it was given, adding no authority of its own', () => {
@@ -346,7 +327,7 @@ domain: 'example.com',
         email: email(mockUser.email),
         name: mockUser.name || undefined,
         domain: mockUser.domain,
-      });
+      }, '1h');
 
       const callArgs = vi.mocked(jwt.sign).mock.calls[0];
       const [payload] = callArgs || [];
