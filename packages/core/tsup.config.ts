@@ -24,6 +24,9 @@ export default defineConfig({
     'src/identity/issuer.ts',
     'src/testing.ts',
     'src/testing/axioms.ts',
+    // `@semiont/core/testing/issuer` — the in-process OIDC issuer double. Its
+    // own entry so the `testing` barrel never pulls `msw` in behind it.
+    'src/testing/issuer.ts',
   ],
   external: ['fast-check'],
   // The generated validators (`src/openapi.ts` → `generated/openapi-validators.cjs`)
