@@ -8,6 +8,7 @@ package launcher
 // names a vendor, and no process ever holds a password.
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -15,6 +16,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 
@@ -92,6 +96,63 @@ type tokenResponse struct {
 
 // deviceLogin runs the device authorization grant: ask the issuer for a code,
 // tell the user where to enter it, poll the token endpoint at the issuer's
+// promptToOpen shows the one-time code and, on a terminal, offers to open the
+// issuer's page.
+//
+// The code is printed FIRST and on its own line, because it is the one thing a
+// person has to carry out of the terminal: the device flow expects them to
+// check that the page shows the same code, and they need it verbatim if they
+// approve on a different machine.
+//
+// `verification_uri_complete` carries the code already, so that is what gets
+// opened; the SHORT uri is what gets printed, since that is the one somebody
+// retypes on a phone.
+//
+// Nothing is opened when stdin is not a terminal. `semiont login` runs from
+// scripts, and a CI box either has no browser or should not be sent to one —
+// there the output is what it always was, and the poll starts immediately.
+func promptToOpen(u *ui, da deviceAuthorization, where string, expires time.Duration) {
+	valid := u.dim("(valid " + expires.Round(time.Second).String() + ")")
+	u.log("Your one-time code: %s %s", u.bold(da.UserCode), valid)
+
+	short := da.VerificationURI
+	if short == "" {
+		short = where
+	}
+	fi, err := os.Stdin.Stat()
+	if err != nil || fi.Mode()&os.ModeCharDevice == 0 {
+		u.log("To sign in, open %s and enter it.", u.bold(short))
+		return
+	}
+
+	fmt.Fprintf(os.Stderr, "Press Enter to open %s in your browser (Ctrl-C to open it yourself)... ", short)
+	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
+	if err := openBrowser(where); err != nil {
+		u.warn("Could not open a browser (%v).", err)
+		u.log("Open %s and enter the code above.", u.bold(short))
+	}
+}
+
+// browserCommand: how one platform opens a URL. Separated from running it so
+// the mapping is a fact a test can read, not a guess compiled into one branch.
+func browserCommand(goos, url string) []string {
+	switch goos {
+	case "darwin":
+		return []string{"open", url}
+	case "windows":
+		return []string{"rundll32", "url.dll,FileProtocolHandler", url}
+	default:
+		return []string{"xdg-open", url}
+	}
+}
+
+// openBrowser hands a URL to whatever the platform uses. Shelled out rather
+// than taken as a dependency, the same call readPassword makes for `stty`.
+func openBrowser(url string) error {
+	argv := browserCommand(runtime.GOOS, url)
+	return exec.Command(argv[0], argv[1:]...).Start()
+}
+
 // interval until approval, denial, or expiry.
 func deviceLogin(ctx context.Context, u *ui, ep issuerEndpoints) (tokenResponse, error) {
 	var da deviceAuthorization
@@ -113,7 +174,7 @@ func deviceLogin(ctx context.Context, u *ui, ep issuerEndpoints) (tokenResponse,
 	if expires <= 0 {
 		expires = 10 * time.Minute
 	}
-	u.log("To sign in, open %s %s", u.bold(where), u.dim("(code "+da.UserCode+", valid "+expires.Round(time.Second).String()+")"))
+	promptToOpen(u, da, where, expires)
 	u.log("Waiting for approval at the issuer...")
 
 	interval := time.Duration(da.Interval) * time.Second
