@@ -47,13 +47,13 @@
     "@semiont/event-sourcing": "*",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.11",
-    "@vitest/ui": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.1",
+    "@vitest/ui": "^5.0.1",
     "fast-check": "^4.10.0",
     "msw": "^2.15.0",
     "tsup": "^8.5.1",
     "tsx": "^4.23.13",
     "typescript": "^6.0.2",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   }
 }
