@@ -124,7 +124,7 @@ class PublishFirstEventStore {
 function createdEvent(rid: ResourceId): EventInput {
   return {
     type: 'yield:created',
-    userId: userId('user1'),
+    userId: userId('did:web:test:users:user1'),
     resourceId: rid,
     version: 1,
     payload: { name: 'Test Resource', format: 'text/plain', contentChecksum: 'cs-init' },
@@ -134,7 +134,7 @@ function createdEvent(rid: ResourceId): EventInput {
 function markAddedEvent(rid: ResourceId, index: number): EventInput {
   return {
     type: 'mark:added',
-    userId: userId('user1'),
+    userId: userId('did:web:test:users:user1'),
     resourceId: rid,
     version: 1,
     payload: {

@@ -44,7 +44,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     const docEvent1: Omit<EventOfType<'yield:created'>, 'id' | 'timestamp'> = {
       type: 'yield:created',
       resourceId: testDocId,
-      userId: userId('test-user'),
+      userId: userId('did:web:test:users:test-user'),
       version: 1,
       payload: {
         name: 'Test Resource for CRUD',
@@ -56,7 +56,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
     const docEvent2: Omit<EventOfType<'yield:created'>, 'id' | 'timestamp'> = {
       type: 'yield:created',
       resourceId: testDocId2,
-      userId: userId('test-user'),
+      userId: userId('did:web:test:users:test-user'),
       version: 1,
       payload: {
         name: 'Test Target Resource',
@@ -107,7 +107,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -162,7 +162,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -234,7 +234,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: { annotation: stubAnnotation },
       });
@@ -246,7 +246,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:body-updated',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: {
           annotationId: stubId,
@@ -328,7 +328,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: { annotation: stubAnnotation },
       });
@@ -339,7 +339,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:body-updated',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: {
           annotationId: stubId,
@@ -450,7 +450,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: { annotation },
       });
@@ -465,7 +465,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:removed',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: {
           annotationId: deleteId,
@@ -512,7 +512,7 @@ describe('Annotation CRUD Integration Tests - W3C multi-body annotation', () => 
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: testDocId,
-        userId: userId('test-user'),
+        userId: userId('did:web:test:users:test-user'),
         version: 1,
         payload: { annotation },
       });

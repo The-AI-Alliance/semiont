@@ -106,7 +106,7 @@ describe('AnnotationOperations', () => {
         content: Buffer.from('This is test content for annotations. It has multiple sentences. We will annotate various parts.', 'utf-8'),
         format: 'text/plain',
       },
-      userId('user-1'),
+      userId('did:web:test:users:user-1'),
     );
 
     testResourceId = resId;
@@ -126,7 +126,7 @@ describe('AnnotationOperations', () => {
           target: { source: testResourceId }, // whole-resource target, no selector
           body: { type: 'SpecificResource', source: testResourceId, purpose: 'linking' },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -156,7 +156,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -187,7 +187,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -218,7 +218,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -252,7 +252,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -280,7 +280,7 @@ describe('AnnotationOperations', () => {
             source: 'http://example.com/related-resource',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -307,7 +307,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -342,7 +342,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -359,7 +359,7 @@ describe('AnnotationOperations', () => {
       expect(thisAnnotationEvent).toMatchObject({
         type: 'mark:added',
         resourceId: resourceId(testResourceId),
-        userId: userId('user-1'),
+        userId: userId('did:web:test:users:user-1'),
       });
     });
 
@@ -383,7 +383,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -412,7 +412,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -453,7 +453,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -488,7 +488,7 @@ describe('AnnotationOperations', () => {
               format: 'text/plain',
             },
           },
-          userId('user-1'),
+          userId('did:web:test:users:user-1'),
           creator,
           eventBus,
           kb)
@@ -520,7 +520,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -545,7 +545,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb
       );
@@ -584,7 +584,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -608,7 +608,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb
       );
@@ -642,7 +642,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -671,7 +671,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb
       );
@@ -704,7 +704,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -727,7 +727,7 @@ describe('AnnotationOperations', () => {
             },
           ],
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb
       );
@@ -756,7 +756,7 @@ describe('AnnotationOperations', () => {
               },
             ],
           },
-          userId('user-1'),
+          userId('did:web:test:users:user-1'),
           eventBus,
           kb
         )
@@ -786,7 +786,7 @@ describe('AnnotationOperations', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb);
 
@@ -797,7 +797,7 @@ describe('AnnotationOperations', () => {
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
         testResourceId,
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         eventBus,
         kb
       );
@@ -814,7 +814,7 @@ describe('AnnotationOperations', () => {
         AnnotationOperations.deleteAnnotation(
           'non-existent',
           testResourceId,
-          userId('user-1'),
+          userId('did:web:test:users:user-1'),
           eventBus,
           kb
         )
@@ -845,7 +845,7 @@ describe('AnnotationOperations', () => {
         ),
       );
 
-      eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
+      eventBus.emit('mark:update-entity-types', { _userId: 'did:web:test:users:user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Legacy'],
         updatedEntityTypes: ['Person'], }, { correlationId });
@@ -893,7 +893,7 @@ describe('AnnotationOperations', () => {
       // A REMOVAL, not an add: removals are never vocabulary-gated (the gate
       // would otherwise reject the tag before appendEvent runs), so this still
       // exercises the append-failure catch branch — the test's actual subject.
-      failBus.emit('mark:update-entity-types', { _userId: 'user-1',
+      failBus.emit('mark:update-entity-types', { _userId: 'did:web:test:users:user-1',
         resourceId: testResourceId,
         currentEntityTypes: ['Person'],
         updatedEntityTypes: [], }, { correlationId });

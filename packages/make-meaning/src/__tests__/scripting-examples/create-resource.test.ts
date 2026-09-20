@@ -109,7 +109,7 @@ describe('Scripting Example: Create Resource', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     // Verify resource was created — result is now a ResourceId directly
@@ -145,7 +145,7 @@ describe('Scripting Example: Create Resource', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     // Subscribe to resource-scoped EventBus for domain events
@@ -159,7 +159,7 @@ describe('Scripting Example: Create Resource', () => {
 
     // Now create another event (like archiving the resource)
     eventBus.emit('mark:archive', {
-      _userId: 'test-script',
+      _userId: 'did:web:test:users:test-script',
       resourceId: result,
     });
 
@@ -193,7 +193,7 @@ describe('Scripting Example: Create Resource', () => {
           format: 'text/plain',
           language: 'en'
         },
-        userId('batch-script'),
+        userId('did:web:test:users:batch-script'),
       );
 
       // result is already a ResourceId

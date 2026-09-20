@@ -58,7 +58,7 @@ const job: PendingJob<DetectionParams> = {
   metadata: {
     id: jobId('job-abc123'),
     type: 'reference-annotation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
@@ -170,7 +170,7 @@ const failed = await queue.listJobs({ status: 'failed' });
 
 // Get jobs for specific user
 const userJobs = await queue.listJobs({
-  userId: userId('user@example.com'),
+  userId: userId('did:web:example.com:users:user%40example.com'),
   limit: 10,
 });
 
@@ -287,7 +287,7 @@ await Promise.all(
       metadata: {
         id: jobId(`job-${nanoid()}`),
         type: 'reference-annotation',
-        userId: userId('user@example.com'),
+        userId: userId('did:web:example.com:users:user%40example.com'),
         userName: 'Jane Doe',
         userEmail: 'jane@example.com',
         userDomain: 'example.com',

@@ -104,7 +104,7 @@ describe('AnnotationContext', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: resourceId(id),
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         name: `Test Resource ${id}`,
@@ -141,7 +141,7 @@ describe('AnnotationContext', () => {
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: resourceId(resId),
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         annotation: {
@@ -333,7 +333,7 @@ describe('AnnotationContext', () => {
     await eventStore.appendEvent({
       type: 'mark:added',
       resourceId: resourceId(testResourceId),
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: {
         annotation: {
@@ -500,7 +500,7 @@ describe('AnnotationContext', () => {
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: resourceId(testResourceId),
-        userId: userId('user-1'),
+        userId: userId('did:web:test:users:user-1'),
         version: 1,
         payload: {
           annotation: {
@@ -752,7 +752,7 @@ describe('AnnotationContext', () => {
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: resourceId(src),
-        userId: userId('user-1'),
+        userId: userId('did:web:test:users:user-1'),
         version: 1,
         payload: {
           annotation: {

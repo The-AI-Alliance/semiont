@@ -127,7 +127,7 @@ describe('LLM Context', () => {
         content,
         format: 'text/plain',
       },
-      userId('user-1'),
+      userId('did:web:test:users:user-1'),
     );
 
     testResourceId = resId;
@@ -218,7 +218,7 @@ describe('LLM Context', () => {
             format: 'text/plain',
           },
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         creator,
         eventBus,
         kb);

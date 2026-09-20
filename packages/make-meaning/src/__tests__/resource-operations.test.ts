@@ -76,7 +76,7 @@ describe('ResourceOperations', () => {
     it('should create resource with valid text content', async () => {
       const resId = await create(
         { name: 'Test Resource', content: Buffer.from('Test resource content', 'utf-8'), format: 'text/plain' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       expect(resId).toBeDefined();
@@ -92,7 +92,7 @@ describe('ResourceOperations', () => {
     it('should generate resource ID', async () => {
       const resId = await create(
         { name: 'Resource with ID', content: Buffer.from('Another test', 'utf-8'), format: 'text/plain' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       expect(resId).toBeDefined();
@@ -103,7 +103,7 @@ describe('ResourceOperations', () => {
     it('should store representation', async () => {
       const resId = await create(
         { name: 'Stored Resource', content: Buffer.from('Content to store', 'utf-8'), format: 'text/plain' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -115,7 +115,7 @@ describe('ResourceOperations', () => {
     it('should emit resource.created event', async () => {
       const resId = await create(
         { name: 'Event Test Resource', content: Buffer.from('Event test content', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Location'] },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -126,7 +126,7 @@ describe('ResourceOperations', () => {
       expect(createdEvent).toMatchObject({
         type: 'yield:created',
         resourceId: resId,
-        userId: userId('user-1'),
+        userId: userId('did:web:test:users:user-1'),
         payload: {
           name: 'Event Test Resource',
           format: 'text/plain',
@@ -139,7 +139,7 @@ describe('ResourceOperations', () => {
     it('should handle markdown content format', async () => {
       const resId = await create(
         { name: 'Markdown Resource', content: Buffer.from('# Markdown Title\n\nParagraph content', 'utf-8'), format: 'text/markdown' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -150,7 +150,7 @@ describe('ResourceOperations', () => {
     it('should handle html content format', async () => {
       const resId = await create(
         { name: 'HTML Resource', content: Buffer.from('<html><body>HTML content</body></html>', 'utf-8'), format: 'text/html' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -161,7 +161,7 @@ describe('ResourceOperations', () => {
     it('should handle optional language parameter', async () => {
       const resId = await create(
         { name: 'French Resource', content: Buffer.from('Contenu en français', 'utf-8'), format: 'text/plain', language: 'fr' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -172,7 +172,7 @@ describe('ResourceOperations', () => {
     it('should handle optional entity types', async () => {
       const resId = await create(
         { name: 'Entity Resource', content: Buffer.from('Content with entities', 'utf-8'), format: 'text/plain', entityTypes: ['Person', 'Organization', 'Location'] },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -183,7 +183,7 @@ describe('ResourceOperations', () => {
     it('should handle empty entity types array', async () => {
       const resId = await create(
         { name: 'No Entities Resource', content: Buffer.from('No entities', 'utf-8'), format: 'text/plain', entityTypes: [] },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -194,7 +194,7 @@ describe('ResourceOperations', () => {
     it('should include timestamp in event', async () => {
       const resId = await create(
         { name: 'Timestamped Resource', content: Buffer.from('Timestamped content', 'utf-8'), format: 'text/plain' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
 
       const events = await testEventStore.log.getEvents(resId);
@@ -231,7 +231,7 @@ describe('ResourceOperations', () => {
           generator,
           isDraft: true,
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         asBusRequestPrimitive(eventBus),
       );
 
@@ -267,7 +267,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
           generatedFrom: { resourceId: 'res-only' }, // no annotationId
         },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
         asBusRequestPrimitive(eventBus),
       );
 
@@ -286,7 +286,7 @@ describe('ResourceOperations', () => {
     beforeAll(async () => {
       resId = await create(
         { name: 'Archivable', content: Buffer.from('archivable content', 'utf-8'), format: 'text/plain' },
-        userId('user-1'),
+        userId('did:web:test:users:user-1'),
       );
     });
 
@@ -305,7 +305,7 @@ describe('ResourceOperations', () => {
         const failSub = eventBus.frames(failChannel).subscribe((frame) => {
           if (frame.correlationId === correlationId) { okSub.unsubscribe(); failSub.unsubscribe(); resolve({ ok: false, message: frame.payload.message }); }
         });
-        eventBus.emit(command, { ...payload, _userId: 'user-1' } as never, { correlationId });
+        eventBus.emit(command, { ...payload, _userId: 'did:web:test:users:user-1' } as never, { correlationId });
       });
     }
 

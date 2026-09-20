@@ -100,7 +100,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     const correlationId = 'p1-create-1';
     const ok = reply(eventBus.frames('yield:create-ok'), eventBus.frames('yield:create-failed'), correlationId);
 
-    eventBus.emit('yield:create', { _userId: 'user-1',
+    eventBus.emit('yield:create', { _userId: 'did:web:test:users:user-1',
       name: 'doc.txt',
       format: 'text/plain',
       storageUri: 'file:///tmp/doc.txt',
@@ -137,7 +137,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     });
 
     eventBus.emit('yield:mv', {
-      _userId: 'user-1',
+      _userId: 'did:web:test:users:user-1',
       fromUri,
       toUri: 'file:///tmp/to.txt',
     });
@@ -162,7 +162,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
     const correlationId = 'p1-archive-1';
     const ok = reply(eventBus.frames('mark:archive-ok'), eventBus.frames('mark:archive-failed'), correlationId);
 
-    eventBus.emit('mark:archive', { _userId: 'user-1',
+    eventBus.emit('mark:archive', { _userId: 'did:web:test:users:user-1',
       resourceId: 'res-arch-1',
       storageUri: 'file:///tmp/gone.txt',
       keepFile: true, }, { correlationId });

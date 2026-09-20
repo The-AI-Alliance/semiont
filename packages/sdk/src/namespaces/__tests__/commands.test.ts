@@ -178,11 +178,11 @@ describe('MarkNamespace', () => {
     // Unified lifecycle: filter by the jobId (`j1`) assigned by job:create.
     // assist() forwards the inner `progress` field as the Observable's `next`.
     eventBus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'reference-annotation',
       percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
     } as any);
     eventBus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'reference-annotation',
       result: { totalFound: 3, totalEmitted: 3, errors: 0 },
     } as any);
 
@@ -232,7 +232,7 @@ describe('MarkNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     bus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'reference-annotation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'reference-annotation',
       result: { totalFound: 0, totalEmitted: 0, errors: 0 },
     } as any);
     expect(completed).toBe(true);
@@ -254,7 +254,7 @@ describe('MarkNamespace', () => {
     await vi.advanceTimersByTimeAsync(100);
     await vi.advanceTimersByTimeAsync(9_000);
     bus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'highlight-annotation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'highlight-annotation',
       percentage: 50, progress: { stage: 'scanning', percentage: 50, message: 'scanning' },
     } as any);
 
@@ -835,11 +835,11 @@ describe('YieldNamespace', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     eventBus.emit('job:report-progress', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'generation',
       percentage: 50, progress: { percentage: 50, message: 'halfway' },
     } as any);
     eventBus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'generation',
       result: { resourceName: 'T' },
     } as any);
 
@@ -894,7 +894,7 @@ describe('YieldNamespace', () => {
 
     await vi.advanceTimersByTimeAsync(100);
     bus.emit('job:complete', {
-      jobId: 'j1', resourceId: 'res-1', _userId: 'u', jobType: 'generation',
+      jobId: 'j1', resourceId: 'res-1', _userId: 'did:web:test:users:u', jobType: 'generation',
       result: { resourceName: 'T' },
     } as any);
     expect(completed).toBe(true);

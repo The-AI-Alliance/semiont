@@ -62,7 +62,7 @@ describe('ViewMaterializer', () => {
         createStoredEvent({
           type: 'yield:created',
           resourceId: resourceId('doc1'),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           payload: {
             name: 'Test Resource',
             format: 'text/markdown',

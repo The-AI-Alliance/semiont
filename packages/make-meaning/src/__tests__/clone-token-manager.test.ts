@@ -78,7 +78,7 @@ describe('CloneTokenManager format selection', () => {
     const stored = await kb.content.store(Buffer.from(content), uri);
     return ResourceOperations.createResource(
       { name: `source-${fileCounter}`, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format },
-      userId('ctm-test'),
+      userId('did:web:test:users:ctm-test'),
       asBusRequestPrimitive(eventBus),
     );
   }
@@ -138,7 +138,7 @@ describe('CloneTokenManager format selection', () => {
       contentChecksum: stored.checksum,
       byteSize: stored.byteSize,
       format,
-      _userId: 'ctm-test',
+      _userId: 'did:web:test:users:ctm-test',
     }, { correlationId: createCid });
     const cloneId = await created$;
     if (!cloneId) throw new Error('yield:clone-created carried no resourceId');

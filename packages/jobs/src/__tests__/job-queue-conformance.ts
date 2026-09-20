@@ -57,7 +57,7 @@ export function createPendingDetectionJob(id: string): PendingJob<DetectionParam
     metadata: {
       id: jobId(id),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -78,7 +78,7 @@ export function createRunningDetectionJob(id: string): RunningJob<DetectionParam
     metadata: {
       id: jobId(id),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -106,7 +106,7 @@ export function createCompleteDetectionJob(id: string): CompleteJob<DetectionPar
     metadata: {
       id: jobId(id),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -135,7 +135,7 @@ export function createFailedDetectionJob(id: string): FailedJob<DetectionParams>
     metadata: {
       id: jobId(id),
       type: 'reference-annotation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',
@@ -159,7 +159,7 @@ export function createPendingGenerationJob(id: string): PendingJob<GenerationJob
     metadata: {
       id: jobId(id),
       type: 'generation',
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       userName: 'Test User',
       userEmail: 'test@test.local',
       userDomain: 'test.local',

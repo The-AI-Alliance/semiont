@@ -103,7 +103,7 @@ const job: PendingJob<TagDetectionParams> = {
   metadata: {
     id: jobId('job_123'),
     type: 'tag-annotation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',

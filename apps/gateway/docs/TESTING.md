@@ -217,7 +217,7 @@ it('should materialize view from yield:created event', async () => {
   const event: ResourceCreatedEvent = {
     type: 'yield:created',
     resourceId: resourceId('test-resource'),
-    userId: userId('user-123'),
+    userId: userId('did:web:example.com:users:alice%40example.com'),
     version: 1,
     payload: {
       name: 'Test Resource',
@@ -441,7 +441,7 @@ if (body.archived !== undefined && body.archived !== doc.archived) {
     await eventStore.appendEvent({
       type: 'mark:archived',
       resourceId: resourceId(id),
-      userId: userId(user.id),
+      userId: userId(user.did),
       version: 1,
       payload: { reason: undefined },
     });

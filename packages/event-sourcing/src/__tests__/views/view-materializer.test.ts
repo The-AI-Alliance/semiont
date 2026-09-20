@@ -55,7 +55,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -86,7 +86,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -102,7 +102,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -143,7 +143,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -159,7 +159,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -191,7 +191,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -207,7 +207,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -227,7 +227,7 @@ describe('ViewMaterializer', () => {
             id: 'event3',
             type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 3,
             payload: {
@@ -251,7 +251,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -267,7 +267,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'mark:added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -297,7 +297,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -313,7 +313,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'mark:added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -333,7 +333,7 @@ describe('ViewMaterializer', () => {
             id: 'event3',
             type: 'mark:body-updated',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 3,
             payload: {
@@ -369,7 +369,7 @@ describe('ViewMaterializer', () => {
           id: 'event1',
           type: 'yield:created',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 1,
           payload: {
@@ -383,7 +383,7 @@ describe('ViewMaterializer', () => {
           id: 'event2',
           type: 'mark:added',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 2,
           payload: {
@@ -401,7 +401,7 @@ describe('ViewMaterializer', () => {
           id: 'event3',
           type: 'mark:body-updated',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 3,
           payload: {
@@ -423,7 +423,7 @@ describe('ViewMaterializer', () => {
           id: 'event4',
           type: 'mark:body-updated',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 4,
           payload: {
@@ -459,7 +459,7 @@ describe('ViewMaterializer', () => {
           id: 'event1',
           type: 'yield:created',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 1,
           payload: {
@@ -473,7 +473,7 @@ describe('ViewMaterializer', () => {
           id: 'event2',
           type: 'mark:added',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 2,
           payload: {
@@ -491,7 +491,7 @@ describe('ViewMaterializer', () => {
           id: 'event3',
           type: 'mark:body-updated',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 3,
           payload: {
@@ -513,7 +513,7 @@ describe('ViewMaterializer', () => {
           id: 'event4',
           type: 'mark:body-updated',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 4,
           payload: {
@@ -547,7 +547,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -563,7 +563,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'mark:added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -583,7 +583,7 @@ describe('ViewMaterializer', () => {
             id: 'event3',
             type: 'mark:removed',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 3,
             payload: {
@@ -616,7 +616,7 @@ describe('ViewMaterializer', () => {
         id: 'event1',
         type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 1,
         payload: {
@@ -635,7 +635,7 @@ describe('ViewMaterializer', () => {
         id: 'event2',
         type: 'yield:representation-added' as const,
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 2,
         payload: {
@@ -672,7 +672,7 @@ describe('ViewMaterializer', () => {
         id: 'event1',
         type: 'yield:created' as const,
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 1,
         payload: {
@@ -851,7 +851,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -867,7 +867,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -887,7 +887,7 @@ describe('ViewMaterializer', () => {
             id: 'event3',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 3,
             payload: {
@@ -917,7 +917,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -933,7 +933,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -953,7 +953,7 @@ describe('ViewMaterializer', () => {
             id: 'event3',
             type: 'yield:representation-added',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 3,
             payload: {
@@ -984,7 +984,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -1000,7 +1000,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'yield:representation-removed',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -1028,7 +1028,7 @@ describe('ViewMaterializer', () => {
             id: 'event1',
             type: 'yield:created',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 1,
             payload: {
@@ -1044,7 +1044,7 @@ describe('ViewMaterializer', () => {
             id: 'event2',
             type: 'mark:removed',
             timestamp: new Date().toISOString(),
-            userId: userId('user1'),
+            userId: userId('did:web:test:users:user1'),
             resourceId: rid,
             version: 2,
             payload: {
@@ -1075,7 +1075,7 @@ describe('ViewMaterializer', () => {
           id: 'event1',
           type: 'yield:created',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 1,
           payload: {
@@ -1103,7 +1103,7 @@ describe('ViewMaterializer', () => {
           id: 'event1',
           type: 'yield:created',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 1,
           payload: {
@@ -1118,7 +1118,7 @@ describe('ViewMaterializer', () => {
           id: 'event2',
           type: 'yield:moved',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 2,
           payload: {
@@ -1143,7 +1143,7 @@ describe('ViewMaterializer', () => {
           id: 'event1',
           type: 'yield:created',
           timestamp: new Date().toISOString(),
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           resourceId: rid,
           version: 1,
           payload: {
@@ -1186,7 +1186,7 @@ describe('ViewMaterializer', () => {
         id: `evt-${rid}-${seq}`,
         type: 'yield:created',
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         resourceId: rid,
         version: 1,
         payload: {
@@ -1203,7 +1203,7 @@ describe('ViewMaterializer', () => {
         id: `sys-evt-${seq}`,
         type: 'frame:entity-type-added',
         timestamp: new Date().toISOString(),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType },
         metadata: createEventMetadata(seq),

@@ -200,7 +200,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {
           name: 'Has bytes',
@@ -226,7 +226,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'No bytes', format: 'text/plain', contentChecksum: 'h2' },
       });
@@ -249,7 +249,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -266,7 +266,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -277,7 +277,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'job:started',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { jobId: 'job-1' as any, jobType: 'reference-annotation' },
       });
@@ -300,7 +300,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'My Doc', format: 'text/plain', contentChecksum: 'abc' },
       });
@@ -319,7 +319,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -329,7 +329,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:archived',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {},
       });
@@ -348,7 +348,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -358,7 +358,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:unarchived',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {},
       });
@@ -377,7 +377,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -387,7 +387,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {
           annotation: {
@@ -422,7 +422,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -432,7 +432,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:removed',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { annotationId: annotationId('ann-to-remove') },
       });
@@ -451,7 +451,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -472,7 +472,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:body-updated',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {
           annotationId: annotationId('ann-body'),
@@ -496,7 +496,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -516,7 +516,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:entity-tag-added',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'note' },
       });
@@ -536,7 +536,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -555,7 +555,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:entity-tag-removed',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'note' },
       });
@@ -577,7 +577,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -594,7 +594,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:entity-tag-added',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'note' },
       });
@@ -610,7 +610,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -625,7 +625,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:entity-tag-added',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'note' },
       });
@@ -646,7 +646,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:entity-tag-added',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'note' },
       });
@@ -658,7 +658,7 @@ describe('Weaver', () => {
     it('should handle entitytype.added (system event, no resourceId)', async () => {
       await eventStore.appendEvent({
         type: 'frame:entity-type-added',
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { entityType: 'organization' },
       });
@@ -676,7 +676,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -690,7 +690,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:representation-added' as any,
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { representation: { '@id': 'rep-1', mediaType: 'text/html', byteSize: 100, checksum: 'h2', created: new Date().toISOString() } },
       });
@@ -725,7 +725,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -733,7 +733,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'mark:archived',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {},
       });
@@ -756,7 +756,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Test', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -768,7 +768,7 @@ describe('Weaver', () => {
         await eventStore.appendEvent({
           type: 'mark:added',
           resourceId: docId,
-          userId: userId('user1'),
+          userId: userId('did:web:test:users:user1'),
           version: 1,
           payload: {
             annotation: {
@@ -830,7 +830,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Before Stop', format: 'text/plain', contentChecksum: 'h1' },
       });
@@ -846,7 +846,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: docId2,
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'After Stop', format: 'text/plain', contentChecksum: 'h2' },
       });
@@ -887,7 +887,7 @@ describe('Weaver', () => {
       id: uuidv4(),
       type,
       timestamp: new Date().toISOString(),
-      userId: userId('user-dup'),
+      userId: userId('did:web:test:users:user-dup'),
       ...(rid ? { resourceId: resourceId(rid) } : {}),
       version: 1,
       payload,
@@ -1069,14 +1069,14 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Missed While Down', format: 'text/plain', contentChecksum: 'h-cu' },
       });
       await eventStore.appendEvent({
         type: 'mark:archived',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {},
       });
@@ -1108,7 +1108,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Restored', format: 'text/plain', contentChecksum: 'h-rw' },
       });
@@ -1137,7 +1137,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Rebuilt', format: 'text/plain', contentChecksum: 'h-rb' },
       });
@@ -1163,7 +1163,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Rebuilt One', format: 'text/plain', contentChecksum: 'h-r1' },
       });
@@ -1196,14 +1196,14 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Authored', format: 'text/plain', contentChecksum: 'h-ac' },
       });
       await eventStore.appendEvent({
         type: 'mark:added',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: {
           annotation: {
@@ -1248,7 +1248,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Dropped', format: 'text/plain', contentChecksum: 'h-af' },
       });
@@ -1270,7 +1270,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Batch Base', format: 'text/plain', contentChecksum: 'h-ab' },
       });
@@ -1289,7 +1289,7 @@ describe('Weaver', () => {
       });
       const pushMark = (aid: string, seq: number) => coreEventBus.emit('mark:added', {
         id: uuidv4(), type: 'mark:added', timestamp: new Date().toISOString(),
-        userId: userId('user1'), resourceId: resourceId(rid), version: 1,
+        userId: userId('did:web:test:users:user1'), resourceId: resourceId(rid), version: 1,
         payload: { annotation: ann(aid) }, metadata: { sequenceNumber: seq },
       } as unknown as EventMap['mark:added']);
       pushMark('ann-b1', 2);
@@ -1313,7 +1313,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Will Drop', format: 'text/plain', contentChecksum: 'h-ar' },
       });
@@ -1335,7 +1335,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Retry Me', format: 'text/plain', contentChecksum: 'h-ac' },
       });
@@ -1367,7 +1367,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Healed', format: 'text/plain', contentChecksum: 'h-rh' },
       });
@@ -1442,11 +1442,11 @@ describe('Weaver', () => {
 
     const seedOneAnnotation = async (rid: string) => {
       await eventStore.appendEvent({
-        type: 'yield:created', resourceId: resourceId(rid), userId: userId('user1'), version: 1,
+        type: 'yield:created', resourceId: resourceId(rid), userId: userId('did:web:test:users:user1'), version: 1,
         payload: { name: 'Div', format: 'text/plain', contentChecksum: 'h-dv' },
       });
       await eventStore.appendEvent({
-        type: 'mark:added', resourceId: resourceId(rid), userId: userId('user1'), version: 1,
+        type: 'mark:added', resourceId: resourceId(rid), userId: userId('did:web:test:users:user1'), version: 1,
         payload: { annotation: { ...viewAnn(), target: { source: rid } } },
       });
       await tick();
@@ -1521,7 +1521,7 @@ describe('Weaver', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId(rid),
-        userId: userId('user1'),
+        userId: userId('did:web:test:users:user1'),
         version: 1,
         payload: { name: 'Clean', format: 'text/plain', contentChecksum: 'h-rc' },
       });

@@ -68,7 +68,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: rid,
-      userId: userId('user-d1'),
+      userId: userId('did:web:test:users:user-d1'),
       version: 1,
       payload: { name: 'Replayed', format: 'text/plain', contentChecksum: 'h1' },
     });
@@ -76,7 +76,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       await eventStore.appendEvent({
         type: 'mark:entity-tag-added',
         resourceId: rid,
-        userId: userId('user-d1'),
+        userId: userId('did:web:test:users:user-d1'),
         version: 1,
         payload: { entityType },
       });
@@ -249,7 +249,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: SERVED,
-        userId: userId('user-d1'),
+        userId: userId('did:web:test:users:user-d1'),
         version: 1,
         payload: { name: 'Served', format: 'text/markdown', contentChecksum: 'h2', storageUri: CONTENT_URI },
       });
@@ -275,7 +275,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       await eventStore.appendEvent({
         type: 'yield:created',
         resourceId: resourceId('res-bodiless'),
-        userId: userId('user-d1'),
+        userId: userId('did:web:test:users:user-d1'),
         version: 1,
         payload: { name: 'Bodiless', format: 'text/plain', contentChecksum: 'h3' },
       });
@@ -379,7 +379,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         await eventStore.appendEvent({
           type: 'yield:created',
           resourceId: resourceId('res-clientless'),
-          userId: userId('user-d1'),
+          userId: userId('did:web:test:users:user-d1'),
           version: 1,
           payload: { name: 'Bodiless', format: 'text/plain', contentChecksum: 'h4' },
         });

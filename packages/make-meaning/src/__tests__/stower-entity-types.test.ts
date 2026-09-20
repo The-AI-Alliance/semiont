@@ -63,7 +63,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
     await eventStore.appendEvent({
       type: 'yield:created',
       resourceId: rid,
-      userId: userId('user-1'),
+      userId: userId('did:web:test:users:user-1'),
       version: 1,
       payload: { name: 'Tagged', format: 'text/plain', contentChecksum: 'h1' },
     });
@@ -94,7 +94,7 @@ describe('Stower mark:update-entity-types vocabulary gate', () => {
         ),
       ).pipe(take(1)),
     );
-    eventBus.emit('mark:update-entity-types', { _userId: 'user-1',
+    eventBus.emit('mark:update-entity-types', { _userId: 'did:web:test:users:user-1',
       resourceId: rid,
       currentEntityTypes: current,
       updatedEntityTypes: updated, }, { correlationId });

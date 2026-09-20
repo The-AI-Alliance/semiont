@@ -158,7 +158,7 @@ describe('Scripting Example: Query Graph Database', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     const rId = makeResourceId(result);
@@ -187,7 +187,7 @@ describe('Scripting Example: Query Graph Database', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     const rId = resourceResult;
@@ -207,7 +207,7 @@ describe('Scripting Example: Query Graph Database', () => {
           }
         }
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
       creator,
       eventBus,
       makeMeaning.knowledgeSystem.kb);
@@ -235,7 +235,7 @@ describe('Scripting Example: Query Graph Database', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     await create(
@@ -245,7 +245,7 @@ describe('Scripting Example: Query Graph Database', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription
@@ -278,7 +278,7 @@ describe('Scripting Example: Query Graph Database', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     const rId = resource;
@@ -299,7 +299,7 @@ describe('Scripting Example: Query Graph Database', () => {
             }
           }
         },
-        userId('test-script'),
+        userId('did:web:test:users:test-script'),
         creator,
         eventBus,
         makeMeaning.knowledgeSystem.kb);
@@ -333,7 +333,7 @@ describe('Scripting Example: Query Graph Database', () => {
         format: 'text/plain',
         language: 'en'
       },
-      userId('test-script'),
+      userId('did:web:test:users:test-script'),
     );
 
     // EVENTUAL CONSISTENCY: GraphConsumer receives events via global subscription

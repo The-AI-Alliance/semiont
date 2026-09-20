@@ -88,7 +88,7 @@ const job: PendingJob<DetectionParams> = {
   metadata: {
     id: jobId('job-123'),
     type: 'reference-annotation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
@@ -198,7 +198,7 @@ const job: PendingJob<GenerationJobParams> = {
   metadata: {
     id: jobId('job-789'),
     type: 'generation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
@@ -273,7 +273,7 @@ const job: PendingJob<HighlightDetectionParams> = {
   metadata: {
     id: jobId('job-111'),
     type: 'highlight-annotation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
@@ -411,7 +411,7 @@ const job: PendingJob<TagDetectionParams> = {
   metadata: {
     id: jobId('job-777'),
     type: 'tag-annotation',
-    userId: userId('user@example.com'),
+    userId: userId('did:web:example.com:users:user%40example.com'),
     userName: 'Jane Doe',
     userEmail: 'jane@example.com',
     userDomain: 'example.com',
