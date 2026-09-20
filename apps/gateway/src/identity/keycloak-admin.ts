@@ -119,12 +119,13 @@ export class KeycloakAdminApi {
    * someone stops new tokens immediately, but an access token already in hand
    * keeps working until it expires. That window is the access token lifetime.
    *
-   * The display name goes here too. It used to live on a Semiont row, which is
-   * gone: the gateway now reads a caller's name from the `name` claim on their
-   * token, and that claim is built by the issuer from the profile below. One
-   * fact, one owner.
+   * No display name is set. The realm's user profile requires `firstName` and
+   * `lastName`, so Keycloak collects both from the person at first sign-in and
+   * composes the `name` claim from them. An administrator creating the account
+   * types one string, and splitting it on a space gets "Mary Jane" and
+   * "van der Berg" wrong — so nobody guesses, and the person says.
    */
-  async createUser(email: string, password: string, enabled = true, name?: string): Promise<string> {
+  async createUser(email: string, password: string, enabled = true): Promise<string> {
     const response = await fetch(this.usersUrl(), {
       method: 'POST',
       headers: this.headers(),
@@ -136,11 +137,9 @@ export class KeycloakAdminApi {
         // reach the knowledge base an administrator just granted them.
         emailVerified: true,
         enabled,
-        // Keycloak composes its `name` claim from firstName and lastName. A
-        // display name is one string to an administrator typing it, so it goes
-        // in whole rather than being guessed apart on a space — "van der Berg"
-        // and "Mary Jane" would both be split wrongly.
-        ...(name === undefined ? {} : { firstName: name }),
+        // `temporary: false` so the password an administrator just set is the
+        // one that works — a temporary credential would add a reset step on top
+        // of the profile form the realm already asks for.
         credentials: [{ type: 'password', value: password, temporary: false }],
       }),
     });
@@ -168,17 +167,6 @@ export class KeycloakAdminApi {
     }
   }
 
-  /** Set an existing account's display name. See `createUser` on why firstName. */
-  async setDisplayName(userId: string, name: string): Promise<void> {
-    const response = await fetch(this.usersUrl(`/${encodeURIComponent(userId)}`), {
-      method: 'PUT',
-      headers: this.headers(),
-      body: JSON.stringify({ firstName: name }),
-    });
-    if (!response.ok) {
-      throw new Error(`Setting the display name for ${userId} failed (HTTP ${response.status})`);
-    }
-  }
 
   /**
    * Enable or disable an existing account.

@@ -181,12 +181,81 @@ func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]s
 		"sslRequired":         "none",
 		"accessTokenLifespan": keycloakAccessTokenLifespan,
 		"clients":             clients,
+		"components": map[string]any{
+			"org.keycloak.userprofile.UserProfileProvider": []map[string]any{{
+				"providerId":    "declarative-user-profile",
+				"subComponents": map[string]any{},
+				"config": map[string]any{
+					"kc.user.profile.config": []string{keycloakUserProfile()},
+				},
+			}},
+		},
 	}
 	b, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
 		panic(err)
 	}
 	return append(b, '\n')
+}
+
+// keycloakUserProfile: the realm's declarative user profile, rendered as the
+// JSON string Keycloak stores for it.
+//
+// `firstName` and `lastName` are required, so a person an administrator created
+// an account for NAMES THEMSELVES at first login — Keycloak collects both before
+// it lets them through. That is deliberate: Keycloak composes the `name` claim
+// from these two, and that claim is what every event a person authors carries.
+// The alternative is an administrator typing one string that something then has
+// to split, and splitting a display name on a space gets "Mary Jane" and
+// "van der Berg" wrong. Nobody here is willing to guess, so the person says.
+//
+// This is Keycloak's own default written out, so it changes nothing today. It is
+// pinned for the reason keycloakAccessTokenLifespan is: inherited, the first-run
+// experience moves with a Keycloak upgrade and differs on any other issuer, with
+// no line to read back. An operator federating a different issuer owes Semiont
+// only `email` — the gateway refuses a token carrying none, or carrying
+// `email_verified` false.
+func keycloakUserProfile() string {
+	attribute := func(name string, required bool, validations map[string]any) map[string]any {
+		a := map[string]any{
+			"name":        name,
+			"displayName": "${" + name + "}",
+			"validations": validations,
+			"permissions": map[string][]string{
+				"view": {"admin", "user"},
+				"edit": {"admin", "user"},
+			},
+			"multivalued": false,
+		}
+		if required {
+			a["required"] = map[string][]string{"roles": {"user"}}
+		}
+		return a
+	}
+	personName := map[string]any{
+		"length":                            map[string]int{"max": 255},
+		"person-name-prohibited-characters": map[string]any{},
+	}
+	// encoding/json sorts map keys, so this renders identically every call —
+	// which the realm golden depends on.
+	doc := map[string]any{"attributes": []map[string]any{
+		attribute("username", false, map[string]any{
+			"length":                         map[string]int{"min": 3, "max": 255},
+			"username-prohibited-characters": map[string]any{},
+			"up-username-not-idn-homograph":  map[string]any{},
+		}),
+		attribute("email", true, map[string]any{
+			"email":  map[string]any{},
+			"length": map[string]int{"max": 255},
+		}),
+		attribute("firstName", true, personName),
+		attribute("lastName", true, personName),
+	}}
+	b, err := json.Marshal(doc)
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
 }
 
 // publicClient: the shape both of Semiont's clients share — public (no

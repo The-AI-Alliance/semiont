@@ -2743,7 +2743,10 @@ func TestUseraddCodespace(t *testing.T) {
 	nasty := "p a$s'w\"o`rd;rm -rf /"
 	s.stdin = nasty + "\n"
 	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
-		"--name", "A $NAME with spaces", "--upsert")
+		// A flag the launcher does not know. Forwarding argv verbatim is the
+		// promise, so an argument it has never heard of must cross intact and
+		// quoted — that is what breaks if this path starts interpreting flags.
+		"--future-flag", "A $NAME with spaces", "--upsert")
 	if code != 0 {
 		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}

@@ -24,7 +24,6 @@ restates apps/gateway/src/cli/useradd.ts and an unknown flag is refused there):
 
   --email <email>       User email address (required)
   --generate-password   Generate a random 16-char password (printed once)
-  --name <name>         Display name, set at the identity provider
   --inactive            Disable the account at the identity provider
   --active              Re-enable a disabled account
   --update              Update an existing user
@@ -33,7 +32,9 @@ restates apps/gateway/src/cli/useradd.ts and an unknown flag is refused there):
                         explicitly with --update to CHANGE a password)
 
 There are no role flags. No Semiont route grants access on the basis of a role,
-so there is nothing here to grant.
+so there is nothing here to grant. There is no display name either: the realm
+requires a first and last name, and asks the person for their own at first
+sign-in rather than have an administrator guess how to split one string.
 
 Launcher-owned (consumed here, not forwarded):
 

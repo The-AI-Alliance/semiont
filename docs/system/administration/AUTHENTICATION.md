@@ -265,6 +265,10 @@ Details worth knowing:
 
 The decisions that used to sit here now sit in the realm: who may register, which domains are admitted, how long an access token lives, and whether an account is enabled. Semiont enforces none of them and cannot compensate for them.
 
+Two of those the launcher does write into the realm it imports, rather than inherit, so they are decisions someone can read back rather than Keycloak defaults that move with an upgrade — the access token lifetime in the table above, and the **user profile**. The profile requires `firstName` and `lastName`, so a person an administrator created an account for is asked for their own name at first sign-in. Keycloak composes the `name` claim from those two, and that claim is what every annotation and resource they author is attributed to; `semiont useradd` deliberately sets no display name, because splitting one typed string on a space gets "Mary Jane" and "van der Berg" wrong.
+
+An operator federating a **different** issuer owes Semiont only `email`, plus an `email_verified` that is not false. Everything else here is this realm's shape, not a requirement of the gateway.
+
 ### API
 
 1. Routes explicitly apply `authMiddleware`. 2. Rate-limit per IP/user (edge rate-limiting is your deployment platform's concern). 3. Validate inputs with Zod. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.

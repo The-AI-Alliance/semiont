@@ -137,6 +137,15 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		// shape is deliberately not what this stamps.
 		`"claim.name": "roles"`,
 		`"claim.value": "[\"semiont-service\"]"`,
+		// The realm declares its own user profile rather than inheriting
+		// Keycloak's. firstName and lastName are required, so a person an
+		// administrator created an account for names themselves at first
+		// sign-in — and the `name` claim every event carries is one they chose.
+		// Inherited, this moves with a Keycloak upgrade and has no line to read.
+		`"declarative-user-profile"`,
+		`\"name\":\"firstName\"`,
+		`\"name\":\"lastName\"`,
+		`\"required\":{\"roles\":[\"user\"]}`,
 	} {
 		if !strings.Contains(doc, want) {
 			t.Errorf("realm document missing %s", want)

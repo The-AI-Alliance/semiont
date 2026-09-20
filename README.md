@@ -54,7 +54,9 @@ Create your first user. A fresh stack has none — the account is created at the
 semiont useradd --email admin@example.com   # prompts for the password
 ```
 
-Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
+Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. Sign-in happens at the identity provider, not at Semiont, so you'll be handed to its page and back. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
+
+**First sign-in asks for your first and last name.** That's deliberate: the identity provider composes your display name from them, and that name is what every annotation and resource you create is attributed to. Semiont never guesses it from your email.
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 

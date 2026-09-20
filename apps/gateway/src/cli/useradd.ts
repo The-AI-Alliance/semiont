@@ -24,7 +24,6 @@ interface Options {
   email: string;
   passwordStdin: boolean;
   generatePassword: boolean;
-  name?: string;
   active: boolean;
   inactive: boolean;
   update: boolean;
@@ -40,12 +39,12 @@ the password.
 
 Semiont stores nothing of its own about a user — the issuer holds the account and
 the profile, and the gateway reads what it needs off the token. There are no role
-flags, because no route here grants access on the basis of a role.
+flags, because no route here grants access on the basis of a role, and no display
+name: the realm asks the person for their own at first sign-in.
 
   --email <email>       User email address (required)
   --password-stdin      Read the password from stdin, first line (min 8 chars)
   --generate-password   Generate a random password (printed once)
-  --name <name>         Display name, set at the identity provider
   --inactive            Disable the account at the identity provider
   --active              Re-enable a disabled account
   --update              Update an existing user
@@ -68,7 +67,6 @@ function parseArgs(argv: string[]): Options {
     };
     switch (a) {
       case '--email': o.email = value(); break;
-      case '--name': o.name = value(); break;
       case '--password-stdin': o.passwordStdin = true; break;
       case '--generate-password': o.generatePassword = true; break;
       case '--inactive': o.inactive = true; break;
@@ -203,16 +201,19 @@ async function main(argv: string[]): Promise<number> {
 
   // Whether the person may sign in is the issuer's to hold, so it is written
   // there and nowhere else. Absent both flags this command does not touch the
-  // account's state, matching how the role flags behave: they grant when asked
-  // and leave everything else alone.
+  // account's state.
+  //
+  // Nothing here sets a display name. The realm requires `firstName` and
+  // `lastName`, so Keycloak collects them from the person at first sign-in —
+  // see keycloakUserProfile in the launcher's identity.go for why that is the
+  // person's job and not an administrator's.
   let subject: string;
   if (account) {
     if (password) await keycloak.setPassword(account.id, password);
     if (o.inactive || o.active) await keycloak.setEnabled(account.id, o.active);
-    if (o.name !== undefined) await keycloak.setDisplayName(account.id, o.name);
     subject = account.id;
   } else {
-    subject = await keycloak.createUser(o.email, password!, !o.inactive, o.name);
+    subject = await keycloak.createUser(o.email, password!, !o.inactive);
   }
 
   process.stdout.write(`${account ? 'User updated' : 'User created'}: ${o.email}\n`);
