@@ -26,11 +26,7 @@ RUN set -eu; \
         -exec sh -c 'rm -rf "$1" && cp -a /tmp/package "$1"' _ {} \;; \
       rm -rf "/tmp/$PKG-$WANT.tgz" /tmp/package; \
     }; \
-    NPM_TREE=/usr/local/lib/node_modules/npm; \
     APP_TREE=/home/semiont/.local/share/semiont; \
-    patch_dep "$NPM_TREE" brace-expansion 5.0.9; \
-    patch_dep "$NPM_TREE" ip-address 10.3.1; \
-    patch_dep "$NPM_TREE" tar 7.5.21; \
     patch_dep "$APP_TREE" deepmerge-ts 8.0.0
 
 FROM node:24-alpine
@@ -44,8 +40,14 @@ COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
 COPY --from=installer /usr/local/bin /usr/local/bin
 COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont /home/semiont/.local/share/semiont
 
+# Strip npm/npx (re-introduced by the COPY above). Nothing at runtime runs them:
+# the CMD is `node` on the built server.
+#
 # mysql2 by -path, not -name: -name would also delete studio-core's data/mysql2 shim.
-RUN find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx && \
+    find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
       -type d \( -name typescript -o -name '@typescript' -o -name elkjs \
                  -o -path '*/node_modules/mysql2' \) \
       -prune -exec rm -rf {} +

@@ -37,7 +37,7 @@ Image publishing enforces this rather than trusting it. [`publish-service-images
 4. Pushes with version, `sha-<commit>`, and optionally `latest` tags
 5. Publishes build-provenance and SBOM attestations as OCI artifacts
 
-These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. The `semiont-gateway` image faces the longest stack of them, because it keeps npm at runtime — so npm's own bundled tree is in scope alongside the application's dependencies.
+These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. Every service image strips npm from its runtime stage, so only the application's own dependencies are in scope.
 
 The exceptions file is permissive-only by principle: it records licenses judged acceptable, never suppressions of findings.
 

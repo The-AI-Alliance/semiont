@@ -20,4 +20,4 @@
 
 prisma-client-* Apache-2.0   # first-party generated code, not a dependency: Prisma 7 emits the generated client as `prisma-client-<hash of our schema>` with no license field, and the hash changes whenever the schema does. Generated from our own schema into the gateway image, so it carries our Apache-2.0. Verified 2026-07-26.
 seq-queue MIT   # pkg.json omits license; bundled LICENSE is MIT (Netease/pomelo). Reached via prisma→mysql2 when the gateway still used Prisma; kept until an SBOM confirms it is no longer in the tree. Verified 2026-07-15.
-qrcode-terminal Apache-2.0   # bundled by npm, which the gateway image ships. Uses the legacy `"licenses":[{"type":"Apache 2.0"}]` array + non-SPDX string, so the scanner reads NOASSERTION; bundled LICENSE is Apache-2.0. Verified 2026-07-16.
+qrcode-terminal Apache-2.0   # bundled by npm. Every image now strips npm (2026-09-20), so this should fall out of the SBOM — remove it once a publish build confirms that, not before. Uses the legacy `"licenses":[{"type":"Apache 2.0"}]` array + non-SPDX string, so the scanner reads NOASSERTION; bundled LICENSE is Apache-2.0. Verified 2026-07-16.
