@@ -385,7 +385,6 @@ export async function startAgentWorker(
   const kb: KbTarget = {
     id: kbId,
     label: `${inference.type} / ${inference.model} @ ${host}`,
-    email: `agent@${host}`,
     endpoint,
   };
   const storage = new InMemorySessionStorage();
