@@ -176,8 +176,9 @@ Also optional: `className`, `showAuthLinks`, `CookiePreferences`, `onOpenKeyboar
 ### UnifiedHeader
 
 Application header (branding + nav + user menu). Presentation via `variant`
-(`'standalone' | 'embedded' | 'floating'`) and the `isAuthenticated` / `isAdmin` /
-`isModerator` flags. No `userName` prop — the user menu resolves identity from the session.
+(`'standalone' | 'embedded' | 'floating'`) and `isAuthenticated`. No role flags — nothing in
+the nav is gated on one. No `userName` prop either; the user menu resolves identity from the
+session.
 
 ```tsx
 <UnifiedHeader Link={Link} routes={routes} t={t} tHome={tHome} variant="standalone" isAuthenticated={isAuthenticated} />
@@ -196,11 +197,11 @@ may be a render function `(isCollapsed, toggleCollapsed, navigationMenu) => Reac
 
 ### NavigationMenu
 
-The Know / Moderate / Administer nav. `isAdmin` / `isModerator` gate the privileged entries;
-`currentPath` highlights the active one.
+The Know / Moderate / Administer nav. Every entry is shown to every authenticated user — no
+role gates it, because no role exists to gate it with. `currentPath` highlights the active one.
 
 ```tsx
-<NavigationMenu Link={Link} routes={routes} t={t} isAdmin={isAdmin} currentPath={currentPath} />
+<NavigationMenu Link={Link} routes={routes} t={t} currentPath={currentPath} />
 ```
 
 ### Footer

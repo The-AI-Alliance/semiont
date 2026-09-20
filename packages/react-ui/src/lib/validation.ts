@@ -78,14 +78,11 @@ export const ImageURLSchema = {
  * a way nothing else in the system used, so it could not be compared against
  * anything — events, attributions and claims all carry the did.
  *
- * `isAdmin` and `isModerator` are OPTIONAL, and as of 2026-09-18 NOTHING reads
- * them: no gateway route gates on them, and no component branches on them —
- * the moderation surface is shown to every authenticated user. They survive
- * here only because a knowledge base may still send them and rejecting a
- * payload over a field nobody consumes would be absurd.
- *
- * A payload carrying neither is valid. One carrying either as a non-boolean is
- * not, because that is a malformed value rather than an absent one.
+ * There are no role flags here. `isAdmin` and `isModerator` were carried as
+ * optional fields until nothing read them — no gateway route gates on them and
+ * no component branches on them, so the moderation surface is shown to every
+ * authenticated user. A knowledge base that still sends them is not rejected:
+ * this parser copies the fields it knows and ignores the rest.
  */
 export interface OAuthUser {
   did: string;
@@ -93,8 +90,6 @@ export interface OAuthUser {
   name?: string | null;
   image?: string | null;
   domain: string;
-  isAdmin?: boolean;
-  isModerator?: boolean;
 }
 
 export const OAuthUserSchema = {
@@ -127,15 +122,6 @@ export const OAuthUserSchema = {
       throw new Error('Image must be a string or null');
     }
 
-    // Optional role flags: absent is fine, present-but-not-a-boolean is not.
-    if (user.isAdmin !== undefined && typeof user.isAdmin !== 'boolean') {
-      throw new Error('isAdmin must be a boolean');
-    }
-
-    if (user.isModerator !== undefined && typeof user.isModerator !== 'boolean') {
-      throw new Error('isModerator must be a boolean');
-    }
-
     const result: OAuthUser = {
       did: user.did,
       email: user.email,
@@ -148,12 +134,6 @@ export const OAuthUserSchema = {
     }
     if (user.image !== undefined) {
       result.image = user.image as string | null;
-    }
-    if (user.isAdmin !== undefined) {
-      result.isAdmin = user.isAdmin;
-    }
-    if (user.isModerator !== undefined) {
-      result.isModerator = user.isModerator;
     }
 
     return result;

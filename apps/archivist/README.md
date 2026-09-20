@@ -63,8 +63,12 @@ not through a private ingest route. See [EVENT-BUS.md](../../docs/protocol/EVENT
 | `GET /resources/:id/content` | a representation's bytes, streamed, with its stored media type |
 | `PUT /content/:storageUri` | accept bytes, streamed and checksum-verified before they land |
 
-Everything but `/health` authenticates with `SEMIONT_WORKER_SECRET`. With no secret configured
-those paths return 503 — absence fails loudly; it is never served open.
+Everything but `/health` requires a bearer token from the knowledge base's trusted issuer
+carrying the `semiont-service` role — the same credential a sidecar uses to buy an agent token
+from the gateway. Every refusal is **401**, including "no issuer is configured here": that is
+deployment state, and a caller who has not proved who they are has not earned it. With no
+verifier configured those paths refuse rather than serving open — absence fails loudly; it is
+never default-open.
 
 **⚠️ Standing rule: this surface serves the KB tree, and nothing else.** `browse:*`, `match:*`
 and `gather:*` stay on the bus. An endpoint that is not a KB-tree read or write does not belong
@@ -77,8 +81,9 @@ Librarian, Worker) dial them directly via `archivistContentReads`.
 
 Mount the KB at `/kb` and the shared state and anchored-text directories at their declared
 paths; the image fixes the container-side paths so the launcher passes no path env. Set
-`SEMIONT_WORKER_SECRET` — it authenticates to the gateway with it and requires it on its own
-surface. `SEMIONT_SKIP_REBUILD=true` skips the startup view rebuild — and with it the reap, so views
+`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — its own service account at the
+knowledge base's issuer. It exchanges them for a token to reach the gateway, and requires a
+token of the same kind on its own surface. `SEMIONT_SKIP_REBUILD=true` skips the startup view rebuild — and with it the reap, so views
 the log no longer justifies survive until a rebuild runs or `semiont clean --store state`
 clears them.
 

@@ -442,8 +442,8 @@ func serviceClientSecretEnv(svc string) string {
 // and the container that has to present it — so both read it from here rather
 // than passing it between them.
 func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
-	// An explicit value wins, the same precedence $SEMIONT_WORKER_SECRET and
-	// $KC_BOOTSTRAP_ADMIN_PASSWORD have. Per service rather than one for all:
+	// An explicit value wins, the same precedence $KC_BOOTSTRAP_ADMIN_PASSWORD
+	// has. Per service rather than one for all:
 	// separate credentials are the point of this, and an override that collapsed
 	// them back to one shared string would quietly undo it.
 	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {

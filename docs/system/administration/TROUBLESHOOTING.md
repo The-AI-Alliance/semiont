@@ -60,17 +60,20 @@ Its startup contract is strict, and each unmet requirement throws:
 | `services.gateway` in the environment config | `services.gateway is required in environment config` |
 | `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
 | `JWT_SECRET` under 32 characters | Startup validation failure |
-| `SEMIONT_WORKER_SECRET` | Gateway starts, but no agent can get a token — see below |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The service refuses to boot: it cannot authenticate as its own service account — see below |
+| `[identity]` in the environment config | Sidecars refuse to boot; there is no issuer to trust |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
 ### Workers, smelter, or weaver never pick up work
 
-These three authenticate by exchanging `SEMIONT_WORKER_SECRET` at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. If the secret does not match the gateway's, the exchange fails and they sit idle:
+These three authenticate at the knowledge base's issuer as their own service accounts (client credentials), then exchange that issuer token at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. Either leg can fail and leave them idle: the issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, or a realm that never imported the client), or the gateway may refuse the exchange because the token carries no `semiont-service` role in its flat `roles` claim.
 
 ```bash
-semiont logs --service worker | grep -iE "token|auth|secret"
+semiont logs --service worker | grep -iE "token|auth|oidc|client"
 ```
+
+`semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client up front rather than leaving you to find it here.
 
 A service restarted with `semiont start --service worker` rejoins the running stack's worker secret automatically. One started by hand with a stale secret will not.
 
@@ -243,7 +246,7 @@ container inspect semiont-gateway > gateway-inspect.json
 semiont logs --service gateway > gateway.log 2>&1     # Ctrl-C when you have enough
 ```
 
-Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, `ANTHROPIC_API_KEY`, and database passwords all live in container environments.
+Scrub secrets before attaching any of it: `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_SECRET`, `ANTHROPIC_API_KEY`, and database passwords all live in container environments.
 
 ## Dry-run anything
 

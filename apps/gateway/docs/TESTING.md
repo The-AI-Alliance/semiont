@@ -528,16 +528,27 @@ When adding new gateway routes:
    npm test -- route-spec-coverage.test.ts
    ```
 
-**For admin/moderator routes**:
+**For a route only a service account may call**: there are no human roles, and no route
+returns 403. The one role that exists marks a sidecar process, and it is checked by verifying
+the caller's issuer token — the pattern `POST /api/tokens/agent` uses:
+
 ```typescript
-router.post('/admin/my-action', async (c) => {
-  const user = c.get('user');
-  if (!user.isAdmin) {
-    return c.json({ error: 'Forbidden: Admin access required' }, 403);
+router.post('/api/my-service-action', async (c) => {
+  try {
+    await authorizeAgentMinter(c.req.header('Authorization'));
+  } catch (error) {
+    if (error instanceof AgentMinterRefused) {
+      return c.json({ error: error.message }, 401);
+    }
+    throw error;
   }
-  // Admin logic
+  // Service-account logic
 });
 ```
+
+Every refusal is 401, including "this deployment trusts no issuer" — a caller who has not
+proved who they are has not earned the distinction. Declare the route's contract in
+`route-spec-coverage.test.ts`.
 
 ## Debugging Tests
 

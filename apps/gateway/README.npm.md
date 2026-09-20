@@ -35,7 +35,8 @@ Requires in the environment:
   means placing or symlinking one yourself. The environment block comes from its
   `[defaults] environment`.
 - `JWT_SECRET` — minimum 32 characters
-- `SEMIONT_WORKER_SECRET` — for the software-agent token exchange
+- `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own service
+  account at the knowledge base's issuer
 
 ## What's included
 

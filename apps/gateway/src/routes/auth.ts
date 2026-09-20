@@ -55,11 +55,11 @@ authRouter.get('/api/users/me', authMiddleware, async (c) => {
  * `12 * 60 * 60 * 1000`, "half the TTL" of a value they did not own.
  *
  * An hour rather than a day because an agent token is the one credential here
- * with no revocation behind it: the account is synthetic, so there is nothing
- * at the issuer to disable, and rotating the shared secret stops new mints
- * without touching tokens already handed out. The lifetime IS the revocation
- * window, so it is short enough to matter and long enough that re-minting
- * stays cheap.
+ * with no revocation behind it: the agent identity is synthetic, so there is
+ * nothing at the issuer to disable. Disabling the service account that asked
+ * for it stops further mints but cannot touch a token already handed out. The
+ * lifetime IS the revocation window, so it is short enough to matter and long
+ * enough that re-minting stays cheap.
  */
 const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
 
@@ -112,16 +112,11 @@ authRouter.post('/api/tokens/agent', async (c) => {
   // already validates `domain` is set in env config; reuse it here.
   const siteDomain = JWTService.getDomainForAgent();
 
-  // Synthetic User row backing the agent identity. Keyed by
-  // (provider='agent', providerId='<provider>:<model>') so each
-  // (provider, model) pair gets a stable User row that's auto-upserted
-  // on first use. The email is a deterministic identifier in a
-  // dedicated `agents.<host>` namespace so it can't collide with real
-  // users on the deployment domain.
-  //
-  // The site domain may carry a port (e.g. `localhost:8080`) — that's
-  // fine in a DID, but the synthetic email has to satisfy RFC-5321
-  // host syntax (no colons), so strip it here.
+  // The agent's synthetic address, derived so that the same (provider, model)
+  // always names the same agent. It lives in a dedicated `agents.<host>`
+  // namespace so it cannot collide with a real person on the deployment
+  // domain. The site domain may carry a port (e.g. `localhost:8080`) — fine in
+  // a DID, but an email has to satisfy RFC-5321 host syntax, so strip it here.
   const emailHost = siteDomain.split(':')[0]!;
   const providerId = `${inferenceProvider}:${model}`;
   const slug = providerId.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');

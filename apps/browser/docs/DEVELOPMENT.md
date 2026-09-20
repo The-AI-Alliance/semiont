@@ -378,7 +378,7 @@ Environment variables are configured automatically based on your environment con
 ### Authentication Issues
 - Check browser dev tools Network tab
 - Confirm requests carry an `Authorization: Bearer <jwt>` header — the access token lives in JS memory (held by the SDK session), not in a cookie
-- Check /api/auth/me response for current session state
+- Check `/api/users/me` — it answers with the caller's DID, which is the name every event is attributed to
 - Verify gateway is running and accessible
 
 ### API Errors
@@ -419,10 +419,10 @@ Environment variables are configured automatically based on your environment con
 **Symptoms**: Unable to sign in or session not persisting
 
 **Solutions**:
-- Check gateway logs for OAuth errors
-- Confirm the SDK session captured an access token after login — it's held in JS memory and sent as `Authorization: Bearer`, not set as a cookie
-- Check /api/auth/me returns correct user data
-- Ensure OAuth callback URL in Google Cloud Console points to gateway (/api/auth/oauth/google/callback)
+- Check the **issuer's** logs, not the gateway's — the gateway is never contacted for a sign-in that fails, so a failed sign-in leaves no trace in its logs
+- Confirm the SDK session captured an access token after sign-in — it's held in JS memory and sent as `Authorization: Bearer`, not set as a cookie
+- Check `/api/users/me` returns the expected DID
+- Ensure the redirect URI registered on the issuer's browser client matches where the app actually runs. There is no gateway callback route; PKCE returns to the app
 
 ### "Build failing"
 **Symptoms**: `npm run build` fails with errors

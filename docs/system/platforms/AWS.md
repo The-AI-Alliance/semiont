@@ -36,8 +36,8 @@ working tree, migrations, restart and liveness, and multiple gateway replicas â€
 What is specifically AWS about it:
 
 - **Secrets.** Semiont reads environment variables, not Secrets Manager or SSM â€” the
-  task-definition `secrets` mapping from your store to `JWT_SECRET`, `SEMIONT_WORKER_SECRET`,
-  and inference API keys is yours to write.
+  task-definition `secrets` mapping from your store to `JWT_SECRET`, each service's
+  `SEMIONT_OIDC_CLIENT_SECRET`, and inference API keys is yours to write.
 - **Config delivery.** Every service reads `~/.semiontconfig` (TOML); on ECS that means a
   volume, an init container, or a baked layer per task.
 - **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`; on Fargate that

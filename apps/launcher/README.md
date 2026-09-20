@@ -78,7 +78,7 @@ births a startable KB in one command (identity from your git origin). Then:
 
 ```sh
 semiont start
-semiont useradd --email admin@example.com --admin   # prompts for the password
+semiont useradd --email admin@example.com   # prompts for the password
 semiont status
 semiont logs
 semiont stop
@@ -201,10 +201,10 @@ semiont stop
 - `semiont useradd` creates or updates users in the RUNNING stack: the
   launcher execs the gateway's own `semiont-useradd` inside the gateway
   container (record-driven runtime + container ID, name-scan fallback) and
-  passes every other flag through verbatim (`--admin`, `--generate-password`,
-  `--update`, `--upsert`, …). The gateway owns the user schema, the password
-  hashing and the database write; this launcher only decides which stack is
-  meant. The password is the one thing it does NOT pass as an argument: it is
+  passes every other flag through verbatim (`--generate-password`,
+  `--update`, `--upsert`, …; there are no role flags, because no route grants
+  access on the basis of a role). The ISSUER owns the account, the profile and
+  the password hashing; this launcher only decides which stack is meant. The password is the one thing it does NOT pass as an argument: it is
   prompted for on a terminal (or read from stdin when piped) and fed to
   `--password-stdin` down the exec's pipe, because argv is readable by every
   process on the host via `ps` and lands in the caller's shell history. It works against **codespace stacks too** — one hop further out,

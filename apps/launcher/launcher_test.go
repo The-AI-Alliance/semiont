@@ -1789,15 +1789,16 @@ func TestUseradd(t *testing.T) {
 	// Name-scan fallback: the runtime whose listing shows semiont-gateway.
 	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
 	s.stdin = secret + "\n"
-	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--admin")
+	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--upsert")
 	if code != 0 {
 		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
 	// -i so the pipe reaches the container; --password-stdin tells the gateway
-	// to read it there.
+	// to read it there. `--upsert` is here as a flag the launcher does NOT
+	// consume: it must cross verbatim.
 	mustContain(t, "argv log", string(log),
-		"docker exec -i semiont-gateway semiont-useradd --email a@b.co --admin --password-stdin")
+		"docker exec -i semiont-gateway semiont-useradd --email a@b.co --upsert --password-stdin")
 	// The secret reached the gateway — through the PIPE, not the command line.
 	stdinSeen, err := os.ReadFile(filepath.Join(s.fakertDir, "exec-stdin.txt"))
 	if err != nil {
@@ -1855,7 +1856,7 @@ func TestUseradd(t *testing.T) {
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--update", "--admin"); code != 0 {
+	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--update"); code != 0 {
 		t.Fatalf("update useradd: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if log, _ = os.ReadFile(s.log); strings.Contains(string(log), "--password-stdin") {
@@ -1886,9 +1887,17 @@ func TestUseradd(t *testing.T) {
 	if code != 0 {
 		t.Error("useradd --help should exit 0")
 	}
-	mustContain(t, "help", stdout, "--generate-password", "--admin", "--upsert")
+	mustContain(t, "help", stdout, "--generate-password", "--inactive", "--upsert")
 	if strings.Contains(stdout, "--password <") {
 		t.Error("help still advertises the removed --password flag")
+	}
+	// Role flags do not exist at the target (`semiont-useradd` refuses an
+	// unknown flag), so advertising them here would send people to a command
+	// that fails.
+	for _, gone := range []string{"--admin", "--moderator"} {
+		if strings.Contains(stdout, gone) {
+			t.Errorf("help advertises %s, which semiont-useradd rejects", gone)
+		}
 	}
 }
 
@@ -2734,7 +2743,7 @@ func TestUseraddCodespace(t *testing.T) {
 	nasty := "p a$s'w\"o`rd;rm -rf /"
 	s.stdin = nasty + "\n"
 	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
-		"--name", "A $NAME with spaces", "--admin")
+		"--name", "A $NAME with spaces", "--upsert")
 	if code != 0 {
 		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -2747,7 +2756,7 @@ func TestUseraddCodespace(t *testing.T) {
 	mustContain(t, "remote command", remote,
 		"docker exec -i ",                 // -i keeps the pipe open through ssh
 		"semiont-gateway semiont-useradd", // the exec target inside the codespace
-		"'alice@example.com'", "'--admin'", "'--password-stdin'")
+		"'alice@example.com'", "'--upsert'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
@@ -2763,7 +2772,7 @@ func TestUseraddCodespace(t *testing.T) {
 	// argv there is nothing left to redact.
 	echoed := stdout[strings.Index(stdout, "$ gh"):]
 	echoed = echoed[:strings.IndexByte(echoed, '\n')]
-	mustContain(t, "echoed command", echoed, "'alice@example.com'", "'--admin'", "'A $NAME with spaces'")
+	mustContain(t, "echoed command", echoed, "'alice@example.com'", "'--upsert'", "'A $NAME with spaces'")
 	if strings.Contains(echoed, "rm -rf") || strings.Contains(echoed, "redacted") {
 		t.Errorf("echoed command should carry no secret and need no redaction:\n%s", echoed)
 	}

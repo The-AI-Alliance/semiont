@@ -48,10 +48,10 @@ One command starts the whole stack: the launcher pulls the published Semiont ima
 
 ### 4. Connect
 
-Create your admin user:
+Create your first user. A fresh stack has none — the account is created at the knowledge base's identity provider, which is what Semiont trusts to authenticate people:
 
 ```bash
-semiont useradd --email admin@example.com --admin   # prompts for the password
+semiont useradd --email admin@example.com   # prompts for the password
 ```
 
 Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)

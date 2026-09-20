@@ -48,7 +48,8 @@ container run -d --name semiont-gateway \
   --env XDG_STATE_HOME=/semiont-state \
   --env POSTGRES_HOST=<host> --env NEO4J_HOST=<host> \
   --env QDRANT_HOST=<host>   --env OLLAMA_HOST=<host> \
-  --env SEMIONT_WORKER_SECRET=<secret> \
+  --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
+  --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
   --env JWT_SECRET=<key> \
   ghcr.io/the-ai-alliance/semiont-gateway:latest
 ```
@@ -63,9 +64,11 @@ Two things in there are easy to misread:
   the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
   signature change, not a line someone can slip in.
 
-Required in the environment: `JWT_SECRET` (≥32 chars) and
-`SEMIONT_WORKER_SECRET`. `DATABASE_URL` is optional — set it to override the
-value derived from config.
+Required in the environment: `JWT_SECRET` (≥32 chars), plus
+`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own
+service account at the knowledge base's issuer, which it exchanges for a token
+to reach the Archivist. There is no `DATABASE_URL`: the gateway holds no
+database.
 
 ## Boot and shutdown
 

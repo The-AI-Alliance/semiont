@@ -19,7 +19,7 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 
 ## Dependencies and CVEs
 
-[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across five ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`). Related packages are grouped so they move together: `react`, `bundler-binaries`, `opentelemetry`, and `prisma`.
+[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across four ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher` and `packages/sdk-go`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the six service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, and `opentelemetry`.
 
 Two things to know when reviewing those PRs:
 
@@ -37,7 +37,7 @@ Image publishing enforces this rather than trusting it. [`publish-service-images
 4. Pushes with version, `sha-<commit>`, and optionally `latest` tags
 5. Publishes build-provenance and SBOM attestations as OCI artifacts
 
-These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. The `semiont-gateway` image faces the longest stack of them, because it keeps npm at runtime — so npm's own bundle and prisma's dependency tree are both in scope.
+These gates fail **one at a time**: fixing a CVE finding can reveal a license finding behind it. The `semiont-gateway` image faces the longest stack of them, because it keeps npm at runtime — so npm's own bundled tree is in scope alongside the application's dependencies.
 
 The exceptions file is permissive-only by principle: it records licenses judged acceptable, never suppressions of findings.
 
@@ -86,11 +86,11 @@ Three secrets matter, and rotating them is not free:
 
 **`JWT_SECRET`** — signs every token. Rotating it invalidates every token previously issued, including tokens held by running workers. The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
 
-**`SEMIONT_WORKER_SECRET`** — the shared secret the worker, smelter, and weaver exchange at `POST /api/tokens/agent` for a JWT. It must match across the whole stack. `semiont start --service worker` rejoins the running stack's secret automatically; a service started by hand does not.
+**`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`** — each service's own credential at the knowledge base's issuer, generated and persisted per root on first use. They do not have to match each other; separate credentials are the point. Rotating one means changing it at the issuer and in that root's state, and restarting only that service. The realm imports **only on first boot**, so a client added after a realm already exists will not appear in it.
 
 **Provider API keys** (`ANTHROPIC_API_KEY` and friends) — referenced from config as `${ANTHROPIC_API_KEY}` and read from the launcher's environment, so rotating one is an environment change plus a restart of whatever consumes it.
 
-Individual user sessions can be revoked without touching `JWT_SECRET`: `tokenVersion` on the user row is bumped on logout, invalidating that user's tokens alone.
+Revoking one person's session is not a `JWT_SECRET` operation and not a Semiont operation at all: disable the account at the issuer. That stops new tokens and the refresh grant immediately; the access token they hold works until it expires. Signing out in a client revokes that client's refresh token at the issuer (RFC 7009) and drops the access token locally. There is no server-side session to invalidate, because the gateway stores nothing about a caller.
 
 See [SECRETS.md](../services/SECRETS.md) and [AUTHENTICATION.md](AUTHENTICATION.md).
 

@@ -776,17 +776,13 @@ func runtimeCmd(base string, args []string) {
 	case "inspect":
 		// Scripted via FAKERT_STATE_<svc> (svc = name minus "semiont-"),
 		// e.g. FAKERT_STATE_gateway=running. Unset = container not found.
-		// With FAKERT_SECRET set, the env list carries the worker secret —
-		// exercising the launcher's --service secret recovery.
+		// The env list stays in the shape because a real inspect carries one;
+		// the launcher reads no variable out of it.
 		svc := strings.TrimPrefix(handleName(args[len(args)-1]), "semiont-")
 		state := os.Getenv("FAKERT_STATE_" + svc)
 		if state == "" {
 			fmt.Fprintln(os.Stderr, "Error: no such container")
 			os.Exit(1)
-		}
-		env := "[]"
-		if s := os.Getenv("FAKERT_SECRET"); s != "" {
-			env = fmt.Sprintf(`["PATH=/usr/bin","SEMIONT_WORKER_SECRET=%s"]`, s)
 		}
 		switch {
 		case len(args) > 1 && args[1] == "-f":
@@ -796,10 +792,10 @@ func runtimeCmd(base string, args []string) {
 			// FAKERT_IMAGE_<svc> scripts the image reference the container
 			// reports (the Browser's keep-if-current check reads it).
 			img := os.Getenv("FAKERT_IMAGE_" + svc)
-			fmt.Printf(`[{"configuration":{"initProcess":{"environment":%s},"image":{"reference":%q}},"status":%q}]`+"\n", env, img, state)
+			fmt.Printf(`[{"configuration":{"initProcess":{"environment":[]},"image":{"reference":%q}},"status":%q}]`+"\n", img, state)
 		default:
 			// docker/podman full form: inspect <name>
-			fmt.Printf(`[{"Config":{"Env":%s},"State":{"Status":%q}}]`+"\n", env, state)
+			fmt.Printf(`[{"Config":{"Env":[]},"State":{"Status":%q}}]`+"\n", state)
 		}
 	case "run":
 		run(args)
@@ -1510,9 +1506,14 @@ func serve(ports []string) {
 						_ = json.NewEncoder(w).Encode(map[string]any{"error": "token expired"})
 						return
 					}
+					// The real UserResponse: a DID and the facts the token
+					// carried. No row id, no provider, no role flags — the
+					// gateway stopped answering with any of those when the
+					// user table went.
 					_ = json.NewEncoder(w).Encode(map[string]any{
-						"id": "u1", "email": "admin@example.com", "name": nil, "image": nil,
-						"domain": "example.com", "provider": "password", "isAdmin": true, "isModerator": false,
+						"did":   "did:web:example.com:users:admin@example.com",
+						"email": "admin@example.com", "name": nil, "image": nil,
+						"domain": "example.com",
 					})
 					return
 				}

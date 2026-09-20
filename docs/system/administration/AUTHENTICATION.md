@@ -13,7 +13,7 @@ Semiont uses **bearer-only** authentication: every request authenticates with an
 Three pieces make up the auth system:
 
 1. **Sign-in happens elsewhere.** People authenticate at the knowledge base's trusted issuer and receive a token from it. The gateway mints no human credential and holds no password; it is a resource server, not an auth server.
-2. **Bearer validation** — the gateway validates the token on every protected request (router-level `authMiddleware`), verifying an issuer token against the issuer's published keys and loading the matching user row.
+2. **Bearer validation** — the gateway validates the token on every protected request (router-level `authMiddleware`), verifying an issuer token against the issuer's published keys and building the caller's principal from the claims it carries. There is no directory to consult: the identity is the token.
 3. **Revocation belongs to the issuer.** Disabling an account there stops new tokens at once. A token already issued stays valid until it expires, and that lifetime is the revocation window.
 
 ## Authentication Flow Diagram
@@ -32,8 +32,8 @@ graph TB
     subgraph "Gateway API"
         TokenGen[Agent and media token mint]
         MW[authMiddleware<br/>Bearer + ?token= validator]
+        Principal[Principal<br/>DID, email, name, domain]
         API[Protected APIs]
-        Users[(Users table<br/>roles and display name)]
     end
 
     App -->|"1. sign in"| IdP
@@ -41,10 +41,14 @@ graph TB
 
     App -->|"3. Authorization: Bearer <token>"| MW
     MW -->|"4. verify signature against"| JWKS
-    MW -->|"5. find or create the row for this subject"| Users
-    MW --> API
+    MW -->|"5. derive from the token's own claims"| Principal
+    Principal --> API
     App -->|"6. POST /api/tokens/media (resource-scoped)"| TokenGen
 ```
+
+No datastore appears in that diagram, and that is the point: step 5 reads the
+token, not a table. Semiont kept a `users` table until 2026-09-18; see
+[Database](./DATABASE.md) for what replaced it.
 
 ## Authentication Model
 
@@ -52,7 +56,7 @@ graph TB
 
 - **Bearer-only**: authentication is an `Authorization: Bearer <jwt>` header. JS attaches it explicitly — it is **not** an ambient credential, so the API works with CORS `origin: '*'` and no `Access-Control-Allow-Credentials` (see [Security](./SECURITY.md)).
 - **Router-level protection**: each router applies `authMiddleware` to its protected routes; protection is explicit.
-- **Stateless token, per-request user load**: the token is stateless, but the middleware loads the user row every request, so a role or display-name change takes effect immediately.
+- **Stateless, with no per-request lookup**: the principal is derived from the token's claims on every request. A display-name change at the issuer reaches the gateway when the holder's next token is minted, not before — there is no row to update and nothing cached to invalidate.
 - **One admission decision, held by the issuer**: the gateway admits every subject whose token verifies. It keeps no allowlist and no per-user enable flag, because a second answer to "may this person sign in" can only disagree with the first — and only the issuer's answer can stop a token being minted.
 
 ### Token lifecycle
@@ -83,18 +87,27 @@ Disabling also stops the refresh grant, so the person cannot mint a replacement 
 
 **Signing out in a client is a client-side act.** The token lives in memory and the client drops it. The gateway is not told, and nothing server-side changes.
 
-**Agent tokens are the exception with no issuer behind them.** Their synthetic accounts exist only in Semiont, so there is nothing to disable. Their lifetime is their revocation window, and rotating `SEMIONT_WORKER_SECRET` stops new ones being minted without affecting tokens already handed out.
+**Agent tokens are the exception with no issuer behind them.** An agent identity is synthetic — derived from a (provider, model) pair rather than registered anywhere — so there is no account to disable. Its lifetime is the whole of its revocation window. Disabling at the issuer the *service account* that asked for it stops further mints, but cannot touch a token already handed out.
 
 ## Endpoint Protection
 
 ### Public endpoints (no auth)
 
 - `GET /api/health` — health check
-- `GET /api` — API documentation, and the OpenAPI document itself
 - `GET /.well-known/oauth-protected-resource` — names the issuer this deployment trusts (RFC 9728)
-- `POST /api/tokens/agent` — software-agent token mint, gated by the shared worker secret rather than by a bearer
+- `/`, `/api`, `/api/docs`, `/api/swagger`, `/api/openapi.json` — the API documentation and the OpenAPI document itself
+
+That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring no `security` is public — and `route-spec-coverage.test.ts` fails the build if any other registered route answers an unauthenticated caller with anything but 401.
 
 There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
+
+### Service-account endpoint
+
+`POST /api/tokens/agent` is **not** public. A sidecar authenticates at the issuer as its own service account, presents that token here as a bearer, and receives a software-agent token naming a (provider, model) identity. The gateway verifies the bearer against the issuer's keys and requires a flat `roles` claim containing `semiont-service`; every refusal is a 401, checked *before* the body is parsed.
+
+Two identities, deliberately: the service account is the **process**, the agent DID is the **work**. One worker holds several agent identities at once when a deployment configures different models for different job types, so the caller's credential cannot be the agent's identity.
+
+This replaced a single shared secret (`SEMIONT_WORKER_SECRET`) that every sidecar carried and the gateway compared by string equality. That secret granted any agent identity to anyone holding it, was scoped to no caller, and could only be rotated by restarting the whole stack.
 
 ### Protected endpoints (`authMiddleware`)
 
@@ -142,35 +155,38 @@ The gateway dispatches on the token's `iss` claim, and the two paths verify diff
 2. **Issuer and audience** — must match the configured issuer and this knowledge base's derived resource identity.
 3. **Expiration** — enforced by the verifier.
 4. **Subject and email** — a `sub` is required, an `email` is required, and an `email_verified` of false is refused.
-5. **User row** — found by (issuer, subject), else by email and linked, else created. This is a lookup, not a second admission check.
+5. **Principal** — built from those claims. The DID is derived from the email and its domain; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
 
 **A token the gateway itself signed** (software agents only):
 
 1. **Signature** — HMAC-SHA256 against the `JWT_SECRET` key ring.
 2. **Payload structure** — runtime Zod validation against `JWTPayloadSchema`; a token whose claims do not parse is rejected, not coerced.
 3. **Expiration** — enforced at verification.
-4. **User row** — loaded by id and rejected if absent. The row is what the request runs as; the claims are not trusted to still describe it.
 
-### Access token payload
+The claims are trusted on this path precisely because the gateway signed them: it is both the minter and the verifier, so a valid signature means this process asserted these facts itself.
+
+### Gateway-signed token payload
+
+Agents and media only — a person's token is the issuer's, and its claims are whatever that realm mints.
 
 ```json
 {
-  "userId": "user-123",
-  "email": "user@example.com",
-  "name": "User Name",
+  "did": "did:web:example.com:agents:anthropic:claude-opus-5",
+  "email": "anthropic-claude-opus-5@agents.example.com",
+  "name": "anthropic claude-opus-5",
   "domain": "example.com",
-  "provider": "google",
-  "isAdmin": false,
   "iat": 1698765432,
-  "exp": 1698766032
+  "exp": 1698769032
 }
 ```
+
+`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. It replaced a `userId` cuid that named a row in a table that no longer exists. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification by `JWTPayloadSchema`.
 
 ## Implementation Details
 
 ### Bearer validation (`apps/gateway/src/middleware/auth.ts`)
 
-The middleware accepts a media token via `?token=` for `GET /api/resources/:id`, otherwise an `Authorization: Bearer` header; a missing token returns the actionable 401 above. On a valid token it loads the principal (`principalFromToken` in `apps/gateway/src/identity/`) and sets `c.get('user')`.
+The middleware accepts a media token via `?token=` for `GET /api/resources/:id`, otherwise an `Authorization: Bearer` header; a missing token returns the actionable 401 above. On a valid token it resolves the principal (`principalFromToken` in `apps/gateway/src/identity/`) and sets `c.get('principal')`.
 
 ### Route protection (`apps/gateway/src/routes/resources/shared.ts`)
 
@@ -189,14 +205,13 @@ export function initResourcesRouter(router: Hono) {
 
 ```bash
 JWT_SECRET=your-jwt-secret                 # signs agent and media tokens only
-SEMIONT_WORKER_SECRET=...                  # gates POST /api/tokens/agent
 ```
 
 There are **no** OAuth client credentials here and no `NEXTAUTH_*` variables. The gateway never speaks to an identity provider on a person's behalf, so it holds no client secret; it only verifies tokens against the issuer's published keys. The issuer this deployment trusts is named in the knowledge base's `[identity]` configuration.
 
 ### Secret management
 
-Store `JWT_SECRET` and `SEMIONT_WORKER_SECRET` in secure secret storage (e.g. AWS Secrets Manager); never commit them; use different secrets per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md).
+Store `JWT_SECRET` in secure secret storage (e.g. AWS Secrets Manager); never commit it; use a different secret per environment; rotate regularly. See [Configuration Guide](./CONFIGURATION.md). The sidecars' service-account credentials are the issuer's to hold and are rotated there.
 
 Nothing generates the signing key at request time, and the gateway **refuses to boot** without one rather than surfacing the problem at first sign-in. Who supplies it depends on where the stack runs:
 

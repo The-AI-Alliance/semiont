@@ -168,7 +168,6 @@ if (configPath) {
   const config = JSON.parse(readFileSync(configPath, 'utf-8'));
   // Use configuration values
   process.env.SERVER_API_URL = config.site.apiUrl;
-  process.env.DATABASE_URL = config.app?.database?.url;
 }
 ```
 

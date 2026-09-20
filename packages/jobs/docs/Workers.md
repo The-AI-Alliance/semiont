@@ -24,7 +24,7 @@ The moving parts:
 
 `worker-main.ts` is the host. For each distinct `(inferenceProvider, model)` configured under `[environments.<env>.workers]` in `~/.semiontconfig`, it:
 
-1. Authenticates that agent against `/api/tokens/agent` (using `SEMIONT_WORKER_SECRET`).
+1. Authenticates at the knowledge base's issuer as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then exchanges that token for this agent's at `/api/tokens/agent`.
 2. Builds a `generator` — a W3C `Software` agent record — with `softwareToAgent({ domain, provider, model })`. This is stamped onto every annotation as `generator` and onto generated resources as `wasAttributedTo`.
 3. Opens a `SemiontSession` (`@semiont/sdk`) authenticated *as that agent*, so every event the worker emits attributes to the agent at the bus seat.
 4. Calls `startWorkerProcess`:

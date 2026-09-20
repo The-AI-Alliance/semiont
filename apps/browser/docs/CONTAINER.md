@@ -209,7 +209,7 @@ takes no configuration beyond `PORT`:
 ```bash
 docker run -d -p 3000:3000 ghcr.io/the-ai-alliance/semiont-browser:latest
 
-# Gateway secrets (GOOGLE_CLIENT_SECRET, JWT signing key, etc.) stay in the gateway container
+# Gateway secrets (JWT signing key, its service-account credential) stay in the gateway container
 ```
 
 Users' knowledge-base tokens exist only in their own browsers' `localStorage`

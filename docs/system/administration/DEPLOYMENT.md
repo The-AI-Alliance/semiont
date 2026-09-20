@@ -91,8 +91,9 @@ solve:
 - **Config delivery.** Every service reads `~/.semiontconfig` (TOML) for service endpoints, driver
   settings (graph, vectors, inference), and the database connection. Getting that file into each
   container is yours to arrange. Schema: [CONFIGURATION.md](./CONFIGURATION.md).
-- **Secrets.** `JWT_SECRET`, `SEMIONT_WORKER_SECRET`, and inference API keys arrive as environment
-  variables. Semiont reads no cloud secret store directly. See [SECRETS.md](../services/SECRETS.md).
+- **Secrets.** `JWT_SECRET`, each service's `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`,
+  and inference API keys arrive as environment variables. Semiont reads no cloud secret store
+  directly. See [SECRETS.md](../services/SECRETS.md).
 - **Service discovery.** Services address each other by URL from the config
   (`services.gateway.publicURL`, …), not by any platform-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes, and so does NATS's
