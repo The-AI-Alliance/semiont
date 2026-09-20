@@ -86,10 +86,10 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
-    "fast-check": "^4.9.0",
+    "fast-check": "^4.10.0",
     "json-schema-to-typescript": "^15.0.2",
     "openapi-typescript": "^7.10.1",
-    "rollup": "^4.63.0",
+    "rollup": "^4.63.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "tsx": "^4.23.13",
@@ -99,7 +99,7 @@
   "dependencies": {
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
-    "jose": "^6.2.8",
+    "jose": "^6.2.12",
     "rxjs": "^7.8.1",
     "smol-toml": "^1.8.0"
   },
