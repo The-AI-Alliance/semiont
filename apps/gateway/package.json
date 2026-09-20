@@ -47,7 +47,7 @@
     "@semiont/event-sourcing": "*",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.0.0",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "@vitest/ui": "^4.1.11",
     "fast-check": "^4.10.0",
     "msw": "^2.15.0",

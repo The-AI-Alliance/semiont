@@ -39,7 +39,7 @@
     "nats": "^2.29.3"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/coverage-v8": "^5.0.0",
     "pdf-lib": "^1.17.1",
     "rollup": "^4.63.3",
     "rollup-plugin-dts": "^6.4.1",
