@@ -12,7 +12,7 @@
     "moderate": "モデレーション"
   },
   "Footer": {
-    "copyright": "© {{year}} The AI Alliance. All rights reserved.",
+    "copyright": "© {{year}} The AI Alliance. 無断転載を禁じます。",
     "about": "概要",
     "privacyPolicy": "プライバシーポリシー",
     "cookiePreferences": "Cookie設定",
@@ -130,7 +130,7 @@
     "loading": "読み込み中...",
     "pageTitle": "認証エラー",
     "errorConfiguration": "サーバー構成に問題があります。",
-    "errorAccessDenied": "お使いのメールドメインはこのアプリケーションで許可されていません。",
+    "errorAccessDenied": "お使いのアカウントはサインインを許可されていません。",
     "errorVerification": "認証トークンの有効期限が切れているか、すでに使用されています。",
     "errorGeneric": "認証エラーが発生しました。",
     "tryAgain": "もう一度サインインしてみてください"

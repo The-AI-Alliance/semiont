@@ -130,7 +130,7 @@
     "loading": "Cargando...",
     "pageTitle": "Error de Autenticación",
     "errorConfiguration": "Hay un problema con la configuración del servidor.",
-    "errorAccessDenied": "Su dominio de correo electrónico no está permitido para esta aplicación.",
+    "errorAccessDenied": "Su cuenta no tiene permiso para iniciar sesión.",
     "errorVerification": "El token de verificación ha expirado o ya se ha utilizado.",
     "errorGeneric": "Ocurrió un error de autenticación.",
     "tryAgain": "Intenta iniciar sesión de nuevo"

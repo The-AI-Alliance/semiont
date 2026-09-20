@@ -130,7 +130,7 @@
     "loading": "Načítání...",
     "pageTitle": "Chyba ověření",
     "errorConfiguration": "Vyskytl se problém s konfigurací serveru.",
-    "errorAccessDenied": "Vaše e-mailová doména není pro tuto aplikaci povolena.",
+    "errorAccessDenied": "Váš účet nemá povoleno se přihlásit.",
     "errorVerification": "Ověřovací token vypršel nebo již byl použit.",
     "errorGeneric": "Došlo k chybě ověření.",
     "tryAgain": "Zkuste se přihlásit znovu"

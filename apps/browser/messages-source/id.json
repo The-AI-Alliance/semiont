@@ -130,7 +130,7 @@
     "loading": "Memuat...",
     "pageTitle": "Kesalahan Autentikasi",
     "errorConfiguration": "Terdapat masalah dengan konfigurasi server.",
-    "errorAccessDenied": "Domain email Anda tidak diizinkan untuk aplikasi ini.",
+    "errorAccessDenied": "Akun Anda tidak diizinkan untuk masuk.",
     "errorVerification": "Token verifikasi telah kedaluwarsa atau sudah digunakan.",
     "errorGeneric": "Terjadi kesalahan autentikasi.",
     "tryAgain": "Coba masuk lagi"

@@ -130,7 +130,7 @@
     "loading": "Wird geladen...",
     "pageTitle": "Authentifizierungsfehler",
     "errorConfiguration": "Es liegt ein Problem mit der Serverkonfiguration vor.",
-    "errorAccessDenied": "Ihre E-Mail-Domain ist für diese Anwendung nicht zugelassen.",
+    "errorAccessDenied": "Ihr Konto ist nicht zur Anmeldung berechtigt.",
     "errorVerification": "Das Verifizierungstoken ist abgelaufen oder wurde bereits verwendet.",
     "errorGeneric": "Ein Authentifizierungsfehler ist aufgetreten.",
     "tryAgain": "Erneut versuchen, sich anzumelden"

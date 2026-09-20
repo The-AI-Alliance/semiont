@@ -130,7 +130,7 @@
     "loading": "로딩 중...",
     "pageTitle": "인증 오류",
     "errorConfiguration": "서버 구성에 문제가 있습니다.",
-    "errorAccessDenied": "귀하의 이메일 도메인은 이 애플리케이션에 허용되지 않습니다.",
+    "errorAccessDenied": "귀하의 계정은 로그인이 허용되지 않습니다.",
     "errorVerification": "인증 토큰이 만료되었거나 이미 사용되었습니다.",
     "errorGeneric": "인증 오류가 발생했습니다.",
     "tryAgain": "다시 로그인 시도"

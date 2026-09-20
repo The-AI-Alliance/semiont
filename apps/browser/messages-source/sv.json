@@ -130,7 +130,7 @@
     "loading": "Laddar...",
     "pageTitle": "Autentiseringsfel",
     "errorConfiguration": "Det finns ett problem med serverkonfigurationen.",
-    "errorAccessDenied": "Din e-postdomän är inte tillåten för denna applikation.",
+    "errorAccessDenied": "Ditt konto har inte behörighet att logga in.",
     "errorVerification": "Verifieringstoken har gått ut eller har redan använts.",
     "errorGeneric": "Ett autentiseringsfel inträffade.",
     "tryAgain": "Försök logga in igen"

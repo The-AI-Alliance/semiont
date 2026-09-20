@@ -130,7 +130,7 @@
     "loading": "Laster...",
     "pageTitle": "Autentiseringsfeil",
     "errorConfiguration": "Det er et problem med serverkonfigurasjonen.",
-    "errorAccessDenied": "E-postdomenet ditt er ikke tillatt for denne applikasjonen.",
+    "errorAccessDenied": "Kontoen din har ikke tillatelse til å logge inn.",
     "errorVerification": "Bekreftelsestokenet har utløpt eller er allerede brukt.",
     "errorGeneric": "Det oppstod en autentiseringsfeil.",
     "tryAgain": "Prøv å logge inn igjen"

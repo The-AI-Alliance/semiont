@@ -130,7 +130,7 @@
     "loading": "Memuatkan...",
     "pageTitle": "Ralat Pengesahan",
     "errorConfiguration": "Terdapat masalah dengan konfigurasi pelayan.",
-    "errorAccessDenied": "Domain e-mel anda tidak dibenarkan untuk aplikasi ini.",
+    "errorAccessDenied": "Akaun anda tidak dibenarkan untuk log masuk.",
     "errorVerification": "Token pengesahan telah tamat tempoh atau telah digunakan.",
     "errorGeneric": "Ralat pengesahan telah berlaku.",
     "tryAgain": "Cuba log masuk semula"

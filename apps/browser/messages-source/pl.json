@@ -130,7 +130,7 @@
     "loading": "Ładowanie...",
     "pageTitle": "Błąd uwierzytelniania",
     "errorConfiguration": "Wystąpił problem z konfiguracją serwera.",
-    "errorAccessDenied": "Twoja domena e-mail nie jest dozwolona dla tej aplikacji.",
+    "errorAccessDenied": "Twoje konto nie ma uprawnień do zalogowania się.",
     "errorVerification": "Token weryfikacyjny wygasł lub został już wykorzystany.",
     "errorGeneric": "Wystąpił błąd uwierzytelniania.",
     "tryAgain": "Spróbuj zalogować się ponownie"

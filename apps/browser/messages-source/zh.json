@@ -130,7 +130,7 @@
     "loading": "加载中...",
     "pageTitle": "身份验证错误",
     "errorConfiguration": "服务器配置存在问题。",
-    "errorAccessDenied": "您的电子邮件域名不允许用于此应用程序。",
+    "errorAccessDenied": "您的账户不允许登录。",
     "errorVerification": "验证令牌已过期或已被使用。",
     "errorGeneric": "发生身份验证错误。",
     "tryAgain": "重新尝试登录"

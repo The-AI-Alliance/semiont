@@ -130,7 +130,7 @@
     "loading": "Đang tải...",
     "pageTitle": "Lỗi xác thực",
     "errorConfiguration": "Có vấn đề với cấu hình máy chủ.",
-    "errorAccessDenied": "Tên miền email của bạn không được phép sử dụng cho ứng dụng này.",
+    "errorAccessDenied": "Tài khoản của bạn không được phép đăng nhập.",
     "errorVerification": "Mã xác minh đã hết hạn hoặc đã được sử dụng.",
     "errorGeneric": "Đã xảy ra lỗi xác thực.",
     "tryAgain": "Thử đăng nhập lại"

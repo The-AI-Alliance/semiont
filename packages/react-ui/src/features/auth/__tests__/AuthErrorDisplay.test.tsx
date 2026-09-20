@@ -17,7 +17,7 @@ const mockTranslations = {
   pageTitle: 'Authentication Error',
   tryAgain: 'Try signing in again',
   errorConfiguration: 'There is a problem with the server configuration.',
-  errorAccessDenied: 'Access denied. Your email domain is not allowed.',
+  errorAccessDenied: 'Your account is not permitted to sign in.',
   errorVerification: 'The verification link is invalid or has expired.',
   errorGeneric: 'An authentication error occurred. Please try again.',
 };
@@ -34,7 +34,7 @@ describe('AuthErrorDisplay', () => {
     it('displays AccessDenied error message', () => {
       render(<AuthErrorDisplay Link={MockLink} errorType="AccessDenied" translations={mockTranslations} />);
 
-      expect(screen.getByText('Access denied. Your email domain is not allowed.')).toBeInTheDocument();
+      expect(screen.getByText('Your account is not permitted to sign in.')).toBeInTheDocument();
     });
 
     it('displays Verification error message', () => {
@@ -66,7 +66,7 @@ describe('AuthErrorDisplay', () => {
     it('renders error message in styled container', () => {
       render(<AuthErrorDisplay Link={MockLink} errorType="AccessDenied" translations={mockTranslations} />);
 
-      const errorText = screen.getByText('Access denied. Your email domain is not allowed.');
+      const errorText = screen.getByText('Your account is not permitted to sign in.');
 
       expect(errorText).toHaveClass('semiont-auth-error-display__error-message');
     });
