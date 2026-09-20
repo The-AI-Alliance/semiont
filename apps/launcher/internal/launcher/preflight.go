@@ -228,7 +228,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			fix:      "nobody could sign in from a browser against this issuer",
 		})
 	} else if browserExists {
-		if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect); err != nil {
+		if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, withPKCE); err != nil {
 			findings = append(findings, publicClientFinding{clientID: browserClientID, reason: err.Error()})
 		} else if code != http.StatusOK {
 			findings = append(findings, publicClientFinding{
@@ -236,16 +236,81 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 				reason:   fmt.Sprintf("the realm will not redirect to %s (HTTP %d)", probeRedirect, code),
 				fix:      "its registered redirect URIs do not cover the Browser; sign-in would fail at the issuer",
 			})
-		} else if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirectOtherPort); err == nil && code != http.StatusOK {
-			findings = append(findings, publicClientFinding{
-				clientID: browserClientID,
-				warnOnly: true,
-				reason:   "the realm pins the Browser to port 3000",
-				fix:      "`--port` will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
-			})
+		} else {
+			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirectOtherPort, withPKCE); err == nil && code != http.StatusOK {
+				findings = append(findings, publicClientFinding{
+					clientID: browserClientID,
+					warnOnly: true,
+					reason:   "the realm pins the Browser to port 3000",
+					fix:      "`--port` will not work: this realm predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, or add `http://localhost/*` to the client",
+				})
+			}
+			// PKCE must be REQUIRED, not merely supported. A realm that
+			// enforces it answers an authorization request carrying no code
+			// challenge with an error; one that does not serves the login page,
+			// and the code flow is then interceptable for a public client that
+			// holds no secret.
+			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, withoutPKCE); err == nil && code == http.StatusOK {
+				findings = append(findings, publicClientFinding{
+					clientID: browserClientID,
+					warnOnly: true,
+					reason:   "the realm does not REQUIRE PKCE — an authorization request carrying no code challenge is accepted",
+					fix:      "set `pkce.code.challenge.method` to S256 on the client; this client holds no secret, so PKCE is what binds the code to its requester",
+				})
+			}
 		}
 	}
+
+	// Neither client may accept a password at the token endpoint. The
+	// resource-owner grant hands a public client someone's password directly —
+	// no browser, nothing phishing-resistant, and it walks straight past the
+	// realm's required actions, including the first-sign-in profile form.
+	for _, id := range []string{browserClientID, cliClientID} {
+		oauthErr, err := directAccessGrantProbe(eps.token, id)
+		if err != nil || oauthErr == "unauthorized_client" {
+			continue // unreachable, or correctly refused
+		}
+		findings = append(findings, publicClientFinding{
+			clientID: id,
+			warnOnly: true,
+			reason:   "the realm allows the resource-owner password grant for this client",
+			fix:      "turn off direct access grants; a public client should never take a password",
+		})
+	}
 	return findings
+}
+
+// Named for the call sites: authorizationProbe(…, withPKCE) reads, a bare
+// `true` does not.
+const (
+	withPKCE    = true
+	withoutPKCE = false
+)
+
+// directAccessGrantProbe asks the token endpoint for the resource-owner
+// password grant as `clientID`, sending NO username and NO password. Returns
+// the `error` field of the JSON body.
+//
+// The absence is what makes this safe AND sufficient: a client forbidden the
+// grant is refused as `unauthorized_client` before the missing credentials are
+// ever looked at, while a client allowed it gets as far as complaining that
+// `username` is missing. So the answer separates the two without a credential
+// — real or invented — being sent anywhere.
+func directAccessGrantProbe(tokenEndpoint, clientID string) (string, error) {
+	resp, err := preflightHTTP.PostForm(tokenEndpoint, url.Values{
+		"grant_type": {"password"},
+		"client_id":  {clientID},
+	})
+	if err != nil {
+		return "", fmt.Errorf("password-grant probe failed: %v", err)
+	}
+	defer resp.Body.Close()
+	var body struct {
+		Error string `json:"error"`
+	}
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	_ = json.Unmarshal(b, &body)
+	return body.Error, nil
 }
 
 // deviceGrantProbe asks the device endpoint for a code as `clientID`, with no
@@ -275,16 +340,18 @@ func deviceGrantProbe(endpoint, clientID string) (int, string, error) {
 // Redirects are NOT followed. Some authorization errors are returned by
 // redirecting to the registered callback, and following that would have the
 // launcher issue a request against the Browser's own port mid-start.
-func authorizationProbe(endpoint, clientID, redirectURI string) (int, error) {
+func authorizationProbe(endpoint, clientID, redirectURI string, pkce bool) (int, error) {
 	q := url.Values{
 		"response_type": {"code"},
 		"scope":         {"openid"},
 		"client_id":     {clientID},
 		"redirect_uri":  {redirectURI},
+	}
+	if pkce {
 		// A syntactically valid S256 challenge. Never redeemed: this request is
 		// abandoned at the login page, so the verifier behind it is irrelevant.
-		"code_challenge":        {"E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"},
-		"code_challenge_method": {"S256"},
+		q.Set("code_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
+		q.Set("code_challenge_method", "S256")
 	}
 	req, err := http.NewRequest(http.MethodGet, endpoint+"?"+q.Encode(), nil)
 	if err != nil {

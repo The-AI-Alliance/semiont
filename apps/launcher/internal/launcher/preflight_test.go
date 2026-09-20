@@ -197,6 +197,8 @@ type publicStub struct {
 	omitDevice    bool   // discovery names no device_authorization_endpoint
 	authRedirect  string // authorization endpoint 302s here instead of rendering
 	authHits      *int32 // incremented each time the authorization endpoint is reached
+	pkceOptional  bool   // authorization endpoint serves the login page with no code challenge
+	passwordGrant string // token endpoint allows the resource-owner grant for this client
 }
 
 func stubPublicIssuer(t *testing.T, s publicStub) *httptest.Server {
@@ -238,7 +240,30 @@ func stubPublicIssuer(t *testing.T, s publicStub) *httptest.Server {
 			http.Error(w, "Invalid parameter: redirect_uri", 400)
 			return
 		}
+		// A realm REQUIRING PKCE refuses a request carrying no code challenge,
+		// and delivers that refusal as a redirect to the callback.
+		if !s.pkceOptional && r.URL.Query().Get("code_challenge") == "" {
+			http.Redirect(w, r, r.URL.Query().Get("redirect_uri")+"?error=invalid_request", http.StatusFound)
+			return
+		}
 		fmt.Fprint(w, "<html>Sign in</html>")
+	})
+	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		w.Header().Set("content-type", "application/json")
+		if r.PostFormValue("grant_type") != "password" {
+			fmt.Fprint(w, `{"error":"unsupported_grant_type"}`)
+			return
+		}
+		// Allowed for this client: the missing username is reached. Forbidden:
+		// refused before the credentials are looked at.
+		if r.PostFormValue("client_id") == s.passwordGrant {
+			w.WriteHeader(400)
+			fmt.Fprint(w, `{"error":"invalid_request","error_description":"Missing parameter: username"}`)
+			return
+		}
+		w.WriteHeader(400)
+		fmt.Fprint(w, `{"error":"unauthorized_client"}`)
 	})
 	t.Cleanup(srv.Close)
 	return srv
@@ -367,5 +392,104 @@ func TestPublicClientsReportAnUnreachableIssuerOnce(t *testing.T) {
 	findings := verifyPublicClients("http://127.0.0.1:1")
 	if len(findings) != 1 {
 		t.Fatalf("want one finding for a dead issuer, got %d: %v", len(findings), findings)
+	}
+}
+
+// --- the flags, not just the existence --------------------------------------
+//
+// Both probes below send NO credential. The discriminations they rely on were
+// read off a live Keycloak 26.7.4 on 2026-09-20, each with a positive AND a
+// negative control — a client with the flag set and one without — so neither
+// infers "enabled" from a single observation.
+
+// PKCE must be REQUIRED. A realm that merely SUPPORTS it serves the login page
+// to a request carrying no code challenge, and the authorization code is then
+// interceptable for a client that holds no secret.
+func TestPublicClientsWarnWhenPKCEIsNotRequired(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{pkceOptional: true})
+	f, ok := findingFor(verifyPublicClients(srv.URL), browserClientID)
+	if !ok {
+		t.Fatal("a realm that does not require PKCE produced no finding")
+	}
+	if !f.warnOnly {
+		t.Error("PKCE is a posture finding, not a reason to refuse an otherwise working realm")
+	}
+	if !strings.Contains(f.reason, "PKCE") {
+		t.Errorf("reason does not name PKCE: %q", f.reason)
+	}
+}
+
+// The control: a realm that DOES require PKCE must not be reported. Without
+// this, the check above would pass just as well if it fired on every realm.
+func TestPublicClientsDoNotReportPKCEWhenItIsRequired(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{})
+	for _, f := range verifyPublicClients(srv.URL) {
+		if strings.Contains(f.reason, "PKCE") {
+			t.Fatalf("a realm requiring PKCE was reported anyway: %q", f)
+		}
+	}
+}
+
+// A public client must never take a password. The resource-owner grant skips
+// the browser entirely, so it also skips every required action the realm
+// has — including the first-sign-in profile form.
+func TestPublicClientsWarnOnTheResourceOwnerPasswordGrant(t *testing.T) {
+	for _, id := range []string{browserClientID, cliClientID} {
+		srv := stubPublicIssuer(t, publicStub{passwordGrant: id})
+		f, ok := findingFor(verifyPublicClients(srv.URL), id)
+		if !ok {
+			t.Fatalf("%s: a realm allowing the password grant produced no finding", id)
+		}
+		if !f.warnOnly {
+			t.Errorf("%s: refused rather than warned; the realm still works", id)
+		}
+		if !strings.Contains(f.reason, "password grant") {
+			t.Errorf("%s: reason does not name the grant: %q", id, f.reason)
+		}
+	}
+}
+
+// The control: a realm refusing the grant for both clients says nothing.
+func TestPublicClientsDoNotReportARefusedPasswordGrant(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{})
+	for _, f := range verifyPublicClients(srv.URL) {
+		if strings.Contains(f.reason, "password grant") {
+			t.Fatalf("a realm refusing the password grant was reported anyway: %q", f)
+		}
+	}
+}
+
+// Neither probe may send a credential. The password probe's whole safety
+// argument is that it stops at "username missing" — if it ever started
+// inventing one, this fails.
+func TestFlagProbesSendNoCredential(t *testing.T) {
+	var sawCredential atomic.Bool
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		fmt.Fprintf(w, `{"issuer":%q,"authorization_endpoint":%q,"device_authorization_endpoint":%q,"token_endpoint":%q}`,
+			srv.URL, srv.URL+"/auth", srv.URL+"/device", srv.URL+"/token")
+	})
+	watch := func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		for _, k := range []string{"username", "password", "client_secret", "code_verifier"} {
+			if r.Form.Get(k) != "" {
+				sawCredential.Store(true)
+			}
+		}
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(400)
+		fmt.Fprint(w, `{"error":"unauthorized_client"}`)
+	}
+	mux.HandleFunc("/token", watch)
+	mux.HandleFunc("/device", watch)
+	mux.HandleFunc("/auth", watch)
+
+	verifyPublicClients(srv.URL)
+
+	if sawCredential.Load() {
+		t.Fatal("a preflight probe sent a credential to the issuer")
 	}
 }

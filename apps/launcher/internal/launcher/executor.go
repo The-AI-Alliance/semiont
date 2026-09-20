@@ -59,14 +59,14 @@ type executor interface {
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *serviceState         // the machine-level browser record
 	recordBrowser(id, image, version string, port int)
-	dumpLogs(container, svc string)                                                       // failed health gate: show the crash where it is
-	verifyRemoteModels(role, base, key string, models []string)                           // record /v1/models metadata; warn on unlisted
+	dumpLogs(container, svc string)                                                // failed health gate: show the crash where it is
+	verifyRemoteModels(role, base, key string, models []string)                    // record /v1/models metadata; warn on unlisted
 	preflightIdentity(issuerBase, audience string, secrets map[string]string) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one
-	ensureModels(base string, models []modelNeed)                                         // pull configured ollama models that are absent
-	stateMounts(role, image, root string) ([]string, bool)                                // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)                                 // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                                                   // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
-	val(live, plan string) string                                                         // mode-scoped value (kb root, admin password)
+	ensureModels(base string, models []modelNeed)                                  // pull configured ollama models that are absent
+	stateMounts(role, image, root string) ([]string, bool)                         // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)                          // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                                            // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	val(live, plan string) string                                                  // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -1201,6 +1201,8 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 	}
 	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, cliClientID)
 	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, browserClientID, probeRedirect)
+	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")
+	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, browserClientID, cliClientID)
 	return true
 }
 
