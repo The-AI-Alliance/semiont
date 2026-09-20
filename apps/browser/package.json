@@ -76,7 +76,7 @@
     "@vitest/ui": "^4.1.11",
     "axe-core": "^4.12.1",
     "cross-env": "^10.1.0",
-    "fast-check": "^4.9.0",
+    "fast-check": "^4.10.0",
     "jest-axe": "^11.0.0",
     "jsdom": "^30.0.0",
     "msw": "^2.15.0",
