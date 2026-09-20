@@ -8,6 +8,38 @@ RUN --mount=type=cache,target=/root/.npm \
     npm install @semiont/gateway@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
       --prefix /home/semiont/.local/share/semiont
 
+# Self-retiring CVE patches: when a guard here fails, DELETE the entry it names.
+#
+# DO NOT delete entries here because the package is absent from the monorepo
+# lockfile. This image does not build from the monorepo -- the installer stage
+# runs `npm install @semiont/gateway@$SEMIONT_VERSION` against npm, so its tree
+# is whatever the PUBLISHED gateway depends on, which lags main by a release.
+# Removing the deepmerge-ts entry and the mysql2/elkjs prunes below on that
+# reasoning failed the Trivy gate (CVE-2026-40345 + GHSA-3f6p-5ww8-9rcr, both
+# HIGH): prisma left main in #1394, but published @semiont/gateway 0.5.39 still
+# declares prisma ^7.10.0 and drags both packages in. These stay until a release
+# ships a prisma-free gateway -- verify with `npm view @semiont/gateway
+# dependencies`, not with the lockfile.
+RUN set -eu; \
+    patch_dep() { \
+      ROOT="$1"; PKG="$2"; WANT="$3"; \
+      for p in $(find "$ROOT" -type d -path "*/node_modules/$PKG"); do \
+        HAVE=$(node -pe "require('$p/package.json').version"); \
+        if node -e 'const c=(a,b)=>{a=a.split(".").map(Number);b=b.split(".").map(Number);for(let i=0;i<3;i++){const d=(a[i]||0)-(b[i]||0);if(d)return d}return 0};process.exit(c(process.argv[1],process.argv[2])>=0?0:1)' "$HAVE" "$WANT"; then \
+          echo "$ROOT now provides $PKG $HAVE (>= $WANT) at $p."; \
+          echo "DELETE the $PKG entry from the self-retiring patch block in apps/gateway/Dockerfile."; \
+          return 1; \
+        fi; \
+      done; \
+      npm pack "$PKG@$WANT" --pack-destination /tmp >/dev/null; \
+      tar -xzf "/tmp/$PKG-$WANT.tgz" -C /tmp; \
+      find "$ROOT" -type d -path "*/node_modules/$PKG" \
+        -exec sh -c 'rm -rf "$1" && cp -a /tmp/package "$1"' _ {} \;; \
+      rm -rf "/tmp/$PKG-$WANT.tgz" /tmp/package; \
+    }; \
+    APP_TREE=/home/semiont/.local/share/semiont; \
+    patch_dep "$APP_TREE" deepmerge-ts 8.0.0
+
 FROM node:24-alpine
 ARG SEMIONT_VERSION=latest
 RUN apk upgrade --no-cache
@@ -21,11 +53,14 @@ COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont 
 
 # Strip npm/npx (re-introduced by the COPY above). Nothing at runtime runs them:
 # the CMD is `node` on the built server.
+#
+# mysql2 by -path, not -name: -name would also delete studio-core's data/mysql2 shim.
 RUN rm -rf /usr/local/lib/node_modules/npm \
            /usr/local/bin/npm \
            /usr/local/bin/npx && \
     find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
-      -type d \( -name typescript -o -name '@typescript' \) \
+      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \
+                 -o -path '*/node_modules/mysql2' \) \
       -prune -exec rm -rf {} +
 
 COPY LICENSE apps/gateway/NOTICE /home/semiont/

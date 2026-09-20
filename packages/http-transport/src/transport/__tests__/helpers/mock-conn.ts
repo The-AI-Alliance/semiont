@@ -10,9 +10,13 @@
  * `mockFetch` instance; reset it in your `beforeEach` (`mockReset()` — the
  * `*Once` queues survive `clearAllMocks`).
  */
-import { vi } from 'vitest';
+import { vi, type Mock } from 'vitest';
 
-export const mockFetch = vi.fn();
+// Explicit annotation, not inference: vitest 5 moved `Procedure` into an
+// internal dist chunk, so the inferred type of `vi.fn()` cannot be named
+// portably and `tsc` fails with TS2883. `Mock` defaults to `Procedure`, so
+// this keeps the loose call typing the suites rely on.
+export const mockFetch: Mock = vi.fn();
 vi.stubGlobal('fetch', mockFetch);
 
 export function sseChunk(event: string, data: string): string {

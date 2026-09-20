@@ -54,7 +54,7 @@ describe('Authentication Integration', () => {
 
         email: makeEmail(user.email),
         domain: user.domain,
-      });
+      }, '1h');
       return { user, token };
     };
 
@@ -90,7 +90,7 @@ describe('Authentication Integration', () => {
 
         email: makeEmail(bearerUser.email),
         domain: bearerUser.domain,
-      });
+      }, '1h');
       // Only the bearer user lookup should happen (Authorization header wins)
 
       const response = await app.request('/api/users/me', {

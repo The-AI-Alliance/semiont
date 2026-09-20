@@ -267,7 +267,21 @@ The decisions that used to sit here now sit in the realm: who may register, whic
 
 Two of those the launcher does write into the realm it imports, rather than inherit, so they are decisions someone can read back rather than Keycloak defaults that move with an upgrade — the access token lifetime in the table above, and the **user profile**. The profile requires `firstName` and `lastName`, so a person an administrator created an account for is asked for their own name at first sign-in. Keycloak composes the `name` claim from those two, and that claim is what every annotation and resource they author is attributed to; `semiont useradd` deliberately sets no display name, because splitting one typed string on a space gets "Mary Jane" and "van der Berg" wrong.
 
-An operator federating a **different** issuer owes Semiont only `email`, plus an `email_verified` that is not false. Everything else here is this realm's shape, not a requirement of the gateway.
+An operator federating a **different** issuer owes Semiont the following. Everything else above is this realm's shape, not a requirement of the gateway.
+
+**Every token the gateway accepts:**
+
+- **`iss` exactly equal to the configured issuer URL.** Discovery is read at `<issuer>/.well-known/openid-configuration`, and a document naming a different `issuer` is refused rather than followed.
+- **RS256, verifiable against the `jwks_uri` that document publishes.** Keys are selected by `kid`; no other algorithm is accepted.
+- **`aud` carrying this knowledge base's resource identifier** — the exact string `/.well-known/oauth-protected-resource` publishes as `resource`. It is derived from the committed `did:web` domain, not configured, so it cannot be set to something else at the issuer's convenience: the issuer must be told to stamp it. This is the requirement operators miss, and missing it fails every request with a 401 that looks like a key problem.
+
+**A person's token also needs** the claims [Validation layers](#validation-layers-per-request) lists — a `sub`, an `email`, and an `email_verified` that is not `false`. `name` is optional, and is what every annotation and resource they author is attributed to.
+
+**A service account's token also needs** a flat `roles` array containing `semiont-service` — an array of strings at the top level, deliberately not Keycloak's nested `realm_access.roles`. An issuer with its own group model maps it into that claim.
+
+**For people and the CLI to sign in at all**, the issuer needs a device-grant-capable public client (`semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
+
+`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time.
 
 ### API
 

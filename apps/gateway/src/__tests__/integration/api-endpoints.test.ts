@@ -135,7 +135,7 @@ describe('API Endpoints Integration Tests', () => {
       email: email(testUser.email),
       name: testUser.name,
       domain: testUser.domain,
-    });
+    }, '1h');
     
     // Resolve the test token to the test user
     const { principalFromToken } = await import('../../identity/principal');
