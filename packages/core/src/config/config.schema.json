@@ -1187,7 +1187,7 @@
     },
     "JobsServiceConfig": {
       "type": "object",
-      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream — KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one.",
+      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
       "properties": {
         "type": {
           "type": "string",
@@ -1207,7 +1207,7 @@
     },
     "ArchivistServiceConfig": {
       "type": "object",
-      "description": "The Archivist service — the out-of-process keeper of the record (EXTRACT-ARCHIVIST). Internal-only: the gateway dials host:port for the D1 sequence-ranged event read path; nothing public.",
+      "description": "The Archivist service \u2014 the out-of-process keeper of the record (EXTRACT-ARCHIVIST). Internal-only: the gateway dials host:port for the D1 sequence-ranged event read path; nothing public.",
       "properties": {
         "platform": {
           "$ref": "#/definitions/ServicePlatformConfig"
@@ -1226,7 +1226,7 @@
     },
     "SignalServiceConfig": {
       "type": "object",
-      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default — D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream — D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one.",
+      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default \u2014 D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream \u2014 D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
       "properties": {
         "type": {
           "type": "string",
@@ -1246,7 +1246,7 @@
     },
     "IdentityServiceConfig": {
       "type": "object",
-      "description": "The OIDC issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY D5). Selection is stated here, never inferred: 'keycloak' is the launcher-run Keycloak; 'oidc' is an external issuer the launcher never launches. 'issuer' is the issuer URL exactly as it appears in a token's iss claim (its host may reference environment via ${VAR} placeholders — the CONFIG names the variable; code never invents one). There is no 'audience' key: the audience is the knowledge base's own resource identifier, derived from its committed did:web domain, so it cannot be configured into disagreement with the identity the KB publishes. Both keys are required for both types.",
+      "description": "The OIDC issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY D5). Selection is stated here, never inferred: 'keycloak' is the launcher-run Keycloak; 'oidc' is an external issuer the launcher never launches. 'issuer' is the issuer URL exactly as it appears in a token's iss claim (its host may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one). There is no 'audience' key: the audience is the knowledge base's own resource identifier, derived from its committed did:web domain, so it cannot be configured into disagreement with the identity the KB publishes. 'type' and 'issuer' are required for both types. 'accessTokenLifespan' (seconds) overrides the launcher's default revocation window and applies only to type='keycloak', since only a realm the launcher writes has a lifespan Semiont sets; a realm imports on FIRST BOOT only, so changing it does not reach a deployment that already exists. 'image' overrides the catalog's Keycloak image. Both extra keys are read by the launcher alone \u2014 the gateway never sees them.",
       "properties": {
         "type": {
           "type": "string",
@@ -1257,6 +1257,15 @@
         },
         "issuer": {
           "type": "string"
+        },
+        "accessTokenLifespan": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds a token the realm mints stays valid, and so the window in which a disabled account can still act. type='keycloak' only. Default 300."
+        },
+        "image": {
+          "type": "string",
+          "description": "Override the Keycloak image the launcher runs. type='keycloak' only."
         }
       },
       "required": [

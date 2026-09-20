@@ -183,6 +183,15 @@ type identityCfg struct {
 	Type   string `toml:"type"`
 	Issuer string `toml:"issuer"`
 	Image  string `toml:"image"` // optional: override the catalog's default image
+	// AccessTokenLifespan: seconds a token the realm mints stays valid, and so
+	// the window in which a disabled account can still act. Optional; absent
+	// means keycloakAccessTokenLifespan. Pointer because 0 is a value someone
+	// could type and a meaningless one — absent and zero must be told apart.
+	//
+	// Only the launcher reads it, because only the launcher writes a realm:
+	// `type = "oidc"` names an issuer somebody else configures, and setting
+	// this there is refused rather than ignored.
+	AccessTokenLifespan *int `toml:"accessTokenLifespan"`
 }
 
 type bindingCfg struct {

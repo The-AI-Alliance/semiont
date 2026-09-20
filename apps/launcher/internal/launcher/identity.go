@@ -35,9 +35,9 @@ const (
 	//
 	// Pinned rather than left to Keycloak's default so the window is a decision
 	// somebody made and can read back, not a value that moves with a Keycloak
-	// upgrade. Five minutes matches the default this was written against, so
-	// pinning it changes no existing behaviour — the point is that changing it
-	// now requires editing this line.
+	// upgrade. A knowledge base that wants a different one sets
+	// `accessTokenLifespan` in its [identity] section; this is what it gets
+	// otherwise.
 	keycloakAccessTokenLifespan = 300
 )
 
@@ -155,7 +155,7 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 // including the values here. A deployment whose realm predates a change to this
 // function keeps the settings it was created with; adjusting those is a console
 // or admin-API job, not a restart.
-func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]string) []byte {
+func keycloakRealmJSON(realm, audience, addr string, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
 	browser := publicClient(browserClientID, "Semiont Browser", audience)
 	browser["standardFlowEnabled"] = true
 	// Loopback entries carry NO PORT, which is what makes any port match.
@@ -194,7 +194,7 @@ func keycloakRealmJSON(realm, audience, addr string, sidecarSecrets map[string]s
 		"realm":               realm,
 		"enabled":             true,
 		"sslRequired":         "none",
-		"accessTokenLifespan": keycloakAccessTokenLifespan,
+		"accessTokenLifespan": accessTokenLifespan,
 		"clients":             clients,
 		"components": map[string]any{
 			"org.keycloak.userprofile.UserProfileProvider": []map[string]any{{
@@ -342,7 +342,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	if !ok {
 		return nil, nil, false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, rp.AccessTokenLifespan, secrets))
 	if !ok {
 		return nil, nil, false
 	}

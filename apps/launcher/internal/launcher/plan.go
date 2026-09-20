@@ -41,6 +41,9 @@ type rolePlan struct {
 	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
 	Env              []string // container env derived from config (creds)
 	Issuer           string   // identity: the OIDC issuer URL as configured
+	// AccessTokenLifespan: seconds, for the realm the launcher imports.
+	// Zero means the built-in default; only a launcher-run Keycloak has one.
+	AccessTokenLifespan int
 }
 
 type launchPlan struct {
@@ -676,7 +679,22 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if port == 0 {
 			port = spec.defaultPort
 		}
-		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer}
+		// accessTokenLifespan is the realm's to honour, so it is only ours to
+		// set when we write the realm. Naming it against an issuer somebody
+		// else runs is refused rather than ignored: silently dropping it would
+		// leave an operator believing they had shortened their revocation
+		// window.
+		lifespan := keycloakAccessTokenLifespan
+		if id.AccessTokenLifespan != nil {
+			if id.Type != "keycloak" {
+				return nil, secErr("identity", "accessTokenLifespan applies only to type = \"keycloak\" — an issuer Semiont does not run sets its own token lifetimes")
+			}
+			if *id.AccessTokenLifespan <= 0 {
+				return nil, secErr("identity", "accessTokenLifespan must be a positive number of seconds, not %d", *id.AccessTokenLifespan)
+			}
+			lifespan = *id.AccessTokenLifespan
+		}
+		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer, AccessTokenLifespan: lifespan}
 		switch {
 		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == obligationProvided:
 			if keycloakRealm(path) == "" {

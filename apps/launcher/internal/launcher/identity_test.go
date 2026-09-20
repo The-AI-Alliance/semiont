@@ -99,7 +99,7 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 }
 
 func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", nil))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", keycloakAccessTokenLifespan, nil))
 	// This assertion was the other way round for one commit, on the reasoning
 	// that the gateway verifies tokens and never presents one. True of the agent
 	// exchange, false in general: the gateway dials the Archivist for content,
@@ -110,7 +110,7 @@ func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
 }
 
 func TestKeycloakRealmJSON(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1",
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", keycloakAccessTokenLifespan,
 		map[string]string{"archivist": "archivist-secret", "weaver": "weaver-secret"}))
 	for _, want := range []string{
 		`"realm": "semiont"`,
@@ -156,5 +156,67 @@ func TestKeycloakRealmJSON(t *testing.T) {
 		if !strings.Contains(doc, want) {
 			t.Errorf("realm document missing %s", want)
 		}
+	}
+}
+
+// accessTokenLifespan overrides the default revocation window. Only the
+// launcher reads it, because only a realm the launcher writes has a lifespan
+// Semiont sets.
+func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
+	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": `[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+accessTokenLifespan = 60
+`}))
+	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
+		t.Errorf("configured lifespan not carried on the plan: got %d, want 60", got)
+	}
+	doc := string(keycloakRealmJSON("semiont", "aud", "1.2.3.4", plan.Roles["identity"].AccessTokenLifespan, nil))
+	if !strings.Contains(doc, `"accessTokenLifespan": 60`) {
+		t.Error("the realm document did not take the configured lifespan")
+	}
+}
+
+// Absent means the pinned default, and the realm says so explicitly rather
+// than omitting the key and taking whatever Keycloak defaults to.
+func TestDerivePlanIdentityLifespanDefaults(t *testing.T) {
+	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": keycloakIdentity}))
+	if got := plan.Roles["identity"].AccessTokenLifespan; got != keycloakAccessTokenLifespan {
+		t.Errorf("absent lifespan did not fall to the default: got %d", got)
+	}
+}
+
+// Refused, not ignored, on both counts: an issuer somebody else runs sets its
+// own lifetimes, and a nonsense value silently accepted would leave an operator
+// believing they had shortened their window.
+func TestDerivePlanIdentityLifespanRefusals(t *testing.T) {
+	for _, c := range []struct{ name, section, want string }{
+		{"oidc", `[environments.local.identity]
+type = "oidc"
+issuer = "https://login.example.com/realms/acme"
+accessTokenLifespan = 60
+`, "applies only to type"},
+		{"zero", `[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+accessTokenLifespan = 0
+`, "positive number of seconds"},
+		{"negative", `[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+accessTokenLifespan = -5
+`, "positive number of seconds"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			env, envName, _, err := loadConfig(variantConfig(t, map[string]string{"identity": c.section}))
+			if err != nil {
+				t.Fatalf("loadConfig: %v", err)
+			}
+			if _, err = derivePlan(env, envName, "variant.toml"); err == nil {
+				t.Fatalf("accepted %s", c.name)
+			} else if !strings.Contains(err.Error(), c.want) {
+				t.Errorf("error %q missing %q", err, c.want)
+			}
+		})
 	}
 }
