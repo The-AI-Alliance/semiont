@@ -486,6 +486,6 @@ If you see `No inference config found for actor 'gatherer'` or similar, add the 
 ## Related Documentation
 
 - [Architecture](../README.md) — System architecture overview
-- [Authentication](./AUTHENTICATION.md) — OAuth, JWT, MCP token flows
+- [Authentication](./AUTHENTICATION.md) — the trusted issuer, bearer verification, and what an issuer must provide
 - [Services Overview](../services/OVERVIEW.md) — Service catalog
 - [Launcher README](../../../apps/launcher/README.md) — `semiont` command reference
