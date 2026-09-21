@@ -160,7 +160,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			})
 			checkRole(t, plan, "vectors", rolePlan{
 				Obligation: obligationProvided, Driver: "qdrant",
-				Image: "qdrant/qdrant:v1.18.3", Port: 6333,
+				Image: "qdrant/qdrant:v1.19.1", Port: 6333,
 			})
 			// embedding: with ollama-typed bindings, the inference role runs
 			// the Ollama and embedding rides along (external + shares). With
@@ -454,7 +454,7 @@ image = "postgres:17.2-alpine"
 		t.Errorf("database image: got %q", got)
 	}
 	// Unset override: catalog default (the parity everything else relies on).
-	if got := plan.Roles["vectors"].Image; got != "qdrant/qdrant:v1.18.3" {
+	if got := plan.Roles["vectors"].Image; got != "qdrant/qdrant:v1.19.1" {
 		t.Errorf("vectors default image: got %q", got)
 	}
 	// The override flows into the argv the runtime sees.

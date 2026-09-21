@@ -51,7 +51,7 @@ container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-sta
 container run -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://192.168.64.1:4318 --env POSTGRES_HOST=192.168.64.1 --env NEO4J_HOST=192.168.64.1 --env NATS_HOST=192.168.64.1 --env KEYCLOAK_HOST=192.168.64.1 --env QDRANT_HOST=192.168.64.1 --env OLLAMA_HOST=192.168.64.1 --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret --env JWT_SECRET=test-jwt-secret-0123456789abcdef --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest
 container run --rm busybox:1.38.0 sh -c wget -q -O- http://192.168.64.1:4000/api/health
 container run -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
-container run -d --name semiont-qdrant --memory 2G -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.18.3
+container run -d --name semiont-qdrant --memory 2G -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1
 lsof -nP -iTCP:11434 -sTCP:LISTEN
 lsof -nP -iTCP:11434 -sTCP:LISTEN
 container run -d --name semiont-ollama --memory 24G -p 11434:11434 -v semiont-ollama-models:/root/.ollama ollama/ollama

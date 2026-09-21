@@ -14,7 +14,10 @@
  *   2. **`tsc` was satisfied.** The repo lockfile resolved 1.18.0, where the
  *      removed methods still existed; the *container* resolved 1.19.0 from the
  *      same `^1.18.0` range. The type-checker and the runtime were reading
- *      different versions of the client.
+ *      different versions of the client. The dependency is now pinned exactly
+ *      (no range), so the lockfile, the images, and the launcher's Qdrant
+ *      server pin (apps/launcher/internal/launcher/plan.go) move together, on
+ *      purpose.
  *
  * So the fake deliberately exposes ONLY the 1.19.0 surface — no `search`, no
  * `searchBatch`. Reintroducing either reproduces the production TypeError here,
