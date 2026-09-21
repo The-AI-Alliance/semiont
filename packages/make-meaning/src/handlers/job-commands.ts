@@ -1,4 +1,4 @@
-import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams } from '@semiont/core';
+import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams, hasWorkerRole } from '@semiont/core';
 import type { EventBus, Logger } from '@semiont/core';
 import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
@@ -160,9 +160,21 @@ export function registerJobCommandHandlers(
   });
 
   eventBus.frames('job:claim').subscribe(async ({ payload: command, correlationId }) => {
-    const { types } = command;
+    const { types, _roles } = command;
 
     try {
+      // A claim is AUTHORIZED, not merely authenticated (EXTRACT-JOBS P0). Only
+      // a worker — first-party or foreign — may claim, and the gateway forwards
+      // the claimant's capabilities as `_roles`. Refused BEFORE the queue is
+      // consulted, so an unauthorized caller learns nothing about pending work
+      // (`types: []` would otherwise hand back the next job of any kind, payload
+      // included). Worker-ness is a CAPABILITY (the role), never the client's
+      // identity — so admitting a foreign worker is a matter of granting it the
+      // role, with no change here.
+      if (!hasWorkerRole({ roles: _roles })) {
+        throw new Error('job:claim refused: the caller is not a worker for this knowledge base');
+      }
+
       // One atomic operation, by TYPE (JOB-QUEUE-DRIVER P0/P2): the
       // announcement was only a wake-up, so the worker asks for the next
       // job it can run rather than racing others for a specific id.

@@ -1,5 +1,5 @@
 import type { AccessToken } from '@semiont/core';
-import { isString, SERVICE_ROLE, ROLES_CLAIM, hasServiceRole } from '@semiont/core';
+import { isString, SERVICE_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from '@semiont/core';
 import { trustedIssuer } from './trusted-issuer';
 
 /**
@@ -36,14 +36,25 @@ export class AgentMinterRefused extends Error {
   }
 }
 
+/** The authorized minter: who asked (for logging) and what it may delegate. */
+export interface AuthorizedMinter {
+  /** `azp` when the issuer sends one, else the subject. For logging only — the
+   *  agent DID comes from the (provider, model) named, not from who asked. */
+  client: string;
+  /** Whether this minter carries `WORKER_ROLE`, so the agent token it is about
+   *  to receive should be stamped with the worker capability (EXTRACT-JOBS P0).
+   *  The service-role FLOOR is checked above; this is the finer worker grant. */
+  workerCapable: boolean;
+}
+
 /**
  * Verify a caller's bearer token and confirm it carries the agent role.
  *
- * Returns the authorized client's id for logging — `azp` when the issuer sends
- * one, else the subject. Nothing downstream depends on it: the agent DID comes
- * from the (provider, model) the caller names, not from who asked.
+ * Returns who asked (for logging) and whether it may delegate the worker
+ * capability to the agent token being minted — read from the same verified
+ * claims, so there is one verification, not two.
  */
-export async function authorizeAgentMinter(authorization: string | undefined): Promise<string> {
+export async function authorizeAgentMinter(authorization: string | undefined): Promise<AuthorizedMinter> {
   // Every refusal here is a 401, including "this deployment trusts no issuer".
   // That is a configuration state, and an unverified caller has no business
   // learning it — a distinct status would be a hole in the route-coverage
@@ -71,5 +82,8 @@ export async function authorizeAgentMinter(authorization: string | undefined): P
   }
 
   const azp = claims['azp'];
-  return isString(azp) ? azp : (claims.sub ?? 'unknown');
+  return {
+    client: isString(azp) ? azp : (claims.sub ?? 'unknown'),
+    workerCapable: hasWorkerRole(claims),
+  };
 }

@@ -2806,7 +2806,9 @@ type JobCheckpointCommand struct {
 
 // JobClaimCommand Claim the NEXT pending job matching one of the requested types (atomic: pending → running). Claim-by-type replaced claim-by-jobId (JOB-QUEUE-DRIVER P2, landed while every worker is first-party): a job:queued announcement is a WAKE-UP, not a reservation — the claimed job may differ from the announced one, and two workers claiming after one announcement both succeed on different jobs instead of racing for one. An empty `types` accepts any type. The reply channels are unchanged: job:claimed carries the claimed job; job:claim-failed reports nothing-available exactly as it reported already-claimed.
 type JobClaimCommand struct {
-	Types []string `json:"types"`
+	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted (EXTRACT-JOBS P0).
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+	Types           []string  `json:"types"`
 }
 
 // JobCommentAnnotationResult Result of a completed comment-annotation job.

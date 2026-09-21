@@ -660,9 +660,17 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
     // `_userId` is the wire's name for the authority leg of the chain. The
     // actor and client legs ride alongside it when the caller has them.
+    //
+    // `_roles` carries the claimant's capabilities (the token's roles) as a
+    // TRANSIENT authz fact — the dispatcher's `job:claim` authorizes by it
+    // (EXTRACT-JOBS P0). Gateway-authoritative: CLEARED unconditionally, then
+    // set only from the verified principal, so a caller cannot forge a
+    // capability by hand-writing the field.
     const principal = c.get('principal');
+    delete payload._roles;
     if (principal) {
       payload._userId = principal.did;
+      if (principal.roles?.length) payload._roles = principal.roles;
     }
 
     // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
@@ -793,9 +801,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
               // `gather:resource-failed` needs `resourceId`,
               // `match:search-failed` needs `referenceId`. Echoing the request
               // derives those; a per-operation table would restate 36 shapes.
-              // `_userId` is dropped: the gateway injected it inbound and it is
-              // not part of any reply contract.
-              const { _userId: _injected, ...echo } = payload as Record<string, unknown>;
+              // `_userId` and `_roles` are dropped: the gateway injected them
+              // inbound and neither is part of any reply contract.
+              const { _userId: _injected, _roles: _injectedRoles, ...echo } = payload as Record<string, unknown>;
               const failure = {
                 ...echo,
                 // The machine-readable class, so a caller can BRANCH on this

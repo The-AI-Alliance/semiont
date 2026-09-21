@@ -25,6 +25,31 @@ export const ROLES_CLAIM = 'roles';
 export const SERVICE_ROLE = 'semiont-service';
 
 /**
+ * The role that marks a principal permitted to CLAIM JOBS — a worker, whether
+ * it is this stack's own or a foreign one (EXTRACT-JOBS P0).
+ *
+ * Distinct from `SERVICE_ROLE` on purpose. Every sidecar carries the service
+ * role, so it proves service-ness and nothing finer; worker-ness is a separate
+ * grant the realm makes only to worker clients. Authorizing a `job:claim` by
+ * this ROLE — a capability — rather than by the client's identity is what lets
+ * a foreign worker claim: the operator grants it this role and the check is
+ * unchanged. Matching a client id instead would admit only the one first-party
+ * client named `semiont-worker`.
+ *
+ * That first-party worker's CLIENT id happens to be this same string — but a
+ * client id lives in `azp` and a role in `roles`, they are different claims, and
+ * only the role is ever checked (`hasWorkerRole`, never `azp === WORKER_ROLE`).
+ * The coincidence is a trap: comparing `azp` to it would pass for the first
+ * party and silently lock out every foreign worker, whose `azp` differs.
+ */
+export const WORKER_ROLE = 'semiont-worker';
+
+function hasRole(claims: { [claim: string]: unknown }, role: string): boolean {
+  const roles = claims[ROLES_CLAIM];
+  return Array.isArray(roles) && roles.some((r) => typeof r === 'string' && r === role);
+}
+
+/**
  * Whether a verified token's claims mark a Semiont service account.
  *
  * The shape check travels with the constant on purpose. Both readers used to
@@ -34,6 +59,15 @@ export const SERVICE_ROLE = 'semiont-service';
  * and the one that looks right until every call is refused.
  */
 export function hasServiceRole(claims: { [claim: string]: unknown }): boolean {
-  const roles = claims[ROLES_CLAIM];
-  return Array.isArray(roles) && roles.some((role) => typeof role === 'string' && role === SERVICE_ROLE);
+  return hasRole(claims, SERVICE_ROLE);
+}
+
+/**
+ * Whether a verified token's claims mark a principal permitted to claim jobs.
+ * The dispatcher's `job:claim` authorization reads exactly this — over the roles
+ * a worker's agent token carries, stamped at mint from the minting client's own
+ * `WORKER_ROLE` grant.
+ */
+export function hasWorkerRole(claims: { [claim: string]: unknown }): boolean {
+  return hasRole(claims, WORKER_ROLE);
 }

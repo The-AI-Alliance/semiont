@@ -17,6 +17,14 @@ export const JWTPayloadSchema = z.object({
   name: z.string().optional(),
   /** The deployment's domain, which issues the agent's DID. */
   domain: z.string(),
+  /**
+   * Capabilities delegated to this agent from the minting client, stamped at
+   * `/api/tokens/agent` (EXTRACT-JOBS P0). Today the only one is `WORKER_ROLE`,
+   * carried when a worker mints the agent's token, so the dispatcher can
+   * authorize the agent's `job:claim`. Absent on a non-worker's agent token —
+   * an agent is not a service account and never inherits `SERVICE_ROLE`.
+   */
+  roles: z.array(z.string()).optional(),
   iat: z.number().optional(),
   exp: z.number().optional(),
 });

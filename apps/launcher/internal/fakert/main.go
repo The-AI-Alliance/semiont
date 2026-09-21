@@ -1515,9 +1515,18 @@ func serve(ports []string) {
 								}
 							}
 						}
+						// Every service client carries the service role; the worker
+						// client ALSO carries the worker role, mirroring the realm's
+						// grant so a worker's agent-token mint gets the capability
+						// (EXTRACT-JOBS P0). Held to the same literal by
+						// lint:service-role.
+						roles := []string{"semiont-service"}
+						if r.PostForm.Get("client_id") == "semiont-worker" {
+							roles = append(roles, "semiont-worker")
+						}
 						jsonOut(200, map[string]any{
 							"access_token": unsignedJWT(map[string]any{
-								"roles": []string{"semiont-service"},
+								"roles": roles,
 								"aud":   []string{aud, "account"},
 								"azp":   r.PostForm.Get("client_id"),
 							}),
