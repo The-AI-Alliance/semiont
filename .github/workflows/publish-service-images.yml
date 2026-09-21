@@ -2,9 +2,9 @@ name: Publish Service Container Images
 
 run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-run)' || '' }}"
 
-# Builds and publishes the six Semiont service images
-# (gateway · worker · smelter · weaver · archivist · librarian) from the
-# published @semiont/* packages,
+# Builds and publishes the seven Semiont service images
+# (gateway · worker · smelter · weaver · archivist · librarian · dispatcher) from
+# the published @semiont/* packages,
 # mirroring publish-browser.yml's verify-npm → scan → multi-arch push → SBOM →
 # attest spine, with an added license-policy gate. Config is runtime (bind-mount);
 # the images ship config-free.

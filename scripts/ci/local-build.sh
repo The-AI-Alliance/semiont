@@ -136,7 +136,7 @@ IMAGES_ONLY=false
 IMAGES_FORCED=false
 PACKAGES=""
 START_FROM=""
-IMAGES="gateway worker smelter weaver archivist librarian browser"
+IMAGES="gateway worker smelter weaver archivist librarian dispatcher browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -164,7 +164,7 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     gateway,worker,smelter,weaver,archivist,librarian,browser)."
+      echo "                     gateway,worker,smelter,weaver,archivist,librarian,dispatcher,browser)."
       echo "                     Named images always build, even when unchanged"
       echo "  --force-images     Build every image even when its Dockerfile and"
       echo "                     package integrities are unchanged (images whose"
@@ -204,6 +204,7 @@ image_dockerfile() {
     weaver)   echo "apps/weaver/Dockerfile" ;;
     archivist) echo "apps/archivist/Dockerfile" ;;
     librarian) echo "apps/librarian/Dockerfile" ;;
+    dispatcher) echo "apps/dispatcher/Dockerfile" ;;
     browser) echo "apps/browser/Dockerfile" ;;
     *) return 1 ;;
   esac
@@ -211,7 +212,7 @@ image_dockerfile() {
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected gateway, worker, smelter, weaver, archivist, librarian, or browser)"
+    fail "Unknown image: $img (expected gateway, worker, smelter, weaver, archivist, librarian, dispatcher, or browser)"
     exit 1
   fi
 done
