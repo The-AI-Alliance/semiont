@@ -165,10 +165,18 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
 }
 
 /**
- * The Archivist as it composes itself: its real roster through
- * `attachServicePumps`, over a plane-backed stand-in for HttpTransport.
+ * A roster-based service as it composes itself: its real inbound/outbound sets
+ * through `attachServicePumps`, over a plane-backed stand-in for HttpTransport.
+ *
+ * Parameterised by roster rather than hardcoded to one service, so a case can
+ * ask the same question of whichever service owns the channels it cares about.
  */
-function archivistOver(plane: SignalPlane): { localBus: EventBus; close(): void } {
+function serviceOver(
+  plane: SignalPlane,
+  name: string,
+  inbound: readonly (keyof EventMap)[],
+  outbound: readonly (keyof EventMap)[],
+): { localBus: EventBus; close(): void } {
   const localBus = new EventBus();
   const subjects = new Map<string, Subject<BusFrame<unknown>>>();
   const subjectFor = (channel: string) => {
@@ -178,8 +186,8 @@ function archivistOver(plane: SignalPlane): { localBus: EventBus; close(): void 
   };
 
   const sub = plane.subscribeClient({
-    address: toReplyAddress('tier2-archivist'),
-    global: [...ARCHIVIST_INBOUND_CHANNELS],
+    address: toReplyAddress(`tier2-${name}`),
+    global: [...inbound],
     scoped: [],
     onFrame: (channel, payload, envelope) =>
       subjectFor(channel).next({ payload, correlationId: envelope.meta?.correlationId } as BusFrame<unknown>),
@@ -195,13 +203,7 @@ function archivistOver(plane: SignalPlane): { localBus: EventBus; close(): void 
     }) as PumpTransport['emit'],
   };
 
-  const pumps = attachServicePumps({
-    transport,
-    localBus,
-    inbound: ARCHIVIST_INBOUND_CHANNELS,
-    outbound: ARCHIVIST_OUTBOUND_CHANNELS,
-    logger: { error: () => {} },
-  });
+  const pumps = attachServicePumps({ transport, localBus, inbound, outbound, logger: { error: () => {} } });
 
   return {
     localBus,
@@ -212,6 +214,10 @@ function archivistOver(plane: SignalPlane): { localBus: EventBus; close(): void 
     },
   };
 }
+
+/** The Archivist, the only roster with a service to compose today. */
+const archivistOver = (plane: SignalPlane) =>
+  serviceOver(plane, 'archivist', ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS);
 
 async function twoInstances(): Promise<{ a: Instance; b: Instance; done(): void }> {
   const { servers } = await natsFixture();
