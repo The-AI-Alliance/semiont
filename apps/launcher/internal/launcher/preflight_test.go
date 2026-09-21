@@ -62,14 +62,12 @@ func testSecrets() map[string]string {
 }
 
 // stampedRoles: the flat `roles` the realm document stamps on this client's
-// token — DERIVED from serviceRolesClaim, so a healthy stub can never drift
-// from what the import renders. The worker carries the worker role too
+// token — DERIVED from serviceRoles, so a healthy stub can never drift from
+// what the import renders. The worker carries the worker role too
 // (EXTRACT-JOBS P0); restating `[serviceRole]` here would be a second copy of
 // that fact, and the one that silently goes stale.
 func stampedRoles(clientID string) []string {
-	var roles []string
-	_ = json.Unmarshal([]byte(serviceRolesClaim(strings.TrimPrefix(clientID, "semiont-"))), &roles)
-	return roles
+	return serviceRoles(strings.TrimPrefix(clientID, "semiont-"))
 }
 
 // (a) A refused grant names the client. The realm has no such account, or its
@@ -155,12 +153,56 @@ func TestPreflightPassesOnTheLiveShape(t *testing.T) {
 	}
 }
 
-// A single-string aud is legal OIDC and some issuers emit it. An operator
-// federating their own issuer must not be refused for that.
-func TestPreflightAcceptsScalarAudience(t *testing.T) {
+// (e) EXTRACT-JOBS P0: the dispatcher admits a job:claim only from a token
+// carrying the worker role, and the worker's agent tokens are stamped with it
+// only if the worker's OWN service token carried it at the mint. A realm
+// imported before P0 has a roles mapper on semiont-worker that renders just the
+// service role: every client authenticates, every other check passes, and the
+// worker can never claim a job. That is a broken deployment, not a realm that
+// merely predates a change, so it refuses. Observed live 2026-09-21: the
+// gateway minted the worker's agents with `worker:false` and the dispatcher
+// re-announced one job every 30s, forever, with nothing in any log saying why.
+func TestPreflightRefusesAWorkerThatCannotClaim(t *testing.T) {
+	// The pre-P0 realm: every token carries exactly the service role.
 	srv := stubIssuer(t, func(string) (int, string) {
 		return 200, grantBody(map[string]any{
 			"roles": []string{serviceRole},
+			"aud":   []string{testAudience, "account"},
+		})
+	})
+
+	findings, _ := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
+
+	// One finding — the worker's. The other clients carry exactly what the
+	// realm document gives them; asking the worker role of them would refuse
+	// every healthy realm.
+	if len(findings) != 1 {
+		t.Fatalf("want exactly one finding (the worker's), got %d: %v", len(findings), findings)
+	}
+	f := findings[0]
+	if f.svc != "worker" {
+		t.Fatalf("finding names %q, want the worker", f.svc)
+	}
+	// The ROLE is asserted on the reason, not on String(): the worker's client
+	// id is also "semiont-worker", so String() would match the role string by
+	// coincidence and prove nothing.
+	if !strings.Contains(f.reason, workerRole) {
+		t.Errorf("reason does not name the missing role %q: %q", workerRole, f.reason)
+	}
+	if !strings.Contains(f.reason, "claim") {
+		t.Errorf("reason does not say what the worker cannot do (claim jobs): %q", f.reason)
+	}
+	if !strings.Contains(f.fix, "mapper") {
+		t.Errorf("fix does not point at the client's roles mapper: %q", f.fix)
+	}
+}
+
+// A single-string aud is legal OIDC and some issuers emit it. An operator
+// federating their own issuer must not be refused for that.
+func TestPreflightAcceptsScalarAudience(t *testing.T) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		return 200, grantBody(map[string]any{
+			"roles": stampedRoles(clientID),
 			"aud":   testAudience,
 		})
 	})
@@ -524,10 +566,10 @@ func TestFlagProbesSendNoCredential(t *testing.T) {
 // service-account token is what the realm really stamps, and the only reading
 // available without administrator credentials.
 
-func lifespanToken(t *testing.T, seconds int) string {
+func lifespanToken(t *testing.T, clientID string, seconds int) string {
 	t.Helper()
 	return grantBody(map[string]any{
-		"roles": []string{serviceRole},
+		"roles": stampedRoles(clientID),
 		"aud":   []string{testAudience, "account"},
 		"iat":   1700000000,
 		"exp":   1700000000 + seconds,
@@ -535,7 +577,7 @@ func lifespanToken(t *testing.T, seconds int) string {
 }
 
 func TestPreflightReadsTheRealmsActualLifespan(t *testing.T) {
-	srv := stubIssuer(t, func(string) (int, string) { return 200, lifespanToken(t, 900) })
+	srv := stubIssuer(t, func(clientID string) (int, string) { return 200, lifespanToken(t, clientID, 900) })
 
 	findings, observed := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
 
@@ -570,7 +612,9 @@ func TestTokenLifespanIsZeroWhenUnreadable(t *testing.T) {
 // The realm agreeing with the config must read as agreement, not as a warning
 // nobody can act on.
 func TestPreflightLifespanMatchesWhenTheRealmAgrees(t *testing.T) {
-	srv := stubIssuer(t, func(string) (int, string) { return 200, lifespanToken(t, keycloakAccessTokenLifespan) })
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		return 200, lifespanToken(t, clientID, keycloakAccessTokenLifespan)
+	})
 
 	_, observed := verifyServiceAccounts(srv.URL, testAudience, testSecrets())
 

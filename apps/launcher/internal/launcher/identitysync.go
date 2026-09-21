@@ -194,6 +194,67 @@ func updateClient(base, realm, token, uuid string, patch map[string]any) error {
 	return nil
 }
 
+// reconcileRolesMapper brings an existing service client's roles mapper to
+// what the realm document renders for it now. The mapper is a sub-resource
+// with its own endpoint — a client-level PUT does not reach it — and it is
+// updated IN PLACE, by id, so the client ends with one `roles` claim, not two.
+// A client with no such mapper is left alone: that is a hand-built client the
+// preflight already refuses by name, and inventing its mapper here would be
+// asserting something about an issuer this launcher did not configure.
+//
+// Returns what changed, for the report; "" when the mapper already agrees.
+func reconcileRolesMapper(base, realm, token, svc string, c existingClient) (string, error) {
+	want := serviceRolesClaim(svc)
+	mappers, _ := c.rep["protocolMappers"].([]any)
+	for _, m := range mappers {
+		mapper, _ := m.(map[string]any)
+		if mapper["name"] != serviceRoleMapperName {
+			continue
+		}
+		cfg, _ := mapper["config"].(map[string]any)
+		have, _ := cfg["claim.value"].(string)
+		if have == want {
+			return "", nil
+		}
+		id, _ := mapper["id"].(string)
+		if id == "" {
+			return "", fmt.Errorf("the %q mapper carries no id to update it by", serviceRoleMapperName)
+		}
+		if cfg == nil {
+			cfg = map[string]any{}
+		}
+		cfg["claim.value"] = want
+		mapper["config"] = cfg
+		if err := updateClientMapper(base, realm, token, c.uuid, id, mapper); err != nil {
+			return "", err
+		}
+		return fmt.Sprintf("roles mapper now renders %s (was %s)", want, have), nil
+	}
+	return "", nil
+}
+
+// updateClientMapper: PUT one protocol mapper by id. Keycloak wants the whole
+// representation back, id included.
+func updateClientMapper(base, realm, token, uuid, mapperID string, mapper map[string]any) error {
+	b, err := json.Marshal(mapper)
+	if err != nil {
+		return err
+	}
+	req, _ := http.NewRequest(http.MethodPut,
+		base+"/admin/realms/"+realm+"/clients/"+uuid+"/protocol-mappers/models/"+mapperID, bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("content-type", "application/json")
+	resp, err := adminHTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
+}
+
 // syncServiceClients reconciles `realm` against `serviceClients`.
 //
 // `adminBase` is Keycloak's root as this process can reach it (the launcher's
@@ -215,8 +276,21 @@ func reconcileServiceClients(base, realm, token, audience string, secretFor func
 	var rep syncReport
 	for _, svc := range serviceClients {
 		id := serviceClientID(svc)
-		if _, ok := have[id]; ok {
-			rep.present = append(rep.present, id)
+		if c, ok := have[id]; ok {
+			// Present — but the client the import WOULD render may have gained
+			// a role since this one was created (EXTRACT-JOBS P0 gave the
+			// worker one), and the preflight refuses a realm whose mapper
+			// still renders the old value. The secret is never reconciled:
+			// sync cannot know it.
+			change, err := reconcileRolesMapper(base, realm, token, svc, c)
+			if err != nil {
+				return rep, fmt.Errorf("updating %s: %w", id, err)
+			}
+			if change != "" {
+				rep.updated = append(rep.updated, id+": "+change)
+			} else {
+				rep.present = append(rep.present, id)
+			}
 			continue
 		}
 		if err := createClient(base, realm, token, serviceAccountClient(svc, secretFor(svc), audience)); err != nil {

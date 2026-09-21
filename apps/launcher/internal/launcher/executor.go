@@ -746,16 +746,16 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		// naming a verb and leave the sequence to be inferred.
 		if managed {
 			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.bold("semiont identity sync"))
-			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("Adds the missing clients. Touches no accounts."))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("Adds the missing clients and reconciles an existing one's roles mapper. Touches no accounts."))
 			fmt.Fprintln(os.Stderr, "")
 			fmt.Fprintf(os.Stderr, "  Then:    %s\n", x.u.bold("semiont start"))
 			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("This start again, which will then get past this gate."))
 			fmt.Fprintln(os.Stderr, "")
 			// The case sync cannot repair, said plainly rather than left for
-			// the operator to discover by looping. reconcileServiceClients
-			// skips a client that already exists — it never reconciles the
-			// secret — so "already correct" on a client named above is not
-			// success, it is the other cause.
+			// the operator to discover by looping. On a client that already
+			// exists reconcileServiceClients touches only the roles mapper —
+			// it never reconciles the secret — so "already correct" on a
+			// client named above is not success, it is the other cause.
 			fmt.Fprintln(os.Stderr, "  If sync reports a client above as already correct rather than created, that")
 			fmt.Fprintln(os.Stderr, "  client exists with a DIFFERENT secret, which sync does not change. Delete it")
 			fmt.Fprintln(os.Stderr, "  in the Keycloak admin console and run sync again.")
