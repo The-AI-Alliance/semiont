@@ -62,6 +62,7 @@ type executor interface {
 	dumpLogs(container, svc string)                                                                  // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string)                                      // record /v1/models metadata; warn on unlisted
 	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one
+	preflightBrowserRedirect(issuerBase string, port int) bool                                       // the realm will redirect to the port the Browser is being moved to
 	ensureModels(base string, models []modelNeed)                                                    // pull configured ollama models that are absent
 	stateMounts(role, image, root string) ([]string, bool)                                           // persistent-state run args; !ok = refuse (data written by another image)
 	stateMountsShared(role, root string) ([]string, bool)                                            // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
@@ -687,6 +688,23 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	saveStack(x.st)
 }
 
+// preflightBrowserRedirect refuses a port move the realm cannot follow.
+//
+// Refuses rather than warning, unlike the same condition inside
+// preflightIdentity: there the stack is on :3000 and works, so a pinned realm
+// is something to know about later. Here the operator has ASKED for the port
+// the realm will not redirect to, and proceeding produces a healthy Browser
+// nobody can sign in to — the failure this whole preflight exists to prevent.
+func (x *liveExec) preflightBrowserRedirect(issuerBase string, port int) bool {
+	f, bad := verifyBrowserRedirect(issuerBase, port)
+	if !bad {
+		return true
+	}
+	x.u.fail("The realm will not redirect to the port this Browser is being moved to.")
+	fmt.Fprintln(os.Stderr, "  "+f.String())
+	return false
+}
+
 // preflightIdentity refuses the start when the realm will not honour the
 // credentials this run is about to inject, or when nobody would be able to
 // sign in through it.
@@ -1226,6 +1244,12 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 	if wantLifespan > 0 {
 		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was imported with another", wantLifespan)
 	}
+	return true
+}
+
+func (x *planExec) preflightBrowserRedirect(issuerBase string, port int) bool {
+	x.c("authorization request at %s as %s — require a redirect to http://localhost:%d/en/auth/callback, the port this move puts the Browser on",
+		issuerBase, browserClientID, port)
 	return true
 }
 

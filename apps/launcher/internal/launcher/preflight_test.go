@@ -199,6 +199,7 @@ type publicStub struct {
 	authRedirect  string // authorization endpoint 302s here instead of rendering
 	authHits      *int32 // incremented each time the authorization endpoint is reached
 	pkceOptional  bool   // authorization endpoint serves the login page with no code challenge
+	implicitOn    bool   // authorization endpoint accepts response_type=token
 	passwordGrant string // token endpoint allows the resource-owner grant for this client
 }
 
@@ -241,9 +242,18 @@ func stubPublicIssuer(t *testing.T, s publicStub) *httptest.Server {
 			http.Error(w, "Invalid parameter: redirect_uri", 400)
 			return
 		}
+		// A realm with the implicit flow DISABLED refuses response_type=token
+		// outright; one that allows it serves the login page, and the token
+		// then comes back in a redirect fragment.
+		if r.URL.Query().Get("response_type") == "token" && !s.implicitOn {
+			http.Redirect(w, r, r.URL.Query().Get("redirect_uri")+"?error=unsupported_response_type", http.StatusFound)
+			return
+		}
 		// A realm REQUIRING PKCE refuses a request carrying no code challenge,
-		// and delivers that refusal as a redirect to the callback.
-		if !s.pkceOptional && r.URL.Query().Get("code_challenge") == "" {
+		// and delivers that refusal as a redirect to the callback. It binds the
+		// CODE to its requester, so it is not asked of an implicit request —
+		// there is no code to exchange.
+		if r.URL.Query().Get("response_type") == "code" && !s.pkceOptional && r.URL.Query().Get("code_challenge") == "" {
 			http.Redirect(w, r, r.URL.Query().Get("redirect_uri")+"?error=invalid_request", http.StatusFound)
 			return
 		}
@@ -554,5 +564,76 @@ func TestPreflightLifespanMatchesWhenTheRealmAgrees(t *testing.T) {
 
 	if observed != keycloakAccessTokenLifespan {
 		t.Fatalf("got %d, want %d", observed, keycloakAccessTokenLifespan)
+	}
+}
+
+// The implicit flow hands the access token back in a redirect FRAGMENT, where
+// it lands in browser history and any script on the page. The realm document
+// disables it on every client, but a realm imported before that line — or an
+// issuer someone configured by hand — can have it on, and nothing said so.
+//
+// Fatal, not a warning (user, 2026-09-20). Its siblings here are posture
+// findings about a realm that is merely behind; this one is a live way to leak
+// a bearer token, and a stack that starts is a stack that leaks it.
+func TestPublicClientsRefuseWhenImplicitFlowIsEnabled(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{implicitOn: true})
+	f, ok := implicitFinding(verifyPublicClients(srv.URL))
+	if !ok {
+		t.Fatal("a realm accepting response_type=token produced no finding")
+	}
+	if f.warnOnly {
+		t.Error("the implicit flow must refuse the start, not warn past it")
+	}
+	if f.clientID != browserClientID {
+		t.Errorf("finding names %q, want the Browser client", f.clientID)
+	}
+}
+
+// The control. Without it this passes against a probe that reports every realm.
+func TestPublicClientsDoNotReportImplicitWhenDisabled(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{})
+	if f, ok := implicitFinding(verifyPublicClients(srv.URL)); ok {
+		t.Fatalf("a realm refusing response_type=token was reported: %q", f.reason)
+	}
+}
+
+func implicitFinding(findings []publicClientFinding) (publicClientFinding, bool) {
+	for _, f := range findings {
+		if strings.Contains(strings.ToLower(f.reason), "implicit") {
+			return f, true
+		}
+	}
+	return publicClientFinding{}, false
+}
+
+// `semiont start --service browser --port N` moves the Browser to a port the
+// realm may not redirect to. The portless loopback entry (RFC 8252 §7.3) is
+// what makes any port work, and it is exactly what a realm imported before
+// that line, or edited by hand, does not have. Without this check the port
+// move succeeds, the Browser is healthy, and nobody can sign in.
+func TestBrowserRedirectRefusedOnAPinnedRealm(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{pinnedPort: true})
+	if _, bad := verifyBrowserRedirect(srv.URL, 61234); !bad {
+		t.Fatal("a realm pinned to :3000 accepted a move to :61234")
+	}
+	if _, bad := verifyBrowserRedirect(srv.URL, 3000); bad {
+		t.Error("the port the realm DOES accept was reported")
+	}
+}
+
+// An issuer nobody can reach is not evidence the realm pins the port. The
+// Browser belongs to no stack, so moving it with nothing running is ordinary
+// and must not be refused on a probe that never got an answer.
+func TestBrowserRedirectDoesNotBlockOnAnUnreachableIssuer(t *testing.T) {
+	if f, bad := verifyBrowserRedirect("http://127.0.0.1:1/unreachable", 61234); bad {
+		t.Fatalf("an unreachable issuer blocked the port move: %q", f.reason)
+	}
+}
+
+// A realm registered portlessly takes any port — the whole point of §7.3.
+func TestBrowserRedirectAcceptedOnAPortlessRealm(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{})
+	if f, bad := verifyBrowserRedirect(srv.URL, 61234); bad {
+		t.Fatalf("a portless realm refused :61234: %q", f.reason)
 	}
 }

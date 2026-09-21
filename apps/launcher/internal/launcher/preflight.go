@@ -171,11 +171,55 @@ func (f publicClientFinding) String() string {
 // during the probe — but the one a default start uses is the honest choice.
 const probeRedirect = "http://localhost:3000/en/auth/callback"
 
+// The two response types these probes ask for. `code` is the flow the Browser
+// must use; `token` is the one it must not be offered.
+const (
+	responseCode  = "code"
+	responseToken = "token"
+)
+
 // probeRedirectOtherPort: the same callback on a port no default start uses.
 // A realm that registers loopback WITHOUT a port (RFC 8252 §7.3, which is what
 // keycloakRealmJSON writes) accepts this; one that pins `localhost:3000` does
 // not. So a rejection here dates the realm rather than condemning it.
 const probeRedirectOtherPort = "http://localhost:61234/en/auth/callback"
+
+// verifyBrowserRedirect: can this realm redirect to the port the Browser is
+// about to move to?
+//
+// `--service browser --port N` is the one flow that changes the redirect URI
+// without touching the realm, and until this existed it was also the one flow
+// that never asked. The loopback entries are registered PORTLESS so any port
+// matches (RFC 8252 §7.3) — but a realm imported before that line, or edited
+// by hand, pins :3000, and then the move produces a healthy Browser nobody can
+// sign in to. `verifyPublicClients` reports the same condition as a WARNING,
+// because a stack on the default port still works; here the operator has
+// asked for the port that does not, so it refuses.
+//
+// Narrow on purpose: this flow starts no service account and no CLI, so it
+// checks the one thing it is about to change.
+// Refuses ONLY on a positive answer: the realm was asked and declined. Every
+// other outcome — issuer unreachable, no authorization endpoint, probe error —
+// is "cannot tell", and cannot tell must not block. The Browser is
+// machine-level and belongs to no stack (BROWSER-LIFECYCLE), so moving it with
+// nothing running is ordinary; refusing then would make an absent realm a
+// reason not to move a viewer that does not need one yet.
+func verifyBrowserRedirect(issuerBase string, port int) (publicClientFinding, bool) {
+	eps, err := discoverEndpoints(issuerBase)
+	if err != nil || eps.authorization == "" {
+		return publicClientFinding{}, false
+	}
+	redirect := fmt.Sprintf("http://localhost:%d/en/auth/callback", port)
+	code, err := authorizationProbe(eps.authorization, browserClientID, redirect, responseCode, withPKCE)
+	if err != nil || code == http.StatusOK {
+		return publicClientFinding{}, false // unreachable, or accepted
+	}
+	return publicClientFinding{
+		clientID: browserClientID,
+		reason:   fmt.Sprintf("the realm will not redirect to %s (HTTP %d)", redirect, code),
+		fix:      fmt.Sprintf("this realm pins the Browser to :3000 — it predates the portless loopback redirect (RFC 8252 §7.3). Re-import it, add `http://localhost/*` to the client, or run `semiont identity sync`; the Browser would start on :%d and no one could sign in", port),
+	}, true
+}
 
 // verifyPublicClients proves the two clients PEOPLE authenticate through.
 //
@@ -253,7 +297,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			fix:      "nobody could sign in from a browser against this issuer",
 		})
 	} else if browserExists {
-		if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, withPKCE); err != nil {
+		if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, responseCode, withPKCE); err != nil {
 			findings = append(findings, publicClientFinding{clientID: browserClientID, reason: err.Error()})
 		} else if code != http.StatusOK {
 			findings = append(findings, publicClientFinding{
@@ -262,7 +306,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 				fix:      "its registered redirect URIs do not cover the Browser; sign-in would fail at the issuer",
 			})
 		} else {
-			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirectOtherPort, withPKCE); err == nil && code != http.StatusOK {
+			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirectOtherPort, responseCode, withPKCE); err == nil && code != http.StatusOK {
 				findings = append(findings, publicClientFinding{
 					clientID: browserClientID,
 					warnOnly: true,
@@ -275,7 +319,21 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 			// challenge with an error; one that does not serves the login page,
 			// and the code flow is then interceptable for a public client that
 			// holds no secret.
-			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, withoutPKCE); err == nil && code == http.StatusOK {
+			// The IMPLICIT flow returns the access token in the redirect
+			// FRAGMENT, where browser history and any script on the page can
+			// read it. A realm with it disabled refuses `response_type=token`
+			// outright; one that allows it serves the login page. Fatal rather
+			// than a warning: its neighbours here describe a realm that is
+			// merely behind, while this one is a live way to leak a bearer
+			// token, and a stack that starts is a stack that leaks it.
+			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, responseToken, withoutPKCE); err == nil && code == http.StatusOK {
+				findings = append(findings, publicClientFinding{
+					clientID: browserClientID,
+					reason:   "the realm allows the IMPLICIT flow — an authorization request with response_type=token is accepted",
+					fix:      "set `implicitFlowEnabled` to false on this client; the access token would come back in a redirect fragment rather than through the code exchange",
+				})
+			}
+			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, responseCode, withoutPKCE); err == nil && code == http.StatusOK {
 				findings = append(findings, publicClientFinding{
 					clientID: browserClientID,
 					warnOnly: true,
@@ -365,9 +423,9 @@ func deviceGrantProbe(endpoint, clientID string) (int, string, error) {
 // Redirects are NOT followed. Some authorization errors are returned by
 // redirecting to the registered callback, and following that would have the
 // launcher issue a request against the Browser's own port mid-start.
-func authorizationProbe(endpoint, clientID, redirectURI string, pkce bool) (int, error) {
+func authorizationProbe(endpoint, clientID, redirectURI, responseType string, pkce bool) (int, error) {
 	q := url.Values{
-		"response_type": {"code"},
+		"response_type": {responseType},
 		"scope":         {"openid"},
 		"client_id":     {clientID},
 		"redirect_uri":  {redirectURI},
