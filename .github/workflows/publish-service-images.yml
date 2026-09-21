@@ -60,6 +60,9 @@ jobs:
           - service: librarian
             dockerfile: apps/librarian/Dockerfile
             verify_packages: '@semiont/make-meaning'
+          - service: dispatcher
+            dockerfile: apps/dispatcher/Dockerfile
+            verify_packages: '@semiont/make-meaning'
 
     steps:
       - name: Checkout repository

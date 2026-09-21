@@ -147,6 +147,34 @@ export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
   ? 'in-census'
   : LibrarianAwaitCensusDrift = 'in-census';
 
+// ── Dispatcher (EXTRACT-JOBS P2) ──────────────────────────────────────
+//
+// The dispatcher owns the job queue and answers the job:* lifecycle commands,
+// moved off the gateway (they were GATEWAY_HANDLER_CHANNELS/EMITS). It awaits
+// NO wire reply — the queue reaches JetStream directly, not over the bus — so
+// there is no await census here; its gates are the pinned inbound roster and
+// the "the gateway hosts no job:* handler" census (EXTRACT-JOBS C2). Two
+// disjoint pumps on the archivist pattern, never bridgeInto.
+
+/** The job:* command channels the dispatcher subscribes to. */
+export const DISPATCHER_INBOUND_CHANNELS = [
+  'job:create', 'job:claim', 'job:complete', 'job:fail',
+  'job:report-progress', 'job:checkpoint', 'job:cancel-requested', 'job:cancel',
+  'job:status-requested',
+] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * The dispatcher's outbound pump: every reply DERIVED from BUS_OPERATIONS over
+ * the inbound set, plus one stray — `job:queued`, the QUEUE's own broadcast
+ * (JOB_QUEUE_EMITS in @semiont/jobs), which is no operation's reply and so is
+ * not derivable. Workers subscribe to it to learn a job is available. A stray
+ * for the same structural reason ARCHIVIST_OUTBOUND_STRAYS has its entries.
+ */
+export const DISPATCHER_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] = [
+  ...replyChannelsFor(DISPATCHER_INBOUND_CHANNELS),
+  'job:queued',
+];
+
 // ── Archivist ────────────────────────────────────────────────────────
 
 /**
