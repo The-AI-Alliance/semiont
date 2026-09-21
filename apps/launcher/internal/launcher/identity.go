@@ -161,6 +161,30 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 // same fields; a second copy there would have been a mirror of the realm
 // document, and the loopback rule below is exactly the kind of detail a
 // second copy loses.
+// natsConfPath: where the staged broker config is mounted. Fixed, so the plan
+// can name it without knowing where the launcher staged the file.
+const natsConfPath = "/etc/nats/semiont.conf"
+
+// natsConf: the broker's authorization block.
+//
+// It carries NO credential — only the two variable NAMES, which nats-server
+// interpolates from its own environment. That is what lets the values travel
+// the way every other service credential here does (the graph role hands neo4j
+// NEO4J_AUTH, the database role hands postgres POSTGRES_PASSWORD) instead of
+// on argv, where every process listing would carry them.
+//
+// nats-server reads no credential from the environment by itself, which is why
+// this file has to exist at all.
+func natsConf() []byte {
+	return []byte(`# Rendered by the Semiont launcher. Contains no secret: the values are
+# interpolated from this daemon's own environment at startup.
+authorization {
+  user: $NATS_USER
+  password: $NATS_PASSWORD
+}
+`)
+}
+
 func browserClient(audience, addr string) map[string]any {
 	c := publicClient(browserClientID, "Semiont Browser", audience)
 	c["standardFlowEnabled"] = true

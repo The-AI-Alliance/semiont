@@ -51,6 +51,7 @@ type executor interface {
 	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
 	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
 	stageRealm(realm string, doc []byte) (string, bool)  // the realm file Keycloak imports; returns its staged path
+	stageNatsConf(doc []byte) (string, bool)             // the broker's authorization block (no secret in it); returns its staged path
 	createDatabase(user, name string) bool               // a database on the launcher-run PostgreSQL, if absent
 	ollamaVolume(opts startOptions) string               // model-cache choice (prompt is live-only)
 	record(role, id, image, provided, endpoint, driver string)
@@ -573,6 +574,19 @@ func (x *liveExec) identityAdminPassword(root string) (string, bool) {
 
 func (x *liveExec) serviceClientSecret(root, svc string) (string, bool) {
 	return loadOrCreateServiceClientSecret(x.u, root, svc)
+}
+
+func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
+	stage, ok := x.stageDir()
+	if !ok {
+		return "", false
+	}
+	p := filepath.Join(stage, "nats-semiont.conf")
+	if err := os.WriteFile(p, doc, 0o644); err != nil {
+		x.u.fail("Cannot stage the broker config at %s: %v", p, err)
+		return "", false
+	}
+	return p, true
 }
 
 func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
@@ -1173,6 +1187,11 @@ func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
 // saying so after six service accounts joined. A restatement of someone else's
 // shape drifts the moment that shape grows; this cannot, because adding a
 // client to keycloakRealmJSON adds it here too.
+func (x *planExec) stageNatsConf(_ []byte) (string, bool) {
+	x.c("stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)")
+	return "<stage>/nats-semiont.conf", true
+}
+
 func (x *planExec) stageRealm(realm string, doc []byte) (string, bool) {
 	var parsed struct {
 		Clients []struct {

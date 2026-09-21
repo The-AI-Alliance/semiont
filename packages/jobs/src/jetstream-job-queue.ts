@@ -70,6 +70,14 @@ export const JOBS_STREAM_SUBJECTS = ['jobs.>'] as const;
 export interface JetStreamJobQueueOptions {
   /** NATS server address(es), e.g. "192.168.64.42:4222". */
   servers: string | string[];
+  /**
+   * Broker credentials (INTER-COMPONENT-ACCESS P3). The same broker the signal
+   * plane connects to, so the same pair. Absent means an unauthenticated
+   * broker — which is what every deployment had before this, and means anyone
+   * who can reach NATS can read and write the job stream.
+   */
+  user?: string;
+  pass?: string;
   /** Worker presumed dead after this long without progress (default 30 min). */
   staleRunningMs?: number;
   /** Lease redelivery window when THIS process stops heartbeating (default 30 s). */
@@ -119,6 +127,10 @@ export class JetStreamJobQueue implements JobQueue {
   async initialize(): Promise<void> {
     this.nc = await connect({
       servers: this.options.servers,
+      // The same broker as the signal plane, so the same credentials. Connect
+      // options rather than a URL: this address is logged on every reconnect.
+      ...(this.options.user === undefined ? {} : { user: this.options.user }),
+      ...(this.options.pass === undefined ? {} : { pass: this.options.pass }),
       reconnect: this.options.reconnect ?? true,
       timeout: 10_000,
     });

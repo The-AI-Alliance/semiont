@@ -257,7 +257,12 @@ app.route('/', resourcesRouter);
 const signalConfig = config.services.signal;
 const signalPlane =
   signalConfig?.type === 'nats'
-    ? await createNatsSignalPlane({ servers: evaluateEnvPlaceholders(signalConfig.servers ?? '') })
+    ? await createNatsSignalPlane({
+        servers: evaluateEnvPlaceholders(signalConfig.servers ?? ''),
+        // Credentials are optional: absent means an unauthenticated broker.
+        ...(signalConfig.user ? { user: evaluateEnvPlaceholders(signalConfig.user) } : {}),
+        ...(signalConfig.password ? { pass: evaluateEnvPlaceholders(signalConfig.password) } : {}),
+      })
     : undefined;
 logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-process' });
 

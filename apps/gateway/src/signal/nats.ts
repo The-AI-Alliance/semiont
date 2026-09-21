@@ -75,6 +75,20 @@ interface InboxEnvelope {
 
 export interface NatsSignalPlaneOptions extends SignalPlaneOptions {
   servers: string;
+  /**
+   * Broker credentials. Absent means an unauthenticated broker, which is what
+   * every deployment was until INTER-COMPONENT-ACCESS P3: anyone who could
+   * reach NATS could subscribe to every channel and emit on any of them, and
+   * the events on this plane are the distribution path of the system of
+   * record.
+   *
+   * Carried as connect OPTIONS rather than embedded in the server URL. The URL
+   * is logged — the connection-status watcher below prints it on every
+   * reconnect — and a credential in it would be in every operator's terminal
+   * and every captured log.
+   */
+  user?: string;
+  pass?: string;
   /** Passed through to the client; the conformance fixture disables it. */
   reconnect?: boolean;
 }
@@ -98,6 +112,8 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
   const options = resolveSignalPlaneOptions(opts);
   const nc: NatsConnection = await connect({
     servers: opts.servers,
+    ...(opts.user === undefined ? {} : { user: opts.user }),
+    ...(opts.pass === undefined ? {} : { pass: opts.pass }),
     // The plane's recovery story is "restart the broker manually" (Live
     // gate, broker-down protocol) — so the client retries FOREVER. The
     // library default (10 attempts, ~20 s) closed the connection

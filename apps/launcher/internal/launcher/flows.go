@@ -341,6 +341,17 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 		}
+		// An authenticated broker needs its authorization block; the plan already
+		// points `-c` at the fixed path, so all that is left is putting the file
+		// there. The file holds no secret — the credentials arrive as the
+		// daemon's environment, like every other service credential here.
+		if role == "messaging" && len(rp.CmdExtra) > 0 {
+			conf, ok := x.stageNatsConf(natsConf())
+			if !ok {
+				return 1
+			}
+			extra = append(extra, "-v", conf+":"+natsConfPath+":ro")
+		}
 		var svcSecrets map[string]string
 		if role == "identity" {
 			kc, secrets, ok := identityRunExtras(x, fc, addr)

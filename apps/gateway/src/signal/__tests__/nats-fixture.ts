@@ -55,6 +55,32 @@ export async function waitForServer(port: number, proc: ChildProcess): Promise<v
   }
 }
 
+/**
+ * A server that REQUIRES a user and password, for the authentication gate.
+ * Not shared: the point of it is that a client without credentials is refused,
+ * so it must not be reachable by the suites that connect anonymously.
+ *
+ * Credentials go on argv here because this is a throwaway on a free port. The
+ * launcher stages a config file instead — argv is visible in every process
+ * listing, and that is the one place a real broker password must not appear.
+ */
+export async function authenticatedNatsFixture(
+  user: string,
+  pass: string,
+): Promise<NatsFixture> {
+  const port = await freePort();
+  const server = spawn('nats-server', ['-p', String(port), '-a', '127.0.0.1', '--user', user, '--pass', pass], {
+    stdio: 'ignore',
+  });
+  await waitForServer(port, server);
+  return {
+    servers: `127.0.0.1:${port}`,
+    stop() {
+      server.kill();
+    },
+  };
+}
+
 let shared: Promise<NatsFixture> | undefined;
 
 /** One core-only server per test file, shared across the suite's makes. */
