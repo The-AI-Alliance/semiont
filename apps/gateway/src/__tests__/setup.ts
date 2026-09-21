@@ -33,6 +33,12 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
         port: 4000,
         publicURL: 'http://localhost:4000',
       },
+      // Mandatory: the gateway asserts at boot that it can reach the record.
+      archivist: {
+        platform: { type: 'external' as const },
+        host: 'localhost',
+        port: 24103,
+      },
       filesystem: {
         platform: { type: 'posix' as const },
         path: testDir,
@@ -85,6 +91,9 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
 // test-env hygiene gate rejects exports nothing reads.
 process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
+// This process's own service account; boot refuses without it.
+process.env.SEMIONT_OIDC_CLIENT_ID = 'semiont-gateway';
+process.env.SEMIONT_OIDC_CLIENT_SECRET = 'test-gateway-client-secret';
 
 // The KB's own committed config. Written SYNCHRONOUSLY here, not in
 // `beforeAll`: boot reads it when a test file imports the app, which for some

@@ -1,6 +1,11 @@
 import { beforeAll, afterAll } from 'vitest';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
+// Module scope, not beforeAll: a test file that imports the app at import time
+// boots before any hook runs, and boot refuses without a service account.
+process.env.SEMIONT_OIDC_CLIENT_ID = 'semiont-gateway';
+process.env.SEMIONT_OIDC_CLIENT_SECRET = 'test-gateway-client-secret';
+
 // Global test setup and teardown
 let testEnv: TestEnvironmentConfig | null = null;
 
