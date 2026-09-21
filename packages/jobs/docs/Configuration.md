@@ -2,32 +2,52 @@
 
 Setup and deployment options for `@semiont/jobs`.
 
-## Basic Setup
+## Selecting a driver
+
+The queue is chosen in configuration, not in code. **JetStream is what the fleet deploys**; both
+shipped KB configs select it.
+
+```toml
+[environments.local.jobs]
+type    = "jetstream"
+servers = "${NATS_HOST}:4222"
+```
+
+- `type` — `"jetstream"` or `"fs"`. **Required whenever a `[jobs]` section exists**: a section
+  naming no type is refused at load rather than defaulting, because a silently-chosen queue is
+  how a stack ends up on the wrong one.
+- `servers` — required for `jetstream`; `${NATS_HOST}` is staged by the launcher.
+
+With **no `[jobs]` section at all**, `FsJobQueue` is constructed. That is the only place the
+choice is inferred.
+
+See [JobQueue.md](./JobQueue.md) for what the two drivers guarantee and how they differ.
+
+## Basic Setup (the `fs` driver)
 
 ```typescript
 import { FsJobQueue } from '@semiont/jobs';
 import { EventBus } from '@semiont/core';
-import { SemiontProject } from '@semiont/core/node';
+import { SemiontState } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
-const queue = new FsJobQueue(project, logger, eventBus);
+const queue = new FsJobQueue(state, logger, eventBus);
 await queue.initialize();
 ```
 
-### SemiontProject
+### SemiontState
 
-`FsJobQueue` takes a `SemiontProject` and stores jobs under `project.jobsDir` (`{stateDir}/jobs/`). The project computes all of its paths from the project root and XDG environment variables at construction time:
+`FsJobQueue` takes a `SemiontState` and stores jobs under `state.jobsDir` (`{stateDir}/jobs/`). It reads exactly that one path — the process that owns the queue mounts no KB tree, and taking a `SemiontState` rather than a `SemiontProject` is what says so in the type. State computes its paths from XDG environment variables at construction time:
 
 ```typescript
-const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
-project.jobsDir; // → {XDG_STATE_HOME}/semiont/{name}/jobs/
+const state = new SemiontState({ name: 'my-kb' });
+state.jobsDir; // → {XDG_STATE_HOME}/semiont/{name}/jobs/
 ```
 
 ## Directory Structure
 
 ```
-{project.jobsDir}/
+{state.jobsDir}/
   pending/        # Jobs waiting to be processed
   running/        # Jobs currently being processed
   complete/       # Successfully completed jobs
@@ -65,7 +85,7 @@ const adapter = startWorkerProcess({
 
 The job queue and the workers run in different processes:
 
-- `startMakeMeaning(project, config, eventBus, logger, options?)` in `@semiont/make-meaning` creates the `FsJobQueue` and registers the bus command handlers. It does **not** create or manage annotation workers.
+- `startMakeMeaning(project, config, eventBus, logger, options?)` in `@semiont/make-meaning` creates the configured job queue driver and registers the bus command handlers. It does **not** create or manage annotation workers.
 - Workers run as a **separate process**, started by `worker-main.ts` → `startWorkerProcess(...)`. That process authenticates as a software agent, claims jobs over the bus, and emits lifecycle events back.
 
 ```typescript
@@ -125,7 +145,7 @@ For the queue itself, call `queue.getStats()` to report job counts by status.
 ### Permission Errors
 
 ```bash
-# Check directory ownership (jobs live under project.jobsDir)
+# Check directory ownership (jobs live under state.jobsDir)
 ls -la "$XDG_STATE_HOME/semiont/<project-name>/jobs/"
 
 # Fix permissions

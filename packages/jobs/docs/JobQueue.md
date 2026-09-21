@@ -1,13 +1,67 @@
 # JobQueue API Guide
 
-The `FsJobQueue` class manages the lifecycle of jobs in a filesystem-based queue. Jobs are persisted as JSON files organized by status in separate directories. (`JobQueue` is the interface it implements.)
+`JobQueue` is an **interface with two drivers**. Which one runs is a configuration choice, not a
+code path:
 
-## Overview
+| driver | what it is | where it runs |
+|---|---|---|
+| `JetStreamJobQueue` | NATS JetStream — a durable stream for delivery and lease, a key-value bucket for state | **What the fleet deploys.** Both shipped KB configs select it |
+| `FsJobQueue` | JSON files in status-named directories on the state mount | Kept as a first-class second implementation, not deployed |
 
-The FsJobQueue uses a status-directory pattern where jobs are stored in directories named after their status:
+JetStream is what ships. The durability properties — a job surviving the process that was running
+it, two gateways sharing one queue, leases redelivered when a holder dies — come from the broker
+rather than from code maintained here.
+
+`FsJobQueue` is **demoted, not retired**. It exists so the interface keeps describing a queue
+rather than ossifying into one implementation's shape; a driver interface with a single
+implementation stops being an interface. It works only while exactly one process owns the
+directory: two processes over one volume race on cross-directory moves, and over separate volumes
+they are two disjoint queues. Both failures are silent.
+
+## Selecting a driver
+
+```toml
+[environments.local.jobs]
+type    = "jetstream"
+servers = "${NATS_HOST}:4222"
+```
+
+`type` is required whenever a `[jobs]` section exists — a section naming no type is refused at
+load rather than falling through to a default, because the driver is a deployment decision and a
+silent one is how a stack ends up on the wrong queue. `servers` is required for `jetstream`.
+
+**With no `[jobs]` section at all**, `jobQueueFor` constructs `FsJobQueue`. That is the one place
+the selection is inferred rather than stated, and it is why a config that means to deploy
+JetStream must say so.
+
+## The claim is atomic, and by type
+
+```ts
+claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }>
+```
+
+Two properties the interface states and both drivers must honour:
+
+- **Simultaneous claims admit exactly one winner.** Losers are *declined*, not errored —
+  `{ declined: 'none-available' }` is an ordinary outcome, not a failure to handle.
+- **Claiming is by job type, not by job id.** A `job:queued` announcement is a wake-up, not a
+  reservation, so two workers waking on the same announcement take different jobs instead of
+  contending for one.
+
+Under JetStream, atomicity is a compare-and-swap against a key-value revision; a delivered
+message *is* the lease the holder carries, heartbeats extend it, and a process that dies stops
+heartbeating so the work is redelivered. Worker death is a separate failure with its own sweep.
+
+---
+
+## `FsJobQueue`
+
+The rest of this document describes the filesystem driver specifically.
+
+It uses a status-directory pattern where jobs are stored in directories named after their status:
 
 ```
-{project.jobsDir}/
+{state.jobsDir}/
   ├── pending/      # Jobs waiting to be processed
   ├── running/      # Jobs currently being processed
   ├── complete/     # Successfully completed jobs
@@ -24,15 +78,15 @@ Jobs transition between statuses by moving between directories (atomic delete + 
 ```typescript
 import { FsJobQueue } from '@semiont/jobs';
 import { EventBus, type Logger } from '@semiont/core';
-import type { SemiontProject } from '@semiont/core/node';
+import type { SemiontState } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const queue = new FsJobQueue(project, logger, eventBus);
+const queue = new FsJobQueue(state, logger, eventBus);
 await queue.initialize();
 ```
 
 **Parameters:**
-- `project: SemiontProject` — the project whose `project.jobsDir` is used as the base directory for job storage (status subdirectories live under it)
+- `state: SemiontState` — the queue reads exactly one path, `state.jobsDir`, and the process that owns it mounts no KB tree. A `SemiontState` rather than a `SemiontProject` is the type-level statement of that
 - `logger: Logger` — structured logger instance
 - `eventBus?: EventBus` — optional EventBus for emitting `job:queued` events on job creation
 
@@ -76,7 +130,7 @@ await queue.createJob(job);
 ```
 
 **Behavior:**
-- Writes job to `{project.jobsDir}/{status}/{jobId}.json`
+- Writes job to `{state.jobsDir}/{status}/{jobId}.json`
 - Creates parent directories if needed
 - Overwrites if job with same ID already exists at that status
 - If status is `pending`, the EventBus is provided, and job params contain `resourceId`, emits a `job:queued` announcement for immediate worker pickup
