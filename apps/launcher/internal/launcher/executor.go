@@ -705,9 +705,16 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		}
 		fmt.Fprintln(os.Stderr, "")
 		fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so one created before")
-		fmt.Fprintln(os.Stderr, "  these clients existed will not have them. For an issuer you run yourself,")
-		fmt.Fprintln(os.Stderr, "  create one client per service and supply its secret as")
-		fmt.Fprintln(os.Stderr, "  SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>.")
+		fmt.Fprintln(os.Stderr, "  these clients existed will not have them.")
+		fmt.Fprintln(os.Stderr, "")
+		// The repair, named rather than described (IDENTITY-PREFLIGHT P3).
+		// Every realm-shape change used to add a paragraph of console steps
+		// here; a new client now costs a line in `serviceClients` instead.
+		fmt.Fprintln(os.Stderr, "  For a realm this launcher runs:  semiont identity sync")
+		fmt.Fprintln(os.Stderr, "  It adds the missing clients and touches no accounts.")
+		fmt.Fprintln(os.Stderr, "")
+		fmt.Fprintln(os.Stderr, "  For an issuer you run yourself, create one client per service and supply")
+		fmt.Fprintln(os.Stderr, "  its secret as SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>.")
 		return false
 	}
 	x.u.log("Service accounts: %s", x.u.dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))

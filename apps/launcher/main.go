@@ -34,6 +34,7 @@ Identity & auth:
   login     Sign in through the knowledge base's issuer (device grant; tokens stored, never a password)
   logout    End the stored session (server best-effort, local token forgotten)
   secret    Register where config secrets come from (pointers, never values)
+  identity  Reconcile a running realm's service-account clients (identity sync)
 
 Knowledge base (need login):
   browse    Read the KB: resources, annotations, entity types
@@ -98,6 +99,8 @@ func main() {
 		code = launcher.Listen(rest)
 	case "secret":
 		code = launcher.Secret(rest)
+	case "identity":
+		code = launcher.Identity(rest)
 	case "status":
 		code = launcher.Status(rest)
 	case "logs":
