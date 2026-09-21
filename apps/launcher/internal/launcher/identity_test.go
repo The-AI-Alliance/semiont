@@ -15,9 +15,22 @@ type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
 `
 
-func TestDerivePlanIdentityAbsent(t *testing.T) {
-	plan := mustDerive(t, variantConfig(t, nil))
-	checkRole(t, plan, "identity", rolePlan{Obligation: obligationAbsent})
+// MANDATORY (user, 2026-09-21). Absence used to derive an ABSENT identity
+// role, which produced a stack nobody could sign in to: no person, because
+// there are no keys to verify against; no sidecar, because the agent-minter
+// refuses before it mints; and a gateway that cannot reach its own record,
+// because dialling the Archivist needs a service-account token.
+func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
+	p := variantConfig(t, map[string]string{"identity": ""}) // empty drops the section
+	env, envName, _, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if _, err := derivePlan(env, envName, p); err == nil {
+		t.Fatal("a config with no identity section was accepted")
+	} else if !strings.Contains(err.Error(), "every knowledge base trusts an issuer") {
+		t.Errorf("error does not explain why: %v", err)
+	}
 }
 
 func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {

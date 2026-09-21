@@ -82,3 +82,7 @@ port = 5432
 name = "semiont"
 user = "postgres"
 password = "localpass"
+
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"

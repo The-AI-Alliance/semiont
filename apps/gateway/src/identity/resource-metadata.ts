@@ -1,5 +1,4 @@
 import type { Context } from 'hono';
-import { trustedIssuer } from './trusted-issuer';
 
 export const PROTECTED_RESOURCE_METADATA_PATH = '/.well-known/oauth-protected-resource';
 
@@ -14,8 +13,6 @@ export function bearerChallenge(c: Context, error?: 'invalid_token'): string {
   if (error) {
     params.push(`error="${error}"`);
   }
-  if (trustedIssuer()) {
-    params.push(`resource_metadata="${new URL(c.req.url).origin}${PROTECTED_RESOURCE_METADATA_PATH}"`);
-  }
+  params.push(`resource_metadata="${new URL(c.req.url).origin}${PROTECTED_RESOURCE_METADATA_PATH}"`);
   return params.length ? `Bearer ${params.join(', ')}` : 'Bearer';
 }

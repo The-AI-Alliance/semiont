@@ -515,7 +515,38 @@ export function loadTomlConfig(
     );
   }
 
+  // MANDATORY (user, 2026-09-21). A knowledge base without a trusted issuer
+  // can authenticate nobody: no person, because there are no keys to verify
+  // against; no sidecar, because `authorizeAgentMinter` refuses before it
+  // mints; and it cannot reach its own record, because dialling the Archivist
+  // needs a service-account token. It was optional only because nothing had
+  // forced the question — the one caller that relied on absence was a test
+  // harness, not a deployment.
+  if (!resolved.identity) {
+    throw new Error(
+      `[environments.${resolvedEnvironment}] names no identity section — add [environments.${resolvedEnvironment}.identity] with type and issuer. Every knowledge base trusts an issuer: without one nobody can sign in, no sidecar can obtain an agent token, and the gateway cannot reach the Archivist.`,
+    );
+  }
+  {
+    if (!resolved.identity.type) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no type — add type = "keycloak" or "oidc". Semiont selects the identity provider from config; nothing is inferred.`,
+      );
+    }
+    if (!resolved.identity.issuer) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section refuses at load, never falls through.`,
+      );
+    }
+  }
+  const identity = {
+    type: resolved.identity.type,
+    issuer: resolved.identity.issuer,
+  } as EnvironmentConfig['services']['identity'];
+
+
   const services: EnvironmentConfig['services'] = {
+    identity,
     vectors: {
       platform: { type: 'external' as PlatformType },
       type: resolved.vectors.type,
@@ -609,23 +640,6 @@ export function loadTomlConfig(
   // identifier, derived from its committed did:web domain (`kbResource`), so
   // it cannot be configured into disagreement with the identity the KB
   // already publishes.
-  if (resolved.identity) {
-    if (!resolved.identity.type) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.identity] names no type — add type = "keycloak" or "oidc". Semiont selects the identity provider from config; nothing is inferred.`,
-      );
-    }
-    if (!resolved.identity.issuer) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section refuses at load, never falls through.`,
-      );
-    }
-    services.identity = {
-      type: resolved.identity.type,
-      issuer: resolved.identity.issuer,
-    };
-  }
-
   // No browser service is emitted. The Browser is machine-level — one Browser
   // serves many KBs — so a KB neither knows nor affects its port or publicURL
   // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are

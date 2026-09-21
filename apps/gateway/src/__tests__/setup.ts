@@ -23,6 +23,11 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@semiont/core/node')>()),
   loadEnvironmentConfig: vi.fn((_projectRoot: string, _env: string): EnvironmentConfig => ({
     services: {
+      // Mandatory (user, 2026-09-21): every knowledge base trusts an issuer.
+      identity: {
+        type: 'keycloak' as const,
+        issuer: 'http://localhost:8080/realms/semiont',
+      },
       gateway: {
         platform: { type: 'posix' as const },
         port: 4000,

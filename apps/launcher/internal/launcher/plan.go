@@ -700,9 +700,14 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	// provided — launched with the staged realm, its database on the
 	// PostgreSQL the [database] section names (D6). Any other host, and
 	// every oidc issuer, is external: verified, never launched.
-	if id := env.Identity; id == nil {
-		plan.Roles["identity"] = rolePlan{Role: "identity", Obligation: obligationAbsent}
-	} else {
+	// MANDATORY (user, 2026-09-21). Absence used to mean "no identity role",
+	// which produced a stack nobody could sign in to and whose gateway could
+	// not reach its own record — a shape only a test harness ever wanted.
+	if env.Identity == nil {
+		return nil, secErr("identity", "no section — every knowledge base trusts an issuer; add type and issuer")
+	}
+	{
+		id := env.Identity
 		switch id.Type {
 		case "":
 			return nil, secErr("identity", "missing required key %q", "type")

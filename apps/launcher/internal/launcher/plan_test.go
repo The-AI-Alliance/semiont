@@ -64,6 +64,10 @@ type = "ollama"
 model = "nomic-embed-text"
 baseURL = "http://${OLLAMA_HOST}:11434"
 `,
+		"identity": `[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+`,
 		"inference": `[environments.local.inference.anthropic]
 platform = "external"
 endpoint = "https://api.anthropic.com"

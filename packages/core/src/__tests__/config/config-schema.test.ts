@@ -29,13 +29,15 @@ if (!validate) throw new Error('ServicesConfig definition not found in config.sc
 const VECTORS = { type: 'qdrant', host: 'localhost', port: 6333 };
 const EMBEDDING = { type: 'ollama', model: 'nomic-embed-text' };
 
-describe('config schema — vectors and embedding are mandatory, explicitly (D0+D1)', () => {
+const IDENTITY = { type: 'keycloak', issuer: 'http://localhost:8080/realms/semiont' };
+
+describe('config schema — vectors, embedding and identity are mandatory, explicitly (D0+D1)', () => {
   it('a services section naming both validates', () => {
-    expect(validate({ vectors: VECTORS, embedding: EMBEDDING })).toBe(true);
+    expect(validate({ vectors: VECTORS, embedding: EMBEDDING, identity: IDENTITY })).toBe(true);
   });
 
   it('memory is a first-class named store choice, not a fallback', () => {
-    expect(validate({ vectors: { type: 'memory' }, embedding: EMBEDDING })).toBe(true);
+    expect(validate({ vectors: { type: 'memory' }, embedding: EMBEDDING, identity: IDENTITY })).toBe(true);
   });
 
   it('a services section missing vectors fails validation', () => {

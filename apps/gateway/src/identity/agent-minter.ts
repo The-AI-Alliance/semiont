@@ -55,10 +55,6 @@ export async function authorizeAgentMinter(authorization: string | undefined): P
   }
 
   const issuer = trustedIssuer();
-  if (!issuer) {
-    throw new AgentMinterRefused('Agent token rejected: this knowledge base trusts no issuer');
-  }
-
   let claims;
   try {
     claims = await issuer.verify(bearer as AccessToken);

@@ -980,7 +980,8 @@
       },
       "required": [
         "vectors",
-        "embedding"
+        "embedding",
+        "identity"
       ],
       "additionalProperties": true
     },

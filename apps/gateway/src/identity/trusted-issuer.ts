@@ -1,12 +1,20 @@
 import type { EnvironmentConfig } from '@semiont/core';
 import { IssuerVerifier } from '@semiont/core/identity';
 
-let verifier: IssuerVerifier | null = null;
+let verifier: IssuerVerifier | undefined;
 
 /**
  * The issuer the gateway trusts for human tokens — `services.identity`,
- * applied once at startup (and by tests). No section means no trusted
- * issuer: only gateway-signed tokens authenticate.
+ * applied once at startup (and by tests).
+ *
+ * `[identity]` is MANDATORY (user, 2026-09-21), so there is always one. It was
+ * optional until the config loaders were made to refuse its absence, and what
+ * that bought was a gateway nobody could sign in to: no person, because there
+ * were no keys to verify against; no sidecar, because the agent-minter refuses
+ * before it mints; and no access to its own record, because dialling the
+ * Archivist needs a service-account token. Four callers carried a
+ * "what if there is no issuer" branch for a configuration only a test harness
+ * ever produced.
  *
  * `audience` is NOT config: it is this knowledge base's own resource
  * identifier, derived from the committed did:web domain (`kbResource`). It
@@ -18,12 +26,19 @@ let verifier: IssuerVerifier | null = null;
  * deployment that looks correct.
  */
 export function configureTrustedIssuer(
-  identity: EnvironmentConfig['services']['identity'],
+  identity: NonNullable<EnvironmentConfig['services']['identity']>,
   audience: string,
 ): void {
-  verifier = identity ? new IssuerVerifier({ issuer: identity.issuer, audience }) : null;
+  verifier = new IssuerVerifier({ issuer: identity.issuer, audience });
 }
 
-export function trustedIssuer(): IssuerVerifier | null {
+/**
+ * Throws when called before `configureTrustedIssuer` — a programming error,
+ * not a configuration one. Config absence is refused at load.
+ */
+export function trustedIssuer(): IssuerVerifier {
+  if (!verifier) {
+    throw new Error('trustedIssuer() called before configureTrustedIssuer() — the gateway must configure its issuer at startup');
+  }
   return verifier;
 }

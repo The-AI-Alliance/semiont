@@ -263,20 +263,5 @@ describe('POST /api/tokens/agent', () => {
       expect(response.status).toBe(400);
     });
 
-    /**
-     * 401, not a distinct status. A deployment trusting no issuer is
-     * configuration state, and answering an unverified caller differently here
-     * would tell them something about this gateway that they have not earned —
-     * and would put a hole in the route-coverage contract, which requires every
-     * non-public route to answer 401.
-     */
-    it('returns 401, not a configuration status, when no issuer is trusted', async () => {
-      const bearer = await sidecarToken();
-      configureTrustedIssuer(undefined, AUDIENCE);
-
-      const response = await mint({ provider: 'ollama', model: 'gemma2:27b' }, bearer);
-
-      expect(response.status).toBe(401);
-    });
   });
 });

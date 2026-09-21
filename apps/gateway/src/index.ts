@@ -134,7 +134,16 @@ let committedKbDomain: string;
 // two cannot be configured into disagreement — and a disagreement here refuses
 // every token while looking like a working deployment.
 const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
-configureTrustedIssuer(config.services.identity, kbResource(committedKbDomain));
+// `[identity]` is mandatory (user, 2026-09-21): the loaders refuse a config
+// without it, so this is an assertion that they did, not a fallback.
+const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => {
+  const configured = config.services.identity;
+  if (!configured) {
+    throw new Error('services.identity is required — every knowledge base trusts an issuer');
+  }
+  return configured;
+})();
+configureTrustedIssuer(identity, kbResource(committedKbDomain));
 
 const gatewayService = config.services.gateway;
 
@@ -240,22 +249,16 @@ app.use('*', requestLoggerMiddleware);   // Log requests third
  * It used to be read inside `archivistAddress`, so the gateway never named the
  * credential it depends on and nothing could supply a different one.
  *
- * LAZY, and memoized. A knowledge base with no `[identity]` section is a
- * supported configuration — `configureTrustedIssuer` treats it as "no trusted
- * issuer, only gateway-signed tokens authenticate" — so resolving eagerly
- * would refuse to boot a gateway that is merely never going to dial the
- * Archivist. That also keeps the failure exactly where it was before this
- * became a parameter: at the first read, naming what is missing.
+ * Memoized rather than eager only because the ENVIRONMENT half can be absent
+ * in a process that never dials the Archivist — the issuer half is guaranteed,
+ * since `[identity]` is mandatory and the loaders refuse a config without it.
  */
 let resolvedArchivistCredential: ServiceAccountCredential | undefined;
 function archivistCredential(): ServiceAccountCredential {
   if (resolvedArchivistCredential) {
     return resolvedArchivistCredential;
   }
-  const issuer = config.services?.identity?.issuer;
-  if (!issuer) {
-    throw new Error('services.identity.issuer is not configured — cannot authenticate to the Archivist');
-  }
+  const issuer = identity.issuer;
   const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
   const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
   if (!clientId || !clientSecret) {
