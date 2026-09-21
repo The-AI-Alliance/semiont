@@ -178,31 +178,46 @@ func (s *scenario) mustLog(t *testing.T) []byte {
 }
 
 // killServes reaps the detached port listeners fakert spawned for `run -d`,
-// waiting for each to actually die — the next test rebinds the same fixed
-// ports, and a merely-signalled process can still hold them for a beat.
+// waiting for each PORT to come free — the next test rebinds the same fixed
+// ports, and a merely-signalled process can still hold one for a beat.
+//
+// The wait is on the ports, not on the pids, because a pid wait cannot
+// succeed here: these listeners are spawned by the launcher (fakert's
+// `run -d`), so the test process is not their parent and never wait()s for
+// them. A killed orphan therefore stays a ZOMBIE — and a zombie still
+// answers kill(pid, 0) — so the old loop ran its full 3-second budget on
+// every call, about 200 times a suite. The ports are what the next test
+// needs anyway, and the kernel frees those at exit, zombie or not.
 func (s *scenario) killServes() {
 	pidfiles, _ := filepath.Glob(filepath.Join(s.fakertDir, "serve-*.pid"))
-	var pids []int
+	var ports []string
 	for _, pf := range pidfiles {
 		b, err := os.ReadFile(pf)
 		if err != nil {
 			continue
 		}
-		// Pidfiles are "pid\n<ports>" (fakert records the ports so its own
-		// stop can wait for their release) — parse the FIRST line only.
-		first := strings.SplitN(strings.TrimSpace(string(b)), "\n", 2)[0]
-		if pid, err := strconv.Atoi(strings.TrimSpace(first)); err == nil {
-			pids = append(pids, pid)
+		// Pidfiles are "pid\n<ports>" — fakert records the ports for exactly
+		// this wait (its own `stop` does the same).
+		lines := strings.SplitN(strings.TrimSpace(string(b)), "\n", 2)
+		if pid, err := strconv.Atoi(strings.TrimSpace(lines[0])); err == nil {
 			if p, err := os.FindProcess(pid); err == nil {
 				_ = p.Kill()
 			}
 		}
+		if len(lines) > 1 {
+			ports = append(ports, strings.Fields(lines[1])...)
+		}
 		_ = os.Remove(pf)
 	}
 	deadline := time.Now().Add(3 * time.Second)
-	for _, pid := range pids {
-		for time.Now().Before(deadline) && syscall.Kill(pid, 0) == nil {
-			time.Sleep(20 * time.Millisecond)
+	for _, p := range ports {
+		for time.Now().Before(deadline) {
+			ln, err := net.Listen("tcp", "127.0.0.1:"+p)
+			if err == nil {
+				_ = ln.Close()
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 }
@@ -1590,7 +1605,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 14 container(s) across container, docker, podman",
+		"Sweeping 15 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
