@@ -61,6 +61,17 @@ func testSecrets() map[string]string {
 	return m
 }
 
+// stampedRoles: the flat `roles` the realm document stamps on this client's
+// token — DERIVED from serviceRolesClaim, so a healthy stub can never drift
+// from what the import renders. The worker carries the worker role too
+// (EXTRACT-JOBS P0); restating `[serviceRole]` here would be a second copy of
+// that fact, and the one that silently goes stale.
+func stampedRoles(clientID string) []string {
+	var roles []string
+	_ = json.Unmarshal([]byte(serviceRolesClaim(strings.TrimPrefix(clientID, "semiont-"))), &roles)
+	return roles
+}
+
 // (a) A refused grant names the client. The realm has no such account, or its
 // secret differs from the one this run is about to inject — the F1 case, and
 // the one an operator hits on a realm that predates the service accounts.
@@ -70,7 +81,7 @@ func TestPreflightRefusesWhenGrantIsRefused(t *testing.T) {
 			return 401, `{"error":"invalid_client"}`
 		}
 		return 200, grantBody(map[string]any{
-			"roles": []string{serviceRole},
+			"roles": stampedRoles(clientID),
 			"aud":   []string{testAudience, "account"},
 		})
 	})
@@ -110,9 +121,9 @@ func TestPreflightRefusesNestedRolesClaim(t *testing.T) {
 // (c) The audience is the KB's own derived resource identity. A token carrying
 // someone else's is a realm built for a different knowledge base.
 func TestPreflightRefusesWrongAudience(t *testing.T) {
-	srv := stubIssuer(t, func(string) (int, string) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": []string{serviceRole},
+			"roles": stampedRoles(clientID),
 			"aud":   []string{"https://example.invalid/other-kb", "account"},
 		})
 	})
@@ -131,11 +142,11 @@ func TestPreflightRefusesWrongAudience(t *testing.T) {
 // ARRAY carrying the KB resource beside Keycloak's own "account". Membership,
 // not equality — an equality check fails on a healthy realm.
 func TestPreflightPassesOnTheLiveShape(t *testing.T) {
-	srv := stubIssuer(t, func(string) (int, string) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
 		return 200, grantBody(map[string]any{
-			"roles": []string{serviceRole},
+			"roles": stampedRoles(clientID),
 			"aud":   []string{testAudience, "account"},
-			"azp":   "semiont-weaver",
+			"azp":   clientID,
 		})
 	})
 
