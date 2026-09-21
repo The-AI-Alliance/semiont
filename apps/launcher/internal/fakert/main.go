@@ -1408,6 +1408,19 @@ func serve(ports []string) {
 						http.Error(w, "Invalid parameter: redirect_uri", 400)
 						return
 					}
+					// The realm the launcher provisions has the IMPLICIT flow
+					// disabled, and a realm with it disabled refuses
+					// response_type=token rather than serving the login page.
+					// Answering 200 to every response_type made this fake
+					// describe a realm that leaks bearer tokens in redirect
+					// fragments — which the identity preflight then correctly
+					// refused to start. The insecure realm has unit coverage
+					// (stubPublicIssuer{implicitOn: true}); this fake models
+					// the one the launcher actually creates.
+					if q.Get("response_type") == "token" {
+						http.Redirect(w, r, q.Get("redirect_uri")+"?error=unsupported_response_type", http.StatusFound)
+						return
+					}
 					w.Header().Set("Content-Type", "text/html")
 					w.WriteHeader(200)
 					_, _ = w.Write([]byte("<html><body>Sign in to semiont</body></html>"))

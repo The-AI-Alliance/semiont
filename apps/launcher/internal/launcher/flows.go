@@ -962,7 +962,13 @@ func flowOneService(x executor, fc flowCtx) int {
 		// Moving the Browser changes its redirect URI without touching the
 		// realm, so this is the one flow that has to ask whether the realm
 		// will follow. Only on a move: :3000 is what every realm registers.
-		if bp != 3000 {
+		//
+		// The nil plan is not a defensive check: the Browser is machine-level
+		// (BROWSER-LIFECYCLE), so `--service browser` is the one start that
+		// resolves no KB and therefore has no plan — the same case
+		// runStartService and serviceEndpoint already name. No config, no
+		// identity role, nothing to ask.
+		if bp != 3000 && fc.plan != nil {
 			if rp, ok := fc.plan.Roles["identity"]; ok && rp.Issuer != "" {
 				base := rp.Issuer
 				if rp.Obligation == obligationProvided {
