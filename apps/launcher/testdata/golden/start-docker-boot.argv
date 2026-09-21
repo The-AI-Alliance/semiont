@@ -21,6 +21,7 @@ lsof -nP -iTCP:7474 -sTCP:LISTEN
 lsof -nP -iTCP:7687 -sTCP:LISTEN
 lsof -nP -iTCP:6333 -sTCP:LISTEN
 lsof -nP -iTCP:5432 -sTCP:LISTEN
+lsof -nP -iTCP:8080 -sTCP:LISTEN
 lsof -nP -iTCP:4000 -sTCP:LISTEN
 lsof -nP -iTCP:24100 -sTCP:LISTEN
 lsof -nP -iTCP:24101 -sTCP:LISTEN
@@ -43,6 +44,8 @@ docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-prometh
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110:24110 --volume <config-stage>/collector.yaml:/etc/otelcol/config.yaml:ro otel/opentelemetry-collector:0.137.0
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 docker run --rm busybox:1.38.0 nc -z -w 2 host.docker.internal 5432
+docker exec -i semiont-postgres psql -U postgres -v ON_ERROR_STOP=1 -q
+docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-stage>/keycloak-semiont-realm.json:/opt/keycloak/data/import/semiont.json:ro -e KC_DB_URL=jdbc:postgresql://host.docker.internal:5432/keycloak --env KC_BOOTSTRAP_ADMIN_PASSWORD=1b2308fb0b9adaf676839133b55f4949 -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_DB_PASSWORD=localpass -e KC_BOOTSTRAP_ADMIN_USERNAME=admin quay.io/keycloak/keycloak:26.7.4 start-dev --import-realm
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-gateway --publish 4000:4000 --memory 2G --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env OTEL_EXPORTER_OTLP_ENDPOINT=http://host.docker.internal:4318 --env POSTGRES_HOST=host.docker.internal --env NEO4J_HOST=host.docker.internal --env NATS_HOST=host.docker.internal --env KEYCLOAK_HOST=host.docker.internal --env QDRANT_HOST=host.docker.internal --env OLLAMA_HOST=host.docker.internal --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway --env SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret --env JWT_SECRET=test-jwt-secret-0123456789abcdef --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-gateway:latest
 docker run --rm busybox:1.38.0 sh -c wget -q -O- http://host.docker.internal:4000/api/health
 docker run --log-opt max-size=10m --log-opt max-file=3 -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/data:/data -v <home>/.local/share/semiont/roots/example.github.io-test-kb/neo4j/logs:/logs -e NEO4J_AUTH=neo4j/localpass -e NEO4J_ACCEPT_LICENSE_AGREEMENT=yes neo4j:5.26.28-community
