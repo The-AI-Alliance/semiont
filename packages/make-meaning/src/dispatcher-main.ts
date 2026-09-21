@@ -22,23 +22,25 @@
  *   out — DISPATCHER_OUTBOUND_CHANNELS: every reply DERIVED from BUS_OPERATIONS
  *         over the inbound set, plus the queue's own `job:queued` broadcast.
  *
- * No KB mount, no graph, no vectors, no views, no content: unlike the other
- * make-meaning sidecars, the dispatcher touches none of the knowledge system.
- * It needs the gateway (its token and the plane), the messaging broker (the
- * JetStream queue), and — only for the fs job driver, the omission-reachable
- * fallback the deployed jetstream config does not use — the shared state mount.
+ * No KB mount, no graph, no vectors, no views, no content — and since D7 moved
+ * its two projection reads onto the bus, no state mount either: unlike the other
+ * make-meaning sidecars, the dispatcher touches none of the knowledge system and
+ * mounts nothing. It needs the gateway (its token and the plane) and the
+ * messaging broker (the JetStream queue). The fs job driver would still want a
+ * writable state tree, but the deployed config is jetstream; an fs driver
+ * reached without a mount fails loud in `stateDirFor` rather than writing to a
+ * fabricated home.
  *
  * Environment variables:
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
  *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the gateway.
- *   XDG_STATE_HOME             — the shared state mount (fs job driver's jobsDir).
  */
 
 import { Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
 import { EventBus, baseUrl as makeBaseUrl, withDeadline } from '@semiont/core';
-import { loadEnvironmentConfig, SemiontState } from '@semiont/core/node';
+import { loadEnvironmentConfig } from '@semiont/core/node';
 import { registerJobQueueProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
@@ -107,14 +109,19 @@ async function main() {
   });
 
   const localBus = new EventBus();
-  const state = new SemiontState({ name: kbName });
 
   // ── The queue ──────────────────────────────────────────────────────
   // Selected from config (jetstream in the deployed fleet). Its initialize()
   // connects to the messaging broker, so it takes the boot deadline: a slow
   // dependency on a restart-everything-at-once resume must make the process
   // EXIT rather than hang unhealthy (the archivist-main pattern).
-  const jobQueue = jobQueueFor(config.services.jobs, state, logger.child({ component: 'job-queue' }), localBus);
+  //
+  // Only the KB NAME goes in: the JetStream driver holds no state tree, so the
+  // deployed (jetstream) dispatcher needs no state mount. Only the fs driver
+  // builds a `SemiontState` — inside `jobQueueFor`, from this name — and an fs
+  // driver reached without a mount fails loud there rather than writing to a
+  // fabricated home (D7 removed the last non-fs reason for the mount).
+  const jobQueue = jobQueueFor(config.services.jobs, kbName, logger.child({ component: 'job-queue' }), localBus);
   await withDeadline('Job queue', STARTUP_CONNECT_TIMEOUT_MS, () => jobQueue.initialize(), RESTART_HINT);
 
   // Tier-3 observability: queue size by status. Exported by THIS process now,

@@ -7,7 +7,7 @@
 
 import { FsJobQueue, JetStreamJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
-import type { SemiontProject, SemiontState } from '@semiont/core/node';
+import { SemiontState, type SemiontProject } from '@semiont/core/node';
 import { EventBus, withDeadline, type Logger, type JobsServiceConfig, evaluateEnvPlaceholders } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
@@ -51,7 +51,12 @@ export interface MakeMeaningService {
 
 export function jobQueueFor(
   jobs: JobsServiceConfig | undefined,
-  state: SemiontState,
+  // Only the KB NAME, not a `SemiontState`: the JetStream driver needs no state
+  // tree, and constructing one eagerly would demand `XDG_STATE_HOME` (a state
+  // MOUNT) of a jetstream service that has none. So the fs driver — and only it
+  // — builds its `SemiontState` here, from the name, and an fs driver reached
+  // without a mount fails loud in that constructor (`stateDirFor`).
+  name: string,
   logger: Logger,
   eventBus: EventBus,
 ): JobQueue {
@@ -67,17 +72,17 @@ export function jobQueueFor(
       ...(jobs.password ? { pass: evaluateEnvPlaceholders(jobs.password) } : {}),
     }, logger, eventBus);
   }
-  return new FsJobQueue(state, logger, eventBus);
+  return new FsJobQueue(new SemiontState({ name }), logger, eventBus);
 }
 
 async function createJobQueue(
-  state: SemiontState,
+  name: string,
   jobs: JobsServiceConfig | undefined,
   eventBus: EventBus,
   logger: Logger,
 ): Promise<JobQueue> {
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = jobQueueFor(jobs, state, jobQueueLogger, eventBus);
+  const jobQueue = jobQueueFor(jobs, name, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // Tier 3 observability: report queue size by status. The provider is
@@ -297,7 +302,7 @@ export async function startMakeMeaning(
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
-  const jobQueue = await createJobQueue(project, config.services.jobs, eventBus, logger);
+  const jobQueue = await createJobQueue(project.name, config.services.jobs, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
 
   // Register the bus command handlers that translate caller-facing

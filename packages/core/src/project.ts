@@ -57,7 +57,21 @@ import { execFileSync } from 'child_process';
  * the constructor that also uses it, rather than being restated over there.
  */
 export function stateDirFor(name: string): string {
-  const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  // No fabricated default (CLAUDE.md: absence fails loudly). Every process that
+  // reaches its state tree through this — the Librarian, the Archivist, the fs
+  // job driver — runs in a container the launcher gives a state MOUNT and an
+  // explicit `XDG_STATE_HOME=/semiont-state`. Its absence means a service that
+  // needs state has no volume behind it — a misconfiguration — and writing to a
+  // manufactured `~/.local/state` would hide that behind an ephemeral path
+  // nobody chose. A service that needs no persistent state must not construct a
+  // SemiontState/SemiontProject in the first place.
+  const xdgState = process.env.XDG_STATE_HOME;
+  if (!xdgState) {
+    throw new Error(
+      'XDG_STATE_HOME is not set: a Semiont state tree has no safe default. The launcher sets it to ' +
+      'the mounted state volume; reaching state here without it is a misconfiguration.',
+    );
+  }
   return path.join(xdgState, 'semiont', name);
 }
 
