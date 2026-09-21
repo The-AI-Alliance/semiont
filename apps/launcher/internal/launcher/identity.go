@@ -155,35 +155,64 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 // including the values here. A deployment whose realm predates a change to this
 // function keeps the settings it was created with; adjusting those is a console
 // or admin-API job, not a restart.
-func keycloakRealmJSON(realm, audience, addr string, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
-	browser := publicClient(browserClientID, "Semiont Browser", audience)
-	browser["standardFlowEnabled"] = true
-	// Loopback entries carry NO PORT, which is what makes any port match.
-	//
-	// RFC 8252 §7.3 requires an authorization server to accept any port on a
-	// loopback redirect, because only software already on the user's machine can
-	// bind one — the port carries no security meaning there. Keycloak honours
-	// that rule, but only when the registered URI omits the port: pinning
-	// `localhost:3000` opts back out of it, and `semiont start --service browser
-	// --port 3001` then produces a healthy stack nobody can sign in to.
-	//
-	// The LAN address stays pinned. It is not loopback, so the rule does not
-	// apply and a wildcard port there would be a real widening.
-	browser["redirectUris"] = []string{
+// browserClient / cliClient: the two PUBLIC registrations, rendered once so
+// the realm import and `semiont identity sync` cannot disagree about them.
+// They were inline in keycloakRealmJSON until sync needed to reconcile the
+// same fields; a second copy there would have been a mirror of the realm
+// document, and the loopback rule below is exactly the kind of detail a
+// second copy loses.
+func browserClient(audience, addr string) map[string]any {
+	c := publicClient(browserClientID, "Semiont Browser", audience)
+	c["standardFlowEnabled"] = true
+	c["redirectUris"] = browserRedirectUris(addr)
+	c["webOrigins"] = []string{"+"}
+	c["attributes"] = map[string]string{
+		"pkce.code.challenge.method": "S256",
+		"post.logout.redirect.uris":  "+",
+	}
+	return c
+}
+
+// browserRedirectUris: loopback entries carry NO PORT, which is what makes any
+// port match.
+//
+// RFC 8252 §7.3 requires an authorization server to accept any port on a
+// loopback redirect, because only software already on the user's machine can
+// bind one — the port carries no security meaning there. Keycloak honours
+// that rule, but only when the registered URI omits the port: pinning
+// `localhost:3000` opts back out of it, and `semiont start --service browser
+// --port 3001` then produces a healthy stack nobody can sign in to.
+//
+// The LAN address stays pinned. It is not loopback, so the rule does not
+// apply and a wildcard port there would be a real widening.
+func browserRedirectUris(addr string) []string {
+	return []string{
 		"http://localhost/*",
 		"http://127.0.0.1/*",
 		"http://" + addr + ":3000/*",
 	}
-	browser["webOrigins"] = []string{"+"}
-	browser["attributes"] = map[string]string{
-		"pkce.code.challenge.method": "S256",
-		"post.logout.redirect.uris":  "+",
-	}
-	cli := publicClient(cliClientID, "Semiont launcher", audience)
-	cli["standardFlowEnabled"] = false
-	cli["attributes"] = map[string]string{
+}
+
+// loopbackRedirectUris: the subset sync guarantees. It adds these when absent
+// rather than replacing the list, because the LAN entry is deployment truth
+// this command cannot re-derive — and because removing nothing is what makes
+// sync safe to run against a realm someone has customised.
+func loopbackRedirectUris() []string {
+	return []string{"http://localhost/*", "http://127.0.0.1/*"}
+}
+
+func cliClient(audience string) map[string]any {
+	c := publicClient(cliClientID, "Semiont launcher", audience)
+	c["standardFlowEnabled"] = false
+	c["attributes"] = map[string]string{
 		"oauth2.device.authorization.grant.enabled": "true",
 	}
+	return c
+}
+
+func keycloakRealmJSON(realm, audience, addr string, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
+	browser := browserClient(audience, addr)
+	cli := cliClient(audience)
 	clients := []map[string]any{browser, cli}
 	// Ordered by `serviceClients`, not by map iteration: the rendered document
 	// is compared against a golden, and Go randomises map order.

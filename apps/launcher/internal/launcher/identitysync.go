@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 )
@@ -38,6 +39,159 @@ var adminHTTP = &http.Client{Timeout: 15 * time.Second}
 type syncReport struct {
 	created []string
 	present []string
+	updated []string // "<client>: what changed", and "<realm>: …" for realm settings
+}
+
+// syncRealm reconciles everything the preflight can detect.
+//
+// The pairing is the point: every finding `preflightIdentity` and
+// `verifyPublicClients` can produce needs a remedy here, or the promise that a
+// realm change costs a line in one function instead of a paragraph of console
+// steps holds for missing clients and nothing else.
+//
+// Still additive. It creates absent clients, ADDS absent redirect URIs, and
+// turns off a flow that should be off. It deletes no client, drops no redirect
+// URI a deployment added, and never reads or writes an account.
+func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan int, secretFor func(svc string) string) (syncReport, error) {
+	base := strings.TrimSuffix(adminBase, "/")
+	token, err := adminToken(base, adminUser, adminPass)
+	if err != nil {
+		return syncReport{}, err
+	}
+	rep, err := reconcileServiceClients(base, realm, token, audience, secretFor)
+	if err != nil {
+		return rep, err
+	}
+	if err := reconcilePublicClients(base, realm, token, &rep); err != nil {
+		return rep, err
+	}
+	if err := reconcileRealmSettings(base, realm, token, lifespan, &rep); err != nil {
+		return rep, err
+	}
+	return rep, nil
+}
+
+// reconcilePublicClients: the two registrations people sign in through.
+//
+// Two fields, both of which the preflight refuses or warns on: the loopback
+// redirect URIs that make `--port` work at all (RFC 8252 §7.3), and the
+// implicit flow, which would handballs the access token back in a redirect
+// fragment.
+func reconcilePublicClients(base, realm, token string, rep *syncReport) error {
+	clients, err := existingClients(base, realm, token)
+	if err != nil {
+		return err
+	}
+	for _, id := range []string{browserClientID, cliClientID} {
+		c, ok := clients[id]
+		if !ok {
+			continue // absent is a preflight refusal, not something to invent here
+		}
+		patch := map[string]any{}
+		var changes []string
+
+		if implicit, _ := c.rep["implicitFlowEnabled"].(bool); implicit {
+			patch["implicitFlowEnabled"] = false
+			changes = append(changes, "implicit flow disabled")
+		}
+		if id == browserClientID {
+			have := stringsOf(c.rep["redirectUris"])
+			missing := []string{}
+			for _, want := range loopbackRedirectUris() {
+				if !slices.Contains(have, want) {
+					missing = append(missing, want)
+				}
+			}
+			if len(missing) > 0 {
+				// APPENDED, never replaced: the LAN entry is deployment truth
+				// this command cannot re-derive.
+				patch["redirectUris"] = append(append([]string{}, have...), missing...)
+				changes = append(changes, "loopback redirect URIs added ("+strings.Join(missing, ", ")+")")
+			}
+		}
+		if len(patch) == 0 {
+			continue
+		}
+		if err := updateClient(base, realm, token, c.uuid, patch); err != nil {
+			return fmt.Errorf("updating %s: %w", id, err)
+		}
+		rep.updated = append(rep.updated, id+": "+strings.Join(changes, "; "))
+	}
+	return nil
+}
+
+// reconcileRealmSettings: the access-token lifetime, which IS the revocation
+// window. The preflight can only observe it (`exp - iat` on a token it just
+// minted) and warn; with admin credentials it is a field, and fixable.
+func reconcileRealmSettings(base, realm, token string, want int, rep *syncReport) error {
+	if want <= 0 {
+		return nil // nothing configured; the realm's own value stands
+	}
+	req, _ := http.NewRequest(http.MethodGet, base+"/admin/realms/"+realm, nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	resp, err := adminHTTP.Do(req)
+	if err != nil {
+		return fmt.Errorf("reading the realm settings: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("reading the realm settings: HTTP %d", resp.StatusCode)
+	}
+	var cfg map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&cfg); err != nil {
+		return fmt.Errorf("parsing the realm settings: %w", err)
+	}
+	have, ok := cfg["accessTokenLifespan"].(float64)
+	if ok && int(have) == want {
+		return nil
+	}
+	b, _ := json.Marshal(map[string]any{"accessTokenLifespan": want})
+	put, _ := http.NewRequest(http.MethodPut, base+"/admin/realms/"+realm, bytes.NewReader(b))
+	put.Header.Set("Authorization", "Bearer "+token)
+	put.Header.Set("content-type", "application/json")
+	pr, err := adminHTTP.Do(put)
+	if err != nil {
+		return fmt.Errorf("setting accessTokenLifespan: %w", err)
+	}
+	defer pr.Body.Close()
+	if pr.StatusCode != http.StatusNoContent && pr.StatusCode != http.StatusOK {
+		return fmt.Errorf("setting accessTokenLifespan: HTTP %d", pr.StatusCode)
+	}
+	rep.updated = append(rep.updated, fmt.Sprintf("<realm>: accessTokenLifespan %v → %d", cfg["accessTokenLifespan"], want))
+	return nil
+}
+
+func stringsOf(v any) []string {
+	raw, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(raw))
+	for _, e := range raw {
+		if s, ok := e.(string); ok {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func updateClient(base, realm, token, uuid string, patch map[string]any) error {
+	b, err := json.Marshal(patch)
+	if err != nil {
+		return err
+	}
+	req, _ := http.NewRequest(http.MethodPut, base+"/admin/realms/"+realm+"/clients/"+uuid, bytes.NewReader(b))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("content-type", "application/json")
+	resp, err := adminHTTP.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP %d", resp.StatusCode)
+	}
+	return nil
 }
 
 // syncServiceClients reconciles `realm` against `serviceClients`.
@@ -46,21 +200,22 @@ type syncReport struct {
 // own localhost form), not the issuer URL a token carries.
 func syncServiceClients(adminBase, realm, adminUser, adminPass, audience string, secretFor func(svc string) string) (syncReport, error) {
 	base := strings.TrimSuffix(adminBase, "/")
-
 	token, err := adminToken(base, adminUser, adminPass)
 	if err != nil {
 		return syncReport{}, err
 	}
+	return reconcileServiceClients(base, realm, token, audience, secretFor)
+}
 
-	have, err := existingClientIDs(base, realm, token)
+func reconcileServiceClients(base, realm, token, audience string, secretFor func(svc string) string) (syncReport, error) {
+	have, err := existingClients(base, realm, token)
 	if err != nil {
 		return syncReport{}, err
 	}
-
 	var rep syncReport
 	for _, svc := range serviceClients {
 		id := serviceClientID(svc)
-		if have[id] {
+		if _, ok := have[id]; ok {
 			rep.present = append(rep.present, id)
 			continue
 		}
@@ -98,7 +253,15 @@ func adminToken(base, user, pass string) (string, error) {
 	return body.AccessToken, nil
 }
 
-func existingClientIDs(base, realm, token string) (map[string]bool, error) {
+// existingClient: what the realm currently holds for one clientId. The uuid is
+// the admin API's own key, needed to update it; the representation is what a
+// reconciliation compares against.
+type existingClient struct {
+	uuid string
+	rep  map[string]any
+}
+
+func existingClients(base, realm, token string) (map[string]existingClient, error) {
 	req, _ := http.NewRequest(http.MethodGet, base+"/admin/realms/"+realm+"/clients", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	resp, err := adminHTTP.Do(req)
@@ -109,15 +272,17 @@ func existingClientIDs(base, realm, token string) (map[string]bool, error) {
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("listing the realm's clients: HTTP %d", resp.StatusCode)
 	}
-	var clients []struct {
-		ClientID string `json:"clientId"`
-	}
+	var clients []map[string]any
 	if err := json.NewDecoder(resp.Body).Decode(&clients); err != nil {
 		return nil, fmt.Errorf("reading the realm's client list: %w", err)
 	}
-	have := map[string]bool{}
+	have := map[string]existingClient{}
 	for _, c := range clients {
-		have[c.ClientID] = true
+		id, _ := c["clientId"].(string)
+		uuid, _ := c["id"].(string)
+		if id != "" {
+			have[id] = existingClient{uuid: uuid, rep: c}
+		}
 	}
 	return have, nil
 }

@@ -16,8 +16,9 @@ import (
 
 const identityUsage = `Usage: semiont identity sync [--root <path>] [--config <name>]
 
-Reconcile a running realm's service-account clients against the ones this
-knowledge base needs.
+Reconcile a running realm against what this knowledge base needs: the
+service-account clients, the loopback redirect URIs that let the Browser move
+port, the implicit flow (off), and the access-token lifetime.
 
 A realm is imported on its FIRST boot and never again, so a deployment that
 predates a service simply does not have that service's client — and
@@ -143,8 +144,9 @@ func Identity(args []string) int {
 	base := fmt.Sprintf("http://localhost:%d", rp.Port)
 	u.log("Reconciling realm %s at %s", u.bold(realm), base)
 
-	rep, err := syncServiceClients(base, realm, keycloakAdminUser, adminPass,
-		committedResource(root), func(svc string) string { return secrets[svc] })
+	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,
+		committedResource(root), rp.AccessTokenLifespan,
+		func(svc string) string { return secrets[svc] })
 	if err != nil {
 		u.fail("%v", err)
 		return 1
@@ -153,11 +155,15 @@ func Identity(args []string) int {
 	for _, id := range rep.created {
 		u.log("  created %s", u.bold(id))
 	}
-	if len(rep.created) == 0 {
-		u.ok("identity — every service client is already present (%d checked)", len(rep.present))
+	for _, change := range rep.updated {
+		u.log("  updated %s", u.bold(change))
+	}
+	if len(rep.created) == 0 && len(rep.updated) == 0 {
+		u.ok("identity — realm matches this knowledge base (%d clients checked)", len(rep.present))
 		return 0
 	}
-	u.ok("identity — %d client(s) created, %d already present", len(rep.created), len(rep.present))
+	u.ok("identity — %d created, %d updated, %d already correct",
+		len(rep.created), len(rep.updated), len(rep.present))
 	fmt.Fprintln(os.Stderr, "  Run `semiont start` again; the preflight will now find what it was missing.")
 	return 0
 }
