@@ -99,7 +99,7 @@
     "@vitest/coverage-v8": "^4.1.11",
     "autoprefixer": "^10.6.1",
     "axe-core": "^4.12.1",
-    "cssnano": "^9.0.1",
+    "cssnano": "^9.0.5",
     "fast-check": "^4.10.0",
     "jest-axe": "^11.0.0",
     "jsdom": "^30.0.0",
@@ -130,6 +130,6 @@
     "react-error-boundary": "^6.1.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "use-sync-external-store": "^1.6.0"
+    "use-sync-external-store": "^1.7.0"
   }
 }

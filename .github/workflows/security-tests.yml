@@ -120,7 +120,7 @@ jobs:
           pkill -f "node.*server.js" || true
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@v7.1.0
+        uses: codecov/codecov-action@v7.1.1
         if: always()
         with:
           file: ./apps/browser/coverage/lcov.info
@@ -383,7 +383,7 @@ jobs:
           pkill -f "node.*dist/index.js" || true
 
       - name: Upload test coverage
-        uses: codecov/codecov-action@v7.1.0
+        uses: codecov/codecov-action@v7.1.1
         if: always()
         with:
           file: ./apps/gateway/coverage/lcov.info
