@@ -289,8 +289,20 @@ func (s *scenario) norm(text string) string {
 	out := strings.ReplaceAll(text, s.kb, "<kb-root>")
 	out = stageRe.ReplaceAllString(out, "<config-stage>")
 	out = strings.ReplaceAll(out, s.home, "<home>")
+	// The Keycloak bootstrap admin password is GENERATED per root and
+	// persisted there, so it is different in every scenario and every run —
+	// a value that bakes into a golden which greens on refresh and reds
+	// forever after, exactly like the tmp dirs above. Plan mode already
+	// renders this placeholder (executor.go), so live and dry-run goldens
+	// now agree on the one line that cannot be a literal.
+	out = keycloakAdminPwRe.ReplaceAllString(out, "KC_BOOTSTRAP_ADMIN_PASSWORD=<keycloak-admin-password>")
 	return out
 }
+
+// Any generated value — the hex the launcher mints — but NOT a pinned one a
+// test set deliberately (KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin),
+// which is stable and worth asserting verbatim.
+var keycloakAdminPwRe = regexp.MustCompile(`KC_BOOTSTRAP_ADMIN_PASSWORD=[0-9a-f]{32}`)
 
 func checkGolden(t *testing.T, name, got string) {
 	t.Helper()
