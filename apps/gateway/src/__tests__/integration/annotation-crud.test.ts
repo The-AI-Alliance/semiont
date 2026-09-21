@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { stubKnowledgeBase } from '../helpers/make-meaning-mock';
+import { stubKnowledgeBase } from '../helpers/knowledge-base-stub';
 import { SemiontProject } from '@semiont/core/node';
 import type { components, EventOfType, Logger } from '@semiont/core';
 import { resourceId, annotationId, userId, EventBus } from '@semiont/core';

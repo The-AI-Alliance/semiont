@@ -50,18 +50,8 @@
  * middleware — each entry carries a one-line justification).
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
-import { makeMeaningMock } from './helpers/make-meaning-mock';
-
-// Mock make-meaning service to avoid graph initialization at import time
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
-  return {
-    ...actual,
-    startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
-  };
-});
 
 // Typed from the module under test rather than from a local restatement of its
 // context. The copy that stood here could only ever report that two

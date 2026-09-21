@@ -11,24 +11,15 @@
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
-import { makeMeaningMock } from './helpers/make-meaning-mock';
 
-// pdfjs (pulled in by the make-meaning mock's importOriginal) needs DOMMatrix
-// at module load; stub it in the hoist phase so this file runs in isolation.
+// pdfjs (pulled in transitively when the gateway's resources router loads
+// `ResourceOperations` from make-meaning) needs DOMMatrix at module load; stub
+// it in the hoist phase so this file runs in isolation.
 vi.hoisted(() => {
   const g = globalThis as unknown as Record<string, unknown>;
   g.DOMMatrix ??= class {};
   g.ImageData ??= class {};
   g.Path2D ??= class {};
-});
-
-// Mock make-meaning service to avoid graph initialization at import time
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as Record<string, unknown>;
-  return {
-    ...actual,
-    startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
-  };
 });
 
 // Typed from the module under test rather than from a local restatement of its

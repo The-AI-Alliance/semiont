@@ -33,40 +33,26 @@ export {
 };
 
 /**
- * Every channel the GATEWAY-RESIDENT handler subset SUBSCRIBES
- * (`registerGatewayBusHandlers`: bind-update-body + job-commands), complete
- * — in-process relays included — and maintained beside the handlers. The
- * gateway's signal bridge (SIGNAL-PLANE P3) consumes this to reconnect the
- * handlers to a remote plane, deriving the wire subset by direction from
- * the generated classification; the census gate beside these files
- * (gateway-handler-census.test.ts) pins list == actual subscriptions —
- * the gap that let `job:checkpoint`/`job:cancel` go unlisted here until
- * 2026-09-15.
+ * The `job:*` command channels `registerJobCommandHandlers` subscribes. Two
+ * consumers reference this ONE list rather than restating it: the in-process /
+ * embedding root (`HANDLER_CHANNELS` below, since `startMakeMeaning` registers
+ * the job handlers on its own bus) and the DISPATCHER's inbound roster
+ * (`service-channels.ts`) — the service that owns these handlers in the
+ * deployed fleet (EXTRACT-JOBS P2). The census gate beside these files
+ * (job-command-census.test.ts) pins list == actual subscriptions — the gap
+ * that let `job:checkpoint`/`job:cancel` go unlisted here until 2026-09-15.
  */
-export const GATEWAY_HANDLER_CHANNELS = [
-  // job-commands
+export const JOB_COMMAND_CHANNELS = [
   'job:create', 'job:claim', 'job:complete', 'job:fail',
   'job:report-progress', 'job:checkpoint', 'job:cancel-requested', 'job:cancel',
   'job:status-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
- * Every channel that same subset EMITS (`.next`), complete and censused the
- * same way. The bridge's outbound half: wire-bound entries leave the bus
- * through `plane.ingest`, so a handler's reply reaches a remote plane's
- * subscribers — the other half of the q0(a) funnel.
- */
-export const GATEWAY_HANDLER_EMITS = [
-  // job-commands
-  'job:created', 'job:create-failed', 'job:claimed', 'job:claim-failed',
-  'job:cancel-ok', 'job:cancel-failed', 'job:status-result', 'job:status-failed',
-] as const satisfies readonly (keyof EventMap)[];
-
-/**
  * Every channel the handlers above SUBSCRIBE — the handlers' half of the
  * root-parity gate (root-parity.test.ts), which asserts the in-process
- * composition root observes all of these. The gateway subset is DERIVED
- * from its own constant, not restated.
+ * composition root observes all of these. The job-command subset is DERIVED
+ * from `JOB_COMMAND_CHANNELS`, not restated.
  */
 export const HANDLER_CHANNELS = [
   // annotation-assembly
@@ -74,9 +60,9 @@ export const HANDLER_CHANNELS = [
   // annotation-lookups
   'browse:annotation-context-requested', 'gather:summary-requested',
   // bind-update-body — Archivist-resident now, but the in-process root still
-  // registers it, so it is listed here rather than reached via the gateway set.
+  // registers it, so it is listed here rather than reached via the job-command set.
   'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
-  ...GATEWAY_HANDLER_CHANNELS,
+  ...JOB_COMMAND_CHANNELS,
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
@@ -108,31 +94,5 @@ export function registerBusHandlers(
   );
   registerGatherSummaryHandler(eventBus, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, state, logger);
-}
-
-/**
- * The gateway's handler subset (EXTRACT-ARCHIVIST P3, EXTRACT-LIBRARIAN P3,
- * SINGLE-KB-MOUNT P3). Every handler that reads the KB is ABSENT, each
- * beside what it consumes: annotation-assembly follows the `mark:added` facts
- * its Stower produces (D2 i — registering it here too would double-emit
- * `mark:create` and double-append); gather-summary follows the Gatherer into
- * librarian-main; and **annotation-context followed the BYTES into
- * archivist-main** (SINGLE-KB-MOUNT D5). That last one sat here on the
- * premise that "the gateway is the byte path" (GATEWAY.md D4) — D1 reversed
- * the premise, so the conclusion went with it.
- *
- * What remains is the job queue the gateway hosts. The bind re-emit left for
- * the Archivist, where the Stower it drives already lives: the handler only
- * translates `bind:update-body` into `mark:update-body` and matches the reply,
- * so hosting it away from the Stower made the whole exchange cross the wire
- * twice for no reason.
- */
-export function registerGatewayBusHandlers(
-  eventBus: EventBus,
-  jobQueue: JobQueue,
-  state: SemiontState,
-  logger: Logger,
-): void {
   registerJobCommandHandlers(eventBus, jobQueue, state, logger);
 }

@@ -10,21 +10,15 @@
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
-// pdfjs (pulled in transitively by the make-meaning mock's importOriginal)
-// references DOMMatrix at module load; the node env lacks it. Stub it in the
-// hoist phase so this file runs in isolation.
+// pdfjs (pulled in transitively when the gateway's resources router loads
+// `ResourceOperations` from make-meaning) references DOMMatrix at module load;
+// the node env lacks it. Stub it in the hoist phase so this file runs in
+// isolation.
 vi.hoisted(() => {
   const g = globalThis as unknown as Record<string, unknown>;
   g.DOMMatrix ??= class {};
   g.ImageData ??= class {};
   g.Path2D ??= class {};
-});
-
-import { makeMeaningMock } from '../helpers/make-meaning-mock';
-
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@semiont/make-meaning')>();
-  return { ...actual, startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock()) };
 });
 
 import { app } from '../../index';

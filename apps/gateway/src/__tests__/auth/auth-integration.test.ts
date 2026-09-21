@@ -6,17 +6,6 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { userId } from '@semiont/core';
 
-import { makeMeaningMock } from '../helpers/make-meaning-mock';
-
-// Mock make-meaning service to avoid graph initialization at import time
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
-  };
-});
-
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
 import type { Principal } from '../../identity/principal';

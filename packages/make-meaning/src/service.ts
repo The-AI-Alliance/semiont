@@ -24,7 +24,7 @@ import { wireEnrichment } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
-import { registerBusHandlers, registerGatewayBusHandlers } from './handlers';
+import { registerBusHandlers } from './handlers';
 import { anchoredTextOverBus } from './anchored-text-ask';
 import { asBusRequestPrimitive } from './bus-request-local';
 
@@ -373,55 +373,9 @@ export async function connectRecord(
   };
 }
 
-// ─── Gateway composition root (EXTRACT-ARCHIVIST P3) ─────────────────────────
-
-export interface GatewayMakeMeaningService {
-  jobQueue: JobQueue;
-  /** Name + the state-mount paths. NOT a `SemiontProject`: the gateway
-   *  mounts no KB tree, and the type is what says so (SINGLE-KB-MOUNT P5). */
-  state:    SemiontState;
-  stop:     () => Promise<void>;
-}
-
-/**
- * The gateway's composition root: everything startMakeMeaning builds EXCEPT
- * the actors, which have all left. The Archivist (archivist-main) owns
- * Stower/Browser/CloneTokenManager, enrichment, the entity-type bootstrap +
- * warm, and the view rebuild; the Librarian (librarian-main) owns Matcher
- * and Gatherer (EXTRACT-LIBRARIAN P1/P3).
- *
- * What remains is the JOB QUEUE, and nothing else. It used to call
- * `connectStores` as well — a graph connection, a vector store, an embedding
- * provider, an event store, a working tree and an anchored-text store — and
- * SINGLE-KB-MOUNT P5 measured that **no consumer read any of it**: the whole
- * `kb` bundle existed to be constructed. Deleting it is what lets the gateway
- * take a `SemiontState` instead of a `SemiontProject`, and therefore what
- * lets P6 drop the `/kb` mount: the type no longer HAS a KB root to want.
- *
- * The job queue lives on the shared state mount (D6), so what is left needs
- * no tree at all.
- */
-export async function startMakeMeaningGateway(
-  state: SemiontState,
-  config: MakeMeaningConfig,
-  eventBus: EventBus,
-  logger: Logger,
-): Promise<GatewayMakeMeaningService> {
-  assertMakeMeaningConfig(config);
-
-  const jobQueue = await createJobQueue(state, config.services.jobs, eventBus, logger);
-
-  // The gateway's handler subset: annotation-assembly moved into the
-  // Archivist (D2 i) and gather-summary into the Librarian — each beside
-  // the actor it calls.
-  registerGatewayBusHandlers(eventBus, jobQueue, state, logger);
-
-  return {
-    jobQueue,
-    state,
-    stop: async () => {
-      logger.info('Stopping gateway make-meaning');
-      logger.info('Gateway make-meaning stopped');
-    },
-  };
-}
+// The gateway's composition root is gone (EXTRACT-JOBS P2/P3): the job queue
+// and the nine `job:*` handlers it hosted now live in the DISPATCHER
+// (dispatcher-main.ts), and the gateway routes `job:*` frames across the plane
+// to that process rather than answering them. `createJobQueue` and
+// `startMakeMeaning` above stay — the in-process / embedding / LocalTransport
+// root still plays gateway-AND-worker in one process and needs both.

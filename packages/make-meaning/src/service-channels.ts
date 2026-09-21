@@ -41,6 +41,7 @@ import type { AnchoredTextAskAwaits } from './anchored-text-ask';
 import { STOWER_CHANNELS } from './stower';
 import { BROWSER_CHANNELS } from './browser';
 import { CLONE_TOKEN_CHANNELS } from './clone-token-manager';
+import { JOB_COMMAND_CHANNELS } from './handlers';
 import type {
   SmelterResourceReadAwaits,
   SmelterAnnotationsReadAwaits,
@@ -150,17 +151,20 @@ export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
 // ── Dispatcher (EXTRACT-JOBS P2) ──────────────────────────────────────
 //
 // The dispatcher owns the job queue and answers the job:* lifecycle commands,
-// moved off the gateway (they were GATEWAY_HANDLER_CHANNELS/EMITS). It awaits
-// NO wire reply — the queue reaches JetStream directly, not over the bus — so
-// there is no await census here; its gates are the pinned inbound roster and
-// the "the gateway hosts no job:* handler" census (EXTRACT-JOBS C2). Two
-// disjoint pumps on the archivist pattern, never bridgeInto.
+// moved off the gateway. It awaits NO wire reply — the queue reaches JetStream
+// directly, not over the bus — so there is no await census here; its gates are
+// the pinned inbound roster (== JOB_COMMAND_CHANNELS, the one list the handlers
+// subscribe) and the "the gateway hosts no job:* handler" census
+// (EXTRACT-JOBS C2). Two disjoint pumps on the archivist pattern, never bridgeInto.
 
-/** The job:* command channels the dispatcher subscribes to. */
+/**
+ * The job:* command channels the dispatcher subscribes to — the ONE list
+ * `registerJobCommandHandlers` actually subscribes (`handlers/index.ts`),
+ * referenced not restated so the dispatcher's roster cannot drift from the
+ * handlers it drives.
+ */
 export const DISPATCHER_INBOUND_CHANNELS = [
-  'job:create', 'job:claim', 'job:complete', 'job:fail',
-  'job:report-progress', 'job:checkpoint', 'job:cancel-requested', 'job:cancel',
-  'job:status-requested',
+  ...JOB_COMMAND_CHANNELS,
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**

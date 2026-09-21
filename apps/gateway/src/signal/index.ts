@@ -30,7 +30,6 @@ export {
 export { CORRELATED_CHANNELS, isCorrelatedChannel } from './channels';
 export { createInProcessSignalPlane } from './in-process';
 export { compositionFor, type SignalComposition } from './composition';
-export { GATEWAY_HANDLER_GROUP, bridgeGatewayHandlers } from './bridge';
 export { requestPrimitiveFor } from './request-primitive';
 // The LEDGER is deliberately not re-exported here: it sits ABOVE the seam
 // (gateway policy) and knows the correlation vocabulary, which this barrel —

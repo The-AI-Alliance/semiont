@@ -14,16 +14,6 @@
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
-import { makeMeaningMock } from '../helpers/make-meaning-mock';
-
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
-  };
-});
-
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
 import { configureTrustedIssuer } from '../../identity/trusted-issuer';
