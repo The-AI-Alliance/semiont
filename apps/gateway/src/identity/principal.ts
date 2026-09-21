@@ -1,6 +1,6 @@
 import { decodeJwt } from 'jose';
-import type { AccessToken } from '@semiont/core';
-import { isString, userToDid } from '@semiont/core';
+import type { AccessToken, Principal as Attribution } from '@semiont/core';
+import { isString, userToDid, principal as attribution, userId } from '@semiont/core';
 import { JWTService } from '../auth/jwt';
 import { IssuerVerifier } from '@semiont/core/identity';
 import { trustedIssuer } from './trusted-issuer';
@@ -15,12 +15,7 @@ import { trustedIssuer } from './trusted-issuer';
  * local identifier. A row would have been a second name for the same person
  * that nothing else in the system could resolve.
  */
-export interface Principal {
-  /**
-   * `did:web:<domain>:users:<email>` for a person,
-   * `did:web:<domain>:agents:<provider>:<model>` for a software agent.
-   */
-  did: string;
+export interface Principal extends Attribution {
   email: string;
   name: string | null;
   /** The issuer's `picture` claim, when it sends one. */
@@ -31,8 +26,6 @@ export interface Principal {
    * differ, which is why this is carried rather than re-derived by readers.
    */
   domain: string;
-  /** A software agent the gateway itself minted a token for. */
-  isAgent: boolean;
 }
 
 /**
@@ -65,13 +58,16 @@ function issuerOf(token: string): string | undefined {
  */
 export function principalFromGatewayToken(token: AccessToken): Principal {
   const payload = JWTService.verifyToken(token);
+  // An agent acting on its own initiative IS the authority for that work, so
+  // the chain collapses to one leg. It gains an `actor` when a delegation is
+  // what produced the token — the human's authority carried into the agent's
+  // hands — which is the exchange this plan's later phases build.
   return {
-    did: payload.did,
+    ...attribution({ did: userId(payload.did) }),
     email: payload.email,
     name: payload.name ?? null,
     image: null,
     domain: payload.domain,
-    isAgent: true,
   };
 }
 
@@ -105,11 +101,10 @@ async function principalFromIssuerToken(
   const name = claims['name'];
   const picture = claims['picture'];
   return {
-    did: userToDid({ email, domain }),
+    ...attribution({ did: userToDid({ email, domain }) }),
     email,
     name: isString(name) ? name : null,
     image: isString(picture) ? picture : null,
     domain,
-    isAgent: false,
   };
 }

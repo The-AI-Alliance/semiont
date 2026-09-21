@@ -17,7 +17,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Principal } from '../../identity/principal';
-import { EventBus } from '@semiont/core';
+import { EventBus, userId } from '@semiont/core';
 import type { EventBus as EventBusType } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { registerCreateResource } from '../../routes/resources/routes/create';
@@ -47,7 +47,6 @@ vi.mock('../../lib/archivist', () => ({
 // would hide a real mismatch instead of catching it.
 type Variables = {
   principal: Principal;
-  principalDid: string;
   eventBus: EventBusType;
   config: ArchivistAddressConfig;
 };
@@ -56,18 +55,16 @@ const putContentMock = vi.mocked(putContent);
 
 function fakeUser(): Principal {
   return {
-    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
+    did: userId(`did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`),
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    isAgent: false,
   } as Principal;
 }
 
 const app = new Hono<{ Variables: Variables }>();
 app.use('*', async (c, next) => {
   c.set('principal', fakeUser());
-  c.set('principalDid', 'did:web:test.local:users:test%40test.local');
   c.set('eventBus', new EventBus());
   c.set('config', { services: { archivist: { host: 'archivist.test', port: 9999 } } });
   await next();

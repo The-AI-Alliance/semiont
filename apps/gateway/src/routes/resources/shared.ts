@@ -10,7 +10,6 @@ import type { EnvironmentConfig, EventBus } from '@semiont/core';
 // rather than restating it and drifting.
 type ResourceVariables = {
   principal: Principal;
-  principalDid: string;
   eventBus: EventBus;
   config: EnvironmentConfig;
 };

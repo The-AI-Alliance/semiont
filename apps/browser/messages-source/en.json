@@ -130,7 +130,7 @@
     "loading": "Loading...",
     "pageTitle": "Authentication Error",
     "errorConfiguration": "There is a problem with the server configuration.",
-    "errorAccessDenied": "Your email domain is not allowed for this application.",
+    "errorAccessDenied": "Your account is not permitted to sign in.",
     "errorVerification": "The verification token has expired or has already been used.",
     "errorGeneric": "An authentication error occurred.",
     "tryAgain": "Try signing in again"

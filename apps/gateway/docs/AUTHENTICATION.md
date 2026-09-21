@@ -259,7 +259,6 @@ issuer signed and has not expired is admitted.
 - **Request validation** - All inputs validated with Zod schemas
 - **SQL injection prevention** - not applicable; the gateway issues no SQL and holds no database
 - **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
-- **Domain restrictions** - OAuth limited to allowed domains
 
 ### Security Test Coverage
 

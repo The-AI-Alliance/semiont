@@ -130,7 +130,7 @@
     "loading": "Caricamento...",
     "pageTitle": "Errore di Autenticazione",
     "errorConfiguration": "C'è un problema con la configurazione del server.",
-    "errorAccessDenied": "Il tuo dominio email non è consentito per questa applicazione.",
+    "errorAccessDenied": "Il tuo account non è autorizzato ad accedere.",
     "errorVerification": "Il token di verifica è scaduto o è già stato utilizzato.",
     "errorGeneric": "Si è verificato un errore di autenticazione.",
     "tryAgain": "Prova ad accedere di nuovo"

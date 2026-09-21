@@ -8,16 +8,6 @@ import { accessToken } from '@semiont/core';
 interface Variables {
   /** The authenticated caller, built from the token's own claims. */
   principal: Principal;
-  /**
-   * The DID identifying the authenticated principal — a Person or a Software
-   * peer. Used as `_userId` on bus emits and as the `creator` on resource
-   * creation, so callers don't have to know which they are dealing with.
-   *
-   * The same string as `principal.did`, set separately because that is how
-   * every consumer reads it and threading the whole principal to each of them
-   * would say less, not more.
-   */
-  principalDid: string;
 }
 
 export interface AuthContext extends Context {
@@ -42,7 +32,7 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
         // Media tokens are stateless and resource-scoped: the token names the
         // resource it may fetch, so there is no principal to resolve and none
         // is set. A route reached this way sees no `user` and no
-        // `principalDid`, which is correct — nothing about the holder is known
+        // `principal`, which is correct — nothing about the holder is known
         // beyond their having been given this one token for this one resource.
         await next();
         return;
@@ -85,7 +75,6 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
     const principal = await principalFromToken(accessToken(tokenStr));
 
     c.set('principal', principal);
-    c.set('principalDid', principal.did);
 
     logger.debug('Authentication successful', {
       type: 'auth_success',
@@ -119,7 +108,6 @@ export const optionalAuthMiddleware = async (c: Context, next: Next) => {
     try {
       const principal = await principalFromToken(accessToken(tokenStr));
       c.set('principal', principal);
-      c.set('principalDid', principal.did);
     } catch (error) {
       // Ignore auth errors for optional auth
     }

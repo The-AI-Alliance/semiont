@@ -41,7 +41,6 @@ describe('principalFromGatewayToken', () => {
       name: 'anthropic claude',
       image: null,
       domain: 'test.local',
-      isAgent: true,
     });
   });
 

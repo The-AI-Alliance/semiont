@@ -16,6 +16,7 @@ import {
   withTraceparent,
 } from '@semiont/observability';
 import { getLogger } from '../logger';
+import type { Principal } from '../identity/principal';
 import {
   MAX_SCOPES,
   PENDING_REPLIES_MAX,
@@ -232,7 +233,7 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
  * behavior. The router owns no plane or registry state of its own anymore.
  */
 export function createBusRouter(authMiddleware: AuthMiddleware) {
-  const busRouter = new Hono<{ Variables: { principalDid: string; eventBus: EventBus; config: EnvironmentConfig } }>();
+  const busRouter = new Hono<{ Variables: { principal: Principal; eventBus: EventBus; config: EnvironmentConfig } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 
@@ -246,7 +247,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const eventBus = c.get('eventBus');
     // Read OUTSIDE the stream callback: `c` is the request context, and the
     // presence pair below must name the principal on this connection.
-    const subscriberDid = c.get('principalDid') as string | undefined;
+    const subscriberDid = c.get('principal')?.did;
 
     const composition = compositionFor(eventBus);
     const plane = composition.plane;
@@ -655,9 +656,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       }
     }
 
-    const principalDid = c.get('principalDid') as string | undefined;
-    if (principalDid) {
-      payload._userId = principalDid;
+    // `_userId` is the wire's name for the authority leg of the chain. The
+    // actor and client legs ride alongside it when the caller has them.
+    const principal = c.get('principal');
+    if (principal) {
+      payload._userId = principal.did;
     }
 
     // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
@@ -682,7 +685,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           message: `clientId is required to emit ${channel} with a correlationId`,
         });
       }
-      const outcome = composition.claim(claimCid, clientId, principalDid);
+      const outcome = composition.claim(claimCid, clientId, principal?.did);
       if (outcome === 'conflict') {
         // A live cid claimed twice is a client bug — UUID collision is not a
         // real event — so it is refused rather than silently re-pointed.

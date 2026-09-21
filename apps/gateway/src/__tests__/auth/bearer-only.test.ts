@@ -30,16 +30,15 @@ vi.mock('@semiont/make-meaning', async (importOriginal) => {
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
 import type { Principal } from '../../identity/principal';
-import { email as makeEmail } from '@semiont/core';
+import { email as makeEmail, userId } from '@semiont/core';
 
 function fakeUser(overrides: Partial<Principal> = {}): Principal {
   return {
-    did: `did:web:${'example.com'}:users:${encodeURIComponent('bearer@example.com')}`,
+    did: userId(`did:web:${'example.com'}:users:${encodeURIComponent('bearer@example.com')}`),
     email: 'bearer@example.com',
     name: 'Bearer User',
     image: null,
     domain: 'example.com',
-    isAgent: false,
     ...overrides,
   };
 }

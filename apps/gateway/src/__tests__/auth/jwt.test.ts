@@ -1,4 +1,4 @@
-import { email } from '@semiont/core';
+import { email, userId } from '@semiont/core';
 /**
  * Comprehensive tests for JWT service
  * 
@@ -51,12 +51,11 @@ vi.mock('../../types/jwt-types', () => ({
 
 describe('JWT Service', () => {
   const mockUser: Principal = {
-    did: `did:web:${'example.com'}:users:${encodeURIComponent('user@example.com')}`,
+    did: userId(`did:web:${'example.com'}:users:${encodeURIComponent('user@example.com')}`),
     email: 'user@example.com',
     name: 'Test User',
     image: 'https://example.com/avatar.jpg',
     domain: 'example.com',
-    isAgent: false,
   };
   
   const testDomain = 'test.example.com';
@@ -143,7 +142,7 @@ describe('JWT Service', () => {
       expect(result).toBe(expectedToken);
       expect(vi.mocked(jwt.sign)).toHaveBeenCalledWith(
         {
-          did: `did:web:example.com:agents:test:model`,
+          did: userId(`did:web:example.com:agents:test:model`),
           email: 'user@example.com',
           name: 'Test User',
 domain: 'example.com',

@@ -9,7 +9,7 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import { busLog, userId, baseMediaType, isSupportedMediaType } from '@semiont/core';
+import { busLog, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
@@ -22,9 +22,9 @@ type Agent = components['schemas']['Agent'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
   router.post('/resources', async (c) => {
-    const principalDid = c.get('principalDid');
+    const principal = c.get('principal');
 
-    if (!principalDid) {
+    if (!principal) {
       throw new HTTPException(401, { message: 'Authentication required' });
     }
 
@@ -130,7 +130,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
                 format,
                 archiveOriginal: archiveOriginalStr ? archiveOriginalStr === 'true' : undefined,
               },
-              userId(principalDid),
+              principal.did,
               bus,
             );
           }
@@ -150,7 +150,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
               generator,
               isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
             },
-            userId(principalDid),
+            principal.did,
             bus,
           );
         },

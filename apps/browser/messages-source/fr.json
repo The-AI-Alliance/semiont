@@ -130,7 +130,7 @@
     "loading": "Chargement...",
     "pageTitle": "Erreur d'authentification",
     "errorConfiguration": "Il y a un problème avec la configuration du serveur.",
-    "errorAccessDenied": "Votre domaine e-mail n'est pas autorisé pour cette application.",
+    "errorAccessDenied": "Votre compte n'est pas autorisé à se connecter.",
     "errorVerification": "Le jeton de vérification a expiré ou a déjà été utilisé.",
     "errorGeneric": "Une erreur d'authentification s'est produite.",
     "tryAgain": "Réessayer de se connecter"

@@ -130,7 +130,7 @@
     "loading": "Yükleniyor...",
     "pageTitle": "Kimlik Doğrulama Hatası",
     "errorConfiguration": "Sunucu yapılandırmasında bir sorun var.",
-    "errorAccessDenied": "E-posta alan adınız bu uygulama için izin verilmiyor.",
+    "errorAccessDenied": "Hesabınızın giriş yapma izni yok.",
     "errorVerification": "Doğrulama belirtecinin süresi doldu veya zaten kullanıldı.",
     "errorGeneric": "Bir kimlik doğrulama hatası oluştu.",
     "tryAgain": "Tekrar giriş yapmayı deneyin"

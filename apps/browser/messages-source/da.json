@@ -130,7 +130,7 @@
     "loading": "Indlæser...",
     "pageTitle": "Godkendelsesfejl",
     "errorConfiguration": "Der er et problem med serverkonfigurationen.",
-    "errorAccessDenied": "Dit e-maildomæne er ikke tilladt for denne applikation.",
+    "errorAccessDenied": "Din konto har ikke tilladelse til at logge ind.",
     "errorVerification": "Verifikationstokenet er udløbet eller er allerede blevet brugt.",
     "errorGeneric": "Der opstod en godkendelsesfejl.",
     "tryAgain": "Prøv at logge ind igen"

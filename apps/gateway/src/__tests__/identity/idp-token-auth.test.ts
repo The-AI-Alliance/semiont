@@ -26,7 +26,7 @@ import { JWTService } from '../../auth/jwt';
 import { configureTrustedIssuer } from '../../identity/trusted-issuer';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
 import type { Principal } from '../../identity/principal';
-import { email as makeEmail } from '@semiont/core';
+import { email as makeEmail, userId } from '@semiont/core';
 
 
 const ORIGIN = 'https://issuer.test';
@@ -35,12 +35,11 @@ const SITE_DOMAIN = 'test.local';
 
 function fakeUser(overrides: Partial<Principal> = {}): Principal {
   return {
-    did: `did:web:${'example.com'}:users:${encodeURIComponent('alice@example.com')}`,
+    did: userId(`did:web:${'example.com'}:users:${encodeURIComponent('alice@example.com')}`),
     email: 'alice@example.com',
     name: 'Alice',
     image: null,
     domain: 'example.com',
-    isAgent: false,
     ...overrides,
   };
 }
@@ -73,7 +72,7 @@ describe('a token from the trusted issuer', () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      did: `did:web:example.com:users:${encodeURIComponent('alice@example.com')}`,
+      did: userId(`did:web:example.com:users:${encodeURIComponent('alice@example.com')}`),
       email: 'alice@example.com',
       name: 'Alice',
       domain: 'example.com',
@@ -153,7 +152,6 @@ describe('a gateway-signed token', () => {
     const agent = fakeUser({
       email: 'ollama-gemma@agents.test.local',
       domain: SITE_DOMAIN,
-      isAgent: true,
     });
     const token = JWTService.generateToken({
       did: 'did:web:test.local:agents:ollama:gemma',

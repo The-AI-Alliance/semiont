@@ -130,7 +130,7 @@
     "loading": "Ladataan...",
     "pageTitle": "Tunnistautumisvirhe",
     "errorConfiguration": "Palvelimen asetuksissa on ongelma.",
-    "errorAccessDenied": "Sähköpostiverkkotunnuksesi ei ole sallittu tälle sovellukselle.",
+    "errorAccessDenied": "Tililläsi ei ole oikeutta kirjautua sisään.",
     "errorVerification": "Vahvistustunnus on vanhentunut tai se on jo käytetty.",
     "errorGeneric": "Tunnistautumisvirhe tapahtui.",
     "tryAgain": "Yritä kirjautua uudelleen"

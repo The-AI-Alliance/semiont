@@ -130,7 +130,7 @@
     "loading": "טוען...",
     "pageTitle": "שגיאת אימות",
     "errorConfiguration": "ישנה בעיה בהגדרות השרת.",
-    "errorAccessDenied": "הדומיין של כתובת הדוא\"ל שלכם אינו מורשה לאפליקציה זו.",
+    "errorAccessDenied": "החשבון שלכם אינו מורשה להתחבר.",
     "errorVerification": "אסימון האימות פג תוקף או שכבר נעשה בו שימוש.",
     "errorGeneric": "אירעה שגיאת אימות.",
     "tryAgain": "נסו להתחבר שוב"

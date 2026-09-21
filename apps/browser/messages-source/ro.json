@@ -130,7 +130,7 @@
     "loading": "Se încarcă...",
     "pageTitle": "Eroare de autentificare",
     "errorConfiguration": "Există o problemă cu configurarea serverului.",
-    "errorAccessDenied": "Domeniul dvs. de e-mail nu este permis pentru această aplicație.",
+    "errorAccessDenied": "Contul dvs. nu are permisiunea de a se autentifica.",
     "errorVerification": "Tokenul de verificare a expirat sau a fost deja utilizat.",
     "errorGeneric": "A apărut o eroare de autentificare.",
     "tryAgain": "Încearcă să te autentifici din nou"

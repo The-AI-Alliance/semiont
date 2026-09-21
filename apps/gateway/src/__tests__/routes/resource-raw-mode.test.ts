@@ -42,7 +42,7 @@ const mockLogger: Logger = {
   child: vi.fn(() => mockLogger),
 };
 
-type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; config: EnvironmentConfig };
+type Variables = { principal: Principal; eventBus: EventBusType; config: EnvironmentConfig };
 
 /**
  * A minimal issuer and a stub verifier, so this suite still drives a REAL

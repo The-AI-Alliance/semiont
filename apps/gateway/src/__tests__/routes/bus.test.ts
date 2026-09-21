@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
-import { EventBus, annotationId, resourceId as makeResourceId } from '@semiont/core';
+import { EventBus, annotationId, resourceId as makeResourceId, userId } from '@semiont/core';
 import type { Principal } from '../../identity/principal';
 import type {
   EventBus as EventBusType,
@@ -85,7 +85,7 @@ function fakeStoredYieldCreated(
 }
 
 
-type Variables = { principal: Principal; principalDid: string; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
+type Variables = { principal: Principal; eventBus: EventBusType; logger: ReturnType<typeof initializeLogger>; config: unknown };
 
 beforeAll(() => {
   process.env.NODE_ENV = 'test';
@@ -94,11 +94,10 @@ beforeAll(() => {
 
 function fakeUser(): Principal {
   return {
-    did: `did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`,
+    did: userId(`did:web:${'test.local'}:users:${encodeURIComponent('test@test.local')}`),
     email: 'test@test.local',
     name: 'Test',
     domain: 'test.local',
-    isAgent: false,
   } as Principal;
 }
 
@@ -148,8 +147,7 @@ function buildApp(
   const logger = initializeLogger('error');
   const principalDid = options.principalDid ?? 'did:web:test.local:users:test%40test.local';
   app.use('*', async (c, next) => {
-    c.set('principal', fakeUser());
-    c.set('principalDid', principalDid);
+    c.set('principal', { ...fakeUser(), did: userId(principalDid) });
     c.set('eventBus', eventBus);
     c.set('logger', logger);
     c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 }, identity: { issuer: ISSUER } } });
@@ -454,7 +452,7 @@ describe('bus routes', () => {
       await expect(res.json()).resolves.toEqual({ subscribers: 0 });
     });
 
-    // The bus reads `principalDid` off the request context (set by the
+    // The bus reads the principal off the request context (set by the
     // auth middleware) and stamps it onto every emitted payload as
     // `_userId`. The same code path applies whether the principal is a
     // human or a software agent — the agent identity flows through with

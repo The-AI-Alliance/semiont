@@ -130,7 +130,7 @@
     "loading": "Laden...",
     "pageTitle": "Authenticatiefout",
     "errorConfiguration": "Er is een probleem met de serverconfiguratie.",
-    "errorAccessDenied": "Je e-maildomein is niet toegestaan voor deze applicatie.",
+    "errorAccessDenied": "Je account heeft geen toestemming om in te loggen.",
     "errorVerification": "Het verificatietoken is verlopen of is al gebruikt.",
     "errorGeneric": "Er is een authenticatiefout opgetreden.",
     "tryAgain": "Probeer opnieuw in te loggen"
