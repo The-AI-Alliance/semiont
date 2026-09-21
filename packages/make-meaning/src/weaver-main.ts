@@ -28,7 +28,7 @@ import { runBootPass, type BootPassState } from './boot-pass';
 import { getGraphDatabase } from '@semiont/graph';
 import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
-import { homedir } from 'os';
+import { homedir, tmpdir } from 'os';
 import { join } from 'path';
 
 // ── Config ───────────────────────────────────────────────────────────
@@ -82,10 +82,12 @@ const credential = { issuer: issuerUrl, clientId, clientSecret };
 const healthPort = 24102;
 
 // The checkpoint is an optimization, never a correctness input — losing it
-// degrades the next catch-up to a full replay. XDG state dir, matching the
-// platform convention SemiontProject already follows.
-const stateHome = process.env.XDG_STATE_HOME ?? join(homedir(), '.local', 'state');
-const checkpointPath = join(stateHome, 'semiont', 'weaver-checkpoint.json');
+// degrades the next catch-up to a full replay. The weaver runs with NO state
+// mount (see the supervisor note in main()), so its checkpoint lives in the
+// container's ephemeral tmp EXPLICITLY — not an XDG_STATE_HOME that is never
+// set for this service, papered over with a fabricated `~/.local/state`
+// (CLAUDE.md: absence must fail loudly or be chosen outright, never defaulted).
+const checkpointPath = join(tmpdir(), 'semiont', 'weaver-checkpoint.json');
 
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';

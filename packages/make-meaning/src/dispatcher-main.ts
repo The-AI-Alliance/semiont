@@ -1,5 +1,5 @@
 /**
- * Dispatcher Main — standalone entry point (EXTRACT-JOBS P1)
+ * Dispatcher Main — standalone entry point (EXTRACT-JOBS P1 + P2)
  *
  * The dispatcher is where a worker — ours today, foreign later — goes to ask
  * *what work is available* and to *report what it finished*. It owns the job
@@ -8,43 +8,54 @@
  * resulting annotations never do — those ride worker↔Archivist directly. It
  * dispatches and records; it does not perform (that is the `worker`, D1).
  *
- * **This is P1: the service running NOTHING.** It stands the process up —
- * config, a service-account session, an attachment to the plane, and a health
- * check — so that when P2 moves the queue and the `job:*` handlers into it, a
- * failure is unambiguously P2's. The queue (a JetStream client, with the
- * boot-deadline machinery `archivist-main.ts` models via
- * `STARTUP_CONNECT_TIMEOUT_MS`/`RESTART_HINT`) and the inbound/outbound rosters
- * arrive in P2 — the `channels: []` below is the seam they fill.
+ * P2 moved the queue and the nine `job:*` handlers off the gateway into here.
+ * The gateway now only ROUTES `job:*` frames across the plane to this process;
+ * it registers no job handler and holds no queue.
  *
- * Bus wiring will be two disjoint pumps on the archivist-main pattern
- * (`service-channels.ts`), never `bridgeInto`. None of it exists yet — a
- * control plane running nothing subscribes to nothing.
+ * Bus wiring is two disjoint pumps on the archivist/librarian pattern
+ * (`service-channels.ts`), never `bridgeInto`:
+ *   in  — DISPATCHER_INBOUND_CHANNELS: the `job:*` command channels this
+ *         process subscribes to, PLUS DISPATCHER_REPLY_CHANNELS — the replies
+ *         to the two projection reads `job:create` makes over the bus (D7:
+ *         entity types + tag schemas, answered by the Archivist's Browser). The
+ *         queue itself still reaches JetStream directly, not over the bus.
+ *   out — DISPATCHER_OUTBOUND_CHANNELS: every reply DERIVED from BUS_OPERATIONS
+ *         over the inbound set, plus the queue's own `job:queued` broadcast.
  *
- * No KB mount, no graph, no vectors, no views, no content: unlike the other
- * make-meaning sidecars, the dispatcher touches none of the knowledge system.
- * It needs only the gateway (for its token and, at P2, the plane) and — at P2
- * — the messaging broker for the queue.
+ * No KB mount, no graph, no vectors, no views, no content — and since D7 moved
+ * its two projection reads onto the bus, no state mount either: unlike the other
+ * make-meaning sidecars, the dispatcher touches none of the knowledge system and
+ * mounts nothing. It needs the gateway (its token and the plane) and the
+ * messaging broker (the JetStream queue). The fs job driver would still want a
+ * writable state tree, but the deployed config is jetstream; an fs driver
+ * reached without a mount fails loud in `stateDirFor` rather than writing to a
+ * fabricated home.
  *
  * Environment variables:
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
  *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the gateway.
  */
 
+import { Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl } from '@semiont/core';
+import { EventBus, baseUrl as makeBaseUrl, withDeadline } from '@semiont/core';
 import { loadEnvironmentConfig } from '@semiont/core/node';
+import { registerJobQueueProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
+import { jobQueueFor, STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
+import { makeMeaningConfigFrom } from './config';
+import { registerJobCommandHandlers } from './handlers/job-commands';
+import { DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS, DISPATCHER_REPLY_CHANNELS } from './service-channels';
+import { projectionReadsOverBus } from './projection-reads-ask';
+import { attachServicePumps } from './service-pumps';
 
 // ── Config ───────────────────────────────────────────────────────────
 //
 // No project root: the dispatcher has no KB mount, so everything it needs
 // rides the staged config (~/.semiontconfig in the container). `[services.jobs]`
-// is present and names `${NATS_HOST}` — resolved eagerly at load by every
-// process that reads this config — so the launcher stages `NATS_HOST` for this
-// container as it does for the rest; the dispatcher does not READ the queue
-// config until P2.
+// selects the driver and names `${NATS_HOST}` for the JetStream one.
 const envConfig = loadEnvironmentConfig(null);
 
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
@@ -52,6 +63,15 @@ if (!gatewayPublicURL) {
   throw new Error('services.gateway.publicURL is required in environment config');
 }
 const baseUrl: string = gatewayPublicURL;
+
+// The KB name is read OPTIONALLY, not required: since D7 moved the projection
+// reads onto the bus and the mount was dropped, the deployed jetstream
+// dispatcher holds no state tree and does not name the KB — like the Smelter
+// and Worker, and unlike the Librarian, it is absent from the launcher's
+// `kbIdentityStaged`, so its config carries no `[kb] name`. Only the fs job
+// driver needs one, and `jobQueueFor` demands it there.
+const kbName = envConfig.kb?.name;
+const config = makeMeaningConfigFrom(envConfig);
 
 /**
  * This process's own account at the issuer. The credential authenticates the
@@ -78,9 +98,6 @@ const logger = createProcessLogger('dispatcher');
 async function main() {
   const { initObservabilityNode, registerSupervisorRestartCount } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-dispatcher' });
-  // Supervised and mounting /semiont-state (C4: the state volume rides
-  // unconditionally, so the fs job driver is never silently mountless), so the
-  // durable supervisor record already exists here.
   registerSupervisorRestartCount();
 
   // A Software peer under the stable identity (semiont, dispatcher): one DID
@@ -94,24 +111,65 @@ async function main() {
     logger,
   });
 
-  // Attach to the plane. P1 subscribes to nothing — the queue and the `job:*`
-  // handler rosters land in P2, which replaces `channels: []` with the
-  // dispatcher's inbound roster + awaited-reply channels (never the full
-  // bridged set, whose global reply fan-out is the worker-OOM failure mode).
+  const localBus = new EventBus();
+
+  // ── The queue ──────────────────────────────────────────────────────
+  // Selected from config (jetstream in the deployed fleet). Its initialize()
+  // connects to the messaging broker, so it takes the boot deadline: a slow
+  // dependency on a restart-everything-at-once resume must make the process
+  // EXIT rather than hang unhealthy (the archivist-main pattern).
+  //
+  // Only the KB NAME goes in: the JetStream driver holds no state tree, so the
+  // deployed (jetstream) dispatcher needs no state mount. Only the fs driver
+  // builds a `SemiontState` — inside `jobQueueFor`, from this name — and an fs
+  // driver reached without a mount fails loud there rather than writing to a
+  // fabricated home (D7 removed the last non-fs reason for the mount).
+  const jobQueue = jobQueueFor(config.services.jobs, kbName, logger.child({ component: 'job-queue' }), localBus);
+  await withDeadline('Job queue', STARTUP_CONNECT_TIMEOUT_MS, () => jobQueue.initialize(), RESTART_HINT);
+
+  // Tier-3 observability: queue size by status. Exported by THIS process now,
+  // not the gateway (the metrics moved with the queue).
+  registerJobQueueProvider(() => jobQueue.getStats());
+
+  // The bus transport. Its SSE subscription is the inbound roster PLUS the
+  // reply channels for the two projection reads `job:create` makes over the
+  // bus (D7): `browse:entity-types-result` / `browse:tag-schemas-result`. It is
+  // NOT the full bridged set, whose global reply fan-out is the worker-OOM
+  // failure mode; `busRequest`'s isSubscribed probe fails fast if a reply
+  // channel is missing from this set.
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
-    channels: [],
+    channels: [...DISPATCHER_INBOUND_CHANNELS, ...DISPATCHER_REPLY_CHANNELS],
   });
 
-  // ── Health — listens last, so the launcher's health gate proves the
-  // service authenticated and attached, not merely that the process is up. ──
+  // The nine job:* handlers, on the local bus. The pumps below carry their
+  // request channels in and their replies (+ the queue's job:queued) out.
+  // `job:create` validates entity types and tag schemas by asking the
+  // Archivist's Browser over the transport (D7) — it no longer reads the KB's
+  // materialized projections off the shared state mount.
+  registerJobCommandHandlers(localBus, jobQueue, projectionReadsOverBus(httpTransport), logger);
+
+  // ── Bus pumps ──────────────────────────────────────────────────────
+  const pumps: Subscription[] = attachServicePumps({
+    transport: httpTransport,
+    localBus,
+    inbound: DISPATCHER_INBOUND_CHANNELS,
+    outbound: DISPATCHER_OUTBOUND_CHANNELS,
+    logger,
+  });
+  logger.info('Bus pumps attached', {
+    inbound: DISPATCHER_INBOUND_CHANNELS.length,
+    outbound: DISPATCHER_OUTBOUND_CHANNELS.length,
+  });
+
+  // ── Health — listens last, so the launcher's health gate proves the queue
+  // connected and the pumps attached, not merely that the process is up. ──
   const server = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      // No actors yet — P2 populates this as the queue and handlers land.
-      res.end(JSON.stringify({ status: 'ok', actors: [] }));
+      res.end(JSON.stringify({ status: 'ok', queue: config.services.jobs?.type ?? 'fs' }));
       return;
     }
     res.writeHead(404);
@@ -124,7 +182,10 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down');
     session.stop();
+    for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
+    jobQueue.destroy();
+    localBus.destroy();
     server.close();
     process.exit(0);
   };
@@ -132,7 +193,7 @@ async function main() {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  logger.info('Dispatcher serving (running nothing — EXTRACT-JOBS P1)');
+  logger.info('Dispatcher serving', { channels: DISPATCHER_INBOUND_CHANNELS.length });
 }
 
 main().catch((error) => {

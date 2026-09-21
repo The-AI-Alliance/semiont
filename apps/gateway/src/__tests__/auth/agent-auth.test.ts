@@ -14,22 +14,12 @@
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
-import { makeMeaningMock } from '../helpers/make-meaning-mock';
-
-vi.mock('@semiont/make-meaning', async (importOriginal) => {
-  const actual = await importOriginal() as any;
-  return {
-    ...actual,
-    startMakeMeaningGateway: vi.fn().mockResolvedValue(makeMeaningMock())
-  };
-});
-
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
 import { configureTrustedIssuer } from '../../identity/trusted-issuer';
 import { SERVICE_ROLE } from '../../identity/agent-minter';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
-import type { components } from '@semiont/core';
+import { WORKER_ROLE, type components } from '@semiont/core';
 
 type ErrorResponse = components['schemas']['ErrorResponse'];
 
@@ -121,6 +111,37 @@ describe('POST /api/tokens/agent', () => {
       const { token } = await response.json() as { token: string };
       const payload = JWTService.verifyToken(token as never);
       expect(payload.did).toBe('did:web:test.local:agents:ollama:gemma2%3A27b');
+    });
+
+    /**
+     * The carry half of EXTRACT-JOBS P0: worker-ness is a capability the realm
+     * grants the minting client (WORKER_ROLE), and it must SURVIVE onto the
+     * agent token — the agent token is what the worker later claims jobs with,
+     * and the service-account token that carried the grant is long gone by then.
+     * The dispatcher authorizes the claim by reading exactly this.
+     */
+    it('stamps the worker capability onto the agent token when a worker minted it', async () => {
+      const workerToken = await sidecarToken({ azp: 'semiont-worker', roles: [SERVICE_ROLE, WORKER_ROLE] });
+      const response = await mint({ provider: 'ollama', model: 'gemma2:27b' }, workerToken);
+
+      expect(response.status).toBe(200);
+      const { token } = await response.json() as { token: string };
+      const payload = JWTService.verifyToken(token as never);
+      expect(payload.roles, 'the agent may claim jobs on the worker\'s behalf').toContain(WORKER_ROLE);
+      // NEVER the service role: an agent is not a service account and must not be
+      // able to mint further agent tokens.
+      expect(payload.roles).not.toContain(SERVICE_ROLE);
+    });
+
+    it('stamps no capability when a non-worker service minted the agent token', async () => {
+      // The default sidecar is the weaver — a service, not a worker.
+      const response = await mint({ provider: 'ollama', model: 'gemma2:27b' });
+
+      expect(response.status).toBe(200);
+      const { token } = await response.json() as { token: string };
+      const payload = JWTService.verifyToken(token as never);
+      // Absent or empty — never carrying the worker role, so its job:claim is refused.
+      expect(payload.roles ?? []).not.toContain(WORKER_ROLE);
     });
 
     /**

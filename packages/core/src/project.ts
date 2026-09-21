@@ -1,5 +1,4 @@
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
 
@@ -21,7 +20,6 @@ import { execFileSync } from 'child_process';
  *   eventsDir — .semiont/events/  (system of record, committed)
  *
  * Ephemeral paths (outside the project root, never committed) — `SemiontState`:
- *   configDir      — $XDG_CONFIG_HOME/semiont/{name}/  (generated config for managed processes)
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
  *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
@@ -57,7 +55,21 @@ import { execFileSync } from 'child_process';
  * the constructor that also uses it, rather than being restated over there.
  */
 export function stateDirFor(name: string): string {
-  const xdgState = process.env.XDG_STATE_HOME || path.join(os.homedir(), '.local', 'state');
+  // No fabricated default (CLAUDE.md: absence fails loudly). Every process that
+  // reaches its state tree through this — the Librarian, the Archivist, the fs
+  // job driver — runs in a container the launcher gives a state MOUNT and an
+  // explicit `XDG_STATE_HOME=/semiont-state`. Its absence means a service that
+  // needs state has no volume behind it — a misconfiguration — and writing to a
+  // manufactured `~/.local/state` would hide that behind an ephemeral path
+  // nobody chose. A service that needs no persistent state must not construct a
+  // SemiontState/SemiontProject in the first place.
+  const xdgState = process.env.XDG_STATE_HOME;
+  if (!xdgState) {
+    throw new Error(
+      'XDG_STATE_HOME is not set: a Semiont state tree has no safe default. The launcher sets it to ' +
+      'the mounted state volume; reaching state here without it is a misconfiguration.',
+    );
+  }
   return path.join(xdgState, 'semiont', name);
 }
 
@@ -86,9 +98,6 @@ export function stateDirFor(name: string): string {
 export class SemiontState {
   readonly name: string;
 
-  // Ephemeral — config (generated config files for managed processes)
-  readonly configDir: string;
-
   // Ephemeral — state
   readonly stateDir: string;
   readonly resourcesDir: string;
@@ -101,9 +110,6 @@ export class SemiontState {
 
   constructor(opts: { name: string }) {
     this.name = opts.name;
-
-    const xdgConfig = process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
-    this.configDir = path.join(xdgConfig, 'semiont', this.name);
 
     this.stateDir = stateDirFor(this.name);
     this.resourcesDir = path.join(this.stateDir, 'resources');
@@ -195,7 +201,6 @@ export class SemiontProject extends SemiontState {
    */
   async destroy(): Promise<void> {
     await Promise.all([
-      fs.promises.rm(this.configDir, { recursive: true, force: true }),
       fs.promises.rm(this.stateDir, { recursive: true, force: true }),
       fs.promises.rm(this.runtimeDir, { recursive: true, force: true }),
     ]);

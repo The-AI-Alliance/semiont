@@ -7,6 +7,13 @@
       "items": {
         "type": "string"
       }
+    },
+    "_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted (EXTRACT-JOBS P0)."
     }
   },
   "required": [

@@ -59,7 +59,7 @@ export {
 } from './identifiers';
 
 // The service-account role: one literal, and the predicate that reads it.
-export { SERVICE_ROLE, ROLES_CLAIM, hasServiceRole } from './service-role';
+export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
 
 // Attribution: who a record is attributed to, as a chain rather than a choice.
 export type { Principal } from './principal';

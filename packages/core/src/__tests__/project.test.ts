@@ -11,6 +11,12 @@ import { join } from 'path';
 import { execFileSync } from 'child_process';
 import { SemiontProject, SemiontState } from '../project';
 
+// SemiontState/SemiontProject derive their state tree from XDG_STATE_HOME, which
+// has no fabricated default anymore — it throws when unset (CLAUDE.md). Point it
+// into the test's temp space so every construction below resolves to a real
+// local path; the throw itself is asserted in its own test, which unsets it.
+process.env.XDG_STATE_HOME = join(tmpdir(), 'semiont-project-test-state');
+
 async function makeTempDir(): Promise<string> {
   return fs.mkdtemp(join(tmpdir(), 'semiont-project-test-'));
 }
@@ -23,6 +29,19 @@ describe('SemiontState — the half that needs no KB root', () => {
   // COMPILE-time fact — passing a SemiontState where a SemiontProject is
   // required is a type error, not a throw inside some later read.
   const state = new SemiontState({ name: 'kb-under-test' });
+
+  it('throws when XDG_STATE_HOME is unset — a state tree has no fabricated default', () => {
+    // The manufactured `~/.local/state` default is gone: a service reaching its
+    // state with no mount behind it is a misconfiguration, and it must fail
+    // loudly here rather than write to an ephemeral home nobody chose.
+    const saved = process.env.XDG_STATE_HOME;
+    delete process.env.XDG_STATE_HOME;
+    try {
+      expect(() => new SemiontState({ name: 'kb-under-test' })).toThrow(/XDG_STATE_HOME is not set/);
+    } finally {
+      process.env.XDG_STATE_HOME = saved;
+    }
+  });
 
   it('resolves every name-derived path with no KB root in sight', () => {
     expect(state.name).toBe('kb-under-test');

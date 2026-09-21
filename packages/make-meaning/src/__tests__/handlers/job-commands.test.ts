@@ -24,7 +24,29 @@ import { EventBus, jobId, userId, resourceId, type EventMap, type Logger, type T
 import type { SemiontProject } from '@semiont/core/node';
 import { FsJobQueue } from '@semiont/jobs';
 import { registerJobCommandHandlers } from '../../handlers/job-commands';
+import { projectionReadsOverBus } from '../../projection-reads-ask';
+import { asBusRequestPrimitive } from '../../bus-request-local';
+import { readEntityTypesProjection } from '../../views/entity-types-reader';
+import { readTagSchemasProjection } from '../../views/tag-schemas-reader';
 import { createTestProject } from '../helpers/test-project';
+
+/**
+ * A stand-in for the Archivist's Browser: answers the two projection-read bus
+ * operations `job:create` validation makes (D7) from the same fs projections
+ * these tests write. Registering it makes the handler's reads go over the bus
+ * in-process — proving the round-trip rather than short-circuiting it — so the
+ * test bodies keep writing projections and asserting exactly as before.
+ */
+function wireBrowserStub(eventBus: EventBus, project: SemiontProject): void {
+  eventBus.frames('browse:entity-types-requested').subscribe(async ({ correlationId }) => {
+    const entityTypes = await readEntityTypesProjection(project);
+    eventBus.emit('browse:entity-types-result', { response: { entityTypes } }, { correlationId });
+  });
+  eventBus.frames('browse:tag-schemas-requested').subscribe(async ({ correlationId }) => {
+    const tagSchemas = await readTagSchemasProjection(project);
+    eventBus.emit('browse:tag-schemas-result', { response: { tagSchemas } }, { correlationId });
+  });
+}
 
 const silentLogger: Logger = {
   debug: vi.fn(),
@@ -95,7 +117,8 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
     ({ project, teardown } = await createTestProject('job-commands-dispatcher'));
     eventBus = new EventBus();
     jobQueue = makeJobQueue();
-    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+    wireBrowserStub(eventBus, project);
+    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -278,7 +301,8 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
     ({ project, teardown } = await createTestProject('job-commands-entity-validation'));
     eventBus = new EventBus();
     jobQueue = makeJobQueue();
-    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+    wireBrowserStub(eventBus, project);
+    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -437,7 +461,8 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
     ({ project, teardown } = await createTestProject('job-commands-lifecycle'));
     eventBus = new EventBus();
     jobQueue = makeJobQueue();
-    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+    wireBrowserStub(eventBus, project);
+    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -709,7 +734,8 @@ describe('registerJobCommandHandlers — lifecycle integration (real FsJobQueue)
     eventBus = new EventBus();
     queue = new FsJobQueue(project, silentLogger, eventBus);
     await queue.initialize();
-    registerJobCommandHandlers(eventBus, queue, project, silentLogger);
+    wireBrowserStub(eventBus, project);
+    registerJobCommandHandlers(eventBus, queue, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -813,7 +839,8 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
     ({ project, teardown } = await createTestProject('job-commands-generation'));
     eventBus = new EventBus();
     jobQueue = makeJobQueue();
-    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+    wireBrowserStub(eventBus, project);
+    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {

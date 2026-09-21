@@ -2,8 +2,8 @@
 // Transforms raw resources into meaningful, interconnected knowledge
 
 // Service (primary export)
-export { startMakeMeaning, startMakeMeaningGateway } from './service';
-export type { MakeMeaningService, GatewayMakeMeaningService, MakeMeaningConfig } from './service';
+export { startMakeMeaning } from './service';
+export type { MakeMeaningService, MakeMeaningConfig } from './service';
 
 // The Archivist's HTTP surface. Exported so the gateway's pipe suite proves
 // its contract against a REAL Archivist rather than a fetch double — the
@@ -37,8 +37,6 @@ export {
   registerGatherSummaryHandler,
   registerBindUpdateBodyHandler,
   registerJobCommandHandlers,
-  GATEWAY_HANDLER_CHANNELS,
-  GATEWAY_HANDLER_EMITS,
 } from './handlers';
 
 // Bootstrap
@@ -114,4 +112,6 @@ export {
   ARCHIVIST_OUTBOUND_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
+  DISPATCHER_INBOUND_CHANNELS,
+  DISPATCHER_OUTBOUND_CHANNELS,
 } from './service-channels';

@@ -2,16 +2,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { swaggerUI } from '@hono/swagger-ui';
-import { SemiontState } from '@semiont/core/node';
 import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, kbResource, withDeadline, errField } from '@semiont/core';
-import {
-  GATEWAY_HANDLER_CHANNELS,
-  GATEWAY_HANDLER_EMITS,
-  startMakeMeaningGateway,
-  makeMeaningConfigFrom,
-  requireKBName,
-} from '@semiont/make-meaning';
-import { JOB_QUEUE_EMITS } from '@semiont/jobs';
 import { loadEnvironmentConfig } from '@semiont/core/node';
 import type { Principal } from './identity/principal';
 
@@ -41,10 +32,9 @@ if (!config.services?.gateway) {
 }
 
 // Checked HERE, with the other startup requirements, rather than only in
-// JWTService.initialize below: this runs before startMakeMeaningGateway builds
-// the job queue and its subscriptions, so a missing secret costs a millisecond
-// instead of a startup that has to be torn down again. Same rule either way —
-// requireJwtSecret is the one copy.
+// JWTService.initialize below: a missing secret should cost a millisecond at
+// boot, not a startup that has opened connections and has to be torn down
+// again. Same rule either way — requireJwtSecret is the one copy.
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 
@@ -179,20 +169,12 @@ const logger = getLogger();
   }, 30_000).unref();
 }
 
-// Create global EventBus for real-time events
+// Create global EventBus for real-time events. The gateway hosts no
+// make-meaning slice of its own anymore (EXTRACT-JOBS P2/P3): the job queue and
+// its nine `job:*` handlers moved to the dispatcher. This bus exists to feed
+// the signal-plane routes (/bus/emit, /bus/subscribe) that route frames —
+// `job:*` among them — across the plane to the services that answer them.
 const eventBus = new EventBus();
-
-// The gateway's make-meaning slice: job queue, kb reads, and the handler
-// subset — no actors. Actors run in the Archivist and Librarian services.
-// A `SemiontState`, not a `SemiontProject`: name + the state-mount paths,
-// with no KB root. That is the type-level statement of P5 — the gateway
-// cannot reach a tree it does not have, and the compiler enforces it.
-const makeMeaning = await startMakeMeaningGateway(
-  new SemiontState({ name: requireKBName(config) }),
-  makeMeaningConfigFrom(config),
-  eventBus,
-  logger,
-);
 
 // Import route definitions
 import { rootRouter } from './routes/root';
@@ -204,7 +186,7 @@ import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
 import { SIGNAL_FLUSH_TIMEOUT_MS } from './signal/options';
-import { bridgeGatewayHandlers, compositionFor } from './signal';
+import { compositionFor } from './signal';
 import type { ServiceAccountCredential } from '@semiont/core';
 import { authMiddleware } from './middleware/auth';
 
@@ -309,44 +291,33 @@ logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-
 // same composition through the bus.
 compositionFor(eventBus, signalPlane);
 
-// The handler bridge (P3, the H2 fix) — installed EXACTLY when the plane is
-// remote. Under the in-process driver the plane IS this bus: handlers hear
-// ingests directly and their emissions are already plane-visible, so a
-// bridge would double-deliver every frame. This conditional is the one
-// place composition acknowledges which driver won, beside the selection
-// itself.
+// THE READINESS GATE (SIGNAL-PLANE-FLUSH D4) — kept when the plane is remote,
+// though the handler bridge it used to sit beside is gone (EXTRACT-JOBS P3: the
+// gateway hosts no `job:*` handler, so there is no island to reconnect). What
+// remains to register is the gateway's OWN plane interest: `compositionFor`
+// above opened the ledger's standing tap (claim announcements, reply
+// retention), and every /bus/subscribe client opens more. Subscribing is
+// synchronous; REGISTERING that interest with the broker is not, and core NATS
+// is at-most-once, so a frame arriving before registration lands is dropped
+// rather than delayed. Awaiting one round trip here — once, after the
+// composition's subscriptions are set up, never per subscribe and never per
+// frame (D3) — is what makes the load balancer's health check mean the gateway
+// can actually route.
+//
+// Under the in-process driver `signalPlane` is undefined and this is skipped:
+// the plane IS the bus and there is nothing to register.
+//
+// BOUNDED, because the round trip is to a broker that may be gone: the NATS
+// client reconnects forever (`maxReconnectAttempts: -1`), so an unbounded
+// flush against a dead broker never settles and boot stops here — before
+// `serve()`, so the port never opens and the failure has no error to show.
+// Expiring throws, which is the right answer: the gate exists to refuse
+// service until routing works.
 if (signalPlane) {
-  // Outbound is the UNION of gateway-resident emitters: the handlers AND the
-  // queue drivers (job:queued announcements are the queue's, not a handler's).
-  bridgeGatewayHandlers(signalPlane, eventBus, GATEWAY_HANDLER_CHANNELS, [
-    ...GATEWAY_HANDLER_EMITS,
-    ...JOB_QUEUE_EMITS,
-  ]);
-  // THE READINESS GATE (SIGNAL-PLANE-FLUSH D4). Subscribing is synchronous;
-  // REGISTERING that interest with the broker is not, and core NATS is
-  // at-most-once, so a request arriving before registration lands is
-  // dispatched to a queue group with no member: `ingest` reports zero
-  // observers and the gateway synthesizes `peer-unavailable`, blaming an
-  // absent service for its own boot race. Awaiting here is what makes the
-  // load balancer's health check mean what it has always implied.
-  //
-  // One round trip, once, after every subscription is composed — never per
-  // subscribe and never per frame (D3). Under the in-process driver this is an
-  // already-resolved promise and boot is byte-identical.
-  //
-  // BOUNDED, because the round trip is to a broker that may be gone: the NATS
-  // client reconnects forever (`maxReconnectAttempts: -1`), so an unbounded
-  // flush against a dead broker never settles and boot stops here — before
-  // `serve()`, so the port never opens and the failure has no error to show.
-  // Expiring throws, which is the right answer: the gate exists to refuse
-  // service until routing works.
   await withDeadline('Signal Plane readiness flush', SIGNAL_FLUSH_TIMEOUT_MS,
     () => signalPlane.flush(),
     'The broker is unreachable; the gateway will not serve until it answers.');
-  logger.info('Signal Plane handler bridge active', {
-    consumed: GATEWAY_HANDLER_CHANNELS.length,
-    emitted: GATEWAY_HANDLER_EMITS.length,
-  });
+  logger.info('Signal Plane ready', { driver: signalConfig?.type });
 }
 
 const busRouter = createBusRouter(authMiddleware);
@@ -503,15 +474,16 @@ if (config.env?.NODE_ENV !== 'test') {
   // Graceful shutdown, matching every sidecar (archivist/librarian/smelter/
   // weaver/worker `-main`). The gateway was the ONLY Semiont service without
   // one: on `semiont stop` the runtime's SIGTERM fell through to the default
-  // handler, so the process died mid-request with its Postgres pool still
-  // open and the job-status subscription still live.
+  // handler, so the process died mid-request.
   //
   // Registered inside the non-test guard with `serve()`: a test importing this
   // module must not install process-wide signal handlers.
   //
   // Order is stop-taking-work first, then release: close the listener so no new
-  // request is accepted, unsubscribe the job-status pump, tear down the bus,
-  // and disconnect the one datastore the gateway owns.
+  // request is accepted, drain the signal plane so in-flight replies are not
+  // lost with the connection, then tear down the bus. The job queue and its
+  // teardown left with the dispatcher (EXTRACT-JOBS P2/P3); the gateway owns no
+  // datastore to disconnect.
   let shuttingDown = false;
   const shutdown = (signal: string) => {
     // A second signal during teardown would double-close the listener and race
@@ -522,7 +494,6 @@ if (config.env?.NODE_ENV !== 'test') {
     void (async () => {
       try {
         server.close();
-        await makeMeaning.stop();
         // Drain before the connection dies with the process
         // (SIGNAL-PLANE-FLUSH D5). `nc.publish` returns having written into a
         // client-side buffer; on a scale-down or redeploy, frames written

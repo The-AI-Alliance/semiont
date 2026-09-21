@@ -20,6 +20,10 @@ import { FsJobQueue } from '../fs-job-queue';
 import type { JobStatus } from '../types';
 import { SemiontProject } from '@semiont/core/node';
 import { jobId, userId, EventBus, type JobId } from '@semiont/core';
+
+// SemiontProject's state tree derives from XDG_STATE_HOME, which now throws when
+// unset (no fabricated default). Point it into temp space for this suite.
+process.env.XDG_STATE_HOME = path.join(os.tmpdir(), 'semiont-jobs-tests-state');
 import {
   runJobQueueConformance,
   createPendingDetectionJob,

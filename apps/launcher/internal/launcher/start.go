@@ -950,17 +950,17 @@ func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []st
 
 // dispatcherArgs: the Dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5) — it owns
 // the job queue and answers job:* lifecycle commands, and content bytes and
-// annotations never flow through it. Same shape as librarianArgs (a state-
-// mounting make-meaning sidecar), minus everything it does not touch: no KB
-// tree, no ARCHIVIST_HOST (D5 — it never reads from the record), no graph. It
-// mounts the shared state store unconditionally (C4 — so the fs job driver is
-// never silently mountless), and carries the full *_HOST eager-interpolation
-// set its staged config may reference, exactly as the other sidecars do.
-func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+// annotations never flow through it. Like librarianArgs but LEANER: no KB tree,
+// no ARCHIVIST_HOST (D5 — it never reads from the record), no graph, and — since
+// D7 moved its entity-type/tag-schema reads onto the bus — NO STATE MOUNT and no
+// XDG_STATE_HOME. The deployed jetstream driver holds no state tree; an
+// fs-by-omission driver fails loud (stateDirFor) rather than writing to a
+// fabricated home. It carries the full *_HOST eager-interpolation set its staged
+// config may reference, exactly as the other sidecars do.
+func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", roles["dispatcher"].mem, "--publish", "24105:24105",
 		"--volume", stage + "/dispatcher.toml:/home/semiont/.semiontconfig:ro"}
-	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
@@ -971,7 +971,6 @@ func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []s
 		"--env", "KEYCLOAK_HOST="+addr,
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr,
-		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)

@@ -7,7 +7,7 @@
 
 import { FsJobQueue, JetStreamJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
-import type { SemiontProject, SemiontState } from '@semiont/core/node';
+import { SemiontState, type SemiontProject } from '@semiont/core/node';
 import { EventBus, withDeadline, type Logger, type JobsServiceConfig, evaluateEnvPlaceholders } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
@@ -24,7 +24,7 @@ import { wireEnrichment } from './event-enrichment';
 import { CloneTokenManager } from './clone-token-manager';
 import { bootstrapEntityTypes } from './bootstrap/entity-types';
 import { stopKnowledgeSystem, type KnowledgeSystem } from './knowledge-system';
-import { registerBusHandlers, registerGatewayBusHandlers } from './handlers';
+import { registerBusHandlers } from './handlers';
 import { anchoredTextOverBus } from './anchored-text-ask';
 import { asBusRequestPrimitive } from './bus-request-local';
 
@@ -51,7 +51,13 @@ export interface MakeMeaningService {
 
 export function jobQueueFor(
   jobs: JobsServiceConfig | undefined,
-  state: SemiontState,
+  // Only the KB NAME, and ONLY the fs driver needs it (to locate its jobsDir).
+  // The JetStream driver holds no state tree, so a jetstream service — the
+  // deployed dispatcher — needs no `[kb] name` at all: it is optional here, and
+  // demanded (below) only when the fs driver is actually selected. Constructing
+  // a `SemiontState` eagerly would instead demand `XDG_STATE_HOME` of a service
+  // that has no state mount.
+  name: string | undefined,
   logger: Logger,
   eventBus: EventBus,
 ): JobQueue {
@@ -67,17 +73,22 @@ export function jobQueueFor(
       ...(jobs.password ? { pass: evaluateEnvPlaceholders(jobs.password) } : {}),
     }, logger, eventBus);
   }
-  return new FsJobQueue(state, logger, eventBus);
+  if (!name) {
+    throw new Error(
+      "the fs job driver needs the KB name ([kb] name) to locate its jobsDir, but the config carries none",
+    );
+  }
+  return new FsJobQueue(new SemiontState({ name }), logger, eventBus);
 }
 
 async function createJobQueue(
-  state: SemiontState,
+  name: string,
   jobs: JobsServiceConfig | undefined,
   eventBus: EventBus,
   logger: Logger,
 ): Promise<JobQueue> {
   const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = jobQueueFor(jobs, state, jobQueueLogger, eventBus);
+  const jobQueue = jobQueueFor(jobs, name, jobQueueLogger, eventBus);
   await jobQueue.initialize();
 
   // Tier 3 observability: report queue size by status. The provider is
@@ -297,7 +308,7 @@ export async function startMakeMeaning(
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
-  const jobQueue = await createJobQueue(project, config.services.jobs, eventBus, logger);
+  const jobQueue = await createJobQueue(project.name, config.services.jobs, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
 
   // Register the bus command handlers that translate caller-facing
@@ -305,7 +316,7 @@ export async function startMakeMeaning(
   // browse:annotation-context-requested, gather:summary-requested) into
   // the underlying make-meaning pipeline. Lives here so every transport
   // (HTTP gateway, LocalTransport, future ones) gets the same contract.
-  registerBusHandlers(eventBus, knowledgeSystem, jobQueue, project, logger);
+  registerBusHandlers(eventBus, knowledgeSystem, jobQueue, logger);
 
   return {
     knowledgeSystem,
@@ -373,55 +384,9 @@ export async function connectRecord(
   };
 }
 
-// ─── Gateway composition root (EXTRACT-ARCHIVIST P3) ─────────────────────────
-
-export interface GatewayMakeMeaningService {
-  jobQueue: JobQueue;
-  /** Name + the state-mount paths. NOT a `SemiontProject`: the gateway
-   *  mounts no KB tree, and the type is what says so (SINGLE-KB-MOUNT P5). */
-  state:    SemiontState;
-  stop:     () => Promise<void>;
-}
-
-/**
- * The gateway's composition root: everything startMakeMeaning builds EXCEPT
- * the actors, which have all left. The Archivist (archivist-main) owns
- * Stower/Browser/CloneTokenManager, enrichment, the entity-type bootstrap +
- * warm, and the view rebuild; the Librarian (librarian-main) owns Matcher
- * and Gatherer (EXTRACT-LIBRARIAN P1/P3).
- *
- * What remains is the JOB QUEUE, and nothing else. It used to call
- * `connectStores` as well — a graph connection, a vector store, an embedding
- * provider, an event store, a working tree and an anchored-text store — and
- * SINGLE-KB-MOUNT P5 measured that **no consumer read any of it**: the whole
- * `kb` bundle existed to be constructed. Deleting it is what lets the gateway
- * take a `SemiontState` instead of a `SemiontProject`, and therefore what
- * lets P6 drop the `/kb` mount: the type no longer HAS a KB root to want.
- *
- * The job queue lives on the shared state mount (D6), so what is left needs
- * no tree at all.
- */
-export async function startMakeMeaningGateway(
-  state: SemiontState,
-  config: MakeMeaningConfig,
-  eventBus: EventBus,
-  logger: Logger,
-): Promise<GatewayMakeMeaningService> {
-  assertMakeMeaningConfig(config);
-
-  const jobQueue = await createJobQueue(state, config.services.jobs, eventBus, logger);
-
-  // The gateway's handler subset: annotation-assembly moved into the
-  // Archivist (D2 i) and gather-summary into the Librarian — each beside
-  // the actor it calls.
-  registerGatewayBusHandlers(eventBus, jobQueue, state, logger);
-
-  return {
-    jobQueue,
-    state,
-    stop: async () => {
-      logger.info('Stopping gateway make-meaning');
-      logger.info('Gateway make-meaning stopped');
-    },
-  };
-}
+// The gateway's composition root is gone (EXTRACT-JOBS P2/P3): the job queue
+// and the nine `job:*` handlers it hosted now live in the DISPATCHER
+// (dispatcher-main.ts), and the gateway routes `job:*` frames across the plane
+// to that process rather than answering them. `createJobQueue` and
+// `startMakeMeaning` above stay — the in-process / embedding / LocalTransport
+// root still plays gateway-AND-worker in one process and needs both.

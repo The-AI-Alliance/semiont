@@ -94,6 +94,10 @@ process.env.JWT_SECRET = 'test-secret-key-for-testing-32char';
 // This process's own service account; boot refuses without it.
 process.env.SEMIONT_OIDC_CLIENT_ID = 'semiont-gateway';
 process.env.SEMIONT_OIDC_CLIENT_SECRET = 'test-gateway-client-secret';
+// The CLI/pipe tests build a real SemiontProject; its state tree derives from
+// XDG_STATE_HOME, which now throws when unset (no fabricated default). Point it
+// inside the per-worker testDir so it is created and cleaned up with the rest.
+process.env.XDG_STATE_HOME = `${testDir}/state`;
 
 // The KB's own committed config. Written SYNCHRONOUSLY here, not in
 // `beforeAll`: boot reads it when a test file imports the app, which for some

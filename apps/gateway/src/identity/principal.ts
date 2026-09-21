@@ -26,6 +26,14 @@ export interface Principal extends Attribution {
    * differ, which is why this is carried rather than re-derived by readers.
    */
   domain: string;
+  /**
+   * Capabilities the verified token carries (the `roles` claim). A TRANSIENT
+   * authorization fact — deliberately NOT a leg of the persisted PROV chain
+   * (`did`/`actor`/`client`, all DID-typed). Today it carries `WORKER_ROLE` on
+   * a worker's agent token, which the bus forwards as `_roles` so the
+   * dispatcher can authorize a `job:claim` by capability (EXTRACT-JOBS P0).
+   */
+  roles?: string[];
 }
 
 /**
@@ -68,6 +76,9 @@ export function principalFromGatewayToken(token: AccessToken): Principal {
     name: payload.name ?? null,
     image: null,
     domain: payload.domain,
+    // The worker capability, when this agent token was minted by a worker
+    // (EXTRACT-JOBS P0). Absent otherwise. Transient authz, not a PROV leg.
+    ...(payload.roles ? { roles: payload.roles } : {}),
   };
 }
 

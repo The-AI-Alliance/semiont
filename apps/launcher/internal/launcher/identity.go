@@ -25,6 +25,16 @@ const (
 	// apps/gateway/src/identity/agent-minter.ts.
 	serviceRole = "semiont-service"
 
+	// workerRole: the realm role marking a client permitted to CLAIM JOBS
+	// (EXTRACT-JOBS P0). Granted only to the worker client here; a deployment
+	// running FOREIGN workers grants it to their clients the same way, and the
+	// dispatcher's authorization is unchanged. Distinct from serviceRole, which
+	// every service client carries: service-ness is the floor, worker-ness the
+	// finer grant. Authorizing a job:claim by this ROLE — not by matching the
+	// worker's client id — is what lets a foreign worker claim. Must equal
+	// WORKER_ROLE in packages/core/src/service-role.ts (held by lint:service-role).
+	workerRole = "semiont-worker"
+
 	// keycloakAccessTokenLifespan: how long an access token the realm mints
 	// stays valid, in seconds.
 	//
@@ -95,6 +105,21 @@ var serviceClients = []string{"archivist", "dispatcher", "gateway", "librarian",
 // serviceClientID: the realm client id for one service's account.
 func serviceClientID(svc string) string { return "semiont-" + svc }
 
+// serviceRolesClaim renders the JSON `roles` array a service client's token
+// carries. Every service client gets serviceRole; the worker ALSO gets
+// workerRole (EXTRACT-JOBS P0), so a token it presents to /api/tokens/agent is
+// minted an agent token stamped with the worker capability, and the dispatcher
+// admits that agent's job:claim. A deployment running foreign workers grants
+// workerRole to their clients the same way.
+func serviceRolesClaim(svc string) string {
+	roles := []string{serviceRole}
+	if svc == "worker" {
+		roles = append(roles, workerRole)
+	}
+	b, _ := json.Marshal(roles)
+	return string(b)
+}
+
 // serviceAccountClient: a confidential client that can obtain a token for
 // ITSELF (the client-credentials grant) and nothing else — no browser flow, no
 // password grant, no user behind it.
@@ -135,7 +160,7 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 				"consentRequired": false,
 				"config": map[string]string{
 					"claim.name":         "roles",
-					"claim.value":        `["` + serviceRole + `"]`,
+					"claim.value":        serviceRolesClaim(svc),
 					"jsonType.label":     "JSON",
 					"access.token.claim": "true",
 					"id.token.claim":     "false",

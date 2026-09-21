@@ -1,10 +1,16 @@
 import { beforeAll, afterAll } from 'vitest';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { setupTestEnvironment, type TestEnvironmentConfig } from '../_test-setup';
 
 // Module scope, not beforeAll: a test file that imports the app at import time
 // boots before any hook runs, and boot refuses without a service account.
 process.env.SEMIONT_OIDC_CLIENT_ID = 'semiont-gateway';
 process.env.SEMIONT_OIDC_CLIENT_SECRET = 'test-gateway-client-secret';
+// The integration tests build a real SemiontProject; its state tree derives
+// from XDG_STATE_HOME, which now throws when unset. Point it into temp space
+// here, at module scope, before any app import.
+process.env.XDG_STATE_HOME = join(tmpdir(), 'semiont-gateway-integration-state');
 
 // Global test setup and teardown
 let testEnv: TestEnvironmentConfig | null = null;

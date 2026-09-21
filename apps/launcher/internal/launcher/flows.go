@@ -386,7 +386,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// holds one. `identityEndpoint` is the realm as THIS host reaches
 			// it — see verifyServiceAccounts on why the token's `iss` is not
 			// compared against it.
-			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan) {
+			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan, true) {
 				return 1
 			}
 			x.record(role, id, rp.Image, providedLauncher, identityEndpoint(rp), rp.Driver)
@@ -455,7 +455,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			if !ok {
 				return 1
 			}
-			if !x.preflightIdentity(rp.Issuer, committedResource(fc.root), secrets, 0) {
+			if !x.preflightIdentity(rp.Issuer, committedResource(fc.root), secrets, 0, false) {
 				return 1
 			}
 		}
@@ -770,22 +770,21 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 }
 
 // flowDispatcher: the Dispatcher owns the job queue and answers job:* lifecycle
-// commands (EXTRACT-JOBS). It mounts the shared state store (C4 — the fs job
-// driver's jobsDir rides /semiont-state) and dials the gateway for its token
-// and the plane; it is a CONTROL PLANE (D5) and touches no bytes, so it never
-// reads from the Archivist. Started after the Librarian — health-after-pumps
-// makes ordering against other sidecars moot rather than racy.
+// commands (EXTRACT-JOBS). It mounts NOTHING — D7 moved its entity-type and
+// tag-schema reads onto the bus (asked of the Archivist), retiring the state
+// mount's last non-fs reason; the deployed jetstream driver holds no state tree,
+// and an fs-by-omission driver fails loud rather than writing to a fabricated
+// home. It dials the gateway for its token and the plane; it is a CONTROL PLANE
+// (D5) and touches no bytes, so it never reads from the Archivist. Started after
+// the Librarian — health-after-pumps makes ordering against other sidecars moot
+// rather than racy.
 func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	x.banner("Starting Dispatcher")
-	state, ok := x.stateMountsShared("state", fc.root)
-	if !ok {
-		return 1
-	}
 	clientSecret, ok := x.serviceClientSecret(fc.root, "dispatcher")
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, addr, clientSecret, fc.version, fc.userEnv, otel, state...)
+	args := dispatcherArgs(stage, addr, clientSecret, fc.version, fc.userEnv, otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
@@ -966,7 +965,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 			// Same gate as a full start: a realm restarted alone must still
 			// honour the credentials every running service already holds.
-			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan) {
+			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan, true) {
 				return 1
 			}
 		}

@@ -1,24 +1,28 @@
 /**
- * The multi-replica capability PROOF (SIGNAL-PLANE P3 — GREEN 2026-09-15).
+ * The multi-replica capability PROOF (SIGNAL-PLANE P3 — GREEN 2026-09-15;
+ * re-pointed at the dispatcher for EXTRACT-JOBS P2/P3).
  *
  * Two full gateway-side compositions over one core-only broker, each built
  * from the SAME modules production boots: `compositionFor` (plane + ledger +
- * the standing tap + claim announcements) and `bridgeGatewayHandlers` (the
- * handler island reconnected, both directions, driving the make-meaning
- * channel lists). The P3 RED harness hand-mirrored this wiring and carried
- * five `test.fails`; every one is promoted here — a regression in any fails
- * hard, not quietly.
+ * the standing tap + claim announcements). The `job:*` handlers the gateway
+ * used to host — reconnected to a remote plane by `bridgeGatewayHandlers` —
+ * moved to the DISPATCHER (EXTRACT-JOBS): a fan-out service that subscribes its
+ * roster through /bus/subscribe and answers on its own bus, exactly like the
+ * Archivist. It is composed here the same way the Archivist is, through
+ * `serviceOver` + `attachServicePumps` over its REAL DISPATCHER_INBOUND/OUTBOUND
+ * rosters — no bridge, because there is no gateway-resident island left to
+ * reconnect.
  *
  * What each proves (the plan's property numbering):
  *  - H0  (found at RED): the ledger is plane-fed — answered/retention work
  *        over a broker at N=1;
  *  - H1  (property 1): a request claimed via B delivers to a client on A —
  *        claim announcements converge the ledgers;
- *  - H2  (found at RED; property 3's composition grain): an HTTP-shaped
- *        `job:create` reaches a bridged gateway-resident handler EXACTLY
- *        once across replicas, and its reply crosses back to the requester;
- *  - H3  (property 3, plane grain): handler-mode at-most-once across
- *        connections;
+ *  - H2  (property 3, re-pointed): an HTTP-shaped `job:create` claimed at A
+ *        reaches the single dispatcher attached at B and its `job:created`
+ *        reply crosses the broker back to the requester at A — the
+ *        plane-crossing round trip (EXTRACT-JOBS C3) that took the stack down
+ *        twice in September, at unit grain;
  *  - H4  (property 4): broadcasts reach clients on both instances;
  *  - H5  (property 5): reply recovery (`pendingReplies`) answers from the
  *        OTHER instance;
@@ -27,9 +31,25 @@
  *  - H7  (found LIVE, post-GREEN): a gateway-internal `busRequest` rides
  *        the plane primitive and reaches a remote bus-client actor — the
  *        `yield:create` starvation bug as a test;
- *  - H8  (found LIVE, post-GREEN): a queue driver's raw-bus `job:queued`
- *        announcement crosses the bridge to a worker-shaped client on the
- *        other instance — the worker starvation bug as a test.
+ *  - H7b : the Archivist roster answers EVERY operation it claims, across
+ *        the broker;
+ *  - H8  (found LIVE, post-GREEN; re-pointed): the DISPATCHER's outbound pump
+ *        carries its raw-bus `job:queued` announcement across the broker to a
+ *        worker-shaped client on the other instance — the worker starvation
+ *        bug as a test, now proving the pump that replaced the bridge;
+ *  - H9  : the REAL worker manifest hears the queue announcement (composition
+ *        grain);
+ *  - H10 : `job:queued` reaches the worker manifest and NOT a default client
+ *        (audience).
+ *
+ * RETIRED at EXTRACT-JOBS P3 — the old H3 ("a bridged handler command executes
+ * on ONE gateway instance, never both"). That at-most-once was a property of
+ * the gateway HANDLER GROUP (`plane.subscribeHandlers`), which existed only
+ * because the handlers lived in the horizontally-scaled gateway. They now live
+ * in the dispatcher — a fan-out /bus/subscribe client, of which the deploy runs
+ * one — and the handler-group primitive itself is still exercised by
+ * `conformance.test.ts`. Execute-once for job WORK is the JetStream queue's
+ * `claimNextJob`, proven in the jobs conformance suite — not a plane property.
  *
  * Ordering note: a claim announcement and its request leave one connection
  * in order, so every subscriber sees claim-before-request (and B-published
@@ -41,18 +61,17 @@ import { afterAll, describe, test, expect } from 'vitest';
 import { Subject } from 'rxjs';
 import { EventBus, busRequest, BRIDGED_CHANNELS, BUS_OPERATIONS, type BusFrame, type BusOperationKey, type EventMap } from '@semiont/core';
 import {
-  GATEWAY_HANDLER_CHANNELS,
-  GATEWAY_HANDLER_EMITS,
   ARCHIVIST_INBOUND_CHANNELS,
   ARCHIVIST_OUTBOUND_CHANNELS,
+  DISPATCHER_INBOUND_CHANNELS,
+  DISPATCHER_OUTBOUND_CHANNELS,
   attachServicePumps,
   type PumpTransport,
 } from '@semiont/make-meaning';
-import { JOB_QUEUE_EMITS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '@semiont/jobs';
+import { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '@semiont/jobs';
 import { toReplyAddress, type PlaneEnvelope, type SignalPlane } from '../interface';
 import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
-import { bridgeGatewayHandlers } from '../bridge';
 import { isCorrelatedChannel } from '../channels';
 import { requestPrimitiveFor } from '../request-primitive';
 import { natsFixture } from './nats-fixture';
@@ -71,8 +90,6 @@ const PRINCIPAL = 'did:web:test:users:p3';
 interface Instance {
   name: string;
   composition: SignalComposition;
-  /** `job:create` commands this instance's bridged handler executed. */
-  handled: { correlationId?: string; command: unknown }[];
   /** Emit-as-claim, as the /bus/emit route does it. */
   emitRequest(channel: string, cid: string, clientId: string, payload?: Record<string, unknown>): void;
   /** A reply/broadcast ingest, as any responder's emit. */
@@ -85,39 +102,21 @@ interface Instance {
   /** A gateway-internal `busRequest` over the plane primitive — the
    *  ResourceOperations shape (`requestPrimitiveFor`). */
   request(operation: BusOperationKey, payload: Record<string, unknown>): Promise<unknown>;
-  /** A raw emit on this instance's BUS — the queue drivers' shape; only the
-   *  outbound bridge can carry it to the plane. */
-  emitOnBus(channel: keyof EventMap, payload: unknown): void;
   teardown(): void;
 }
 
 async function makeInstance(name: string, servers: string): Promise<Instance> {
+  // The bus backs the gateway's internal `busRequest` primitive (H7). The
+  // job:* handlers that once rode this bus behind `bridgeGatewayHandlers` are
+  // gone (EXTRACT-JOBS P3): a gateway hosts no handler island, so there is
+  // nothing to bridge. Services attach as their own `serviceOver` compositions.
   const bus = new EventBus();
   const plane = await createNatsSignalPlane({ servers, reconnect: false });
   const composition = compositionFor(bus, plane);
-  // The same union production composes (index.ts): handler emits PLUS the
-  // queue drivers' announcements. H8 fails if either half goes missing.
-  const bridge = bridgeGatewayHandlers(plane, bus, GATEWAY_HANDLER_CHANNELS, [
-    ...GATEWAY_HANDLER_EMITS,
-    ...JOB_QUEUE_EMITS,
-  ]);
-
-  // The gateway-resident handler, in miniature: subscribes THIS instance's
-  // bus (as registerGatewayBusHandlers does) and answers on it — the bridge
-  // carries both directions.
-  const handled: { correlationId?: string; command: unknown }[] = [];
-  bus.frames('job:create').subscribe(({ payload: command, correlationId }) => {
-    // The KEY is what identifies the command here, and it rides the envelope —
-    // recording the payload alone would make every command indistinguishable
-    // and the "executed on exactly one instance" assertion vacuous.
-    handled.push({ correlationId, command });
-    bus.emit('job:created', { response: { jobId: `job-${correlationId}` } }, { correlationId });
-  });
 
   return {
     name,
     composition,
-    handled,
     emitRequest(channel, cid, clientId, payload = {}) {
       const outcome = composition.claim(cid, clientId, PRINCIPAL);
       expect(outcome, `${name}: claim ${cid}`).toBe('ok');
@@ -152,11 +151,7 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
     request(operation, payload) {
       return busRequest(requestPrimitiveFor(bus), operation, payload, 5_000);
     },
-    emitOnBus(channel, payload) {
-      bus.emit(channel, payload as never);
-    },
     teardown() {
-      bridge.close();
       composition.dispose();
       plane.dispose();
       bus.destroy();
@@ -215,9 +210,31 @@ function serviceOver(
   };
 }
 
-/** The Archivist, the only roster with a service to compose today. */
+/** The Archivist roster, composed as its real service. */
 const archivistOver = (plane: SignalPlane) =>
   serviceOver(plane, 'archivist', ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS);
+
+/**
+ * The Dispatcher (EXTRACT-JOBS): its REAL inbound/outbound rosters through
+ * `serviceOver`, plus a mini `job:create` handler on its local bus — the
+ * production shape in miniature. A `job:create` relayed in by the inbound pump
+ * is answered with `job:created`, which the OUTBOUND pump carries back to the
+ * plane (DISPATCHER_OUTBOUND_CHANNELS derives that reply from BUS_OPERATIONS).
+ * `handled` records the correlationIds it saw, so a double-relay is caught.
+ */
+function dispatcherOver(plane: SignalPlane): {
+  handled: { correlationId?: string }[];
+  localBus: EventBus;
+  close(): void;
+} {
+  const svc = serviceOver(plane, 'dispatcher', DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS);
+  const handled: { correlationId?: string }[] = [];
+  svc.localBus.frames('job:create').subscribe(({ correlationId }) => {
+    handled.push({ correlationId });
+    svc.localBus.emit('job:created', { response: { jobId: `job-${correlationId}` } } as never, { correlationId });
+  });
+  return { handled, localBus: svc.localBus, close: svc.close };
+}
 
 async function twoInstances(): Promise<{ a: Instance; b: Instance; done(): void }> {
   const { servers } = await natsFixture();
@@ -255,22 +272,6 @@ describe('P3 — two gateway-compositions over one broker', () => {
     }
   });
 
-  test('H3: a bridged handler command executes on ONE instance, never both', async () => {
-    const { a, b, done } = await twoInstances();
-    try {
-      const cids = Array.from({ length: 10 }, (_, i) => `cid-h3-${i}`);
-      for (const [i, cid] of cids.entries()) {
-        (i % 2 ? a : b).emitRequest('job:create', cid, 'client-h3', { jobType: 'generate', params: {} });
-      }
-      await settle(() => a.handled.length + b.handled.length >= cids.length);
-      const seen = [...a.handled, ...b.handled].map((h) => h.correlationId);
-      expect(seen.length, 'each command executed').toBe(cids.length);
-      expect(new Set(seen).size, 'no command executed on BOTH instances').toBe(cids.length);
-    } finally {
-      done();
-    }
-  });
-
   test('H0 (single instance): a claimed request answered over NATS marks the claim and retains the reply', async () => {
     const { a, done } = await twoInstances();
     try {
@@ -288,15 +289,26 @@ describe('P3 — two gateway-compositions over one broker', () => {
     }
   });
 
-  test('H2: an HTTP-shaped job:create reaches a bridged handler once, and its reply returns to the requester', async () => {
+  test('H2: a job:create claimed at A reaches the dispatcher at B and its job:created returns to the requester', async () => {
     const { a, b, done } = await twoInstances();
     try {
+      // One dispatcher, attached at B — the deployed shape. A worker's request
+      // is claimed and ingested at A; it must cross the broker to B, be handled,
+      // and its reply cross back to the requester on A. This is the plane round
+      // trip C3 names — the path that took the stack down twice in September.
+      const dispatcher = dispatcherOver(b.composition.plane);
+      // B's dispatcher subscription must be REGISTERED before the request is
+      // published (core NATS is at-most-once), the same barrier H7 uses.
+      await b.composition.plane.flush();
+
       const client = a.client('client-h2', ['job:created']);
       a.emitRequest('job:create', 'cid-h2', 'client-h2', { jobType: 'generate', params: {} });
       await settle(() => client.frames.length >= 1);
-      expect(a.handled.length + b.handled.length, 'executed exactly once across replicas').toBe(1);
+      expect(dispatcher.handled.length, 'the dispatcher handled it exactly once').toBe(1);
+      expect(dispatcher.handled[0]!.correlationId, "with the requester's correlationId").toBe('cid-h2');
       expect(client.frames.length, 'reply delivered to the requester').toBeGreaterThanOrEqual(1);
       expect(client.frames[0]!.channel).toBe('job:created');
+      dispatcher.close();
       client.close();
     } finally {
       done();
@@ -417,26 +429,31 @@ describe('P3 — two gateway-compositions over one broker', () => {
     }
   });
 
-  test('H8: a queue announcement on the bus reaches a worker-shaped client on the other instance', async () => {
+  test('H8: the dispatcher pump carries its job:queued announcement to a worker on the other instance', async () => {
     // The worker starvation bug as a test
     // (.plans/bugs/job-queued-classified-in-process-starves-workers.md):
-    // the queue DRIVERS emit `job:queued` on the raw bus, and its old
-    // fallthrough classification ('in-process') made the bridge's direction
-    // filter drop it silently — workers heard nothing, forever. Now it is a
-    // declared bridged broadcast and rides JOB_QUEUE_EMITS through the
-    // outbound bridge.
+    // the queue DRIVER emits `job:queued` on the dispatcher's raw bus, and its
+    // old fallthrough classification ('in-process') made the OLD gateway bridge
+    // drop it silently — workers heard nothing, forever. The bridge is gone
+    // (EXTRACT-JOBS P3); the crossing is now the DISPATCHER's outbound pump, and
+    // `job:queued` rides it as the one declared stray in
+    // DISPATCHER_OUTBOUND_CHANNELS.
     const { a, b, done } = await twoInstances();
     try {
+      const dispatcher = dispatcherOver(a.composition.plane);
       const worker = b.client('worker-h8', ['job:queued']);
       await settle(() => {
         if (worker.frames.length >= 1) return true;
-        // Emit-until-seen, as H4: the queue driver re-announces on a timer
-        // in production, so repetition is the honest model too.
-        a.emitOnBus('job:queued', { jobId: 'job-h8', jobType: 'generate' });
+        // Emit on the dispatcher's LOCAL bus — the queue driver's shape; the
+        // outbound pump is what must carry it to the plane. Re-announced each
+        // poll: the driver re-announces on a timer in production, so repetition
+        // is the honest model too.
+        dispatcher.localBus.emit('job:queued', { jobId: 'job-h8', jobType: 'generate' } as never);
         return false;
       });
       expect(worker.frames.length, 'worker heard the announcement').toBeGreaterThanOrEqual(1);
       expect(worker.frames[0]!.channel).toBe('job:queued');
+      dispatcher.close();
       worker.close();
     } finally {
       done();
@@ -472,8 +489,11 @@ describe('P3 — two gateway-compositions over one broker', () => {
       await settle(() => {
         if (worker.frames.some((f) => f.channel === 'job:queued')) return true;
         // Emit-until-seen, as H4/H8: the queue driver re-announces on a timer
-        // in production, so repetition is the honest model too.
-        a.emitOnBus('job:queued', { jobId: 'job-h9', jobType: 'generate' });
+        // in production, so repetition is the honest model too. The frame's
+        // real sender is the dispatcher's outbound pump (H8); here the subject
+        // is the RECEIVING worker's manifest, so the frame is put on the plane
+        // directly.
+        a.ingest('job:queued', { jobId: 'job-h9', jobType: 'generate' });
         return false;
       });
       expect(
@@ -518,7 +538,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
 
       await settle(() => {
         if (worker.frames.some((f) => f.channel === 'job:queued')) return true;
-        a.emitOnBus('job:queued', { jobId: 'job-h10', jobType: 'generate' });
+        a.ingest('job:queued', { jobId: 'job-h10', jobType: 'generate' });
         return false;
       });
       expect(

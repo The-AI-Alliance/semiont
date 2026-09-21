@@ -8,7 +8,8 @@
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
 import { JWTService } from '../auth/jwt';
-import { authorizeAgentMinter, AgentMinterRefused } from '../identity/agent-minter';
+import { authorizeAgentMinter, AgentMinterRefused, type AuthorizedMinter } from '../identity/agent-minter';
+import { WORKER_ROLE } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { email as makeEmail, agentToDid } from '@semiont/core';
 
@@ -81,7 +82,7 @@ const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
  * produces attribute to the agent, not to a generic worker pool.
  */
 authRouter.post('/api/tokens/agent', async (c) => {
-  let minter: string;
+  let minter: AuthorizedMinter;
   try {
     minter = await authorizeAgentMinter(c.req.header('Authorization'));
   } catch (error) {
@@ -128,17 +129,23 @@ authRouter.post('/api/tokens/agent', async (c) => {
   // Which service account asked for which agent identity. Worth a line: the two
   // are deliberately different, so an operator tracing an event back to its
   // agent DID otherwise has no record of which process requested it.
-  c.get('logger')?.info('Agent token issued', { minter, did });
+  c.get('logger')?.info('Agent token issued', { minter: minter.client, did, worker: minter.workerCapable });
 
   // No row is written. The agent's identity IS the DID, derived from the same
   // (domain, provider, model) the caller just presented, so there was never a
   // fact here for a database to remember — the synthetic row this replaces
   // existed only to hand out a cuid that nothing downstream read.
+  //
+  // The worker capability rides ALONG the DID when a worker minted this token
+  // (EXTRACT-JOBS P0): the agent may then claim jobs, and the dispatcher reads
+  // it off the frame. Only the worker grant is delegated — never SERVICE_ROLE,
+  // so an agent token cannot in turn mint another.
   const token = JWTService.generateToken({
     did,
     email: makeEmail(agentEmail),
     name: agentName,
     domain: siteDomain,
+    ...(minter.workerCapable ? { roles: [WORKER_ROLE] } : {}),
   }, `${AGENT_TOKEN_TTL_SECONDS}s`);
 
   return c.json({ token, did }, 200);
