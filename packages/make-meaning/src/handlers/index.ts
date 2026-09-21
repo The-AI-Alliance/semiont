@@ -44,8 +44,6 @@ export {
  * 2026-09-15.
  */
 export const GATEWAY_HANDLER_CHANNELS = [
-  // bind-update-body
-  'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
   // job-commands
   'job:create', 'job:claim', 'job:complete', 'job:fail',
   'job:report-progress', 'job:checkpoint', 'job:cancel-requested', 'job:cancel',
@@ -59,8 +57,6 @@ export const GATEWAY_HANDLER_CHANNELS = [
  * subscribers — the other half of the q0(a) funnel.
  */
 export const GATEWAY_HANDLER_EMITS = [
-  // bind-update-body
-  'mark:update-body', 'bind:body-updated', 'bind:body-update-failed',
   // job-commands
   'job:created', 'job:create-failed', 'job:claimed', 'job:claim-failed',
   'job:cancel-ok', 'job:cancel-failed', 'job:status-result', 'job:status-failed',
@@ -77,6 +73,9 @@ export const HANDLER_CHANNELS = [
   'mark:create-request', 'mark:added', 'mark:create-failed',
   // annotation-lookups
   'browse:annotation-context-requested', 'gather:summary-requested',
+  // bind-update-body — Archivist-resident now, but the in-process root still
+  // registers it, so it is listed here rather than reached via the gateway set.
+  'bind:update-body', 'mark:body-updated', 'mark:body-update-failed',
   ...GATEWAY_HANDLER_CHANNELS,
 ] as const satisfies readonly (keyof EventMap)[];
 
@@ -123,8 +122,11 @@ export function registerBusHandlers(
  * premise that "the gateway is the byte path" (GATEWAY.md D4) — D1 reversed
  * the premise, so the conclusion went with it.
  *
- * What remains is what the gateway genuinely owns: the bind re-emit and the
- * job queue it hosts.
+ * What remains is the job queue the gateway hosts. The bind re-emit left for
+ * the Archivist, where the Stower it drives already lives: the handler only
+ * translates `bind:update-body` into `mark:update-body` and matches the reply,
+ * so hosting it away from the Stower made the whole exchange cross the wire
+ * twice for no reason.
  */
 export function registerGatewayBusHandlers(
   eventBus: EventBus,
@@ -132,6 +134,5 @@ export function registerGatewayBusHandlers(
   state: SemiontState,
   logger: Logger,
 ): void {
-  registerBindUpdateBodyHandler(eventBus, logger);
   registerJobCommandHandlers(eventBus, jobQueue, state, logger);
 }

@@ -164,6 +164,11 @@ export const ARCHIVIST_INBOUND_CHANNELS = [
   'smelt:settled',
   // The annotation-context read moved here with the bytes (SINGLE-KB-MOUNT D5).
   'browse:annotation-context-requested',
+  // The bind re-emit followed the Stower it drives (EXTRACT-JOBS D2). Its
+  // replies are DERIVED from here — `bind:update-body` is a registered
+  // operation, so `replyChannelsFor` picks up bind:body-updated /
+  // bind:body-update-failed without a hand-written entry.
+  'bind:update-body',
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
@@ -173,7 +178,14 @@ export const ARCHIVIST_INBOUND_CHANNELS = [
  * anything else belongs in the derivation, never here.
  */
 export const ARCHIVIST_OUTBOUND_STRAYS = [
-  'mark:body-update-failed', // op keyed 'bind:update-body' (gateway handler re-emits mark:update-body)
+  // `mark:body-update-failed` stood here while the bind handler lived in the
+  // gateway: the Stower raises it, and its only consumer was off-process, so it
+  // had to be pumped out by hand (no operation is keyed `mark:update-body`, so
+  // the derivation cannot see it). EXTRACT-JOBS D2 moved that consumer here, so
+  // the whole mark:update-body exchange is now local and the frame never leaves.
+  // The list is shorter because traffic became local, not because the
+  // derivation grew — `mark:body-updated` still reaches clients, via the fact
+  // pump, being a persisted event.
   'yield:move-failed',       // yield:mv has no registered operation; failure is direct-subscribed
 ] as const satisfies readonly (keyof EventMap)[];
 
