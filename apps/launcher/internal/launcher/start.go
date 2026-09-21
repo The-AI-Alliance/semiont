@@ -31,7 +31,7 @@ func configFreeService(svc string) bool {
 var preflightNames = []string{
 	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-nats", "semiont-postgres",
 	"semiont-keycloak", "semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
-	"semiont-archivist", "semiont-librarian",
+	"semiont-archivist", "semiont-librarian", "semiont-dispatcher",
 }
 
 type startOptions struct {
@@ -948,6 +948,36 @@ func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []st
 	return append(a, image("librarian", version))
 }
 
+// dispatcherArgs: the Dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5) — it owns
+// the job queue and answers job:* lifecycle commands, and content bytes and
+// annotations never flow through it. Same shape as librarianArgs (a state-
+// mounting make-meaning sidecar), minus everything it does not touch: no KB
+// tree, no ARCHIVIST_HOST (D5 — it never reads from the record), no graph. It
+// mounts the shared state store unconditionally (C4 — so the fs job driver is
+// never silently mountless), and carries the full *_HOST eager-interpolation
+// set its staged config may reference, exactly as the other sidecars do.
+func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
+		"--memory", roles["dispatcher"].mem, "--publish", "24105:24105",
+		"--volume", stage + "/dispatcher.toml:/home/semiont/.semiontconfig:ro"}
+	a = append(a, state...)
+	a = append(a, userEnv...)
+	a = append(a, otel...)
+	a = append(a, gatewayHostEnv(addr)...)
+	a = append(a,
+		"--env", "OLLAMA_HOST="+addr,
+		"--env", "NEO4J_HOST="+addr,
+		"--env", "NATS_HOST="+addr,
+		"--env", "KEYCLOAK_HOST="+addr,
+		"--env", "QDRANT_HOST="+addr,
+		"--env", "POSTGRES_HOST="+addr,
+		"--env", "XDG_STATE_HOME=/semiont-state",
+		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
+		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
+	a = append(a, superviseEnv()...)
+	return append(a, image("dispatcher", version))
+}
+
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
 		"--memory", roles["browser"].mem, "--publish", fmt.Sprintf("%d:3000", port)}
@@ -985,7 +1015,7 @@ func pullArgs(rt, img string) []string {
 
 // browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
-var semiontServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
+var semiontServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
 
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {

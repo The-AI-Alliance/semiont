@@ -28,6 +28,10 @@
     "./librarian-main": {
       "types": "./dist/librarian-main.d.ts",
       "import": "./dist/librarian-main.js"
+    },
+    "./dispatcher-main": {
+      "types": "./dist/dispatcher-main.d.ts",
+      "import": "./dist/dispatcher-main.js"
     }
   },
   "files": [

@@ -73,20 +73,21 @@ var roles = map[string]roleSpec{
 	// always "external" in practice — either the Ollama the inference role
 	// already provides, or a remote SaaS (Voyage). Like every external role
 	// it participates in status but supports no start/stop.
-	"embedding": {"", "", nil, ""},
-	"database":  {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
-	"gateway":   {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "2G"},
-	"worker":    {"", "semiont-worker", []portNeed{{24100, "Worker"}}, "2G"},
-	"smelter":   {"", "semiont-smelter", []portNeed{{24101, "Smelter"}}, "2G"},
-	"weaver":    {"", "semiont-weaver", []portNeed{{24102, "Weaver"}}, "2G"},
-	"archivist": {"", "semiont-archivist", []portNeed{{24103, "Archivist"}}, "2G"},
-	"librarian": {"", "semiont-librarian", []portNeed{{24104, "Librarian"}}, "2G"},
+	"embedding":  {"", "", nil, ""},
+	"database":   {"PostgreSQL", "semiont-postgres", []portNeed{{5432, "PostgreSQL"}}, "1G"},
+	"gateway":    {"", "semiont-gateway", []portNeed{{4000, "Gateway"}}, "2G"},
+	"worker":     {"", "semiont-worker", []portNeed{{24100, "Worker"}}, "2G"},
+	"smelter":    {"", "semiont-smelter", []portNeed{{24101, "Smelter"}}, "2G"},
+	"weaver":     {"", "semiont-weaver", []portNeed{{24102, "Weaver"}}, "2G"},
+	"archivist":  {"", "semiont-archivist", []portNeed{{24103, "Archivist"}}, "2G"},
+	"librarian":  {"", "semiont-librarian", []portNeed{{24104, "Librarian"}}, "2G"},
+	"dispatcher": {"", "semiont-dispatcher", []portNeed{{24105, "Dispatcher"}}, "2G"},
 	// browser: the Browser owns its port inside flowBrowser — an empty
 	// ports list here keeps 3000 out of every stack-level claim and sweep.
 	"browser": {"", "semiont-browser", nil, "1G"},
 }
 
-const roleList = "gateway, worker, smelter, weaver, archivist, librarian, browser, database, graph, vectors, messaging, identity, inference, embedding, traces, metrics, or collector"
+const roleList = "gateway, worker, smelter, weaver, archivist, librarian, dispatcher, browser, database, graph, vectors, messaging, identity, inference, embedding, traces, metrics, or collector"
 
 // roleByContainer inverts the roles table (container name → role).
 var roleByContainer = func() map[string]string {

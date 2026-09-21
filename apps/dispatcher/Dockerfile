@@ -1,0 +1,76 @@
+# dispatcher image.
+#
+# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
+# published @semiont/make-meaning and runs `dist/dispatcher-main.js` out of it;
+# the source is packages/make-meaning/src/dispatcher-main.ts. Only the image
+# recipe lives here — the entrypoint stayed in its package deliberately, so
+# that moving it out would not have to promote that package's internals to
+# public API just to satisfy a directory layout. If you change the CMD, change
+# it against that file.
+#
+# Stage 1: install (npm runs here, then is discarded).
+#
+# The dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5): it owns the job queue
+# and answers `job:*` lifecycle commands. It dials no graph, no vectors, and
+# touches no KB tree — so, like the smelter and unlike the weaver, it bundles
+# no neo4j-driver.
+#
+# Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
+# qdrant client's undici@6, which @semiont/make-meaning can load transitively at
+# connect time. Keep in sync with the gateway image.
+FROM node:24-alpine AS installer
+ARG NPM_REGISTRY=https://registry.npmjs.org
+ARG SEMIONT_VERSION=latest
+RUN npm config set registry $NPM_REGISTRY && \
+    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
+    npm cache clean --force
+
+# Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
+# `node dispatcher-main.js`, so npm is build-only baggage. Removing it also
+# drops the picomatch / glob / etc. CVE surface that ships inside npm's bundled
+# node_modules.
+FROM node:24-alpine
+# Patch base-image OS packages so alpine security fixes apply even when the
+# node:24-alpine snapshot hasn't been rebuilt against them yet.
+RUN apk upgrade --no-cache
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 semiont
+
+# The global @semiont/make-meaning (with its hoisted deps) and its bin symlinks.
+COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
+COPY --from=installer /usr/local/bin /usr/local/bin
+
+# Strip npm/npx (re-introduced by the COPY above) plus the TypeScript compiler.
+# `typescript` + its native `@typescript/*` Go binaries are pulled transitively
+# via the qdrant client's dep chain but never loaded at runtime — build-only
+# baggage, and the native `tsc` carries a Go-stdlib CVE (CVE-2026-39822).
+RUN rm -rf /usr/local/lib/node_modules/npm \
+           /usr/local/bin/npm \
+           /usr/local/bin/npx && \
+    find /usr/local/lib/node_modules \
+      -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
+
+COPY LICENSE /home/semiont/LICENSE
+COPY apps/dispatcher/NOTICE /home/semiont/NOTICE
+
+WORKDIR /kb
+RUN chown semiont:nodejs /kb
+# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
+# /usr/local/bin refuses writes once USER drops privileges below.
+RUN apk add --no-cache tini
+COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
+COPY scripts/container/boot.sh /usr/local/bin/boot.sh
+
+USER semiont
+
+ENV NODE_ENV=production
+EXPOSE 24105
+
+HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:24105/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+
+ENV SUPERVISE_NAME=dispatcher \
+    SUPERVISE_PROBE=http://localhost:24105/health
+ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
+CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/dispatcher-main.js"]

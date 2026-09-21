@@ -90,7 +90,7 @@ func identityEndpoint(rp rolePlan) string {
 // the agent exchange and false in general: the gateway dials the Archivist for
 // content, events and the working tree's branch, and has to prove who it is
 // like anyone else.
-var serviceClients = []string{"archivist", "gateway", "librarian", "smelter", "weaver", "worker"}
+var serviceClients = []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"}
 
 // serviceClientID: the realm client id for one service's account.
 func serviceClientID(svc string) string { return "semiont-" + svc }
