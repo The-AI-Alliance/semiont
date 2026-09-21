@@ -11,6 +11,35 @@ If you only want to *use* the protocol from a script, you don't need this doc �
 
 The authority is **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)**; [`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts) (the `EventMap` type and `CHANNEL_SCHEMAS` map) and the Go equivalents are GENERATED from it — see "The registry is the authority" below. This doc is the prose explanation; the registry is the truth.
 
+## What rides the bus, and the four things that deliberately do not
+
+**The bus mediates subsystem messaging.** A request between two Semiont processes is a channel, a
+payload and an envelope — not an HTTP call. That is what makes a subsystem relocatable: the
+gateway's own handlers receive their frames from the broker through a queue group, so a handler
+moving to another process costs no extra hop.
+
+Four paths are deliberately not on the bus. They are the whole list; a fifth is a design change,
+not an oversight.
+
+| path | what | why not the bus |
+|---|---|---|
+| `PUT /content/:storageUri` | byte writes to the Archivist | Bytes ride HTTP, never the bus. Streaming an arbitrarily large body as a frame is the wrong shape. |
+| `GET /resources/:id/content` | byte reads from the Archivist | Same. |
+| `GET /events/:resourceId?fromSequence=N` | the `Last-Event-ID` replay behind `/bus/subscribe` | A bulk backlog read at connection setup, not an event. Bounded to one resource from one sequence, one customer. `browse:events-requested` remains the bus-side read for ordinary queries — the duplication is accepted and narrow. |
+| `POST /api/tokens/agent` | a sidecar or worker buying an agent token | Bootstrapping a credential must not depend on the thing the credential is for. |
+
+`GET /kb/branch` is the Archivist's fifth HTTP endpoint and belongs to the first two rows in
+spirit: the git working tree is the KB tree, and the Archivist is its authority. It serves one
+field on `/api/status`.
+
+**Outside this rule by nature**, not exceptions to it: the trusted issuer (token endpoint, admin
+API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.
+
+The standing rule governing what may live on the Archivist's HTTP surface at all — *"this surface
+serves the KB tree, and nothing else"* — is stated once, in
+[`archivist-read-path.ts`](../../packages/make-meaning/src/archivist-read-path.ts)'s header. This
+table is the system-level view; that header is the gate.
+
 ## Channel naming
 
 Every channel is `verb:action` or `verb:action-state`. The verb is one of the eight flows ([flows/README.md](flows/README.md)) plus a small set of cross-cutting domains.

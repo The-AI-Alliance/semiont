@@ -261,3 +261,7 @@ kinds. Every transport preserves the categorization:
 - Not a channel inventory. That lives in
   [CHANNELS.md](./CHANNELS.md).
 - Not a bus-scope tutorial. See [EVENT-BUS.md § Resource scoping](./EVENT-BUS.md#resource-scoping).
+- Not the bus-versus-HTTP boundary. Which subsystem traffic rides the bus and
+  which deliberately does not — bytes, the `Last-Event-ID` replay, credential
+  exchange — is enumerated in
+  [EVENT-BUS.md § What rides the bus](./EVENT-BUS.md#what-rides-the-bus-and-the-four-things-that-deliberately-do-not).
