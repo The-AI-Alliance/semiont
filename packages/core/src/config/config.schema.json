@@ -1187,7 +1187,7 @@
     },
     "JobsServiceConfig": {
       "type": "object",
-      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
+      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one. Broker credentials: 'user' and 'password' authenticate this client to NATS. Both may reference environment via ${VAR}. They are optional \u2014 absent means an unauthenticated broker, which is what every deployment had before INTER-COMPONENT-ACCESS P3, and means anyone who can reach NATS can read and write everything on it. [signal] and [jobs] name ONE daemon: when both carry credentials they must match, and the launcher refuses a disagreement rather than choosing.",
       "properties": {
         "type": {
           "type": "string",
@@ -1197,6 +1197,12 @@
           ]
         },
         "servers": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "password": {
           "type": "string"
         }
       },
@@ -1226,7 +1232,7 @@
     },
     "SignalServiceConfig": {
       "type": "object",
-      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default \u2014 D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream \u2014 D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one.",
+      "description": "The Signal Plane driver (SIGNAL-PLANE P2). Selection is stated here, never inferred: 'in-process' is the RxJS relay inside the gateway (the permanent local default \u2014 D7); 'nats' selects core NATS subjects on the shared messaging daemon (never JetStream \u2014 D3). Absent section means 'in-process'. 'servers' is required for 'nats' and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one. Broker credentials: 'user' and 'password' authenticate this client to NATS. Both may reference environment via ${VAR}. They are optional \u2014 absent means an unauthenticated broker, which is what every deployment had before INTER-COMPONENT-ACCESS P3, and means anyone who can reach NATS can read and write everything on it. [signal] and [jobs] name ONE daemon: when both carry credentials they must match, and the launcher refuses a disagreement rather than choosing.",
       "properties": {
         "type": {
           "type": "string",
@@ -1236,6 +1242,12 @@
           ]
         },
         "servers": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "password": {
           "type": "string"
         }
       },

@@ -10,6 +10,7 @@ package launcher
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -490,5 +491,103 @@ model = "gemma4:26b"
 	plan2 := mustDerive(t, p2)
 	if got := plan2.Roles["inference"].Image; got != "ollama/ollama:0.9.5" {
 		t.Errorf("inference image: got %q", got)
+	}
+}
+
+// ── Broker credentials (INTER-COMPONENT-ACCESS P3) ──────────────────────────
+//
+// [signal] and [jobs] name ONE daemon, so their credentials reconcile the way
+// their servers already do: a disagreement is a config error, never a silent
+// choice between them. The credential reaches the daemon as its own
+// environment — the shape the graph role uses for NEO4J_AUTH and the database
+// role for POSTGRES_PASSWORD — because nats-server reads none by itself and
+// argv would put it in every process listing.
+
+func planForBroker(t *testing.T, signal, jobs string) (*launchPlan, error) {
+	t.Helper()
+	// NOT via variantConfig's replace map: it emits a fixed section list, so a
+	// key outside that list is accepted and silently dropped. Append instead.
+	base, err := os.ReadFile(variantConfig(t, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	p := writeVariant(t, string(base)+"\n"+signal+"\n"+jobs+"\n")
+	env, envName, _, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	return derivePlan(env, envName, p)
+}
+
+const brokerSignal = `[environments.local.signal]
+type = "nats"
+servers = "${NATS_HOST}:4222"
+user = "semiont"
+password = "broker-pw"
+`
+
+const brokerJobs = `[environments.local.jobs]
+type = "jetstream"
+servers = "${NATS_HOST}:4222"
+user = "semiont"
+password = "broker-pw"
+`
+
+func TestBrokerCredentialsReachTheDaemonAsItsOwnEnvironment(t *testing.T) {
+	plan, err := planForBroker(t, brokerSignal, brokerJobs)
+	if err != nil {
+		t.Fatalf("derivePlan: %v", err)
+	}
+	rp := plan.Roles["messaging"]
+	if !slices.Contains(rp.Env, "NATS_USER=semiont") || !slices.Contains(rp.Env, "NATS_PASSWORD=broker-pw") {
+		t.Fatalf("messaging env = %v, want the broker credentials", rp.Env)
+	}
+	// And the daemon is pointed at the authorization block that reads them.
+	if !slices.Contains(rp.CmdExtra, "-c") || !slices.Contains(rp.CmdExtra, natsConfPath) {
+		t.Fatalf("CmdExtra = %v, want -c %s", rp.CmdExtra, natsConfPath)
+	}
+}
+
+// The control: no credentials configured means nothing added, so an
+// unauthenticated broker keeps working byte-for-byte as before.
+func TestNoBrokerCredentialsLeavesTheDaemonUntouched(t *testing.T) {
+	plan, err := planForBroker(t,
+		"[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n",
+		"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n")
+	if err != nil {
+		t.Fatalf("derivePlan: %v", err)
+	}
+	rp := plan.Roles["messaging"]
+	if len(rp.Env) != 0 || len(rp.CmdExtra) != 0 {
+		t.Fatalf("env=%v cmdExtra=%v, want both empty", rp.Env, rp.CmdExtra)
+	}
+}
+
+func TestBrokerCredentialsMustAgreeAcrossSections(t *testing.T) {
+	_, err := planForBroker(t, brokerSignal,
+		strings.Replace(brokerJobs, `password = "broker-pw"`, `password = "a-different-one"`, 1))
+	if err == nil {
+		t.Fatal("two sections naming different broker passwords was accepted")
+	}
+	if !strings.Contains(err.Error(), "one role is one daemon") {
+		t.Errorf("error does not explain why: %v", err)
+	}
+
+	if _, err := planForBroker(t, brokerSignal,
+		strings.Replace(brokerJobs, `user = "semiont"`, `user = "someone-else"`, 1)); err == nil {
+		t.Fatal("two sections naming different broker users was accepted")
+	}
+}
+
+// Half a credential is a misconfiguration that would otherwise present as an
+// authorization failure at boot, with nothing naming the cause.
+func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
+	_, err := planForBroker(t,
+		"[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\nuser = \"semiont\"\n", "")
+	if err == nil {
+		t.Fatal("a user with no password was accepted")
+	}
+	if !strings.Contains(err.Error(), "incomplete") {
+		t.Errorf("error does not name the problem: %v", err)
 	}
 }

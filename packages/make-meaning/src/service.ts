@@ -59,7 +59,13 @@ export function jobQueueFor(
     if (!jobs.servers) {
       throw new Error("services.jobs.servers is required for the 'jetstream' job queue driver");
     }
-    return new JetStreamJobQueue({ servers: evaluateEnvPlaceholders(jobs.servers) }, logger, eventBus);
+    return new JetStreamJobQueue({
+      servers: evaluateEnvPlaceholders(jobs.servers),
+      // The same broker as the signal plane, so the same pair. Optional: absent
+      // means an unauthenticated broker.
+      ...(jobs.user ? { user: evaluateEnvPlaceholders(jobs.user) } : {}),
+      ...(jobs.password ? { pass: evaluateEnvPlaceholders(jobs.password) } : {}),
+    }, logger, eventBus);
   }
   return new FsJobQueue(state, logger, eventBus);
 }

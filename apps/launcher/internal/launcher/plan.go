@@ -40,7 +40,12 @@ type rolePlan struct {
 	Models           []string // models this role uses, whoever serves them (sorted, deduped)
 	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
 	Env              []string // container env derived from config (creds)
-	Issuer           string   // identity: the OIDC issuer URL as configured
+	// CmdExtra: arguments appended AFTER the driver's own command. The
+	// messaging role uses it for `-c` when the broker is authenticated; the
+	// path is fixed, so the derivation can state it and the flow only has to
+	// mount the file there.
+	CmdExtra []string
+	Issuer   string // identity: the OIDC issuer URL as configured
 	// AccessTokenLifespan: seconds, for the realm the launcher imports.
 	// Zero means the built-in default; only a launcher-run Keycloak has one.
 	AccessTokenLifespan int
@@ -310,7 +315,9 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 	for _, e := range rp.Env {
 		a = append(a, "-e", e)
 	}
-	return append(append(a, rp.Image), spec.cmd...)
+	a = append(a, rp.Image)
+	a = append(a, spec.cmd...)
+	return append(a, rp.CmdExtra...)
 }
 
 // ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
@@ -630,6 +637,31 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 				servers = sig.Servers
 			}
 		}
+		// Credentials reconcile exactly like servers: one role is one daemon,
+		// so two sections naming two passwords is a config error rather than a
+		// silent choice between them.
+		user, pass := "", ""
+		if jobsWantBroker {
+			user, pass = j.User, j.Password
+		}
+		if signalWantsBroker {
+			if user != "" && sig.User != "" && sig.User != user {
+				return nil, secErr("signal", "[jobs] and [signal] name different broker users (%q vs %q) — one role is one daemon; they must match", j.User, sig.User)
+			}
+			if pass != "" && sig.Password != "" && sig.Password != pass {
+				return nil, secErr("signal", "[jobs] and [signal] name different broker passwords — one role is one daemon; they must match")
+			}
+			if user == "" {
+				user = sig.User
+			}
+			if pass == "" {
+				pass = sig.Password
+			}
+		}
+		if (user == "") != (pass == "") {
+			return nil, secErr("signal", "broker credentials are incomplete — set both %q and %q, or neither", "user", "password")
+		}
+
 		daemonShape := "nats"
 		if jobsWantBroker {
 			daemonShape = "jetstream"
@@ -643,6 +675,16 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if classify(host, "NATS_HOST") == obligationProvided {
 			rp.Obligation = obligationProvided
 			rp.Image = spec.image
+			// Delivered as the daemon's own environment, the way the graph role
+			// hands neo4j NEO4J_AUTH and the database role hands postgres
+			// POSTGRES_PASSWORD. nats-server reads no credential from the
+			// environment by itself, so the staged config interpolates these
+			// two names — which is what keeps the secret out of argv, where
+			// every process listing would carry it.
+			if user != "" {
+				rp.Env = []string{"NATS_USER=" + user, "NATS_PASSWORD=" + pass}
+				rp.CmdExtra = []string{"-c", natsConfPath}
+			}
 		} else {
 			rp.Obligation = obligationExternal
 			rp.Address = host

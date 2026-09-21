@@ -164,6 +164,11 @@ type databaseCfg struct {
 type jobsCfg struct {
 	Type    string `toml:"type"`
 	Servers string `toml:"servers"`
+	// Broker credentials. Named by the CONFIG like every other service
+	// credential here — graph carries neo4j's, database carries postgres's —
+	// and delivered to the daemon as its own environment, never as argv.
+	User     string `toml:"user"`
+	Password string `toml:"password"`
 }
 
 // signalCfg mirrors jobsCfg for [environments.<env>.signal] (SIGNAL-PLANE
@@ -172,6 +177,10 @@ type jobsCfg struct {
 type signalCfg struct {
 	Type    string `toml:"type"`
 	Servers string `toml:"servers"`
+	// The same broker as [jobs], so the same pair; plan.go refuses a
+	// disagreement rather than picking one.
+	User     string `toml:"user"`
+	Password string `toml:"password"`
 }
 
 // identityCfg mirrors the TypeScript IdentityServiceConfig: type "keycloak" |
