@@ -88,7 +88,11 @@ func verifyServiceAccounts(issuerBase, audience string, secrets map[string]strin
 			findings = append(findings, serviceAccountFinding{
 				svc:    svc,
 				reason: err.Error(),
-				fix:    "the realm has no such client, or its secret differs from the one this start would inject",
+				// Two causes, and the grant cannot tell them apart: Keycloak
+				// answers `invalid_client` for both. Naming both here and
+				// resolving them in the steps below is the honest shape —
+				// see preflightIdentity, where the remedy differs per cause.
+				fix: "the realm has no such client, or its secret differs",
 			})
 			continue
 		}

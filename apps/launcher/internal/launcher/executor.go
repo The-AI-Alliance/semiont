@@ -60,15 +60,15 @@ type executor interface {
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *serviceState         // the machine-level browser record
 	recordBrowser(id, image, version string, port int)
-	dumpLogs(container, svc string)                                                                  // failed health gate: show the crash where it is
-	verifyRemoteModels(role, base, key string, models []string)                                      // record /v1/models metadata; warn on unlisted
-	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one
-	preflightBrowserRedirect(issuerBase string, port int) bool                                       // the realm will redirect to the port the Browser is being moved to
-	ensureModels(base string, models []modelNeed)                                                    // pull configured ollama models that are absent
-	stateMounts(role, image, root string) ([]string, bool)                                           // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)                                            // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                                                              // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
-	val(live, plan string) string                                                                    // mode-scoped value (kb root, admin password)
+	dumpLogs(container, svc string)                                                                                // failed health gate: show the crash where it is
+	verifyRemoteModels(role, base, key string, models []string)                                                    // record /v1/models metadata; warn on unlisted
+	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
+	preflightBrowserRedirect(issuerBase string, port int) bool                                                     // the realm will redirect to the port the Browser is being moved to
+	ensureModels(base string, models []modelNeed)                                                                  // pull configured ollama models that are absent
+	stateMounts(role, image, root string) ([]string, bool)                                                         // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)                                                          // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                                                                            // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	val(live, plan string) string                                                                                  // mode-scoped value (kb root, admin password)
 	rtName() string
 
 	// --- decoration ---
@@ -728,7 +728,7 @@ func (x *liveExec) preflightBrowserRedirect(issuerBase string, port int) bool {
 // while the operator could have been told up front which client and why. The
 // one exception is a finding marked warnOnly — a realm that works but predates
 // a change to the document, where refusing would strand a healthy deployment.
-func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int) bool {
+func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool {
 	findings, observedLifespan := verifyServiceAccounts(issuerBase, audience, secrets)
 	if len(findings) > 0 {
 		x.u.fail("The issuer does not honour the service-account credentials this start would inject.")
@@ -736,17 +736,40 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 			fmt.Fprintln(os.Stderr, "  "+f.String())
 		}
 		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so one created before")
-		fmt.Fprintln(os.Stderr, "  these clients existed will not have them.")
+		fmt.Fprintln(os.Stderr, "  A realm is imported on its FIRST boot and never again, so a realm created")
+		fmt.Fprintln(os.Stderr, "  before these clients existed does not have them.")
 		fmt.Fprintln(os.Stderr, "")
-		// The repair, named rather than described (IDENTITY-PREFLIGHT P3).
-		// Every realm-shape change used to add a paragraph of console steps
-		// here; a new client now costs a line in `serviceClients` instead.
-		fmt.Fprintln(os.Stderr, "  For a realm this launcher runs:  semiont identity sync")
-		fmt.Fprintln(os.Stderr, "  It adds the missing clients and touches no accounts.")
-		fmt.Fprintln(os.Stderr, "")
-		fmt.Fprintln(os.Stderr, "  For an issuer you run yourself, create one client per service and supply")
-		fmt.Fprintln(os.Stderr, "  its secret as SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>.")
+		// The repair, named rather than described (IDENTITY-PREFLIGHT P3) —
+		// but named as the COMMANDS TO RUN, in order, with the follow-up.
+		// `semiont identity sync` already ends by telling the operator to
+		// start again; the half that DETECTS the problem used to stop at
+		// naming a verb and leave the sequence to be inferred.
+		if managed {
+			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.bold("semiont identity sync"))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("Adds the missing clients. Touches no accounts."))
+			fmt.Fprintln(os.Stderr, "")
+			fmt.Fprintf(os.Stderr, "  Then:    %s\n", x.u.bold("semiont start"))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("This start again, which will then get past this gate."))
+			fmt.Fprintln(os.Stderr, "")
+			// The case sync cannot repair, said plainly rather than left for
+			// the operator to discover by looping. reconcileServiceClients
+			// skips a client that already exists — it never reconciles the
+			// secret — so "already correct" on a client named above is not
+			// success, it is the other cause.
+			fmt.Fprintln(os.Stderr, "  If sync reports a client above as already correct rather than created, that")
+			fmt.Fprintln(os.Stderr, "  client exists with a DIFFERENT secret, which sync does not change. Delete it")
+			fmt.Fprintln(os.Stderr, "  in the Keycloak admin console and run sync again.")
+			return false
+		}
+		// Deliberately does NOT mention `semiont identity sync`, even to rule
+		// it out: it needs an admin password this root never persisted for an
+		// issuer it did not start, and a named command gets skimmed into an
+		// instruction to run it.
+		fmt.Fprintln(os.Stderr, "  This issuer is one you run, so its clients are yours to create.")
+		fmt.Fprintln(os.Stderr, "  For each client named above: create it, enable the client-credentials grant,")
+		fmt.Fprintf(os.Stderr, "  and supply its secret as %s — for example %s\n",
+			x.u.bold("SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>"),
+			serviceClientSecretEnv(findings[0].svc)+" for "+serviceClientID(findings[0].svc)+".")
 		return false
 	}
 	x.u.log("Service accounts: %s", x.u.dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))
@@ -1251,7 +1274,7 @@ func (x *planExec) recordBrowser(string, string, string, int) {}
 // --dry-run reaches for nothing: whether the realm honours a credential is a
 // runtime fact. Name the grant each client would be asked for, and what the
 // answer must carry.
-func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string, wantLifespan int) bool {
+func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]string, wantLifespan int, _ bool) bool {
 	for _, svc := range serviceClients {
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
