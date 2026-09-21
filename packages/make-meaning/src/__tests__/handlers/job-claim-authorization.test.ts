@@ -28,9 +28,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { firstValueFrom, filter, map, race, timer, take } from 'rxjs';
 import { EventBus, WORKER_ROLE, SERVICE_ROLE, type EventMap, type Logger } from '@semiont/core';
-import type { SemiontProject } from '@semiont/core/node';
 import { registerJobCommandHandlers } from '../../handlers/job-commands';
-import { createTestProject } from '../helpers/test-project';
+import type { ProjectionReads } from '../../projection-reads-ask';
 
 const silentLogger: Logger = {
   debug: vi.fn(),
@@ -39,6 +38,10 @@ const silentLogger: Logger = {
   error: vi.fn(),
   child: vi.fn(() => silentLogger),
 };
+
+// job:claim never reads projections; a stub keeps the handler's other path
+// (job:create validation, D7) off this suite's concern.
+const stubReads: ProjectionReads = { entityTypes: async () => [], tagSchemas: async () => [] };
 
 function makeJobQueue() {
   return {
@@ -58,21 +61,17 @@ function makeJobQueue() {
 }
 
 describe('registerJobCommandHandlers — job:claim authorization (EXTRACT-JOBS P0)', () => {
-  let project: SemiontProject;
-  let teardown: () => Promise<void>;
   let eventBus: EventBus;
   let jobQueue: ReturnType<typeof makeJobQueue>;
 
-  beforeEach(async () => {
-    ({ project, teardown } = await createTestProject('job-claim-authorization'));
+  beforeEach(() => {
     eventBus = new EventBus();
     jobQueue = makeJobQueue();
-    registerJobCommandHandlers(eventBus, jobQueue as never, project, silentLogger);
+    registerJobCommandHandlers(eventBus, jobQueue as never, stubReads, silentLogger);
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     eventBus.destroy();
-    await teardown();
   });
 
   function claim(cid: string, frame: Record<string, unknown>) {

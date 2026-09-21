@@ -42,6 +42,7 @@ import { STOWER_CHANNELS } from './stower';
 import { BROWSER_CHANNELS } from './browser';
 import { CLONE_TOKEN_CHANNELS } from './clone-token-manager';
 import { JOB_COMMAND_CHANNELS } from './handlers';
+import type { ProjectionReadsAwaits } from './projection-reads-ask';
 import type {
   SmelterResourceReadAwaits,
   SmelterAnnotationsReadAwaits,
@@ -148,14 +149,17 @@ export const librarianAwaitCensus: [LibrarianAwaitCensusDrift] extends [never]
   ? 'in-census'
   : LibrarianAwaitCensusDrift = 'in-census';
 
-// ── Dispatcher (EXTRACT-JOBS P2) ──────────────────────────────────────
+// ── Dispatcher (EXTRACT-JOBS P2 + D7) ─────────────────────────────────
 //
 // The dispatcher owns the job queue and answers the job:* lifecycle commands,
-// moved off the gateway. It awaits NO wire reply — the queue reaches JetStream
-// directly, not over the bus — so there is no await census here; its gates are
-// the pinned inbound roster (== JOB_COMMAND_CHANNELS, the one list the handlers
-// subscribe) and the "the gateway hosts no job:* handler" census
-// (EXTRACT-JOBS C2). Two disjoint pumps on the archivist pattern, never bridgeInto.
+// moved off the gateway. The queue reaches JetStream directly, not over the
+// bus, but `job:create` validation DOES await two wire replies — the entity-type
+// and tag-schema projection reads it makes of the Archivist's Browser (D7), in
+// place of the fs reads it used to do off the state mount. So its gates are the
+// pinned inbound roster (== JOB_COMMAND_CHANNELS, the one list the handlers
+// subscribe), the await census below (like the Librarian's), and the "the
+// gateway hosts no job:* handler" census (EXTRACT-JOBS C2). Two disjoint pumps
+// on the archivist pattern, never bridgeInto.
 
 /**
  * The job:* command channels the dispatcher subscribes to — the ONE list
@@ -178,6 +182,29 @@ export const DISPATCHER_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] = [
   ...replyChannelsFor(DISPATCHER_INBOUND_CHANNELS),
   'job:queued',
 ];
+
+/**
+ * The operations the dispatcher awaits replies to: the two projection reads
+ * `job:create` makes to validate a job — entity types and tag schemas, answered
+ * by the Archivist's Browser (EXTRACT-JOBS D7, `projection-reads-ask.ts`).
+ */
+export const DISPATCHER_AWAITED_OPERATIONS = [
+  'browse:entity-types-requested',
+  'browse:tag-schemas-requested',
+] as const satisfies readonly BusOperationKey[];
+
+/** The dispatcher transport's awaited-reply SSE channels, beyond its inbound roster. */
+export const DISPATCHER_REPLY_CHANNELS: readonly (keyof EventMap)[] =
+  replyChannelsFor(DISPATCHER_AWAITED_OPERATIONS);
+
+type DeclaredDispatcherAwaits = ProjectionReadsAwaits;
+type DispatcherAwaitCensusDrift =
+  | Exclude<DeclaredDispatcherAwaits, (typeof DISPATCHER_AWAITED_OPERATIONS)[number]>
+  | Exclude<(typeof DISPATCHER_AWAITED_OPERATIONS)[number], DeclaredDispatcherAwaits>;
+/** The build-time census gate — see the header. Drift names the operation. */
+export const dispatcherAwaitCensus: [DispatcherAwaitCensusDrift] extends [never]
+  ? 'in-census'
+  : DispatcherAwaitCensusDrift = 'in-census';
 
 // ── Archivist ────────────────────────────────────────────────────────
 

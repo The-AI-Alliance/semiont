@@ -15,8 +15,10 @@
  * Bus wiring is two disjoint pumps on the archivist/librarian pattern
  * (`service-channels.ts`), never `bridgeInto`:
  *   in  — DISPATCHER_INBOUND_CHANNELS: the `job:*` command channels this
- *         process subscribes to, and its whole SSE subscription (it awaits no
- *         wire reply — the queue reaches JetStream directly, not over the bus).
+ *         process subscribes to, PLUS DISPATCHER_REPLY_CHANNELS — the replies
+ *         to the two projection reads `job:create` makes over the bus (D7:
+ *         entity types + tag schemas, answered by the Archivist's Browser). The
+ *         queue itself still reaches JetStream directly, not over the bus.
  *   out — DISPATCHER_OUTBOUND_CHANNELS: every reply DERIVED from BUS_OPERATIONS
  *         over the inbound set, plus the queue's own `job:queued` broadcast.
  *
@@ -43,7 +45,8 @@ import { startAgentSession } from './agent-session';
 import { jobQueueFor, STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
 import { makeMeaningConfigFrom, requireKBName } from './config';
 import { registerJobCommandHandlers } from './handlers/job-commands';
-import { DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS } from './service-channels';
+import { DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS, DISPATCHER_REPLY_CHANNELS } from './service-channels';
+import { projectionReadsOverBus } from './projection-reads-ask';
 import { attachServicePumps } from './service-pumps';
 
 // ── Config ───────────────────────────────────────────────────────────
@@ -118,20 +121,25 @@ async function main() {
   // not the gateway (the metrics moved with the queue).
   registerJobQueueProvider(() => jobQueue.getStats());
 
-  // The nine job:* handlers, on the local bus. The pumps below carry their
-  // request channels in and their replies (+ the queue's job:queued) out.
-  registerJobCommandHandlers(localBus, jobQueue, state, logger);
-
-  // The bus transport. Its SSE subscription is the inbound roster only — never
-  // the full bridged set, whose global reply fan-out is the worker-OOM failure
-  // mode. The dispatcher awaits no wire reply, so there are no reply channels
-  // to add.
+  // The bus transport. Its SSE subscription is the inbound roster PLUS the
+  // reply channels for the two projection reads `job:create` makes over the
+  // bus (D7): `browse:entity-types-result` / `browse:tag-schemas-result`. It is
+  // NOT the full bridged set, whose global reply fan-out is the worker-OOM
+  // failure mode; `busRequest`'s isSubscribed probe fails fast if a reply
+  // channel is missing from this set.
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
-    channels: [...DISPATCHER_INBOUND_CHANNELS],
+    channels: [...DISPATCHER_INBOUND_CHANNELS, ...DISPATCHER_REPLY_CHANNELS],
   });
+
+  // The nine job:* handlers, on the local bus. The pumps below carry their
+  // request channels in and their replies (+ the queue's job:queued) out.
+  // `job:create` validates entity types and tag schemas by asking the
+  // Archivist's Browser over the transport (D7) — it no longer reads the KB's
+  // materialized projections off the shared state mount.
+  registerJobCommandHandlers(localBus, jobQueue, projectionReadsOverBus(httpTransport), logger);
 
   // ── Bus pumps ──────────────────────────────────────────────────────
   const pumps: Subscription[] = attachServicePumps({

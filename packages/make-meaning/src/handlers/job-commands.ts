@@ -1,9 +1,7 @@
 import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams, hasWorkerRole } from '@semiont/core';
 import type { EventBus, Logger } from '@semiont/core';
-import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
-import { readTagSchemasProjection } from '../views/tag-schemas-reader.js';
-import { readEntityTypesProjection } from '../views/entity-types-reader.js';
+import type { ProjectionReads } from '../projection-reads-ask.js';
 import {
   resolveTagSchema,
   validateEntityTypes,
@@ -21,7 +19,7 @@ function parseDidUser(did: string): { userId: string; email: string; domain: str
 export function registerJobCommandHandlers(
   eventBus: EventBus,
   jobQueue: JobQueue,
-  state: SemiontState,
+  reads: ProjectionReads,
   parentLogger: Logger,
 ): void {
   const logger = parentLogger.child({ component: 'job-commands' });
@@ -115,14 +113,15 @@ export function registerJobCommandHandlers(
       //  - `reference-annotation` (mark.assist linking)
       //  - `generation` (yield.fromContext)
       // The validator returns `{ ok: true }` for the no-tags-supplied
-      // case, so the projection read only happens when there's
-      // something to validate.
+      // case, so the read only happens when there's something to
+      // validate. The read is a BUS ask to the Archivist's Browser, which
+      // owns the projection (D7) — not an fs read off a mount here.
       if (
         (jobType === 'reference-annotation' || jobType === 'generation') &&
         Array.isArray(jobParams.entityTypes) &&
         jobParams.entityTypes.length > 0
       ) {
-        const registered = await readEntityTypesProjection(state);
+        const registered = await reads.entityTypes();
         const result = validateEntityTypes(registered, jobParams.entityTypes as string[]);
         if (!result.ok) {
           throw new Error(entityTypesNotRegisteredMessage(result.unknown));
@@ -134,10 +133,11 @@ export function registerJobCommandHandlers(
       }
 
       // Tag-annotation jobs: resolve the caller-supplied `schemaId` against
-      // the per-KB tag-schema projection and embed the resolved schema in
-      // the worker's params. Keeps the worker independent of the registry.
+      // the KB's tag schemas (asked of the Archivist's Browser over the bus,
+      // D7) and embed the resolved schema in the worker's params. Keeps the
+      // worker independent of the registry.
       if (jobType === 'tag-annotation') {
-        const schemas = await readTagSchemasProjection(state);
+        const schemas = await reads.tagSchemas();
         const result = resolveTagSchema(schemas, jobParams.schemaId);
         if (result.error !== undefined) {
           throw new Error(result.error);

@@ -12,12 +12,12 @@
  */
 
 import type { EventBus, EventMap, Logger } from '@semiont/core';
-import type { SemiontState } from '@semiont/core/node';
 import type { JobQueue } from '@semiont/jobs';
 
 import type { KnowledgeSystem } from '../knowledge-system.js';
 import { workingTreeContentReads } from '../knowledge-base.js';
 import { anchoredTextOverBus } from '../anchored-text-ask.js';
+import { projectionReadsOverBus } from '../projection-reads-ask.js';
 import { asBusRequestPrimitive } from '../bus-request-local.js';
 import { registerAnnotationAssemblyHandler } from './annotation-assembly.js';
 import { registerAnnotationContextHandler, registerGatherSummaryHandler } from './annotation-lookups.js';
@@ -76,7 +76,6 @@ export function registerBusHandlers(
   // drift from that definition, and a full KnowledgeSystem still satisfies it.
   knowledgeSystem: Pick<KnowledgeSystem, 'kb' | 'gatherer'>,
   jobQueue: JobQueue,
-  state: SemiontState,
   logger: Logger,
 ): void {
   const { kb } = knowledgeSystem;
@@ -94,5 +93,9 @@ export function registerBusHandlers(
   );
   registerGatherSummaryHandler(eventBus, knowledgeSystem.gatherer, logger);
   registerBindUpdateBodyHandler(eventBus, logger);
-  registerJobCommandHandlers(eventBus, jobQueue, state, logger);
+  // job:create validates against the KB's entity types and tag schemas by
+  // asking the Browser over this same bus (D7). In-process the Browser answers
+  // directly; the reply channels are on the local bus, so no census applies
+  // here — that gate is the dispatcher's, whose transport must subscribe them.
+  registerJobCommandHandlers(eventBus, jobQueue, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), logger);
 }
