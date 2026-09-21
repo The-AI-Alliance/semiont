@@ -92,7 +92,7 @@ func Bind(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 
 	var item semiont.AnnotationBody
 	purpose := semiont.BodyPurpose("linking")

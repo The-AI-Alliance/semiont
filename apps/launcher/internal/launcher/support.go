@@ -54,6 +54,16 @@ func (u *ui) log(format string, a ...any) {
 	fmt.Printf("%s %s\n", u.wrap(ansiCyan, "▸"), fmt.Sprintf(format, a...))
 }
 
+// note is log's stderr twin: narration a verb owes the user that must not
+// land in what the verb PRINTS — a `--json` reply piped to jq stays one JSON
+// document.
+func (u *ui) note(format string, a ...any) {
+	if u.quiet {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "%s %s\n", u.wrap(ansiCyan, "▸"), fmt.Sprintf(format, a...))
+}
+
 func (u *ui) ok(format string, a ...any) {
 	if u.quiet {
 		return

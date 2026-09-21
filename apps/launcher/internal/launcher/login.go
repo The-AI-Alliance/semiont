@@ -129,11 +129,13 @@ func Login(args []string) int {
 		return 1
 	}
 	email := string(me.JSON200.Email)
+	now := time.Now().UTC()
 	if err := saveToken(key, tokenEntry{
 		Token:              tr.AccessToken,
 		RefreshToken:       tr.RefreshToken,
 		Email:              email,
-		ObtainedAt:         time.Now().UTC(),
+		ObtainedAt:         now,
+		ExpiresAt:          expiresAt(now, tr.ExpiresIn),
 		Issuer:             ep.Issuer,
 		TokenEndpoint:      ep.Token,
 		RevocationEndpoint: ep.Revocation,

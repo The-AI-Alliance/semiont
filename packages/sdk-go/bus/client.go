@@ -133,7 +133,7 @@ func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope st
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return -1, fmt.Errorf("emit %s: HTTP %d", ch, resp.StatusCode)
+		return -1, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode}
 	}
 	var accepted struct {
 		Subscribers *int `json:"subscribers"`
@@ -201,7 +201,7 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
 		cancel()
-		return nil, fmt.Errorf("subscribe: HTTP %d", resp.StatusCode)
+		return nil, &StatusError{Op: "subscribe", Status: resp.StatusCode}
 	}
 
 	events := make(chan Event, 64)
@@ -266,6 +266,18 @@ func readSSE(r interface{ Read([]byte) (int, error) }, out chan<- Event) error {
 	flush()
 	return sc.Err()
 }
+
+// StatusError is the gateway refusing a bus call at the HTTP layer — a
+// non-2xx answer to the emit or subscribe itself, before any reply channel is
+// involved. RequestError is the other kind of failure: the operation ran and
+// answered on its failure channel. Typed so a caller can tell a 401 (renew
+// the session, try again) from the rest without parsing the message.
+type StatusError struct {
+	Op     string // what was attempted: "emit <channel>" or "subscribe"
+	Status int
+}
+
+func (e *StatusError) Error() string { return fmt.Sprintf("%s: HTTP %d", e.Op, e.Status) }
 
 // RequestError is a reply on an operation's failure channel.
 type RequestError struct {

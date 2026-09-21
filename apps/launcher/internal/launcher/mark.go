@@ -147,7 +147,7 @@ func Mark(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",

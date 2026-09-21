@@ -99,7 +99,7 @@ func Frame(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 
 	// One command per type: the protocol has no batch add (the SDK's
 	// addEntityTypes is the same loop). A rejection STOPS the run rather

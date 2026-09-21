@@ -1141,7 +1141,7 @@ func seedStateDir(t *testing.T, s *scenario) string {
 	}
 	meta := `{"kbRoot":"` + s.kb + `","did":"did:web:example.github.io:test-kb","stores":{` +
 		`"database":{"image":"postgres:15.18-alpine"},` +
-		`"vectors":{"image":"qdrant/qdrant:v1.18.3"},` +
+		`"vectors":{"image":"qdrant/qdrant:v1.19.1"},` +
 		`"graph":{"image":"neo4j:5.26.28-community"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
@@ -6690,6 +6690,30 @@ func TestBrowseListsResources(t *testing.T) {
 	mustContain(t, "emit", b, `"channel":"browse:resources-requested"`, `"limit":5`, `"correlationId"`)
 }
 
+// WIRE SMOKE TEST (session refresh). The policy is specified in process
+// (internal/launcher/session_test.go); this proves the BUILT BINARY renews a
+// session over real HTTP for a BUS verb: fakert refuses the login-issued token
+// on its second use, and browse must still succeed — under the renewed token,
+// saved for the next command. Before the policy was shared, only
+// `yield --upload` did this; every bus verb sent the user back to login.
+func TestBrowseAutoRefreshesExpiredToken(t *testing.T) {
+	s := busScenario(t, "FAKERT_STALE_TOKEN=1",
+		`FAKERT_BUS_REPLY_browse_resources_requested={"resources":[],"total":0}`)
+	stdout, stderr, code := s.run(t, "browse")
+	if code != 0 {
+		t.Fatalf("browse with refreshable token: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "stderr", stderr, "Session refreshed")
+	if strings.Contains(stdout+stderr, "semiont login") {
+		t.Errorf("a renewed session was still sent to login:\n%s\n%s", stdout, stderr)
+	}
+	tb, err := os.ReadFile(tokensPathFor(s.home))
+	if err != nil {
+		t.Fatalf("tokens.json: %v", err)
+	}
+	mustContain(t, "tokens.json", string(tb), "fake-jwt-token-2")
+}
+
 func TestBrowseWithoutSessionAdvisesLogin(t *testing.T) {
 	s := newScenario(t, "container")
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -6725,7 +6749,11 @@ func TestGatherResourceSummarizes(t *testing.T) {
 		t.Errorf("gather dumped raw JSON — it could not parse the real reply:\n%s", stdout)
 	}
 	b := lastEmit(t, s)
-	mustContain(t, "emit", b, `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`, `"includeContent":true`)
+	// No flags still names a traversal: the schema requires depth and
+	// maxResources, and a zero-valued struct once sent maxResources 0, which
+	// the librarian forwarded to Qdrant as `limit: 0` — refused with a 422.
+	mustContain(t, "emit", b, `"channel":"gather:resource-requested"`, `"resourceId":"res-1"`,
+		`"includeContent":true`, `"depth":2`, `"maxResources":10`)
 }
 
 // WIRE SMOKE TEST (mark) — SDK-GO-TRANSPORT P2. This family's logic now runs
@@ -6901,6 +6929,18 @@ func TestYieldDelegateFollowsJobToCompletion(t *testing.T) {
 		t.Fatalf("delegate: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout, "Generating", "Generating resource", "res-new", "Generated")
+	// The grounding gather names its traversal. Delegate has no flags for
+	// these, and the zero-valued struct it once sent asked the librarian for
+	// maxResources 0 — forwarded to Qdrant as `limit: 0`, a 422 that killed
+	// every delegate in the gather with a bare "Unprocessable Entity".
+	var gather string
+	for _, e := range emits(t, s) {
+		if strings.Contains(e, `"channel":"gather:resource-requested"`) {
+			gather = e
+		}
+	}
+	mustContain(t, "gather emit", gather, `"resourceId":"res-src"`, `"depth":2`, `"maxResources":10`,
+		`"includeContent":true`, `"includeSummary":true`)
 	b := lastEmit(t, s)
 	// The job carries the gathered context and the generation params.
 	mustContain(t, "job:create emit", b,

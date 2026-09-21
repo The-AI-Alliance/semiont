@@ -462,10 +462,12 @@ authority as the TypeScript SDK's types.
 Both take `--repo <owner/name>` to target a codespace stack through its
 forward instead of the local one.
 
-Sessions maintain themselves: access tokens are short-lived, and on a 401 the
-launcher renews one invisibly at the issuer from the stored refresh token
-(announced, saved, retried once) — login is a rare event, not a routine
-chore. `semiont logout` ends a session (the refresh token revoked at the
+Sessions maintain themselves: access tokens are short-lived, and every verb
+renews one invisibly at the issuer from the stored refresh token — before
+the first request when the store already knows the token has expired, and
+on a 401 otherwise (announced on stderr, saved, retried once; `semiont
+login` is the fix only when the renewal itself fails) — so login is a rare
+event, not a routine chore. `semiont logout` ends a session (the refresh token revoked at the
 issuer, best-effort; local token forgotten either way, said plainly when
 the issuer half didn't complete), and `semiont status --verbose` lists every stored
 session under SESSIONS, live-verified against the stack when reachable —
