@@ -377,7 +377,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (stri
 		x.u.fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian"} {
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"} {
 		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.fail("Staging config for %s: %v", svc, err)

@@ -32,7 +32,7 @@ present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
 `
 
-var logServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser"}
+var logServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser"}
 
 // Logs implements `semiont logs` — the port of the fleet's logs.sh.
 func Logs(args []string) int {

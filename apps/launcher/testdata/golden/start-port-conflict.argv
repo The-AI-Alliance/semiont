@@ -14,6 +14,7 @@ container logs semiont-smelter
 container logs semiont-weaver
 container logs semiont-archivist
 container logs semiont-librarian
+container logs semiont-dispatcher
 container list -a
 lsof -nP -iTCP:7474 -sTCP:LISTEN
 ps -p 12345 -o comm=

@@ -77,6 +77,7 @@ var statusServices = []struct {
 	{"gateway", "http://localhost:4000/api/health", true, 1},
 	{"archivist", "http://localhost:24103/health", true, 1},
 	{"librarian", "http://localhost:24104/health", true, 1},
+	{"dispatcher", "http://localhost:24105/health", true, 1},
 	{"weaver", "http://localhost:24102/health", true, 1},
 	{"smelter", "http://localhost:24101/health", true, 1},
 

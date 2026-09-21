@@ -219,6 +219,10 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return code
 	}
 
+	if code := flowDispatcher(x, fc, addr, stage, otel); code != 0 {
+		return code
+	}
+
 	// The weaver note: the graph projection is standalone-only — without the
 	// weaver the graph stays empty and every gather 404s at the
 	// buildKnowledgeGraph barrier.
@@ -765,6 +769,38 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	return 0
 }
 
+// flowDispatcher: the Dispatcher owns the job queue and answers job:* lifecycle
+// commands (EXTRACT-JOBS). It mounts the shared state store (C4 — the fs job
+// driver's jobsDir rides /semiont-state) and dials the gateway for its token
+// and the plane; it is a CONTROL PLANE (D5) and touches no bytes, so it never
+// reads from the Archivist. Started after the Librarian — health-after-pumps
+// makes ordering against other sidecars moot rather than racy.
+func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) int {
+	x.banner("Starting Dispatcher")
+	state, ok := x.stateMountsShared("state", fc.root)
+	if !ok {
+		return 1
+	}
+	clientSecret, ok := x.serviceClientSecret(fc.root, "dispatcher")
+	if !ok {
+		return 1
+	}
+	args := dispatcherArgs(stage, addr, clientSecret, fc.version, fc.userEnv, otel, state...)
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "Dispatcher failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("Dispatcher", "http://localhost:24105/health", 30)
+	if !ok {
+		x.dumpLogs("semiont-dispatcher", "dispatcher")
+		return 1
+	}
+	x.say(sayOK, "Dispatcher healthy (http://localhost:24105) %s", x.dim("("+took(d)+")"))
+	x.record("dispatcher", id, image("dispatcher", fc.version), providedLauncher, "http://localhost:24105/health", "")
+	return 0
+}
+
 // flowOneService: `start --service` — the no-op obligation gate, the
 // service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
 // staging for config consumers, then the service's launch and gate.
@@ -956,6 +992,10 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	case "librarian":
 		if code := flowLibrarian(x, fc, addr, stage, otel); code != 0 {
+			return code
+		}
+	case "dispatcher":
+		if code := flowDispatcher(x, fc, addr, stage, otel); code != 0 {
 			return code
 		}
 	case "worker", "smelter", "weaver":

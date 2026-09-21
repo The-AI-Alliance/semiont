@@ -238,7 +238,7 @@ func (s *scenario) env() []string {
 		// package cannot see. Drift is loud rather than silent: a service missing
 		// from this list gets a generated credential and its boot golden differs
 		// on the very next run.
-		for _, svc := range []string{"archivist", "gateway", "librarian", "smelter", "weaver", "worker"} {
+		for _, svc := range []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"} {
 			env = append(env, "SEMIONT_OIDC_CLIENT_SECRET_"+strings.ToUpper(svc)+"=test-"+svc+"-client-secret")
 		}
 	}
@@ -1605,7 +1605,7 @@ func TestStopSweepsAllRuntimes(t *testing.T) {
 	}
 	checkGolden(t, "stop-all-runtimes.argv", s.argv(t))
 	mustContain(t, "stdout", stdout,
-		"Sweeping 15 container(s) across container, docker, podman",
+		"Sweeping 16 container(s) across container, docker, podman",
 		"container: none found",
 		"docker: none found",
 		"podman: none found",
@@ -4019,7 +4019,7 @@ func TestStackStateLifecycle(t *testing.T) {
 	// EXACTLY these roles, not at-least: fleet growth must fail here (a
 	// census gate; main_test cannot reach the roles table to derive one).
 	wantRoles := []string{"traces", "metrics", "collector", "graph", "vectors", "messaging", "identity", "inference", "embedding", "database",
-		"gateway", "worker", "smelter", "weaver", "archivist", "librarian"}
+		"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
 	if len(st.Services) != len(wantRoles) {
 		got := make([]string, 0, len(st.Services))
 		for role := range st.Services {
@@ -6545,11 +6545,11 @@ func TestLogsDiscovery(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	// Discovery probes run in order; the seven follows launch concurrently, so
+	// Discovery probes run in order; the eight follows launch concurrently, so
 	// assert the probe prefix exactly and the follow set order-independently.
 	lines := strings.Split(strings.TrimRight(s.argv(t), "\n"), "\n")
-	if len(lines) != 9 {
-		t.Fatalf("want 9 invocations (2 probes + 7 follows), got %d:\n%s", len(lines), s.argv(t))
+	if len(lines) != 10 {
+		t.Fatalf("want 10 invocations (2 probes + 8 follows), got %d:\n%s", len(lines), s.argv(t))
 	}
 	if lines[0] != "container list" || lines[1] != "docker ps --format {{.Names}}" {
 		t.Errorf("wrong discovery probes:\n%s", s.argv(t))
@@ -6559,6 +6559,7 @@ func TestLogsDiscovery(t *testing.T) {
 	want := []string{
 		"docker logs --follow semiont-archivist",
 		"docker logs --follow semiont-browser",
+		"docker logs --follow semiont-dispatcher",
 		"docker logs --follow semiont-gateway",
 		"docker logs --follow semiont-librarian",
 		"docker logs --follow semiont-smelter",
@@ -6570,7 +6571,7 @@ func TestLogsDiscovery(t *testing.T) {
 	}
 	// Streams: [svc]-prefixed, stderr kept in-stream (crash traces live there).
 	mustContain(t, "stdout", stdout,
-		"Following gateway · worker · smelter · weaver · archivist · librarian · browser",
+		"Following gateway · worker · smelter · weaver · archivist · librarian · dispatcher · browser",
 		"[gateway] gateway out",
 		"[gateway] gateway err",
 		"[worker] worker out",

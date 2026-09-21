@@ -51,7 +51,7 @@ func memCeilingGB(m string) float64 {
 // inference or the embedding role provides it as a container.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "browser", "collector"} {
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser", "collector"} {
 		sum += memCeilingGB(roles[svc].mem)
 	}
 	if opts.observe {

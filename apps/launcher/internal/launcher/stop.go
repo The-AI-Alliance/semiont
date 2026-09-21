@@ -46,7 +46,7 @@ targets a codespace stack, --runtime targets the local one.
 // (announced), and `stop --service browser` is its explicit off-switch.
 var stopNames = []string{
 	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
-	"semiont-librarian",
+	"semiont-librarian", "semiont-dispatcher",
 	"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
 	"semiont-neo4j", "semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
 }
