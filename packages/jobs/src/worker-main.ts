@@ -105,7 +105,7 @@ const credential = { issuer: issuerUrl, clientId, clientSecret };
 // Resolved at module scope so a worker with no Archivist address — or no
 // service-account credential to show it — dies here, while an operator is
 // watching, rather than failing every detection job for the life of the process.
-const contentReads = archivistContentReads(envConfig);
+const contentReads = archivistContentReads(envConfig, credential);
 const healthPort = 24100;
 
 import { createProcessLogger } from '@semiont/observability/process-logger';

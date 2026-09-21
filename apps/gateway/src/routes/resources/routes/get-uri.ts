@@ -100,7 +100,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       withSpan(
         'content.get.server',
         async () => {
-          const { body, mediaType } = await getContent(c.get('config'), id);
+          const { body, mediaType } = await getContent(c.get('config'), c.get('archivistCredential')(), id);
 
           // private, not public: this route is bearer-authenticated, and
           // public would let shared caches store and re-serve the bytes
@@ -130,7 +130,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       withSpan(
         'content.get.server',
         async () => {
-          const { body, mediaType } = await getContent(c.get('config'), id);
+          const { body, mediaType } = await getContent(c.get('config'), c.get('archivistCredential')(), id);
 
           // public is safe here, unlike the main route: the ?token= is part
           // of the cache key (SIMPLER-JSON-LD.md decision 6).

@@ -13,7 +13,7 @@ type = "ollama"
 model = "nomic-embed-text"
 `;
 
-const MINIMAL_TOML = `
+const MINIMAL_NO_IDENTITY = `
 [environments.local.gateway]
 platform = "posix"
 port = 3001
@@ -28,6 +28,19 @@ frontendURL = "http://localhost:3000"
 [environments.local.make-meaning.graph]
 type = "memory"
 ${SERVICES_LOCAL}`;
+
+// `[identity]` is mandatory, so the shared fixture carries one. The tests that
+// exercise the section itself use MINIMAL_NO_IDENTITY and supply their own —
+// TOML refuses a redefined table, so they cannot simply override.
+const IDENTITY_LOCAL = `
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://localhost:8080/realms/semiont"
+`;
+
+/** The complete fixture: what every test that is not ABOUT [identity] uses. */
+const MINIMAL_TOML = `${MINIMAL_NO_IDENTITY}${IDENTITY_LOCAL}`;
+
 
 const WITH_INFERENCE_TOML = `
 [environments.local.make-meaning.actors.gatherer.inference]
@@ -54,6 +67,7 @@ model = "claude-sonnet-4-6"
 maxTokens = 16384
 apiKey = "test-key"
 ${SERVICES_LOCAL}`;
+const WITH_INFERENCE_TOML_COMPLETE = `${WITH_INFERENCE_TOML}${IDENTITY_LOCAL}`;
 
 const WITH_ENV_VAR_TOML = `
 [environments.local.make-meaning.actors.gatherer.inference]
@@ -61,11 +75,30 @@ type = "anthropic"
 model = "claude-haiku-4-5-20251001"
 apiKey = "\${MY_API_KEY}"
 ${SERVICES_LOCAL}`;
+const WITH_ENV_VAR_TOML_COMPLETE = `${WITH_ENV_VAR_TOML}${IDENTITY_LOCAL}`;
+
+/**
+ * `[identity]` is mandatory (user, 2026-09-21), and almost none of these tests
+ * are ABOUT it — they are about inference, environments, [site], placeholders.
+ * So the reader supplies one for every environment a fixture names that lacks
+ * it, leaving each fixture's own subject matter untouched. A fixture that
+ * DOES declare identity is left exactly as written, which is what lets the
+ * identity tests (and the refusal test) say what they mean.
+ */
+function withMandatoryIdentity(toml: string): string {
+  const envs = new Set([...toml.matchAll(/\[environments\.([A-Za-z0-9_-]+)\./g)].map((m) => m[1]));
+  let out = toml;
+  for (const env of envs) {
+    if (new RegExp(`\\[environments\\.${env}\\.identity\\]`).test(toml)) continue;
+    out += `\n[environments.${env}.identity]\ntype = "keycloak"\nissuer = "http://localhost:8080/realms/semiont"\n`;
+  }
+  return out;
+}
 
 function makeReader(globalContent: string | null, projectContent?: string): { readIfExists: (p: string) => string | null } {
   return {
     readIfExists: (p: string) => {
-      if (p.endsWith('/.semiontconfig')) return globalContent;
+      if (p.endsWith('/.semiontconfig')) return globalContent === null ? null : withMandatoryIdentity(globalContent);
       if (p.endsWith('/.semiont/config')) return projectContent ?? '[project]\nname = "test-project"\n';
       return null;
     },
@@ -93,7 +126,7 @@ describe('loadTomlConfig', () => {
   });
 
   it('stores actor inference config in _metadata', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML), {});
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML_COMPLETE), {});
 
     const actors = (config._metadata as any)?.actors;
     expect(actors?.gatherer?.model).toBe('claude-haiku-4-5-20251001');
@@ -101,7 +134,7 @@ describe('loadTomlConfig', () => {
   });
 
   it('stores worker inference config in _metadata with inheritance', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML), {});
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML_COMPLETE), {});
 
     const workers = (config._metadata as any)?.workers;
     expect(workers?.default?.model).toBe('claude-haiku-4-5-20251001');
@@ -184,7 +217,7 @@ semanticFloor = 0.75
   });
 
   it('resolves ${VAR} env var references', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML), { MY_API_KEY: 'sk-secret' });
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), { MY_API_KEY: 'sk-secret' });
 
     const actors = (config._metadata as any)?.actors;
     expect(actors?.gatherer?.apiKey).toBe('sk-secret');
@@ -192,7 +225,7 @@ semanticFloor = 0.75
 
   it('throws when ${VAR} references a missing env var', () => {
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), {})
     ).toThrow('Environment variable MY_API_KEY is not set');
   });
 
@@ -247,7 +280,12 @@ type = "memory"
 [environments.staging.embedding]
 type = "ollama"
 model = "nomic-embed-text"
-${SERVICES_LOCAL}`;
+${SERVICES_LOCAL}
+
+[environments.staging.identity]
+type = "keycloak"
+issuer = "http://localhost:8080/realms/semiont"
+`;
 
   it('resolves the environment from [defaults] environment when none is passed', () => {
     const config = loadTomlConfig('/project', undefined, '/home/user/.semiontconfig', makeReader(DEFAULTS_STAGING), {});
@@ -401,7 +439,7 @@ ${MINIMAL_TOML}`;
 [environments.local.identity]
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
-${MINIMAL_TOML}`;
+${MINIMAL_NO_IDENTITY}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
     expect(cfg.services.identity).toEqual({
       type: 'oidc',
@@ -418,7 +456,7 @@ ${MINIMAL_TOML}`;
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
 audience = "semiont-gateway"
-${MINIMAL_TOML}`;
+${MINIMAL_NO_IDENTITY}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
     expect(cfg.services.identity).toEqual({
       type: 'oidc',
@@ -426,16 +464,31 @@ ${MINIMAL_TOML}`;
     });
   });
 
-  it('emits no identity service when the section is absent', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
-    expect(cfg.services.identity).toBeUndefined();
+  // MANDATORY (user, 2026-09-21). Absence used to yield `services.identity`
+  // undefined, which produced a knowledge base nobody could sign in to: no
+  // person, because there are no keys to verify against; no sidecar, because
+  // the agent-minter refuses before it mints; and a gateway unable to reach
+  // its own record, because dialling the Archivist needs a service-account
+  // token. Only a test harness ever wanted that state.
+  it('REFUSES a config with no identity section — every KB trusts an issuer', () => {
+    // A RAW reader: `makeReader` supplies the mandatory section for every other
+    // test, so this one has to reach the loader without that help.
+    const raw = {
+      readIfExists: (p: string) =>
+        p.endsWith('/.semiontconfig') ? MINIMAL_NO_IDENTITY
+        : p.endsWith('/.semiont/config') ? '[project]\nname = "test-project"\n'
+        : null,
+    };
+    expect(() =>
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', raw, {}),
+    ).toThrow(/names no identity section/);
   });
 
   it('refuses an [identity] section that names no type', () => {
     const toml = `
 [environments.local.identity]
 issuer = "https://login.example.com/realms/acme"
-${MINIMAL_TOML}`;
+${MINIMAL_NO_IDENTITY}`;
     expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
       .toThrow(/\[environments\.local\.identity\].*type/);
   });
@@ -445,7 +498,7 @@ ${MINIMAL_TOML}`;
 [environments.local.identity]
 type = "keycloak"
 audience = "semiont-gateway"
-${MINIMAL_TOML}`;
+${MINIMAL_NO_IDENTITY}`;
     expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
       .toThrow(/\[environments\.local\.identity\].*issuer/);
   });
@@ -455,7 +508,7 @@ ${MINIMAL_TOML}`;
 [environments.local.identity]
 type = "keycloak"
 issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont"
-${MINIMAL_TOML}`;
+${MINIMAL_NO_IDENTITY}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { KEYCLOAK_HOST: '10.0.0.9' });
     expect(cfg.services.identity?.issuer).toBe('http://10.0.0.9:8080/realms/semiont');
   });
@@ -571,7 +624,9 @@ ${MINIMAL_TOML}`;
   });
 
   it('refuses a config naming no embedding provider, config-actionably (MANDATORY-EMBEDDING D1)', () => {
-    const noEmbedding = MINIMAL_TOML.replace(/\[environments\.local\.embedding\][^[]*$/, '');
+    // Anchored to the NEXT table rather than end-of-string: the fixture no
+    // longer ends with [embedding] now that identity follows it.
+    const noEmbedding = MINIMAL_TOML.replace(/\[environments\.local\.embedding\][\s\S]*?(?=\n\[|$)/, '');
     expect(() =>
       loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noEmbedding), {})
     ).toThrow(/names no embedding provider/);

@@ -20,6 +20,13 @@ publicURL = "http://localhost:4000"
 [environments.integration.make-meaning.graph]
 type = "memory"
 
+# Mandatory (user, 2026-09-21): every knowledge base trusts an issuer. Written
+# here as well as in the object below for the same reason the vectors/embedding
+# note gives — this TOML is parsed by the REAL loader, which refuses without it.
+[environments.integration.identity]
+type = "keycloak"
+issuer = "http://localhost:8080/realms/semiont"
+
 # Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both, nothing is
 # defaulted. This TOML is written to disk and parsed by the real loader, so it
 # needs the sections in their own right: the EnvironmentConfig object further
@@ -152,6 +159,13 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
       graph: {
         platform: { type: 'posix' },
         type: 'memory',
+      },
+      // Mandatory (user, 2026-09-21): every knowledge base trusts an issuer.
+      // Without this the gateway refuses to boot, which is the point — a KB
+      // with no issuer can authenticate nobody and cannot reach its record.
+      identity: {
+        type: 'keycloak',
+        issuer: 'http://localhost:8080/realms/semiont',
       },
       // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
       vectors: {

@@ -1,5 +1,5 @@
 import type { AccessToken } from '@semiont/core';
-import { isString } from '@semiont/core';
+import { isString, SERVICE_ROLE, ROLES_CLAIM, hasServiceRole } from '@semiont/core';
 import { trustedIssuer } from './trusted-issuer';
 
 /**
@@ -22,20 +22,13 @@ import { trustedIssuer } from './trusted-issuer';
  */
 
 /**
- * The claim, and the role within it, that marks a Semiont service account.
- *
- * Named for what it IS, not for one thing it permits: the Archivist checks the
- * same role to admit its own callers. Two roles held by exactly the same set of
- * accounts would be ceremony; if the two ever need to diverge, that is the
- * moment to add the second, not before.
- *
- * A FLAT array of strings under `roles` — deliberately not Keycloak's nested
- * `realm_access.roles`. The gateway's verification path carries no vendor
- * names, so an operator federating a different issuer maps their own groups
- * into this same claim and nothing here has to know the difference.
+ * The role, the claim it rides in, and the predicate that reads it all come
+ * from `@semiont/core` — the Archivist gates its own read path on the same
+ * one, and two copies of a literal the realm stamps is how every
+ * service-to-service call comes to fail against a realm that looks correct.
+ * Re-exported because this module is where the gateway's callers reach for it.
  */
-export const SERVICE_ROLE = 'semiont-service';
-const ROLES_CLAIM = 'roles';
+export { SERVICE_ROLE };
 
 export class AgentMinterRefused extends Error {
   constructor(message: string) {
@@ -62,10 +55,6 @@ export async function authorizeAgentMinter(authorization: string | undefined): P
   }
 
   const issuer = trustedIssuer();
-  if (!issuer) {
-    throw new AgentMinterRefused('Agent token rejected: this knowledge base trusts no issuer');
-  }
-
   let claims;
   try {
     claims = await issuer.verify(bearer as AccessToken);
@@ -75,10 +64,7 @@ export async function authorizeAgentMinter(authorization: string | undefined): P
     );
   }
 
-  const roles = claims[ROLES_CLAIM];
-  const authorized =
-    Array.isArray(roles) && roles.some((role) => isString(role) && role === SERVICE_ROLE);
-  if (!authorized) {
+  if (!hasServiceRole(claims)) {
     throw new AgentMinterRefused(
       `Agent token carries no '${SERVICE_ROLE}' role in its '${ROLES_CLAIM}' claim`,
     );

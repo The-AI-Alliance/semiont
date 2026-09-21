@@ -40,7 +40,16 @@ statusRouter.get('/api/status', async (c) => {
   // branch switch does not restart the stack, and a staged copy would go
   // stale silently. Absent when the Archivist cannot be reached — the field
   // is optional and a status endpoint must still answer.
-  const gitBranch = await kbBranch(config);
+  // Resolving the credential can itself throw — a knowledge base with no
+  // `[identity]` section has none — and `kbBranch` already treats an
+  // unreachable Archivist as an absent field. A status endpoint must still
+  // answer, so the resolution sits inside the same guard as the call.
+  let gitBranch: string | undefined;
+  try {
+    gitBranch = await kbBranch(config, c.get('archivistCredential')());
+  } catch {
+    gitBranch = undefined;
+  }
   // The KB's own identity, so a client can tell WHICH knowledge base it just
   // connected to rather than inferring it from the address it dialed
   // (.plans/KB-IDENTITY-VS-ADDRESS.md). Read from the committed

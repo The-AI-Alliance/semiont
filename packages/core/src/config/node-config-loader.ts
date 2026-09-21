@@ -44,8 +44,6 @@ export function loadEnvironmentConfig(
 export interface ArchivistAddressConfig {
   services?: {
     archivist?: Pick<ArchivistServiceConfig, 'host' | 'port'>;
-    /** Where this process authenticates before dialling the Archivist. */
-    identity?: { issuer: string };
   };
 }
 
@@ -75,35 +73,37 @@ export interface ArchivistAddressConfig {
  * environment. The Archivist verifies it against the issuer's
  * published keys — it serves the event log and accepts byte writes, and a
  * string compared by equality was guarding both.
+ *
+ * The credential is a PARAMETER, and the issuer travels inside it. This used to
+ * read `SEMIONT_OIDC_CLIENT_ID`/`_SECRET` from `process.env` and dig the issuer
+ * out of `services.identity` — so the function's real dependency appeared
+ * nowhere in its signature. Every field of the config was optional, a narrowed
+ * config satisfied the type carrying none of what was needed, and the Librarian
+ * shipped and died on its first Archivist read (`librarian-main.ts`). A caller
+ * could also neither supply a credential, stub one, nor hold two.
+ *
+ * Every entry point in the system already reads that pair at its own boundary
+ * and builds this object — six `*-main.ts` files do, and `serviceAccountToken`
+ * has always taken it as an argument. This was the one place reaching back for
+ * it mid-call.
  */
-export function archivistAddress(config: ArchivistAddressConfig): {
-  base: string;
-  credential: ServiceAccountCredential;
-} {
+export function archivistAddress(
+  config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
+): { base: string; credential: ServiceAccountCredential } {
   const host = config.services?.archivist?.host;
   if (!host) {
     throw new Error('services.archivist.host is not configured — cannot reach the record');
   }
   const port = config.services?.archivist?.port ?? DEFAULT_ARCHIVIST_PORT;
-  const issuer = config.services?.identity?.issuer;
-  if (!issuer) {
-    throw new Error('services.identity.issuer is not configured — cannot authenticate to the Archivist');
-  }
-  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
-  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are not set — cannot authenticate to the Archivist',
-    );
-  }
-  return { base: `http://${host}:${port}`, credential: { issuer, clientId, clientSecret } };
+  return { base: `http://${host}:${port}`, credential };
 }
 
-export async function archivistEndpoint(config: ArchivistAddressConfig): Promise<{
-  base: string;
-  headers: { authorization: string };
-}> {
-  const { base, credential } = archivistAddress(config);
+export async function archivistEndpoint(
+  config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
+): Promise<{ base: string; headers: { authorization: string } }> {
+  const { base } = archivistAddress(config, credential);
   const token = await serviceAccountToken(credential);
   return { base, headers: { authorization: `Bearer ${token}` } };
 }

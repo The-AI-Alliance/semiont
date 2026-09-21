@@ -17,6 +17,7 @@
 import { HTTPException } from 'hono/http-exception';
 import type { StoredResource } from '@semiont/core';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
+import type { ServiceAccountCredential } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import { getLogger } from '../logger';
 
@@ -47,9 +48,12 @@ const archivistSpan = <T>(op: string, run: () => Promise<T>): Promise<T> =>
  * that omits it, and the browser's KB panel already renders a placeholder in
  * the branch slot.
  */
-export async function kbBranch(config: ArchivistAddressConfig): Promise<string | undefined> {
+export async function kbBranch(
+  config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
+): Promise<string | undefined> {
   try {
-    const { base, headers } = await archivistEndpoint(config);
+    const { base, headers } = await archivistEndpoint(config, credential);
     const res = await archivistSpan('kb.branch', () => fetch(`${base}/kb/branch`, { headers }));
     if (!res.ok) return undefined;
     const { branch } = await res.json() as { branch?: string | null };
@@ -88,10 +92,11 @@ export async function kbBranch(config: ArchivistAddressConfig): Promise<string |
  */
 export async function putContent(
   config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
   storageUri: string,
   body: Blob,
 ): Promise<StoredResource> {
-  const { base, headers } = await archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config, credential);
   const url = `${base}/content/${encodeURIComponent(storageUri)}`;
 
   let res: Response;
@@ -135,9 +140,10 @@ export async function putContent(
  */
 export async function getContent(
   config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
   resourceId: string,
 ): Promise<{ body: ReadableStream<Uint8Array>; mediaType: string }> {
-  const { base, headers } = await archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config, credential);
   const url = `${base}/resources/${encodeURIComponent(resourceId)}/content`;
 
   let res: Response;

@@ -289,8 +289,20 @@ func (s *scenario) norm(text string) string {
 	out := strings.ReplaceAll(text, s.kb, "<kb-root>")
 	out = stageRe.ReplaceAllString(out, "<config-stage>")
 	out = strings.ReplaceAll(out, s.home, "<home>")
+	// The Keycloak bootstrap admin password is GENERATED per root and
+	// persisted there, so it is different in every scenario and every run —
+	// a value that bakes into a golden which greens on refresh and reds
+	// forever after, exactly like the tmp dirs above. Plan mode already
+	// renders this placeholder (executor.go), so live and dry-run goldens
+	// now agree on the one line that cannot be a literal.
+	out = keycloakAdminPwRe.ReplaceAllString(out, "KC_BOOTSTRAP_ADMIN_PASSWORD=<keycloak-admin-password>")
 	return out
 }
+
+// Any generated value — the hex the launcher mints — but NOT a pinned one a
+// test set deliberately (KC_BOOTSTRAP_ADMIN_PASSWORD=test-keycloak-admin),
+// which is stable and worth asserting verbatim.
+var keycloakAdminPwRe = regexp.MustCompile(`KC_BOOTSTRAP_ADMIN_PASSWORD=[0-9a-f]{32}`)
 
 func checkGolden(t *testing.T, name, got string) {
 	t.Helper()
@@ -3481,7 +3493,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 // writeKBConfig drops a variant semiontconfig into the scenario's KB.
 func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 	t.Helper()
-	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n"
+	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n" + stdIdentity
 	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
 	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
 		t.Fatal(err)
@@ -3489,6 +3501,14 @@ func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 }
 
 const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${QDRANT_HOST}\"\nport = 6333\n\n"
+
+// [identity] is MANDATORY (2026-09-21): a KB without an issuer can
+// authenticate nobody, so the launcher refuses one. It rides the head rather
+// than each body because it is true of EVERY knowledge base — and because a
+// variant missing it reports the identity refusal instead of the one it was
+// written to prove. The launcher-run Keycloak, matching the testdata configs;
+// every variant already names a [database], which that shape requires.
+const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n\n"
 
 // Every config must name a vector store and an embedding provider — the
 // launcher refuses one that does not, exactly as the gateway's loader does.
@@ -7205,20 +7225,50 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 // realm file staged and imported, the bootstrap admin password per root — and
 // every service's env carries KEYCLOAK_HOST. The no-identity-section case is
 // proven by every other boot golden: only the preflight logs snapshot grows.
-// writeKeycloakConfig adds an [identity] section to the KB's config and
-// returns the config name to select with --config.
+// writeKeycloakConfig REPLACES the KB config's [identity] section and returns
+// the config name to select with --config.
 func writeKeycloakConfig(t *testing.T, s *scenario) string {
+	t.Helper()
+	return writeConfigWithIdentity(t, s, "keycloak",
+		"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n")
+}
+
+// writeConfigWithIdentity copies the KB's base config with its [identity]
+// section SWAPPED for the given one. Replaced, never appended: every base
+// config carries an identity now, and a second table of the same name is not
+// valid TOML — the whole file is refused before any of it is read.
+func writeConfigWithIdentity(t *testing.T, s *scenario, name, identity string) string {
 	t.Helper()
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
 	b, err := os.ReadFile(src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = append(b, []byte("\n[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n")...)
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "keycloak.toml"), b, 0o644); err != nil {
+	body := stripTOMLTable(string(b), "[environments.local.identity]") + "\n" + identity
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml"), []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	return "keycloak"
+	return name
+}
+
+// stripTOMLTable removes one table header and the keys under it — up to the
+// next header or the end of the file.
+func stripTOMLTable(doc, header string) string {
+	var out []string
+	skipping := false
+	for _, line := range strings.Split(doc, "\n") {
+		trimmed := strings.TrimSpace(line)
+		switch {
+		case trimmed == header:
+			skipping = true
+		case skipping && strings.HasPrefix(trimmed, "["):
+			skipping = false
+			out = append(out, line)
+		case !skipping:
+			out = append(out, line)
+		}
+	}
+	return strings.TrimRight(strings.Join(out, "\n"), "\n") + "\n"
 }
 
 // The identity path in PLAN mode. Both dry-run goldens take the "no [identity]
@@ -7272,16 +7322,8 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 // launcher does NOT run — `type = "oidc"`, the bring-your-own-IdP shape.
 func writeExternalIssuerConfig(t *testing.T, s *scenario) string {
 	t.Helper()
-	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = append(b, []byte("\n[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\n")...)
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "external-oidc.toml"), b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return "external-oidc"
+	return writeConfigWithIdentity(t, s, "external-oidc",
+		"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\n")
 }
 
 // An issuer someone else runs gets the SAME preflight as one the launcher

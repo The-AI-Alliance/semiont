@@ -35,7 +35,7 @@ export interface Principal extends Attribution {
  */
 export async function principalFromToken(token: AccessToken): Promise<Principal> {
   const issuer = trustedIssuer();
-  if (issuer && issuerOf(token) === issuer.issuer) {
+  if (issuerOf(token) === issuer.issuer) {
     return principalFromIssuerToken(token, issuer);
   }
   return principalFromGatewayToken(token);

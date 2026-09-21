@@ -138,13 +138,6 @@ describe('a token that must not authenticate', () => {
     });
   });
 
-  it('is an issuer token when no issuer is trusted', async () => {
-    configureTrustedIssuer(undefined, AUDIENCE);
-
-    const res = await me(await issuer.token({ claims: ALICE }));
-
-    expect(res.status).toBe(401);
-  });
 });
 
 describe('a gateway-signed token', () => {

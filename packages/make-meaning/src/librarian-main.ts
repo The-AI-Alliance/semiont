@@ -213,7 +213,7 @@ async function main() {
   // issuer this process authenticates at, and `makeMeaningConfigFrom` carries
   // only make-meaning's own services. Every field of `ArchivistAddressConfig`
   // is optional, so the narrow config satisfied it and failed at runtime.
-  const contentReads = archivistContentReads(envConfig);
+  const contentReads = archivistContentReads(envConfig, credential);
 
   // The progress folds, fed by the signals LIBRARIAN_INBOUND_CHANNELS pumps onto the
   // local bus — the graph grace and the settle barrier work exactly as

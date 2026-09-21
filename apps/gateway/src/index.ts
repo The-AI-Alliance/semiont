@@ -134,7 +134,16 @@ let committedKbDomain: string;
 // two cannot be configured into disagreement — and a disagreement here refuses
 // every token while looking like a working deployment.
 const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
-configureTrustedIssuer(config.services.identity, kbResource(committedKbDomain));
+// `[identity]` is mandatory (user, 2026-09-21): the loaders refuse a config
+// without it, so this is an assertion that they did, not a fallback.
+const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => {
+  const configured = config.services.identity;
+  if (!configured) {
+    throw new Error('services.identity is required — every knowledge base trusts an issuer');
+  }
+  return configured;
+})();
+configureTrustedIssuer(identity, kbResource(committedKbDomain));
 
 const gatewayService = config.services.gateway;
 
@@ -191,6 +200,7 @@ import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
 import { SIGNAL_FLUSH_TIMEOUT_MS } from './signal/options';
 import { bridgeGatewayHandlers, compositionFor } from './signal';
+import type { ServiceAccountCredential } from '@semiont/core';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -231,9 +241,41 @@ app.use('*', requestIdMiddleware);       // Generate request ID first
 app.use('*', errorLoggerMiddleware);     // Catch errors second
 app.use('*', requestLoggerMiddleware);   // Log requests third
 
-// Inject config and the event bus into context for all routes
+/**
+ * This process's own account at the knowledge base's issuer.
+ *
+ * Resolved HERE because this is the gateway's boundary, which is where every
+ * other service resolves it — six `*-main.ts` entry points read the same pair.
+ * It used to be read inside `archivistAddress`, so the gateway never named the
+ * credential it depends on and nothing could supply a different one.
+ *
+ * Memoized rather than eager only because the ENVIRONMENT half can be absent
+ * in a process that never dials the Archivist — the issuer half is guaranteed,
+ * since `[identity]` is mandatory and the loaders refuse a config without it.
+ */
+let resolvedArchivistCredential: ServiceAccountCredential | undefined;
+function archivistCredential(): ServiceAccountCredential {
+  if (resolvedArchivistCredential) {
+    return resolvedArchivistCredential;
+  }
+  const issuer = identity.issuer;
+  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are not set — cannot authenticate to the Archivist',
+    );
+  }
+  resolvedArchivistCredential = { issuer, clientId, clientSecret };
+  return resolvedArchivistCredential;
+}
+
+// Inject config, the event bus and HOW TO GET this process's credential into
+// context for all routes. A resolver rather than a value, so a gateway that
+// never dials the Archivist never has to have one.
 app.use('*', async (c, next) => {
   c.set('config', config);
+  c.set('archivistCredential', archivistCredential);
   c.set('eventBus', eventBus);
   await next();
 });

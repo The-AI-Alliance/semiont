@@ -63,13 +63,6 @@ describe('GET /.well-known/oauth-protected-resource', () => {
     expect(body.resource).not.toBe('http://localhost');
   });
 
-  it('is 404 when no issuer is trusted — there is nothing to advertise', async () => {
-    configureTrustedIssuer(undefined, RESOURCE);
-
-    const res = await app.request(METADATA_PATH);
-
-    expect(res.status).toBe(404);
-  });
 
   it('is public: no token, no challenge', async () => {
     const res = await app.request(METADATA_PATH);
@@ -95,12 +88,4 @@ describe('the 401 challenge', () => {
     );
   });
 
-  it('is a bare Bearer challenge when no issuer is trusted', async () => {
-    configureTrustedIssuer(undefined, RESOURCE);
-
-    const res = await app.request('/api/users/me');
-
-    expect(res.status).toBe(401);
-    expect(res.headers.get('WWW-Authenticate')).toBe('Bearer');
-  });
 });

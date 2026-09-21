@@ -57,16 +57,9 @@
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'http';
 import { pipeline } from 'stream/promises';
 import type { AccessToken, Logger } from '@semiont/core';
-import { resourceId as makeResourceId, errField } from '@semiont/core';
+import { resourceId as makeResourceId, errField, hasServiceRole } from '@semiont/core';
 import type { IssuerVerifier } from '@semiont/core/identity';
 
-/**
- * The role a caller's token must carry. Must equal SERVICE_ROLE in
- * apps/gateway/src/identity/agent-minter.ts and `serviceRole` in the
- * launcher's identity.go — one string, three readers, and the realm is what
- * stamps it.
- */
-const SERVICE_ROLE = 'semiont-service';
 import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
 import { ChecksumMismatchError, RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
 import { resolveRepresentation } from './representation';
@@ -123,8 +116,7 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
     }
     try {
       const claims = await verifier.verify(bearer as AccessToken);
-      const roles = claims['roles'];
-      if (!Array.isArray(roles) || !roles.includes(SERVICE_ROLE)) {
+      if (!hasServiceRole(claims)) {
         json(res, 401, { error: 'unauthorized' });
         return false;
       }

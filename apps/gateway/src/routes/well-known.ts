@@ -26,9 +26,6 @@ export const wellKnownRouter = new Hono<{ Variables: { config: EnvironmentConfig
  */
 wellKnownRouter.get(PROTECTED_RESOURCE_METADATA_PATH, (c) => {
   const issuer = trustedIssuer();
-  if (!issuer) {
-    return c.json({ error: 'This knowledge base trusts no external issuer' }, 404);
-  }
   const kbName = c.get('config').kb?.name;
   const response: ProtectedResourceMetadata = {
     resource: issuer.audience,

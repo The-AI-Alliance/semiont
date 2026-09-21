@@ -350,24 +350,24 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         await new Promise<void>((resolve, reject) => issuer.close((e) => (e ? reject(e) : resolve())));
       });
 
+      // A credential the test supplies itself — which it could not do while
+      // `archivistAddress` read one out of `process.env`. Built on demand
+      // because `issuerUrl` is assigned by a hook, not at describe time.
+      const testCredential = () => ({ issuer: issuerUrl, clientId: 'semiont-test', clientSecret: 'test-secret' });
+
       const addressOf = (url: string): ArchivistAddressConfig => {
         const { hostname, port } = new URL(url);
-        return {
-          services: {
-            archivist: { host: hostname, port: Number(port) },
-            identity: { issuer: issuerUrl },
-          },
-        };
+        return { services: { archivist: { host: hostname, port: Number(port) } } };
       };
 
       it('reads the bytes and the stored media type — the same shape the in-process face returns', async () => {
-        const { data, contentType } = await archivistContentReads(addressOf(baseUrl)).getBinary(SERVED);
+        const { data, contentType } = await archivistContentReads(addressOf(baseUrl), testCredential()).getBinary(SERVED);
         expect(Buffer.from(data).toString('utf-8')).toBe(CONTENT);
         expect(contentType).toBe('text/markdown');
       });
 
       it('surfaces a miss as RepresentationMissing, carrying which half failed', async () => {
-        const reads = archivistContentReads(addressOf(baseUrl));
+        const reads = archivistContentReads(addressOf(baseUrl), testCredential());
 
         // Same error type the working-tree face throws for the same fact: a
         // caller cannot tell whether the bytes were a hop away.
@@ -388,13 +388,22 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         });
       });
 
-      it('refuses when the address or the credential is missing', () => {
+      it('refuses at construction when the address is missing', () => {
         // Boot-time, not first-read: a Smelter with no Archivist address must
         // die while an operator is watching, not fail every resource quietly.
-        expect(() => archivistContentReads({})).toThrow(/services\.archivist\.host/);
+        expect(() => archivistContentReads({}, testCredential())).toThrow(/services\.archivist\.host/);
+      });
 
-        vi.stubEnv('SEMIONT_OIDC_CLIENT_SECRET', '');
-        expect(() => archivistContentReads(addressOf(baseUrl))).toThrow(/SEMIONT_OIDC_CLIENT_SECRET/);
+      it('takes the credential from its caller, so a test can supply its own', () => {
+        // This is the property that was missing. The function used to read
+        // SEMIONT_OIDC_CLIENT_ID/_SECRET out of `process.env` mid-call, so a
+        // caller could neither supply a credential, stub one, nor hold two —
+        // and a narrowed config satisfied the type carrying none of what the
+        // function needed, which is exactly how the Librarian shipped broken.
+        const reads = archivistContentReads(addressOf(baseUrl), {
+          issuer: issuerUrl, clientId: 'a-different-client', clientSecret: 'a-different-secret',
+        });
+        expect(reads.getBinary).toBeTypeOf('function');
       });
     });
   });
