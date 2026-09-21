@@ -37,7 +37,7 @@ less certain, stop refuses and lists the choices: --repo <owner/name>
 targets a codespace stack, --runtime targets the local one.
 `
 
-// stopNames sweeps all ten container names in REVERSE start order —
+// stopNames sweeps every stack container in REVERSE start order —
 // dependents before their dependencies, so nothing spends teardown alive
 // with its upstream already gone (start brings up jaeger → neo4j → qdrant →
 // ollama → postgres → gateway → worker → smelter → weaver → browser).
@@ -47,7 +47,7 @@ targets a codespace stack, --runtime targets the local one.
 var stopNames = []string{
 	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
 	"semiont-librarian",
-	"semiont-gateway", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
+	"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
 	"semiont-neo4j", "semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
 }
 

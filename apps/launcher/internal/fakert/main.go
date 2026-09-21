@@ -909,6 +909,22 @@ func run(args []string) {
 			_ = os.WriteFile(filepath.Join(dir, "serve-"+name+".pid"),
 				[]byte(strconv.Itoa(cmd.Process.Pid)+"\n"+strings.Join(ports, " ")), 0o644)
 		}
+		// Return only once the ports ANSWER. cmd.Start() returns before the
+		// child has bound anything, so every caller's health wait used to pay
+		// the child's startup — per service, serially, in every boot test.
+		// A real `run -d` returns when the container exists; modelling the
+		// service's own startup latency is not this fake's job, and the
+		// launcher's not-ready-yet paths have their own scripted tests.
+		for _, p := range ports {
+			for i := 0; i < 400; i++ {
+				c, err := net.DialTimeout("tcp", "127.0.0.1:"+p, 200*time.Millisecond)
+				if err == nil {
+					c.Close()
+					break
+				}
+				time.Sleep(5 * time.Millisecond)
+			}
+		}
 	}
 	// The container identifier the runtime reports — name-derived so tests
 	// can assert id-based stop/status flows ("fid-semiont-gateway").

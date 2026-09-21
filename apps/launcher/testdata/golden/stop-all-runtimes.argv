@@ -4,6 +4,7 @@ container stop semiont-smelter
 container stop semiont-worker
 container stop semiont-librarian
 container stop semiont-gateway
+container stop semiont-keycloak
 container stop semiont-nats
 container stop semiont-postgres
 container stop semiont-ollama
@@ -18,6 +19,7 @@ container logs semiont-smelter
 container logs semiont-worker
 container logs semiont-librarian
 container logs semiont-gateway
+container logs semiont-keycloak
 container logs semiont-nats
 container logs semiont-postgres
 container logs semiont-ollama
@@ -32,6 +34,7 @@ container rm semiont-smelter
 container rm semiont-worker
 container rm semiont-librarian
 container rm semiont-gateway
+container rm semiont-keycloak
 container rm semiont-nats
 container rm semiont-postgres
 container rm semiont-ollama
@@ -46,6 +49,7 @@ docker stop semiont-smelter
 docker stop semiont-worker
 docker stop semiont-librarian
 docker stop semiont-gateway
+docker stop semiont-keycloak
 docker stop semiont-nats
 docker stop semiont-postgres
 docker stop semiont-ollama
@@ -60,6 +64,7 @@ docker logs --tail 5000 semiont-smelter
 docker logs --tail 5000 semiont-worker
 docker logs --tail 5000 semiont-librarian
 docker logs --tail 5000 semiont-gateway
+docker logs --tail 5000 semiont-keycloak
 docker logs --tail 5000 semiont-nats
 docker logs --tail 5000 semiont-postgres
 docker logs --tail 5000 semiont-ollama
@@ -74,6 +79,7 @@ docker rm semiont-smelter
 docker rm semiont-worker
 docker rm semiont-librarian
 docker rm semiont-gateway
+docker rm semiont-keycloak
 docker rm semiont-nats
 docker rm semiont-postgres
 docker rm semiont-ollama
@@ -88,6 +94,7 @@ podman stop semiont-smelter
 podman stop semiont-worker
 podman stop semiont-librarian
 podman stop semiont-gateway
+podman stop semiont-keycloak
 podman stop semiont-nats
 podman stop semiont-postgres
 podman stop semiont-ollama
@@ -102,6 +109,7 @@ podman logs --tail 5000 semiont-smelter
 podman logs --tail 5000 semiont-worker
 podman logs --tail 5000 semiont-librarian
 podman logs --tail 5000 semiont-gateway
+podman logs --tail 5000 semiont-keycloak
 podman logs --tail 5000 semiont-nats
 podman logs --tail 5000 semiont-postgres
 podman logs --tail 5000 semiont-ollama
@@ -116,6 +124,7 @@ podman rm semiont-smelter
 podman rm semiont-worker
 podman rm semiont-librarian
 podman rm semiont-gateway
+podman rm semiont-keycloak
 podman rm semiont-nats
 podman rm semiont-postgres
 podman rm semiont-ollama
