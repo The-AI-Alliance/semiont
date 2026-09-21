@@ -15,6 +15,10 @@ import { SemiontProject } from '@semiont/core/node';
 import { WorkingTreeStore, ChecksumMismatchError } from '../working-tree-store';
 import { calculateChecksum } from '../checksum';
 
+// SemiontProject's state tree derives from XDG_STATE_HOME, which now throws when
+// unset (no fabricated default). Point it into temp space for this suite.
+process.env.XDG_STATE_HOME = join(tmpdir(), 'semiont-content-tests-state');
+
 interface TestProject {
   project: SemiontProject;
   root: string;
