@@ -12,11 +12,13 @@ declare module 'hono' {
   interface ContextVariableMap {
     /**
      * The authenticated caller, set by authMiddleware from the token's claims.
+     *
+     * The attribution chain lives here and nowhere else. It used to be
+     * accompanied by a `principalDid` carrying `principal.did` a second time,
+     * which meant a consumer could read the authority without ever seeing that
+     * an `actor` or a `client` stood behind it. One shape, read one way.
      */
     principal: Principal;
-
-    /** That principal's DID — the identity every consumer downstream keys on. */
-    principalDid: string;
 
     /**
      * Validated request body set by validateRequestBody middleware

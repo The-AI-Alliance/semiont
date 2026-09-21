@@ -211,30 +211,46 @@ describe('Auth Middleware', () => {
         expect(mockPrincipalFromToken).toHaveBeenCalledWith('valid-token');
       });
 
-      // Single-slot identity: bus and resource creation read `principalDid`
-      // off the request context, so they don't have to know whether the
-      // authenticated peer is a human or a software agent. The middleware
-      // is the seam where that abstraction is enforced.
-      it('sets `principalDid` from `userToDid(user)` for a human (no agentDid on JWT)', async () => {
+      // One identity on the context, not two. Bus and resource creation read
+      // the principal and take its authority leg, so they never have to know
+      // whether the peer is a human or a software agent — people and agents
+      // reach this seam the same way and leave it in the same shape.
+      it('sets a principal whose authority is the person, for a human token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer human-token' });
         mockPrincipalFromToken.mockResolvedValue(mockUser);
 
         await authMiddleware(context, mockNext);
 
         expect(context.set).toHaveBeenCalledWith(
-          'principalDid',
-          'did:web:example.com:users:user%40example.com',
+          'principal',
+          expect.objectContaining({ did: 'did:web:example.com:users:user%40example.com' }),
         );
       });
 
-      it('sets `principalDid` from the JWT `agentDid` for a software-agent token', async () => {
+      it('sets a principal whose authority is the agent, for a software-agent token', async () => {
         const context = createMockContext({ 'Authorization': 'Bearer agent-token' });
         const agentDid = userId('did:web:example.com:agents:ollama:gemma2%3A27b');
         mockPrincipalFromToken.mockResolvedValue({ ...mockUser, did: agentDid });
 
         await authMiddleware(context, mockNext);
 
-        expect(context.set).toHaveBeenCalledWith('principalDid', agentDid);
+        expect(context.set).toHaveBeenCalledWith(
+          'principal',
+          expect.objectContaining({ did: agentDid }),
+        );
+      });
+
+      it('never sets a second slot carrying the same identity', async () => {
+        // The duplicate `principalDid` is what let a consumer read the
+        // authority without ever seeing that an actor stood behind it.
+        const context = createMockContext({ 'Authorization': 'Bearer human-token' });
+        mockPrincipalFromToken.mockResolvedValue(mockUser);
+
+        await authMiddleware(context, mockNext);
+
+        const slots = (context.set as ReturnType<typeof vi.fn>).mock.calls.map(([k]) => k);
+        expect(slots).toContain('principal');
+        expect(slots).not.toContain('principalDid');
       });
 
       it('should handle admin users correctly', async () => {

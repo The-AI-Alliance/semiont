@@ -47,7 +47,6 @@ vi.mock('../../lib/archivist', () => ({
 // would hide a real mismatch instead of catching it.
 type Variables = {
   principal: Principal;
-  principalDid: string;
   eventBus: EventBusType;
   config: ArchivistAddressConfig;
 };
@@ -66,7 +65,6 @@ function fakeUser(): Principal {
 const app = new Hono<{ Variables: Variables }>();
 app.use('*', async (c, next) => {
   c.set('principal', fakeUser());
-  c.set('principalDid', 'did:web:test.local:users:test%40test.local');
   c.set('eventBus', new EventBus());
   c.set('config', { services: { archivist: { host: 'archivist.test', port: 9999 } } });
   await next();
