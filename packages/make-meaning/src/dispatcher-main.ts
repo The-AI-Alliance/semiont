@@ -1,5 +1,5 @@
 /**
- * Dispatcher Main — standalone entry point (EXTRACT-JOBS P1)
+ * Dispatcher Main — standalone entry point (EXTRACT-JOBS P1 + P2)
  *
  * The dispatcher is where a worker — ours today, foreign later — goes to ask
  * *what work is available* and to *report what it finished*. It owns the job
@@ -8,43 +8,49 @@
  * resulting annotations never do — those ride worker↔Archivist directly. It
  * dispatches and records; it does not perform (that is the `worker`, D1).
  *
- * **This is P1: the service running NOTHING.** It stands the process up —
- * config, a service-account session, an attachment to the plane, and a health
- * check — so that when P2 moves the queue and the `job:*` handlers into it, a
- * failure is unambiguously P2's. The queue (a JetStream client, with the
- * boot-deadline machinery `archivist-main.ts` models via
- * `STARTUP_CONNECT_TIMEOUT_MS`/`RESTART_HINT`) and the inbound/outbound rosters
- * arrive in P2 — the `channels: []` below is the seam they fill.
+ * P2 moved the queue and the nine `job:*` handlers off the gateway into here.
+ * The gateway now only ROUTES `job:*` frames across the plane to this process;
+ * it registers no job handler and holds no queue.
  *
- * Bus wiring will be two disjoint pumps on the archivist-main pattern
- * (`service-channels.ts`), never `bridgeInto`. None of it exists yet — a
- * control plane running nothing subscribes to nothing.
+ * Bus wiring is two disjoint pumps on the archivist/librarian pattern
+ * (`service-channels.ts`), never `bridgeInto`:
+ *   in  — DISPATCHER_INBOUND_CHANNELS: the `job:*` command channels this
+ *         process subscribes to, and its whole SSE subscription (it awaits no
+ *         wire reply — the queue reaches JetStream directly, not over the bus).
+ *   out — DISPATCHER_OUTBOUND_CHANNELS: every reply DERIVED from BUS_OPERATIONS
+ *         over the inbound set, plus the queue's own `job:queued` broadcast.
  *
  * No KB mount, no graph, no vectors, no views, no content: unlike the other
  * make-meaning sidecars, the dispatcher touches none of the knowledge system.
- * It needs only the gateway (for its token and, at P2, the plane) and — at P2
- * — the messaging broker for the queue.
+ * It needs the gateway (its token and the plane), the messaging broker (the
+ * JetStream queue), and — only for the fs job driver, the omission-reachable
+ * fallback the deployed jetstream config does not use — the shared state mount.
  *
  * Environment variables:
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
  *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the gateway.
+ *   XDG_STATE_HOME             — the shared state mount (fs job driver's jobsDir).
  */
 
+import { Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
-import { baseUrl as makeBaseUrl } from '@semiont/core';
-import { loadEnvironmentConfig } from '@semiont/core/node';
+import { EventBus, baseUrl as makeBaseUrl, withDeadline } from '@semiont/core';
+import { loadEnvironmentConfig, SemiontState } from '@semiont/core/node';
+import { registerJobQueueProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
+import { jobQueueFor, STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
+import { makeMeaningConfigFrom, requireKBName } from './config';
+import { registerJobCommandHandlers } from './handlers/job-commands';
+import { DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS } from './service-channels';
+import { attachServicePumps } from './service-pumps';
 
 // ── Config ───────────────────────────────────────────────────────────
 //
 // No project root: the dispatcher has no KB mount, so everything it needs
 // rides the staged config (~/.semiontconfig in the container). `[services.jobs]`
-// is present and names `${NATS_HOST}` — resolved eagerly at load by every
-// process that reads this config — so the launcher stages `NATS_HOST` for this
-// container as it does for the rest; the dispatcher does not READ the queue
-// config until P2.
+// selects the driver and names `${NATS_HOST}` for the JetStream one.
 const envConfig = loadEnvironmentConfig(null);
 
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
@@ -52,6 +58,12 @@ if (!gatewayPublicURL) {
   throw new Error('services.gateway.publicURL is required in environment config');
 }
 const baseUrl: string = gatewayPublicURL;
+
+// The committed KB name locates this KB's state subtree — the fs job driver's
+// jobsDir under XDG_STATE_HOME. JetStream ignores it; the fs fallback needs it,
+// so like the Librarian this process requires it rather than defaulting.
+const kbName = requireKBName(envConfig);
+const config = makeMeaningConfigFrom(envConfig);
 
 /**
  * This process's own account at the issuer. The credential authenticates the
@@ -78,9 +90,6 @@ const logger = createProcessLogger('dispatcher');
 async function main() {
   const { initObservabilityNode, registerSupervisorRestartCount } = await import('@semiont/observability/node');
   initObservabilityNode({ serviceName: 'semiont-dispatcher' });
-  // Supervised and mounting /semiont-state (C4: the state volume rides
-  // unconditionally, so the fs job driver is never silently mountless), so the
-  // durable supervisor record already exists here.
   registerSupervisorRestartCount();
 
   // A Software peer under the stable identity (semiont, dispatcher): one DID
@@ -94,24 +103,55 @@ async function main() {
     logger,
   });
 
-  // Attach to the plane. P1 subscribes to nothing — the queue and the `job:*`
-  // handler rosters land in P2, which replaces `channels: []` with the
-  // dispatcher's inbound roster + awaited-reply channels (never the full
-  // bridged set, whose global reply fan-out is the worker-OOM failure mode).
+  const localBus = new EventBus();
+  const state = new SemiontState({ name: kbName });
+
+  // ── The queue ──────────────────────────────────────────────────────
+  // Selected from config (jetstream in the deployed fleet). Its initialize()
+  // connects to the messaging broker, so it takes the boot deadline: a slow
+  // dependency on a restart-everything-at-once resume must make the process
+  // EXIT rather than hang unhealthy (the archivist-main pattern).
+  const jobQueue = jobQueueFor(config.services.jobs, state, logger.child({ component: 'job-queue' }), localBus);
+  await withDeadline('Job queue', STARTUP_CONNECT_TIMEOUT_MS, () => jobQueue.initialize(), RESTART_HINT);
+
+  // Tier-3 observability: queue size by status. Exported by THIS process now,
+  // not the gateway (the metrics moved with the queue).
+  registerJobQueueProvider(() => jobQueue.getStats());
+
+  // The nine job:* handlers, on the local bus. The pumps below carry their
+  // request channels in and their replies (+ the queue's job:queued) out.
+  registerJobCommandHandlers(localBus, jobQueue, state, logger);
+
+  // The bus transport. Its SSE subscription is the inbound roster only — never
+  // the full bridged set, whose global reply fan-out is the worker-OOM failure
+  // mode. The dispatcher awaits no wire reply, so there are no reply channels
+  // to add.
   const httpTransport = new HttpTransport({
     baseUrl: makeBaseUrl(baseUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
-    channels: [],
+    channels: [...DISPATCHER_INBOUND_CHANNELS],
   });
 
-  // ── Health — listens last, so the launcher's health gate proves the
-  // service authenticated and attached, not merely that the process is up. ──
+  // ── Bus pumps ──────────────────────────────────────────────────────
+  const pumps: Subscription[] = attachServicePumps({
+    transport: httpTransport,
+    localBus,
+    inbound: DISPATCHER_INBOUND_CHANNELS,
+    outbound: DISPATCHER_OUTBOUND_CHANNELS,
+    logger,
+  });
+  logger.info('Bus pumps attached', {
+    inbound: DISPATCHER_INBOUND_CHANNELS.length,
+    outbound: DISPATCHER_OUTBOUND_CHANNELS.length,
+  });
+
+  // ── Health — listens last, so the launcher's health gate proves the queue
+  // connected and the pumps attached, not merely that the process is up. ──
   const server = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      // No actors yet — P2 populates this as the queue and handlers land.
-      res.end(JSON.stringify({ status: 'ok', actors: [] }));
+      res.end(JSON.stringify({ status: 'ok', queue: config.services.jobs?.type ?? 'fs' }));
       return;
     }
     res.writeHead(404);
@@ -124,7 +164,10 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down');
     session.stop();
+    for (const pump of pumps) pump.unsubscribe();
     httpTransport.dispose();
+    jobQueue.destroy();
+    localBus.destroy();
     server.close();
     process.exit(0);
   };
@@ -132,7 +175,7 @@ async function main() {
   process.on('SIGTERM', shutdown);
   process.on('SIGINT', shutdown);
 
-  logger.info('Dispatcher serving (running nothing — EXTRACT-JOBS P1)');
+  logger.info('Dispatcher serving', { channels: DISPATCHER_INBOUND_CHANNELS.length });
 }
 
 main().catch((error) => {
