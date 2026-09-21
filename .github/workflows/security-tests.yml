@@ -184,6 +184,12 @@ jobs:
           # gateway mounts no KB tree, so this is the only place it can see
           # either value, and it refuses to boot without `domain`.
           #
+          # `[identity]` is MANDATORY: a knowledge base without a trusted issuer
+          # can authenticate nobody and cannot reach its own record, so the
+          # loader refuses a config that omits it. Nothing here reaches that
+          # issuer — these tests assert that protected routes answer 401 — but
+          # the gateway will not start without the section.
+          #
           # TOP-LEVEL, and before the first `[environments…]` header: TOML
           # assigns any key after a table header to that table, so appending it
           # lower down would bury `[kb]` inside an environment section — with no
@@ -200,6 +206,10 @@ jobs:
             'platform = "posix"' \
             'port = 4000' \
             'publicURL = "http://localhost:4000"' \
+            '' \
+            '[environments.ci.identity]' \
+            'type = "keycloak"' \
+            'issuer = "http://localhost:8080/realms/semiont"' \
             '' \
             '[environments.ci.site]' \
             'domain = "localhost"' \
