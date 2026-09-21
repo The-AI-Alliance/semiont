@@ -191,6 +191,7 @@ import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
 import { SIGNAL_FLUSH_TIMEOUT_MS } from './signal/options';
 import { bridgeGatewayHandlers, compositionFor } from './signal';
+import type { ServiceAccountCredential } from '@semiont/core';
 import { authMiddleware } from './middleware/auth';
 
 // Import for static OpenAPI spec
@@ -231,9 +232,47 @@ app.use('*', requestIdMiddleware);       // Generate request ID first
 app.use('*', errorLoggerMiddleware);     // Catch errors second
 app.use('*', requestLoggerMiddleware);   // Log requests third
 
-// Inject config and the event bus into context for all routes
+/**
+ * This process's own account at the knowledge base's issuer.
+ *
+ * Resolved HERE because this is the gateway's boundary, which is where every
+ * other service resolves it — six `*-main.ts` entry points read the same pair.
+ * It used to be read inside `archivistAddress`, so the gateway never named the
+ * credential it depends on and nothing could supply a different one.
+ *
+ * LAZY, and memoized. A knowledge base with no `[identity]` section is a
+ * supported configuration — `configureTrustedIssuer` treats it as "no trusted
+ * issuer, only gateway-signed tokens authenticate" — so resolving eagerly
+ * would refuse to boot a gateway that is merely never going to dial the
+ * Archivist. That also keeps the failure exactly where it was before this
+ * became a parameter: at the first read, naming what is missing.
+ */
+let resolvedArchivistCredential: ServiceAccountCredential | undefined;
+function archivistCredential(): ServiceAccountCredential {
+  if (resolvedArchivistCredential) {
+    return resolvedArchivistCredential;
+  }
+  const issuer = config.services?.identity?.issuer;
+  if (!issuer) {
+    throw new Error('services.identity.issuer is not configured — cannot authenticate to the Archivist');
+  }
+  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
+  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
+  if (!clientId || !clientSecret) {
+    throw new Error(
+      'SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are not set — cannot authenticate to the Archivist',
+    );
+  }
+  resolvedArchivistCredential = { issuer, clientId, clientSecret };
+  return resolvedArchivistCredential;
+}
+
+// Inject config, the event bus and HOW TO GET this process's credential into
+// context for all routes. A resolver rather than a value, so a gateway that
+// never dials the Archivist never has to have one.
 app.use('*', async (c, next) => {
   c.set('config', config);
+  c.set('archivistCredential', archivistCredential);
   c.set('eventBus', eventBus);
   await next();
 });

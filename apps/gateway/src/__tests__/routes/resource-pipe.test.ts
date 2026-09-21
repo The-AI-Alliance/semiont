@@ -123,6 +123,13 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
           identity: { issuer: issuer.url },
         },
       } as unknown as EnvironmentConfig);
+      // The credential the Archivist-dialling routes resolve. A test can now
+      // supply its own — it could not while the value was read from process.env.
+      c.set('archivistCredential', () => ({
+        issuer: issuer.url,
+        clientId: 'semiont-gateway',
+        clientSecret: 'test-secret',
+      }));
       await next();
     });
     registerGetResourceUri(app as unknown as ResourcesRouterType);

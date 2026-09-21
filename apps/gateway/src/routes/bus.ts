@@ -28,6 +28,7 @@ import {
 } from '../signal';
 import { LEDGER_ADDRESS } from '../signal/ledger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
+import type { ServiceAccountCredential } from '@semiont/core';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
 
@@ -55,10 +56,11 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
  */
 async function fetchArchivistReplay(
   config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
   resourceId: string,
   fromSequence: number,
 ): Promise<StoredEvent[]> {
-  const { base, headers } = await archivistEndpoint(config);
+  const { base, headers } = await archivistEndpoint(config, credential);
   // A CLIENT span for the same reason lib/archivist.ts wraps its three calls:
   // this crosses to another service, and without it a slow replay is
   // indistinguishable from a slow gateway.
@@ -550,7 +552,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             // The record lives in the Archivist (EXTRACT-ARCHIVIST P3):
             // replay reads the D1 sequence-ranged path, this seam's one
             // customer. The +1 is ours — the path is inclusive.
-            const events = await fetchArchivistReplay(c.get('config'), String(rId), parsed.sequence + 1);
+            const events = await fetchArchivistReplay(c.get('config'), c.get('archivistCredential')(), String(rId), parsed.sequence + 1);
             const replayable: StoredEvent[] = events.filter((e) => allowedTypes.has(e.type as string));
 
             if (events.length > 0 && events[0]!.metadata.sequenceNumber > parsed.sequence + 1) {

@@ -151,6 +151,13 @@ function buildApp(
     c.set('eventBus', eventBus);
     c.set('logger', logger);
     c.set('config', { services: { archivist: { host: ARCHIVIST_HOST, port: 9999 }, identity: { issuer: ISSUER } } });
+    // The credential the Archivist-dialling routes resolve. A test can now
+    // supply its own — it could not while the value was read from process.env.
+    c.set('archivistCredential', () => ({
+      issuer: ISSUER,
+      clientId: 'semiont-gateway',
+      clientSecret: 'test-secret',
+    }));
     await next();
   });
   app.route('/', router);

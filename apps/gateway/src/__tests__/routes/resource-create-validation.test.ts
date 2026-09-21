@@ -67,6 +67,13 @@ app.use('*', async (c, next) => {
   c.set('principal', fakeUser());
   c.set('eventBus', new EventBus());
   c.set('config', { services: { archivist: { host: 'archivist.test', port: 9999 } } });
+  // The credential the Archivist-dialling routes resolve. A test can now
+  // supply its own — it could not while the value was read from process.env.
+  c.set('archivistCredential', () => ({
+    issuer: 'http://issuer.test/realms/semiont',
+    clientId: 'semiont-gateway',
+    clientSecret: 'test-secret',
+  }));
   await next();
 });
 registerCreateResource(app as unknown as ResourcesRouterType);
@@ -115,9 +122,13 @@ describe('POST /resources validation', () => {
     expect(res.status).toBe(202);
     expect(await res.json()).toEqual({ resourceId: 'res-created-1' });
     expect(putContentMock).toHaveBeenCalledTimes(1);
-    // putContent(config, storageUri, body) — the URI is still argument 1, as
-    // it was for the store(content, uri) call this replaced.
-    expect(putContentMock.mock.calls[0]![1]).toBe('file://chosen/path.md');
+    // putContent(config, credential, storageUri, body). Asserted by NAME
+    // rather than by position: the credential became a parameter, and a
+    // positional assertion silently moves to the wrong argument when a
+    // signature grows.
+    const [, credential, storageUri] = putContentMock.mock.calls[0]!;
+    expect(storageUri).toBe('file://chosen/path.md');
+    expect(credential).toMatchObject({ clientId: 'semiont-gateway' });
     expect(ResourceOperations.createResource).toHaveBeenCalledWith(
       expect.objectContaining({ storageUri: 'file://chosen/path.md' }),
       expect.anything(),

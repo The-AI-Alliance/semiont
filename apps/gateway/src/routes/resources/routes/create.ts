@@ -109,7 +109,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
           // The File goes to fetch as-is: undici streams a blob body, where
           // the arrayBuffer()/Buffer.from() pair this replaces made two more
           // full copies of every upload.
-          const stored = await putContent(c.get('config'), storageUri, file);
+          const stored = await putContent(c.get('config'), c.get('archivistCredential')(), storageUri, file);
 
           // The PLANE-backed primitive, never the raw bus: the Stower lives in
           // the Archivist, reachable only through the signal plane under a

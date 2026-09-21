@@ -22,6 +22,7 @@
 
 import type { IContentTransport, ResourceId } from '@semiont/core';
 import { archivistAddress, archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
+import type { ServiceAccountCredential } from '@semiont/core';
 
 /**
  * The byte read, and nothing else — DERIVED from the transport contract so it
@@ -61,11 +62,14 @@ export class RepresentationMissing extends Error {
  * face throws for the same fact, so no caller can tell whether the bytes were
  * a hop away. `reason` rides the wire precisely so this side need not guess.
  */
-export function archivistContentReads(config: ArchivistAddressConfig): ContentReads {
-  // Boot-time, not first-read: a Smelter with no Archivist address or no
-  // credential must die while an operator is watching, not fail every resource
-  // quietly. Only the TOKEN is deferred, because only the token is async.
-  archivistAddress(config);
+export function archivistContentReads(
+  config: ArchivistAddressConfig,
+  credential: ServiceAccountCredential,
+): ContentReads {
+  // Boot-time, not first-read: a Smelter with no Archivist address must die
+  // while an operator is watching, not fail every resource quietly. Only the
+  // TOKEN is deferred, because only the token is async.
+  archivistAddress(config, credential);
 
   return {
     getBinary: async (resourceId: ResourceId) => {
@@ -73,7 +77,7 @@ export function archivistContentReads(config: ArchivistAddressConfig): ContentRe
       // now, and one held for the life of the process would expire in it. The
       // issuer round trip is not per read — `serviceAccountToken` keeps the
       // token until shortly before the lifetime the grant reported.
-      const { base, headers } = await archivistEndpoint(config);
+      const { base, headers } = await archivistEndpoint(config, credential);
       const url = `${base}/resources/${encodeURIComponent(String(resourceId))}/content`;
       const res = await fetch(url, { headers });
 

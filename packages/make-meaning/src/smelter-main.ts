@@ -174,7 +174,7 @@ async function main() {
   // touching the KB tree on the path to it. Throws here if the address or
   // this process's service-account credential is missing — a boot-time
   // refusal, not a per-resource failure.
-  const contentReads = archivistContentReads(envConfig);
+  const contentReads = archivistContentReads(envConfig, credential);
   logger.info('Content reads ready', { via: 'archivist' });
 
   // The anchored-text store, on this process's own mount (ANCHORED-TEXT-TO-SMELTER

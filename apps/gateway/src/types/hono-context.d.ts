@@ -7,6 +7,7 @@
 
 import 'hono';
 import type { Principal } from '../identity/principal';
+import type { ServiceAccountCredential } from '@semiont/core';
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -19,6 +20,14 @@ declare module 'hono' {
      * an `actor` or a `client` stood behind it. One shape, read one way.
      */
     principal: Principal;
+
+    /**
+     * How to get this process's own account at the issuer, for the routes that
+     * dial the Archivist. A resolver, not a value: a knowledge base with no
+     * `[identity]` section is supported, and such a gateway must still boot —
+     * it simply never calls this.
+     */
+    archivistCredential: () => ServiceAccountCredential;
 
     /**
      * Validated request body set by validateRequestBody middleware
