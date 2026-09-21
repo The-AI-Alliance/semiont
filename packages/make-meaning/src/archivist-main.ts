@@ -63,6 +63,7 @@ import { createArchivistServer } from './archivist-read-path';
 import { createFactPump } from './fact-pump';
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
 import { registerAnnotationContextHandler } from './handlers/annotation-lookups';
+import { registerBindUpdateBodyHandler } from './handlers/bind-update-body';
 import { workingTreeContentReads } from './knowledge-base';
 import { anchoredTextOverBus } from './anchored-text-ask';
 import { asBusRequestPrimitive } from './bus-request-local';
@@ -247,6 +248,12 @@ async function main() {
   // subscribes to the mark:added this process's Stower publishes, and its
   // mark:create-ok/-failed replies ride the outbound pump like every reply.
   registerAnnotationAssemblyHandler(localBus, { views }, logger);
+
+  // Same rule again (EXTRACT-JOBS D2): the bind re-emit only translates
+  // `bind:update-body` into `mark:update-body` and matches the Stower's reply
+  // back. With the Stower here, the whole exchange is local; in the gateway it
+  // crossed the wire twice to reach a handler in this process.
+  registerBindUpdateBodyHandler(localBus, logger);
 
   // The annotation-context read follows the same rule (D5): it is a
   // views+content read, and this is the process that holds both. It sat on

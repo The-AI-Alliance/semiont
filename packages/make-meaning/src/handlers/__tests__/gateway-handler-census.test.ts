@@ -49,7 +49,9 @@ type StrandedRosterChannel = {
 const _noRosterChannelIsStranded: never = undefined as never as StrandedRosterChannel;
 
 const HANDLERS_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
-const GATEWAY_HANDLER_FILES = ['bind-update-body.ts', 'job-commands.ts'];
+// `bind-update-body.ts` left this set at EXTRACT-JOBS D2 — it is Archivist-
+// resident now, so its channels are no longer the gateway's to roster.
+const GATEWAY_HANDLER_FILES = ['job-commands.ts'];
 
 const stripComments = (source: string) =>
   source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
