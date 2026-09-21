@@ -51,12 +51,13 @@ export interface MakeMeaningService {
 
 export function jobQueueFor(
   jobs: JobsServiceConfig | undefined,
-  // Only the KB NAME, not a `SemiontState`: the JetStream driver needs no state
-  // tree, and constructing one eagerly would demand `XDG_STATE_HOME` (a state
-  // MOUNT) of a jetstream service that has none. So the fs driver — and only it
-  // — builds its `SemiontState` here, from the name, and an fs driver reached
-  // without a mount fails loud in that constructor (`stateDirFor`).
-  name: string,
+  // Only the KB NAME, and ONLY the fs driver needs it (to locate its jobsDir).
+  // The JetStream driver holds no state tree, so a jetstream service — the
+  // deployed dispatcher — needs no `[kb] name` at all: it is optional here, and
+  // demanded (below) only when the fs driver is actually selected. Constructing
+  // a `SemiontState` eagerly would instead demand `XDG_STATE_HOME` of a service
+  // that has no state mount.
+  name: string | undefined,
   logger: Logger,
   eventBus: EventBus,
 ): JobQueue {
@@ -71,6 +72,11 @@ export function jobQueueFor(
       ...(jobs.user ? { user: evaluateEnvPlaceholders(jobs.user) } : {}),
       ...(jobs.password ? { pass: evaluateEnvPlaceholders(jobs.password) } : {}),
     }, logger, eventBus);
+  }
+  if (!name) {
+    throw new Error(
+      "the fs job driver needs the KB name ([kb] name) to locate its jobsDir, but the config carries none",
+    );
   }
   return new FsJobQueue(new SemiontState({ name }), logger, eventBus);
 }

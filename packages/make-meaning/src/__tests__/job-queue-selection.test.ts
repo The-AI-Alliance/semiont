@@ -35,6 +35,19 @@ describe('jobQueueFor — driver selection (JOB-QUEUE-DRIVER P2)', () => {
     expect(q).toBeInstanceOf(FsJobQueue);
   });
 
+  test('the fs driver without a KB name refuses loudly (only the fs driver needs one)', () => {
+    // The jetstream driver takes no name; a jetstream service (the deployed
+    // dispatcher) passes `undefined` and boots. The fs driver DOES need one for
+    // its jobsDir, so absence fails here rather than silently.
+    expect(() => jobQueueFor({ type: 'fs' }, undefined, mockLogger, new EventBus()))
+      .toThrow(/\[kb\] name/);
+  });
+
+  test('the jetstream driver takes no name — a jetstream service needs no [kb] name', () => {
+    const q = jobQueueFor({ type: 'jetstream', servers: '127.0.0.1:4222' }, undefined, mockLogger, new EventBus());
+    expect(q).toBeInstanceOf(JetStreamJobQueue);
+  });
+
   test("type 'jetstream' selects the JetStream driver with its address", async () => {
     const q = jobQueueFor({ type: 'jetstream', servers: '127.0.0.1:4222' }, KB, mockLogger, new EventBus());
     expect(q).toBeInstanceOf(JetStreamJobQueue);

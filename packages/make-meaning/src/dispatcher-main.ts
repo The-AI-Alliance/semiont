@@ -45,7 +45,7 @@ import { registerJobQueueProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
 import { jobQueueFor, STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
-import { makeMeaningConfigFrom, requireKBName } from './config';
+import { makeMeaningConfigFrom } from './config';
 import { registerJobCommandHandlers } from './handlers/job-commands';
 import { DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS, DISPATCHER_REPLY_CHANNELS } from './service-channels';
 import { projectionReadsOverBus } from './projection-reads-ask';
@@ -64,10 +64,13 @@ if (!gatewayPublicURL) {
 }
 const baseUrl: string = gatewayPublicURL;
 
-// The committed KB name locates this KB's state subtree — the fs job driver's
-// jobsDir under XDG_STATE_HOME. JetStream ignores it; the fs fallback needs it,
-// so like the Librarian this process requires it rather than defaulting.
-const kbName = requireKBName(envConfig);
+// The KB name is read OPTIONALLY, not required: since D7 moved the projection
+// reads onto the bus and the mount was dropped, the deployed jetstream
+// dispatcher holds no state tree and does not name the KB — like the Smelter
+// and Worker, and unlike the Librarian, it is absent from the launcher's
+// `kbIdentityStaged`, so its config carries no `[kb] name`. Only the fs job
+// driver needs one, and `jobQueueFor` demands it there.
+const kbName = envConfig.kb?.name;
 const config = makeMeaningConfigFrom(envConfig);
 
 /**
