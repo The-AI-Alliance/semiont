@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -635,5 +636,46 @@ func TestBrowserRedirectAcceptedOnAPortlessRealm(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{})
 	if f, bad := verifyBrowserRedirect(srv.URL, 61234); bad {
 		t.Fatalf("a portless realm refused :61234: %q", f.reason)
+	}
+}
+
+// GATE: no path that handles the six service-account secrets may ever echo one.
+//
+// This is the one place in the launcher holding all six at once, and both the
+// refusal and the repair render operator-facing text from data derived from
+// them. A leak here lands in a terminal, a CI log, and whatever the operator
+// pastes into an issue.
+func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
+	const marker = "SECRET-THAT-MUST-NOT-APPEAR"
+	secrets := map[string]string{}
+	for _, svc := range serviceClients {
+		secrets[svc] = marker + "-" + svc
+	}
+
+	// A realm that refuses every grant: the maximal-findings case.
+	srv := stubIssuer(t, func(string) (int, string) {
+		return 401, `{"error":"invalid_client"}`
+	})
+	findings, _ := verifyServiceAccounts(srv.URL, "semiont-gateway", secrets)
+	if len(findings) == 0 {
+		t.Fatal("a realm refusing every grant produced no findings; this gate would prove nothing")
+	}
+	for _, f := range findings {
+		if strings.Contains(f.String(), marker) {
+			t.Errorf("a refusal echoed a client secret: %q", f.String())
+		}
+	}
+
+	// The repair renders its own operator-facing lines from the same secrets.
+	admin := newStubAdmin(t, "semiont", nil)
+	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300,
+		func(svc string) string { return secrets[svc] })
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	for _, line := range slices.Concat(rep.created, rep.present, rep.updated) {
+		if strings.Contains(line, marker) {
+			t.Errorf("the sync report echoed a client secret: %q", line)
+		}
 	}
 }
