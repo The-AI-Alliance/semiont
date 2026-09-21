@@ -27,6 +27,11 @@ type = "memory"
 type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
 
+# Mandatory: the gateway refuses to boot without an address for the record.
+[environments.integration.archivist]
+host = "localhost"
+port = 24103
+
 # Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both, nothing is
 # defaulted. This TOML is written to disk and parsed by the real loader, so it
 # needs the sections in their own right: the EnvironmentConfig object further
@@ -64,6 +69,10 @@ publicURL = "http://localhost:4000"
 
 [environments.unit.make-meaning.graph]
 type = "memory"
+
+[environments.unit.archivist]
+host = "localhost"
+port = 24103
 
 [environments.unit.make-meaning.actors.gatherer.inference]
 type = "ollama"
@@ -166,6 +175,12 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
       identity: {
         type: 'keycloak',
         issuer: 'http://localhost:8080/realms/semiont',
+      },
+      // Mandatory, same reason: no address for the record, no boot.
+      archivist: {
+        platform: { type: 'external' },
+        host: 'localhost',
+        port: 24103,
       },
       // Mandatory per MANDATORY-EMBEDDING D0+D1 — every config names both.
       vectors: {

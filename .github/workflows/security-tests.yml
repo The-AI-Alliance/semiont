@@ -190,6 +190,9 @@ jobs:
           # issuer — these tests assert that protected routes answer 401 — but
           # the gateway will not start without the section.
           #
+          # `[archivist]` likewise: the gateway asserts at boot that it has an
+          # address for the record. Nothing here dials it either.
+          #
           # TOP-LEVEL, and before the first `[environments…]` header: TOML
           # assigns any key after a table header to that table, so appending it
           # lower down would bury `[kb]` inside an environment section — with no
@@ -210,6 +213,10 @@ jobs:
             '[environments.ci.identity]' \
             'type = "keycloak"' \
             'issuer = "http://localhost:8080/realms/semiont"' \
+            '' \
+            '[environments.ci.archivist]' \
+            'host = "localhost"' \
+            'port = 24103' \
             '' \
             '[environments.ci.site]' \
             'domain = "localhost"' \
@@ -284,6 +291,10 @@ jobs:
           # ~/.semiontconfig alone and neither variable names anything it opens.
           export NODE_ENV=test
           export JWT_SECRET=test-secret-key-for-testing-32char
+          # The gateway's own service account; boot refuses without it. Nothing
+          # here presents it to an issuer.
+          export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
+          export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
 
           echo "Starting gateway in the ci environment..."
           cd apps/gateway

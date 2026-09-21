@@ -145,6 +145,11 @@ const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => 
 })();
 configureTrustedIssuer(identity, kbResource(committedKbDomain));
 
+// What it takes to reach the record, with the rest of the startup
+// requirements — both used to surface on the first Archivist read instead.
+const { requireArchivistAccess } = await import('./boot-requirements');
+const archivistAccess = requireArchivistAccess(config);
+
 const gatewayService = config.services.gateway;
 
 // Import logging utilities
@@ -249,25 +254,16 @@ app.use('*', requestLoggerMiddleware);   // Log requests third
  * It used to be read inside `archivistAddress`, so the gateway never named the
  * credential it depends on and nothing could supply a different one.
  *
- * Memoized rather than eager only because the ENVIRONMENT half can be absent
- * in a process that never dials the Archivist — the issuer half is guaranteed,
- * since `[identity]` is mandatory and the loaders refuse a config without it.
+ * Eager: requireArchivistAccess asserted both halves above, so nothing here
+ * could legitimately be absent and none of it needs discovering on a request.
  */
-let resolvedArchivistCredential: ServiceAccountCredential | undefined;
+const archivistCredentialValue: ServiceAccountCredential = {
+  issuer: identity.issuer,
+  clientId: archivistAccess.clientId,
+  clientSecret: archivistAccess.clientSecret,
+};
 function archivistCredential(): ServiceAccountCredential {
-  if (resolvedArchivistCredential) {
-    return resolvedArchivistCredential;
-  }
-  const issuer = identity.issuer;
-  const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
-  const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
-  if (!clientId || !clientSecret) {
-    throw new Error(
-      'SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are not set — cannot authenticate to the Archivist',
-    );
-  }
-  resolvedArchivistCredential = { issuer, clientId, clientSecret };
-  return resolvedArchivistCredential;
+  return archivistCredentialValue;
 }
 
 // Inject config, the event bus and HOW TO GET this process's credential into
