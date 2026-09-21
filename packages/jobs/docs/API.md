@@ -9,16 +9,16 @@
 ```typescript
 import { FsJobQueue } from '@semiont/jobs';
 import { EventBus, type Logger } from '@semiont/core';
-import { SemiontProject } from '@semiont/core/node';
+import { SemiontState } from '@semiont/core/node';
 
 const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project', { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
-const queue = new FsJobQueue(project, logger, eventBus);
+const state = new SemiontState({ name: 'my-kb' });
+const queue = new FsJobQueue(state, logger, eventBus);
 await queue.initialize();
 ```
 
 **Parameters:**
-- `project: SemiontProject` — jobs are stored under `project.jobsDir`
+- `state: SemiontState` — jobs are stored under `state.jobsDir`
 - `logger: Logger` — structured logger
 - `eventBus?: EventBus` — optional EventBus for emitting `job:queued` events
 
@@ -32,7 +32,7 @@ Stops the maintenance intervals.
 
 ### `createJob(job: AnyJob): Promise<void>`
 
-Persists a job to `{project.jobsDir}/{status}/{id}.json`. If status is `pending`, the EventBus is provided, and job params include `resourceId`, emits `job:queued`.
+Persists a job to `{state.jobsDir}/{status}/{id}.json`. If status is `pending`, the EventBus is provided, and job params include `resourceId`, emits `job:queued`.
 
 ```typescript
 import type { PendingJob, DetectionParams } from '@semiont/jobs';
@@ -245,7 +245,7 @@ Lifecycle events are emitted via `session.client.transport.emit(...)`; annotatio
 ## Storage
 
 ```
-{project.jobsDir}/
+{state.jobsDir}/
   pending/{jobId}.json
   running/{jobId}.json
   complete/{jobId}.json

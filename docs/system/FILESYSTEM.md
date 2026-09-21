@@ -73,18 +73,28 @@ Materialized views stored as JSON files — derived from the event log, rebuilda
 
 ## Job Queue Storage
 
-Filesystem-based job queue with atomic state transitions:
+**Only under the `fs` driver.** The deployed queue is NATS JetStream, which keeps job state in
+the broker — a durable stream for delivery and lease, a key-value bucket for state — and writes
+nothing to this filesystem. Both shipped KB configs select it, so on a normal stack **no job
+state lives here at all**.
 
-### State Transitions
+The `fs` driver remains a first-class implementation, kept so the driver interface keeps
+describing a queue rather than ossifying into one implementation's shape. Under it, jobs are JSON
+files in status-named directories:
+
+### State Transitions (`fs` driver only)
 ```
 pending/ → running/ → complete/
                    ↘ failed/
                    ↘ cancelled/
 ```
 
-State transitions use file moves for atomicity — no database dependency, no external broker.
+State transitions are file moves, which is what makes them atomic — for **one** process. Two
+processes over one volume race on cross-directory moves; over separate volumes they are two
+disjoint queues. Both failures are silent, and both are why the deployed driver is the broker.
 
-See [@semiont/jobs](../../packages/jobs/docs/API.md) for implementation.
+See [@semiont/jobs](../../packages/jobs/docs/JobQueue.md) for the interface, the two drivers, and
+how the driver is selected.
 
 ## Path Resolution
 

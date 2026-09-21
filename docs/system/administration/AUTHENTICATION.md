@@ -281,7 +281,9 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 **For people and the CLI to sign in at all**, the issuer needs a device-grant-capable public client (`semiont login`) and an authorization endpoint that enforces PKCE with redirect URIs covering the Browser.
 
-`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time.
+**Each Semiont service needs its own client**, not one shared between them: the archivist, gateway, librarian, smelter, weaver and worker each authenticate as themselves, and a shared credential would let any one of them mint any other's identity. Under `[identity] type = "keycloak"` the launcher creates all six. Under `type = "oidc"` you create them at your own issuer and supply each secret as `SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>` — see [Maintenance](./MAINTENANCE.md) for rotation.
+
+`semiont start` preflights every one of these against whatever issuer is configured and reports what it finds, so a federation that does not conform says so at startup rather than one 401 at a time. For a realm the launcher runs, `semiont identity sync` repairs what the preflight finds: it creates missing service-account clients, adds the loopback redirect URIs, turns the implicit flow off, and sets the access-token lifetime to match the config. It reconciles configuration only and never touches accounts.
 
 ### API
 

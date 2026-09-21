@@ -308,7 +308,7 @@ To exercise the claim → fetch → process → emit → complete orchestration 
 
 ## Testing the Queue
 
-`FsJobQueue` is filesystem-backed, so its tests build a throwaway `SemiontProject` over a temp directory. The constructor is `(project, logger, eventBus?)` — there is no `dataDir` option:
+`FsJobQueue` is filesystem-backed, so its tests build a throwaway state over a temp directory. The constructor is `(state, logger, eventBus?)` — there is no `dataDir` option. These tests pass a `SemiontProject`, which is fine because `SemiontProject extends SemiontState`; the queue only ever reads `state.jobsDir`:
 
 ```typescript
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -326,13 +326,13 @@ const mockLogger = {
 
 describe('FsJobQueue', () => {
   let tempDir: string;
-  let project: SemiontProject;
+  let state: SemiontState;
   let queue: FsJobQueue;
 
   beforeEach(async () => {
     tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
     project = new SemiontProject(tempDir, { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
-    queue = new FsJobQueue(project, mockLogger, new EventBus());
+    queue = new FsJobQueue(state, mockLogger, new EventBus());
     await queue.initialize();
   });
 
@@ -347,4 +347,4 @@ describe('FsJobQueue', () => {
 });
 ```
 
-`project.jobsDir` (under the project's XDG state dir) is where the queue lays out its `pending` / `running` / `complete` / `failed` / `cancelled` directories.
+`state.jobsDir` (under the XDG state dir) is where the queue lays out its `pending` / `running` / `complete` / `failed` / `cancelled` directories.
