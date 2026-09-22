@@ -10,10 +10,10 @@ The third derived read model — the materialized views — is **not** pipeline-
 
 ### Deployment topology
 
-The package has two composition roots and four standalone service entry points:
+The package has one composition root and five standalone service entry points:
 
 - **`startMakeMeaning()`** — the standalone root: runs all five access actors in-process against local stores.
-- **`startMakeMeaningGateway()`** — the gateway root: starts **no actors**. It builds the KB reads for the gateway's routes and handler subset, plus the job queue, reading views from the shared stateDir.
+- **Dispatcher** (`dispatcher-main`) — the job queue and the nine `job:*` lifecycle handlers. A control plane: ids, types and status cross it and content never does, so it holds no store and mounts nothing.
 - **Archivist** (`archivist-main`) — the service that keeps the system of record: runs Stower, Browser and CloneTokenManager against local stores (event log, views, working tree, anchored text), plus the annotation-assembly handler, the entity-type bootstrap and the startup view rebuild. It serves no bytes — the gateway is the content server.
 - **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler. It reads views from the shared stateDir the Archivist materializes into, bytes over `HttpContentTransport`, and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
 - **Weaver** (`weaver-main`) and **Smelter** (`smelter-main`) — the projection pipelines, each its own process in every arrangement.
@@ -26,7 +26,7 @@ graph TB
     Workers["Job Workers"] -->|commands| BUS
     EBC["SemiontClient"] -->|commands| BUS
 
-    BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:complete, job:fail"| STOWER["Stower"]
+    BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:commit, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:assign, job:complete, job:fail"| STOWER["Stower"]
     BUS -->|"browse:*"| BROWSER["Browser"]
     BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"match:search-requested"| MATCHER["Matcher"]
@@ -113,8 +113,11 @@ The single write path to the Knowledge Base event log — no other code calls `e
 | `frame:add-tag-schema` | `frame:tag-schema-added` | `frame:tag-schema-add-failed` on error |
 | `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | `mark:update-entity-types-failed` on error |
 | `job:start` | `job:started` | — |
+| `job:assign` | `job:assigned` | — |
 | `job:complete` | `job:completed` | — |
 | `job:fail` | `job:failed` | — |
+
+`job:assign` is the dispatcher's, not a worker's: it emits one after accepting a `job:claim`, under its own service identity, recording which holder took which job and who requested it. The Stower persists it on the job's resource so a later write citing that job can be checked — holder against the writer, `creator` from the requester — by reading that resource's log alone.
 
 `job:report-progress` is ephemeral UI feedback — the Stower does not subscribe to it and nothing is persisted.
 
@@ -289,7 +292,7 @@ See [Job Workers](./job-workers.md) for details.
 
 Not started here: the **Weaver** and **Smelter** (standalone processes via `@semiont/make-meaning/weaver-main` / `smelter-main`) and the **job workers** (worker process in `@semiont/jobs`).
 
-`startMakeMeaningGateway()` builds steps 1–5 only (and never rebuilds views — one rebuild owner, the Archivist), then registers the gateway's handler subset (`registerGatewayBusHandlers`): the annotation-assembly handler lives in the Archivist and the gather-summary handler in the Librarian, each beside the actor it calls.
+In the split deployment no root builds a subset: each service's `*-main` composes exactly what it owns, and the gateway composes nothing from this package — it verifies, validates and routes. The handlers moved beside the actors they call: annotation-assembly to the Archivist, gather-summary to the Librarian, and the `job:*` set to the dispatcher with the queue.
 
 ## Storage Architecture
 

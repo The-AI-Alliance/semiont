@@ -143,7 +143,7 @@ describe('ViewManager', () => {
       // Spy on materializer method
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('frame:entity-type-added', payload);
+      await manager.materializeSystem({ type: 'frame:entity-type-added', payload });
 
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(payload.entityType);
     });
@@ -154,7 +154,7 @@ describe('ViewManager', () => {
       // Spy on materializer method
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('unknown.event', payload);
+      await manager.materializeSystem({ type: 'unknown.event', payload });
 
       // Should not call materializer for unknown events
       expect(materializeEntityTypesSpy).not.toHaveBeenCalled();
@@ -261,7 +261,7 @@ describe('ViewManager', () => {
 
       const materializeEntityTypesSpy = vi.spyOn(manager.materializer, 'materializeEntityTypes');
 
-      await manager.materializeSystem('frame:entity-type-added', payload);
+      await manager.materializeSystem({ type: 'frame:entity-type-added', payload });
 
       expect(materializeEntityTypesSpy).toHaveBeenCalledWith(entityType);
     });

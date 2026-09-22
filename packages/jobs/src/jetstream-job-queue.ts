@@ -201,9 +201,12 @@ export class JetStreamJobQueue implements JobQueue {
     this.heartbeat.unref?.();
 
     // The queue's periodic tick, mirroring the fs driver's internal janitor:
-    //  (a) RE-ANNOUNCE held pending deliveries — an announcement is a wake-up
-    //      with no memory, so a worker that was busy (or not yet connected)
-    //      when one fired must hear about still-unclaimed work again;
+    //  (a) RE-ANNOUNCE held pending deliveries — INSURANCE, not dispatch. A
+    //      worker pulls at every idle moment (start, settle, wake-up,
+    //      reconnect), so a job created while it was busy is claimed at the
+    //      settle without this tick. What this covers is a wake-up LOST in
+    //      transit to an idle worker, which has nothing to settle and so
+    //      nothing to pull on. On a healthy stack it never acts;
     //  (b) SWEEP for worker death (`recoverStaleRunningJobs`) — `AckWait`
     //      covers a dead GATEWAY; only this sweep covers a dead WORKER, and
     //      rows do not sweep themselves (JOB-RESTART-SAFETY P7).

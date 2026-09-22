@@ -106,6 +106,8 @@ export const CHANNEL_ATTRS = {
   'frame:entity-type-add-failed':     { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:tag-schema-add-ok':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:tag-schema-add-failed':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
+  'person:profiled':                  { recorded: true, direction: 'inbound' },
+  'person:profile':                   { recorded: false, direction: 'outbound' },
   'bind:initiate':                    { recorded: false, direction: 'in-process' },
   'bind:update-body':                 { recorded: false, direction: 'outbound' },
   'bind:body-updated':                { recorded: false, direction: 'inbound', delivery: 'correlated' },

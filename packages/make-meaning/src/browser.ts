@@ -38,6 +38,7 @@ import type { SmeltProgress } from './smelt-progress';
 import { readAnchoredText } from './read-anchored-text';
 import { resourceWithViewGrace } from './graph-read-grace';
 import { readEntityTypesProjection } from './views/entity-types-reader';
+import { readPeopleProjection, resolvePersonNames } from './views/people-reader';
 import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
@@ -175,6 +176,32 @@ export class Browser {
     }
   }
 
+  /**
+   * Fill in the names of the people a reply mentions (PERSON-PROFILE P4).
+   *
+   * The Browser owns the system projections, so it is where a DID becomes a
+   * name — once, on the way out, rather than in each client. Artifacts carry
+   * the DID and nothing else, which is what lets a rename correct every
+   * artifact its subject ever wrote; this is the other half of that bargain.
+   *
+   * One projection read per reply, not per Agent.
+   */
+  private async named<T>(response: T): Promise<T> {
+    let people;
+    try {
+      people = await readPeopleProjection(this.project);
+    } catch (error) {
+      // A name is an ENRICHMENT; the annotations are the answer. A projection
+      // this process cannot read is worth saying out loud, but it must not
+      // turn a browse into a failure — the reply then carries DIDs without
+      // names, which is the same shape as a person who has never acted and is
+      // a case every client already renders.
+      this.logger.warn('People projection unreadable — this reply names no one', { error: errField(error) });
+      return response;
+    }
+    return resolvePersonNames(response, people);
+  }
+
   private async handleBrowseResource(event: EventMap['browse:resource-requested'], correlationId: string | undefined): Promise<void> {
     try {
       const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
@@ -185,7 +212,7 @@ export class Browser {
         return;
       }
 
-      this.eventBus.emit('browse:resource-result', { response, }, { correlationId });
+      this.eventBus.emit('browse:resource-result', { response: await this.named(response), }, { correlationId });
     } catch (error) {
       // No `code` here, deliberately: a thrown assembly is not evidence of
       // absence, and the SDK deletes a restored tab on 'not-found'.
@@ -219,7 +246,7 @@ export class Browser {
         : result.resources;
 
       this.eventBus.emit('browse:resources-result', {
-        response: {
+        response: await this.named({
           resources: formattedDocs,
           total: result.total,
           offset,
@@ -227,7 +254,7 @@ export class Browser {
           // The producer of the answer labels it (P1b moved the label here
           // from a hardcoded 'lexical' when the fallback landed).
           matchKind: result.matchKind,
-        },
+        }),
       }, { correlationId });
     } catch (error) {
       this.logger.error('Browse resources failed', { error: errField(error) });
@@ -240,10 +267,10 @@ export class Browser {
       const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
 
       this.eventBus.emit('browse:annotations-result', {
-        response: {
+        response: await this.named({
           annotations,
           total: annotations.length,
-        },
+        }),
       }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotations failed', { resourceId: event.resourceId, error: errField(error) });
@@ -270,11 +297,11 @@ export class Browser {
       }
 
       this.eventBus.emit('browse:annotation-result', {
-        response: {
+        response: await this.named({
           annotation,
           resource,
           resolvedResource,
-        },
+        }),
       }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotation failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
@@ -338,12 +365,12 @@ export class Browser {
       annotationEvents.sort((a, b) => a.metadata.sequenceNumber - b.metadata.sequenceNumber);
 
       this.eventBus.emit('browse:annotation-history-result', {
-        response: {
+        response: await this.named({
           events: annotationEvents,
           total: annotationEvents.length,
           annotationId: event.annotationId,
           resourceId: event.resourceId,
-        },
+        }),
       }, { correlationId });
     } catch (error) {
       this.logger.error('Browse annotation history failed', { resourceId: event.resourceId, annotationId: event.annotationId, error: errField(error) });
@@ -403,7 +430,7 @@ export class Browser {
       });
 
       this.eventBus.emit('browse:referenced-by-result', {
-        response: { referencedBy },
+        response: await this.named({ referencedBy }),
       }, { correlationId });
     } catch (error) {
       this.logger.error('Referenced-by query failed', { resourceId: event.resourceId, error: errField(error) });
@@ -561,7 +588,7 @@ export class Browser {
     });
 
     this.eventBus.emit('browse:directory-result', {
-      response: { path: reqPath, entries },
+      response: await this.named({ path: reqPath, entries }),
     }, { correlationId });
   }
 

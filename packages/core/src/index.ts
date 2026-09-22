@@ -56,6 +56,7 @@ export {
   userId,
   isResourceId,
   isAnnotationId,
+  SYSTEM_SCOPE,
 } from './identifiers';
 
 // The service-account role: one literal, and the predicate that reads it.

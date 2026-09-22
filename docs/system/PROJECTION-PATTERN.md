@@ -210,8 +210,18 @@ the future Frame work):
 1. Add a pure reducer to `projection-reducers.ts` (`applyXAdded(view, payload)`).
 2. Cover it with example-based tests + at least the universal axioms (sortedness, uniqueness, idempotence on the relevant equivalence relation, set semantics, no mutation).
 3. Add an I/O shell method to `ViewMaterializer` that reads the projection file, calls the reducer, and writes the result.
-4. Wire the materializer arm to `ViewManager.materializeSystem` (the dispatch on `eventType`).
+4. Wire the materializer arm to `ViewManager.materializeSystem` (the dispatch on the event's `type`) **and to `rebuildAll`'s pass 1**, so a rebuilt projection agrees with an incrementally-built one. `materializeSystem` takes the whole event: `people.json` is keyed by the event's `userId` (the verified subject) and stamped with its timestamp, neither of which is in a payload.
 5. If the new projection is queried during command validation, add a pure validator in `projection-validators.ts` and call it from the dispatcher.
+
+### The system projections today
+
+| File | Built from | Read by |
+|---|---|---|
+| `entitytypes.json` | `frame:entity-type-added` | job validation, the Browser |
+| `tagschemas.json` | `frame:tag-schema-added` | job validation, the Browser |
+| `people.json` | `person:profiled` | the Browser, to name the people a reply mentions |
+
+`people.json` is the one whose reducer is **last-wins rather than set-union**: a person who changes a name and changes it back must end where the log ends, and a union would make the intermediate name permanent. The log keeps every line; the projection keeps the current one.
 
 ## Related
 

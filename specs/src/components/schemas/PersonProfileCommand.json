@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "The person's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this."
+    },
+    "name": {
+      "type": "string",
+      "description": "The display name from the issuer's `name` claim, as verified on the token that carried this act. A token with no name produces no command at all — the issuer is where a name is set, and absence is recorded as absence."
+    }
+  },
+  "required": ["name"]
+}

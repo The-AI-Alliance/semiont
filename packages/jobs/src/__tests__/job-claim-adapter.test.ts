@@ -7,16 +7,24 @@
  * so the fake needs no cast and cannot be fed a payload production would
  * reject — the old `Subject<any>` map accepted anything, which is how this
  * file's `job:queued` fixtures went years without `userId`. No HTTP or SSE.
+ *
+ * The first block is the PULL model's specification (JOB-DISPATCH-PULL P3),
+ * written as the inversion of the edge-triggered cases it replaced: a worker
+ * asks the queue at every moment it becomes idle — start, settle, a matching
+ * wake-up while parked, reconnect — and never otherwise. Claims are answered
+ * here by pushing `job:claimed` / `job:claim-failed` at the correlationId the
+ * adapter minted; a decline is `code: 'none-pending'`, which core promotes to
+ * `bus.none-pending` on the error the adapter catches.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject, firstValueFrom, skip, take } from 'rxjs';
-import { createJobClaimAdapter } from '../job-claim-adapter';
+import { createJobClaimAdapter, type ClaimRefusal } from '../job-claim-adapter';
 import { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '../worker-runtime';
 import type { BusRequestPrimitive } from '@semiont/core';
 import { EventBus, type BusEnvelope, type ConnectionState, type EventMap } from '@semiont/core';
 
-function fakeBus() {
+function fakeBus(initialState: ConnectionState = 'open') {
   // A correlated union, not `{ channel: keyof EventMap; payload: <union> }`:
   // the latter pairs every channel with every payload, so `.payload.jobId`
   // would not typecheck even for an emit we know is `job:claim`. This shape
@@ -25,6 +33,9 @@ function fakeBus() {
   type Emitted = { [K in keyof EventMap]: { channel: K; payload: EventMap[K]; correlationId?: string } }[keyof EventMap];
   const emits: Emitted[] = [];
   const eventBus = new EventBus();
+  // The transport's connection state, driven by the test for the reconnect
+  // case. BehaviorSubject-backed like the real actor's.
+  const state$ = new BehaviorSubject<ConnectionState>(initialState);
 
   const bus: BusRequestPrimitive = {
     stream: <K extends keyof EventMap>(channel: K) => eventBus.on(channel),
@@ -34,9 +45,7 @@ function fakeBus() {
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
     // and against the real worker manifest by this plan's P3.
     isSubscribed: () => true,
-    // In-process fixture: replies are pushed synchronously onto the bus
-    // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
-    state$: new BehaviorSubject<ConnectionState>('open'),
+    state$,
     emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope) => {
       // TypeScript correlates `channel` with `payload` on READ (see
       // `claimAt`) but not on WRITE through a type parameter: while `K` is
@@ -50,40 +59,238 @@ function fakeBus() {
     }),
   };
 
+  const claims = () => emits.filter((e) => e.channel === 'job:claim');
+
   return {
     bus,
+    state$,
     pushEvent: <K extends keyof EventMap>(channel: K, payload: EventMap[K], correlationId?: string) =>
       eventBus.emit(channel, payload, { correlationId }),
     emits,
+    /** Every `job:claim` emitted so far, in order. */
+    claims,
     /** The `job:claim` these tests read, narrowed by its channel — no cast. */
     claimAt: (i: number): EventMap['job:claim'] => {
-      const e = emits[i];
-      if (!e || e.channel !== 'job:claim') {
-        throw new Error(`emits[${i}] is ${e ? e.channel : 'missing'}, not job:claim`);
-      }
-      return e.payload;
+      const e = claims()[i];
+      if (!e) throw new Error(`no job:claim at index ${i} (${claims().length} emitted)`);
+      return e.payload as EventMap['job:claim'];
     },
     /** The key the adapter minted onto that claim's ENVELOPE. */
-    claimCidAt: (i: number): string | undefined => emits[i]?.correlationId,
+    claimCidAt: (i: number): string | undefined => claims()[i]?.correlationId,
+    /** Answer claim `i` with a job. */
+    grant: (i: number, id: string, extra: Record<string, unknown> = {}) =>
+      eventBus.emit('job:claimed', {
+        response: { params: {}, metadata: { id, type: 'generation', userId: 'u', ...extra } },
+      }, { correlationId: claims()[i]!.correlationId }),
+    /** Answer claim `i` with the dispatcher's decline — nothing pending. */
+    decline: (i: number) =>
+      eventBus.emit('job:claim-failed', { message: 'No pending job of the requested types', code: 'none-pending' }, { correlationId: claims()[i]!.correlationId }),
+    /** Answer claim `i` with a refusal carrying `code` (or none). */
+    refuse: (i: number, code?: EventMap['job:claim-failed']['code'], message = 'refused') =>
+      eventBus.emit('job:claim-failed', code ? { message, code } : { message }, { correlationId: claims()[i]!.correlationId }),
   };
 }
 
-describe('createJobClaimAdapter', () => {
+const tick = () => new Promise((r) => setTimeout(r, 0));
+const queued = (jobType: string, jobId = 'j'): EventMap['job:queued'] =>
+  ({ jobId, jobType, resourceId: 'r1', userId: 'did:u1' });
+
+describe('createJobClaimAdapter — the worker pulls when idle', () => {
   let h: ReturnType<typeof fakeBus>;
 
   beforeEach(() => {
     h = fakeBus();
   });
 
-  it('ignores job:queued events of the wrong type', async () => {
+  it('(i) pulls on start, with no announcement, carrying its types', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'other', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
+    expect(h.claims()).toHaveLength(1);
+    expect(h.claimAt(0).types).toEqual(['generation']);
+    expect(typeof h.claimCidAt(0)).toBe('string');
 
-    expect(h.emits).toEqual([]);
+    adapter.dispose();
+  });
+
+  it('(i) waits for the transport to open before the first pull', () => {
+    const closed = fakeBus('connecting');
+    const adapter = createJobClaimAdapter({ bus: closed.bus, jobTypes: [] });
+    adapter.start();
+    expect(closed.claims(), 'a claim on a closed transport would only be refused locally').toHaveLength(0);
+
+    closed.state$.next('open');
+    expect(closed.claims()).toHaveLength(1);
+
+    adapter.dispose();
+  });
+
+  it('(ii) pulls again immediately after completeJob — a second queued job is claimed with no timer', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    h.grant(0, 'j1');
+    await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    expect(h.claims()).toHaveLength(1);
+
+    adapter.completeJob();
+
+    // The bug's signature, inverted: the next claim is synchronous with the
+    // settle. No announcement, no tick, no advance.
+    expect(h.claims()).toHaveLength(2);
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(true);
+
+    h.grant(1, 'j2');
+    const second = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+    expect(second?.jobId).toBe('j2');
+
+    adapter.dispose();
+  });
+
+  it('(ii) pulls again immediately after failJob', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    adapter.errors$.subscribe(() => {});
+    h.grant(0, 'j1');
+    await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+
+    adapter.failJob('j1', 'kaboom');
+
+    expect(h.claims()).toHaveLength(2);
+    adapter.dispose();
+  });
+
+  it('(iii) a matching job:queued while parked pulls; a non-matching one does not', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
+    adapter.start();
+    h.decline(0);
+    await tick();
     expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+
+    h.pushEvent('job:queued', queued('other'));
+    expect(h.claims(), 'the pre-filter: no round trip for a type this worker cannot run').toHaveLength(1);
+
+    h.pushEvent('job:queued', queued('generation'));
+    expect(h.claims()).toHaveLength(2);
+    expect(h.claimAt(1).types).toEqual(['generation']);
+
+    adapter.dispose();
+  });
+
+  it('(iii) a job:queued while a job is held is ignored — the settle pull finds it', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    h.grant(0, 'j1');
+    await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+
+    h.pushEvent('job:queued', queued('generation', 'j2'));
+    expect(h.claims(), 'no claim while holding a job').toHaveLength(1);
+
+    adapter.completeJob();
+    expect(h.claims(), 'the settle asks; the wake-up needed no memory').toHaveLength(2);
+
+    adapter.dispose();
+  });
+
+  it('(iv) a wake-up during an in-flight claim earns exactly one more claim before parking', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    expect(h.claims()).toHaveLength(1);
+
+    // Two wake-ups land while claim 0 is in flight: one bit, not a counter.
+    h.pushEvent('job:queued', queued('generation', 'a'));
+    h.pushEvent('job:queued', queued('generation', 'b'));
+    expect(h.claims()).toHaveLength(1);
+
+    h.decline(0);
+    await tick();
+    expect(h.claims(), 'exactly one more').toHaveLength(2);
+
+    h.decline(1);
+    await tick();
+    expect(h.claims(), 'then parked — no timer exists in the adapter').toHaveLength(2);
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+
+    adapter.dispose();
+  });
+
+  it('(v) none-pending parks quietly: isProcessing$ false, nothing on refused$', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    const refusals: ClaimRefusal[] = [];
+    adapter.refused$.subscribe((r) => refusals.push(r));
+    adapter.start();
+
+    h.decline(0);
+    await tick();
+
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+    expect(refusals, 'an empty queue is not a fault').toEqual([]);
+    expect(h.claims()).toHaveLength(1);
+
+    adapter.dispose();
+  });
+
+  it('(vi) pulls on every edge into open — reconnect', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    h.decline(0);
+    await tick();
+    expect(h.claims()).toHaveLength(1);
+
+    h.state$.next('reconnecting');
+    expect(h.claims(), 'losing the connection pulls nothing').toHaveLength(1);
+    h.state$.next('open');
+    expect(h.claims(), 'regaining it asks — whatever was queued in the gap is claimable now').toHaveLength(2);
+
+    h.state$.next('open');
+    expect(h.claims(), 'open → open is not an edge').toHaveLength(2);
+
+    adapter.dispose();
+  });
+
+  it('(vii) bus.unauthorized surfaces on refused$; the worker holds nothing and parks', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    const refusals: ClaimRefusal[] = [];
+    adapter.refused$.subscribe((r) => refusals.push(r));
+    adapter.start();
+
+    h.refuse(0, 'unauthorized', 'job:claim refused: the caller is not a worker for this knowledge base');
+    await tick();
+
+    expect(refusals).toEqual([{ code: 'bus.unauthorized', message: 'job:claim refused: the caller is not a worker for this knowledge base' }]);
+    expect(await firstValueFrom(adapter.activeJob$)).toBeNull();
+    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
+    expect(h.claims(), 'no retry on its own — the runtime decides, and it exits').toHaveLength(1);
+
+    adapter.dispose();
+  });
+
+  it('(viii) an unclassified refusal surfaces as bus.rejected and parks', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    const refusals: ClaimRefusal[] = [];
+    adapter.refused$.subscribe((r) => refusals.push(r));
+    adapter.start();
+
+    h.refuse(0, undefined, 'job:claim: job j9 names no resource to record its assignment under');
+    await tick();
+
+    expect(refusals).toEqual([{ code: 'bus.rejected', message: 'job:claim: job j9 names no resource to record its assignment under' }]);
+    expect(h.claims()).toHaveLength(1);
+
+    adapter.dispose();
+  });
+
+  it('(viii) a record without an id is refused locally with code null, never run', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    const refusals: ClaimRefusal[] = [];
+    adapter.refused$.subscribe((r) => refusals.push(r));
+    adapter.start();
+
+    h.pushEvent('job:claimed', { response: { params: {}, metadata: {} } }, h.claimCidAt(0));
+    await tick();
+
+    expect(refusals).toHaveLength(1);
+    expect(refusals[0]!.code, 'a local judgement carries no bus code').toBeNull();
+    expect(await firstValueFrom(adapter.activeJob$)).toBeNull();
 
     adapter.dispose();
   });
@@ -94,30 +301,14 @@ describe('createJobClaimAdapter', () => {
     // own stream can never carry. This assertion was briefly INVERTED
     // (2026-09-16, "redundant with the classification") and every worker sat
     // idle with the frame live on the broker.
-    //
-    // It now asserts the DECLARATION rather than a widening call: the
-    // widening verb is gone (P2), so the manifest is the only thing that can
-    // be wrong, and it is one constant instead of a call at a use site.
     expect(WORKER_CONSUMED_BROADCASTS).toContain('job:queued');
     expect(WORKER_CHANNELS).toContain('job:queued');
   });
 
-  it('claims matching jobs and emits job:claim with a correlationId', async () => {
+  it('a granted claim lands on activeJob$ with the record, and the claim carried a correlationId', async () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'j1', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-
-    expect(h.emits).toHaveLength(1);
-    expect(h.emits[0]!.channel).toBe('job:claim');
-    const payload = h.claimAt(0);
-    // Claim-by-type (JOB-QUEUE-DRIVER P2): the request names the worker's
-    // TYPES; the claimed job's identity arrives in the response.
-    expect(payload.types).toEqual(['generation']);
-    expect(typeof h.claimCidAt(0)).toBe('string');
-
-    // Simulate successful claim response.
     h.pushEvent('job:claimed', {
       response: { params: { foo: 'bar' }, metadata: { id: 'j1', type: 'generation', userId: 'u1' } },
     }, h.claimCidAt(0));
@@ -128,30 +319,10 @@ describe('createJobClaimAdapter', () => {
     adapter.dispose();
   });
 
-  it('returns isProcessing$ to false when claim fails', async () => {
-    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
-    adapter.start();
-
-    h.pushEvent('job:queued', { jobId: 'j2', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-
-    h.pushEvent('job:claim-failed', { message: 'claim lost' }, h.claimCidAt(0));
-
-    await new Promise((r) => setTimeout(r, 10));
-    expect(await firstValueFrom(adapter.isProcessing$)).toBe(false);
-
-    adapter.dispose();
-  });
-
   it('completeJob increments jobsCompleted$ and clears activeJob$', async () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
-
-    h.pushEvent('job:queued', { jobId: 'j3', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-    h.pushEvent('job:claimed', {
-      response: { params: {}, metadata: { id: 'j3', type: 'generation', userId: 'u' } },
-    }, h.claimCidAt(0));
+    h.grant(0, 'j3');
     await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
 
     adapter.completeJob();
@@ -179,32 +350,47 @@ describe('createJobClaimAdapter', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
     adapter.start();
-    // One subscription, not two: a second start() must not double-consume
-    // the announcement stream. (Previously counted `addChannels` calls — a
-    // verb that no longer exists.)
-    h.pushEvent('job:queued', { jobId: 'j-idem', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
-    expect(h.emits.filter((e) => e.channel === 'job:claim')).toHaveLength(1);
+    // One pull, not two, and one subscription, not two: a wake-up during the
+    // in-flight claim sets the bit rather than emitting a second claim.
+    h.pushEvent('job:queued', queued('generation', 'j-idem'));
+    expect(h.claims()).toHaveLength(1);
 
+    adapter.dispose();
+  });
+
+  it('stop() ends pulling: a later settle or wake-up asks nothing', async () => {
+    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
+    adapter.start();
+    h.grant(0, 'j1');
+    await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
+
+    adapter.stop();
+    adapter.completeJob();
+    h.pushEvent('job:queued', queued('generation'));
+    h.state$.next('reconnecting');
+    h.state$.next('open');
+
+    expect(h.claims()).toHaveLength(1);
     adapter.dispose();
   });
 
   it('dispose completes all observables', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
 
-    const flags = { active: false, proc: false, done: false, errs: false };
+    const flags = { active: false, proc: false, done: false, errs: false, refused: false };
     adapter.activeJob$.subscribe({ complete: () => { flags.active = true; } });
     adapter.isProcessing$.subscribe({ complete: () => { flags.proc = true; } });
     adapter.jobsCompleted$.subscribe({ complete: () => { flags.done = true; } });
     adapter.errors$.subscribe({ complete: () => { flags.errs = true; } });
+    adapter.refused$.subscribe({ complete: () => { flags.refused = true; } });
 
     adapter.dispose();
-    expect(flags).toEqual({ active: true, proc: true, done: true, errs: true });
+    expect(flags).toEqual({ active: true, proc: true, done: true, errs: true, refused: true });
   });
 
   // ── Vitals (WORKER-LIVENESS.md P1) ─────────────────────────────────
-  // The adapter is the only component that sees every announcement,
-  // claim, and finish — its snapshot is what /health and the stall
-  // watchdog read.
+  // The adapter is the only component that sees every wake-up, claim, and
+  // finish — its snapshot is what /health and the stall watchdog read.
 
   describe('vitals', () => {
     it('starts empty', () => {
@@ -225,16 +411,11 @@ describe('createJobClaimAdapter', () => {
     it('records the claim → activity → completion cycle', async () => {
       const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
       adapter.start();
-
-      h.pushEvent('job:queued', { jobId: 'jv1', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
-      await new Promise((r) => setTimeout(r, 0));
-      h.pushEvent('job:claimed', {
-        response: { params: {}, metadata: { id: 'jv1', type: 'generation', userId: 'u' } },
-      }, h.claimCidAt(0));
+      h.grant(0, 'jv1');
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
 
       const claimed = adapter.vitals();
-      expect(claimed.lastQueuedEventAt).not.toBeNull();
+      expect(claimed.lastQueuedEventAt, 'no announcement was needed to claim').toBeNull();
       expect(claimed.lastClaimAt).not.toBeNull();
       expect(claimed.lastActivityAt).not.toBeNull();
       expect(claimed.activeJob).toMatchObject({ jobId: 'jv1', type: 'generation' });
@@ -251,15 +432,14 @@ describe('createJobClaimAdapter', () => {
       adapter.dispose();
     });
 
-    it('bumps lastQueuedEventAt even for announcements it ignores (transport liveness)', async () => {
+    it('bumps lastQueuedEventAt even for announcements it filters out', async () => {
       const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: ['generation'] });
       adapter.start();
 
-      h.pushEvent('job:queued', { jobId: 'jx', jobType: 'other-type', resourceId: 'r1', userId: 'did:u1' });
-      await new Promise((r) => setTimeout(r, 0));
+      h.pushEvent('job:queued', queued('other-type', 'jx'));
 
       expect(adapter.vitals().lastQueuedEventAt).not.toBeNull();
-      expect(h.emits).toEqual([]); // still filtered — no claim attempted
+      expect(h.claims(), 'still filtered — only the start pull').toHaveLength(1);
 
       adapter.dispose();
     });
@@ -280,12 +460,7 @@ describe('createJobClaimAdapter', () => {
     it('failJob stamps lastFinishedAt and clears activeJob without counting a completion', async () => {
       const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
       adapter.start();
-
-      h.pushEvent('job:queued', { jobId: 'jv2', jobType: 'generation', resourceId: 'r1', userId: 'did:u1' });
-      await new Promise((r) => setTimeout(r, 0));
-      h.pushEvent('job:claimed', {
-        response: { params: {}, metadata: { id: 'jv2', type: 'generation', userId: 'u' } },
-      }, h.claimCidAt(0));
+      h.grant(0, 'jv2');
       await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
       adapter.errors$.subscribe(() => {});
 
@@ -314,11 +489,7 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc1', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-    h.pushEvent('job:claimed', {
-      response: { params: {}, metadata: { id: 'jc1', type: 'generation', userId: 'u1', completedUnits: ['Person', 'Date'] } },
-    }, h.claimCidAt(0));
+    h.grant(0, 'jc1', { completedUnits: ['Person', 'Date'] });
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.completedUnits).toEqual(['Person', 'Date']);
@@ -330,15 +501,10 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc-cur', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-    h.pushEvent('job:claimed', {
-      response: { params: {}, metadata: {
-        id: 'jc-cursor', type: 'generation',
-        userId: 'u1', completedUnits: [],
-        unitCursors: { Person: { next: 12_400, size: 560, found: 20, emitted: 18 } },
-      } },
-    }, h.claimCidAt(0));
+    h.grant(0, 'jc-cursor', {
+      completedUnits: [],
+      unitCursors: { Person: { next: 12_400, size: 560, found: 20, emitted: 18 } },
+    });
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.unitCursors).toEqual({ Person: { next: 12_400, size: 560, found: 20, emitted: 18 } });
@@ -354,18 +520,13 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc-cur2', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-    h.pushEvent('job:claimed', {
-      response: { params: {}, metadata: {
-        id: 'jc-cursor', type: 'generation',
-        userId: 'u1', completedUnits: [],
-        unitCursors: {
-          Person: { next: 12_400, size: 560 },                              // pre-tally shape
-          Location: { next: 900, size: 300, found: 4, emitted: 4 },          // complete
-        },
-      } },
-    }, h.claimCidAt(0));
+    h.grant(0, 'jc-cursor', {
+      completedUnits: [],
+      unitCursors: {
+        Person: { next: 12_400, size: 560 },                              // pre-tally shape
+        Location: { next: 900, size: 300, found: 4, emitted: 4 },          // complete
+      },
+    });
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     // The position is dropped with the counts — not kept and zero-filled.
@@ -378,11 +539,7 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
-    h.pushEvent('job:queued', { jobId: 'jc2', jobType: 'reference-annotation', resourceId: 'r1', userId: 'did:u1' });
-    await new Promise((r) => setTimeout(r, 0));
-    h.pushEvent('job:claimed', {
-      response: { params: {}, metadata: { id: 'jc4', type: 'generation', userId: 'u1' } },
-    }, h.claimCidAt(0));
+    h.grant(0, 'jc4');
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.completedUnits).toEqual([]);

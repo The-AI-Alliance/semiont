@@ -10,8 +10,9 @@
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import { attribution, getPrimaryRepresentation } from '@semiont/core';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { applyEntityTypeAdded, applyTagSchemaAdded } from './projection-reducers';
+import { applyEntityTypeAdded, applyPersonProfiled, applyTagSchemaAdded, type PeopleView } from './projection-reducers';
 
 type Representation = components['schemas']['Representation'];
 import type { Annotation } from '@semiont/core';
@@ -470,11 +471,9 @@ export class ViewMaterializer {
   async rebuildAll(eventLog: RebuildEventSource): Promise<void> {
     this.logger?.info('[ViewMaterializer] Rebuilding all materialized views from event log');
 
-    const SYSTEM_ID = '__system__' as unknown as ResourceId;
-
     // Pass 1: __system__ events — produces system projections
     // (entitytypes.json, tagschemas.json; future system projections plug in here)
-    const systemEvents = await eventLog.getEvents(SYSTEM_ID);
+    const systemEvents = await eventLog.getEvents(SYSTEM_SCOPE);
     this.logger?.info('[ViewMaterializer] Replaying system events', { count: systemEvents.length });
     for (const event of systemEvents) {
       if (event.type === 'frame:entity-type-added') {
@@ -482,15 +481,18 @@ export class ViewMaterializer {
       } else if (event.type === 'frame:tag-schema-added') {
         const payload = event.payload as { schema: import('@semiont/core').TagSchema };
         await this.materializeTagSchemas(payload.schema);
+      } else if (event.type === 'person:profiled') {
+        // The event's own emitter is the subject; the payload is the fact
+        // about it. Replayed in log order, so the last line for a DID wins.
+        const payload = event.payload as { name: string };
+        await this.materializePeople(String(event.userId), payload.name, event.timestamp);
       }
     }
 
     // Pass 2: resource-scoped events — produces resource views and the
     // storage-uri index
     const allResourceIds = await eventLog.getAllResourceIds();
-    const resourceIds = allResourceIds.filter(
-      (rid) => (rid as unknown as string) !== '__system__'
-    );
+    const resourceIds = allResourceIds.filter((rid) => rid !== SYSTEM_SCOPE);
     this.logger?.info('[ViewMaterializer] Rebuilding resource views', { count: resourceIds.length });
     let skipped = 0;
     const materialized = new Set<string>();
@@ -540,7 +542,7 @@ export class ViewMaterializer {
 
     for (const view of await this.viewStorage.getAll()) {
       const id = view.resource['@id'];
-      if (!id || id === '__system__') continue;
+      if (!id || id === SYSTEM_SCOPE) continue;
       if (materialized.has(id) || failed.has(id)) continue;
 
       await this.viewStorage.delete(id as unknown as ResourceId);
@@ -565,7 +567,7 @@ export class ViewMaterializer {
     const entityTypesPath = path.join(
       this.config.basePath,
       'projections',
-      '__system__',
+      SYSTEM_SCOPE,
       'entitytypes.json'
     );
 
@@ -598,7 +600,7 @@ export class ViewMaterializer {
     const tagSchemasPath = path.join(
       this.config.basePath,
       'projections',
-      '__system__',
+      SYSTEM_SCOPE,
       'tagschemas.json'
     );
 
@@ -621,5 +623,37 @@ export class ViewMaterializer {
 
     await fs.mkdir(path.dirname(tagSchemasPath), { recursive: true });
     await fs.writeFile(tagSchemasPath, JSON.stringify(view, null, 2));
+  }
+
+  /**
+   * Materialize the people view — System-level view (PERSON-PROFILE).
+   *
+   * I/O shell around the pure {@link applyPersonProfiled} reducer, the same
+   * read-reduce-write as its two siblings. What it holds is who a DID belongs
+   * to, so that provenance can join on the DID alone and a reader can still
+   * see a name: the name is resolved when a record is READ and copied into no
+   * artifact, which is what lets a rename correct everything its subject ever
+   * wrote.
+   */
+  async materializePeople(did: string, name: string, since: string): Promise<void> {
+    const peoplePath = path.join(
+      this.config.basePath,
+      'projections',
+      SYSTEM_SCOPE,
+      'people.json'
+    );
+
+    let view = { people: {} as PeopleView };
+    try {
+      const content = await fs.readFile(peoplePath, 'utf-8');
+      view = JSON.parse(content);
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+
+    view.people = applyPersonProfiled(view.people ?? {}, did, name, since);
+
+    await fs.mkdir(path.dirname(peoplePath), { recursive: true });
+    await fs.writeFile(peoplePath, JSON.stringify(view, null, 2));
   }
 }

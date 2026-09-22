@@ -95,6 +95,13 @@ export interface WorkerProcessConfig {
   jobTypes: string[];
   inferenceClient: InferenceClient;
   /**
+   * Test seam; defaults to `process.exit`. A claim the dispatcher refuses
+   * because this credential is not a worker's can never succeed — the
+   * process exits so the supervisor restarts it and the launcher's preflight
+   * names the repair, instead of parking forever in silence.
+   */
+  exit?: (code: number) => void;
+  /**
    * The agent (Software) record stamped onto annotations as `generator`
    * and onto resources as `wasAttributedTo`. Same identity that the
    * session is authenticated as.
@@ -281,6 +288,24 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   const adapter = createJobClaimAdapter({
     bus: httpTransport.actor,
     jobTypes: config.jobTypes,
+  });
+
+  // What a refused claim means to this process. `bus.none-pending` never
+  // arrives here (the adapter parks on it quietly). `bus.unauthorized` is a
+  // verdict about this credential — retrying cannot change it — so the
+  // process exits for restart rather than parking forever with nothing in
+  // its own logs saying why. Everything else is logged and the worker stays
+  // parked until the next wake-up, which retries.
+  const exit = config.exit ?? ((code: number) => process.exit(code));
+  adapter.refused$.subscribe(({ code, message }) => {
+    if (code === 'bus.unauthorized') {
+      logger.error('Claim refused: this worker is not authorized to claim jobs — exiting for restart', {
+        code, message, jobTypes: config.jobTypes,
+      });
+      exit(1);
+      return;
+    }
+    logger.warn('Claim declined; parked until the next wake-up', { code, message });
   });
 
   // Checkpointed resume (ABANDONED-INFERENCE P2): units a reference run

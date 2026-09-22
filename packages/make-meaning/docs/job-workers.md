@@ -4,13 +4,13 @@ Annotation and generation workers live in **[@semiont/jobs](../../jobs/README.md
 
 ## Overview
 
-Workers run in a separate **worker process** (the worker pool — [worker-main.ts](../../jobs/src/worker-main.ts) → [startAgentWorker](../../jobs/src/worker-runtime.ts) → [startWorkerProcess](../../jobs/src/worker-process.ts)). The process claims pending jobs over the bus through a `JobClaimAdapter` (reactive, SSE-driven — not a local polling loop) and emits `mark:create` commands on the bus when it produces annotations. Generated resource *content* never travels on the bus — the generation path uploads it via `session.client.yield.resource()` and the gateway emits `yield:create` internally. Every bus emit goes through a `SemiontSession` (`session.client.transport.emit(...)`), so the worker is an ordinary bus participant authenticated as a software agent.
+Workers run in a separate **worker process** (the worker pool — [worker-main.ts](../../jobs/src/worker-main.ts) → [startAgentWorker](../../jobs/src/worker-runtime.ts) → [startWorkerProcess](../../jobs/src/worker-process.ts)). The process claims pending jobs over the bus through a `JobClaimAdapter`, which pulls whenever the worker is idle (start, settle, a matching wake-up, reconnect) rather than running a timer and emits `mark:create` commands on the bus when it produces annotations. Generated resource *content* never travels on the bus — the generation path uploads it via `session.client.yield.resource()` and the gateway emits `yield:create` internally. Every bus emit goes through a `SemiontSession` (`session.client.transport.emit(...)`), so the worker is an ordinary bus participant authenticated as a software agent.
 
-A job whose `job:queued` announcement found no idle eligible worker is not lost: the gateway's `FsJobQueue` re-announces all pending jobs every 30 seconds (and immediately at startup), so backlog is claimed as soon as a worker frees up or reconnects.
+A job created while every eligible worker was busy is not lost, and needs no re-announcement to be found: each worker pulls the moment its current job settles. The queue's 30-second tick re-announces pending jobs as insurance against a wake-up lost in transit to an *idle* worker — the one case pull cannot cover, since an idle worker has nothing to settle. On a healthy stack it never acts.
 
 The worker's lifecycle events are mirrored into the queue files by the job command handlers (`registerJobCommandHandlers`): `job:complete` moves the job to `complete/`; `job:fail` retries it (re-queue + re-announce) while `retryCount < maxRetries`, then lands it in `failed/`; `job:report-progress` is written into the running file as live progress and doubles as a worker heartbeat — a running job with no heartbeat for 30 minutes is presumed orphaned and fed through the same retry-or-fail path. `job:cancel-requested` cancels pending jobs of the requested `jobType`. Terminal jobs are pruned after 24 hours.
 
-Workers never persist directly — the **Stower** actor subscribes to the emitted commands and handles all persistence (`eventStore.appendEvent()`). In the gateway deployment the Stower runs inside the **Archivist** service (`archivist-main`), not the gateway. Both make-meaning composition roots — [`startMakeMeaning()`](../src/service.ts) (standalone/scripting, all actors in-process) and [`startMakeMeaningGateway()`](../src/service.ts) (the gateway, which hosts no actors) — own a `JobQueue` and register the bus command handlers; neither instantiates workers.
+Workers never persist directly — the **Stower** actor subscribes to the emitted commands and handles all persistence (`eventStore.appendEvent()`). In the gateway deployment the Stower runs inside the **Archivist** service (`archivist-main`), not the gateway. The queue and the `job:*` handlers live in the **dispatcher** (`dispatcher-main`), which owns them in the split deployment; the in-process root [`startMakeMeaning()`](../src/service.ts) (standalone/scripting, all actors in-process) owns its own. Neither instantiates workers.
 
 ## Available Workers
 
@@ -38,7 +38,7 @@ async function processHighlightJob(
   params: HighlightDetectionParams,
   buildAnnotation: BuildAnnotation,  // media-appropriate (motivation, match, body?) → Annotation
   onProgress: OnProgress,
-): Promise<ProcessorResult<HighlightDetectionResult>>  // { annotations, result }
+): Promise<ProcessorResult<HighlightDetectionResult>>  // { result }; annotations go out per chunk
 ```
 
 `buildAnnotation` comes from [`prepareDetection`](../../jobs/src/workers/detection/prepare-detection.ts): character-offset anchoring for plain text, page-geometry anchoring when the extraction carries positioned runs (PDFs). Processors stay media-agnostic — they see `.text` and the builder, never a layer or a media type. `processReferenceJob` additionally takes a `logger`. `processGenerationJob` differs — it returns synthesized content rather than annotations:
@@ -59,7 +59,7 @@ async function processGenerationJob(
 }>
 ```
 
-The `generator` is a W3C `Agent` with `@type: "SoftwareAgent"` that identifies this worker's agent identity (inference provider + model). It is built once at worker startup and carried on the [`WorkerProcessConfig`](../../jobs/src/worker-process.ts); processors never receive it (or `InferenceConfig`) directly — it reaches annotations through the `buildAnnotation` closure, which `prepareDetection` builds with the requesting user's `userId` and the `generator`.
+The `generator` is a W3C `Agent` with `@type: "Software"` that identifies this worker's agent identity (inference provider + model). It is built once at worker startup and carried on the [`WorkerProcessConfig`](../../jobs/src/worker-process.ts); processors never receive it (or `InferenceConfig`) directly — it reaches annotations through the `buildAnnotation` closure, which `prepareDetection` builds from the `generator` alone. No user identity is threaded through: who *requested* the work is the knowledge base's to derive, never the worker's to state.
 
 ## EventBus Integration
 
@@ -67,16 +67,19 @@ The worker process emits commands on the bus through its session; the Stower sub
 
 ### Annotation Creation
 
-For each detected annotation, the processor returns a full W3C `Annotation` (with `creator`, `generator`, and `created`), and the worker process emits `mark:create`:
+The processor returns a W3C `Annotation` carrying body, target, `created` and `generator` — and nothing about who asked for it. The worker process commits a batch with `mark:commit`, citing the job it holds:
 
 ```typescript
-await emitEvent(session, 'mark:create', { annotation, resourceId });
-// emitEvent → session.client.transport.emit('mark:create', { ... })
+await busRequest(actor, 'mark:commit', { resourceId, annotations, jobId });
 ```
 
-- **`creator`** — derived from the job's `userId` (a DID) via `didToAgent()`. Identifies the human who requested the job. (`JobMetadata`'s `userName`/`userEmail`/`userDomain` are an audit-only snapshot in the job file; no code path reads them back.)
-- **`generator`** — the pre-built `SoftwareAgent` from `WorkerProcessConfig.generator`. Identifies the software (inference provider, model) that produced the annotation. Conforms to W3C Web Annotation §3.2.1.
-- **`wasAttributedTo`** — both parties (PROV-O); collapses to just the `generator` when creator and generator are the same agent (autonomous work).
+`jobId` is what makes the annotation attributable. The Stower reads the dispatcher's `job:assigned` record for that job on this resource's log, checks that the job's recorded holder is the emitter, and derives the rest:
+
+- **`creator`** — the **requester**: the DID that emitted the `job:create` this batch fulfils, as the dispatcher recorded it. Never sent by the worker; a payload that names `creator` is **refused**.
+- **`generator`** — the software that produced the annotation (W3C Web Annotation §3.2.1). The worker may supply it to carry the model's parameters, but its identity must be the emitter's own — a `generator` naming anyone else is refused, and one omitted is filled in from the verified emitter.
+- **`wasAttributedTo`** — both parties (PROV-O), `[creator, generator]`, collapsed to one when requester and producer are the same agent (autonomous work).
+
+A worker-role emitter that cites no `jobId` is refused rather than attributed to the model alone: "no job → self-initiated" is true for a person or an autonomous agent, and a silent lie for a worker that forgot the field.
 
 ### Job Lifecycle
 
@@ -97,7 +100,7 @@ Workers are launched by the worker pool, [worker-main.ts](../../jobs/src/worker-
 
 1. Authenticates as a **software agent** (`authenticateAgent(...)` → agent DID + token, with refresh)
 2. Opens a [`SemiontSession`](../../sdk/docs/STATE-UNITS.md) on that identity (`await session.ready`)
-3. Builds the `generator` descriptor from the minted DID (`didToAgent(did)` — the `SoftwareAgent` stamped on annotations)
+3. Builds the `generator` descriptor from the minted DID (`didToAgent(did)` — the `Software` agent the knowledge base checks its writes against)
 4. Calls `startWorkerProcess(...)`:
 
 ```typescript

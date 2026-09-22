@@ -94,15 +94,22 @@ export class ViewManager {
   }
 
   /**
-   * Update system-level view (entity types + tag schemas today).
+   * Update system-level view (entity types, tag schemas, people).
    * Serialized through a shared chain — see class doc.
+   *
+   * Takes the whole event, as `materializeResource` does. `person:profiled`
+   * needs its SUBJECT and its time, and both live on the event rather than
+   * in the payload: the subject is the verified emitter, which is exactly
+   * why a payload could not be trusted to carry it.
    */
-  async materializeSystem(eventType: string, payload: any): Promise<void> {
+  async materializeSystem(event: { type: string; payload: any; userId?: string; timestamp?: string }): Promise<void> {
     await serializePerKey(ViewManager.SYSTEM_KEY, this.systemChains, async () => {
-      if (eventType === 'frame:entity-type-added') {
-        await this.materializer.materializeEntityTypes(payload.entityType);
-      } else if (eventType === 'frame:tag-schema-added') {
-        await this.materializer.materializeTagSchemas(payload.schema);
+      if (event.type === 'frame:entity-type-added') {
+        await this.materializer.materializeEntityTypes(event.payload.entityType);
+      } else if (event.type === 'frame:tag-schema-added') {
+        await this.materializer.materializeTagSchemas(event.payload.schema);
+      } else if (event.type === 'person:profiled') {
+        await this.materializer.materializePeople(String(event.userId), event.payload.name, String(event.timestamp));
       }
       // Future system views can be added here
     });

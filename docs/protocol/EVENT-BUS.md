@@ -128,7 +128,7 @@ if (principal) {
 }
 ```
 
-`_userId` is the **verified emitter** — the one identity fact on an event, and the only identity a handler may honour. Every other provenance fact is derived from it: who *requested* a piece of work is read from the job the write cites (`jobId`), joined to the dispatcher's own `job:assigned` record, never from anything the emitter wrote in the payload. A person's DID is `did:web:<site domain>:users:<subject>`, the subject being the issuer claim `[identity] subjectClaim` selects; a software agent's is `did:web:<site domain>:agents:<provider>:<model>` — the same authority and the same shape, so a person's act and an agent's act are recorded the same way.
+`_userId` is the **verified emitter** — the one identity fact on an event, and the only identity a handler may honour. Beside that stamp the gateway emits `person:profile` when the emitter is a person, carrying the display name it just verified: gateway-produced like the stamp itself, never client-set, and recorded only when the name has changed. It is the one thing the gateway sends that is a fact *about* an identity rather than an act, and it is why an artifact can carry a bare DID and still be read as a person's name. Every other provenance fact is derived from it: who *requested* a piece of work is read from the job the write cites (`jobId`), joined to the dispatcher's own `job:assigned` record, never from anything the emitter wrote in the payload. A person's DID is `did:web:<site domain>:users:<subject>`, the subject being the issuer claim `[identity] subjectClaim` selects; a software agent's is `did:web:<site domain>:agents:<provider>:<model>` — the same authority and the same shape, so a person's act and an agent's act are recorded the same way.
 
 `_roles` is the token's capabilities (a worker's `WORKER_ROLE`): a **transient** authorization fact the dispatcher reads to authorize a `job:claim`. It is never persisted as provenance.
 
@@ -173,7 +173,7 @@ Two declarations make this work, and together they retire a whole bug class (a r
 - **The reply-shape standard.** Every reply is one of three shapes, all keyed by `correlationId`:
   - `{ correlationId, response: T }` — success with data → resolves to `T`.
   - `{ correlationId }` — success, no data → resolves to `void`.
-  - `{ correlationId } & CommandError` — failure → rejects with `BusRequestError(code: 'bus.rejected', ...)` per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
+  - `{ correlationId } & CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
 
   `busRequest` reads `e.response`, so **every reply handler must echo the request's `correlationId` and put its data under `response`** — a handler that doesn't echo the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 

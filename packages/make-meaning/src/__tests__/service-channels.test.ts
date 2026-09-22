@@ -124,6 +124,7 @@ describe('archivist transport channels', () => {
       'mark:unarchive',
       'mark:update-body',
       'mark:update-entity-types',
+      'person:profile',
       'smelt:settled',
       'yield:clone-create',
       'yield:clone-persist',

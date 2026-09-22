@@ -15,6 +15,7 @@ import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { putContent } from '../../../lib/archivist';
 import { requestPrimitiveFor } from '../../../signal';
+import { profileOnce } from '../../../identity/person-profile';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 type ContentFormat = components['schemas']['ContentFormat'];
@@ -120,6 +121,11 @@ export function registerCreateResource(router: ResourcesRouterType) {
           // the Archivist, reachable only through the signal plane under a
           // remote driver (the yield:create starvation bug, 2026-09-15).
           const bus = requestPrimitiveFor(c.get('eventBus'));
+
+          // The second place the gateway stamps a person onto the record, and
+          // so the second place it learns what they are called
+          // (PERSON-PROFILE D3). An upload is an act.
+          profileOnce(principal, c.get('eventBus'));
 
           // Clone uploads carry a token instead of full metadata: the
           // CloneTokenManager validates it and inherits the source's entity

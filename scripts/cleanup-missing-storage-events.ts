@@ -32,7 +32,10 @@ interface ParsedEvent {
 
 async function listResourceDirs(eventsRoot: string): Promise<string[]> {
   // Structure: events/<ab>/<cd>/<resourceId>/events-*.jsonl
-  // Skip: events/__system__/
+  // Skip: events/__system__/ — the literal on purpose. This walks the disk
+  // rather than the event store, so it reads a DIRECTORY NAME; production
+  // code says SYSTEM_SCOPE (@semiont/core), and a standalone tsx script
+  // taking a package dependency for one string would be the worse trade.
   const out: string[] = [];
   let level1: string[];
   try {

@@ -178,6 +178,27 @@ describe('busRequest', () => {
     expect(err.message).toMatch(/No subscriber/);
   });
 
+  it.each([
+    ['unauthorized', 'bus.unauthorized', 'job:claim refused: the caller is not a worker for this knowledge base'],
+    ['none-pending', 'bus.none-pending', 'No pending job of the requested types'],
+  ])("promotes the dispatcher's claim verdict '%s' to %s", async (wire, client, message) => {
+    // A worker's claim loop must tell "park until a wake-up" apart from "stop,
+    // this credential can never claim" — and both ride job:claim-failed. As
+    // strings they were indistinguishable except by matching the prose; as
+    // promoted codes the loop branches on `err.code` like every other consumer.
+    const bus = makeBus(RESULT, FAILURE);
+    const captured = busRequest(bus, EMIT, {}).catch((e) => e);
+    await Promise.resolve();
+    const cid = bus.emitEnvelope!.correlationId as string;
+
+    bus.failureSubject.next({ correlationId: cid, payload: { code: wire, message } });
+
+    const err = await captured;
+    expect(err).toBeInstanceOf(BusRequestError);
+    expect(err.code).toBe(client);
+    expect(err.message).toBe(message);
+  });
+
   it("promotes 'not-found' — the verdict a caller may act destructively on", async () => {
     // The archivist answers a missing resource with `code: 'not-found'`
     // (TABS-REVALIDATE-ON-RESTORE P1). It must arrive distinguishable from a

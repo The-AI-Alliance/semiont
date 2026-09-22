@@ -56,7 +56,7 @@ token, not a table. Semiont kept a `users` table until 2026-09-18; see
 
 - **Bearer-only**: authentication is an `Authorization: Bearer <jwt>` header. JS attaches it explicitly — it is **not** an ambient credential, so the API works with CORS `origin: '*'` and no `Access-Control-Allow-Credentials` (see [Security](./SECURITY.md)).
 - **Router-level protection**: each router applies `authMiddleware` to its protected routes; protection is explicit.
-- **Stateless, with no per-request lookup**: the principal is derived from the token's claims on every request. A display-name change at the issuer reaches the gateway when the holder's next token is minted, not before — there is no row to update and nothing cached to invalidate.
+- **Stateless, with no per-request lookup**: the principal is derived from the token's claims on every request. A display-name change at the issuer reaches the gateway when the holder's next token is minted, not before — there is no row to update and nothing cached to invalidate. The gateway records that name on the knowledge base's log the next time its holder **acts**, so the record can say who a DID belongs to; someone who signs in and only reads is never named there.
 - **One admission decision, held by the issuer**: the gateway admits every subject whose token verifies. It keeps no allowlist and no per-user enable flag, because a second answer to "may this person sign in" can only disagree with the first — and only the issuer's answer can stop a token being minted.
 
 ### Token lifecycle
@@ -175,6 +175,8 @@ The gateway dispatches on the token's `iss` claim, and the two paths verify diff
 3. **Expiration** — enforced by the verifier.
 4. **Subject and email** — the claim `[identity] subjectClaim` names must be present and non-empty, an `email` is required, and an `email_verified` of false is refused.
 5. **Principal** — built from those claims. The DID is `did:web:<site domain>:users:<subject>`, the subject being the value of the configured claim — the email is carried for display and is not part of the identity; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
+
+**What the record keeps about a person, and what it does not.** The DID is the identity, and it is all any artifact carries. The `name` is recorded separately — one line on the knowledge base's system log per name a subject has had, written by the gateway when that person acts and only when the name differs from the last one recorded — so that a reader can resolve a DID to a person from the log alone, without asking the issuer. **The email is never recorded**: it is carried on the token for display during a request and is written nowhere, which is deliberate, because an append-only log is the wrong home for a piece of personal data the display does not need. Nothing about a person is written for merely reading.
 
 **A token the gateway itself signed** (software agents only):
 

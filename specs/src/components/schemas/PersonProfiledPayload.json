@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "description": "Payload for person:profiled — what the knowledge base's issuer said this subject is called, recorded once per change (system-level, no resourceId). The event's `userId` is the person's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into people.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The display name as of this event, from the issuer's verified `name` claim."
+    }
+  },
+  "required": ["name"]
+}

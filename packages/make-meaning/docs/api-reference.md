@@ -4,7 +4,7 @@
 
 Seven actors in two categories: five **access actors** (Stower, Browser, Gatherer, Matcher, CloneTokenManager) mediate reads and writes; two **projection pipelines** (Weaver, Smelter) follow the event log.
 
-In the multi-service deployment the access actors are split across two services: the **Archivist** (`archivist-main`) runs Stower, Browser and CloneTokenManager — the actors that own the file-backed record — and the **Librarian** (`librarian-main`) runs Gatherer and Matcher — the LLM-bound actors. The Weaver and Smelter each run as their own process (`weaver-main` / `smelter-main`). Only the standalone composition root (`startMakeMeaning()`) runs the five access actors in-process; the gateway root (`startMakeMeaningGateway()`) starts no actors at all.
+In the multi-service deployment the access actors are split across two services: the **Archivist** (`archivist-main`) runs Stower, Browser and CloneTokenManager — the actors that own the file-backed record — and the **Librarian** (`librarian-main`) runs Gatherer and Matcher — the LLM-bound actors. The Weaver and Smelter each run as their own process (`weaver-main` / `smelter-main`). Only the standalone composition root (`startMakeMeaning()`) runs the five access actors in-process; the gateway runs none of them and composes nothing from this package, and the **dispatcher** (`dispatcher-main`) runs no actor either — it owns the job queue and the `job:*` handlers.
 
 Each actor's constructor takes a **capability slice** — a Pick-derived interface naming exactly the store operations it uses — rather than the whole `KnowledgeBase`. A full `KnowledgeBase` satisfies every slice structurally, so in-process wiring passes `kb` directly; the standalone services assemble the slice from their own attachments.
 
@@ -199,13 +199,12 @@ Business logic for annotation CRUD. Emits commands on the EventBus.
 static async createAnnotation(
   request: CreateAnnotationRequest,
   userId: UserId,
-  creator: Agent,
   eventBus: EventBus,
   kb: { views: Pick<ViewStorage, 'get'> },
 ): Promise<CreateAnnotationResult>
 ```
 
-Refuses targets whose media type cannot carry a coordinate (`assertAnnotatableTarget`), assembles a full W3C Annotation locally (`assembleAnnotation` from `@semiont/core`, with `creator` and `created`), emits `mark:create` on EventBus (fire-and-forget — Stower persists), and returns the assembled annotation.
+Refuses targets whose media type cannot carry a coordinate (`assertAnnotatableTarget`), assembles a W3C Annotation locally (`assembleAnnotation` from `@semiont/core` — body, target and `created`; no `creator`, which the Stower derives from the verified emitter), emits `mark:create` on EventBus (fire-and-forget — Stower persists), and returns the assembled annotation.
 
 #### updateAnnotationBody()
 

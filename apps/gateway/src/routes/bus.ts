@@ -31,6 +31,7 @@ import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/no
 import type { ServiceAccountCredential } from '@semiont/core';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
+import { profileOnce } from '../identity/person-profile';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
@@ -672,6 +673,11 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     if (principal) {
       payload._userId = principal.did;
       if (principal.roles?.length) payload._roles = principal.roles;
+      // A person acting is when the record learns what they are called
+      // (PERSON-PROFILE D3). Beside the stamp, never in the auth middleware:
+      // reading is not an act, and the name belongs to its own system event
+      // rather than to this payload.
+      profileOnce(principal, c.get('eventBus'));
     }
 
     // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────

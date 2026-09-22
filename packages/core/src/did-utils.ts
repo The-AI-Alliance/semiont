@@ -232,11 +232,16 @@ export function didToAgent(did: string | undefined | null): Agent {
   }
 
   if (usersIdx >= 0 && usersIdx === parts.length - 2) {
-    const name = decodeURIComponent(parts[usersIdx + 1] ?? '');
+    // NO NAME. The subject is a stable opaque identifier (the issuer's
+    // `sub`), so naming a Person after it printed "By 59523dd4-a0e3-…" on
+    // every artifact — a manufactured value the next reader cannot tell from
+    // a real name. What a person is called is a fact ABOUT this identity,
+    // recorded once per change and resolved when a record is READ
+    // (PERSON-PROFILE); absence here is what lets that resolution be the one
+    // place a Person acquires a name.
     return {
       '@type': 'Person',
       ...identity,
-      name,
     };
   }
 

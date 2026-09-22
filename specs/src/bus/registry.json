@@ -78,6 +78,8 @@
       "frame:entity-type-add-failed",
       "frame:tag-schema-add-ok",
       "frame:tag-schema-add-failed",
+      "person:profiled",
+      "person:profile",
       "bind:initiate",
       "bind:update-body",
       "bind:body-updated",
@@ -255,6 +257,8 @@
       "frame:entity-type-add-failed",
       "frame:tag-schema-add-ok",
       "frame:tag-schema-add-failed",
+      "person:profiled",
+      "person:profile",
       "mark:select-comment",
       "mark:select-tag",
       "mark:select-assessment",
@@ -1601,6 +1605,49 @@
       "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "person:profiled",
+      "shape": "storedEvent",
+      "event": "person:profiled",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'person:profiled'>>",
+      "docs": {
+        "lead": [
+          "",
+          "  // ========================================================================",
+          "  // PERSON FLOW — who a subject is. One line per NAME a person has had,",
+          "  // system-level like the frame vocabulary. Never read by provenance: every",
+          "  // artifact joins on the DID, and names are resolved from the projection",
+          "  // when a record is READ (PERSON-PROFILE).",
+          "  // ========================================================================",
+          "",
+          "  // Domain event (branded — system of record). System-level: no resourceId."
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "person:profile",
+      "shape": "schema",
+      "schema": "PersonProfileCommand",
+      "validate": "PersonProfileCommand",
+      "ts": "components['schemas']['PersonProfileCommand']",
+      "docs": {
+        "lead": [
+          "",
+          "  // Command — gateway-emitted, never client-set."
+        ],
         "trailing": ""
       },
       "schemaDocs": {
@@ -3920,7 +3967,8 @@
       "job:cancel",
       "job:start",
       "job:assign",
-      "mark:update-body"
+      "mark:update-body",
+      "person:profile"
     ],
     "event": [
       "job:report-progress",
@@ -3956,7 +4004,8 @@
       "job:assigned",
       "job:completed",
       "job:failed",
-      "mark:body-update-failed"
+      "mark:body-update-failed",
+      "person:profiled"
     ]
   },
   "audience": {
@@ -4004,7 +4053,9 @@
       "job:assign",
       "mark:update-body",
       "weave:applied",
-      "mark:body-update-failed"
+      "mark:body-update-failed",
+      "person:profiled",
+      "person:profile"
     ]
   }
 }

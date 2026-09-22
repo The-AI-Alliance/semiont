@@ -43,10 +43,7 @@ const job: PendingJob<DetectionParams> = {
   metadata: {
     id: jobId('job-abc123'),
     type: 'reference-annotation',
-    userId: userId('did:web:example.com:users:user%40example.com'),
-    userName: 'Jane Doe',
-    userEmail: 'jane@example.com',
-    userDomain: 'example.com',
+    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
     created: new Date().toISOString(),
     retryCount: 0,
     maxRetries: 1,
@@ -137,7 +134,7 @@ Lists jobs with optional filters. Reads from filesystem, sorted by creation time
 
 ```typescript
 const pending = await queue.listJobs({ status: 'pending' });
-const userJobs = await queue.listJobs({ userId: userId('did:web:example.com:users:user%40example.com'), limit: 10 });
+const userJobs = await queue.listJobs({ userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'), limit: 10 });
 const allJobs = await queue.listJobs();
 ```
 
@@ -189,7 +186,7 @@ console.log(`${stats.pending} pending, ${stats.running} running`);
 
 ## Worker Process
 
-Workers run as a separate process. `worker-main.ts` authenticates as a software agent, opens a `SemiontSession` (from `@semiont/sdk`), builds a `generator` (W3C SoftwareAgent), and calls `startWorkerProcess(...)`.
+Workers run as a separate process. `worker-main.ts` authenticates as a software agent, opens a `SemiontSession` (from `@semiont/sdk`), builds a `generator` (a W3C `Software` agent under its own DID), and calls `startWorkerProcess(...)`.
 
 ### `startWorkerProcess(config): JobClaimAdapter`
 
@@ -200,7 +197,7 @@ const adapter = startWorkerProcess({
   session,          // SemiontSession authenticated as this worker's agent
   jobTypes,         // string[] — job types this agent serves
   inferenceClient,  // InferenceClient
-  generator,        // W3C SoftwareAgent stamped as annotation `generator`
+  generator,        // this agent's W3C `Software` record, sent as annotation `generator`
   logger,
 });
 ```
@@ -218,7 +215,7 @@ const adapter = startWorkerProcess({
 
 ### Processors
 
-Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, userId, generator, onProgress)` and return `{ annotations, result }`; `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns the synthesized resource. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
+Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, buildAnnotation, onProgress, onChunkComplete, resumeCursors?)` and return `{ result }` — annotations are committed per chunk through `onChunkComplete`, not returned, and no user identity reaches a processor; `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns the synthesized resource. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
 
 ### Processing Flow
 

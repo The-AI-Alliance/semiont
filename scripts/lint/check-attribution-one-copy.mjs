@@ -27,12 +27,30 @@
  *
  * The one allowed site must ALSO be found: a gate that passes on silence would
  * pass on the function being deleted.
+ *
+ * The SECOND rule, same shape, different fact: a Person's `name` is assigned
+ * in exactly one place too (PERSON-PROFILE P4). `didToAgent` deliberately
+ * leaves a Person unnamed — the subject is an opaque identifier, and printing
+ * it was how every artifact came to read "By 59523dd4-…" — and the name is
+ * filled in when a record is READ, by the Browser's resolver, from the
+ * knowledge base's own projection. A second place that names a Person is a
+ * second answer to "what is this person called", and the one that wins would
+ * be whichever ran last.
  */
 import { readdirSync, readFileSync, statSync } from 'fs';
 import { join, relative } from 'path';
 
 const ROOT = new URL('../../', import.meta.url).pathname;
 const ALLOWED = 'packages/core/src/did-utils.ts';
+/** Where a Person Agent acquires a name — the read-side resolver, and only it. */
+const NAMES_A_PERSON = 'packages/make-meaning/src/views/people-reader.ts';
+/**
+ * Assigning `name` onto something already known to be a Person. Matches the
+ * resolver's own shape and a hand-rolled equivalent; reading a name, and
+ * naming a Software agent (whose name legitimately derives from provider and
+ * model), are not matched.
+ */
+const PERSON_NAMING = /\['name'\]\s*=|\bname:\s*profile\.name\b/;
 const CONSTRUCTION = new RegExp([
   String.raw`\b(?:const|let|var)\s+wasAttributedTo\b`,   // a local being built
   String.raw`\bwasAttributedTo\s*[:=]\s*(?:\[|creator\b)`, // a key or assignment from a literal / from creator
@@ -61,11 +79,14 @@ for (const top of ['packages', 'apps']) {
 }
 
 const hits = [];
+const nameHits = [];
 for (const root of roots) {
   for (const file of walk(root)) {
     const lines = readFileSync(file, 'utf8').split('\n');
     lines.forEach((line, i) => {
-      if (CONSTRUCTION.test(line)) hits.push({ file: relative(ROOT, file), line: i + 1, text: line.trim() });
+      const where = { file: relative(ROOT, file), line: i + 1, text: line.trim() };
+      if (CONSTRUCTION.test(line)) hits.push(where);
+      if (PERSON_NAMING.test(line)) nameHits.push(where);
     });
   }
 }
@@ -84,5 +105,18 @@ if (stray.length > 0) {
   console.error('  Route it through attribution() in @semiont/core and spread the result.');
   failed = true;
 }
+const namedHere = nameHits.filter((h) => h.file === NAMES_A_PERSON);
+const namedElsewhere = nameHits.filter((h) => h.file !== NAMES_A_PERSON);
+if (namedHere.length === 0) {
+  console.error(`✗ lint:attribution — nothing in ${NAMES_A_PERSON} names a Person. A record whose people are never named is the defect this resolver exists to fix.`);
+  failed = true;
+}
+if (namedElsewhere.length > 0) {
+  console.error('✗ lint:attribution — a Person Agent is named outside the read-side resolver:');
+  for (const h of namedElsewhere) console.error(`    ${h.file}:${h.line}  ${h.text}`);
+  console.error(`  A name is resolved when a record is READ, in ${NAMES_A_PERSON}, from the people projection.`);
+  failed = true;
+}
+
 if (failed) process.exit(1);
-console.log(`✓ lint:attribution — wasAttributedTo is constructed in one place (${ALLOWED}), ${roots.length} source roots checked`);
+console.log(`✓ lint:attribution — wasAttributedTo is constructed in one place (${ALLOWED}), a Person is named in one place (${NAMES_A_PERSON}), ${roots.length} source roots checked`);

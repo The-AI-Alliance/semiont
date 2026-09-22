@@ -516,6 +516,12 @@
       "JobAssignedPayload": {
         "$ref": "components/schemas/JobAssignedPayload.json"
       },
+      "PersonProfileCommand": {
+        "$ref": "components/schemas/PersonProfileCommand.json"
+      },
+      "PersonProfiledPayload": {
+        "$ref": "components/schemas/PersonProfiledPayload.json"
+      },
       "JobStatusRequest": {
         "$ref": "components/schemas/JobStatusRequest.json"
       },

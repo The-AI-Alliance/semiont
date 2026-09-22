@@ -48,10 +48,7 @@ const job: PendingJob<DetectionParams> = {
   metadata: {
     id: jobId('job-abc123'),
     type: 'reference-annotation',
-    userId: userId('did:web:example.com:users:user%40example.com'),
-    userName: 'Jane Doe',
-    userEmail: 'jane@example.com',
-    userDomain: 'example.com',
+    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
     created: new Date().toISOString(),
     retryCount: 0,
     maxRetries: 1,
@@ -91,10 +88,7 @@ All jobs share common metadata:
 interface JobMetadata {
   id: JobId;
   type: JobType;
-  userId: UserId;
-  userName: string;       // Audit-only snapshot of the requesting user
-  userEmail: string;      // Audit-only snapshot of the requesting user
-  userDomain: string;     // Audit-only snapshot of the requesting user
+  userId: UserId;         // Who requested it — the verified DID, the job's only identity
   created: string;
   retryCount: number;
   maxRetries: number;
@@ -103,7 +97,7 @@ interface JobMetadata {
 }
 ```
 
-The `userName`, `userEmail`, and `userDomain` fields are an audit-only snapshot of the requesting user, persisted in the on-disk job file. Workers derive annotation `creator` attribution from `userId` via `didToAgent()`. `completedUnits` is written only by `failJob`, unioned across attempts, and carried on the `job:fail` event — see Failure discipline below.
+`userId` is the job's only identity — the DID the gateway verified on the `job:create`. The dispatcher records it as the requester when it accepts a claim, and that record is what lets the knowledge base attribute a write citing this job; a worker never states it. `completedUnits` is written only by `failJob`, unioned across attempts, and carried on the `job:fail` event — see Failure discipline below.
 
 ## Annotation Workers
 
@@ -142,7 +136,7 @@ Workers are not subclassed. To add a job type:
 2. Add a `process*Job` function in `src/processors.ts` that runs the inference and returns the annotations/result.
 3. Dispatch the new `jobType` to that processor in `handleJobInner()` in `src/worker-process.ts`.
 
-Processors are transport-agnostic: they take content, an `InferenceClient`, the job params, the user id, the `generator` (W3C SoftwareAgent), and an `onProgress` callback, and return annotations plus a result. The worker process handles claiming, content fetching, and lifecycle event emission.
+Processors are transport-agnostic: they take content, an `InferenceClient`, the job params, a `buildAnnotation` closure (which carries the `generator` — the worker's own `Software` agent), an `onProgress` callback and a per-chunk commit callback, and return a result. No user identity reaches a processor: an annotation states what produced it, and who requested it is derived by the knowledge base from the job the commit cites. The worker process handles claiming, content fetching, committing, and lifecycle event emission.
 
 ## Discriminated Unions
 

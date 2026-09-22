@@ -10,6 +10,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import type { SemiontState } from '@semiont/core/node';
 import type { TagSchema } from '@semiont/core';
+import { SYSTEM_SCOPE } from '@semiont/core';
 
 /**
  * Read tag schemas from view storage projection
@@ -18,7 +19,7 @@ export async function readTagSchemasProjection(state: SemiontState): Promise<Tag
   const tagSchemasPath = path.join(
     state.stateDir,
     'projections',
-    '__system__',
+    SYSTEM_SCOPE,
     'tagschemas.json'
   );
 

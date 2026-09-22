@@ -89,7 +89,6 @@ describe('job:status-requested', () => {
         id,
         type: 'detect-references',
         userId: userId('did:web:test:users:test'),
-        userName: 'Test User', userEmail: 'test@example.org', userDomain: 'example.org',
         created: '2026-08-27T00:00:00.000Z',
         retryCount: 0, maxRetries: 3,
       },

@@ -103,10 +103,7 @@ const job: PendingJob<TagDetectionParams> = {
   metadata: {
     id: jobId('job_123'),
     type: 'tag-annotation',
-    userId: userId('did:web:example.com:users:user%40example.com'),
-    userName: 'Jane Doe',
-    userEmail: 'jane@example.com',
-    userDomain: 'example.com',
+    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
     created: '2026-01-31T10:00:00Z',
     retryCount: 0,
     maxRetries: 3,
@@ -221,7 +218,7 @@ if (isRunningJob(job)) {
 
 ## Worker Implementation Pattern
 
-There are no per-type worker classes. `startWorkerProcess` claims a job and dispatches on `jobType` to a plain `process*Job` function (in `processors.ts`). Each processor returns the annotations it built plus a typed result; the worker process commits the batch as one **awaited `mark:commit`** — resolving only after the event log holds every annotation — then emits `job:complete`.
+There are no per-type worker classes. `startWorkerProcess` claims a job and dispatches on `jobType` to a plain `process*Job` function (in `processors.ts`). A processor returns only its typed result: annotations leave through the `onChunkComplete` callback as each chunk is produced, committed by an **awaited `mark:commit` citing the job** — resolving only after the event log holds them, and letting a retry resume from the cursor. `job:complete` comes after.
 
 ```typescript
 // processors.ts — pure async function, no class, no JobWorker
@@ -229,9 +226,9 @@ export async function processTagJob(
   content: string,
   inferenceClient: InferenceClient,
   params: TagDetectionParams,
-  userId: string,
-  generator: Agent,
+  buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
+  onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
 ): Promise<ProcessorResult<TagDetectionResult>> {
   const allTags = [];
   for (const category of params.categories) {
@@ -241,10 +238,10 @@ export async function processTagJob(
     allTags.push(...categoryTags);
   }
 
-  const annotations = allTags.map((t) => buildTextAnnotation(/* ... */));
+  const annotations = allTags.map((t) => buildAnnotation('tagging', t, /* body */));
+  await onChunkComplete(annotations, checkpoint);
 
   return {
-    annotations,
     result: {
       tagsFound: allTags.length,
       tagsCreated: annotations.length,
@@ -258,14 +255,17 @@ export async function processTagJob(
 
 ```typescript
 } else if (jobType === 'tag-annotation') {
-  const content = await fetchContent();
-  const { annotations, result } = await processTagJob(
-    content, inferenceClient, job.params as never, userId, generator, onProgress,
+  const { result } = await processTagJob(
+    ready!.text, inferenceClient, asJobParams<TagDetectionParams>(job.params),
+    ready!.buildAnnotation, onProgress,
+    // Awaited durability, per chunk: `commitChunk` commits the batch with
+    // `mark:commit` — citing `jobId`, which is how the knowledge base derives
+    // who requested these annotations — and only then records the cursor.
+    // job:complete comes AFTER: a success claim emitted first would report
+    // work that may never have persisted.
+    commitChunk,
+    job.unitCursors,
   );
-  // Awaited durability: resolves only after the Stower has appended every
-  // annotation to the event log. job:complete comes AFTER — a success claim
-  // emitted first would report work that may never have persisted.
-  await commitAnnotations(session, String(resourceId), annotations);
   await emitEvent(session, 'job:complete', { ...lifecycleBase, result: result as never });
   adapter.completeJob();
 }

@@ -1325,6 +1325,7 @@ describe('startWorkerProcess', () => {
         isProcessing$: { subscribe: vi.fn() },
         jobsCompleted$: { subscribe: vi.fn() },
         errors$: { subscribe: vi.fn() },
+        refused$: { subscribe: vi.fn() },
         start: vi.fn(), stop: vi.fn(),
         completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(),
       })),
@@ -1363,6 +1364,43 @@ describe('startWorkerProcess', () => {
     vi.resetModules();
   });
 
+  // The refusal policy (JOB-DISPATCH-PULL D-B): a claim refused because this
+  // credential is not a worker's can never succeed, so the process exits for
+  // restart — the failure #1438 found was a worker parked forever, refused on
+  // every wake-up, with nothing in its own logs saying why. Any other refusal
+  // is logged and the worker stays parked until the next wake-up.
+  it('exits on bus.unauthorized from refused$ and only logs on anything else', async () => {
+    const { BehaviorSubject, Subject } = await import('rxjs');
+    const refused$ = new Subject<{ code: string | null; message: string }>();
+    vi.doMock('../job-claim-adapter', () => ({
+      createJobClaimAdapter: vi.fn(() => ({
+        activeJob$: new BehaviorSubject<ActiveJob | null>(null),
+        isProcessing$: { subscribe: vi.fn() },
+        jobsCompleted$: { subscribe: vi.fn() },
+        errors$: { subscribe: vi.fn() },
+        refused$,
+        start: vi.fn(), stop: vi.fn(),
+        completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(),
+      })),
+    }));
+    vi.resetModules();
+    const startWorkerProcess = await loadStartWorkerProcess();
+
+    const h = makeFakeSessionAndAdapter();
+    const exit = vi.fn();
+    startWorkerProcess({ ...makeConfig(h.session), exit });
+
+    refused$.next({ code: 'bus.timeout', message: 'no reply' });
+    refused$.next({ code: null, message: 'claimed record carries no job id or type' });
+    expect(exit, 'a transient or local refusal parks; it does not kill the worker').not.toHaveBeenCalled();
+
+    refused$.next({ code: 'bus.unauthorized', message: 'job:claim refused: the caller is not a worker for this knowledge base' });
+    expect(exit).toHaveBeenCalledWith(1);
+
+    vi.doUnmock('../job-claim-adapter');
+    vi.resetModules();
+  });
+
   it('subscribes to activeJob$ and dispatches handleJob on each emitted job', async () => {
     const { BehaviorSubject } = await import('rxjs');
     const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
@@ -1379,6 +1417,7 @@ describe('startWorkerProcess', () => {
         isProcessing$: { subscribe: vi.fn() },
         jobsCompleted$: { subscribe: vi.fn() },
         errors$: { subscribe: vi.fn() },
+        refused$: { subscribe: vi.fn() },
         start: adapterStart,
         stop: vi.fn(),
         completeJob,
@@ -1427,6 +1466,7 @@ describe('startWorkerProcess', () => {
         isProcessing$: { subscribe: vi.fn() },
         jobsCompleted$: { subscribe: vi.fn() },
         errors$: { subscribe: vi.fn() },
+        refused$: { subscribe: vi.fn() },
         start: adapterStart,
         stop: vi.fn(),
         completeJob,
@@ -1477,6 +1517,7 @@ describe('startWorkerProcess', () => {
         isProcessing$: { subscribe: vi.fn() },
         jobsCompleted$: { subscribe: vi.fn() },
         errors$: { subscribe: vi.fn() },
+        refused$: { subscribe: vi.fn() },
         start: vi.fn(),
         stop: vi.fn(),
         completeJob: vi.fn(),
@@ -1704,6 +1745,7 @@ describe('startWorkerProcess — job:fail carries the checkpoint (A3 i/iv feed)'
         isProcessing$: { subscribe: vi.fn() },
         jobsCompleted$: { subscribe: vi.fn() },
         errors$: { subscribe: vi.fn() },
+        refused$: { subscribe: vi.fn() },
         start: vi.fn(),
         stop: vi.fn(),
         completeJob: vi.fn(),
@@ -1758,6 +1800,7 @@ describe('startWorkerProcess — job:fail carries the failure class (ABANDONED-I
         isProcessing$: { subscribe: vi.fn() },
         jobsCompleted$: { subscribe: vi.fn() },
         errors$: { subscribe: vi.fn() },
+        refused$: { subscribe: vi.fn() },
         start: vi.fn(),
         stop: vi.fn(),
         completeJob: vi.fn(),
@@ -1927,7 +1970,7 @@ describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILU
       createJobClaimAdapter: vi.fn(() => ({
         activeJob$: activeJob$.asObservable(),
         isProcessing$: { subscribe: vi.fn() }, jobsCompleted$: { subscribe: vi.fn() },
-        errors$: { subscribe: vi.fn() }, start: vi.fn(), stop: vi.fn(),
+        errors$: { subscribe: vi.fn() }, refused$: { subscribe: vi.fn() }, start: vi.fn(), stop: vi.fn(),
         completeJob: vi.fn(), failJob: vi.fn(), dispose: vi.fn(), vitals: vi.fn(),
         touchActivity: vi.fn(),
       })),

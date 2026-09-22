@@ -34,7 +34,10 @@ export type BusReply<Op extends BusOperationKey> =
  * named already live in `TransportErrorCode` with real producers
  * (`classifyApiCode`). A member nothing can emit promises a distinction the
  * system cannot make, and the next reader has no way to tell it apart from one
- * that merely has not been reached yet.
+ * that merely has not been reached yet. `bus.unauthorized` returned 2026-09-22
+ * the moment it had a producer: the dispatcher refusing a `job:claim` from a
+ * caller without the worker role — a peer's verdict, promoted from the wire
+ * like the two beside it, not an HTTP status.
  */
 export type BusRequestErrorCode =
   | 'bus.timeout'
@@ -54,7 +57,19 @@ export type BusRequestErrorCode =
    * nature — a peer still starting — and therefore the one failure class on
    * this list worth retrying.
    */
-  | 'bus.peer-unavailable';
+  | 'bus.peer-unavailable'
+  /**
+   * The peer says this caller may not do what it asked — authenticated, not
+   * permitted. A verdict about the caller: retrying under the same credential
+   * cannot succeed, so a consumer must surface it, never spin on it.
+   */
+  | 'bus.unauthorized'
+  /**
+   * The peer declined, and nothing went wrong: a `job:claim` found no pending
+   * job of the requested types. The one member a consumer PARKS on — there is
+   * nothing to do until a wake-up.
+   */
+  | 'bus.none-pending';
 
 /**
  * A failure's own `code` (CommandError, wire) → this client vocabulary.
@@ -71,6 +86,8 @@ export type BusRequestErrorCode =
 const WIRE_TO_CLIENT: Record<CommandErrorCode, BusRequestErrorCode> = {
   'peer-unavailable': 'bus.peer-unavailable',
   'not-found': 'bus.not-found',
+  'unauthorized': 'bus.unauthorized',
+  'none-pending': 'bus.none-pending',
 };
 
 /**
