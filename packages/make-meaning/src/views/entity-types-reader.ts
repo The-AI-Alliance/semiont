@@ -7,6 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import type { SemiontState } from '@semiont/core/node';
 
 /**
@@ -17,7 +18,7 @@ export async function readEntityTypesProjection(state: SemiontState): Promise<st
   const entityTypesPath = path.join(
     state.stateDir,
     'projections',
-    '__system__',
+    SYSTEM_SCOPE,
     'entitytypes.json'
   );
 

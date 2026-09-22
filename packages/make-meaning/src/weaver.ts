@@ -47,6 +47,7 @@
 import { Subject, Subscription, from, type Observable } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import { didToAgent, burstBuffer, errField, busRequest } from '@semiont/core';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import type { BusFrame, BusRequestPrimitive, EventMap } from '@semiont/core';
 import type { GraphDatabase } from '@semiont/graph';
 import { intendedGraphAnnotation } from '@semiont/graph';
@@ -155,11 +156,12 @@ export class Weaver {
   private buildPipeline() {
     // Build the RxJS pipeline
     this.pipelineSubscription = this.eventSubject.pipe(
-      // Split into one inner Observable per resource (system events grouped under '__system__')
-      groupBy((se: StoredEvent) => se.resourceId ?? '__system__'),
+      // Split into one inner Observable per resource (system events grouped
+      // under the system scope, the same key the event store logs them under)
+      groupBy((se: StoredEvent) => se.resourceId ?? SYSTEM_SCOPE),
 
       mergeMap((group) => {
-        if (group.key === '__system__') {
+        if (group.key === SYSTEM_SCOPE) {
           // System events (e.g., entitytype.added): process immediately, sequentially
           return group.pipe(
             concatMap((se) => from(this.safeApplyEvent(se)))

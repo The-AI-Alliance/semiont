@@ -17,7 +17,7 @@
  */
 
 import { DEFAULT_ENTITY_TYPES } from '@semiont/ontology';
-import { EventBus, userId, resourceId, busRequest, type Logger } from '@semiont/core';
+import { EventBus, userId, busRequest, SYSTEM_SCOPE, type Logger } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import type { EventStore } from '@semiont/event-sourcing';
 
@@ -28,7 +28,7 @@ import type { EventStore } from '@semiont/event-sourcing';
  */
 export async function bootstrapEntityTypes(eventBus: EventBus, eventStore: EventStore, logger?: Logger): Promise<void> {
   // Read the __system__ event stream — the durable source of truth
-  const systemEvents = await eventStore.log.getEvents(resourceId('__system__'));
+  const systemEvents = await eventStore.log.getEvents(SYSTEM_SCOPE);
   const existingTypes = new Set(
     systemEvents
       .filter(e => e.type === 'frame:entity-type-added')

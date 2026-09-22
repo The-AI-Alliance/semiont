@@ -16,6 +16,7 @@ import { createReadStream } from 'fs';
 import * as readline from 'readline';
 import { v4 as uuidv4 } from 'uuid';
 import type { StoredEvent, PersistedEvent, EventMetadata, EventInput, ResourceId, Logger } from '@semiont/core';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import { resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import { jumpConsistentHash } from '@semiont/core';
@@ -98,7 +99,7 @@ export class EventStorage {
    */
   getShardPath(resourceId: ResourceId): string {
     // System events don't get sharded
-    if (resourceId === '__system__' || !this.config.enableSharding) {
+    if (resourceId === SYSTEM_SCOPE || !this.config.enableSharding) {
       return '';
     }
 

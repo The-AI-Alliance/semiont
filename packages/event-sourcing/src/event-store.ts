@@ -22,6 +22,7 @@ import type {
 } from '@semiont/core';
 import { recordAppendStage } from '@semiont/observability';
 import { EventBus as CoreEventBus } from '@semiont/core';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import type { SemiontProject } from '@semiont/core/node';
 import type { ViewStorage } from './storage/view-storage';
 import { EventLog } from './event-log';
@@ -70,7 +71,10 @@ export class EventStore {
     event: EventInput,
     options?: { correlationId?: string },
   ): Promise<StoredEvent> {
-    const resourceId: ResourceId | '__system__' = event.resourceId || '__system__';
+    // An event naming no resource is ABOUT the knowledge base, and is logged
+    // under the system scope — which is a ResourceId, so nothing below needs
+    // to widen or cast to hold it.
+    const resourceId: ResourceId = event.resourceId || SYSTEM_SCOPE;
 
     // Each stage is timed separately (ARCHIVIST-STAYS-UP P7). The useful
     // question is never "was the append slow" but WHICH stage: `persist`
@@ -87,25 +91,25 @@ export class EventStore {
     };
 
     // 1. Persist event to log
-    const storedEvent = await timed('persist', () => this.log.append(event, resourceId as any));
+    const storedEvent = await timed('persist', () => this.log.append(event, resourceId));
 
     // 2. Update views
     await timed('materialize', async () => {
-      if (resourceId === '__system__') {
+      if (resourceId === SYSTEM_SCOPE) {
         await this.views.materializeSystem(storedEvent);
       } else {
         await this.views.materializeResource(
-          resourceId as ResourceId,
+          resourceId,
           storedEvent,
-          () => this.log.getEvents(resourceId as ResourceId)
+          () => this.log.getEvents(resourceId)
         );
       }
     });
 
     // 3. Enrich (attach post-materialization data like annotations)
     let publishEvent: EnrichedEvent = storedEvent;
-    if (this.enrichEvent && resourceId !== '__system__') {
-      publishEvent = await timed('enrich', () => this.enrichEvent!(storedEvent, resourceId as ResourceId));
+    if (this.enrichEvent && resourceId !== SYSTEM_SCOPE) {
+      publishEvent = await timed('enrich', () => this.enrichEvent!(storedEvent, resourceId));
     }
 
     // 4. Publish to Core EventBus typed channels
@@ -113,8 +117,8 @@ export class EventStore {
       const envelope = { correlationId: options?.correlationId };
       this.coreEventBus.emit(publishEvent.type, publishEvent, envelope);
 
-      if (resourceId !== '__system__') {
-        const scopedBus = this.coreEventBus.scope(resourceId as string);
+      if (resourceId !== SYSTEM_SCOPE) {
+        const scopedBus = this.coreEventBus.scope(resourceId);
         scopedBus.emit(publishEvent.type, publishEvent, envelope);
       }
     });

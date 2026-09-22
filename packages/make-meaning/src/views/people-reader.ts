@@ -13,6 +13,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import type { SemiontState } from '@semiont/core/node';
 import type { PeopleView } from '@semiont/event-sourcing';
 
@@ -27,7 +28,7 @@ export async function readPeopleProjection(state: SemiontState): Promise<PeopleV
   const peoplePath = path.join(
     state.stateDir,
     'projections',
-    '__system__',
+    SYSTEM_SCOPE,
     'people.json'
   );
 

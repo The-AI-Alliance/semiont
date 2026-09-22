@@ -42,6 +42,7 @@ import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
+import { SYSTEM_SCOPE } from '@semiont/core';
 import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid, hasWorkerRole, attribution } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
@@ -751,8 +752,7 @@ export class Stower {
     if (!event._userId) {
       throw new Error('person:profile missing _userId (gateway injection)');
     }
-    // The system log, spelled as `bootstrap/entity-types.ts` spells it.
-    const events = await this.stores.eventStore.log.getEvents(resourceId('__system__'));
+    const events = await this.stores.eventStore.log.getEvents(SYSTEM_SCOPE);
     // The latest name recorded for this DID. `getEvents` is append-ordered,
     // so the last match is current.
     let current: string | undefined;
