@@ -7,8 +7,8 @@
 
 ## How Semiont runs now
 
-Semiont ships seven container images (`semiont-gateway`, `semiont-browser`, `semiont-archivist`,
-`semiont-librarian`, `semiont-worker`, `semiont-smelter`, `semiont-weaver`) plus the
+Semiont ships eight container images (`semiont-gateway`, `semiont-browser`, `semiont-archivist`,
+`semiont-librarian`, `semiont-worker`, `semiont-smelter`, `semiont-weaver`, `semiont-dispatcher`) plus the
 infrastructure containers a stack needs
 (`postgres`, `neo4j`, `qdrant`, and `ollama` for local inference).
 

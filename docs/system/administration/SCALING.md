@@ -18,14 +18,15 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 |---|---|---|
 | browser | N | Serves the UI; no server-side state. |
 | gateway | N | Behind a load balancer, once both broker-backed drivers are selected (`[signal] type = "nats"`, `[jobs] type = "jetstream"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas. |
-| worker | N | Workers claim jobs through the gateway; a claim is granted once — serialized in the gateway process on the `fs` driver, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete. |
+| worker | N | Workers claim jobs from the dispatcher over the bus; a claim is granted once — atomic in the queue, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete, and only a token carrying the worker role may claim. |
 | archivist | 1 | The single writer of the git-backed record, which is the system of record. This is a design invariant, not a capacity limit. |
 | weaver | 1 | Owns the graph projection: checkpointed catch-up from the record at boot, then live tailing. Derived state — rebuildable, never authoritative. |
 | smelter | 1 | Owns the vector and anchored-text projections, same shape as the weaver. |
 | librarian | 1 | A reader over the indices the projectors maintain; it owns no store. |
+| dispatcher | 1 | Owns the job queue and answers `job:*`. It subscribes to the bus as a fan-out client, so a second would also receive every `job:create` and create a second job record; the launcher runs one. |
 
 The split is deliberate: everything on the request path (browser, gateway, worker) replicates,
-while the record and its projections each have exactly one writer. Write throughput to the
+while the record, its projections, and the job queue each have exactly one writer. Write throughput to the
 record scales vertically with the Archivist; read throughput scales with gateway replicas and
 the projections.
 

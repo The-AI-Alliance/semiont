@@ -10,7 +10,7 @@ For the actor responsibilities running inside the archivist / librarian / worker
 
 ## Multi-container layout
 
-A local deployment runs six containers of Semiont code, seven with the Browser, twelve with the infrastructure dependencies (the OTel collector is always among them; a NATS `messaging` daemon joins when a broker-backed driver is selected — the config the launcher template ships, drawn in the second diagram), and fourteen with the observability pair — Jaeger for traces and Prometheus for metrics — which local stacks run **by default**: all six service containers export OTLP to the collector, which forwards traces to Jaeger and serves a readout Prometheus scrapes. `--no-observe` skips only the pair; the collector still runs and discards traces. All seven Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
+A local deployment runs seven containers of Semiont code, eight with the Browser, thirteen with the infrastructure dependencies (the OTel collector is always among them; a NATS `messaging` daemon joins when a broker-backed driver is selected — the config the launcher template ships, drawn in the second diagram), and fifteen with the observability pair — Jaeger for traces and Prometheus for metrics — which local stacks run **by default**: all seven service containers export OTLP to the collector, which forwards traces to Jaeger and serves a readout Prometheus scrapes. `--no-observe` skips only the pair; the collector still runs and discards traces. All eight Semiont containers are **published, attested images** (`ghcr.io/the-ai-alliance/semiont-*`) that knowledge-base stacks pull — selecting the version via `SEMIONT_VERSION` — and configure by bind-mounting per-KB TOML at runtime; KBs do not build images (see [Container Images](administration/IMAGES.md)). Two views of one stack follow: who talks to whom, and what attaches to what.
 
 ### Who talks to whom
 
@@ -24,13 +24,14 @@ graph TB
     AGENT["Agentic workflows<br/>@semiont/sdk"]
 
     BROWSERC["semiont-browser<br/>static SPA server"]
-    GW["semiont-gateway<br/>bus hub · identity · job queue · content proxy"]
+    GW["semiont-gateway<br/>bus hub · identity · content proxy"]
 
     LIB["semiont-librarian<br/>Gatherer · Matcher"]
     WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
     SMELT["semiont-smelter<br/>Smelter — vector pipeline"]
     WEAVE["semiont-weaver<br/>Weaver — graph pipeline"]
     ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
+    DISP["semiont-dispatcher<br/>job queue · job:* lifecycle"]
 
     USER -->|assets| BROWSERC
     USER <-->|bus| GW
@@ -43,6 +44,7 @@ graph TB
     GW <--> SMELT
     GW <--> WEAVE
     GW <--> ARCH
+    GW <--> DISP
 
     GW -->|content proxy| ARCH
     LIB -->|bytes| ARCH
@@ -54,22 +56,22 @@ graph TB
     classDef hub fill:#e8a838,stroke:#b07818,stroke-width:3px,color:#000
 
     class USER,INGEST,CURATE,AGENT,BROWSERC client
-    class LIB,WORKER,SMELT,WEAVE,ARCH svc
+    class LIB,WORKER,SMELT,WEAVE,ARCH,DISP svc
     class GW hub
 ```
 
-The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as SSE) — connective fabric, not a box, and the gateway hosts **no actors**: every service subscribes over those two endpoints like any other participant, with each rectangle enumerating what runs inside it. The blue rectangles are the bus's clients, and every one of them speaks `@semiont/sdk` — the SPA in the user's browser, and the same client shape without a UI for content ingestion, content curation, and agentic workflows (scripts and agents driving the KB; the CLI and MCP server are instances of it). The archivist-pointing edges are the byte plane: the gateway proxies content for external clients; the smelter, librarian, and workers dial the archivist directly. The SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets, which is why it needs no config and no gateway connection of its own.
+The bidirectional edges are the bus (`POST /bus/emit`, `POST /bus/subscribe` as SSE) — connective fabric, not a box, and the gateway hosts **no actors**: every service subscribes over those two endpoints like any other participant, with each rectangle enumerating what runs inside it. The blue rectangles are the bus's clients, and every one of them speaks `@semiont/sdk` — the SPA in the user's browser, and the same client shape without a UI for content ingestion, content curation, and agentic workflows (scripts and agents driving the KB; the CLI and MCP server are instances of it). The archivist-pointing edges are the byte plane: the gateway proxies content for external clients; the smelter, librarian, and workers dial the archivist directly. The dispatcher is the one service with no edge to the archivist: a control plane through which job ids, types, params and status flow and content never does — a worker claims there, then pulls bytes from and writes annotations to the archivist itself. The SPA *executes in the user's web browser* — `semiont-browser` only serves its static assets, which is why it needs no config and no gateway connection of its own.
 
 Two mechanisms behind the gateway hub are selected by config, not drawn as edges:
 
 - **The Signal Plane** is the fan-out behind those two bus endpoints — a driver seam. By default (`[signal] type = "in-process"`) it is the gateway's own per-process RxJS bus; `[signal] type = "nats"` moves fan-out onto core NATS subjects so the gateway can run as multiple replicas. The bus contract above is identical either way; clients never see the choice.
-- **The job queue** the gateway owns is likewise driver-backed (`[jobs] type`): `fs` (the launcher-mounted filesystem queue, the local default) or `jetstream` (NATS JetStream, required for replicas). Jobs are created at the gateway and claimed by exactly one worker over the bus.
+- **The job queue** the dispatcher owns is likewise driver-backed (`[jobs] type`): `jetstream` (NATS JetStream — what the launcher template ships, and the only driver the mountless dispatcher can run) or `fs` (a filesystem queue kept as the reference implementation; it needs a writable state tree). Jobs are created at the dispatcher, announced on `job:queued`, and claimed by exactly one worker over the bus — a claim the dispatcher admits only from a token carrying the worker role.
 
-The second diagram draws the NATS `messaging` daemon the two share (`[jobs] = "jetstream"`, `[signal] = "nats"` — what the launcher template ships). Select neither and it is absent: an `fs` queue on the gateway's state mount and the in-process bus, one gateway.
+The second diagram draws the NATS `messaging` daemon the two share (`[jobs] = "jetstream"`, `[signal] = "nats"` — what the launcher template ships). Select neither and it is absent: the in-process bus and one gateway — though an `fs` queue then needs a state tree the launcher's dispatcher does not mount, so a launcher-run stack selects `jetstream`.
 
 ### What attaches to what
 
-The state plane: the same six service containers against file state and the third-party infrastructure.
+The state plane: the same seven service containers against file state and the third-party infrastructure.
 
 ```mermaid
 ---
@@ -78,7 +80,8 @@ config:
 ---
 graph TB
     subgraph G1 [" "]
-        GW["semiont-gateway<br/>bus hub · token verifier · job queue · content proxy"]
+        GW["semiont-gateway<br/>bus hub · token verifier · content proxy"]
+        DISP["semiont-dispatcher<br/>job queue · job:* lifecycle"]
         NATS["semiont-nats<br/>messaging — signal plane · job queue"]
         JS[("JetStream store")]
         KC["semiont-keycloak<br/>identity — the issuer this KB trusts"]
@@ -112,7 +115,8 @@ graph TB
     LIB -->|ro| VIEWS
     SMELT --> ANCH
     ARCH -->|ro| ANCH
-    GW -->|bus · jobs| NATS
+    GW -->|bus| NATS
+    DISP -->|jobs| NATS
     NATS --> JS
 
     WEAVE --> NEO
@@ -134,6 +138,7 @@ graph TB
     WORKER -.-> COLL
     SMELT -.-> COLL
     WEAVE -.-> COLL
+    DISP -.-> COLL
     COLL -.->|traces| TRACES
     COLL -.->|"scraped by"| METRICS
 
@@ -143,7 +148,7 @@ graph TB
     classDef store fill:#8b6b9d,stroke:#6b4a7a,stroke-width:2px,color:#fff
     classDef record fill:#2c5f7a,stroke:#16394f,stroke-width:3px,color:#fff
 
-    class LIB,WORKER,SMELT,WEAVE,ARCH svc
+    class LIB,WORKER,SMELT,WEAVE,ARCH,DISP svc
     class GW hub
     class NEO,QD,OL,PG,KC,COLL,TRACES,METRICS,NATS infra
     class ANCH,VIEWS,JS store
@@ -174,7 +179,8 @@ The second diagram draws the mounts; this table adds the discipline. Exactly one
 | Container | `/kb` (git tree) | anchored-text | state (views) |
 |---|---|---|---|
 | archivist | **rw — sole owner** | read | **stamp holder** — writes views |
-| gateway | — | — | — (the job queue is JetStream on `semiont-nats`, not a mount) |
+| gateway | — | — | — |
+| dispatcher | — | — | — (the job queue is JetStream on `semiont-nats`, not a mount) |
 | librarian | — | — | shared — reads views |
 | smelter | — | **stamp holder** — writes | — |
 | worker · weaver · browser | — | — | — |
@@ -183,11 +189,11 @@ Every service also mounts its launcher-staged config read-only — the services'
 
 ## Unified bus and SemiontSession
 
-Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, weaver, archivist, and librarian — is a bus participant using the same primitives in `@semiont/sdk`. The gateway exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `POST /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
+Every actor that runs Semiont code — the Semiont Browser SPA, CLI, MCP, worker pool, smelter, weaver, archivist, librarian, and dispatcher — is a bus participant using the same primitives in `@semiont/sdk`. The gateway exposes exactly two runtime endpoints that carry domain traffic: `POST /bus/emit` and `POST /bus/subscribe` (an SSE stream with dynamic channel subscriptions and Last-Event-ID replay on reconnect). Every other HTTP route exists for auth, admin, exchange, binary content, or infrastructure — not for domain commands. Commands and domain events flow through the bus.
 
 The common abstraction for "I am a Semiont actor" is `SemiontSession`, which lives in `@semiont/sdk` and carries per-KB authentication, token refresh, bus access, and cross-process state synchronization. A session is constructed against a storage adapter (`SessionStorage`): `WebBrowserStorage` in the browser, filesystem storage for CLI and MCP, in-memory storage in workers and tests. `SemiontClient` exposes namespace methods (e.g. `client.browse.resource(...)`, `client.mark.annotation(...)`) over the bus; raw `emit`/`on`/`stream` are internal to the SDK and not part of the consumer surface.
 
-A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker, smelter, weaver, archivist, and librarian containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the Browser; just different storage and different channels. (The weaver was the proof by induction — added as a standalone actor after the pattern existed, with no new plumbing — and the archivist and librarian extractions repeated it.)
+A new kind of actor slots in the same way in every environment: construct a session with the right storage adapter, authenticate, subscribe to the channels it cares about, emit the commands it produces. The worker, smelter, weaver, archivist, librarian, and dispatcher containers are the clearest demonstration — same session, same bus primitives, same authentication pattern as the Browser; just different storage and different channels. (The weaver was the proof by induction — added as a standalone actor after the pattern existed, with no new plumbing — and the archivist and librarian extractions repeated it.)
 
 For the wire-level event protocol, see **[../protocol/EVENT-BUS.md](../protocol/EVENT-BUS.md)**.
 

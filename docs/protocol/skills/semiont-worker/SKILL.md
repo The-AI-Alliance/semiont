@@ -84,7 +84,10 @@ const issuerToken = await clientCredentialsToken({
 
 // Step 2: buy the agent identity this worker's output is attributed to. The
 // gateway refuses unless the token carries `semiont-service` in a flat `roles`
-// claim — see the gateway's agent minter.
+// claim — see the gateway's agent minter. The client must ALSO carry
+// `semiont-worker`: the gateway stamps that role onto the agent token, and the
+// dispatcher refuses every `job:claim` without it. A worker that is not the
+// deployment's own is admitted by granting its client the role at the issuer.
 const res = await fetch(`${apiUrl}/api/tokens/agent`, {
   method: 'POST',
   headers: { authorization: `Bearer ${issuerToken}`, 'content-type': 'application/json' },
@@ -271,6 +274,8 @@ httpTransport.state$.subscribe((state: ConnectionState) => {
 ```
 
 `degraded` is the threshold to surface in a status endpoint — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a brief mount-churn cycle.
+
+**Every claim answered with `job:claim-failed` saying the caller is not a worker** means the minting client lacks the `semiont-worker` role, so the agent token carries no worker capability. The worker authenticates, wakes on every `job:queued`, and is refused each time — with nothing in its own logs saying why. A realm imported before that role existed has exactly this shape; `semiont start` refuses it by name and `semiont identity sync` repairs the client's roles mapper.
 
 ## Graceful shutdown
 

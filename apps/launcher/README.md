@@ -2,7 +2,7 @@
 
 A host-installed CLI that runs a local Semiont stack — Neo4j, Qdrant, Ollama,
 PostgreSQL, the Semiont gateway, worker, smelter, weaver, archivist,
-librarian, the Browser, and (when a broker-backed driver is selected) a NATS
+librarian, dispatcher, the Browser, and (when a broker-backed driver is selected) a NATS
 `messaging` daemon —
 by driving your container runtime (Apple `container`, Docker, or Podman)
 directly. It replaces the `.semiont/scripts/{start,logs,stop}.sh` trio that
@@ -435,7 +435,7 @@ semiont stop
   belief — `status` still verifies every claim against the runtime.
 - `start`, `stop`, and `status` take `--service <name>` to act on one service
   (named by role: gateway, worker, smelter, weaver, archivist, librarian,
-  browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
+  dispatcher, browser, database, graph, vectors, inference, embedding, traces — the concrete products PostgreSQL,
   Neo4j, Qdrant, Ollama, and Jaeger appear as detail alongside). A `--service` start reads the
   service's own credential from the per-root state a full start persisted —
   nothing is recovered out of a running container — auto-enables OTel iff Jaeger is up, and stages a

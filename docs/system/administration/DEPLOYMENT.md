@@ -18,19 +18,20 @@ cloud container platform.
 
 ## What gets deployed
 
-Seven published service images, plus the infrastructure containers a stack needs
+Eight published service images, plus the infrastructure containers a stack needs
 (`postgres`, `neo4j`, `qdrant`, `ollama` for local inference, and `nats` when the
 `jetstream` jobs driver or the `nats` signal driver is selected):
 
 | Image | Role | Port |
 |---|---|---|
-| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, bus hub, job queue | 4000 |
+| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, bus hub | 4000 |
 | `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 24100 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 24101 |
 | `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 24102 |
 | `ghcr.io/the-ai-alliance/semiont-archivist` | Git-backed record, projection writer | 24103 |
 | `ghcr.io/the-ai-alliance/semiont-librarian` | Gatherer / view reader | 24104 |
+| `ghcr.io/the-ai-alliance/semiont-dispatcher` | Job queue, `job:*` lifecycle | 24105 |
 
 Images are built and published by CI, not by the CLI — see [IMAGES.md](./IMAGES.md).
 
