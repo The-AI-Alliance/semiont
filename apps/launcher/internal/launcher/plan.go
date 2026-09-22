@@ -104,7 +104,7 @@ var driverCatalog = map[string]map[string]driverSpec{
 		"neo4j": {image: "neo4j:5.26.28-community", display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}}},
 	},
 	"vectors": {
-		"qdrant": {image: "qdrant/qdrant:v1.18.3", display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant"},
+		"qdrant": {image: "qdrant/qdrant:v1.19.1", display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant"},
 	},
 	"database": {
 		"postgres": {image: "postgres:15.18-alpine", display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL"},

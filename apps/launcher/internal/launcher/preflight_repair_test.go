@@ -25,7 +25,7 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 			return http.StatusUnauthorized, `{"error":"invalid_client"}`
 		}
 		return http.StatusOK, grantBody(map[string]any{
-			"roles": []any{serviceRole},
+			"roles": stampedRoles(clientID),
 			"aud":   testAudience,
 		})
 	})
@@ -58,6 +58,61 @@ func TestPreflightIdentityNamesTheRepairForThisIssuer(t *testing.T) {
 				x := &liveExec{u: newUI(true)}
 				if x.preflightIdentity(srv.URL, testAudience, testSecrets(), 0, tc.managed) {
 					t.Fatal("a realm missing a service client passed the preflight")
+				}
+			})
+			for _, s := range tc.want {
+				if !strings.Contains(got, s) {
+					t.Errorf("refusal does not name %q:\n%s", s, got)
+				}
+			}
+			for _, s := range tc.absent {
+				if strings.Contains(got, s) {
+					t.Errorf("refusal names %q, which does not apply to this issuer:\n%s", s, got)
+				}
+			}
+		})
+	}
+}
+
+// EXTRACT-JOBS P0: a worker whose token lacks the worker role authenticates
+// perfectly and can never claim a job. The refusal must say which client and
+// what it cannot do, and — for a realm this launcher runs — that `semiont
+// identity sync` reconciles the client's roles mapper, then `semiont start`.
+// For an issuer somebody else runs the role is theirs to grant, and sync must
+// not be named. (The role string equals the worker's client id, so the text is
+// asserted on "claim", not on the role.)
+func TestPreflightIdentityNamesTheRepairForARoleLessWorker(t *testing.T) {
+	srv := stubIssuer(t, func(clientID string) (int, string) {
+		roles := stampedRoles(clientID)
+		if clientID == serviceClientID("worker") {
+			roles = []string{serviceRole} // the pre-P0 mapper value
+		}
+		return http.StatusOK, grantBody(map[string]any{"roles": roles, "aud": testAudience})
+	})
+
+	for _, tc := range []struct {
+		name    string
+		managed bool
+		want    []string
+		absent  []string
+	}{
+		{
+			name:    "a realm this launcher runs",
+			managed: true,
+			want:    []string{serviceClientID("worker"), "claim", "semiont identity sync", "semiont start"},
+		},
+		{
+			name:    "an issuer somebody else runs",
+			managed: false,
+			want:    []string{serviceClientID("worker"), "claim"},
+			absent:  []string{"semiont identity sync"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := captureStderr(t, func() {
+				x := &liveExec{u: newUI(true)}
+				if x.preflightIdentity(srv.URL, testAudience, testSecrets(), 0, tc.managed) {
+					t.Fatal("a realm whose worker cannot claim passed the preflight")
 				}
 			})
 			for _, s := range tc.want {

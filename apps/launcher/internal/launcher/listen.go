@@ -114,7 +114,7 @@ func Listen(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 
 	// Resource names, fetched ONCE before the stream opens. Not per event: a
 	// lookup is a correlated Request, which opens its own SSE connection, and

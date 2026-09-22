@@ -19,6 +19,11 @@ type tokenEntry struct {
 	RefreshToken string    `json:"refreshToken,omitempty"`
 	Email        string    `json:"email"`
 	ObtainedAt   time.Time `json:"obtainedAt"`
+	// ExpiresAt is when the access token stops working, from the issuer's
+	// expires_in — so a verb can renew BEFORE sending a token it knows is
+	// dead rather than spending a round-trip to be told so. Zero when the
+	// issuer named no lifetime; the gateway's 401 then remains the signal.
+	ExpiresAt time.Time `json:"expiresAt,omitzero"`
 	// The issuer the session came from and the endpoints a renewal and a
 	// logout need — discovered once at login, so a verb never re-asks.
 	Issuer             string `json:"issuer"`

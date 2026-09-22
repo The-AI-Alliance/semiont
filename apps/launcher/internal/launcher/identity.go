@@ -105,20 +105,35 @@ var serviceClients = []string{"archivist", "dispatcher", "gateway", "librarian",
 // serviceClientID: the realm client id for one service's account.
 func serviceClientID(svc string) string { return "semiont-" + svc }
 
-// serviceRolesClaim renders the JSON `roles` array a service client's token
-// carries. Every service client gets serviceRole; the worker ALSO gets
-// workerRole (EXTRACT-JOBS P0), so a token it presents to /api/tokens/agent is
-// minted an agent token stamped with the worker capability, and the dispatcher
-// admits that agent's job:claim. A deployment running foreign workers grants
+// serviceRoles: the flat `roles` a service client's token carries. Every
+// service client gets serviceRole; the worker ALSO gets workerRole
+// (EXTRACT-JOBS P0), so a token it presents to /api/tokens/agent is minted an
+// agent token stamped with the worker capability, and the dispatcher admits
+// that agent's job:claim. A deployment running foreign workers grants
 // workerRole to their clients the same way.
-func serviceRolesClaim(svc string) string {
+//
+// The ONE statement of which client carries which role: the realm document
+// renders it (serviceRolesClaim), the preflight asks a minted token for every
+// entry, and `identity sync` reconciles an older realm's mapper to it.
+func serviceRoles(svc string) []string {
 	roles := []string{serviceRole}
 	if svc == "worker" {
 		roles = append(roles, workerRole)
 	}
-	b, _ := json.Marshal(roles)
+	return roles
+}
+
+// serviceRolesClaim: serviceRoles as the JSON array the hardcoded-claim mapper
+// stamps (jsonType JSON).
+func serviceRolesClaim(svc string) string {
+	b, _ := json.Marshal(serviceRoles(svc))
 	return string(b)
 }
+
+// serviceRoleMapperName: the roles mapper on every service client, under the
+// name the admin API lists it by — how `identity sync` finds it on a client
+// that already exists.
+const serviceRoleMapperName = "semiont service role"
 
 // serviceAccountClient: a confidential client that can obtain a token for
 // ITSELF (the client-credentials grant) and nothing else — no browser flow, no
@@ -154,7 +169,7 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 				},
 			},
 			{
-				"name":            "semiont service role",
+				"name":            serviceRoleMapperName,
 				"protocol":        "openid-connect",
 				"protocolMapper":  "oidc-hardcoded-claim-mapper",
 				"consentRequired": false,

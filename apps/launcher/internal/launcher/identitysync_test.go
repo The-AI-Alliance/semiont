@@ -28,6 +28,7 @@ type stubAdmin struct {
 	paths    []string
 	created  []map[string]any
 	updated  map[string]map[string]any // clientId -> the patch PUT to it
+	mappers  map[string]map[string]any // clientId -> the mapper PUT to /clients/<uuid>/protocol-mappers/models/<id>
 	realmCfg map[string]any            // realm-level settings this realm reports
 	badLogin bool
 }
@@ -44,7 +45,7 @@ func clientReps(ids ...string) []map[string]any {
 
 func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAdmin {
 	t.Helper()
-	s := &stubAdmin{updated: map[string]map[string]any{}, realmCfg: map[string]any{}}
+	s := &stubAdmin{updated: map[string]map[string]any{}, mappers: map[string]map[string]any{}, realmCfg: map[string]any{}}
 	mux := http.NewServeMux()
 	s.srv = httptest.NewServer(mux)
 	t.Cleanup(s.srv.Close)
@@ -106,6 +107,21 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 		s.mu.Lock()
 		s.paths = append(s.paths, r.Method+" "+r.URL.Path)
 		s.mu.Unlock()
+		// One mapper: /admin/realms/<realm>/clients/<uuid>/protocol-mappers/models/<id>.
+		// A sub-resource with its own endpoint — a client-level PUT does not
+		// reach it — so it is recorded apart from the client patches.
+		if strings.Contains(r.URL.Path, "/protocol-mappers/models/") && r.Method == http.MethodPut {
+			body, _ := io.ReadAll(r.Body)
+			var mapper map[string]any
+			_ = json.Unmarshal(body, &mapper)
+			rest := r.URL.Path[strings.LastIndex(r.URL.Path, "/clients/")+len("/clients/"):]
+			id := strings.TrimPrefix(rest[:strings.Index(rest, "/")], "uuid-")
+			s.mu.Lock()
+			s.mappers[id] = mapper
+			s.mu.Unlock()
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		// One client: /admin/realms/<realm>/clients/<uuid>
 		if strings.Contains(r.URL.Path, "/clients/") && r.Method == http.MethodPut {
 			body, _ := io.ReadAll(r.Body)
@@ -265,6 +281,80 @@ func allServiceClientReps() []map[string]any {
 	return out
 }
 
+// serviceClientRep: a service client as Keycloak LISTS it — protocol mappers
+// included, each with the id the admin API addresses it by. DERIVED from the
+// client the realm document renders, so a stub can never carry a mapper shape
+// the import would not; only `rolesValue`, what the roles mapper currently
+// stamps, is the stub's to choose — a realm imported before EXTRACT-JOBS P0
+// stamps just the service role on the worker too.
+func serviceClientRep(svc, rolesValue string) map[string]any {
+	mappers := []map[string]any{}
+	for _, m := range serviceAccountClient(svc, "unused", "unused")["protocolMappers"].([]map[string]any) {
+		rep := map[string]any{"id": "mapper-" + svc + "-" + strings.ReplaceAll(m["name"].(string), " ", "-")}
+		for k, v := range m {
+			rep[k] = v
+		}
+		if m["name"] == "semiont service role" {
+			cfg := map[string]string{}
+			for k, v := range m["config"].(map[string]string) {
+				cfg[k] = v
+			}
+			cfg["claim.value"] = rolesValue
+			rep["config"] = cfg
+		}
+		mappers = append(mappers, rep)
+	}
+	return map[string]any{"clientId": serviceClientID(svc), "protocolMappers": mappers}
+}
+
+// EXTRACT-JOBS P0 gave the worker a second role in its hardcoded roles mapper.
+// A realm imported before it holds that mapper with the OLD value; the
+// preflight refuses such a realm (TestPreflightRefusesAWorkerThatCannotClaim),
+// and this is the remedy that refusal names. The mapper is a sub-resource with
+// its own endpoint — a client-level PUT does not reach it.
+func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
+	stale, _ := json.Marshal([]string{serviceRole}) // what every client stamped before P0
+	reps := []map[string]any{}
+	for _, svc := range serviceClients {
+		value := serviceRolesClaim(svc)
+		if svc == "worker" {
+			value = string(stale)
+		}
+		reps = append(reps, serviceClientRep(svc, value))
+	}
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncServiceClients(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", secretForTest)
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	mapper, ok := s.mappers[serviceClientID("worker")]
+	if !ok {
+		t.Fatalf("the worker's stale roles mapper was left alone; mapper PUTs: %v", s.mappers)
+	}
+	cfg, _ := mapper["config"].(map[string]any)
+	if cfg["claim.value"] != serviceRolesClaim("worker") {
+		t.Errorf("claim.value = %v, want %s", cfg["claim.value"], serviceRolesClaim("worker"))
+	}
+	// PUT back as the mapper it already is — same id, same name: an update,
+	// not a second mapper stamping a second `roles` claim beside the first.
+	if mapper["id"] != "mapper-worker-semiont-service-role" || mapper["name"] != "semiont service role" {
+		t.Errorf("mapper identity changed: id=%v name=%v", mapper["id"], mapper["name"])
+	}
+	if len(s.mappers) != 1 {
+		t.Errorf("mapper PUTs = %v, want the worker's only — every other mapper was already correct", s.mappers)
+	}
+	if _, clientPut := s.updated[serviceClientID("worker")]; clientPut {
+		t.Error("the client itself was PUT; the mapper is a sub-resource the client-level PUT does not reach")
+	}
+	if len(rep.updated) != 1 || !strings.Contains(rep.updated[0], serviceClientID("worker")) {
+		t.Errorf("updated = %v, want one entry naming the worker", rep.updated)
+	}
+	if len(rep.created) != 0 {
+		t.Errorf("created = %v, want nothing — every client exists", rep.created)
+	}
+}
+
 // A realm imported before the portless loopback rule pins :3000, and
 // `--service browser --port N` then produces a stack nobody can sign in to.
 func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
@@ -341,7 +431,14 @@ func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 // The control: a correct realm is not written to at all. Without this, every
 // assertion above passes against a sync that PUTs unconditionally.
 func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
-	reps := append(allServiceClientReps(),
+	// The service clients carry their mappers, each stamping exactly what the
+	// realm document renders — so the roles-mapper reconcile is proven
+	// idempotent here too, not only the client-level fields.
+	reps := []map[string]any{}
+	for _, svc := range serviceClients {
+		reps = append(reps, serviceClientRep(svc, serviceRolesClaim(svc)))
+	}
+	reps = append(reps,
 		map[string]any{"clientId": browserClientID, "implicitFlowEnabled": false,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*", "http://10.0.0.5:3000/*"}},
 		map[string]any{"clientId": cliClientID, "implicitFlowEnabled": false})
@@ -354,6 +451,9 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 	}
 	if len(s.updated) != 0 {
 		t.Fatalf("a correct realm was written to: %v", s.updated)
+	}
+	if len(s.mappers) != 0 {
+		t.Fatalf("a correct realm's mappers were written to: %v", s.mappers)
 	}
 	if len(rep.created) != 0 || len(rep.updated) != 0 {
 		t.Fatalf("a correct realm reported changes: created=%v updated=%v", rep.created, rep.updated)

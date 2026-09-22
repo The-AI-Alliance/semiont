@@ -141,6 +141,26 @@ func checkServiceAccountClaims(svc string, claims map[string]any, audience strin
 		}
 		return serviceAccountFinding{svc: svc, reason: reason, fix: fix}, true
 	}
+	// Every further role the realm document stamps on THIS client — today the
+	// worker's, which the dispatcher admits a job:claim by. Derived from the
+	// function that renders the mapper, so a role added there is asked for here
+	// without a second list to forget. A realm imported before the role holds
+	// the mapper rendering only the service role: the worker authenticates and
+	// can never claim a job — a broken deployment, so a refusal, not a warning.
+	for _, role := range serviceRoles(svc) {
+		if role == serviceRole || flatRolesContain(claims["roles"], role) {
+			continue
+		}
+		reason := fmt.Sprintf("token's flat `roles` lacks %q, which the realm document stamps on this client", role)
+		if role == workerRole {
+			reason += " — this worker can never claim a job"
+		}
+		return serviceAccountFinding{
+			svc:    svc,
+			reason: reason,
+			fix:    fmt.Sprintf("the realm's hardcoded-claim mapper for this client does not render %q — a realm imported before that role", role),
+		}, true
+	}
 	if !audienceContains(claims["aud"], audience) {
 		return serviceAccountFinding{
 			svc:    svc,

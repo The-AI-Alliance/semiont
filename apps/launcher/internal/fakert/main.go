@@ -1605,6 +1605,13 @@ func serve(ports []string) {
 				// JSON `response` object for that operation's result.
 				// FAKERT_BUS_FAIL=<message>: reply on the failure channel.
 				if r.URL.Path == "/bus/emit" && r.Method == http.MethodPost {
+					// Bearer-gated like the real route: the session refresh
+					// a bus verb owes the user is only observable if an
+					// expired token is actually refused here.
+					if !bearerOK() {
+						w.WriteHeader(401)
+						return
+					}
 					var body struct {
 						Channel       string         `json:"channel"`
 						CorrelationID string         `json:"correlationId,omitempty"`
@@ -1667,6 +1674,10 @@ func serve(ports []string) {
 					return
 				}
 				if r.URL.Path == "/bus/subscribe" {
+					if !bearerOK() {
+						w.WriteHeader(401)
+						return
+					}
 					// POST subscription matrix (MULTI-RESOURCE-SCOPE); the GET
 					// query form is gone. Delivery here stays flat by channel —
 					// this fake never scope-gates, same as before.

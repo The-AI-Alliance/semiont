@@ -3,53 +3,176 @@ package launcher
 // session.go — the session lifecycle around login's stored tokens: the
 // invisible refresh (access tokens are short-lived; the stored refresh token
 // renews them at the issuer so login is a rare event, not an hourly chore),
-// and `semiont logout`.
+// the ONE renew-and-retry policy every verb's wire call runs under, and
+// `semiont logout`.
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"time"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
-// refreshSession trades the stored refresh token for a fresh access token at
-// the issuer and SAVES the rotation — the next command must start from the
-// new tokens, the refresh token included if the issuer rotated it.
-func refreshSession(u *ui, key string, e tokenEntry) (tokenEntry, bool) {
+// session is one stack's live credential: the stored tokens and the policy
+// that keeps them working. Every verb's wire call — bus or REST — runs under
+// authorized, so the renewal happens in one place. Before it did, only
+// `yield --upload` carried the retry, and every bus verb told the user to log
+// in again the moment a five-minute access token expired.
+type session struct {
+	u     *ui
+	key   string // token/stack key: "local" or "codespace:<repo>"
+	entry tokenEntry
+}
+
+// loadSession is the stored session for a stack key, or the refusal that says
+// how to get one.
+func loadSession(u *ui, key string) (*session, bool) {
+	e, have := loadTokens()[key]
+	if !have || e.Token == "" {
+		u.fail("No session for %s.", key)
+		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login")
+		return nil, false
+	}
+	return &session{u: u, key: key, entry: e}, true
+}
+
+// errNoRefreshToken: the stored session cannot be renewed — it carries no
+// refresh token, or no token endpoint to send one to.
+var errNoRefreshToken = errors.New("no refresh token is stored to renew it")
+
+// refresh trades the stored refresh token for a fresh access token at the
+// issuer and SAVES the rotation — the next command must start from the new
+// tokens, the refresh token included if the issuer rotated it.
+func (s *session) refresh() error {
+	e := s.entry
 	if e.RefreshToken == "" || e.TokenEndpoint == "" {
-		return e, false
+		return errNoRefreshToken
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	tr, err := refreshTokens(ctx, e.TokenEndpoint, e.RefreshToken)
 	if err != nil {
-		return e, false
+		return err
 	}
 	e.Token = tr.AccessToken
 	if tr.RefreshToken != "" {
 		e.RefreshToken = tr.RefreshToken
 	}
 	e.ObtainedAt = time.Now().UTC()
-	if err := saveToken(key, e); err != nil {
-		u.warn("Refreshed token could not be stored (%v) — it will work for this command only.", err)
+	e.ExpiresAt = expiresAt(e.ObtainedAt, tr.ExpiresIn)
+	s.entry = e
+	// Narrated on stderr, never stdout: a verb's `--json` reply piped to jq
+	// must stay one JSON document.
+	if err := saveToken(s.key, e); err != nil {
+		s.u.note("Refreshed token could not be stored (%v) — it will work for this command only.", err)
 	} else {
-		u.log("Session refreshed %s", u.dim("(access token renewed at the issuer from the stored refresh token)"))
+		s.u.note("Session refreshed %s", s.u.dim("(access token renewed at the issuer from the stored refresh token)"))
 	}
-	return e, true
+	return nil
 }
 
-// verbSession resolves what every knowledge verb needs: which stack, its
-// gateway base URL, and a live session token. One place, because nine verbs
-// asking the same three questions nine different ways is how they drift.
-// Refusals are printed here with their fix-it lines; ok=false means stop.
+// expiresAt turns the issuer's expires_in into a wall-clock deadline; zero
+// when the issuer named none.
+func expiresAt(from time.Time, expiresIn int) time.Time {
+	if expiresIn <= 0 {
+		return time.Time{}
+	}
+	return from.Add(time.Duration(expiresIn) * time.Second)
+}
+
+// expired: the store already knows the access token is past its lifetime. An
+// unknown lifetime is not expired — the gateway's 401 remains the signal.
+func (s *session) expired() bool {
+	return !s.entry.ExpiresAt.IsZero() && time.Now().After(s.entry.ExpiresAt)
+}
+
+// authorized runs one wire call under the session's access token and keeps
+// it authorized: a token the store knows is expired is renewed BEFORE the
+// call, and a call the gateway answers with 401 earns one renewal and one
+// retry under the renewed token. Never more than one renewal per call — a
+// second rejection is the gateway refusing the account, not a race — and
+// never a retry the renewal could not have helped.
+//
+// op receives the token to send and reports a 401 as a bus.StatusError; any
+// other error comes back as it is. A rejection comes back as a
+// *sessionRejected, which says whether a renewal was even possible.
+func (s *session) authorized(op func(token string) error) error {
+	attempted := false
+	var refreshErr error
+	if s.expired() {
+		attempted, refreshErr = true, s.refresh()
+	}
+	err := op(s.entry.Token)
+	if !unauthorized(err) {
+		return err
+	}
+	if !attempted {
+		if refreshErr = s.refresh(); refreshErr == nil {
+			if err = op(s.entry.Token); !unauthorized(err) {
+				return err
+			}
+		}
+	}
+	return &sessionRejected{refresh: refreshErr, cause: err}
+}
+
+// unauthorized: the gateway answered 401 to a call bearing the token.
+func unauthorized(err error) bool {
+	var se *bus.StatusError
+	return errors.As(err, &se) && se.Status == http.StatusUnauthorized
+}
+
+// sessionRejected: the gateway refused the token and the renewal could not
+// put that right. "Log in again" is the fix either way, but the words differ:
+// a renewal that SUCCEEDED and was still refused points at the gateway (the
+// account, not the session), and saying "could not renew" there would
+// contradict the refresh line just printed.
+type sessionRejected struct {
+	refresh error // why the renewal failed; nil when it succeeded and the renewed token was refused too
+	cause   error // the gateway's rejection
+}
+
+func (r *sessionRejected) Error() string {
+	switch {
+	case r.refresh == nil:
+		return "the session was rejected even after a successful refresh — the gateway no longer accepts this account's tokens"
+	case errors.Is(r.refresh, errNoRefreshToken):
+		return "the session was rejected, and " + r.refresh.Error()
+	default:
+		return "the session was rejected and the refresh token could not renew it (" + r.refresh.Error() + ")"
+	}
+}
+
+func (r *sessionRejected) Unwrap() error { return r.cause }
+
+// rejectedFail prints a rejected session in the launcher's voice with the one
+// fix that applies — the same line for every verb, whatever wire it spoke.
+func rejectedFail(u *ui, verb string, rej *sessionRejected) int {
+	u.fail("%s: %v.", verb, rej)
+	fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
+	return 1
+}
+
+// verbTarget is what every knowledge verb needs: which stack, its gateway
+// base URL, the KB root, and a session that keeps itself authorized. One
+// place, because nine verbs asking the same questions nine different ways is
+// how they drift. Refusals are printed here with their fix-it lines; ok=false
+// means stop.
 type verbTarget struct {
-	base  string // gateway base URL (local record, or a codespace's forward)
-	key   string // token/stack key: "local" or "codespace:<repo>"
-	token string
-	root  string // KB root, "" for a codespace target with no local clone
+	base string // gateway base URL (local record, or a codespace's forward)
+	root string // KB root, "" for a codespace target with no local clone
+	sess *session
+}
+
+// transport is the bus transport a verb talks through: the seam's client
+// under the session's renew-and-retry policy.
+func (t verbTarget) transport() bus.Transport {
+	return &sessionTransport{base: t.base, sess: t.sess}
 }
 
 func verbSession(u *ui, verb, repo string, wantLocal bool) (verbTarget, bool) {
@@ -59,9 +182,10 @@ func verbSession(u *ui, verb, repo string, wantLocal bool) (verbTarget, bool) {
 		return verbTarget{}, false
 	}
 	var t verbTarget
+	key := ""
 	if target != nil {
 		t.base = fmt.Sprintf("http://localhost:%d", target.ForwardPort)
-		t.key = "codespace:" + target.Repo
+		key = "codespace:" + target.Repo
 		t.root = cwdKBRoot()
 	} else {
 		local := ss.Stacks["local"]
@@ -71,19 +195,15 @@ func verbSession(u *ui, verb, repo string, wantLocal bool) (verbTarget, bool) {
 			return verbTarget{}, false
 		}
 		t.base = gatewayBase(local)
-		t.key = "local"
+		key = "local"
 		t.root = local.KBRoot
 		if t.root == "" {
 			t.root = cwdKBRoot()
 		}
 	}
-	e, have := loadTokens()[t.key]
-	if !have || e.Token == "" {
-		u.fail("No session for %s.", t.key)
-		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login")
+	if t.sess, ok = loadSession(u, key); !ok {
 		return verbTarget{}, false
 	}
-	t.token = e.Token
 	return t, true
 }
 

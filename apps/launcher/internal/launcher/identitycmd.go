@@ -17,16 +17,20 @@ import (
 const identityUsage = `Usage: semiont identity sync [--root <path>] [--config <name>]
 
 Reconcile a running realm against what this knowledge base needs: the
-service-account clients, the loopback redirect URIs that let the Browser move
-port, the implicit flow (off), and the access-token lifetime.
+service-account clients and the roles their tokens carry, the loopback
+redirect URIs that let the Browser move port, the implicit flow (off), and the
+access-token lifetime.
 
 A realm is imported on its FIRST boot and never again, so a deployment that
-predates a service simply does not have that service's client — and
-` + "`semiont start`" + ` refuses, correctly, rather than starting six processes
-that cannot authenticate. This adds what is missing.
+predates a service simply does not have that service's client — and one that
+predates a role still stamps the old roles on that client's token — and
+` + "`semiont start`" + ` refuses, correctly, rather than starting processes that
+cannot authenticate, or a worker that can never claim a job. This adds and
+updates what the import would have rendered.
 
-It reconciles CONFIGURATION ONLY. It creates clients and changes nothing else:
-no accounts are read, written or deleted, so it is safe to run against a realm
+It reconciles CONFIGURATION ONLY. It creates clients, updates an existing
+client's roles mapper, and changes nothing else: no secret is touched, and no
+accounts are read, written or deleted, so it is safe to run against a realm
 with real users. It is idempotent — run it again to confirm it worked.
 
 Needs Keycloak's bootstrap admin password, the same one ` + "`semiont start`" + `

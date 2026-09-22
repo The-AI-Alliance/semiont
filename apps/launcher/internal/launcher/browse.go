@@ -9,6 +9,7 @@ package launcher
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -203,7 +204,7 @@ func Browse(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 
 	// --browser is the one path in this file that SIGNALS instead of reading:
 	// a fire-and-forget emit, no correlation id, no reply, nothing rendered
@@ -358,28 +359,21 @@ func launchBrowser(u *ui, override string) (browserProbe, bool) {
 }
 
 // busFail turns a bus error into the launcher's voice: a rejection carries
-// the gateway's own message, a timeout says what went unanswered, and an
-// expired session points at login rather than leaving the user guessing.
+// the gateway's own message, a timeout says what went unanswered, and a
+// session the gateway refused and the issuer could not renew points at login
+// rather than leaving the user guessing.
 func busFail(u *ui, verb string, err error) int {
 	var re *bus.RequestError
+	var rej *sessionRejected
 	switch {
-	case asBusRequestError(err, &re):
+	case errors.As(err, &re):
 		u.fail("%s was rejected: %s", verb, re.Error())
-	case strings.Contains(err.Error(), "HTTP 401"):
-		u.fail("%s: the session was rejected.", verb)
-		fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
+	case errors.As(err, &rej):
+		return rejectedFail(u, verb, rej)
 	default:
 		u.fail("%s failed: %v", verb, err)
 	}
 	return 1
-}
-
-func asBusRequestError(err error, target **bus.RequestError) bool {
-	re, ok := err.(*bus.RequestError)
-	if ok {
-		*target = re
-	}
-	return ok
 }
 
 // renderBrowse prints the human table from the GENERATED reply type for each

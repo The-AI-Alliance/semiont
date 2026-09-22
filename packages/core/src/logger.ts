@@ -56,6 +56,10 @@ export interface Logger {
 export function errField(error: unknown): unknown {
   if (error instanceof Error) {
     return {
+      // Own enumerable fields first: an HTTP client's error carries the
+      // server's reply there (`status`, `data`) while its message is only the
+      // status text — without them a 422 logs as a bare "Unprocessable Entity".
+      ...error,
       name: error.name,
       message: error.message,
       stack: error.stack,

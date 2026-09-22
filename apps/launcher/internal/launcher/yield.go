@@ -10,8 +10,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"mime/multipart"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -212,10 +214,8 @@ func Yield(args []string) int {
 		}
 	}
 
-	tok, haveTok := loadTokens()[key]
-	if !haveTok || tok.Token == "" {
-		u.fail("No session for %s.", key)
-		fmt.Fprintln(os.Stderr, "  Log in first:  semiont login")
+	sess, ok := loadSession(u, key)
+	if !ok {
 		return 1
 	}
 
@@ -225,7 +225,7 @@ func Yield(args []string) int {
 		return 1
 	}
 	for _, up := range uploads {
-		if code := yieldOne(u, cli, key, &tok, root, up, name); code != 0 {
+		if code := yieldOne(u, cli, sess, root, up, name); code != 0 {
 			return code
 		}
 	}
@@ -235,10 +235,10 @@ func Yield(args []string) int {
 // yieldOne validates, builds the multipart per the spec's schema (name,
 // file, format, storageUri), and posts it. Fail-fast: the first refusal or
 // error stops the batch — partial silent success is how uploads get lost.
-// A 401 triggers ONE invisible refresh-and-retry (session.go) before the
-// login fix-it — access tokens live an hour; that must be plumbing, not
-// the user's problem.
-func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEntry, root, up, name string) int {
+// The post runs under the session's renew-and-retry policy (session.go), the
+// same one every bus verb's calls run under: an expired access token is
+// plumbing, not the user's problem.
+func yieldOne(u *ui, cli *semiont.ClientWithResponses, sess *session, root, up, name string) int {
 	abs := up
 	if !filepath.IsAbs(abs) {
 		if a, err := filepath.Abs(abs); err == nil {
@@ -292,41 +292,42 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, key string, tok *tokenEnt
 	}
 
 	body := buf.Bytes()
-	for attempt := 0; ; attempt++ {
+	var resp *semiont.PostResourcesResponse
+	err = sess.authorized(func(token string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		resp, err := cli.PostResourcesWithBodyWithResponse(ctx, w.FormDataContentType(),
-			bytes.NewReader(body), bearer(tok.Token))
-		cancel()
+		defer cancel()
+		r, err := cli.PostResourcesWithBodyWithResponse(ctx, w.FormDataContentType(),
+			bytes.NewReader(body), bearer(token))
 		if err != nil {
-			u.fail("Gateway unreachable: %v", err)
-			fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
-			return 1
+			return err
 		}
-		switch {
-		case resp.JSON202 != nil:
-			u.ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
-			return 0
-		case resp.JSON401 != nil:
-			if attempt == 0 {
-				if refreshed, ok := refreshSession(u, key, *tok); ok {
-					*tok = refreshed
-					continue
-				}
-				u.fail("Session rejected and the refresh token could not renew it.")
-			} else {
-				// The refresh SUCCEEDED — saying it "could not renew" here
-				// would contradict the Session-refreshed line just printed.
-				u.fail("Session rejected even after a successful refresh — the gateway no longer accepts this account's tokens.")
-			}
-			fmt.Fprintln(os.Stderr, "  Log in again:  semiont login")
-			return 1
-		case resp.JSON400 != nil:
-			u.fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
-			return 1
-		default:
-			u.fail("Upload of %s failed: HTTP %d.", up, resp.HTTPResponse.StatusCode)
-			return 1
+		if r.StatusCode() == http.StatusUnauthorized {
+			// The signal the bus client raises for the same answer, so the
+			// session's one policy reads both wires the same way.
+			return &bus.StatusError{Op: "POST /resources", Status: r.StatusCode()}
 		}
+		resp = r
+		return nil
+	})
+	var rej *sessionRejected
+	switch {
+	case errors.As(err, &rej):
+		return rejectedFail(u, "yield", rej)
+	case err != nil:
+		u.fail("Gateway unreachable: %v", err)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
+		return 1
+	}
+	switch {
+	case resp.JSON202 != nil:
+		u.ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
+		return 0
+	case resp.JSON400 != nil:
+		u.fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
+		return 1
+	default:
+		u.fail("Upload of %s failed: HTTP %d.", up, resp.StatusCode())
+		return 1
 	}
 }
 
@@ -360,7 +361,7 @@ Requires a session:  semiont login
 `
 
 func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOptions) int {
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 	ctx := context.Background()
 	resourceID := positional[0]
 
@@ -382,6 +383,11 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 		gathered = gc.Response
 	} else {
 		req := semiont.GatherResourceRequest{ResourceId: resourceID}
+		// Depth and maxResources are required by the schema. Left at Go's
+		// zero, the librarian asked Qdrant for `limit: 0` and every delegate
+		// died in this gather with a bare "Unprocessable Entity".
+		req.Options.Depth = gatherDefaultDepth
+		req.Options.MaxResources = gatherDefaultMaxResources
 		req.Options.IncludeContent = true
 		req.Options.IncludeSummary = true
 		reply, err := cli.Request(ctx, "gather:resource-requested", req, nil)

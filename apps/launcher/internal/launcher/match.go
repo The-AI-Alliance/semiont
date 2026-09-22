@@ -96,7 +96,7 @@ func Match(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 	ctx := context.Background()
 
 	// Step 1: the annotation's context (streaming operation).

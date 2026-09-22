@@ -23,8 +23,8 @@ Assemble context for an LLM: the resource with its neighbourhood, or the
 context surrounding one annotation.
 
 Options:
-  --depth <n>          Resource-graph traversal depth
-  --max-resources <n>  Cap on related resources (resource focus)
+  --depth <n>          Resource-graph traversal depth (default 2)
+  --max-resources <n>  Cap on related resources (resource focus; default 10)
   --context-window <n> Characters of text around the annotation (annotation focus)
   --no-content         Omit resource content (metadata only)
   --summary            Include summaries
@@ -36,11 +36,20 @@ Options:
 Requires a session:  semiont login
 `
 
+// Resource-gather values when the caller names none — the same ones the TS
+// SDK's gather.resource() applies. GatherResourceRequest requires both fields,
+// so a zero-valued struct puts depth 0 / maxResources 0 on the wire, and a
+// maxResources of 0 reaches Qdrant as `limit: 0`, which it refuses (422).
+const (
+	gatherDefaultDepth        = 2
+	gatherDefaultMaxResources = 10
+)
+
 func Gather(args []string) int {
 	u := newUI(false)
 	var positional []string
 	var repo string
-	depth, maxResources, contextWindow := 0, 0, 0
+	depth, maxResources, contextWindow := gatherDefaultDepth, gatherDefaultMaxResources, 0
 	noContent, summary, asJSON, wantLocal := false, false, false, false
 
 	for i := 0; i < len(args); i++ {
@@ -117,7 +126,7 @@ func Gather(args []string) int {
 	if !ok {
 		return 1
 	}
-	cli := newTransport(t.base, t.token)
+	cli := t.transport()
 
 	// The two gathers take DIFFERENT option sets — the resource variant
 	// traverses a graph, the annotation variant windows text around a mark.
