@@ -214,6 +214,72 @@ describe('a write that fulfils a job cites it, and its provenance is derived fro
       expect(a!.generator).toBeUndefined();
       expect(ids(a!.wasAttributedTo)).toEqual([PERSON]);
     });
+
+    it('refuses a multi-agent generator on mark:commit — derivation binds one generator to the executor', async () => {
+      await assigned({ holder: WORKER_AGENT, requester: PERSON });
+      const generator = [{ '@type': 'Software', '@id': WORKER_AGENT, name: 'gemma' }];
+      await commit({ _userId: WORKER_AGENT, _roles: [WORKER_ROLE], jobId: JOB }, [annotation('a1', { generator })]);
+
+      expect(failed).toHaveLength(1);
+      expect(failed[0]!.message).toMatch(/multi-agent/);
+      expect(store.markAddedIds()).toEqual([]);
+    });
+  });
+
+  describe('the assembled path (mark:create) refuses the same assertions', () => {
+    let createFailed: Array<{ message: string }>;
+
+    beforeEach(() => {
+      createFailed = [];
+      bus.on('mark:create-failed').subscribe((p) => { createFailed.push(p as { message: string }); });
+    });
+
+    const markCreate = async (fields: Record<string, unknown>, ann: Annotation = annotation('a1')) => {
+      bus.emit('mark:create', { resourceId: RID, annotation: ann, ...fields } as never, { correlationId: 'm1' });
+      await settle();
+    };
+
+    it('refuses an annotation that names its creator', async () => {
+      const creator = { '@type': 'Person', '@id': 'did:web:test:users:mallory', name: 'mallory' };
+      await markCreate({ _userId: PERSON }, annotation('a1', { creator }));
+
+      expect(createFailed).toHaveLength(1);
+      expect(createFailed[0]!.message).toMatch(/creator/);
+      expect(store.markAddedIds()).toEqual([]);
+    });
+
+    it('refuses a multi-agent generator', async () => {
+      const generator = [{ '@type': 'Software', '@id': WORKER_AGENT, name: 'gemma' }];
+      await markCreate({ _userId: WORKER_AGENT }, annotation('a1', { generator }));
+
+      expect(createFailed).toHaveLength(1);
+      expect(createFailed[0]!.message).toMatch(/multi-agent/);
+      expect(store.markAddedIds()).toEqual([]);
+    });
+
+    it('derives the emitter as creator, and as generator when the emitter is software', async () => {
+      await markCreate({ _userId: WORKER_AGENT });
+
+      expect(createFailed).toEqual([]);
+      const [a] = store.markAdded();
+      expect(a!.creator).toMatchObject({ '@type': 'Software', '@id': WORKER_AGENT });
+      expect(a!.generator).toMatchObject({ '@type': 'Software', '@id': WORKER_AGENT });
+      expect(ids(a!.wasAttributedTo)).toEqual([WORKER_AGENT]);
+    });
+  });
+
+  describe('job:assign is a gateway-stamped command like any other', () => {
+    it('records nothing when the stamp is missing — a programming error, surfaced as a pipeline error', async () => {
+      bus.emit('job:assign', {
+        jobId: JOB, jobType: 'highlight-annotation', resourceId: RID, holder: WORKER_AGENT, requester: PERSON,
+      } as never);
+      await settle();
+
+      expect(store.appended.find((e) => e.type === 'job:assigned')).toBeUndefined();
+      expect(silentLogger.error).toHaveBeenCalledWith('Stower pipeline error', expect.objectContaining({
+        error: expect.objectContaining({ message: expect.stringMatching(/_userId/) }),
+      }));
+    });
   });
 
   describe('a generated resource cites the job; its provenance is derived from the SOURCE resource\'s log', () => {
@@ -257,6 +323,24 @@ describe('a write that fulfils a job cites it, and its provenance is derived fro
       expect(e!.payload.creator).toMatchObject({ '@type': 'Person', '@id': PERSON });
       expect(e!.payload.generator).toMatchObject({ '@type': 'Software', '@id': WORKER_AGENT });
       expect(ids(e!.payload.wasAttributedTo)).toEqual([PERSON, WORKER_AGENT]);
+    });
+
+    it('refuses a WORKER_ROLE emitter that cites no job — the same rule as mark:commit', async () => {
+      await create({ _userId: WORKER_AGENT, _roles: [WORKER_ROLE], generatedFrom: { resourceId: SOURCE } });
+
+      expect(createFailed).toHaveLength(1);
+      expect(createFailed[0]!.message).toMatch(/jobId/);
+      expect(yieldCreated()).toBeUndefined();
+    });
+
+    it('refuses a multi-agent generator — derivation binds one generator to the executor', async () => {
+      await assignedOn(SOURCE, { holder: WORKER_AGENT, requester: PERSON });
+      const generator = [{ '@type': 'Software', '@id': WORKER_AGENT, name: 'gemma' }];
+      await create({ _userId: WORKER_AGENT, _roles: [WORKER_ROLE], jobId: JOB, generatedFrom: { resourceId: SOURCE }, generator });
+
+      expect(createFailed).toHaveLength(1);
+      expect(createFailed[0]!.message).toMatch(/multi-agent/);
+      expect(yieldCreated()).toBeUndefined();
     });
 
     it('refuses a create citing a job that does not name the source its job was assigned on', async () => {

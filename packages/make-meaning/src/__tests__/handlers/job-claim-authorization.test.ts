@@ -112,6 +112,29 @@ describe('registerJobCommandHandlers — job:claim authorization (EXTRACT-JOBS P
     });
   });
 
+  it('refuses to assign a job that names no resource — there is nowhere to record the assignment', async () => {
+    // Resolved BEFORE the reply: a job:claimed followed by a throw would send
+    // two contradictory answers to one claim.
+    jobQueue.claimNextJob.mockResolvedValueOnce({
+      job: { metadata: { id: 'job-homeless', type: 'generation', userId: REQUESTER }, params: {} },
+    });
+    const assigns: unknown[] = [];
+    eventBus.on('job:assign').subscribe((p) => { assigns.push(p); });
+
+    const outcome = await claim('cid-homeless', { types: ['generation'], _roles: [WORKER_ROLE] });
+
+    expect(outcome).toHaveProperty('failed');
+    expect((outcome as { failed: EventMap['job:claim-failed'] }).failed.message).toMatch(/names no resource/);
+    expect(assigns).toEqual([]);
+  });
+
+  it('refuses a claim the gateway did not stamp — no holder to record', async () => {
+    const outcome = await claim('cid-unstamped', { types: ['generation'], _roles: [WORKER_ROLE], _userId: undefined });
+
+    expect(outcome).toHaveProperty('failed');
+    expect((outcome as { failed: EventMap['job:claim-failed'] }).failed.message).toMatch(/_userId/);
+  });
+
   it('a worker claim that finds nothing pending is DECLINED on job:claim-failed — an empty queue is an answer, not an error', async () => {
     jobQueue.claimNextJob.mockResolvedValueOnce({ declined: 'none-available' });
     const outcome = await claim('cid-empty', { types: ['generation'], _roles: [WORKER_ROLE] });

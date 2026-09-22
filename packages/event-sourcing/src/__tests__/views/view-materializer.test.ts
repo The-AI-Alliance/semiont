@@ -1061,6 +1061,90 @@ describe('ViewMaterializer', () => {
     });
   });
 
+  describe('wasAttributedTo is copied from the event, never re-derived (VERIFIED-PROVENANCE P2)', () => {
+    // The Stower derives attribution at write time and carries it on the event.
+    // The event's emitter here is the WORKER, while the carried attribution
+    // names the requester too — a projection that re-derived from `userId`
+    // would drop the requester, so equality with the payload is the proof.
+    const REQUESTER = { '@type': 'Person' as const, '@id': 'did:web:test:users:alice', name: 'alice' };
+    const WORKER = { '@type': 'Software' as const, '@id': 'did:web:test:agents:ollama:gemma', name: 'ollama gemma', provider: 'ollama', model: 'gemma' };
+    const emitter = userId('did:web:test:agents:ollama:gemma');
+
+    it('yield:created carrying wasAttributedTo lands it on the resource verbatim', async () => {
+      const rid = resourceId('doc-attributed');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: emitter,
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Generated',
+            format: 'text/markdown' as const,
+            contentChecksum: 'chk1',
+            creator: REQUESTER,
+            generator: WORKER,
+            wasAttributedTo: [REQUESTER, WORKER],
+          },
+          metadata: createEventMetadata(1),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.wasAttributedTo).toEqual([REQUESTER, WORKER]);
+    });
+
+    it('yield:cloned carrying wasAttributedTo lands it on the resource verbatim', async () => {
+      const rid = resourceId('doc-clone-attributed');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:cloned',
+          timestamp: new Date().toISOString(),
+          userId: emitter,
+          resourceId: rid,
+          version: 1,
+          payload: {
+            name: 'Copy',
+            format: 'text/markdown' as const,
+            contentChecksum: 'chk1',
+            parentResourceId: 'doc-original',
+            creator: REQUESTER,
+            wasAttributedTo: [REQUESTER, WORKER],
+          },
+          metadata: createEventMetadata(1),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.wasAttributedTo).toEqual([REQUESTER, WORKER]);
+    });
+
+    it('an event that predates derivation is attributed to its emitter alone, by the one function', async () => {
+      const rid = resourceId('doc-legacy');
+      const events: any[] = [
+        {
+          id: 'event1',
+          type: 'yield:created',
+          timestamp: new Date().toISOString(),
+          userId: emitter,
+          resourceId: rid,
+          version: 1,
+          payload: { name: 'Old', format: 'text/plain' as const, contentChecksum: 'chk0' },
+          metadata: createEventMetadata(1),
+        },
+      ];
+
+      const view = await materializer.materialize(events, rid);
+
+      expect(view?.resource.wasAttributedTo).toEqual([expect.objectContaining({ '@type': 'Software', '@id': WORKER['@id'] })]);
+    });
+  });
+
   describe('storageUri lives on the representation (STORAGE-URI-ONE-HOME P1)', () => {
     // A storage URI names where bytes live, and bytes are a fact about a
     // rendition. The descriptor-level field is gone; the materializer writes
