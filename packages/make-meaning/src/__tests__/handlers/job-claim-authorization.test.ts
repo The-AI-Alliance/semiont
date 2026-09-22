@@ -139,20 +139,25 @@ describe('registerJobCommandHandlers — job:claim authorization (EXTRACT-JOBS P
     jobQueue.claimNextJob.mockResolvedValueOnce({ declined: 'none-available' });
     const outcome = await claim('cid-empty', { types: ['generation'], _roles: [WORKER_ROLE] });
     expect(outcome).toHaveProperty('failed');
-    expect((outcome as { failed: EventMap['job:claim-failed'] }).failed.message).toBe('No pending job of the requested types');
+    const failed = (outcome as { failed: EventMap['job:claim-failed'] }).failed;
+    expect(failed.message).toBe('No pending job of the requested types');
+    expect(failed.code, 'the one code a claim loop parks on').toBe('none-pending');
     expect(jobQueue.claimNextJob).toHaveBeenCalledWith(['generation']);
   });
 
   it('refuses a claim carrying no capabilities (a person) and never touches the queue', async () => {
     const outcome = await claim('cid-human', { types: ['generation'] });
     expect(outcome, 'a non-worker claim must be refused, not claimed').toHaveProperty('failed');
-    expect((outcome as { failed: EventMap['job:claim-failed'] }).failed.message).toMatch(/worker|not authorized/i);
+    const failed = (outcome as { failed: EventMap['job:claim-failed'] }).failed;
+    expect(failed.message).toMatch(/worker|not authorized/i);
+    expect(failed.code, 'a verdict the caller must branch on, not a string to match').toBe('unauthorized');
     expect(jobQueue.claimNextJob, 'the queue must not be consulted for an unauthorized claim').not.toHaveBeenCalled();
   });
 
   it('refuses a claim from a non-worker service — a sidecar has the service role, not the worker role', async () => {
     const outcome = await claim('cid-sidecar', { types: ['generation'], _roles: [SERVICE_ROLE] });
     expect(outcome, 'the service-role floor is not the worker discriminator').toHaveProperty('failed');
+    expect((outcome as { failed: EventMap['job:claim-failed'] }).failed.code).toBe('unauthorized');
     expect(jobQueue.claimNextJob).not.toHaveBeenCalled();
   });
 });

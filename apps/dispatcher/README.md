@@ -63,7 +63,10 @@ discriminator, so an archivist's or smelter's token is refused here exactly as a
 
 That is what makes the seam foreign-worker-shaped: admitting a worker that is not ours means
 granting its client the role at the issuer, and nothing in this service changes. A claim that
-finds nothing pending is declined on `job:claim-failed`, not an error.
+finds nothing pending is declined on `job:claim-failed`, not an error — and the two verdicts a
+worker's claim loop must tell apart travel as `CommandError.code`: `none-pending` (park until a
+wake-up) and `unauthorized` (this credential can never claim; stop, loudly). A refusal carrying
+neither is unclassified — a malformed record or a missing injection — and the consumer logs it.
 
 A realm imported before the role existed stamps only `semiont-service` on the worker's client;
 such a worker authenticates but can never claim. `semiont start` refuses that realm by name,

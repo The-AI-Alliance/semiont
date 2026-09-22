@@ -173,7 +173,7 @@ Two declarations make this work, and together they retire a whole bug class (a r
 - **The reply-shape standard.** Every reply is one of three shapes, all keyed by `correlationId`:
   - `{ correlationId, response: T }` — success with data → resolves to `T`.
   - `{ correlationId }` — success, no data → resolves to `void`.
-  - `{ correlationId } & CommandError` — failure → rejects with `BusRequestError(code: 'bus.rejected', ...)` per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
+  - `{ correlationId } & CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
 
   `busRequest` reads `e.response`, so **every reply handler must echo the request's `correlationId` and put its data under `response`** — a handler that doesn't echo the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 

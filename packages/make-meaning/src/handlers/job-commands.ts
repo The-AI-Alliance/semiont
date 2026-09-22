@@ -1,5 +1,5 @@
 import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams, hasWorkerRole } from '@semiont/core';
-import type { EventBus, Logger } from '@semiont/core';
+import type { CommandErrorCode, EventBus, Logger } from '@semiont/core';
 import type { JobQueue } from '@semiont/jobs';
 import type { ProjectionReads } from '../projection-reads-ask.js';
 import {
@@ -7,6 +7,21 @@ import {
   validateEntityTypes,
   entityTypesNotRegisteredMessage,
 } from '../views/projection-validators.js';
+
+/**
+ * A `job:claim` refusal the caller can BRANCH on. `code` rides the failure
+ * reply as `CommandError.code`. Only the two verdicts a worker's claim loop
+ * must tell apart carry one — not a worker (stop, loudly) and nothing pending
+ * (park until a wake-up). A refusal thrown as a plain Error stays unclassified
+ * on the wire, which is the honest shape for a malformed record or a missing
+ * injection: the consumer logs it and assumes nothing.
+ */
+class ClaimRefused extends Error {
+  constructor(readonly code: CommandErrorCode, message: string) {
+    super(message);
+    this.name = 'ClaimRefused';
+  }
+}
 
 export function registerJobCommandHandlers(
   eventBus: EventBus,
@@ -159,7 +174,7 @@ export function registerJobCommandHandlers(
       // identity — so admitting a foreign worker is a matter of granting it the
       // role, with no change here.
       if (!hasWorkerRole({ roles: _roles })) {
-        throw new Error('job:claim refused: the caller is not a worker for this knowledge base');
+        throw new ClaimRefused('unauthorized', 'job:claim refused: the caller is not a worker for this knowledge base');
       }
 
       // One atomic operation, by TYPE (JOB-QUEUE-DRIVER P0/P2): the
@@ -167,7 +182,7 @@ export function registerJobCommandHandlers(
       // job it can run rather than racing others for a specific id.
       const result = await jobQueue.claimNextJob(Array.isArray(types) ? types.filter((t): t is string => typeof t === 'string') : []);
       if ('declined' in result) {
-        throw new Error('No pending job of the requested types');
+        throw new ClaimRefused('none-pending', 'No pending job of the requested types');
       }
 
       // Resolved BEFORE the reply goes out: a throw after `job:claimed` would
@@ -198,7 +213,12 @@ export function registerJobCommandHandlers(
         requester: result.job.metadata.userId,
       });
     } catch (error) {
-      eventBus.emit('job:claim-failed', { message: (error as Error).message, }, { correlationId });
+      const message = (error as Error).message;
+      eventBus.emit(
+        'job:claim-failed',
+        error instanceof ClaimRefused ? { message, code: error.code } : { message },
+        { correlationId },
+      );
     }
   });
 
