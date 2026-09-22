@@ -42,7 +42,7 @@ import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
-import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid } from '@semiont/core';
+import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid, hasWorkerRole } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
@@ -146,6 +146,11 @@ export class Stower {
     }
     const uid = makeUserId(event._userId);
     try {
+      // Same rule as mark:commit: a worker-role emitter cites the job, or the
+      // create is refused rather than attributed to the model alone.
+      if (hasWorkerRole({ roles: event._roles }) && !event.jobId) {
+        throw new Error('yield:create refused: a worker-role emitter must cite the job it fulfils in `jobId`');
+      }
       const rId = resourceId(generateUuid());
 
       // Content is already on disk at storageUri (callers write before emitting).
@@ -402,6 +407,14 @@ export class Stower {
     const annotations = (event.annotations ?? []) as Annotation[];
     const rid = resourceId(event.resourceId);
     try {
+      // A worker's write cites the job it fulfils, or it is refused. "No job →
+      // self-initiated" is true for a person or an autonomous agent; for a
+      // worker that forgot the field it would silently attribute the person's
+      // request to the model. The gateway stamps `_roles` from the token, so
+      // this keys on a capability the emitter cannot forge.
+      if (hasWorkerRole({ roles: event._roles }) && !event.jobId) {
+        throw new Error('mark:commit refused: a worker-role emitter must cite the job it fulfils in `jobId`');
+      }
       const view = await this.stores.eventStore.viewStorage.get(rid);
       const present = new Set((view?.annotations.annotations ?? []).map((a) => String(a.id)));
 

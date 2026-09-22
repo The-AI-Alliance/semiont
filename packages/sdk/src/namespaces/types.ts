@@ -90,6 +90,13 @@ export interface CreateResourceInput {
   generationPrompt?: string;
   /** Agent(s) that generated the content (for AI-generated resources). */
   generator?: components['schemas']['Agent'] | components['schemas']['Agent'][];
+  /**
+   * The job this resource fulfils. A worker sets it from the job it holds;
+   * self-initiated creation leaves it absent. Who requested the resource is
+   * derived by the knowledge base from the cited job's events — this input
+   * never names a requester.
+   */
+  jobId?: string;
   isDraft?: boolean;
 }
 

@@ -3383,11 +3383,17 @@ type MarkAssistRequestEventOptionsTone string
 
 // MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch (JOB-RESTART-SAFETY P6). Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic (P3).
 type MarkCommitCommand struct {
+	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string `json:"_userId,omitempty"`
 
 	// Annotations The unit's annotations, already built with deterministic ids. Re-committing an identical batch is a no-op rather than a duplicate.
 	Annotations []Annotation `json:"annotations"`
+
+	// JobId The job this batch fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested these annotations from the cited job's own events — the emitter never says who the work was for.
+	JobId *string `json:"jobId,omitempty"`
 
 	// ResourceId Resource every annotation in this batch targets.
 	ResourceId string `json:"resourceId"`
@@ -4509,6 +4515,9 @@ type YieldCloneTokenRequest struct {
 
 // YieldCreateCommand Bus command to create a yielded resource in the knowledge base.
 type YieldCreateCommand struct {
+	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this resource fulfils in `jobId`; the Stower refuses the create otherwise.
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string   `json:"_userId,omitempty"`
 	ByteSize         int       `json:"byteSize"`
@@ -4524,9 +4533,12 @@ type YieldCreateCommand struct {
 	GenerationPrompt *string                       `json:"generationPrompt,omitempty"`
 	Generator        *YieldCreateCommand_Generator `json:"generator,omitempty"`
 	IsDraft          *bool                         `json:"isDraft,omitempty"`
-	Language         *string                       `json:"language,omitempty"`
-	Name             string                        `json:"name"`
-	NoGit            *bool                         `json:"noGit,omitempty"`
+
+	// JobId The job this resource fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested this resource from the cited job's own events — the emitter never says who the work was for.
+	JobId    *string `json:"jobId,omitempty"`
+	Language *string `json:"language,omitempty"`
+	Name     string  `json:"name"`
+	NoGit    *bool   `json:"noGit,omitempty"`
 
 	// StorageUri The caller's instruction for WHERE the bytes are — not a copy of the stored fact. The stored location lives on the resource's primary Representation (`Representation.storageUri`), which is its single home; this field is the message that puts it there. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri string `json:"storageUri"`

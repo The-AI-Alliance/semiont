@@ -163,13 +163,16 @@ async function commitAnnotations(
   session: SemiontSession,
   resourceId: string,
   annotations: readonly { readonly id: string }[],
+  jobId: string,
 ): Promise<DurabilityEvidence | undefined> {
   if (annotations.length === 0) return undefined;
   try {
     await busRequest(
       (session.client.transport as HttpTransport).actor,
       'mark:commit' satisfies MarkCommitAwaits,
-      { resourceId, annotations },
+      // The batch cites the job it fulfils. Who asked for these annotations is
+      // derived downstream from that job's own events; the worker never says.
+      { resourceId, annotations, jobId },
       MARK_COMMIT_TIMEOUT_MS,
     );
     return 'acknowledged';
@@ -599,7 +602,7 @@ async function handleJobInner(
    * re-runs that chunk into a log that dedupes it by id.
    */
   const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
-    record(await commitAnnotations(session, String(resourceId), annotations));
+    record(await commitAnnotations(session, String(resourceId), annotations, jobId));
     unitCursors.set(checkpoint.unit, checkpoint.cursor);
     // Published to the caller's accumulator as it moves: the failure path runs
     // OUTSIDE this function, so a cursor only this scope knows about would be
@@ -802,6 +805,9 @@ async function handleJobInner(
       ...(genParams.language ? { language: genParams.language } : {}),
       ...(genParams.entityTypes && genParams.entityTypes.length > 0 ? { entityTypes: genParams.entityTypes } : {}),
       generator,
+      // The resource cites the job it fulfils; who asked for it is derived
+      // downstream from that job's events, never stated here.
+      jobId,
     });
 
     // Resource-focus generation has no triggering reference — mint a navigable
@@ -818,7 +824,7 @@ async function handleJobInner(
         },
         generator,
       );
-      record(await commitAnnotations(session, String(resourceId), [provenanceRef]));
+      record(await commitAnnotations(session, String(resourceId), [provenanceRef], jobId));
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -891,7 +897,7 @@ async function handleJobInner(
       }
     }
 
-    record(await commitAnnotations(session, String(newResourceId), citationRefs));
+    record(await commitAnnotations(session, String(newResourceId), citationRefs, jobId));
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
