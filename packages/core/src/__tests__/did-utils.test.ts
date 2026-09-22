@@ -184,13 +184,17 @@ describe('@semiont/core - did-utils', () => {
   });
 
   describe('didToAgent', () => {
-    it('parses a Person DID', () => {
+    it('parses a Person DID — identified, and NOT named (PERSON-PROFILE)', () => {
+      // The subject is an opaque identifier. Naming a Person after it printed
+      // the raw subject on every artifact they authored, which is a value no
+      // reader can tell from a real name. What they are called is recorded
+      // once per change and resolved when a record is read.
       const agent = didToAgent('did:web:example.com:users:alice%40example.com');
       expect(agent).toEqual({
         '@type': 'Person',
         '@id': 'did:web:example.com:users:alice%40example.com',
-        name: 'alice@example.com',
       });
+      expect(agent).not.toHaveProperty('name');
     });
 
     it('parses a Person DID with a port in the host', () => {
@@ -198,7 +202,6 @@ describe('@semiont/core - did-utils', () => {
       expect(agent).toEqual({
         '@type': 'Person',
         '@id': 'did:web:subdomain.example.com:8080:users:carol%40example.com',
-        name: 'carol@example.com',
       });
     });
 
@@ -262,12 +265,13 @@ describe('@semiont/core - did-utils', () => {
   });
 
   describe('round-trip conversions', () => {
-    it('round-trips a Person: the subject is the only name the DID carries', () => {
+    it('round-trips a Person: the DID carries an identity and no name', () => {
+      // The round trip is of the IDENTITY. A name is a separate fact about
+      // it, and the DID is not where it lives.
       const did = userToDid({ subject: 'sub-alice', domain: 'example.com' });
       expect(didToAgent(did)).toEqual({
         '@type': 'Person',
         '@id': 'did:web:example.com:users:sub-alice',
-        name: 'sub-alice',
       });
     });
 

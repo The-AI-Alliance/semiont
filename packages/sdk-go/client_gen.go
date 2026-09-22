@@ -1447,8 +1447,8 @@ type AgentPerson struct {
 	EmailSha1 *string `json:"email_sha1,omitempty"`
 	Homepage  *string `json:"homepage,omitempty"`
 
-	// Name Display name
-	Name                 string                 `json:"name"`
+	// Name Display name. ABSENT until resolved: a Person is identified by `@id` and nothing else, and what they are called is recorded once per change on the knowledge base's own log and filled in when a record is read (PERSON-PROFILE). An artifact therefore never freezes a name, which is what lets a correction reach every artifact its subject ever wrote. Absent also means genuinely unknown — a DID this knowledge base has no profile for.
+	Name                 *string                `json:"name,omitempty"`
 	Nickname             *string                `json:"nickname,omitempty"`
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
@@ -3650,6 +3650,21 @@ type PdfTextItem struct {
 	Y     float32 `json:"y"`
 }
 
+// PersonProfileCommand Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.
+type PersonProfileCommand struct {
+	// UnderscoreUserId The person's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// Name The display name from the issuer's `name` claim, as verified on the token that carried this act. A token with no name produces no command at all — the issuer is where a name is set, and absence is recorded as absence.
+	Name string `json:"name"`
+}
+
+// PersonProfiledPayload Payload for person:profiled — what the knowledge base's issuer said this subject is called, recorded once per change (system-level, no resourceId). The event's `userId` is the person's DID; this payload is the fact about it. Provenance never reads it: every artifact joins on the DID alone, and this is projected into people.json for readers to resolve against. Two lines for one DID mean the name changed, and the timestamps say when — which is why no artifact ever had to freeze a copy.
+type PersonProfiledPayload struct {
+	// Name The display name as of this event, from the issuer's verified `name` claim.
+	Name string `json:"name"`
+}
+
 // ProtectedResourceMetadata OAuth 2.0 Protected Resource Metadata (RFC 9728): which authorization server this knowledge base trusts, served at /.well-known/oauth-protected-resource so a client — the Browser, an MCP client — learns where to send a user to sign in without configuration. A 401 from any protected route points here in its WWW-Authenticate challenge.
 type ProtectedResourceMetadata struct {
 	// AuthorizationServers Issuer identifiers whose tokens this resource accepts — the configured identity issuer.
@@ -4972,9 +4987,11 @@ func (a AgentPerson) MarshalJSON() ([]byte, error) {
 		}
 	}
 
-	object["name"], err = json.Marshal(a.Name)
-	if err != nil {
-		return nil, fmt.Errorf("error marshaling 'name': %w", err)
+	if a.Name != nil {
+		object["name"], err = json.Marshal(a.Name)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling 'name': %w", err)
+		}
 	}
 
 	if a.Nickname != nil {

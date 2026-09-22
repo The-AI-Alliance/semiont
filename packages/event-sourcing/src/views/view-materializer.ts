@@ -11,7 +11,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import { attribution, getPrimaryRepresentation } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { applyEntityTypeAdded, applyTagSchemaAdded } from './projection-reducers';
+import { applyEntityTypeAdded, applyPersonProfiled, applyTagSchemaAdded, type PeopleView } from './projection-reducers';
 
 type Representation = components['schemas']['Representation'];
 import type { Annotation } from '@semiont/core';
@@ -482,6 +482,11 @@ export class ViewMaterializer {
       } else if (event.type === 'frame:tag-schema-added') {
         const payload = event.payload as { schema: import('@semiont/core').TagSchema };
         await this.materializeTagSchemas(payload.schema);
+      } else if (event.type === 'person:profiled') {
+        // The event's own emitter is the subject; the payload is the fact
+        // about it. Replayed in log order, so the last line for a DID wins.
+        const payload = event.payload as { name: string };
+        await this.materializePeople(String(event.userId), payload.name, event.timestamp);
       }
     }
 
@@ -621,5 +626,37 @@ export class ViewMaterializer {
 
     await fs.mkdir(path.dirname(tagSchemasPath), { recursive: true });
     await fs.writeFile(tagSchemasPath, JSON.stringify(view, null, 2));
+  }
+
+  /**
+   * Materialize the people view — System-level view (PERSON-PROFILE).
+   *
+   * I/O shell around the pure {@link applyPersonProfiled} reducer, the same
+   * read-reduce-write as its two siblings. What it holds is who a DID belongs
+   * to, so that provenance can join on the DID alone and a reader can still
+   * see a name: the name is resolved when a record is READ and copied into no
+   * artifact, which is what lets a rename correct everything its subject ever
+   * wrote.
+   */
+  async materializePeople(did: string, name: string, since: string): Promise<void> {
+    const peoplePath = path.join(
+      this.config.basePath,
+      'projections',
+      '__system__',
+      'people.json'
+    );
+
+    let view = { people: {} as PeopleView };
+    try {
+      const content = await fs.readFile(peoplePath, 'utf-8');
+      view = JSON.parse(content);
+    } catch (error: any) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+
+    view.people = applyPersonProfiled(view.people ?? {}, did, name, since);
+
+    await fs.mkdir(path.dirname(peoplePath), { recursive: true });
+    await fs.writeFile(peoplePath, JSON.stringify(view, null, 2));
   }
 }

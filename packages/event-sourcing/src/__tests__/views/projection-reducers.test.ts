@@ -26,8 +26,15 @@ import * as fc from 'fast-check';
 import type { TagSchema } from '@semiont/core';
 import {
   applyEntityTypeAdded,
+  applyPersonProfiled,
   applyTagSchemaAdded,
 } from '../../views/projection-reducers';
+
+const ALICE = 'did:web:test:users:59523dd4-a0e3-4c1c-8c2d-7fcbe3d789dd';
+const BOB = 'did:web:test:users:8b1f0c22-77aa-4d31-9b0e-1c2d3e4f5a6b';
+const T1 = '2026-09-20T10:00:00.000Z';
+const T2 = '2026-09-21T10:00:00.000Z';
+const T3 = '2026-09-22T10:00:00.000Z';
 
 // Arbitraries used by the axiom tests. Kept narrow — short
 // alphanumeric strings keep counterexamples readable when fast-check
@@ -170,6 +177,45 @@ describe('applyTagSchemaAdded', () => {
 // load-bearing invariants of the projection-update semantics — break
 // any one and the projection-on-disk gets corrupt regardless of which
 // hand-rolled test you remembered to write.
+
+describe('applyPersonProfiled', () => {
+  it('records a name for a DID that had none', () => {
+    const next = applyPersonProfiled({}, ALICE, 'Adam Pingel', T1);
+    expect(next).toEqual({ [ALICE]: { name: 'Adam Pingel', since: T1 } });
+  });
+
+  it('LAST WINS, including a change back to an earlier name', () => {
+    // Set-union semantics would make the intermediate name permanent here.
+    // The projection must end where the log ends; the log keeps every line.
+    let view = applyPersonProfiled({}, ALICE, 'Adam Pingel', T1);
+    view = applyPersonProfiled(view, ALICE, 'A. Pingel', T2);
+    view = applyPersonProfiled(view, ALICE, 'Adam Pingel', T3);
+    expect(view[ALICE]).toEqual({ name: 'Adam Pingel', since: T3 });
+  });
+
+  it('is idempotent — a rebuild replaying the same event agrees with the append', () => {
+    const once = applyPersonProfiled({}, ALICE, 'Adam Pingel', T1);
+    const twice = applyPersonProfiled(once, ALICE, 'Adam Pingel', T1);
+    expect(twice).toEqual(once);
+  });
+
+  it('keeps subjects independent', () => {
+    let view = applyPersonProfiled({}, ALICE, 'Adam Pingel', T1);
+    view = applyPersonProfiled(view, BOB, 'Bo Barker', T2);
+    view = applyPersonProfiled(view, ALICE, 'A. Pingel', T3);
+    expect(view).toEqual({
+      [ALICE]: { name: 'A. Pingel', since: T3 },
+      [BOB]: { name: 'Bo Barker', since: T2 },
+    });
+  });
+
+  it('does not mutate the view it was given', () => {
+    const before = applyPersonProfiled({}, ALICE, 'Adam Pingel', T1);
+    const snapshot = JSON.parse(JSON.stringify(before));
+    applyPersonProfiled(before, ALICE, 'A. Pingel', T2);
+    expect(before).toEqual(snapshot);
+  });
+});
 
 describe('axioms — applyEntityTypeAdded (entity-type projection)', () => {
   // Folds a sequence of additions starting from the empty list. Many

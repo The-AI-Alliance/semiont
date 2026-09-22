@@ -29,6 +29,44 @@
 
 import type { TagSchema } from '@semiont/core';
 
+// ── People ───────────────────────────────────────────────
+
+/** What the people projection holds for one DID. */
+export interface PersonProfile {
+  /** The display name as of `since`, from the issuer's verified claim. */
+  name: string;
+  /**
+   * Timestamp of the `person:profiled` that set this name. Carried because
+   * without it "was this the name when that artifact was written?" needs a
+   * log scan — and being able to answer it from the projection is why no
+   * artifact has to freeze a copy of the name in the first place.
+   */
+  since: string;
+}
+
+/** DID → current profile. */
+export type PeopleView = Record<string, PersonProfile>;
+
+/**
+ * Apply a `person:profiled` event to the people projection.
+ *
+ * LAST WINS per DID, never set-union: a person who changes a name and then
+ * changes it back must end where the log ends, and a union would make the
+ * intermediate name permanent. The log keeps every line; this keeps the
+ * current one.
+ *
+ * Replaying the same event twice is a no-op, which is what makes a rebuild
+ * over the whole log agree with incremental appends.
+ */
+export function applyPersonProfiled(
+  current: Readonly<PeopleView>,
+  did: string,
+  name: string,
+  since: string,
+): PeopleView {
+  return { ...current, [did]: { name, since } };
+}
+
 // ── Entity types ──────────────────────────────────────────────────────
 
 /**

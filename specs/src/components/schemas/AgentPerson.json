@@ -14,7 +14,7 @@
     },
     "name": {
       "type": "string",
-      "description": "Display name"
+      "description": "Display name. ABSENT until resolved: a Person is identified by `@id` and nothing else, and what they are called is recorded once per change on the knowledge base's own log and filled in when a record is read (PERSON-PROFILE). An artifact therefore never freezes a name, which is what lets a correction reach every artifact its subject ever wrote. Absent also means genuinely unknown — a DID this knowledge base has no profile for."
     },
     "nickname": {
       "type": "string"
@@ -30,7 +30,6 @@
     }
   },
   "required": [
-    "@type",
-    "name"
+    "@type"
   ]
 }

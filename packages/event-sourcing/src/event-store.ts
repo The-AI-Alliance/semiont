@@ -92,10 +92,7 @@ export class EventStore {
     // 2. Update views
     await timed('materialize', async () => {
       if (resourceId === '__system__') {
-        await this.views.materializeSystem(
-          storedEvent.type,
-          storedEvent.payload
-        );
+        await this.views.materializeSystem(storedEvent);
       } else {
         await this.views.materializeResource(
           resourceId as ResourceId,

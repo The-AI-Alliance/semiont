@@ -240,6 +240,12 @@ const (
 	// payload: CommandError
 	FrameTagSchemaAddFailed Channel = "frame:tag-schema-add-failed"
 
+	// payload: StoredEvent(person:profiled) — not emittable
+	PersonProfiled Channel = "person:profiled"
+
+	// payload: PersonProfileCommand
+	PersonProfile Channel = "person:profile"
+
 	// payload: BindInitiateCommand
 	BindInitiate Channel = "bind:initiate"
 
@@ -616,6 +622,7 @@ var ChannelSchemas = map[Channel]string{
 	FrameAddTagSchema:                "FrameAddTagSchemaCommand",
 	FrameEntityTypeAddFailed:         "CommandError",
 	FrameTagSchemaAddFailed:          "CommandError",
+	PersonProfile:                    "PersonProfileCommand",
 	BindInitiate:                     "BindInitiateCommand",
 	BindUpdateBody:                   "BindUpdateBodyCommand",
 	BindBodyUpdated:                  "BindBodyUpdated",

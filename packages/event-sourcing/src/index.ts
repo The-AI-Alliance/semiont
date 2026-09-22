@@ -42,7 +42,10 @@ export { ViewMaterializer } from './views/view-materializer';
 export {
   applyEntityTypeAdded,
   applyTagSchemaAdded,
+  applyPersonProfiled,
   type ApplyTagSchemaAddedResult,
+  type PeopleView,
+  type PersonProfile,
 } from './views/projection-reducers';
 
 // Identifier utilities

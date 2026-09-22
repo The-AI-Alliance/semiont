@@ -76,6 +76,9 @@ export const STOWER_CHANNELS = [
   'yield:create', 'yield:clone-persist', 'yield:update', 'yield:mv',
   'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
   'frame:add-entity-type', 'frame:add-tag-schema',
+  // Gateway-emitted when a person ACTS, carrying the name it verified
+  // (PERSON-PROFILE D3). Declared, not bridged: no client consumes it.
+  'person:profile',
   'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
   'job:start', 'job:assign', 'job:complete', 'job:fail',
 ] as const satisfies readonly (keyof EventMap)[];
@@ -129,6 +132,7 @@ export class Stower {
       pipe('mark:unarchive', (e, cid) => this.handleMarkUnarchive(e, cid)),
       pipe('mark:update-entity-types', (e, cid) => this.handleUpdateEntityTypes(e, cid)),
       pipe('job:start', (e) => this.handleJobStart(e)),
+      pipe('person:profile', (e) => this.handlePersonProfile(e)),
       pipe('job:assign', (e) => this.handleJobAssign(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
@@ -728,6 +732,42 @@ export class Stower {
    * resource's log alone — nothing outside the record, and nothing the writer
    * asserted (VERIFIED-PROVENANCE D1).
    */
+  /**
+   * What the knowledge base's issuer says a person is called, recorded once
+   * per CHANGE rather than once per act (PERSON-PROFILE).
+   *
+   * The gateway emits this beside the `_userId` it stamps, so the name is as
+   * verified as the DID and never something an emitter asserted. Appending
+   * only on a difference is what keeps the log one line per name: the gateway
+   * re-emits once per token (they live 300 s) and once per replica, and every
+   * repeat lands here and stops.
+   *
+   * No artifact carries the result. Provenance joins on the DID alone; a
+   * reader resolves the name from the people projection when it reads the
+   * record, which is why a rename corrects every artifact its subject ever
+   * wrote instead of leaving the old name frozen in each one.
+   */
+  private async handlePersonProfile(event: EventMap['person:profile']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('person:profile missing _userId (gateway injection)');
+    }
+    // The system log, spelled as `bootstrap/entity-types.ts` spells it.
+    const events = await this.stores.eventStore.log.getEvents(resourceId('__system__'));
+    // The latest name recorded for this DID. `getEvents` is append-ordered,
+    // so the last match is current.
+    let current: string | undefined;
+    for (const e of events) {
+      if (e.type === 'person:profiled' && e.userId === event._userId) current = e.payload.name;
+    }
+    if (current === event.name) return;
+    await this.stores.eventStore.appendEvent({
+      type: 'person:profiled',
+      userId: makeUserId(event._userId),
+      version: 1,
+      payload: { name: event.name },
+    });
+  }
+
   private async handleJobAssign(event: EventMap['job:assign']): Promise<void> {
     if (!event._userId) {
       throw new Error('job:assign missing _userId (gateway injection)');

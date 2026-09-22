@@ -226,6 +226,19 @@ export type EventMap = {
   'frame:tag-schema-add-failed': components['schemas']['CommandError'];
 
   // ========================================================================
+  // PERSON FLOW — who a subject is. One line per NAME a person has had,
+  // system-level like the frame vocabulary. Never read by provenance: every
+  // artifact joins on the DID, and names are resolved from the projection
+  // when a record is READ (PERSON-PROFILE).
+  // ========================================================================
+
+  // Domain event (branded — system of record). System-level: no resourceId.
+  'person:profiled': StoredEvent<EventOfType<'person:profiled'>>;
+
+  // Command — gateway-emitted, never client-set.
+  'person:profile': components['schemas']['PersonProfileCommand'];
+
+  // ========================================================================
   // BIND FLOW — reference linking
   // ========================================================================
 
@@ -657,6 +670,8 @@ export const CHANNEL_SCHEMAS = {
   'frame:entity-type-add-failed':     'CommandError',
   'frame:tag-schema-add-ok':          null,
   'frame:tag-schema-add-failed':      'CommandError',
+  'person:profiled':                  null,
+  'person:profile':                   'PersonProfileCommand',
   'mark:select-comment':              'SelectionData',
   'mark:select-tag':                  'SelectionData',
   'mark:select-assessment':           'SelectionData',
