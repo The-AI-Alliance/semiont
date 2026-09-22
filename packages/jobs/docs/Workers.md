@@ -39,7 +39,9 @@ const adapter = startWorkerProcess({
 });
 ```
 
-`startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter subscribes to the SSE `job:queued` stream, claims jobs whose `jobType` is in `jobTypes`, and surfaces each claimed job on `activeJob$`. For every claimed job, `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
+`startWorkerProcess` creates a `JobClaimAdapter` over the session's transport actor. The adapter **pulls**: it asks the dispatcher for the next job of `jobTypes` at every moment it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect — and parks when told nothing is pending. It surfaces each claimed job on `activeJob$`, and for every one `startWorkerProcess` calls `handleJob → handleJobInner`, which does the actual fetch / process / emit.
+
+A claim the dispatcher refuses for any reason other than an empty queue arrives on `refused$`. `bus.unauthorized` means this credential can never claim — the shipped worker exits on it so the operator sees why, rather than parking forever.
 
 ## Built-in Job Types
 
@@ -221,10 +223,10 @@ Finally, add `'summary-annotation'` to `ALL_JOB_TYPES` in `src/worker-main.ts` s
 
 ## Lifecycle and Failure Handling
 
-You don't write a polling loop. `startWorkerProcess` owns it:
+You write no claim loop. `startWorkerProcess` owns it:
 
 ```
-job:queued (SSE)  →  JobClaimAdapter claims a matching job
+idle (start · settle · wake-up · reconnect)  →  JobClaimAdapter claims by type
   ↓
 activeJob$ emits  →  handleJob → handleJobInner
   ↓
@@ -242,7 +244,7 @@ emit job:fail  →  adapter.failJob(jobId, message)
 
 The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
-On the gateway, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, non-throttle 4xx), in which case it lands in `failed/` immediately rather than paying for a retry that cannot succeed. The event's `completedUnits` checkpoint is unioned into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing for 30 minutes is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
+At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, non-throttle 4xx), in which case it lands in `failed/` immediately rather than paying for a retry that cannot succeed. The event's `completedUnits` checkpoint is unioned into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing for 30 minutes is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
 
 ## Reporting Progress
 

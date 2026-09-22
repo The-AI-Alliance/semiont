@@ -93,7 +93,7 @@ await queue.initialize();
 **What `initialize()` does:**
 - Creates status directories (`pending/`, `running/`, etc.)
 - Announces any existing pending jobs on `job:queued` (restart catch-up)
-- Starts a 30-second maintenance tick: re-announces all pending jobs and recovers stale running jobs (no heartbeat for 30 minutes → retry-or-fail)
+- Starts a 30-second maintenance tick with two independent jobs: recovering stale running jobs (no heartbeat for 30 minutes → retry-or-fail), and re-announcing pending jobs as the lost-wake-up insurance described under [Dispatch](#dispatch-workers-pull-announcements-wake)
 - Starts an hourly retention sweep: terminal jobs older than 24 hours are deleted
 - Idempotent (safe to call multiple times)
 
@@ -247,23 +247,25 @@ interface JobQueryFilters {
 - Results sorted by creation time (newest first)
 - Pagination via `limit` and `offset`
 
-## Job Announcement and Catch-up
+## Dispatch: workers pull, announcements wake
 
-Workers never poll the queue. The queue *announces* pending jobs on the EventBus `job:queued` channel, and workers claim them over the bus (`job:claim`), which the gateway's claim handler serves via `getJob` + `updateJob`.
+**A worker asks the queue whenever it becomes idle** — at start, after every job settles, on a matching `job:queued` while it is parked, and on reconnect — and never otherwise. It asks with `job:claim` carrying the types it runs, and the dispatcher answers with the next pending job of those types, atomically claimed, or declines. Queue state is the truth; no message carries correctness.
+
+`job:queued` is a **wake-up with no memory**, not a reservation. A worker that is busy when one fires ignores it, because the pull at settle will find the job anyway.
 
 A pending job is announced:
 
 - **On creation** — `createJob()` emits `job:queued` immediately
 - **On retry** — `updateJob()` re-announces a job moved back to `pending`
-- **On startup** — `initialize()` announces every job already in `pending/` (restart recovery)
-- **Every 30 seconds** — an interval re-announces all pending jobs, so a job whose announcement found no idle eligible worker (all busy, worker offline or mid-reconnect) is claimed as soon as a worker frees up
+- **On startup** — `initialize()` announces every job already in `pending/` (a wake-up for any worker already parked)
+- **Every 30 seconds** — the maintenance tick re-announces pending jobs. This is **insurance, not dispatch**: a job created while every worker was busy is claimed at the next settle without it. What it covers is the one case pull cannot — a wake-up *lost in transit* to an idle worker, which has nothing to settle and so nothing to pull on. On a healthy stack it never acts.
 
 **Concurrency:**
-- Duplicate announcements are harmless: a claim for a job that has already moved to `running` fails with "Job already claimed", so two workers cannot win the same job
+- Duplicate announcements are harmless: a claim is by type and atomic in the queue, so an idle worker that hears one simply asks and is told nothing is pending
 
 ## Job Lifecycle Sync
 
-The queue exposes transition methods that the gateway's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle events:
+The queue exposes transition methods that the dispatcher's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle events:
 
 ### `completeJob(jobId, result): Promise<boolean>`
 
