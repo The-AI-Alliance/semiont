@@ -29,11 +29,22 @@ if (!validate) throw new Error('ServicesConfig definition not found in config.sc
 const VECTORS = { type: 'qdrant', host: 'localhost', port: 6333 };
 const EMBEDDING = { type: 'ollama', model: 'nomic-embed-text' };
 
-const IDENTITY = { type: 'keycloak', issuer: 'http://localhost:8080/realms/semiont' };
+const IDENTITY = { type: 'keycloak', issuer: 'http://localhost:8080/realms/semiont', subjectClaim: 'sub' };
 
 describe('config schema — vectors, embedding and identity are mandatory, explicitly (D0+D1)', () => {
   it('a services section naming both validates', () => {
     expect(validate({ vectors: VECTORS, embedding: EMBEDDING, identity: IDENTITY })).toBe(true);
+  });
+
+  // VERIFIED-PROVENANCE P5: the issuer claim a person's DID is built from is
+  // declared in config, never defaulted by code.
+  it('an identity section naming no subjectClaim fails validation, naming it', () => {
+    const { subjectClaim: _omitted, ...withoutSubjectClaim } = IDENTITY;
+    expect(validate({ vectors: VECTORS, embedding: EMBEDDING, identity: withoutSubjectClaim })).toBe(false);
+    const missing = (validate.errors ?? [])
+      .filter((e) => e.keyword === 'required')
+      .map((e) => (e.params as { missingProperty?: string }).missingProperty);
+    expect(missing).toContain('subjectClaim');
   });
 
   it('memory is a first-class named store choice, not a fallback', () => {

@@ -4,11 +4,14 @@
  * DID:WEB shapes used in Semiont:
  *
  *   Knowledge base: did:web:<domain>
- *   Person:         did:web:<domain>:users:<email%40host>
+ *   Person:         did:web:<domain>:users:<subject>
  *   Software:       did:web:<domain>:agents:<provider>:<model>
  *
- * `<domain>` is the KB's committed `[site] domain` — one identity, with its
- * people and software peers named beneath it.
+ * `<domain>` is the deployment's `[site] domain` — one identity, with its
+ * people and software peers named beneath it. A person's `<subject>` is the
+ * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded
+ * (VERIFIED-PROVENANCE P5): which claim is declared per deployment, never
+ * inferred here, and the person's email is a fact about them, not their name.
  *
  * `didToAgent` is the inverse: parse the DID, recognize whether the
  * subject is a person or a software peer, and return a typed Agent.
@@ -67,12 +70,12 @@ export function kbResource(domain: string): string {
 }
 
 /**
- * Convert a user object to a DID:WEB identifier.
+ * A person's DID:WEB identifier from the subject the issuer asserted.
  *
- * Format: did:web:<domain>:users:<email%40domain>
+ * Format: did:web:<domain>:users:<subject, URI-encoded>
  */
-export function userToDid(user: { email: string; domain: string }): UserId {
-  return `did:web:${user.domain}:users:${encodeURIComponent(user.email)}` as UserId;
+export function userToDid(user: { subject: string; domain: string }): UserId {
+  return `did:web:${user.domain}:users:${encodeURIComponent(user.subject)}` as UserId;
 }
 
 /**
@@ -88,22 +91,6 @@ export function userToDid(user: { email: string; domain: string }): UserId {
  */
 export function agentToDid(agent: { domain: string; provider: string; model: string }): UserId {
   return `did:web:${agent.domain}:agents:${encodeURIComponent(agent.provider)}:${encodeURIComponent(agent.model)}` as UserId;
-}
-
-/**
- * Convert a user object to a typed Person Agent with a DID:WEB identifier.
- */
-export function userToAgent(user: {
-  id: string;
-  domain: string;
-  name: string | null;
-  email: string;
-}): Agent {
-  return {
-    '@type': 'Person',
-    '@id': userToDid(user),
-    name: user.name || user.email,
-  };
 }
 
 /**
@@ -131,7 +118,7 @@ export function softwareToAgent(software: {
  * Parse a DID:WEB string into a typed Agent.
  *
  * Recognizes:
- *   did:web:<host>:users:<email>           → Person  (name = decoded email)
+ *   did:web:<host>:users:<subject>         → Person  (name = decoded subject)
  *   did:web:<host>:agents:<provider>:<model> → Software (provider + model)
  *
  * Anything else falls back to a Person with the trailing segment as

@@ -28,7 +28,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
-  configureTrustedIssuer({ type: 'oidc', issuer: ISSUER }, RESOURCE);
+  configureTrustedIssuer({ type: 'oidc', issuer: ISSUER, subjectClaim: 'sub' }, { audience: RESOURCE, domain: 'test.local' });
 });
 
 describe('GET /.well-known/oauth-protected-resource', () => {

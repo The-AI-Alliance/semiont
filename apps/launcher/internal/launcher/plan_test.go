@@ -67,6 +67,7 @@ baseURL = "http://${OLLAMA_HOST}:11434"
 		"identity": `[environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"
 `,
 		"inference": `[environments.local.inference.anthropic]
 platform = "external"

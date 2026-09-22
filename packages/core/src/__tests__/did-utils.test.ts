@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid, kbResource, attribution } from '../did-utils';
+import { userToDid, didToAgent, agentToDid, softwareToAgent, kbDid, kbResource, attribution } from '../did-utils';
 
 import { validators } from '../openapi';
 
@@ -106,22 +106,23 @@ describe('didToAgent never emits a non-URI @id (2026-09-09)', () => {
 });
 
 describe('@semiont/core - did-utils', () => {
+  // VERIFIED-PROVENANCE P5: a person is named by the subject the issuer
+  // asserted — the value of the claim `[identity] subjectClaim` selects —
+  // under the DEPLOYMENT's domain. Which claim is not this function's concern;
+  // it names whatever subject it is given.
   describe('userToDid', () => {
-    it('should convert user to DID:WEB format using email', () => {
-      const did = userToDid({ email: 'alice@example.com', domain: 'example.com' });
-      expect(did).toBe('did:web:example.com:users:alice%40example.com');
+    it('names a person by subject under the deployment domain', () => {
+      expect(userToDid({ subject: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', domain: 'example.github.io:my-kb' }))
+        .toBe('did:web:example.github.io:my-kb:users:f47ac10b-58cc-4372-a567-0e02b2c3d479');
     });
 
-    it('should handle different domains', () => {
-      expect(userToDid({ email: 'bob@semiont.app', domain: 'api.semiont.app' }))
-        .toBe('did:web:api.semiont.app:users:bob%40semiont.app');
-      expect(userToDid({ email: 'carol@example.com', domain: 'localhost:3000' }))
-        .toBe('did:web:localhost:3000:users:carol%40example.com');
+    it('URI-encodes the subject — a deployment that names people by email encodes the @', () => {
+      expect(userToDid({ subject: 'user+tag@example.org', domain: 'example.org' }))
+        .toBe('did:web:example.org:users:user%2Btag%40example.org');
     });
 
-    it('should URI-encode the email', () => {
-      const did = userToDid({ email: 'user+tag@example.org', domain: 'example.org' });
-      expect(did).toBe('did:web:example.org:users:user%2Btag%40example.org');
+    it('takes the domain verbatim — a port or a colon path is the did:web form already', () => {
+      expect(userToDid({ subject: 'carol', domain: 'localhost:3000' })).toBe('did:web:localhost:3000:users:carol');
     });
   });
 
@@ -139,46 +140,6 @@ describe('@semiont/core - did-utils', () => {
     it('encodes the provider too', () => {
       const did = agentToDid({ domain: 'example.com', provider: 'an/thropic', model: 'claude' });
       expect(did).toBe('did:web:example.com:agents:an%2Fthropic:claude');
-    });
-  });
-
-  describe('userToAgent', () => {
-    it('returns a typed Person Agent', () => {
-      const agent = userToAgent({
-        id: 'alice123',
-        domain: 'example.com',
-        name: 'Alice Smith',
-        email: 'alice@example.com',
-      });
-
-      expect(agent).toEqual({
-        '@type': 'Person',
-        '@id': 'did:web:example.com:users:alice%40example.com',
-        name: 'Alice Smith',
-      });
-    });
-
-    it('falls back to email when name is null', () => {
-      const agent = userToAgent({
-        id: 'bob456',
-        domain: 'example.com',
-        name: null,
-        email: 'bob@example.com',
-      });
-
-      expect(agent.name).toBe('bob@example.com');
-      expect(agent['@type']).toBe('Person');
-    });
-
-    it('falls back to email when name is empty string', () => {
-      const agent = userToAgent({
-        id: 'carol789',
-        domain: 'example.com',
-        name: '',
-        email: 'carol@example.com',
-      });
-
-      expect(agent.name).toBe('carol@example.com');
     });
   });
 
@@ -301,21 +262,13 @@ describe('@semiont/core - did-utils', () => {
   });
 
   describe('round-trip conversions', () => {
-    it('round-trips a Person', () => {
-      const user = {
-        id: 'alice123',
-        domain: 'example.com',
-        name: 'Alice Smith',
-        email: 'alice@example.com',
-      };
-
-      const did = userToDid(user);
-      const agentFromDid = didToAgent(did);
-      const agentFromUser = userToAgent(user);
-
-      expect(agentFromDid['@id']).toBe(agentFromUser['@id']);
-      expect(agentFromDid['@type']).toBe(agentFromUser['@type']);
-      expect(agentFromDid.name).toBe('alice@example.com');
+    it('round-trips a Person: the subject is the only name the DID carries', () => {
+      const did = userToDid({ subject: 'sub-alice', domain: 'example.com' });
+      expect(didToAgent(did)).toEqual({
+        '@type': 'Person',
+        '@id': 'did:web:example.com:users:sub-alice',
+        name: 'sub-alice',
+      });
     });
 
     it('round-trips a Software peer', () => {

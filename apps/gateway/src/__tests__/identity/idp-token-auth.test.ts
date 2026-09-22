@@ -1,9 +1,11 @@
 /**
  * The gateway as an OIDC resource server (EXTERNAL-IDENTITY P4): a token the
- * trusted issuer signed for this audience authenticates, its subject is
- * provisioned as a User on first sight, and everything else — wrong audience,
- * another issuer, an inactive user — is a 401. Gateway-signed agent tokens
- * still authenticate: dispatch is by `iss`, not by algorithm.
+ * trusted issuer signed for this audience authenticates, and everything else —
+ * wrong audience, another issuer, a missing claim — is a 401. Nothing is
+ * provisioned: the person is NAMED, by the issuer claim `[identity]
+ * subjectClaim` selects, under the deployment's domain (VERIFIED-PROVENANCE
+ * P5) — the same authority its software agents are minted under. Gateway-signed
+ * agent tokens still authenticate: dispatch is by `iss`, not by algorithm.
  */
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
@@ -19,7 +21,7 @@ import { JWTService } from '../../auth/jwt';
 import { configureTrustedIssuer } from '../../identity/trusted-issuer';
 import { fixtureIssuer, type FixtureIssuer } from '../fixtures/issuer';
 import type { Principal } from '../../identity/principal';
-import { email as makeEmail, userId } from '@semiont/core';
+import { email as makeEmail, userId, isObject, isString } from '@semiont/core';
 
 
 const ORIGIN = 'https://issuer.test';
@@ -47,11 +49,21 @@ beforeAll(() => {
 
 beforeEach(async () => {
   issuer = await fixtureIssuer(ORIGIN, { audience: AUDIENCE });
-  configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN }, AUDIENCE);
+  configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN, subjectClaim: 'sub' }, { audience: AUDIENCE, domain: SITE_DOMAIN });
 });
 
 async function me(token: string) {
   return app.request('/api/users/me', { headers: { Authorization: `Bearer ${token}` } });
+}
+
+/** The two facts the naming tests compare, off a 200 body. */
+async function whoami(token: string): Promise<{ did: string; email: string }> {
+  const res = await me(token);
+  const body: unknown = await res.json();
+  if (res.status !== 200 || !isObject(body) || !isString(body.did) || !isString(body.email)) {
+    throw new Error(`not a principal (${res.status}): ${JSON.stringify(body)}`);
+  }
+  return { did: body.did, email: body.email };
 }
 
 describe('a token from the trusted issuer', () => {
@@ -60,16 +72,27 @@ describe('a token from the trusted issuer', () => {
    * carries, so a subject the gateway has never seen authenticates exactly as
    * one it has — there is no first-sight write, and no row to find or link.
    */
-  it('authenticates a subject it has never seen, writing nothing', async () => {
+  it('authenticates a subject it has never seen, naming it by the configured claim under the deployment domain', async () => {
     const res = await me(await issuer.token({ claims: ALICE }));
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({
-      did: userId(`did:web:example.com:users:${encodeURIComponent('alice@example.com')}`),
+      // `sub` under test.local — the email's domain (example.com) plays no part.
+      did: userId(`did:web:${SITE_DOMAIN}:users:sub-alice`),
       email: 'alice@example.com',
       name: 'Alice',
-      domain: 'example.com',
+      domain: SITE_DOMAIN,
     });
+  });
+
+  it('keeps the DID when the email changes: the subject is the identity, the email a fact about it', async () => {
+    const before = await whoami(await issuer.token({ claims: ALICE }));
+    const after = await whoami(await issuer.token({
+      claims: { ...ALICE, email: 'alice@new-employer.example' },
+    }));
+
+    expect(after.did).toBe(before.did);
+    expect(after.email).toBe('alice@new-employer.example');
   });
 
   it('answers identically on a second presentation of the same subject', async () => {
@@ -117,6 +140,17 @@ describe('a token that must not authenticate', () => {
 
   it('carries no email claim', async () => {
     const res = await me(await issuer.token({ claims: { sub: 'sub-nobody' } }));
+
+    expect(res.status).toBe(401);
+  });
+
+  it('carries no value for the claim this deployment names its people by', async () => {
+    configureTrustedIssuer(
+      { type: 'oidc', issuer: ORIGIN, subjectClaim: 'preferred_username' },
+      { audience: AUDIENCE, domain: SITE_DOMAIN },
+    );
+
+    const res = await me(await issuer.token({ claims: ALICE }));
 
     expect(res.status).toBe(401);
   });

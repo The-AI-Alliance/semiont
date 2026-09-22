@@ -1,7 +1,28 @@
 import type { EnvironmentConfig } from '@semiont/core';
 import { IssuerVerifier } from '@semiont/core/identity';
 
+/**
+ * How a person the issuer vouched for is named (VERIFIED-PROVENANCE P5):
+ * `did:web:<domain>:users:<the value of subjectClaim>`.
+ */
+export interface PersonNaming {
+  /**
+   * The issuer claim the DID's subject segment is read from — `[identity]
+   * subjectClaim`. Declared per deployment, never defaulted: `"sub"` names
+   * people by the issuer's stable identifier, `"email"` by their address, and
+   * the operator has said which.
+   */
+  subjectClaim: string;
+  /**
+   * The DID authority: the deployment's `[site] domain`, the same one its
+   * software agents are minted under, so a person and the software working
+   * for them are peers beneath one did:web.
+   */
+  domain: string;
+}
+
 let verifier: IssuerVerifier | undefined;
+let naming: PersonNaming | undefined;
 
 /**
  * The issuer the gateway trusts for human tokens — `services.identity`,
@@ -24,12 +45,17 @@ let verifier: IssuerVerifier | undefined;
  * `resource` — they are one string from one object, because two copies of a
  * resource identifier is exactly how every token comes to be refused by a
  * deployment that looks correct.
+ *
+ * `domain` is the deployment's `[site] domain`, resolved in that same block —
+ * the authority people are named under, and the one `JWTService` mints agents
+ * under. One resolved value feeds both, so the two cannot disagree.
  */
 export function configureTrustedIssuer(
   identity: NonNullable<EnvironmentConfig['services']['identity']>,
-  audience: string,
+  kb: { audience: string; domain: string },
 ): void {
-  verifier = new IssuerVerifier({ issuer: identity.issuer, audience });
+  verifier = new IssuerVerifier({ issuer: identity.issuer, audience: kb.audience });
+  naming = { subjectClaim: identity.subjectClaim, domain: kb.domain };
 }
 
 /**
@@ -41,4 +67,12 @@ export function trustedIssuer(): IssuerVerifier {
     throw new Error('trustedIssuer() called before configureTrustedIssuer() — the gateway must configure its issuer at startup');
   }
   return verifier;
+}
+
+/** Same contract as `trustedIssuer`: set by the one configure call, or a programming error. */
+export function personNaming(): PersonNaming {
+  if (!naming) {
+    throw new Error('personNaming() called before configureTrustedIssuer() — the gateway must configure its issuer at startup');
+  }
+  return naming;
 }

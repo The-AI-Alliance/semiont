@@ -36,6 +36,7 @@ const IDENTITY_LOCAL = `
 [environments.local.identity]
 type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
+subjectClaim = "sub"
 `;
 
 /** The complete fixture: what every test that is not ABOUT [identity] uses. */
@@ -90,7 +91,7 @@ function withMandatoryIdentity(toml: string): string {
   let out = toml;
   for (const env of envs) {
     if (new RegExp(`\\[environments\\.${env}\\.identity\\]`).test(toml)) continue;
-    out += `\n[environments.${env}.identity]\ntype = "keycloak"\nissuer = "http://localhost:8080/realms/semiont"\n`;
+    out += `\n[environments.${env}.identity]\ntype = "keycloak"\nissuer = "http://localhost:8080/realms/semiont"\nsubjectClaim = "sub"\n`;
   }
   return out;
 }
@@ -285,6 +286,7 @@ ${SERVICES_LOCAL}
 [environments.staging.identity]
 type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
+subjectClaim = "sub"
 `;
 
   it('resolves the environment from [defaults] environment when none is passed', () => {
@@ -434,16 +436,18 @@ ${MINIMAL_TOML}`;
   // the verifier needs is required — typed-but-incomplete refuses, naming the
   // key. There is no `audience` key: the audience is the KB's own resource
   // identifier, derived from its committed did:web domain.
-  it('maps [identity] to services.identity — type and issuer pass through', () => {
+  it('maps [identity] to services.identity — type, issuer and subjectClaim pass through', () => {
     const toml = `
 [environments.local.identity]
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
+subjectClaim = "sub"
 ${MINIMAL_NO_IDENTITY}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
     expect(cfg.services.identity).toEqual({
       type: 'oidc',
       issuer: 'https://login.example.com/realms/acme',
+      subjectClaim: 'sub',
     });
   });
 
@@ -455,12 +459,14 @@ ${MINIMAL_NO_IDENTITY}`;
 [environments.local.identity]
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
+subjectClaim = "sub"
 audience = "semiont-gateway"
 ${MINIMAL_NO_IDENTITY}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
     expect(cfg.services.identity).toEqual({
       type: 'oidc',
       issuer: 'https://login.example.com/realms/acme',
+      subjectClaim: 'sub',
     });
   });
 
@@ -503,11 +509,26 @@ ${MINIMAL_NO_IDENTITY}`;
       .toThrow(/\[environments\.local\.identity\].*issuer/);
   });
 
+  // VERIFIED-PROVENANCE P5. A person's DID is `did:web:<site domain>:users:<the
+  // value of this claim>`, and which claim is DECLARED — one rule per
+  // deployment, never a fallback chain, never an implied one. An operator who
+  // wants email-named people writes subjectClaim = "email" and has said so.
+  it('refuses [identity] with no subjectClaim — the claim people are named by is declared, never defaulted', () => {
+    const toml = `
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://localhost:8080/realms/semiont"
+${MINIMAL_NO_IDENTITY}`;
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+      .toThrow(/\[environments\.local\.identity\].*subjectClaim/);
+  });
+
   it('resolves ${VAR} placeholders in identity.issuer from the loader env', () => {
     const toml = `
 [environments.local.identity]
 type = "keycloak"
 issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"
 ${MINIMAL_NO_IDENTITY}`;
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { KEYCLOAK_HOST: '10.0.0.9' });
     expect(cfg.services.identity?.issuer).toBe('http://10.0.0.9:8080/realms/semiont');

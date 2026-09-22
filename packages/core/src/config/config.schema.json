@@ -1259,7 +1259,7 @@
     },
     "IdentityServiceConfig": {
       "type": "object",
-      "description": "The OIDC issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY D5). Selection is stated here, never inferred: 'keycloak' is the launcher-run Keycloak; 'oidc' is an external issuer the launcher never launches. 'issuer' is the issuer URL exactly as it appears in a token's iss claim (its host may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one). There is no 'audience' key: the audience is the knowledge base's own resource identifier, derived from its committed did:web domain, so it cannot be configured into disagreement with the identity the KB publishes. 'type' and 'issuer' are required for both types. 'accessTokenLifespan' (seconds) overrides the launcher's default revocation window and applies only to type='keycloak', since only a realm the launcher writes has a lifespan Semiont sets; a realm imports on FIRST BOOT only, so changing it does not reach a deployment that already exists. 'image' overrides the catalog's Keycloak image. Both extra keys are read by the launcher alone \u2014 the gateway never sees them.",
+      "description": "The OIDC issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY D5). Selection is stated here, never inferred: 'keycloak' is the launcher-run Keycloak; 'oidc' is an external issuer the launcher never launches. 'issuer' is the issuer URL exactly as it appears in a token's iss claim (its host may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one). There is no 'audience' key: the audience is the knowledge base's own resource identifier, derived from its committed did:web domain, so it cannot be configured into disagreement with the identity the KB publishes. 'subjectClaim' is the issuer claim a person's DID is built from — did:web:<site domain>:users:<that claim's value> — declared per deployment, never defaulted by code: \"sub\" names people by the issuer's stable identifier, \"email\" by their address. 'type', 'issuer' and 'subjectClaim' are required for both types. 'accessTokenLifespan' (seconds) overrides the launcher's default revocation window and applies only to type='keycloak', since only a realm the launcher writes has a lifespan Semiont sets; a realm imports on FIRST BOOT only, so changing it does not reach a deployment that already exists. 'image' overrides the catalog's Keycloak image. Both extra keys are read by the launcher alone \u2014 the gateway never sees them.",
       "properties": {
         "type": {
           "type": "string",
@@ -1270,6 +1270,11 @@
         },
         "issuer": {
           "type": "string"
+        },
+        "subjectClaim": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer claim a person's DID is built from: did:web:<site domain>:users:<this claim's value>. Declared, never defaulted."
         },
         "accessTokenLifespan": {
           "type": "integer",
@@ -1283,7 +1288,8 @@
       },
       "required": [
         "type",
-        "issuer"
+        "issuer",
+        "subjectClaim"
       ],
       "additionalProperties": false
     }

@@ -85,3 +85,4 @@ password = "localpass"
 [environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"

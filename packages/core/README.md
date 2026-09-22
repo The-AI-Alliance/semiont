@@ -232,13 +232,12 @@ stored, served, and turned into a selector.
 Generate and parse W3C Decentralized Identifiers for humans and software peers:
 
 ```typescript
-import { userToDid, userToAgent, agentToDid, softwareToAgent, didToAgent } from '@semiont/core';
+import { userToDid, agentToDid, softwareToAgent, didToAgent } from '@semiont/core';
 
-userToDid({ email: 'alice@example.com', domain: 'example.com' });
-// => 'did:web:example.com:users:alice%40example.com'
-
-userToAgent({ id: 'u1', domain: 'example.com', name: 'Alice', email: 'alice@example.com' });
-// => { '@type': 'Person', '@id': 'did:web:example.com:users:alice%40example.com', name: 'Alice' }
+// A person is named by the issuer claim `[identity] subjectClaim` selects,
+// under the deployment's `[site] domain`.
+userToDid({ subject: 'f47ac10b-58cc-4372-a567-0e02b2c3d479', domain: 'example.com' });
+// => 'did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'
 
 didToAgent('did:web:example.com:agents:ollama:gemma2%3A27b');
 // => { '@type': 'Software', '@id': ..., name: 'ollama gemma2:27b', provider: 'ollama', model: 'gemma2:27b' }

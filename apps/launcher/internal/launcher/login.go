@@ -99,6 +99,7 @@ func Login(args []string) int {
 			fmt.Fprintln(os.Stderr, "    [environments.<env>.identity]")
 			fmt.Fprintln(os.Stderr, "    type = \"keycloak\"")
 			fmt.Fprintln(os.Stderr, "    issuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"")
+			fmt.Fprintln(os.Stderr, "    subjectClaim = \"sub\"")
 			return 1
 		}
 		u.fail("%v", err)

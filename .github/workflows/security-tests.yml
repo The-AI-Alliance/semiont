@@ -213,6 +213,7 @@ jobs:
             '[environments.ci.identity]' \
             'type = "keycloak"' \
             'issuer = "http://localhost:8080/realms/semiont"' \
+            'subjectClaim = "sub"' \
             '' \
             '[environments.ci.archivist]' \
             'host = "localhost"' \

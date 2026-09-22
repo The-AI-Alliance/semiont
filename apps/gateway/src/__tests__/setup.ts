@@ -27,6 +27,7 @@ vi.mock('@semiont/core/node', async (importOriginal) => ({
       identity: {
         type: 'keycloak' as const,
         issuer: 'http://localhost:8080/realms/semiont',
+        subjectClaim: 'sub',
       },
       gateway: {
         platform: { type: 'posix' as const },

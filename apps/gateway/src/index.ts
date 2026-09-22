@@ -123,6 +123,11 @@ let committedKbDomain: string;
 // decides both what the KB calls itself and what it requires in `aud`, so the
 // two cannot be configured into disagreement — and a disagreement here refuses
 // every token while looking like a working deployment.
+//
+// The DOMAIN people are named under is `effectiveDomain` — the authority the
+// agents are minted under too (JWTService.initialize below) — so a person and
+// the software working for them are peers beneath one did:web
+// (VERIFIED-PROVENANCE P5).
 const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
 // `[identity]` is mandatory (user, 2026-09-21): the loaders refuse a config
 // without it, so this is an assertion that they did, not a fallback.
@@ -133,7 +138,7 @@ const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => 
   }
   return configured;
 })();
-configureTrustedIssuer(identity, kbResource(committedKbDomain));
+configureTrustedIssuer(identity, { audience: kbResource(committedKbDomain), domain: effectiveDomain });
 
 // What it takes to reach the record, with the rest of the startup
 // requirements — both used to surface on the first Archivist read instead.

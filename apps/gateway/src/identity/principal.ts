@@ -3,7 +3,7 @@ import type { AccessToken, UserId } from '@semiont/core';
 import { isString, userToDid, userId } from '@semiont/core';
 import { JWTService } from '../auth/jwt';
 import { IssuerVerifier } from '@semiont/core/identity';
-import { trustedIssuer } from './trusted-issuer';
+import { trustedIssuer, personNaming } from './trusted-issuer';
 
 /**
  * Who a bearer token says its holder is.
@@ -23,9 +23,10 @@ export interface Principal {
   /** The issuer's `picture` claim, when it sends one. */
   image: string | null;
   /**
-   * The email's domain for a person; the DEPLOYMENT's domain for an agent,
-   * whose synthetic address lives in an `agents.<host>` namespace. The two
-   * differ, which is why this is carried rather than re-derived by readers.
+   * The DID authority this principal is named under — the deployment's
+   * `[site] domain`, for a person and a software agent alike. Carried on the
+   * gateway token an agent presents, so it is read there rather than
+   * re-derived.
    */
   domain: string;
   /**
@@ -87,14 +88,21 @@ export function principalFromGatewayToken(token: AccessToken): Principal {
  * deciding whether to mint one, and a token that verifies against its keys has
  * already passed that decision. Re-asking here would only create a second
  * answer capable of disagreeing with the first.
+ *
+ * The person is NAMED by the claim `[identity] subjectClaim` selects, under
+ * the deployment's domain (VERIFIED-PROVENANCE P5). The email is a fact about
+ * them, carried for display; it is not their identity, so changing it changes
+ * nothing about who authored what.
  */
 async function principalFromIssuerToken(
   token: AccessToken,
   verifier: IssuerVerifier,
 ): Promise<Principal> {
   const claims = await verifier.verify(token);
-  if (!isString(claims.sub)) {
-    throw new Error('Token has no subject');
+  const { subjectClaim, domain } = personNaming();
+  const subject = claims[subjectClaim];
+  if (!isString(subject) || subject === '') {
+    throw new Error(`Token carries no "${subjectClaim}" claim — the claim this knowledge base names its people by ([identity] subjectClaim)`);
   }
   const email = claims['email'];
   if (!isString(email)) {
@@ -103,14 +111,10 @@ async function principalFromIssuerToken(
   if (claims['email_verified'] === false) {
     throw new Error('Token email is not verified');
   }
-  const domain = email.split('@')[1];
-  if (!domain) {
-    throw new Error('Token email carries no domain');
-  }
   const name = claims['name'];
   const picture = claims['picture'];
   return {
-    did: userToDid({ email, domain }),
+    did: userToDid({ subject, domain }),
     email,
     name: isString(name) ? name : null,
     image: isString(picture) ? picture : null,

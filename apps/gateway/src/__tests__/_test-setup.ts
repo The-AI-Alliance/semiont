@@ -26,6 +26,7 @@ type = "memory"
 [environments.integration.identity]
 type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
+subjectClaim = "sub"
 
 # Mandatory: the gateway refuses to boot without an address for the record.
 [environments.integration.archivist]
@@ -175,6 +176,7 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
       identity: {
         type: 'keycloak',
         issuer: 'http://localhost:8080/realms/semiont',
+        subjectClaim: 'sub',
       },
       // Mandatory, same reason: no address for the record, no boot.
       archivist: {
