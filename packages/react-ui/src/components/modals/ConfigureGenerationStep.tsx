@@ -390,14 +390,15 @@ export function ConfigureGenerationStep({
           never inside the 5.5rem Max Length column: a sentence in that box
           wraps one word per line and its height taxes the whole flex row. */}
       <p className="semiont-form__help semiont-form__help--row">
-        {generationAgent?.limits
+        {generationAgent?.limits && generationAgent.agent['@type'] === 'Software'
           ? t.maxLengthCeiling
               .replace('{{maxOutputTokens}}', String(ceiling))
-              .replace(
-                '{{model}}',
-                (generationAgent.agent as { model?: string; name?: string }).model
-                  ?? generationAgent.agent.name,
-              )
+              // Narrowed rather than cast: a generation agent is Software, and
+              // `AgentSoftware` requires `name`, so the fallback is total and
+              // needs no invented string. (A Person's `name` is optional — it
+              // is resolved when a record is read — so reading `.name` off the
+              // un-narrowed union would be `string | undefined` here.)
+              .replace('{{model}}', generationAgent.agent.model ?? generationAgent.agent.name)
           : t.maxLengthHelp}
       </p>
 
