@@ -50,7 +50,7 @@
     },
     "creator": {
       "$ref": "./Agent.json",
-      "description": "Web Annotation creator — the entity that initiated the annotation. For human-driven work this is a Person; for autonomous-agent work this is a Software peer."
+      "description": "Web Annotation creator — who requested the annotation. DERIVED by the knowledge base at write time, never accepted from an emitter (a payload carrying it is refused): the verified emitter of the write, or, when the write cites a job, the verified emitter of the job:create that produced it. A Person for human-requested work; a Software peer for autonomous-agent work."
     },
     "created": {
       "type": "string",
@@ -66,14 +66,14 @@
         { "$ref": "./Agent.json" },
         { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
       ],
-      "description": "Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers."
+      "description": "Web Annotation generator — the Software peer that produced the annotation, when software did. Absent for a person's own annotation. An emitter may supply it to carry the model's parameters, but its identity must be the emitter's own: the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. One producer per write — a write carrying the array form is refused."
     },
     "wasAttributedTo": {
       "oneOf": [
         { "$ref": "./Agent.json" },
         { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
       ],
-      "description": "PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software)."
+      "description": "PROV-O wasAttributedTo — every party responsible for this annotation, DERIVED by the knowledge base from `creator` and the verified executor of the write: `[creator, generator]` when one agent requested the work and software produced it; collapsed to the one agent when requester and producer are the same. Never accepted from an emitter."
     }
   },
   "required": [

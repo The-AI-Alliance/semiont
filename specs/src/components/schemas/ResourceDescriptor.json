@@ -160,7 +160,7 @@
       ]
     },
     "wasAttributedTo": {
-      "description": "W3C PROV - agents responsible for this resource",
+      "description": "W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.",
       "oneOf": [
         {
           "$ref": "./Agent.json"
@@ -174,7 +174,7 @@
       ]
     },
     "generator": {
-      "description": "Software agent that produced or processed this resource (W3C Web Annotation model)",
+      "description": "Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.",
       "oneOf": [
         {
           "$ref": "./Agent.json"

@@ -80,7 +80,7 @@ The event bus is the only coupling between actors. An actor does not know who el
 | 🤖 | **Generator Agent** | yield, gather | Assembles context around a reference annotation (gather), then synthesizes a new resource from it (yield). Creates content that the knowledge base records. |
 | 🤖 | **Linker Agent** | bind, gather | Resolves unresolved references by searching for matching resources and linking them. Performs entity resolution and coreference — the binding of a mention to its referent. |
 
-AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use, authenticated via REST + JWT or MCP. The knowledge base cannot distinguish a human-created annotation from an AI-created one — both are W3C annotations with a `creator` field that identifies the agent.
+AI actors connect to the event bus over the same `/bus/emit` + `/bus/subscribe` endpoints human actors use, authenticated via REST + JWT or MCP. The knowledge base describes a human's act and an AI's act the same way: every event carries the verified DID of its emitter, and an annotation's `creator`, `generator` and `wasAttributedTo` are derived from that by the knowledge base — never asserted by whoever wrote it.
 
 ## Content streams
 

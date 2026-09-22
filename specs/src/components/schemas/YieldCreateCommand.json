@@ -60,6 +60,7 @@
       "type": "string"
     },
     "generator": {
+      "description": "The Software peer that produced the content, when software did. Its identity must be the emitter's own — the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the emitter and the cited job.",
       "oneOf": [
         {
           "$ref": "./Agent.json"

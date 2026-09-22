@@ -136,22 +136,26 @@ read it, they go through `client.bus`.
 ## User identity — `_userId` injection
 
 **Invariant:** every bus command that requires an authenticated user
-reads the user's DID from a gateway-injected `_userId` field on the
-payload. Clients do not set it; handlers cannot trust a client-supplied
-`userId` field.
+reads the emitter's DID from a gateway-injected `_userId` field on the
+payload. Clients do not set it; handlers honour no client-supplied
+identity — not a `userId`, not a `creator`, not a `generator` naming
+anyone but the emitter. `_userId` is the one identity fact on an event;
+who *requested* the work is derived from the job the write cites, never
+carried. `_roles`, stamped beside it, is the token's capabilities —
+transient authorization, never provenance.
 
 **Mechanism is transport-specific:**
 
-- `HttpTransport` — the `/bus/emit` gateway reads the JWT subject and
-  injects it as `_userId` before publishing on the bus.
+- `HttpTransport` — the `/bus/emit` gateway verifies the bearer token,
+  builds the principal from its claims, clears any `_roles` the caller
+  wrote, and stamps `_userId` (and `_roles`) before publishing on the
+  bus.
 - In-process transports — the host process's service principal is the
   source; the transport injects its identity into every emitted
   payload.
 
-Channels with this convention: `mark:archive`, `mark:unarchive`,
-`mark:update-entity-types`, `frame:add-entity-type`, `bind:update-body`,
-`job:create`, `mark:create-request`. The gateway's OpenAPI spec marks
-`_userId` as *"Authenticated user's DID, injected by the /bus/emit
+Every command schema that needs auth context declares `_userId` with
+the description *"Authenticated user's DID, injected by the /bus/emit
 gateway. Clients do not set this."*
 
 ## `busRequest` — correlation-ID request/response

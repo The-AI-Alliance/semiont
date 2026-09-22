@@ -1522,7 +1522,7 @@ type Annotation struct {
 	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Creator *Agent `json:"creator,omitempty"`
 
-	// Generator Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers.
+	// Generator Web Annotation generator — the Software peer that produced the annotation, when software did. Absent for a person's own annotation. An emitter may supply it to carry the model's parameters, but its identity must be the emitter's own: the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. One producer per write — a write carrying the array form is refused.
 	Generator *Annotation_Generator `json:"generator,omitempty"`
 	Id        string                `json:"id"`
 	Modified  *time.Time            `json:"modified,omitempty"`
@@ -1536,7 +1536,7 @@ type Annotation struct {
 	// Type W3C Annotation type
 	Type AnnotationType `json:"type"`
 
-	// WasAttributedTo PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software).
+	// WasAttributedTo PROV-O wasAttributedTo — every party responsible for this annotation, DERIVED by the knowledge base from `creator` and the verified executor of the write: `[creator, generator]` when one agent requested the work and software produced it; collapsed to the one agent when requester and producer are the same. Never accepted from an emitter.
 	WasAttributedTo *Annotation_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 }
 
@@ -1554,7 +1554,7 @@ type Annotation_Body struct {
 // AnnotationGenerator1 defines model for .
 type AnnotationGenerator1 = []Agent
 
-// Annotation_Generator Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers.
+// Annotation_Generator Web Annotation generator — the Software peer that produced the annotation, when software did. Absent for a person's own annotation. An emitter may supply it to carry the model's parameters, but its identity must be the emitter's own: the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. One producer per write — a write carrying the array form is refused.
 type Annotation_Generator struct {
 	union json.RawMessage
 }
@@ -1573,7 +1573,7 @@ type AnnotationType string
 // AnnotationWasAttributedTo1 defines model for .
 type AnnotationWasAttributedTo1 = []Agent
 
-// Annotation_WasAttributedTo PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software).
+// Annotation_WasAttributedTo PROV-O wasAttributedTo — every party responsible for this annotation, DERIVED by the knowledge base from `creator` and the verified executor of the write: `[creator, generator]` when one agent requested the work and software produced it; collapsed to the one agent when requester and producer are the same. Never accepted from an emitter.
 type Annotation_WasAttributedTo struct {
 	union json.RawMessage
 }
@@ -2339,7 +2339,7 @@ type FileEntry struct {
 	// AnnotationCount Number of annotations on this resource (only when tracked is true)
 	AnnotationCount *int `json:"annotationCount,omitempty"`
 
-	// Creator DID of the user who created the resource (only when tracked is true)
+	// Creator DID of the resource's creator — the first of its derived `wasAttributedTo`, the requester as the knowledge base recorded it (only when tracked is true)
 	Creator *string `json:"creator,omitempty"`
 
 	// EntityTypes Entity types assigned to this resource (only when tracked is true)
@@ -3449,7 +3449,7 @@ type MarkCommitOk struct {
 	} `json:"response"`
 }
 
-// MarkCreateCommand Bus command to create an annotation on a resource.
+// MarkCreateCommand Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.
 type MarkCreateCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string    `json:"_userId,omitempty"`
@@ -3856,7 +3856,7 @@ type ResourceDescriptor struct {
 	// EntityTypes Application-specific: Entity types for this resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
-	// Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+	// Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 	Generator *ResourceDescriptor_Generator `json:"generator,omitempty"`
 	HasPart   *[]string                     `json:"hasPart,omitempty"`
 
@@ -3885,7 +3885,7 @@ type ResourceDescriptor struct {
 	SourceResourceId *string `json:"sourceResourceId,omitempty"`
 	Version          *string `json:"version,omitempty"`
 
-	// WasAttributedTo W3C PROV - agents responsible for this resource
+	// WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 	WasAttributedTo *ResourceDescriptor_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 
 	// WasDerivedFrom W3C PROV - source resources this was derived from
@@ -3954,7 +3954,7 @@ type ResourceDescriptor_ConformsTo struct {
 // ResourceDescriptorGenerator1 defines model for .
 type ResourceDescriptorGenerator1 = []Agent
 
-// ResourceDescriptor_Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+// ResourceDescriptor_Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 type ResourceDescriptor_Generator struct {
 	union json.RawMessage
 }
@@ -3989,7 +3989,7 @@ type ResourceDescriptor_Representations struct {
 // ResourceDescriptorWasAttributedTo1 defines model for .
 type ResourceDescriptorWasAttributedTo1 = []Agent
 
-// ResourceDescriptor_WasAttributedTo W3C PROV - agents responsible for this resource
+// ResourceDescriptor_WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 type ResourceDescriptor_WasAttributedTo struct {
 	union json.RawMessage
 }
@@ -4054,7 +4054,7 @@ type ScoredResource struct {
 	// EntityTypes Application-specific: Entity types for this resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
-	// Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+	// Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 	Generator *ScoredResource_Generator `json:"generator,omitempty"`
 	HasPart   *[]string                 `json:"hasPart,omitempty"`
 
@@ -4089,7 +4089,7 @@ type ScoredResource struct {
 	SourceResourceId *string `json:"sourceResourceId,omitempty"`
 	Version          *string `json:"version,omitempty"`
 
-	// WasAttributedTo W3C PROV - agents responsible for this resource
+	// WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 	WasAttributedTo *ScoredResource_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 
 	// WasDerivedFrom W3C PROV - source resources this was derived from
@@ -4158,7 +4158,7 @@ type ScoredResource_ConformsTo struct {
 // ScoredResourceGenerator1 defines model for .
 type ScoredResourceGenerator1 = []Agent
 
-// ScoredResource_Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+// ScoredResource_Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 type ScoredResource_Generator struct {
 	union json.RawMessage
 }
@@ -4193,7 +4193,7 @@ type ScoredResource_Representations struct {
 // ScoredResourceWasAttributedTo1 defines model for .
 type ScoredResourceWasAttributedTo1 = []Agent
 
-// ScoredResource_WasAttributedTo W3C PROV - agents responsible for this resource
+// ScoredResource_WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 type ScoredResource_WasAttributedTo struct {
 	union json.RawMessage
 }
@@ -4596,9 +4596,11 @@ type YieldCreateCommand struct {
 		AnnotationId *string `json:"annotationId,omitempty"`
 		ResourceId   *string `json:"resourceId,omitempty"`
 	} `json:"generatedFrom,omitempty"`
-	GenerationPrompt *string                       `json:"generationPrompt,omitempty"`
-	Generator        *YieldCreateCommand_Generator `json:"generator,omitempty"`
-	IsDraft          *bool                         `json:"isDraft,omitempty"`
+	GenerationPrompt *string `json:"generationPrompt,omitempty"`
+
+	// Generator The Software peer that produced the content, when software did. Its identity must be the emitter's own — the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the emitter and the cited job.
+	Generator *YieldCreateCommand_Generator `json:"generator,omitempty"`
+	IsDraft   *bool                         `json:"isDraft,omitempty"`
 
 	// JobId The job this resource fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested this resource from the cited job's own events — the emitter never says who the work was for.
 	JobId    *string `json:"jobId,omitempty"`
@@ -4613,7 +4615,7 @@ type YieldCreateCommand struct {
 // YieldCreateCommandGenerator1 defines model for .
 type YieldCreateCommandGenerator1 = []Agent
 
-// YieldCreateCommand_Generator defines model for YieldCreateCommand.Generator.
+// YieldCreateCommand_Generator The Software peer that produced the content, when software did. Its identity must be the emitter's own — the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the emitter and the cited job.
 type YieldCreateCommand_Generator struct {
 	union json.RawMessage
 }
@@ -4679,7 +4681,7 @@ type PostResourcesMultipartBody struct {
 	// GenerationPrompt For AI-generated resources: the prompt that drove generation
 	GenerationPrompt *string `json:"generationPrompt,omitempty"`
 
-	// Generator For AI-generated resources: JSON-stringified Agent (single object or array), capturing which model/worker produced the content
+	// Generator For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job.
 	Generator *string `json:"generator,omitempty"`
 
 	// IsDraft 'true' or 'false' — whether the resource is a draft

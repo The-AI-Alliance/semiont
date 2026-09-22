@@ -61,7 +61,8 @@ Its startup contract is strict, and each unmet requirement throws:
 | `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
 | `JWT_SECRET` under 32 characters | Startup validation failure |
 | `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The service refuses to boot: it cannot authenticate as its own service account — see below |
-| `[identity]` in the environment config | Sidecars refuse to boot; there is no issuer to trust |
+| `[identity]` in the environment config | Gateway and sidecars refuse to boot; there is no issuer to trust |
+| `subjectClaim` in `[identity]` | Gateway and sidecars refuse to boot: `names no subjectClaim` — the claim people are named by is declared, never defaulted |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 

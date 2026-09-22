@@ -114,17 +114,23 @@ feeds it every wire code and requires non-empty text for each. A new code fails 
 pin, not a user's terminal. When adding a member to any union above, that is the
 pattern: TS gets it free from the `never` default; Go needs its census extended.
 
-## Identity: `_userId` is gateway-injected
+## Identity: `_userId` and `_roles` are gateway-stamped
 
-Commands that mutate state need to know who's making them. The convention: clients **never** set `_userId` themselves. The HTTP gateway reads the authenticated user from the JWT and stamps `_userId` onto the payload before forwarding it onto the bus:
+Commands that mutate state need to know who is making them. The convention: clients **never** set `_userId` or `_roles` themselves. The `/bus/emit` gateway verifies the bearer token, builds the principal from its claims, and stamps both onto the payload before forwarding it onto the bus — clearing whatever a caller wrote there first:
 
 ```ts
 // apps/gateway/src/routes/bus.ts
-const user = c.get('user') as User | undefined;
-if (user) {
-  payload._userId = userToDid(user);
+const principal = c.get('principal');
+delete payload._roles;
+if (principal) {
+  payload._userId = principal.did;
+  if (principal.roles?.length) payload._roles = principal.roles;
 }
 ```
+
+`_userId` is the **verified emitter** — the one identity fact on an event, and the only identity a handler may honour. Every other provenance fact is derived from it: who *requested* a piece of work is read from the job the write cites (`jobId`), joined to the dispatcher's own `job:assigned` record, never from anything the emitter wrote in the payload. A person's DID is `did:web:<site domain>:users:<subject>`, the subject being the issuer claim `[identity] subjectClaim` selects; a software agent's is `did:web:<site domain>:agents:<provider>:<model>` — the same authority and the same shape, so a person's act and an agent's act are recorded the same way.
+
+`_roles` is the token's capabilities (a worker's `WORKER_ROLE`): a **transient** authorization fact the dispatcher reads to authorize a `job:claim`. It is never persisted as provenance.
 
 In the schema, `_userId` is **optional** with the canonical description "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this." Handlers reading the channel can rely on `_userId` being present for any payload that came through the gateway — and treat its absence as a malformed event:
 

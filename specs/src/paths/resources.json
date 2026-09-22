@@ -52,7 +52,7 @@
               },
               "generator": {
                 "type": "string",
-                "description": "For AI-generated resources: JSON-stringified Agent (single object or array), capturing which model/worker produced the content"
+                "description": "For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job."
               },
               "jobId": {
                 "type": "string",

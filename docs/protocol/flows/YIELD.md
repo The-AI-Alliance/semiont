@@ -454,10 +454,16 @@ const { resourceId: newResourceId } = await session.client.yield.resource({
   storageUri,
   sourceResourceId,
   ...(genReferenceId ? { sourceAnnotationId: genReferenceId } : {}),
-  generationPrompt, language, entityTypes, generator,
+  generationPrompt, language, entityTypes, generator, jobId,
 });
 ```
 The gateway persists the content and emits `yield:create` → Stower appends `yield:created`.
+
+`jobId` is the job the worker holds. The gateway forwards it onto `yield:create`, and the
+Stower derives the resource's `creator` (whoever emitted the `job:create`) and
+`wasAttributedTo` (`[requester, generator]`) from the dispatcher's `job:assigned` record for
+that job — a worker-role create that cites no job, or a job this worker does not hold, is
+refused. `generator` may carry the model's parameters; its identity must be the worker's own.
 
 **Reference resolution (auto-bind)** — the Stower's `yield:create` handler, *not*
 the worker, resolves the source reference. When the upload carried

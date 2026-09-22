@@ -42,7 +42,7 @@
     },
     "creator": {
       "type": "string",
-      "description": "DID of the user who created the resource (only when tracked is true)"
+      "description": "DID of the resource's creator — the first of its derived `wasAttributedTo`, the requester as the knowledge base recorded it (only when tracked is true)"
     }
   },
   "additionalProperties": false
