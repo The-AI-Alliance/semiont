@@ -6,23 +6,52 @@
  * duplicated the SSE connection that `SemiontClient` already held.
  * Workers construct a `SemiontSession` normally (one actor, one
  * SSE connection) and use this adapter to attach job-claim behaviour
- * on top of the session's bus.
+ * on top of the session's bus. It does **not** own the bus, has no HTTP
+ * concerns, and has no modal state.
  *
- * The adapter is intentionally thin: it subscribes to `job:queued`,
- * claims jobs via the existing request-response protocol
- * (`job:claim` → `job:claimed` / `job:claim-failed`), and exposes
- * observables for job orchestration. It does **not** own the bus,
- * has no HTTP concerns, and has no modal state.
+ * THE MODEL — a worker asks the queue at every moment it becomes idle,
+ * and never otherwise. `job:claim` carries this worker's types; the
+ * dispatcher answers with the next pending job of those types, atomically
+ * claimed, or declines. Queue state is the truth; no message carries
+ * correctness. The idle moments:
+ *
+ *   - start, once the transport is open;
+ *   - settle — `completeJob` / `failJob` — immediately, with no timer;
+ *   - a matching `job:queued` while parked;
+ *   - reconnect — every `state$` edge into `open` after the first.
+ *
+ * `job:queued` is a WAKE-UP with no memory. While parked it triggers a
+ * pull; while a claim is in flight it sets a dirty bit that earns exactly
+ * one more pull before parking, so a wake-up cannot be lost in that window;
+ * while a job is held it is ignored, because the settle pulls. One claim
+ * in flight at a time — under one-job-at-a-time processing "drain" is one
+ * claim per idle moment and one at settle, never a loop of claims while a
+ * job is held. The type filter on the wake-up is a PRE-FILTER on
+ * information the announcement already carries, so a worker that cannot
+ * run the announced type does not spend a round trip to be declined; the
+ * claim's `types` argument is the rule.
+ *
+ * What the dispatcher's decline codes mean here (`BusRequestError.code`,
+ * promoted from the reply's `CommandError.code`): `bus.none-pending` is
+ * the quiet park — nothing to do until a wake-up, nothing emitted. Every
+ * other refusal goes out on `refused$` for the runtime to judge;
+ * `bus.unauthorized` is the one it exits on, because a credential that
+ * can never claim has nothing to do here and the launcher's preflight
+ * names the repair.
+ *
+ * The queue drivers' 30 s re-announce tick survives as INSURANCE against a
+ * lost wake-up on an idle worker — never as dispatch. A healthy stack never
+ * sees it act.
  *
  * The `bus` parameter is typed against the small `BusRequestPrimitive`
- * interface (from `@semiont/sdk`) so the adapter is transport-neutral.
+ * interface (from `@semiont/core`) so the adapter is transport-neutral.
  * HTTP workers pass `(session.client.transport as HttpTransport).actor`;
  * an in-process worker could pass a shim wrapping `client.bus`.
  */
 
-import { BehaviorSubject, Observable, Subject } from 'rxjs';
-import { busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
-import type { UnitCursor } from '@semiont/core';
+import { BehaviorSubject, Observable, Subject, type Subscription } from 'rxjs';
+import { BusRequestError, busRequest, isArray, isNumber, isObject, isString } from '@semiont/core';
+import type { BusRequestErrorCode, UnitCursor } from '@semiont/core';
 import type { BusRequestPrimitive } from '@semiont/core';
 
 /**
@@ -31,7 +60,6 @@ import type { BusRequestPrimitive } from '@semiont/core';
  * call site keeps this alias and the actual operation from drifting.
  */
 export type JobClaimAwaits = 'job:claim';
-
 
 /**
  * Narrow the claimed record's `unitCursors` metadata to usable cursors.
@@ -98,23 +126,37 @@ export interface JobClaimAdapterOptions {
   /** Shared bus (typically the session's HTTP actor or an in-process bus shim). */
   bus: BusRequestPrimitive;
   /**
-   * Job types this worker can process. Jobs of other types that
-   * arrive on `job:queued` are ignored. Empty array = accept any.
+   * Job types this worker can process — the claim's `types` argument, and
+   * the pre-filter on `job:queued` wake-ups. Empty array = accept any.
    */
   jobTypes: string[];
 }
 
 /**
+ * A claim the dispatcher refused for a reason other than "nothing pending".
+ *
+ * `code` is the `BusRequestError` code the reply was promoted to, or `null`
+ * when the failure was local — an unusable record, a thrown non-bus error —
+ * never a manufactured bus code. `bus.none-pending` never appears here: it is
+ * the quiet park, and emitting it would make an empty queue look like a fault.
+ */
+export interface ClaimRefusal {
+  code: BusRequestErrorCode | null;
+  message: string;
+}
+
+/**
  * Point-in-time liveness snapshot (WORKER-LIVENESS.md P1). The adapter
- * is the only component that sees every announcement, claim, and finish,
+ * is the only component that sees every wake-up, claim, and finish,
  * so its snapshot is what `/health` reports and the stall watchdog reads.
  *
- * There is no poll loop in this architecture — the honest signals are:
- * `lastQueuedEventAt` (any `job:queued` received, matching or not —
- * transport liveness; the gateway re-announces pending jobs every 30s,
- * so this advances whenever the queue is non-empty), and
- * `lastActivityAt` (claim, progress emission, or finish — processing
- * liveness; a job stuck mid-inference stops advancing it).
+ * `lastQueuedEventAt` is any `job:queued` received, matching or not. It
+ * proves the transport delivered a broadcast, but on an idle stack with an
+ * empty queue it stands still by design — no announcement is owed — so a
+ * still stamp alone is not a transport fault; transport liveness proper is
+ * the actor's SSE heartbeat. `lastActivityAt` (claim, progress emission, or
+ * finish) is processing liveness; a job stuck mid-inference stops advancing
+ * it, and that is what the watchdog reads.
  */
 export interface WorkerVitals {
   lastQueuedEventAt: string | null;
@@ -133,23 +175,30 @@ export interface JobClaimAdapter {
   readonly isProcessing$: Observable<boolean>;
   /** Monotonically-incrementing count of successfully-completed jobs. */
   readonly jobsCompleted$: Observable<number>;
-  /** Stream of job failures (including claim-failed and processing errors). */
+  /** Stream of job failures reported through `failJob`. */
   readonly errors$: Observable<{ jobId: string; error: string }>;
+  /**
+   * Claims the dispatcher refused for a reason the runtime must judge.
+   * `bus.unauthorized` means this credential can never claim; the runtime
+   * exits on it. Anything else is logged and the worker stays parked until
+   * the next wake-up. See `ClaimRefusal`.
+   */
+  readonly refused$: Observable<ClaimRefusal>;
 
   /**
-   * Subscribe to `job:queued` events (adding the channel to the actor
-   * if not already subscribed) and begin claiming matching jobs.
-   * Idempotent — calling `start()` twice is a no-op.
+   * Begin pulling: one claim now (once the transport is open), then on every
+   * settle, matching wake-up, and reconnect. Idempotent — calling `start()`
+   * twice is a no-op.
    */
   start(): void;
 
-  /** Stop claiming new jobs. Does not cancel an in-flight job. */
+  /** Stop pulling. Does not cancel an in-flight job. */
   stop(): void;
 
-  /** Signal successful completion of `activeJob$`. */
+  /** Signal successful completion of `activeJob$`. Pulls the next job. */
   completeJob(): void;
 
-  /** Signal failure of `activeJob$`. Emits on `errors$`. */
+  /** Signal failure of `activeJob$`. Emits on `errors$`, then pulls the next job. */
   failJob(jobId: string, error: string): void;
 
   /** Liveness snapshot for `/health` and the stall watchdog. */
@@ -166,21 +215,26 @@ export interface JobClaimAdapter {
   dispose(): void;
 }
 
+type ClaimOutcome = { job: ActiveJob } | { declined: true } | { refused: ClaimRefusal };
+
 /**
  * Attach job-claim behaviour to a shared bus.
  */
 export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaimAdapter {
   const { bus, jobTypes } = options;
-  // `BusRequestPrimitive` IS a `BusRequestPrimitive` — no adapter (D6).
-  const requestBus = bus;
 
   const activeJob$ = new BehaviorSubject<ActiveJob | null>(null);
   const isProcessing$ = new BehaviorSubject<boolean>(false);
   const jobsCompleted$ = new BehaviorSubject<number>(0);
   const errors$ = new Subject<{ jobId: string; error: string }>();
+  const refused$ = new Subject<ClaimRefusal>();
 
-  let jobSubscription: { unsubscribe(): void } | null = null;
+  let subscriptions: Subscription[] = [];
   let started = false;
+  // The loop's two bits: one claim in flight at a time, and a wake-up that
+  // arrived during it — honoured with exactly one more claim before parking.
+  let claimInFlight = false;
+  let wakePending = false;
 
   // Vitals clock (epoch ms internally; rendered as ISO in snapshots).
   let lastQueuedEventAt: number | null = null;
@@ -190,49 +244,90 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
   let activeSince: number | null = null;
   const iso = (t: number | null): string | null => (t === null ? null : new Date(t).toISOString());
 
-  const claimNext = async (): Promise<ActiveJob | null> => {
+  const claimNext = async (): Promise<ClaimOutcome> => {
+    // Ask for the next pending job of this worker's types (JOB-QUEUE-DRIVER
+    // P2). Same request/reply path as the SDK: busRequest mints the
+    // correlationId, matches the job:claimed / job:claim-failed reply by it,
+    // and returns the reply's `response` — an untyped `Record<string,
+    // unknown>`, so narrow it to the claimed-job shape the worker reads.
+    let record: {
+      params?: Record<string, unknown>;
+      metadata?: { id?: string; type?: string; userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
+    };
     try {
-      // Claim-by-type (JOB-QUEUE-DRIVER P2): the announcement was only the
-      // WAKE-UP — ask for the next pending job of this worker's types, which
-      // may not be the job announced. Same request/reply path as the SDK:
-      // busRequest mints the correlationId, matches the job:claimed /
-      // job:claim-failed reply by it, and returns the reply's `response`
-      // (the claimed job) — an untyped `Record<string, unknown>`, so narrow
-      // it to the claimed-job shape the worker reads.
-      const job = (await busRequest(requestBus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000)) as {
-        params?: Record<string, unknown>;
-        metadata?: { id?: string; type?: string; userId?: string; completedUnits?: unknown; unitCursors?: unknown; retryCount?: unknown; maxRetries?: unknown };
-      };
+      record = (await busRequest(bus, 'job:claim' satisfies JobClaimAwaits, { types: jobTypes }, 10_000)) as typeof record;
+    } catch (error) {
+      // The reply's verdict, promoted to the client vocabulary by core. A
+      // decline is the expected quiet outcome; everything else is the
+      // runtime's to judge. A non-bus throw is local and says so (`null`).
+      if (error instanceof BusRequestError) {
+        if (error.code === 'bus.none-pending') return { declined: true };
+        return { refused: { code: error.code, message: error.message } };
+      }
+      return { refused: { code: null, message: error instanceof Error ? error.message : String(error) } };
+    }
 
-      // The claimed job's identity now comes from the RESPONSE, not from
-      // any announcement. A record without one is unusable — decline it.
-      if (!isString(job.metadata?.id) || !isString(job.metadata?.type)) return null;
+    // The claimed job's identity comes from the RESPONSE. A record without
+    // one is unusable — refused locally, never run.
+    if (!isString(record.metadata?.id) || !isString(record.metadata?.type)) {
+      return { refused: { code: null, message: 'claimed record carries no job id or type' } };
+    }
 
-      const completedUnits = isArray(job.metadata?.completedUnits)
-        ? job.metadata.completedUnits.filter(isString)
-        : [];
-      const unitCursors = readUnitCursors(job.metadata?.unitCursors, completedUnits);
-      const params = (job.params ?? {}) as Record<string, unknown>;
+    const completedUnits = isArray(record.metadata?.completedUnits)
+      ? record.metadata.completedUnits.filter(isString)
+      : [];
+    const unitCursors = readUnitCursors(record.metadata?.unitCursors, completedUnits);
+    const params = (record.params ?? {}) as Record<string, unknown>;
 
-      return {
-        jobId: job.metadata.id,
-        type: job.metadata.type,
+    return {
+      job: {
+        jobId: record.metadata.id,
+        type: record.metadata.type,
         resourceId: isString(params.resourceId) ? params.resourceId : '',
-        userId: (job.metadata?.userId ?? '') as string,
+        userId: (record.metadata?.userId ?? '') as string,
         params,
         completedUnits,
         unitCursors,
         // Absent or malformed metadata reads as "no budget left" — a worker
         // that cannot see the budget must not claim a retry is coming.
-        retryCount: isNumber(job.metadata?.retryCount) ? job.metadata.retryCount : 0,
-        maxRetries: isNumber(job.metadata?.maxRetries) ? job.metadata.maxRetries : 0,
-      };
-    } catch {
-      // A claim-failed reply (nothing pending of these types / queue error)
-      // or a timeout surfaces as a thrown BusRequestError; in every case the
-      // worker just moves on — matching the prior race() semantics (null).
-      return null;
+        retryCount: isNumber(record.metadata?.retryCount) ? record.metadata.retryCount : 0,
+        maxRetries: isNumber(record.metadata?.maxRetries) ? record.metadata.maxRetries : 0,
+      },
+    };
+  };
+
+  /** One idle moment: ask once, or remember that we were asked to. */
+  const pull = (): void => {
+    if (!started) return;
+    // Holding a job: the settle pulls. Nothing to remember — the queue's
+    // state, not this wake-up, is what the settle pull reads.
+    if (activeJob$.getValue() !== null) return;
+    if (claimInFlight) {
+      wakePending = true;
+      return;
     }
+    claimInFlight = true;
+    wakePending = false;
+    isProcessing$.next(true);
+    void claimNext().then((outcome) => {
+      claimInFlight = false;
+      if ('job' in outcome) {
+        const now = Date.now();
+        lastClaimAt = now;
+        lastActivityAt = now;
+        activeSince = now;
+        // A wake-up that arrived mid-claim is moot: the settle pulls.
+        wakePending = false;
+        activeJob$.next(outcome.job);
+        return;
+      }
+      if ('refused' in outcome) refused$.next(outcome.refused);
+      isProcessing$.next(false);
+      if (wakePending) {
+        wakePending = false;
+        pull();
+      }
+    });
   };
 
   return {
@@ -240,48 +335,48 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     isProcessing$: isProcessing$.asObservable(),
     jobsCompleted$: jobsCompleted$.asObservable(),
     errors$: errors$.asObservable(),
+    refused$: refused$.asObservable(),
 
     start: () => {
       if (started) return;
       started = true;
-      // BOTH halves are load-bearing, and each was a worker-starving bug:
+
       // `job:queued` is declared twice over, and both halves are load-bearing:
       // as a bridged broadcast so the frame exists on the wire at all, and in
       // `WORKER_CONSUMED_BROADCASTS` so this process's transport carries it.
       // The worker subscribes its manifest, not `BRIDGED_CHANNELS`.
-      jobSubscription = bus
-        .stream('job:queued')
-        .subscribe((event) => {
-          // Every announcement received — matching or not — proves the
-          // transport is alive; stamp before any filtering.
+      subscriptions.push(
+        bus.stream('job:queued').subscribe((event) => {
+          // Every announcement received — matching or not — is stamped before
+          // any filtering.
           lastQueuedEventAt = Date.now();
+          // The pre-filter: the claim's `types` is the rule; this saves the
+          // round trip when the announced type is one this worker cannot run.
+          if (jobTypes.length > 0 && !jobTypes.includes(event.jobType)) return;
+          pull();
+        }),
+      );
 
-          const jobType = event.jobType;
-          if (jobTypes.length > 0 && !jobTypes.includes(jobType)) return;
-          if (isProcessing$.getValue()) return;
-
-          isProcessing$.next(true);
-          claimNext()
-            .then((job) => {
-              if (job) {
-                const now = Date.now();
-                lastClaimAt = now;
-                lastActivityAt = now;
-                activeSince = now;
-                activeJob$.next(job);
-              } else {
-                isProcessing$.next(false);
-              }
-            })
-            .catch(() => {
-              isProcessing$.next(false);
-            });
-        });
+      // Reconnect is an edge into `open` after the first observation. The
+      // first observation decides whether start pulls now or waits for the
+      // transport to open — a claim on a closed transport would only be
+      // refused locally.
+      let observed = false;
+      let wasOpen = false;
+      subscriptions.push(
+        bus.state$.subscribe((state) => {
+          const open = state === 'open';
+          if (observed && open && !wasOpen) pull();
+          observed = true;
+          wasOpen = open;
+        }),
+      );
+      if (wasOpen) pull();
     },
 
     stop: () => {
-      jobSubscription?.unsubscribe();
-      jobSubscription = null;
+      for (const s of subscriptions) s.unsubscribe();
+      subscriptions = [];
       started = false;
     },
 
@@ -293,6 +388,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       activeJob$.next(null);
       isProcessing$.next(false);
       jobsCompleted$.next(jobsCompleted$.getValue() + 1);
+      pull();
     },
 
     failJob: (jid: string, error: string) => {
@@ -303,6 +399,7 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
       activeJob$.next(null);
       isProcessing$.next(false);
       errors$.next({ jobId: jid, error });
+      pull();
     },
 
     vitals: () => {
@@ -324,13 +421,14 @@ export function createJobClaimAdapter(options: JobClaimAdapterOptions): JobClaim
     },
 
     dispose: () => {
-      jobSubscription?.unsubscribe();
-      jobSubscription = null;
+      for (const s of subscriptions) s.unsubscribe();
+      subscriptions = [];
       started = false;
       activeJob$.complete();
       isProcessing$.complete();
       jobsCompleted$.complete();
       errors$.complete();
+      refused$.complete();
     },
   };
 }

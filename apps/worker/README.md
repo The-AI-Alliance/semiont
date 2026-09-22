@@ -34,9 +34,14 @@ rather than recovered coordinates.
 
 ## What it talks to
 
-The bus (SSE in for `job:queued`, `POST /bus/emit` out for lifecycle), an inference provider,
-and the Archivist's HTTP surface for bytes. It claims jobs atomically, so several workers can
-run against one queue without coordination.
+The bus (SSE in for `job:queued`, `POST /bus/emit` out for claims and lifecycle), an inference
+provider, and the Archivist's HTTP surface for bytes. It **pulls**: at every moment it becomes
+idle — start, settle, a matching `job:queued` while parked, reconnect — it asks the dispatcher
+for its next job of the types it runs, and parks when told nothing is pending. `job:queued` is a
+wake-up with no memory, not a reservation. Claims are atomic, so several workers can run against
+one queue without coordination. A claim refused with `unauthorized` — this credential is not a
+worker's — exits the process for restart rather than parking forever; the launcher's preflight
+names the repair.
 
 ## Nothing wedges, nothing restarts from zero
 

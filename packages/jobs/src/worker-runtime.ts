@@ -119,12 +119,13 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
 
 /**
  * Stall watchdog (WORKER-LIVENESS.md P3) — the fail-fast line behind the
- * inference timeout. There is no poll loop to heartbeat; the honest
- * stall signal in this push-driven architecture is *processing without
- * activity*: an agent holding a claimed job whose `lastActivityAt`
- * (claim / progress / finish) has stopped advancing is wedged — the
- * adapter ignores every announcement while `isProcessing`, so a wedged
- * agent never recovers on its own. Silent hang → loud crash → whatever
+ * inference timeout. There is no poll timer to heartbeat — the worker pulls
+ * when idle, and a parked idle worker is not a stall; the honest stall
+ * signal is *processing without activity*: an agent holding a claimed job
+ * whose `lastActivityAt` (claim / progress / finish) has stopped advancing
+ * is wedged — the adapter defers every wake-up while a job is held and
+ * pulls at settle, so a wedged agent never settles and never recovers on
+ * its own. Silent hang → loud crash → whatever
  * restart policy the deployment chose.
  *
  * Thresholds are fixed by design (no env knobs) and deliberately

@@ -16,16 +16,19 @@ import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
 
 /**
- * How often pending jobs are re-announced on `job:queued` and stale
- * running jobs are checked for recovery.
+ * The periodic tick: stale running jobs are checked for recovery, and
+ * pending jobs are re-announced on `job:queued`.
  *
- * The announcement in `createJob` only reaches workers that are
- * connected and idle at that moment. Re-announcing every pending job
- * on an interval restores catch-up for everything that announcement
- * misses: all eligible workers busy, a worker offline or mid-SSE-
- * reconnect, or a gateway restart with a pending backlog. Claim
- * arbitration (the `job:claim` handler refuses non-pending jobs)
- * makes duplicate announcements harmless.
+ * The re-announce is INSURANCE, not dispatch. A worker pulls the queue at
+ * every moment it becomes idle — start, settle, a matching wake-up,
+ * reconnect — so the announcement in `createJob` is a wake-up with no
+ * memory, and a job created while every worker was busy is claimed at the
+ * next settle with no help from this timer. What the timer covers is the
+ * one case pull cannot: a wake-up LOST in transit to an idle worker, which
+ * has nothing to settle and so nothing to pull on. On a healthy stack the
+ * re-announce never acts. A duplicate announcement is harmless: a claim is
+ * by type, atomic in the queue, and an idle worker that hears one simply
+ * asks and is told nothing is pending.
  */
 const REANNOUNCE_INTERVAL_MS = 30_000;
 
@@ -80,10 +83,11 @@ export class FsJobQueue implements JobQueue {
     }
 
     if (this.eventBus && !this.reannounceTimer) {
-      // Jobs left pending across a restart are announced right away…
+      // Jobs left pending across a restart are announced right away — a
+      // wake-up for any worker already parked and connected…
       await this.announcePendingJobs();
-      // …and anything that misses an announcement is retried here, along
-      // with recovery of jobs orphaned by a dead worker.
+      // …then the tick: recovery of jobs orphaned by a dead worker, and the
+      // lost-wake-up insurance the header describes.
       this.reannounceTimer = setInterval(() => {
         this.announcePendingJobs().catch((error) => {
           this.logger.warn('Pending-job re-announce failed', {

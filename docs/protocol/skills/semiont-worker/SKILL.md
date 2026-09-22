@@ -121,7 +121,7 @@ const adapter = createJobClaimAdapter({
 
 ## Claiming and processing jobs
 
-`adapter.start()` widens the SSE channel set to include `job:queued` (and the other channels the adapter needs); the adapter's reactive contract handles SSE-subscribe, claim, and completion tracking. Subscribe to `adapter.activeJob$` and dispatch:
+`adapter.start()` pulls: it claims once the transport is open, again after every `completeJob()` / `failJob()`, on a matching `job:queued` while parked, and on every reconnect — and parks when the dispatcher answers `none-pending`. `job:queued` is a wake-up, not a reservation; the claim's `types` is what the dispatcher matches. Subscribe to `adapter.activeJob$` and dispatch, and subscribe to `adapter.refused$` to learn about a claim refused for any reason other than an empty queue — `bus.unauthorized` means this credential can never claim, and the right response is to exit so the operator sees it:
 
 ```typescript
 adapter.activeJob$.subscribe((job) => {
@@ -266,7 +266,7 @@ If your worker is doing custom work that doesn't match the standard job shapes, 
 
 Set `SEMIONT_BUS_LOG=1` to log every transport-level event (`EMIT`, `RECV`, `SSE`, `PUT`, `GET`) as a single grep-friendly line on stdout. This is the fastest way to confirm that:
 
-- `job:queued` events are arriving (the adapter widens the SSE channel set on `start()`, but only after `start()` is called — silently missing this is the most common worker bug).
+- `job:claim` is being emitted on `start()` — the worker asks without waiting for an announcement, so a silent worker that emitted no claim never called `start()` or the transport never opened. `job:queued` arriving is the wake-up, not the claim.
 - Your `job:start` / `job:complete` emits are reaching the gateway.
 - The correlation IDs line up between request and response.
 
@@ -285,7 +285,7 @@ httpTransport.state$.subscribe((state: ConnectionState) => {
 
 `degraded` is the threshold to surface in a status endpoint — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a brief mount-churn cycle.
 
-**Every claim answered with `job:claim-failed` saying the caller is not a worker** means the minting client lacks the `semiont-worker` role, so the agent token carries no worker capability. The worker authenticates, wakes on every `job:queued`, and is refused each time — with nothing in its own logs saying why. A realm imported before that role existed has exactly this shape; `semiont start` refuses it by name and `semiont identity sync` repairs the client's roles mapper.
+**Every claim answered with `job:claim-failed` saying the caller is not a worker** means the minting client lacks the `semiont-worker` role, so the agent token carries no worker capability. The refusal now carries `code: unauthorized`, promoted to `bus.unauthorized` on `refused$`; the shipped worker exits on it so the supervisor restarts it with the reason in the log, and a daemon built from this skill should do the same. A realm imported before that role existed has exactly this shape; `semiont start` refuses it by name and `semiont identity sync` repairs the client's roles mapper.
 
 ## Graceful shutdown
 
@@ -310,6 +310,6 @@ If your worker is mid-job at shutdown time, the in-flight call should be allowed
 - **Resource-scope `job:complete` and `job:fail`.** Pass the `resourceId` as the third arg to `transport.emit`. Other events emit globally with no scope.
 - **Use the pre-built processors when possible.** `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob`, and `processGenerationJob` from `@semiont/jobs` cover the six standard job shapes. Custom processors are fine; just keep the lifecycle protocol intact.
 - **`createProcessLogger` populates trace IDs automatically.** When OTel is initialized and a span is active, every log line gets `trace_id` / `span_id` fields — Tier 3 correlation between `tail -f` and the trace UI. Use it instead of `console.log`.
-- **Set `SEMIONT_BUS_LOG=1` first** when debugging a worker that's silently doing nothing. The most common cause is the SSE channel set not including `job:queued` (which means `adapter.start()` wasn't called, or the cast to `HttpTransport.actor` is wrong).
+- **Set `SEMIONT_BUS_LOG=1` first** when debugging a worker that's silently doing nothing. The most common causes are `adapter.start()` never being called (no `job:claim` on the wire at all), the cast to `HttpTransport.actor` being wrong, or every claim being refused — read `refused$`.
 - **Errors split by surface.** Per-call rejections from namespace methods extend `SemiontError` — narrow to `APIError` (HTTP) or `BusRequestError` (bus-mediated) when needed. Asynchronous session-fatal errors (`session.auth-failed`, `session.refresh-exhausted`) arrive on `SemiontBrowser.error$`; subscribe in long-running workers. See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling).
 - **For the production worker reference**, see [`packages/jobs/src/worker-main.ts`](../../../../packages/jobs/src/worker-main.ts) — the standalone container entry point. It uses shared-secret auth (worker pool deployment) and a per-job-type inference client map; the skill above is the user-authored equivalent.
