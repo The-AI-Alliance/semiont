@@ -82,14 +82,15 @@ registerCreateResource(app as unknown as ResourcesRouterType);
 // verbatim" assertions can't be satisfied by accidental derivation. Pass
 // storageUri: null to omit the field.
 async function postResource(
-  { format = 'text/markdown', storageUri = 'file://explicit-location.bin' }:
-  { format?: string; storageUri?: string | null } = {},
+  { format = 'text/markdown', storageUri = 'file://explicit-location.bin', jobId }:
+  { format?: string; storageUri?: string | null; jobId?: string } = {},
 ) {
   const fd = new FormData();
   fd.set('name', 'My Doc');
   fd.set('file', new File([new Uint8Array([0x68, 0x69])], 'doc.bin'));
   fd.set('format', format);
   if (storageUri) fd.set('storageUri', storageUri);
+  if (jobId) fd.set('jobId', jobId);
   return app.request('/resources', { method: 'POST', body: fd });
 }
 
@@ -148,5 +149,28 @@ describe('POST /resources validation', () => {
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  it('forwards the job a worker cites onto the create, untouched', async () => {
+    // The resource path is an HTTP upload, not a bus emit, so this route is
+    // where the citation crosses from the worker's form field to the
+    // yield:create the Stower derives provenance from. Dropping it here would
+    // silently attribute a person's generation request to the model alone.
+    const res = await postResource({ storageUri: 'file://gen.md', jobId: 'job-42' });
+
+    expect(res.status).toBe(202);
+    expect(ResourceOperations.createResource).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: 'job-42' }),
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it('forwards no job when none was cited — a person\'s own upload', async () => {
+    const res = await postResource({ storageUri: 'file://mine.md' });
+
+    expect(res.status).toBe(202);
+    const [input] = vi.mocked(ResourceOperations.createResource).mock.calls[0]!;
+    expect(input).not.toHaveProperty('jobId', expect.anything());
   });
 });

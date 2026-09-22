@@ -4619,6 +4619,9 @@ type PostResourcesMultipartBody struct {
 	// IsDraft 'true' or 'false' — whether the resource is a draft
 	IsDraft *string `json:"isDraft,omitempty"`
 
+	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
+	JobId *string `json:"jobId,omitempty"`
+
 	// Language ISO 639-1 language code
 	Language *string `json:"language,omitempty"`
 

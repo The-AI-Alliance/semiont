@@ -35,6 +35,8 @@ export interface CreateResourceInput {
   generatedFrom?: { resourceId?: string; annotationId?: string };
   generationPrompt?: string;
   generator?: Agent | Agent[];
+  /** The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create. */
+  jobId?: string;
   isDraft?: boolean;
 }
 
@@ -67,6 +69,7 @@ export class ResourceOperations {
         generatedFrom: input.generatedFrom,
         generationPrompt: input.generationPrompt,
         generator: input.generator,
+        jobId: input.jobId,
         isDraft: input.isDraft,
       },
     );

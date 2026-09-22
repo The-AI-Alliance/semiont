@@ -43,6 +43,11 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const generationPrompt = formData.get('generationPrompt') as string | null;
     const generatorStr = formData.get('generator') as string | null;
     const isDraftStr = formData.get('isDraft') as string | null;
+    // The job this resource fulfils, when a worker is creating it. Forwarded
+    // onto yield:create untouched: the Stower derives who requested the
+    // resource from the cited job's own events, and refuses a worker-role
+    // create that cites none. Absent for a person's own upload.
+    const jobId = formData.get('jobId') as string | null;
     const cloneToken = formData.get('cloneToken') as string | null;
     const archiveOriginalStr = formData.get('archiveOriginal') as string | null;
 
@@ -148,6 +153,7 @@ export function registerCreateResource(router: ResourcesRouterType) {
               generatedFrom,
               generationPrompt: generationPrompt || undefined,
               generator,
+              jobId: jobId || undefined,
               isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
             },
             principal.did,

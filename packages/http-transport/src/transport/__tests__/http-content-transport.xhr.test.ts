@@ -122,6 +122,32 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     vi.clearAllMocks();
   });
 
+  test('sends the cited job as a form field, beside the other provenance fields', async () => {
+    // buildFormData appends a fixed list of fields, so a new one is dropped
+    // silently unless it is named here. `jobId` is how a worker's create
+    // reaches the gateway route that forwards it onto yield:create.
+    const { content } = makeTransportAndContent();
+
+    const promise = content.putBinary(
+      {
+        name: 'gen.md',
+        file: Buffer.from('generated'),
+        format: 'text/markdown',
+        storageUri: 'file://gen.md',
+        sourceResourceId: 'res-source',
+        jobId: 'job-42',
+      },
+      { onProgress: vi.fn() },
+    );
+
+    const sent = FakeXHR.instances[0]!.sendCalls[0] as FormData;
+    expect(sent.get('jobId')).toBe('job-42');
+    expect(sent.get('sourceResourceId')).toBe('res-source');
+
+    FakeXHR.instances[0]!.fireSuccess(201, { resourceId: 'new-res-2' });
+    await expect(promise).resolves.toEqual({ resourceId: 'new-res-2' });
+  });
+
   test('opts into XHR path when `onProgress` is provided', async () => {
     const { content } = makeTransportAndContent();
     const onProgress = vi.fn();

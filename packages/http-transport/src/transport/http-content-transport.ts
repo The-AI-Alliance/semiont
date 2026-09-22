@@ -223,6 +223,7 @@ function buildFormData(request: PutBinaryRequest): FormData {
   if (request.sourceResourceId) formData.append('sourceResourceId', String(request.sourceResourceId));
   if (request.generationPrompt) formData.append('generationPrompt', request.generationPrompt);
   if (request.generator) formData.append('generator', JSON.stringify(request.generator));
+  if (request.jobId) formData.append('jobId', request.jobId);
   if (request.cloneToken) formData.append('cloneToken', request.cloneToken);
   if (request.archiveOriginal !== undefined) formData.append('archiveOriginal', String(request.archiveOriginal));
   if (request.isDraft !== undefined) formData.append('isDraft', String(request.isDraft));

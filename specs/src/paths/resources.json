@@ -54,6 +54,10 @@
                 "type": "string",
                 "description": "For AI-generated resources: JSON-stringified Agent (single object or array), capturing which model/worker produced the content"
               },
+              "jobId": {
+                "type": "string",
+                "description": "The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload."
+              },
               "isDraft": {
                 "type": "string",
                 "description": "'true' or 'false' — whether the resource is a draft"
