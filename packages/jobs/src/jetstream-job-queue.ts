@@ -1,6 +1,8 @@
 /**
  * JetStreamJobQueue — the JetStream driver behind the `JobQueue` interface
- * (JOB-QUEUE-DRIVER P1, topology ruling M: gateway-mediated).
+ * (JOB-QUEUE-DRIVER P1, topology ruling M: broker-mediated — the queue's own
+ * process holds the broker connection and the leases; workers never touch the
+ * broker. That process was the gateway; it is the dispatcher now.)
  *
  * Two primitives, one authority each:
  *
@@ -11,12 +13,12 @@
  *  - **Stream `JOBS`** (subjects `jobs.<category>.<type>`, work-queue
  *    retention) is the DELIVERY vehicle and redelivery timer. A delivered
  *    message is the lease this process holds for a job; `working()`
- *    heartbeats extend it, and a gateway that dies stops heartbeating, so
- *    `AckWait` redelivers the job to a live instance — gateway-death
+ *    heartbeats extend it, and a dispatcher that dies stops heartbeating, so
+ *    `AckWait` redelivers the job to a live instance — dispatcher-death
  *    recovery, protocol-native.
  *
  * Worker-death recovery is NOT AckWait's job under the mediated topology
- * (the gateway holding the lease is alive; the worker vanished): it is the
+ * (the dispatcher holding the lease is alive; the worker vanished): it is the
  * `lastProgressAt` sweep (`recoverStaleRunningJobs`), the same contract the
  * fs driver's mtime janitor implemented. The redelivery handler checks KV
  * state, so the two recovery paths can never double-apply.
@@ -40,6 +42,9 @@ import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
 
 const STREAM = 'JOBS';
+// The durable consumer keeps its original name: it is a WIRE name on every
+// deployed broker, and renaming it would orphan the consumer and its leases.
+// The process that holds it is the dispatcher.
 const CONSUMER = 'gateway-claims';
 const BUCKET = 'jobs';
 
@@ -175,11 +180,11 @@ export class JetStreamJobQueue implements JobQueue {
     // The lease heartbeat doubles as RECONCILIATION (the multi-instance
     // lease-settle pin): a held delivery whose job concluded on ANOTHER
     // instance — its claim lost the CAS race, or a redelivery landed here
-    // after a gateway death — can only be settled by the holder, because
+    // after a dispatcher death — can only be settled by the holder, because
     // nobody else has the delivery to ack. Terminal in KV → ack and drop;
     // otherwise the lease extends. While this process is alive its leases
     // never expire; when it dies they redeliver after ackWait — that IS the
-    // gateway-death recovery path.
+    // dispatcher-death recovery path.
     this.heartbeat = setInterval(() => {
       if (this.reconciling) return;
       this.reconciling = true;
@@ -237,11 +242,11 @@ export class JetStreamJobQueue implements JobQueue {
   }
 
   /**
-   * A delivery is a job arriving at this gateway. What it means depends on
+   * A delivery is a job arriving at this dispatcher. What it means depends on
    * the job's authoritative (KV) state:
    *  - pending  → hold the lease, announce for a worker to claim;
    *  - running  → hold silently (a claim raced ahead of the delivery, or a
-   *               redelivery reached a fresh instance after a gateway death);
+   *               redelivery reached a fresh instance after a dispatcher death);
    *  - terminal → the work already concluded elsewhere; consume the message;
    *  - unknown  → not ours to run; terminate it.
    */
@@ -341,14 +346,14 @@ export class JetStreamJobQueue implements JobQueue {
   async claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
     const matches = (t: string) => types.length === 0 || types.includes(t);
     // Lease-aligned fast path (topology memo, mechanic 1): deliveries this
-    // gateway already holds — the claim lands where the worker is connected.
+    // dispatcher already holds — the claim lands where the worker is connected.
     for (const [id, held] of [...this.held]) {
       if (!matches(held.type)) continue;
       const won = await this.tryClaim(toJobId(id));
       if (won) return won;
     }
     // Fallback: pending state whose delivery has not reached us — yet (a
-    // claim racing ahead of its delivery) or ever (another gateway holds
+    // claim racing ahead of its delivery) or ever (another dispatcher holds
     // it; KV is the authority, and that holder's reconcile settles the
     // stale lease once this claim concludes the job).
     for (const key of await this.allKeys()) {
