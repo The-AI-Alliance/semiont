@@ -257,7 +257,7 @@ import { BehaviorSubject } from 'rxjs';
 
 vi.mock('@semiont/react-ui', async () => {
   const actual = await vi.importActual<typeof import('@semiont/react-ui')>('@semiont/react-ui');
-  const user$ = new BehaviorSubject({ did: 'did:web:example.com:users:alice%40example.com', name: 'Alice' });
+  const user$ = new BehaviorSubject({ did: 'did:web:example.com:users:3f2b9c14-7d81-4e55-9a02-6b1d8e40c7aa', name: 'Alice' });
   const activeSession$ = new BehaviorSubject({ user$, client: {}, kb: { id: 'kb-1' } });
   return {
     ...actual,

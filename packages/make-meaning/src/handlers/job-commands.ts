@@ -8,14 +8,6 @@ import {
   entityTypesNotRegisteredMessage,
 } from '../views/projection-validators.js';
 
-function parseDidUser(did: string): { userId: string; email: string; domain: string } {
-  const parts = did.split(':');
-  const usersIdx = parts.indexOf('users');
-  const domain = parts.slice(2, usersIdx).join(':');
-  const email = decodeURIComponent(parts.slice(usersIdx + 1).join(':'));
-  return { userId: did, email, domain };
-}
-
 export function registerJobCommandHandlers(
   eventBus: EventBus,
   jobQueue: JobQueue,
@@ -31,8 +23,6 @@ export function registerJobCommandHandlers(
       if (!_userId || typeof _userId !== 'string') {
         throw new Error('_userId is required (injected by bus gateway)');
       }
-
-      const user = parseDidUser(_userId);
 
       // GENERATION-WIRE-CONTEXT D1/D2: for generation, the context is the wire
       // truth — the job's resourceId is DERIVED from params.context.focus, and
@@ -85,9 +75,6 @@ export function registerJobCommandHandlers(
           id: jobId(`job-${generateUuid()}`),
           type: jobType as string,
           userId: userId(_userId),
-          userName: user.email,
-          userEmail: user.email,
-          userDomain: user.domain,
           created: new Date().toISOString(),
           retryCount: 0,
           // Generation is non-idempotent — a retry re-runs the LLM and produces

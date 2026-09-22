@@ -27,17 +27,14 @@ export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancell
 export interface JobMetadata {
   id: JobId;
   type: JobType;
-  userId: UserId;
   /**
-   * Audit-only snapshot of the requesting user (with `userEmail` and
-   * `userDomain` below), stamped at job creation and persisted in the
-   * on-disk job file. No code path reads these back — annotation
-   * `creator` attribution is derived from `userId` via `didToAgent()`.
-   * Kept intentionally so job files are self-describing to a human.
+   * Who requested the job: the verified DID the gateway stamped on the
+   * `job:create`, and the ONLY identity a job carries. The dispatcher
+   * records it as the requester on `job:assigned`, which is what lets a
+   * write citing this job be attributed — so nothing else about the
+   * requester needs to travel with the job, or be trusted from it.
    */
-  userName: string;
-  userEmail: string;
-  userDomain: string;
+  userId: UserId;
   created: string;
   retryCount: number;
   maxRetries: number;

@@ -112,10 +112,7 @@ const job: PendingJob<DetectionParams> = {
   metadata: {
     id: jobId('job-abc123'),
     type: 'reference-annotation',
-    userId: userId('did:web:example.com:users:user%40example.com'),
-    userName: 'Jane Doe',
-    userEmail: 'jane@example.com',
-    userDomain: 'example.com',
+    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
     created: new Date().toISOString(),
     retryCount: 0,
     maxRetries: 1,
@@ -224,7 +221,7 @@ const failed = await queue.listJobs({ status: 'failed' });
 
 // Get jobs for specific user
 const userJobs = await queue.listJobs({
-  userId: userId('did:web:example.com:users:user%40example.com'),
+  userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
   limit: 10,
 });
 
@@ -341,10 +338,7 @@ await Promise.all(
       metadata: {
         id: jobId(`job-${nanoid()}`),
         type: 'reference-annotation',
-        userId: userId('did:web:example.com:users:user%40example.com'),
-        userName: 'Jane Doe',
-        userEmail: 'jane@example.com',
-        userDomain: 'example.com',
+        userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
         created: new Date().toISOString(),
         retryCount: 0,
         maxRetries: 3,

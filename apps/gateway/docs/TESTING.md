@@ -217,7 +217,7 @@ it('should materialize view from yield:created event', async () => {
   const event: ResourceCreatedEvent = {
     type: 'yield:created',
     resourceId: resourceId('test-resource'),
-    userId: userId('did:web:example.com:users:alice%40example.com'),
+    userId: userId('did:web:example.com:users:3f2b9c14-7d81-4e55-9a02-6b1d8e40c7aa'),
     version: 1,
     payload: {
       name: 'Test Resource',

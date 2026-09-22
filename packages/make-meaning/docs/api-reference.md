@@ -199,13 +199,12 @@ Business logic for annotation CRUD. Emits commands on the EventBus.
 static async createAnnotation(
   request: CreateAnnotationRequest,
   userId: UserId,
-  creator: Agent,
   eventBus: EventBus,
   kb: { views: Pick<ViewStorage, 'get'> },
 ): Promise<CreateAnnotationResult>
 ```
 
-Refuses targets whose media type cannot carry a coordinate (`assertAnnotatableTarget`), assembles a full W3C Annotation locally (`assembleAnnotation` from `@semiont/core`, with `creator` and `created`), emits `mark:create` on EventBus (fire-and-forget — Stower persists), and returns the assembled annotation.
+Refuses targets whose media type cannot carry a coordinate (`assertAnnotatableTarget`), assembles a W3C Annotation locally (`assembleAnnotation` from `@semiont/core` — body, target and `created`; no `creator`, which the Stower derives from the verified emitter), emits `mark:create` on EventBus (fire-and-forget — Stower persists), and returns the assembled annotation.
 
 #### updateAnnotationBody()
 

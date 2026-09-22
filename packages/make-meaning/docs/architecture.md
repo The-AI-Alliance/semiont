@@ -26,7 +26,7 @@ graph TB
     Workers["Job Workers"] -->|commands| BUS
     EBC["SemiontClient"] -->|commands| BUS
 
-    BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:complete, job:fail"| STOWER["Stower"]
+    BUS -->|"yield:create, yield:update, yield:mv,<br/>mark:create, mark:commit, mark:delete, mark:update-body,<br/>mark:archive, mark:unarchive,<br/>frame:add-entity-type, frame:add-tag-schema,<br/>mark:update-entity-types,<br/>job:start, job:assign, job:complete, job:fail"| STOWER["Stower"]
     BUS -->|"browse:*"| BROWSER["Browser"]
     BUS -->|"gather:*"| GATHERER["Gatherer"]
     BUS -->|"match:search-requested"| MATCHER["Matcher"]
@@ -113,8 +113,11 @@ The single write path to the Knowledge Base event log — no other code calls `e
 | `frame:add-tag-schema` | `frame:tag-schema-added` | `frame:tag-schema-add-failed` on error |
 | `mark:update-entity-types` | `mark:entity-tag-added` / `mark:entity-tag-removed` | `mark:update-entity-types-failed` on error |
 | `job:start` | `job:started` | — |
+| `job:assign` | `job:assigned` | — |
 | `job:complete` | `job:completed` | — |
 | `job:fail` | `job:failed` | — |
+
+`job:assign` is the dispatcher's, not a worker's: it emits one after accepting a `job:claim`, under its own service identity, recording which holder took which job and who requested it. The Stower persists it on the job's resource so a later write citing that job can be checked — holder against the writer, `creator` from the requester — by reading that resource's log alone.
 
 `job:report-progress` is ephemeral UI feedback — the Stower does not subscribe to it and nothing is persisted.
 
