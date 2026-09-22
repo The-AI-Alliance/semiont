@@ -21,7 +21,6 @@ import type { AnchoredText, components } from '@semiont/core';
 type Agent = components['schemas']['Agent'];
 
 const RID = resourceId('res-idem');
-const USER = 'did:web:example.com:users:alice';
 const GENERATOR = { '@type': 'Software', '@id': 'did:web:example.com:agents:ollama:test' } as unknown as Agent;
 
 const CONTENT = 'Ada Lovelace wrote the first algorithm.';
@@ -35,8 +34,8 @@ const comment = (value: string) => [
   { type: 'TextualBody' as const, value, purpose: 'commenting' as const, format: 'text/plain' as const },
 ];
 
-const build = (m: SpanMatch, motivation: Parameters<typeof buildTextAnnotation>[4], body?: unknown) =>
-  buildTextAnnotation(CONTENT, RID, USER, GENERATOR, motivation, m, body as never);
+const build = (m: SpanMatch, motivation: Parameters<typeof buildTextAnnotation>[3], body?: unknown) =>
+  buildTextAnnotation(CONTENT, RID, GENERATOR, motivation, m, body as never);
 
 describe('re-running a unit does not mint duplicate annotations', () => {
   it('the same span, motivation and body yields the SAME id', () => {
@@ -52,8 +51,8 @@ describe('re-running a unit does not mint duplicate annotations', () => {
     // generator leaked into the id, every recovery would duplicate — which is
     // exactly the bug.
     const other = { '@type': 'Software', '@id': 'did:web:example.com:agents:ollama:OTHER' } as unknown as Agent;
-    const first = buildTextAnnotation(CONTENT, RID, USER, GENERATOR, 'highlighting', match(0, 12));
-    const second = buildTextAnnotation(CONTENT, RID, 'did:web:example.com:users:bob', other, 'highlighting', match(0, 12));
+    const first = buildTextAnnotation(CONTENT, RID, GENERATOR, 'highlighting', match(0, 12));
+    const second = buildTextAnnotation(CONTENT, RID, other, 'highlighting', match(0, 12));
     expect(second.id).toBe(first.id);
   });
 
@@ -90,7 +89,7 @@ describe('re-running a unit does not mint duplicate annotations', () => {
     // After a content update the offsets survive but no longer quote the same
     // words; `exact` is in the anchor so that is not silently the same one.
     const shifted = buildTextAnnotation(
-      'Grace Hopper wrote the first compiler.', RID, USER, GENERATOR,
+      'Grace Hopper wrote the first compiler.', RID, GENERATOR,
       'highlighting', { exact: 'Grace Hopper', start: 0, end: 12 },
     );
     expect(shifted.id).not.toBe(build(match(0, 12), 'highlighting').id);
@@ -105,7 +104,7 @@ describe('re-running a unit does not mint duplicate annotations', () => {
       items: [{ page: 1, start: 0, end: CONTENT.length, x: 10, y: 700, width: 300, height: 12 }],
     } as unknown as AnchoredText;
 
-    const pdf = buildPdfAnnotation(anchored, RID, USER, GENERATOR, 'highlighting', match(0, 12));
+    const pdf = buildPdfAnnotation(anchored, RID, GENERATOR, 'highlighting', match(0, 12));
     const text = build(match(0, 12), 'highlighting');
     expect(pdf.id).toBe(text.id);
   });

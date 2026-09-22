@@ -82,6 +82,11 @@ domain = "localhost"
 siteName = "Semiont (local)"
 adminEmail = "admin@example.com"
 
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://localhost:8080/realms/semiont"
+subjectClaim = "sub"
+
 [environments.local.database]
 host = "localhost"
 port = 5432
@@ -392,6 +397,30 @@ NATS server (the launcher runs it as the `messaging` service): JetStream streams
 core subjects for signals, disjoint subject spaces. Both sections must then name the same
 `servers` — the launcher refuses a split. Running gateway replicas requires both broker-backed
 drivers: see [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas.
+
+## Identity Configuration
+
+Every knowledge base trusts one OIDC issuer for people's tokens, and names the claim its
+people are identified by:
+
+```toml
+[environments.local.identity]
+type = "keycloak"                                       # "keycloak": the launcher runs it; "oidc": an issuer you run
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"  # exactly the token's `iss`
+subjectClaim = "sub"                                    # the issuer claim a person's DID is built from
+```
+
+All three keys are required — the gateway, every sidecar and `semiont start` refuse a config
+missing any of them, naming the key. There is no `audience` key: the audience is the knowledge
+base's own resource identifier, derived from its committed `did:web` domain.
+
+`subjectClaim` decides who a person *is*. Their DID is `did:web:<site domain>:users:<that
+claim's value>`, under the same `[site] domain` the deployment's software agents are minted
+beneath, so people and agents are peers under one authority. `"sub"` names people by the
+issuer's stable identifier — a changed email changes nothing about who authored what;
+`"email"` names them by address, and the operator has said so. Nothing is defaulted.
+`accessTokenLifespan` (seconds) and `image` apply to `type = "keycloak"` only and are read by
+the launcher alone. See [Authentication](./AUTHENTICATION.md).
 
 ## Environment Variables
 

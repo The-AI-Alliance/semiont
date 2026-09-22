@@ -191,7 +191,12 @@ type signalCfg struct {
 type identityCfg struct {
 	Type   string `toml:"type"`
 	Issuer string `toml:"issuer"`
-	Image  string `toml:"image"` // optional: override the catalog's default image
+	// SubjectClaim: the issuer claim a person's DID is built from —
+	// did:web:<site domain>:users:<its value>. Required; declared, never
+	// defaulted. The gateway reads it; the launcher only vets its presence, so
+	// no path writes a config the gateway's loader would refuse.
+	SubjectClaim string `toml:"subjectClaim"`
+	Image        string `toml:"image"` // optional: override the catalog's default image
 	// AccessTokenLifespan: seconds a token the realm mints stays valid, and so
 	// the window in which a disabled account can still act. Optional; absent
 	// means keycloakAccessTokenLifespan. Pointer because 0 is a value someone

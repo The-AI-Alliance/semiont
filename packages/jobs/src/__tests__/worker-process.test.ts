@@ -366,6 +366,24 @@ describe('handleJob orchestration', () => {
         .toMatchObject({ jobType: 'highlight-annotation', result: { highlightsFound: 2 } });
       expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(1);
     });
+
+    it('cites the job on the mark:commit it persists with', async () => {
+      // The worker holds the job; the write that fulfils it says so. Without
+      // this the record cannot join the annotations back to who asked for
+      // them, and a worker-role write with no citation is refused downstream.
+      vi.mocked(processHighlightJob).mockImplementation(emitting({
+        annotations: [{ id: 'a1' }] as never,
+        result: { highlightsFound: 1, highlightsCreated: 1 } as never,
+      }));
+      const h = makeFakeSessionAndAdapter();
+      const job = makeJob('highlight-annotation');
+
+      await handleJob(h.adapter, makeConfig(h.session), job);
+
+      const commit = h.busEmits.find(e => e.channel === 'mark:commit');
+      expect(commit).toBeDefined();
+      expect((commit!.payload as { jobId?: string }).jobId).toBe(job.jobId);
+    });
   });
 
   describe('comment-annotation', () => {
@@ -862,11 +880,14 @@ describe('handleJob orchestration', () => {
       // durability to state. Every TERMINAL payload carries how durability was
       // established (COMMIT-ACK-FALSE-FAILURE) — here, an acknowledged commit.
       expect(keysOf('job:complete')).toEqual(['attempt', 'durability', 'jobId', 'jobType', 'resourceId', 'result']);
-      // The commit carries a batch, not a single annotation — and NOTHING
-      // else. The correlation key busRequest mints rides the envelope now
-      // (BUS-CARRIES-FRAMES D1), so its reappearance here would mean a
-      // routing fact had leaked back into a domain payload.
-      expect(keysOf('mark:commit')).toEqual(['annotations', 'resourceId']);
+      // The commit carries a batch, the resource it targets, and the job it
+      // fulfils — and NOTHING else. `jobId` is a DOMAIN fact: the record
+      // derives who requested these annotations from that job's own events,
+      // so the worker never names a requester. The correlation key busRequest
+      // mints rides the envelope (BUS-CARRIES-FRAMES D1); its reappearance
+      // here would mean a ROUTING fact had leaked back into a domain payload,
+      // which is what this pin exists to catch.
+      expect(keysOf('mark:commit')).toEqual(['annotations', 'jobId', 'resourceId']);
     });
   });
 

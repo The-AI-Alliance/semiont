@@ -119,6 +119,7 @@ export const RESOURCE_SCOPED_CHANNELS = [
   'mark:archived',
   'mark:unarchived',
   'job:started',
+  'job:assigned',
   'job:completed',
   'job:failed',
 ] as const satisfies readonly EventName[];

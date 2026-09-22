@@ -249,6 +249,8 @@ export interface PutBinaryRequest {
   sourceResourceId?: ResourceId | string;
   generationPrompt?: string;
   generator?: Agent | Agent[];
+  /** The job this resource fulfils, when a worker is creating it. Crosses the upload as a form field and lands on yield:create. */
+  jobId?: string;
   isDraft?: boolean;
   /**
    * Clone provenance (EXTRACT-ARCHIVIST P3): when set, the gateway stores

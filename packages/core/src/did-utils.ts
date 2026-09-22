@@ -4,11 +4,14 @@
  * DID:WEB shapes used in Semiont:
  *
  *   Knowledge base: did:web:<domain>
- *   Person:         did:web:<domain>:users:<email%40host>
+ *   Person:         did:web:<domain>:users:<subject>
  *   Software:       did:web:<domain>:agents:<provider>:<model>
  *
- * `<domain>` is the KB's committed `[site] domain` — one identity, with its
- * people and software peers named beneath it.
+ * `<domain>` is the deployment's `[site] domain` — one identity, with its
+ * people and software peers named beneath it. A person's `<subject>` is the
+ * value of the issuer claim `[identity] subjectClaim` selects, URI-encoded
+ * (VERIFIED-PROVENANCE P5): which claim is declared per deployment, never
+ * inferred here, and the person's email is a fact about them, not their name.
  *
  * `didToAgent` is the inverse: parse the DID, recognize whether the
  * subject is a person or a software peer, and return a typed Agent.
@@ -67,12 +70,12 @@ export function kbResource(domain: string): string {
 }
 
 /**
- * Convert a user object to a DID:WEB identifier.
+ * A person's DID:WEB identifier from the subject the issuer asserted.
  *
- * Format: did:web:<domain>:users:<email%40domain>
+ * Format: did:web:<domain>:users:<subject, URI-encoded>
  */
-export function userToDid(user: { email: string; domain: string }): UserId {
-  return `did:web:${user.domain}:users:${encodeURIComponent(user.email)}` as UserId;
+export function userToDid(user: { subject: string; domain: string }): UserId {
+  return `did:web:${user.domain}:users:${encodeURIComponent(user.subject)}` as UserId;
 }
 
 /**
@@ -88,22 +91,6 @@ export function userToDid(user: { email: string; domain: string }): UserId {
  */
 export function agentToDid(agent: { domain: string; provider: string; model: string }): UserId {
   return `did:web:${agent.domain}:agents:${encodeURIComponent(agent.provider)}:${encodeURIComponent(agent.model)}` as UserId;
-}
-
-/**
- * Convert a user object to a typed Person Agent with a DID:WEB identifier.
- */
-export function userToAgent(user: {
-  id: string;
-  domain: string;
-  name: string | null;
-  email: string;
-}): Agent {
-  return {
-    '@type': 'Person',
-    '@id': userToDid(user),
-    name: user.name || user.email,
-  };
 }
 
 /**
@@ -131,7 +118,7 @@ export function softwareToAgent(software: {
  * Parse a DID:WEB string into a typed Agent.
  *
  * Recognizes:
- *   did:web:<host>:users:<email>           → Person  (name = decoded email)
+ *   did:web:<host>:users:<subject>         → Person  (name = decoded subject)
  *   did:web:<host>:agents:<provider>:<model> → Software (provider + model)
  *
  * Anything else falls back to a Person with the trailing segment as
@@ -155,6 +142,58 @@ export function softwareToAgent(software: {
  * append-only and the offending records cannot be edited away, so a strict reader
  * today would convert a partial failure into a total one.
  */
+/**
+ * Who a record is attributed to — derived, never asserted (VERIFIED-PROVENANCE P2).
+ *
+ * `requester` is the DID of whoever asked for the work: the emitter of the
+ * `job:create` a write cites, as the dispatcher recorded it on `job:assigned`;
+ * or the writer itself when it cites no job. `executor` is the write's own
+ * `_userId`. Both are identities the gateway stamped from a token — nothing
+ * here is read from a payload, which is what makes the result derived.
+ *
+ * The W3C/PROV fields follow from the pair:
+ * - `creator` is the requester.
+ * - `generator` is the executor when the executor is software. A caller may
+ *   supply one to carry the model's parameters, but its identity MUST be the
+ *   executor's — a generator naming someone else is exactly the assertion this
+ *   function exists to make impossible, and is refused.
+ * - `wasAttributedTo` is both parties in that order, collapsed to one when
+ *   requester and executor are the same.
+ *
+ * This is the ONE place these fields are built. `lint:attribution` fails the
+ * build if a second appears.
+ */
+export interface Attribution {
+  creator: Agent;
+  generator?: Agent;
+  wasAttributedTo: Agent[];
+}
+
+export function attribution(chain: { requester: string; executor: string; generator?: Agent }): Attribution {
+  const creator = didToAgent(chain.requester);
+  const executor = didToAgent(chain.executor);
+  const executorIsSoftware = executor['@type'] === 'Software';
+
+  let generator: Agent | undefined;
+  if (chain.generator !== undefined) {
+    if (!executorIsSoftware) {
+      throw new Error(`attribution: a generator was supplied, but the executor ${chain.executor} is not software`);
+    }
+    if (chain.generator['@id'] !== executor['@id']) {
+      throw new Error(`attribution: generator ${String(chain.generator['@id'])} is not the executor ${chain.executor}`);
+    }
+    generator = chain.generator;
+  } else if (executorIsSoftware) {
+    generator = executor;
+  }
+
+  // The executor's Agent as it should appear: the supplied generator when
+  // there is one (it carries parameters the DID does not), else the DID's.
+  const executorAgent: Agent = generator !== undefined ? generator : executor;
+  const wasAttributedTo = creator['@id'] === executor['@id'] ? [executorAgent] : [creator, executorAgent];
+  return generator !== undefined ? { creator, generator, wasAttributedTo } : { creator, wasAttributedTo };
+}
+
 export function didToAgent(did: string | undefined | null): Agent {
   if (!did) {
     // No `'unknown'` fabrication. `@id` is optional in every branch, so a missing

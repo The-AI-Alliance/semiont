@@ -163,13 +163,16 @@ async function commitAnnotations(
   session: SemiontSession,
   resourceId: string,
   annotations: readonly { readonly id: string }[],
+  jobId: string,
 ): Promise<DurabilityEvidence | undefined> {
   if (annotations.length === 0) return undefined;
   try {
     await busRequest(
       (session.client.transport as HttpTransport).actor,
       'mark:commit' satisfies MarkCommitAwaits,
-      { resourceId, annotations },
+      // The batch cites the job it fulfils. Who asked for these annotations is
+      // derived downstream from that job's own events; the worker never says.
+      { resourceId, annotations, jobId },
       MARK_COMMIT_TIMEOUT_MS,
     );
     return 'acknowledged';
@@ -423,7 +426,10 @@ async function handleJobInner(
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
-  const { userId, jobId } = job;
+  // `userId` — the requester — is deliberately NOT read here: the worker
+  // cites the job it holds and the Stower derives who asked from the
+  // dispatcher's record of it (VERIFIED-PROVENANCE P2).
+  const { jobId } = job;
   // `jobType` is a required, enumerated field on every lifecycle command, but
   // arrives off the bus as a plain string. Narrow once here so the emits below
   // are checked against the wire contract instead of asserted past it.
@@ -517,7 +523,7 @@ async function handleJobInner(
     // trace, which is exactly what made a 411 s opaque job hard to diagnose.
     const source = await withSpan(
       'detection:prepare',
-      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, userId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
+      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
       { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
     );
 
@@ -599,7 +605,7 @@ async function handleJobInner(
    * re-runs that chunk into a log that dedupes it by id.
    */
   const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
-    record(await commitAnnotations(session, String(resourceId), annotations));
+    record(await commitAnnotations(session, String(resourceId), annotations, jobId));
     unitCursors.set(checkpoint.unit, checkpoint.cursor);
     // Published to the caller's accumulator as it moves: the failure path runs
     // OUTSIDE this function, so a cursor only this scope knows about would be
@@ -802,6 +808,9 @@ async function handleJobInner(
       ...(genParams.language ? { language: genParams.language } : {}),
       ...(genParams.entityTypes && genParams.entityTypes.length > 0 ? { entityTypes: genParams.entityTypes } : {}),
       generator,
+      // The resource cites the job it fulfils; who asked for it is derived
+      // downstream from that job's events, never stated here.
+      jobId,
     });
 
     // Resource-focus generation has no triggering reference — mint a navigable
@@ -818,7 +827,7 @@ async function handleJobInner(
         },
         generator,
       );
-      record(await commitAnnotations(session, String(resourceId), [provenanceRef]));
+      record(await commitAnnotations(session, String(resourceId), [provenanceRef], jobId));
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -862,7 +871,6 @@ async function handleJobInner(
           const citationRef = buildPdfAnnotation(
             layer,
             makeResourceId(String(newResourceId)),
-            userId,
             generator,
             'linking',
             { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
@@ -891,7 +899,7 @@ async function handleJobInner(
       }
     }
 
-    record(await commitAnnotations(session, String(newResourceId), citationRefs));
+    record(await commitAnnotations(session, String(newResourceId), citationRefs, jobId));
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),

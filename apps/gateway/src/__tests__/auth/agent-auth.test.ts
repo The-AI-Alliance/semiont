@@ -55,7 +55,7 @@ describe('POST /api/tokens/agent', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     issuer = await fixtureIssuer(ORIGIN, { audience: AUDIENCE });
-    configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN }, AUDIENCE);
+    configureTrustedIssuer({ type: 'oidc', issuer: ORIGIN, subjectClaim: 'sub' }, { audience: AUDIENCE, domain: SITE_DOMAIN });
   });
 
   describe('successful exchange', () => {

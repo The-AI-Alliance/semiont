@@ -75,8 +75,9 @@ Both endpoints require a valid JWT (`Authorization: Bearer …`).
 - 403: currently not used. All authenticated users see all channels.
   That's a known gap — see "Known gaps" below.
 
-The gateway injects `_userId` (the token subject's DID) into every
-emitted payload. Handlers read it via `command._userId`; it's the only
+The gateway stamps `_userId` (the verified principal's DID) and `_roles`
+(the token's capabilities) onto every emitted payload, clearing anything
+the caller wrote there. Handlers read `command._userId`; it's the only
 identity signal they can trust. This is an `ITransport` invariant —
 the shared contract names the guarantee; this gateway is the mechanism.
 

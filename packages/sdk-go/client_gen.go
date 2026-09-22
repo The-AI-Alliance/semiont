@@ -1522,7 +1522,7 @@ type Annotation struct {
 	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Creator *Agent `json:"creator,omitempty"`
 
-	// Generator Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers.
+	// Generator Web Annotation generator — the Software peer that produced the annotation, when software did. Absent for a person's own annotation. An emitter may supply it to carry the model's parameters, but its identity must be the emitter's own: the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. One producer per write — a write carrying the array form is refused.
 	Generator *Annotation_Generator `json:"generator,omitempty"`
 	Id        string                `json:"id"`
 	Modified  *time.Time            `json:"modified,omitempty"`
@@ -1536,7 +1536,7 @@ type Annotation struct {
 	// Type W3C Annotation type
 	Type AnnotationType `json:"type"`
 
-	// WasAttributedTo PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software).
+	// WasAttributedTo PROV-O wasAttributedTo — every party responsible for this annotation, DERIVED by the knowledge base from `creator` and the verified executor of the write: `[creator, generator]` when one agent requested the work and software produced it; collapsed to the one agent when requester and producer are the same. Never accepted from an emitter.
 	WasAttributedTo *Annotation_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 }
 
@@ -1554,7 +1554,7 @@ type Annotation_Body struct {
 // AnnotationGenerator1 defines model for .
 type AnnotationGenerator1 = []Agent
 
-// Annotation_Generator Web Annotation generator — the SoftwareAgent that produced the annotation, when software was involved. Absent for purely manual annotations. Single object is the common case; array supports pipelines that combine multiple software peers.
+// Annotation_Generator Web Annotation generator — the Software peer that produced the annotation, when software did. Absent for a person's own annotation. An emitter may supply it to carry the model's parameters, but its identity must be the emitter's own: the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. One producer per write — a write carrying the array form is refused.
 type Annotation_Generator struct {
 	union json.RawMessage
 }
@@ -1573,7 +1573,7 @@ type AnnotationType string
 // AnnotationWasAttributedTo1 defines model for .
 type AnnotationWasAttributedTo1 = []Agent
 
-// Annotation_WasAttributedTo PROV-O wasAttributedTo — all parties responsible for this annotation. For human-prompted AI work this combines `creator` (the Person) and `generator` (the Software). For purely manual annotations it equals `[creator]`; for autonomous-agent work it equals `[generator]` (and `creator` may be the same Software).
+// Annotation_WasAttributedTo PROV-O wasAttributedTo — every party responsible for this annotation, DERIVED by the knowledge base from `creator` and the verified executor of the write: `[creator, generator]` when one agent requested the work and software produced it; collapsed to the one agent when requester and producer are the same. Never accepted from an emitter.
 type Annotation_WasAttributedTo struct {
 	union json.RawMessage
 }
@@ -2339,7 +2339,7 @@ type FileEntry struct {
 	// AnnotationCount Number of annotations on this resource (only when tracked is true)
 	AnnotationCount *int `json:"annotationCount,omitempty"`
 
-	// Creator DID of the user who created the resource (only when tracked is true)
+	// Creator DID of the resource's creator — the first of its derived `wasAttributedTo`, the requester as the knowledge base recorded it (only when tracked is true)
 	Creator *string `json:"creator,omitempty"`
 
 	// EntityTypes Entity types assigned to this resource (only when tracked is true)
@@ -2759,6 +2759,41 @@ type JobAssessmentAnnotationResult struct {
 // JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 type JobAssessmentAnnotationResultKind string
 
+// JobAssignCommand Bus command the dispatcher emits, under its own service identity, immediately after it accepts a job:claim — the correlated job:claimed reply is unchanged. The Stower persists it as job:assigned. It is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. A later write citing `jobId` is checked against the holder and its `creator` derived from the requester by reading the resource's own log, with nothing outside the record.
+type JobAssignCommand struct {
+	// UnderscoreUserId The dispatcher's service DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// Holder DID of the claimant whose claim was accepted — the `_userId` the gateway stamped on the job:claim, restated by the dispatcher.
+	Holder string `json:"holder"`
+	JobId  string `json:"jobId"`
+
+	// JobType Type of background job
+	JobType JobType `json:"jobType"`
+
+	// Requester DID of the emitter of the job:create that produced this job — the `_userId` the gateway stamped on that create, restated by the dispatcher.
+	Requester string `json:"requester"`
+
+	// ResourceId The job's resource — for a generation, the source it generates from. The assignment is persisted on this resource's log.
+	ResourceId string `json:"resourceId"`
+}
+
+// JobAssignedPayload Payload for job:assigned — the dispatcher's own record that it accepted a claim. Emitted by the dispatcher under its service identity after a successful job:claim (the correlated job:claimed reply is unchanged). This is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. The Stower persists it beside job:started so that a write citing `jobId` can be checked against the holder and its `creator` derived from the requester with no read outside the event log.
+type JobAssignedPayload struct {
+	// Holder DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity.
+	Holder string `json:"holder"`
+	JobId  string `json:"jobId"`
+
+	// JobType Type of background job
+	JobType JobType `json:"jobType"`
+
+	// Requester DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create.
+	Requester string `json:"requester"`
+
+	// ResourceId The job's resource — for a generation, the source it generates from. Job events are scoped here.
+	ResourceId string `json:"resourceId"`
+}
+
 // JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary (JOB-RESTART-SAFETY P4) — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
 type JobCancelCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
@@ -2808,7 +2843,10 @@ type JobCheckpointCommand struct {
 type JobClaimCommand struct {
 	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted (EXTRACT-JOBS P0).
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
-	Types           []string  `json:"types"`
+
+	// UnderscoreUserId Authenticated claimant's DID, injected by the /bus/emit gateway. Clients do not set this. The dispatcher records it as the holder on job:assigned.
+	UnderscoreUserId *string  `json:"_userId,omitempty"`
+	Types            []string `json:"types"`
 }
 
 // JobCommentAnnotationResult Result of a completed comment-annotation job.
@@ -3383,11 +3421,17 @@ type MarkAssistRequestEventOptionsTone string
 
 // MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch (JOB-RESTART-SAFETY P6). Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic (P3).
 type MarkCommitCommand struct {
+	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string `json:"_userId,omitempty"`
 
 	// Annotations The unit's annotations, already built with deterministic ids. Re-committing an identical batch is a no-op rather than a duplicate.
 	Annotations []Annotation `json:"annotations"`
+
+	// JobId The job this batch fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested these annotations from the cited job's own events — the emitter never says who the work was for.
+	JobId *string `json:"jobId,omitempty"`
 
 	// ResourceId Resource every annotation in this batch targets.
 	ResourceId string `json:"resourceId"`
@@ -3405,7 +3449,7 @@ type MarkCommitOk struct {
 	} `json:"response"`
 }
 
-// MarkCreateCommand Bus command to create an annotation on a resource.
+// MarkCreateCommand Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.
 type MarkCreateCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string    `json:"_userId,omitempty"`
@@ -3709,9 +3753,12 @@ type ResourceArchivedPayload struct {
 
 // ResourceClonedPayload Payload for yield:cloned domain event
 type ResourceClonedPayload struct {
-	ContentByteSize *int      `json:"contentByteSize,omitempty"`
-	ContentChecksum string    `json:"contentChecksum"`
-	EntityTypes     *[]string `json:"entityTypes,omitempty"`
+	ContentByteSize *int   `json:"contentByteSize,omitempty"`
+	ContentChecksum string `json:"contentChecksum"`
+
+	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
+	Creator     *Agent    `json:"creator,omitempty"`
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
 	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
 	Format           ContentFormat `json:"format"`
@@ -3721,6 +3768,17 @@ type ResourceClonedPayload struct {
 
 	// StorageUri Where the clone's bytes are, on the resource's primary Representation — the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME).
 	StorageUri *string `json:"storageUri,omitempty"`
+
+	// WasAttributedTo PROV-O wasAttributedTo, derived at write time: the cloner alone. The value the resource view carries.
+	WasAttributedTo *ResourceClonedPayload_WasAttributedTo `json:"wasAttributedTo,omitempty"`
+}
+
+// ResourceClonedPayloadWasAttributedTo1 defines model for .
+type ResourceClonedPayloadWasAttributedTo1 = []Agent
+
+// ResourceClonedPayload_WasAttributedTo PROV-O wasAttributedTo, derived at write time: the cloner alone. The value the resource view carries.
+type ResourceClonedPayload_WasAttributedTo struct {
+	union json.RawMessage
 }
 
 // ResourceCreatedPayload Payload for yield:created domain event
@@ -3728,8 +3786,11 @@ type ResourceCreatedPayload struct {
 	ContentByteSize *int `json:"contentByteSize,omitempty"`
 
 	// ContentChecksum SHA-256 of content
-	ContentChecksum string    `json:"contentChecksum"`
-	EntityTypes     *[]string `json:"entityTypes,omitempty"`
+	ContentChecksum string `json:"contentChecksum"`
+
+	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
+	Creator     *Agent    `json:"creator,omitempty"`
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
 	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
 	Format        ContentFormat `json:"format"`
@@ -3745,6 +3806,9 @@ type ResourceCreatedPayload struct {
 
 	// StorageUri The creating instruction's URI, recorded on the event. Append-only, so this value never changes — the LOCATION the projection serves is maintained across moves and lives on the resource's primary Representation, relocated by yield:moved. Optional: a resource may have no bytes. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri *string `json:"storageUri,omitempty"`
+
+	// WasAttributedTo PROV-O wasAttributedTo, derived at write time from `creator` and the executor: both parties when they differ, one when they are the same. The value the resource view carries; readers do not re-derive it.
+	WasAttributedTo *ResourceCreatedPayload_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 }
 
 // ResourceCreatedPayloadGenerator1 defines model for .
@@ -3752,6 +3816,14 @@ type ResourceCreatedPayloadGenerator1 = []Agent
 
 // ResourceCreatedPayload_Generator defines model for ResourceCreatedPayload.Generator.
 type ResourceCreatedPayload_Generator struct {
+	union json.RawMessage
+}
+
+// ResourceCreatedPayloadWasAttributedTo1 defines model for .
+type ResourceCreatedPayloadWasAttributedTo1 = []Agent
+
+// ResourceCreatedPayload_WasAttributedTo PROV-O wasAttributedTo, derived at write time from `creator` and the executor: both parties when they differ, one when they are the same. The value the resource view carries; readers do not re-derive it.
+type ResourceCreatedPayload_WasAttributedTo struct {
 	union json.RawMessage
 }
 
@@ -3784,7 +3856,7 @@ type ResourceDescriptor struct {
 	// EntityTypes Application-specific: Entity types for this resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
-	// Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+	// Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 	Generator *ResourceDescriptor_Generator `json:"generator,omitempty"`
 	HasPart   *[]string                     `json:"hasPart,omitempty"`
 
@@ -3813,7 +3885,7 @@ type ResourceDescriptor struct {
 	SourceResourceId *string `json:"sourceResourceId,omitempty"`
 	Version          *string `json:"version,omitempty"`
 
-	// WasAttributedTo W3C PROV - agents responsible for this resource
+	// WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 	WasAttributedTo *ResourceDescriptor_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 
 	// WasDerivedFrom W3C PROV - source resources this was derived from
@@ -3882,7 +3954,7 @@ type ResourceDescriptor_ConformsTo struct {
 // ResourceDescriptorGenerator1 defines model for .
 type ResourceDescriptorGenerator1 = []Agent
 
-// ResourceDescriptor_Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+// ResourceDescriptor_Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 type ResourceDescriptor_Generator struct {
 	union json.RawMessage
 }
@@ -3917,7 +3989,7 @@ type ResourceDescriptor_Representations struct {
 // ResourceDescriptorWasAttributedTo1 defines model for .
 type ResourceDescriptorWasAttributedTo1 = []Agent
 
-// ResourceDescriptor_WasAttributedTo W3C PROV - agents responsible for this resource
+// ResourceDescriptor_WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 type ResourceDescriptor_WasAttributedTo struct {
 	union json.RawMessage
 }
@@ -3982,7 +4054,7 @@ type ScoredResource struct {
 	// EntityTypes Application-specific: Entity types for this resource
 	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
-	// Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+	// Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 	Generator *ScoredResource_Generator `json:"generator,omitempty"`
 	HasPart   *[]string                 `json:"hasPart,omitempty"`
 
@@ -4017,7 +4089,7 @@ type ScoredResource struct {
 	SourceResourceId *string `json:"sourceResourceId,omitempty"`
 	Version          *string `json:"version,omitempty"`
 
-	// WasAttributedTo W3C PROV - agents responsible for this resource
+	// WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 	WasAttributedTo *ScoredResource_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 
 	// WasDerivedFrom W3C PROV - source resources this was derived from
@@ -4086,7 +4158,7 @@ type ScoredResource_ConformsTo struct {
 // ScoredResourceGenerator1 defines model for .
 type ScoredResourceGenerator1 = []Agent
 
-// ScoredResource_Generator Software agent that produced or processed this resource (W3C Web Annotation model)
+// ScoredResource_Generator Software peer that produced this resource (W3C Web Annotation model). Its identity is the verified emitter of the create; the parameters are the producer's to state.
 type ScoredResource_Generator struct {
 	union json.RawMessage
 }
@@ -4121,7 +4193,7 @@ type ScoredResource_Representations struct {
 // ScoredResourceWasAttributedTo1 defines model for .
 type ScoredResourceWasAttributedTo1 = []Agent
 
-// ScoredResource_WasAttributedTo W3C PROV - agents responsible for this resource
+// ScoredResource_WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 type ScoredResource_WasAttributedTo struct {
 	union json.RawMessage
 }
@@ -4509,6 +4581,9 @@ type YieldCloneTokenRequest struct {
 
 // YieldCreateCommand Bus command to create a yielded resource in the knowledge base.
 type YieldCreateCommand struct {
+	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this resource fulfils in `jobId`; the Stower refuses the create otherwise.
+	UnderscoreRoles *[]string `json:"_roles,omitempty"`
+
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
 	UnderscoreUserId *string   `json:"_userId,omitempty"`
 	ByteSize         int       `json:"byteSize"`
@@ -4521,12 +4596,17 @@ type YieldCreateCommand struct {
 		AnnotationId *string `json:"annotationId,omitempty"`
 		ResourceId   *string `json:"resourceId,omitempty"`
 	} `json:"generatedFrom,omitempty"`
-	GenerationPrompt *string                       `json:"generationPrompt,omitempty"`
-	Generator        *YieldCreateCommand_Generator `json:"generator,omitempty"`
-	IsDraft          *bool                         `json:"isDraft,omitempty"`
-	Language         *string                       `json:"language,omitempty"`
-	Name             string                        `json:"name"`
-	NoGit            *bool                         `json:"noGit,omitempty"`
+	GenerationPrompt *string `json:"generationPrompt,omitempty"`
+
+	// Generator The Software peer that produced the content, when software did. Its identity must be the emitter's own — the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the emitter and the cited job.
+	Generator *YieldCreateCommand_Generator `json:"generator,omitempty"`
+	IsDraft   *bool                         `json:"isDraft,omitempty"`
+
+	// JobId The job this resource fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested this resource from the cited job's own events — the emitter never says who the work was for.
+	JobId    *string `json:"jobId,omitempty"`
+	Language *string `json:"language,omitempty"`
+	Name     string  `json:"name"`
+	NoGit    *bool   `json:"noGit,omitempty"`
 
 	// StorageUri The caller's instruction for WHERE the bytes are — not a copy of the stored fact. The stored location lives on the resource's primary Representation (`Representation.storageUri`), which is its single home; this field is the message that puts it there. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri string `json:"storageUri"`
@@ -4535,7 +4615,7 @@ type YieldCreateCommand struct {
 // YieldCreateCommandGenerator1 defines model for .
 type YieldCreateCommandGenerator1 = []Agent
 
-// YieldCreateCommand_Generator defines model for YieldCreateCommand.Generator.
+// YieldCreateCommand_Generator The Software peer that produced the content, when software did. Its identity must be the emitter's own — the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the emitter and the cited job.
 type YieldCreateCommand_Generator struct {
 	union json.RawMessage
 }
@@ -4601,11 +4681,14 @@ type PostResourcesMultipartBody struct {
 	// GenerationPrompt For AI-generated resources: the prompt that drove generation
 	GenerationPrompt *string `json:"generationPrompt,omitempty"`
 
-	// Generator For AI-generated resources: JSON-stringified Agent (single object or array), capturing which model/worker produced the content
+	// Generator For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job.
 	Generator *string `json:"generator,omitempty"`
 
 	// IsDraft 'true' or 'false' — whether the resource is a draft
 	IsDraft *string `json:"isDraft,omitempty"`
+
+	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
+	JobId *string `json:"jobId,omitempty"`
 
 	// Language ISO 639-1 language code
 	Language *string `json:"language,omitempty"`
@@ -9349,6 +9432,68 @@ func (t *Representation_ConformsTo) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsAgent returns the union data inside the ResourceClonedPayload_WasAttributedTo as a Agent
+func (t ResourceClonedPayload_WasAttributedTo) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ResourceClonedPayload_WasAttributedTo as the provided Agent
+func (t *ResourceClonedPayload_WasAttributedTo) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ResourceClonedPayload_WasAttributedTo, using the provided Agent
+func (t *ResourceClonedPayload_WasAttributedTo) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResourceClonedPayloadWasAttributedTo1 returns the union data inside the ResourceClonedPayload_WasAttributedTo as a ResourceClonedPayloadWasAttributedTo1
+func (t ResourceClonedPayload_WasAttributedTo) AsResourceClonedPayloadWasAttributedTo1() (ResourceClonedPayloadWasAttributedTo1, error) {
+	var body ResourceClonedPayloadWasAttributedTo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceClonedPayloadWasAttributedTo1 overwrites any union data inside the ResourceClonedPayload_WasAttributedTo as the provided ResourceClonedPayloadWasAttributedTo1
+func (t *ResourceClonedPayload_WasAttributedTo) FromResourceClonedPayloadWasAttributedTo1(v ResourceClonedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceClonedPayloadWasAttributedTo1 performs a merge with any union data inside the ResourceClonedPayload_WasAttributedTo, using the provided ResourceClonedPayloadWasAttributedTo1
+func (t *ResourceClonedPayload_WasAttributedTo) MergeResourceClonedPayloadWasAttributedTo1(v ResourceClonedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResourceClonedPayload_WasAttributedTo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResourceClonedPayload_WasAttributedTo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsAgent returns the union data inside the ResourceCreatedPayload_Generator as a Agent
 func (t ResourceCreatedPayload_Generator) AsAgent() (Agent, error) {
 	var body Agent
@@ -9407,6 +9552,68 @@ func (t ResourceCreatedPayload_Generator) MarshalJSON() ([]byte, error) {
 }
 
 func (t *ResourceCreatedPayload_Generator) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAgent returns the union data inside the ResourceCreatedPayload_WasAttributedTo as a Agent
+func (t ResourceCreatedPayload_WasAttributedTo) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ResourceCreatedPayload_WasAttributedTo as the provided Agent
+func (t *ResourceCreatedPayload_WasAttributedTo) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ResourceCreatedPayload_WasAttributedTo, using the provided Agent
+func (t *ResourceCreatedPayload_WasAttributedTo) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResourceCreatedPayloadWasAttributedTo1 returns the union data inside the ResourceCreatedPayload_WasAttributedTo as a ResourceCreatedPayloadWasAttributedTo1
+func (t ResourceCreatedPayload_WasAttributedTo) AsResourceCreatedPayloadWasAttributedTo1() (ResourceCreatedPayloadWasAttributedTo1, error) {
+	var body ResourceCreatedPayloadWasAttributedTo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceCreatedPayloadWasAttributedTo1 overwrites any union data inside the ResourceCreatedPayload_WasAttributedTo as the provided ResourceCreatedPayloadWasAttributedTo1
+func (t *ResourceCreatedPayload_WasAttributedTo) FromResourceCreatedPayloadWasAttributedTo1(v ResourceCreatedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceCreatedPayloadWasAttributedTo1 performs a merge with any union data inside the ResourceCreatedPayload_WasAttributedTo, using the provided ResourceCreatedPayloadWasAttributedTo1
+func (t *ResourceCreatedPayload_WasAttributedTo) MergeResourceCreatedPayloadWasAttributedTo1(v ResourceCreatedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResourceCreatedPayload_WasAttributedTo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResourceCreatedPayload_WasAttributedTo) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

@@ -160,7 +160,7 @@ export function registerJobCommandHandlers(
   });
 
   eventBus.frames('job:claim').subscribe(async ({ payload: command, correlationId }) => {
-    const { types, _roles } = command;
+    const { types, _roles, _userId } = command;
 
     try {
       // A claim is AUTHORIZED, not merely authenticated (EXTRACT-JOBS P0). Only
@@ -183,9 +183,33 @@ export function registerJobCommandHandlers(
         throw new Error('No pending job of the requested types');
       }
 
+      // Resolved BEFORE the reply goes out: a throw after `job:claimed` would
+      // reach the catch and send a second, contradictory reply.
+      const jobResourceId = (result.job.params as { resourceId?: unknown }).resourceId;
+      if (typeof jobResourceId !== 'string' || !jobResourceId) {
+        throw new Error(`job:claim: job ${result.job.metadata.id} names no resource to record its assignment under`);
+      }
+      if (typeof _userId !== 'string' || !_userId) {
+        throw new Error('job:claim missing _userId (gateway injection)');
+      }
+
       eventBus.emit('job:claimed', {
         response: { ...result.job },
       }, { correlationId });
+
+      // The dispatcher's own record of the acceptance, under its own identity:
+      // which holder took which job, and who asked for it. It is the one fact
+      // only the dispatcher can vouch for, and the Stower persists it beside
+      // job:started so a write citing this job is checkable — holder against
+      // the writer, creator from the requester — by reading the log alone
+      // (VERIFIED-PROVENANCE D1). The correlated reply above is unchanged.
+      eventBus.emit('job:assign', {
+        jobId: result.job.metadata.id,
+        jobType: result.job.metadata.type,
+        resourceId: jobResourceId,
+        holder: _userId,
+        requester: result.job.metadata.userId,
+      });
     } catch (error) {
       eventBus.emit('job:claim-failed', { message: (error as Error).message, }, { correlationId });
     }

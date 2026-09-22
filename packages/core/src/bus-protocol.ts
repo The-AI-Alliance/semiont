@@ -389,11 +389,13 @@ export type EventMap = {
 
   // Domain events (branded — system of record)
   'job:started': StoredEvent<EventOfType<'job:started'>>;
+  'job:assigned': StoredEvent<EventOfType<'job:assigned'>>;
   'job:completed': StoredEvent<EventOfType<'job:completed'>>;
   'job:failed': StoredEvent<EventOfType<'job:failed'>>;
 
   // Commands
   'job:start': components['schemas']['JobStartCommand'];
+  'job:assign': components['schemas']['JobAssignCommand'];
   'job:report-progress': components['schemas']['JobReportProgressCommand'];
   'job:complete': components['schemas']['JobCompleteCommand'];
   'job:fail': components['schemas']['JobFailCommand'];
@@ -754,9 +756,11 @@ export const CHANNEL_SCHEMAS = {
 
   // ── JOB FLOW ────────────────────────────────────────────────────
   'job:started':                      null, // StoredEvent
+  'job:assigned':                     null,
   'job:completed':                    null,
   'job:failed':                       null,
   'job:start':                        'JobStartCommand',
+  'job:assign':                       'JobAssignCommand',
   'job:report-progress':              'JobReportProgressCommand',
   'job:complete':                     'JobCompleteCommand',
   'job:fail':                         'JobFailCommand',

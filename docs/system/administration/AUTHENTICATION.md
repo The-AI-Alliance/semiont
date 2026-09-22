@@ -89,6 +89,25 @@ Disabling also stops the refresh grant, so the person cannot mint a replacement 
 
 **Agent tokens are the exception with no issuer behind them.** An agent identity is synthetic — derived from a (provider, model) pair rather than registered anywhere — so there is no account to disable. Its lifetime is the whole of its revocation window. Disabling at the issuer the *service account* that asked for it stops further mints, but cannot touch a token already handed out.
 
+## Who a person is, and who vouches for it
+
+### The subject claim
+
+`[identity] subjectClaim` names the issuer claim a person's DID is built from:
+
+```toml
+[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"     # the issuer's stable identifier; "email" names people by address
+```
+
+It is required — the gateway, every sidecar and `semiont start` refuse a config without it, naming the key — and it has no default: which claim identifies a person is declared per deployment, never inferred. The DID is `did:web:<site domain>:users:<claim value>`, under the same `[site] domain` the deployment mints its software agents beneath, so a person and the software working for them are peers under one authority. With `"sub"`, a changed email changes nothing about who authored what; with `"email"`, the address is the identity, and the operator has said so.
+
+### The trust boundary
+
+The gateway, the services behind it (Archivist, Stower, dispatcher, the sidecars), and the administrator who runs them and commits the event log are **one party**. The gateway verifies every bearer token and stamps the verified DID onto every event as `_userId`; nothing behind it re-verifies, because there is nothing to gain — from outside, this knowledge base vouched for its log either way. What the record holds is therefore the knowledge base's word: every provenance fact on an artifact is either the verified emitter of an event or derived by joining events whose emitters were verified, and nothing an emitter asserts about identity in a payload is honoured. Verification of that log by a reader *outside* the knowledge base — a signature under a key the emitter controls — is not a property a single deployment has; it belongs to federation between knowledge bases, where each signs what it vouches for.
+
 ## Endpoint Protection
 
 ### Public endpoints (no auth)
@@ -154,8 +173,8 @@ The gateway dispatches on the token's `iss` claim, and the two paths verify diff
 1. **Signature** — verified against the issuer's published JWKS.
 2. **Issuer and audience** — must match the configured issuer and this knowledge base's derived resource identity.
 3. **Expiration** — enforced by the verifier.
-4. **Subject and email** — a `sub` is required, an `email` is required, and an `email_verified` of false is refused.
-5. **Principal** — built from those claims. The DID is derived from the email and its domain; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
+4. **Subject and email** — the claim `[identity] subjectClaim` names must be present and non-empty, an `email` is required, and an `email_verified` of false is refused.
+5. **Principal** — built from those claims. The DID is `did:web:<site domain>:users:<subject>`, the subject being the value of the configured claim — the email is carried for display and is not part of the identity; `name` and `picture` are carried through when the issuer sends them. Nothing is looked up, and there is no second admission check.
 
 **A token the gateway itself signed** (software agents only):
 
@@ -301,6 +320,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 - The token may be expired — obtain a new one from the issuer.
 - The token may be for another audience. This deployment accepts only tokens whose audience is its own derived resource identity, published at `/.well-known/oauth-protected-resource`.
 - The token's email may not be marked verified by the issuer, which is refused.
+- The token may lack the claim `[identity] subjectClaim` names; the gateway refuses it, naming the claim.
 
 **Sign-in fails at the issuer**
 - The account may be disabled there. That is where enable and disable live; `semiont useradd --active` re-enables one.
@@ -312,8 +332,9 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 - [Security](./SECURITY.md) - CORS posture, secrets, hardening
 - [Running Semiont on AWS](../platforms/AWS.md) - what you must wire up yourself
 - [Database Management](./DATABASE.md) - the PostgreSQL Keycloak uses; Semiont keeps no schema
+- [Configuration](./CONFIGURATION.md) - the `[identity]` section
 
 ---
 
-**Authentication**: bearer-only. People's tokens are minted by the trusted issuer and verified here against its published keys; the gateway signs only agent and media tokens. Revocation is disabling the account at the issuer, bounded by the access token lifetime. Open CORS.
-**Last Updated**: 2026-09-18
+**Authentication**: bearer-only. People's tokens are minted by the trusted issuer and verified here against its published keys; the gateway signs only agent and media tokens. A person is named by the configured subject claim under the knowledge base's own domain. Revocation is disabling the account at the issuer, bounded by the access token lifetime. Open CORS.
+**Last Updated**: 2026-09-22

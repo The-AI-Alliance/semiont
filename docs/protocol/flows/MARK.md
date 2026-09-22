@@ -30,8 +30,9 @@ Semiont creates W3C-compliant annotations through two complementary paths: **man
 **Manual annotation** — create an annotation directly. The `mark`
 namespace emits `mark:create-request` via the bus gateway; the gateway
 annotation-assembly handler builds the full W3C annotation from the
-intent (using the authenticated user's DID as the creator) and passes
-it to Stower.
+intent and passes it to the Stower, which derives `creator` and
+`wasAttributedTo` from the verified emitter — the emitter never names
+itself.
 
 ```typescript
 // One argument — the wire layer derives the routing resourceId from
@@ -103,8 +104,9 @@ client.mark.assist(resourceId, 'linking', {
 All types create annotations with:
 - **Target**: Text selection with dual selectors (TextPositionSelector + TextQuoteSelector)
 - **Body**: Empty for highlights, assessment text for assessments, comment text for comments, entity type tags for references
-- **Creator**: W3C Agent identifying who requested the annotation
-- **Generator**: W3C SoftwareAgent identifying the worker and inference model that produced it (present when a worker did the work, absent when an agent annotated directly)
+- **Creator**: W3C Agent naming who requested the annotation — derived by the knowledge base from the verified emitter, or from the job the commit cites; never sent
+- **Generator**: W3C `Software` agent — the model that produced it, under its own verified DID (present when software did the work, absent for a person's own annotation)
+- **wasAttributedTo**: PROV-O — `[creator, generator]`, collapsed to one when requester and producer are the same agent; derived, like `creator`
 - **Created**: ISO 8601 timestamp
 
 ### Concurrent Marks
@@ -132,15 +134,15 @@ Every detected annotation follows the [W3C Web Annotation Data Model](https://ww
   "id": "http://localhost:4000/annotations/abc123",
   "motivation": "highlighting",
   "creator": {
-    "id": "did:web:localhost:users:alice",
-    "type": "Person",
+    "@type": "Person",
+    "@id": "did:web:localhost:users:alice",
     "name": "Alice"
   },
   "generator": {
-    "@type": "SoftwareAgent",
-    "name": "Highlight Worker / Anthropic claude-sonnet-4-6",
-    "worker": "Highlight Worker",
-    "inferenceProvider": "anthropic",
+    "@type": "Software",
+    "@id": "did:web:localhost:agents:anthropic:claude-sonnet-4-6",
+    "name": "anthropic claude-sonnet-4-6",
+    "provider": "anthropic",
     "model": "claude-sonnet-4-6"
   },
   "created": "2025-12-04T10:30:00Z",
@@ -476,7 +478,10 @@ Worker runs detection, emits the unified job lifecycle —
 job:report-progress / job:complete / job:fail — via /bus/emit
 (filtered by jobId; the SDK matches on the jobId from job:created)
     ↓
-Worker also emits mark:create per annotation; Stower persists and
+Worker commits the batch via mark:commit { resourceId, annotations, jobId };
+Stower derives creator (the requester, from the dispatcher's job:assigned
+record for that jobId) and wasAttributedTo, refuses a worker-role commit
+that cites no job or a job this worker does not hold, persists, and
 EventStore publishes enriched mark:added events
     ↓
 Every connected Browser receives events on /bus/subscribe;

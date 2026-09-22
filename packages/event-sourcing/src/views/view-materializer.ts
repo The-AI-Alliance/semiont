@@ -9,7 +9,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { didToAgent, getPrimaryRepresentation } from '@semiont/core';
+import { attribution, getPrimaryRepresentation } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { applyEntityTypeAdded, applyTagSchemaAdded } from './projection-reducers';
 
@@ -185,7 +185,13 @@ export class ViewMaterializer {
         resource.name = event.payload.name;
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
-        resource.wasAttributedTo = didToAgent(event.userId);
+        // Derived at write time and carried on the event (VERIFIED-PROVENANCE
+        // P2); the projection copies, never constructs. An event written before
+        // derivation existed carries none: its emitter was its only party, and
+        // the one function says exactly that.
+        resource.wasAttributedTo = event.payload.wasAttributedTo !== undefined
+          ? event.payload.wasAttributedTo
+          : attribution({ requester: event.userId, executor: event.userId }).wasAttributedTo;
 
         // Create representation from format and checksum. The storage URI
         // lives here — on the rendition whose bytes it locates — and nowhere
@@ -213,7 +219,11 @@ export class ViewMaterializer {
         resource.entityTypes = event.payload.entityTypes || [];
         resource.dateCreated = event.timestamp;
         resource.sourceResourceId = event.payload.parentResourceId;
-        resource.wasAttributedTo = didToAgent(event.userId);
+        // As for yield:created: copied from the event, derived once for
+        // events that predate derivation.
+        resource.wasAttributedTo = event.payload.wasAttributedTo !== undefined
+          ? event.payload.wasAttributedTo
+          : attribution({ requester: event.userId, executor: event.userId }).wasAttributedTo;
 
         // Create representation from format and checksum
         if (!resource.representations) resource.representations = [];

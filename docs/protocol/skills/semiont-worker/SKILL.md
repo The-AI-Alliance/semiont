@@ -162,14 +162,18 @@ Then, inside `handleJob`, emit lifecycle events on the same transport, do the wo
 
 ```typescript
 async function handleJob(job: ActiveJob): Promise<void> {
-  const { jobId, type, resourceId, userId } = job;
+  const { jobId, type, resourceId } = job;
   // Annotation-scoped jobs carry the anchoring annotation through every
   // lifecycle payload. WHERE that id lives is per-jobType, so derive it once
   // rather than reaching into params at each emit. Semiont's own `generation`
   // jobs carry NO referenceId — their anchor is the gathered context's focus.
+  //
+  // No `userId`: the gateway stamps `_userId` from your token onto everything
+  // you emit, and who REQUESTED the job is the knowledge base's to derive
+  // from the job you cite — not yours to say.
   const annotationId = anchorOf(job);
   const lifecycleBase = {
-    resourceId, userId, jobId, jobType: type,
+    resourceId, jobId, jobType: type,
     ...(annotationId ? { annotationId } : {}),
   };
 
@@ -234,15 +238,21 @@ const onProgress: OnProgress = (percentage, message, stage, extra) => {
 };
 
 const content = await session.client.browse.resourceContent(resourceId);
-const { annotations, result } = await processHighlightJob(
-  content, inferenceClient, job.params, userId, generator, onProgress,
-);
 
-for (const annotation of annotations) {
-  await session.client.transport.emit('mark:create', {
-    annotation, userId, resourceId,
-  });
-}
+// `buildAnnotation(motivation, match, body?)` shapes each finding into a W3C
+// annotation: body, target, and `generator` — this agent, with the model's
+// parameters. Nothing else about identity: `creator` and `wasAttributedTo`
+// are the knowledge base's to derive, from the job you hold and the identity
+// the gateway verified on your commit. A payload carrying `creator` is refused.
+const { result } = await processHighlightJob(
+  content, inferenceClient, job.params, buildAnnotation, onProgress,
+  // Each chunk's annotations, committed as they are found, citing the job.
+  // The reply — `mark:commit-ok` or `mark:commit-failed` — is where a refusal
+  // (no `jobId`, a job you do not hold, an asserted `creator`) surfaces.
+  async (annotations) => {
+    await session.client.transport.emit('mark:commit', { resourceId, annotations, jobId });
+  },
+);
 
 await session.client.transport.emit('job:complete', { ...lifecycleBase, result }, resourceId);
 adapter.completeJob();

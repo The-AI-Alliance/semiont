@@ -718,6 +718,9 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if id.Issuer == "" {
 			return nil, secErr("identity", "missing required key %q (e.g. \"http://${KEYCLOAK_HOST}:8080/realms/semiont\")", "issuer")
 		}
+		if id.SubjectClaim == "" {
+			return nil, secErr("identity", "missing required key %q (e.g. \"sub\" — the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>)", "subjectClaim")
+		}
 		spec := driverCatalog["identity"][id.Type]
 		host, port, path, err := splitIssuer(id.Issuer)
 		if err != nil {

@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Payload for job:assigned — the dispatcher's own record that it accepted a claim. Emitted by the dispatcher under its service identity after a successful job:claim (the correlated job:claimed reply is unchanged). This is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. The Stower persists it beside job:started so that a write citing `jobId` can be checked against the holder and its `creator` derived from the requester with no read outside the event log.",
+  "properties": {
+    "jobId": { "type": "string" },
+    "jobType": { "$ref": "JobType.json" },
+    "resourceId": { "type": "string", "description": "The job's resource — for a generation, the source it generates from. Job events are scoped here." },
+    "holder": { "type": "string", "description": "DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity." },
+    "requester": { "type": "string", "description": "DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create." }
+  },
+  "required": ["jobId", "jobType", "resourceId", "holder", "requester"]
+}

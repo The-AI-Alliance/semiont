@@ -6,6 +6,17 @@
       "type": "string",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
+    "_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this resource fulfils in `jobId`; the Stower refuses the create otherwise."
+    },
+    "jobId": {
+      "type": "string",
+      "description": "The job this resource fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested this resource from the cited job's own events — the emitter never says who the work was for."
+    },
     "name": {
       "type": "string"
     },
@@ -49,6 +60,7 @@
       "type": "string"
     },
     "generator": {
+      "description": "The Software peer that produced the content, when software did. Its identity must be the emitter's own — the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the emitter and the cited job.",
       "oneOf": [
         {
           "$ref": "./Agent.json"

@@ -171,6 +171,7 @@ interface EnvironmentSection {
   identity?: {
     type?: 'keycloak' | 'oidc';
     issuer?: string;
+    subjectClaim?: string;
   };
   site?: {
     domain?: string;
@@ -538,10 +539,19 @@ export function loadTomlConfig(
         `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section refuses at load, never falls through.`,
       );
     }
+    // VERIFIED-PROVENANCE P5. A person's DID is did:web:<site domain>:users:<the
+    // value of this claim>. Which claim is declared here — one rule per
+    // deployment, never a fallback chain, never one code infers.
+    if (!resolved.identity.subjectClaim) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}.identity] names no subjectClaim — add subjectClaim = "sub" (the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>). The claim people are named by is declared, never defaulted.`,
+      );
+    }
   }
   const identity = {
     type: resolved.identity.type,
     issuer: resolved.identity.issuer,
+    subjectClaim: resolved.identity.subjectClaim,
   } as EnvironmentConfig['services']['identity'];
 
 

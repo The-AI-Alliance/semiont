@@ -72,8 +72,9 @@ launcher manages.
 ## Guidance for the AI assistant
 
 - **Check prerequisites first.** The most common failures are a missing container runtime, no
-  inference key, and a knowledge base whose config has no `[identity]` section — the sidecars
-  refuse to boot without an issuer.
+  inference key, and a knowledge base whose config lacks a complete `[identity]` section
+  (`type`, `issuer`, `subjectClaim`) — the gateway and sidecars refuse to boot, naming the
+  missing key.
 - **`semiont status` is the diagnostic command.** If something isn't working after `start`, run it to
   see which service is unhealthy, then `semiont logs --service <name>`.
 - **Config lives in the KB, at `.semiont/semiontconfig/<name>.toml`.** If inference or the database

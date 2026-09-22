@@ -231,7 +231,11 @@ describe('ResourceOperations', () => {
           generator,
           isDraft: true,
         },
-        userId('did:web:test:users:user-1'),
+        // Generation is the software peer's act, so it is emitted AS that
+        // peer: derivation binds a supplied generator to the executor's
+        // identity and refuses a person claiming a model produced their own
+        // upload (VERIFIED-PROVENANCE P2).
+        userId(generator['@id']),
         asBusRequestPrimitive(eventBus),
       );
 

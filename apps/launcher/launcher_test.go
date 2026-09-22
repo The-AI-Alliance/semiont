@@ -3523,7 +3523,7 @@ const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${
 // variant missing it reports the identity refusal instead of the one it was
 // written to prove. The launcher-run Keycloak, matching the testdata configs;
 // every variant already names a [database], which that shape requires.
-const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n\n"
+const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\nsubjectClaim = \"sub\"\n\n"
 
 // Every config must name a vector store and an embedding provider — the
 // launcher refuses one that does not, exactly as the gateway's loader does.
@@ -7286,7 +7286,7 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 func writeKeycloakConfig(t *testing.T, s *scenario) string {
 	t.Helper()
 	return writeConfigWithIdentity(t, s, "keycloak",
-		"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n")
+		"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\nsubjectClaim = \"sub\"\n")
 }
 
 // writeConfigWithIdentity copies the KB's base config with its [identity]
@@ -7379,7 +7379,7 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 func writeExternalIssuerConfig(t *testing.T, s *scenario) string {
 	t.Helper()
 	return writeConfigWithIdentity(t, s, "external-oidc",
-		"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\n")
+		"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"https://id.example.com/realms/semiont\"\nsubjectClaim = \"sub\"\n")
 }
 
 // An issuer someone else runs gets the SAME preflight as one the launcher

@@ -101,9 +101,16 @@ export function validateSvgMarkup(svg: string): string | null {
  * selector is OPTIONAL — a source-only target annotates the whole resource (W3C;
  * e.g. resource-level edges), per RESOURCE-LEVEL-ANCHOR.
  */
+/**
+ * `generator` is the one provenance fact an emitter may state: WHAT produced
+ * the annotation (a software peer, carrying the model's parameters). Who asked
+ * — `creator`, and `wasAttributedTo` — is never assembled here: the Stower
+ * derives both from the emitter's identity and the job it cites, and refuses a
+ * payload that names them (VERIFIED-PROVENANCE P2). A person passes nothing.
+ */
 export function assembleAnnotation(
   request: CreateAnnotationRequest,
-  creator: Agent,
+  generator?: Agent,
 ): AssembledAnnotation {
   const newAnnotationId = annotationId(generateUuid());
 
@@ -130,7 +137,7 @@ export function assembleAnnotation(
     motivation: request.motivation,
     target: request.target,
     body: request.body as Annotation['body'],
-    creator,
+    ...(generator !== undefined ? { generator } : {}),
     created: now,
     modified: now,
   };

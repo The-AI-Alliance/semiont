@@ -108,6 +108,7 @@ describe('archivist transport channels', () => {
       'browse:tag-schemas-requested',
       'frame:add-entity-type',
       'frame:add-tag-schema',
+      'job:assign',
       'job:complete',
       'job:fail',
       'job:start',

@@ -55,6 +55,7 @@ export class YieldNamespace implements IYieldNamespace {
           ...(data.sourceResourceId ? { sourceResourceId: data.sourceResourceId } : {}),
           ...(data.generationPrompt ? { generationPrompt: data.generationPrompt } : {}),
           ...(data.generator ? { generator: data.generator } : {}),
+          ...(data.jobId ? { jobId: data.jobId } : {}),
           ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
         },
         {

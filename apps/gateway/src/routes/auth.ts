@@ -78,8 +78,10 @@ const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
  *
  * The agent's DID has the shape `did:web:<host>:agents:<provider>:<model>`
  * (see `agentToDid` in @semiont/core). It is what the bus stamps onto
- * `_userId` on every event the worker emits — so events the agent
- * produces attribute to the agent, not to a generic worker pool.
+ * `_userId` on every event the worker emits: the verified executor of the
+ * work, which the knowledge base records as the artifact's `generator`. The
+ * artifact's `creator` is whoever requested the job — derived from the
+ * write's citation of it, never from this token.
  */
 authRouter.post('/api/tokens/agent', async (c) => {
   let minter: AuthorizedMinter;

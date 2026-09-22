@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Bus command to create an annotation on a resource.",
+  "description": "Bus command to create an annotation on a resource. The annotation carries body, target and, when software wrote it, a generator naming the emitter itself; `creator` and `wasAttributedTo` are derived by the knowledge base from the verified emitter, and a payload carrying `creator` is refused.",
   "properties": {
     "_userId": {
       "type": "string",

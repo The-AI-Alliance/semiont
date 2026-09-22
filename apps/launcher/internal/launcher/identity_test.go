@@ -13,6 +13,7 @@ import (
 const keycloakIdentity = `[environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"
 `
 
 // MANDATORY (user, 2026-09-21). Absence used to derive an ABSENT identity
@@ -30,6 +31,23 @@ func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
 		t.Fatal("a config with no identity section was accepted")
 	} else if !strings.Contains(err.Error(), "every knowledge base trusts an issuer") {
 		t.Errorf("error does not explain why: %v", err)
+	}
+}
+
+// The claim a person's DID is built from is DECLARED (VERIFIED-PROVENANCE P5):
+// `did:web:<site domain>:users:<that claim's value>`. A section without it
+// refuses, naming the key — the launcher vets exactly what the gateway's
+// loader would refuse, so no path writes a config the stack cannot start.
+func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
+	p := variantConfig(t, map[string]string{"identity": "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\n"})
+	env, envName, _, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	if _, err := derivePlan(env, envName, p); err == nil {
+		t.Fatal("an [identity] section with no subjectClaim was accepted")
+	} else if !strings.Contains(err.Error(), "subjectClaim") {
+		t.Errorf("error does not name the key: %v", err)
 	}
 }
 
@@ -53,6 +71,7 @@ func TestDerivePlanIdentityOIDCExternal(t *testing.T) {
 	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": `[environments.local.identity]
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
+subjectClaim = "sub"
 `}))
 	checkRole(t, plan, "identity", rolePlan{
 		Obligation: obligationExternal, Driver: "oidc", Address: "login.example.com", Port: 443,
@@ -74,13 +93,13 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 			"[environments.local.identity]\ntype = \"oidc\"\n",
 			[]string{"identity", "\"issuer\""}},
 		{"keycloak issuer without a realm path",
-			"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080\"\n",
+			"[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080\"\nsubjectClaim = \"sub\"\n",
 			[]string{"/realms/<realm>"}},
 		{"oidc on an injected host",
-			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/x\"\n",
+			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/x\"\nsubjectClaim = \"sub\"\n",
 			[]string{"launcher-injected host"}},
 		{"issuer without a scheme",
-			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"login.example.com\"\n",
+			"[environments.local.identity]\ntype = \"oidc\"\nissuer = \"login.example.com\"\nsubjectClaim = \"sub\"\n",
 			[]string{"http://"}},
 	}
 	for _, c := range cases {
@@ -179,6 +198,7 @@ func TestDerivePlanIdentityAccessTokenLifespan(t *testing.T) {
 	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": `[environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"
 accessTokenLifespan = 60
 `}))
 	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
@@ -207,16 +227,19 @@ func TestDerivePlanIdentityLifespanRefusals(t *testing.T) {
 		{"oidc", `[environments.local.identity]
 type = "oidc"
 issuer = "https://login.example.com/realms/acme"
+subjectClaim = "sub"
 accessTokenLifespan = 60
 `, "applies only to type"},
 		{"zero", `[environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"
 accessTokenLifespan = 0
 `, "positive number of seconds"},
 		{"negative", `[environments.local.identity]
 type = "keycloak"
 issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"
+subjectClaim = "sub"
 accessTokenLifespan = -5
 `, "positive number of seconds"},
 	} {

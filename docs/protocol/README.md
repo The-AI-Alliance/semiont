@@ -51,7 +51,7 @@ Per-flow contracts are in **[flows/README.md](flows/README.md)**.
 
 ## What holds across every verb
 
-**Peer symmetry.** Every operation — read, write, and coordination signal — flows through the same bus and the same event-sourced storage regardless of who initiates it. There is no privileged human path and no separate agent API. This is what makes the human/AI mix a deployment decision rather than an architectural one.
+**Peer symmetry.** Every operation — read, write, and coordination signal — flows through the same bus and the same event-sourced storage regardless of who initiates it. There is no privileged human path and no separate agent API. This is what makes the human/AI mix a deployment decision rather than an architectural one. The record describes a person's act and an agent's act the same way: every event carries the verified DID of its emitter, and who requested, who produced, and who is responsible are derived from that — for a human and for software alike.
 
 **Document-grounded knowledge.** Annotations anchor to specific passages via [W3C Web Annotation](W3C-WEB-ANNOTATION.md) targets and [selectors](W3C-SELECTORS.md). The knowledge graph is a projection of those grounded relationships, never a replacement for the source material.
 

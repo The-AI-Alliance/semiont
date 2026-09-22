@@ -74,7 +74,6 @@ import {
 } from '../processors';
 
 const RID = resourceId('res-test');
-const USER_DID = 'did:web:test.local:users:alice%40test.local';
 const GENERATOR: Agent = {
   '@type': 'Software',
   '@id': 'did:web:test.local:agents:test:test',
@@ -87,8 +86,8 @@ const GENERATOR: Agent = {
 // these text-detection tests it is `buildTextAnnotation` curried with the
 // resource + attribution context (exactly what the processors used to do
 // internally). Attribution shape is exercised through this closure.
-const textBuild = (content: string, userId: string = USER_DID): BuildAnnotation =>
-  (motivation, match, body) => buildTextAnnotation(content, RID, userId, GENERATOR, motivation, match, body);
+const textBuild = (content: string): BuildAnnotation =>
+  (motivation, match, body) => buildTextAnnotation(content, RID, GENERATOR, motivation, match, body);
 
 // Synthetic two-line text layer — "alpha beta" / "gamma delta" — for the PDF
 // path. `.text` is what a PDF processor detects over; `pdfBuild` anchors each
@@ -106,8 +105,8 @@ const PDF_LAYER: PdfTextLayer = {
   ],
   fields: [],
 };
-const pdfBuild = (layer: PdfTextLayer, userId: string = USER_DID): BuildAnnotation =>
-  (motivation, match, body) => buildPdfAnnotation(layer, RID, userId, GENERATOR, motivation, match, body);
+const pdfBuild = (layer: PdfTextLayer): BuildAnnotation =>
+  (motivation, match, body) => buildPdfAnnotation(layer, RID, GENERATOR, motivation, match, body);
 
 // The concurrency the fake provider advertises — detection reads it off the
 // client now (a real provider hard-codes its own), so tests set it here.
@@ -183,6 +182,31 @@ describe('processHighlightJob', () => {
     expect(progress).toHaveBeenLastCalledWith(
       100, { code: 'complete-created', count: 2, kind: 'highlight' }, echo,
     );
+  });
+
+  it('says what produced each annotation and nothing about who asked — creator is derived downstream (VERIFIED-PROVENANCE P2)', async () => {
+    // The worker holds the job and knows the requester, and must not say so:
+    // `creator` and `wasAttributedTo` are derived by the Stower from the
+    // cited job's own events, and a payload carrying them is refused. The
+    // worker sends `generator` — what produced the annotation — because that
+    // carries the model's parameters, and its identity is checked against
+    // the worker's own token downstream.
+    const content = 'important text and the critical part is here.';
+    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
+      { exact: 'important', start: 0, end: 9 },
+    ]));
+
+    const result = await collected((onChunkComplete) => processHighlightJob(
+      content,
+      makeInferenceClient(),
+      { resourceId: RID, density: 5 },
+      textBuild(content),
+      vi.fn(), onChunkComplete));
+
+    const [built] = result.annotations;
+    expect(built).toMatchObject({ generator: GENERATOR });
+    expect(built).not.toHaveProperty('creator');
+    expect(built).not.toHaveProperty('wasAttributedTo');
   });
 
   it('keeps distinct PDF highlights (dedupe must not key on an absent TextPositionSelector)', async () => {
@@ -973,58 +997,14 @@ describe('processGenerationJob — outputMediaType', () => {
 describe('annotation attribution composition', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('stamps both creator (Person) and generator (Software) on human-prompted AI work', async () => {
-    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
-      { exact: 'snippet', start: 0, end: 7 },
-    ]));
+  // Who asked (`creator`) and the responsible parties (`wasAttributedTo`) are
+  // no longer the worker's to say: the Stower derives both from the cited job
+  // (VERIFIED-PROVENANCE P2). The former tests of that here now live at the
+  // layer that decides it — `attribution()` in @semiont/core and the Stower's
+  // job-citation suite. What survives here is the one fact the worker DOES
+  // state, on every motivation: what produced the annotation.
 
-    const result = await collected((onChunkComplete) => processHighlightJob(
-      'snippet',
-      makeInferenceClient(),
-      { resourceId: RID, density: 1 },
-      textBuild('snippet'),
-      vi.fn(), onChunkComplete));
-
-    const ann = result.annotations[0] as Record<string, unknown>;
-    const creator = ann['creator'] as { '@type': string; '@id': string };
-    const generator = ann['generator'] as { '@type': string; '@id': string };
-    const wasAttributedTo = ann['wasAttributedTo'] as Array<{ '@id': string }>;
-
-    expect(creator['@type']).toBe('Person');
-    expect(creator['@id']).toBe(USER_DID);
-    expect(generator['@type']).toBe('Software');
-
-    // wasAttributedTo combines both responsible parties (PROV-O)
-    expect(Array.isArray(wasAttributedTo)).toBe(true);
-    expect(wasAttributedTo.map(a => a['@id'])).toEqual([
-      creator['@id'],
-      generator['@id'],
-    ]);
-  });
-
-  it('collapses wasAttributedTo to [generator] when an agent is acting on its own behalf', async () => {
-    // Autonomous-agent work: the worker's principal DID *is* the agent.
-    // creator and generator share an @id; wasAttributedTo collapses to one.
-    const autonomousDid = GENERATOR['@id'];
-    vi.mocked(AnnotationDetection.detectHighlights).mockImplementation(inOneChunk([
-      { exact: 'snippet', start: 0, end: 7 },
-    ]));
-
-    const result = await collected((onChunkComplete) => processHighlightJob(
-      'snippet',
-      makeInferenceClient(),
-      { resourceId: RID, density: 1 },
-      textBuild('snippet', autonomousDid),
-      vi.fn(), onChunkComplete));
-
-    const ann = result.annotations[0] as Record<string, unknown>;
-    const wasAttributedTo = ann['wasAttributedTo'] as Array<{ '@id': string }>;
-
-    expect(wasAttributedTo).toHaveLength(1);
-    expect(wasAttributedTo[0]!['@id']).toBe(GENERATOR['@id']);
-  });
-
-  it('applies the same attribution shape across every motivation', async () => {
+  it('states what produced it — and nothing about who asked — across every motivation', async () => {
     vi.mocked(AnnotationDetection.detectComments).mockImplementation(inOneChunk([
       { exact: 'x', start: 0, end: 1, comment: 'c' },
     ]));
@@ -1053,9 +1033,9 @@ describe('annotation attribution composition', () => {
     ];
     for (const first of firstAnnotations) {
       const ann = first as Record<string, unknown>;
-      expect(ann['creator']).toBeDefined();
-      expect(ann['generator']).toBeDefined();
-      expect(Array.isArray(ann['wasAttributedTo'])).toBe(true);
+      expect(ann['generator']).toEqual(GENERATOR);
+      expect(ann).not.toHaveProperty('creator');
+      expect(ann).not.toHaveProperty('wasAttributedTo');
     }
   });
 });

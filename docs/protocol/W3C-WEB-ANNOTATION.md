@@ -29,8 +29,8 @@ Every W3C annotation has these required fields:
   "type": "Annotation",
   "id": "https://example.org/annotations/anno-123",
   "creator": {
-    "id": "did:web:example.org:users:alice",
-    "type": "Person",
+    "@type": "Person",
+    "@id": "did:web:example.org:users:alice",
     "name": "Alice"
   },
   "created": "2025-10-24T10:30:00Z",
@@ -48,7 +48,7 @@ Every W3C annotation has these required fields:
 - **`@context`**: JSON-LD context (always `"http://www.w3.org/ns/anno.jsonld"`)
 - **`type`**: Always `"Annotation"`
 - **`id`**: Unique identifier (IRI)
-- **`creator`**: W3C Agent describing who created the annotation
+- **`creator`**: W3C Agent naming who *requested* the annotation — derived by the knowledge base from the verified emitter of the write, or of the job the write cites; never set by the emitter
 - **`created`**: ISO 8601 timestamp
 - **`motivation`**: Why the annotation was created
 - **`target`**: What is being annotated
@@ -57,21 +57,23 @@ Every W3C annotation has these required fields:
 ### Optional Fields
 
 - **`modified`**: ISO 8601 timestamp of last modification
-- **`generator`**: Software that produced the annotation (W3C §3.2.1). All AI-generated annotations include this field:
+- **`wasAttributedTo`**: PROV-O — every party responsible: `[creator, generator]`, collapsed to the one agent when requester and producer are the same. Derived, like `creator`.
+- **`generator`**: Software that produced the annotation (W3C §3.2.1). Present on every annotation a software agent wrote. The writer may supply it to carry the model's parameters, but its identity must be the writer's own — the knowledge base refuses a `generator` naming anyone else, and supplies it from the verified emitter when omitted:
 
 ```json
 {
   "generator": {
-    "@type": "SoftwareAgent",
-    "name": "Highlight Worker / Anthropic claude-sonnet-4-6",
-    "worker": "Highlight Worker",
-    "inferenceProvider": "anthropic",
-    "model": "claude-sonnet-4-6"
+    "@type": "Software",
+    "@id": "did:web:example.org:agents:anthropic:claude-sonnet-4-6",
+    "name": "anthropic claude-sonnet-4-6",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "parameters": { "temperature": 0.2 }
   }
 }
 ```
 
-`creator` identifies the agent that requested the annotation; `generator` identifies the software that produced it. Annotations created directly by an agent (not via a worker) omit `generator`.
+`creator` is who requested the annotation; `generator` is the software that produced it; `wasAttributedTo` is every party responsible. All three are **derived by the knowledge base** at write time from identities the gateway verified: the write's emitter (`_userId`), and — when the write cites a job (`jobId`) — the emitter of the `job:create` that produced it, joined through the dispatcher's own `job:assigned` record. Nothing an emitter says about identity in a payload is honoured: a payload carrying `creator` is refused, as is a `generator` whose identity is not the emitter's. A person's own annotation carries no `generator`; a person's act and a software agent's act are described the same way.
 
 ## Annotation Types
 
@@ -108,8 +110,8 @@ Mark important text with a comment:
     "format": "text/plain"
   },
   "creator": {
-    "id": "did:web:example.org:users:alice",
-    "type": "Person",
+    "@type": "Person",
+    "@id": "did:web:example.org:users:alice",
     "name": "Alice"
   },
   "created": "2025-10-24T14:30:00Z"
@@ -158,8 +160,8 @@ Link text to another document with entity type tags:
     }
   ],
   "creator": {
-    "id": "did:web:example.org:users:alice",
-    "type": "Person",
+    "@type": "Person",
+    "@id": "did:web:example.org:users:alice",
     "name": "Alice"
   },
   "created": "2025-10-24T10:30:00Z"
@@ -192,8 +194,8 @@ A `linking` annotation with empty body array indicates a planned link not yet re
   },
   "body": [],
   "creator": {
-    "id": "did:web:example.org:users:alice",
-    "type": "Person",
+    "@type": "Person",
+    "@id": "did:web:example.org:users:alice",
     "name": "Alice"
   },
   "created": "2025-10-24T11:00:00Z"
@@ -400,8 +402,8 @@ Semiont annotations are fully W3C-compliant and can be exported as standard JSON
     }
   ],
   "creator": {
-    "id": "did:web:semiont.app:users:alice",
-    "type": "Person",
+    "@type": "Person",
+    "@id": "did:web:semiont.app:users:alice",
     "name": "Alice"
   },
   "created": "2025-10-24T10:30:00Z"
@@ -412,8 +414,9 @@ Semiont annotations are fully W3C-compliant and can be exported as standard JSON
 
 - ✅ Full W3C Web Annotation Data Model compliance
 - ✅ JSON-LD context from `http://www.w3.org/ns/anno.jsonld`
-- ✅ Decentralized identifiers (DID:WEB) for creators
+- ✅ Decentralized identifiers (DID:WEB) for every agent — people and software under one authority
 - ✅ `generator` field on AI-produced annotations (W3C §3.2.1)
+- ✅ `creator`, `generator` and `wasAttributedTo` derived from verified identities, never asserted
 - ✅ Content-addressed document IDs for federation-readiness
 - ✅ Interoperable with other W3C annotation tools
 

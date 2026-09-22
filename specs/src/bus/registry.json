@@ -150,9 +150,11 @@
       "beckon:focus",
       "beckon:sparkle",
       "job:started",
+      "job:assigned",
       "job:completed",
       "job:failed",
       "job:start",
+      "job:assign",
       "job:report-progress",
       "job:complete",
       "job:fail",
@@ -338,9 +340,11 @@
       "beckon:focus",
       "beckon:sparkle",
       "job:started",
+      "job:assigned",
       "job:completed",
       "job:failed",
       "job:start",
+      "job:assign",
       "job:report-progress",
       "job:complete",
       "job:fail",
@@ -2786,6 +2790,21 @@
       }
     },
     {
+      "channel": "job:assigned",
+      "shape": "storedEvent",
+      "event": "job:assigned",
+      "validate": null,
+      "ts": "StoredEvent<EventOfType<'job:assigned'>>",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "job:completed",
       "shape": "storedEvent",
       "event": "job:completed",
@@ -2826,6 +2845,21 @@
           "",
           "  // Commands"
         ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:assign",
+      "shape": "schema",
+      "schema": "JobAssignCommand",
+      "validate": "JobAssignCommand",
+      "ts": "components['schemas']['JobAssignCommand']",
+      "docs": {
+        "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
@@ -3885,6 +3919,7 @@
       "job:checkpoint",
       "job:cancel",
       "job:start",
+      "job:assign",
       "mark:update-body"
     ],
     "event": [
@@ -3918,6 +3953,7 @@
       "mark:archived",
       "mark:unarchived",
       "job:started",
+      "job:assigned",
       "job:completed",
       "job:failed",
       "mark:body-update-failed"
@@ -3956,6 +3992,7 @@
       "mark:archived",
       "mark:unarchived",
       "job:started",
+      "job:assigned",
       "job:completed",
       "job:failed"
     ],
@@ -3964,6 +4001,7 @@
       "job:checkpoint",
       "job:cancel",
       "job:start",
+      "job:assign",
       "mark:update-body",
       "weave:applied",
       "mark:body-update-failed"

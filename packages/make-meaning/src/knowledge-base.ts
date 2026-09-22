@@ -19,7 +19,7 @@
  * via the EventBus gateway, embeds content, and writes to Qdrant directly.
  */
 
-import type { EventStore, EventReadStorage, ViewMaterializer } from '@semiont/event-sourcing';
+import type { EventStore, EventLog, EventReadStorage, ViewMaterializer } from '@semiont/event-sourcing';
 import { FilesystemViewStorage, type ViewStorage } from '@semiont/event-sourcing';
 import { WorkingTreeStore, createAnchoredTextStore, type AnchoredTextStore, type ContentReads } from '@semiont/content';
 import type { GraphDatabase } from '@semiont/graph';
@@ -71,6 +71,12 @@ export type ContentLifecycle = Pick<WorkingTreeStore, 'register' | 'move' | 'rem
  */
 export type EventAppends = Pick<EventStore, 'appendEvent'> & {
   readonly viewStorage: Pick<ViewStorage, 'get'>;
+  /**
+   * The raw log, for the one read a write needs before it appends: a cited
+   * job's `job:assigned` on this resource, to check the holder and derive the
+   * requester (VERIFIED-PROVENANCE P2). Scoped by resource, as the log is.
+   */
+  readonly log: Pick<EventLog, 'getEvents'>;
 };
 
 /** Read-only reach into the event store: the log for queries, the

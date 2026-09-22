@@ -34,7 +34,6 @@ import { prepareDetection } from '../workers/detection/prepare-detection';
 type Agent = components['schemas']['Agent'];
 
 const RID = resourceId('res-prep');
-const USER_DID = 'did:web:test.local:users:alice%40test.local';
 const GENERATOR: Agent = {
   '@type': 'Software',
   '@id': 'did:web:test.local:agents:test:test',
@@ -85,7 +84,7 @@ describe('prepareDetection', () => {
     const { reads, getBinary } = fakeReads();
     const { consult } = fakeConsult();
 
-    const source = await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, consult);
+    const source = await prepareDetection('text/markdown', reads, RID, GENERATOR, consult);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
     expect(getBinary).toHaveBeenCalledOnce();
@@ -104,7 +103,7 @@ describe('prepareDetection', () => {
   it("declines 'empty' when a decoded non-geometry resource yields nothing to detect over", async () => {
     const { reads } = fakeReads('   \n  ');
     const { consult } = fakeConsult();
-    expect(await prepareDetection('text/markdown', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('text/markdown', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'empty' });
   });
 
@@ -117,7 +116,7 @@ describe('prepareDetection', () => {
     const { reads, getBinary } = fakeReads();
     const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
 
-    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult);
+    const source = await prepareDetection('application/pdf', reads, RID, GENERATOR, consult);
     if ('declined' in source) throw new Error(`unexpected decline: ${source.declined}`);
 
     expect(consult).toHaveBeenCalledWith(RID);
@@ -138,7 +137,7 @@ describe('prepareDetection', () => {
     const { reads, getBinary } = fakeReads();
     const { consult } = fakeConsult({ kind: 'extracted', text: PDF_TEXT, items: PDF_ITEMS, method: 'pdf-text-layer' });
 
-    const source = await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult);
+    const source = await prepareDetection('application/pdf', reads, RID, GENERATOR, consult);
     if ('declined' in source) throw new Error('unexpected decline');
     expect(consult).toHaveBeenCalledOnce();
     expect(getBinary).not.toHaveBeenCalled();
@@ -148,7 +147,7 @@ describe('prepareDetection', () => {
     const { reads, getBinary } = fakeReads();
     const { consult } = fakeConsult({ kind: 'not-yet' });
 
-    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'not-yet' });
     // No fallback extraction: a local OCR pass that runs and is discarded still
     // burns the CPU this plan exists to stop duplicating.
@@ -158,28 +157,28 @@ describe('prepareDetection', () => {
   it("a no-map consult answer declines 'no-map' (TERMINAL — drift on a geometry type)", async () => {
     const { reads } = fakeReads();
     const { consult } = fakeConsult({ kind: 'no-map' });
-    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'no-map' });
   });
 
   it("an unknown consult answer declines 'unknown' (TERMINAL — no content identity)", async () => {
     const { reads } = fakeReads();
     const { consult } = fakeConsult({ kind: 'unknown' });
-    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'unknown' });
   });
 
   it("a genuine content decline passes through the consult by name", async () => {
     const { reads } = fakeReads();
     const { consult } = fakeConsult({ kind: 'declined', declined: 'encrypted' });
-    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'encrypted' });
   });
 
   it("declines 'empty' when the consulted map has blank text", async () => {
     const { reads } = fakeReads();
     const { consult } = fakeConsult({ kind: 'extracted', text: '   ', items: [], method: 'pdf-text-layer' });
-    expect(await prepareDetection('application/pdf', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('application/pdf', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'empty' });
   });
 
@@ -189,7 +188,7 @@ describe('prepareDetection', () => {
     const { reads, getBinary } = fakeReads();
     const { consult } = fakeConsult();
 
-    expect(await prepareDetection('application/zip', reads, RID, USER_DID, GENERATOR, consult))
+    expect(await prepareDetection('application/zip', reads, RID, GENERATOR, consult))
       .toEqual({ declined: 'no-extractor' });
     expect(getBinary).not.toHaveBeenCalled();
     expect(consult).not.toHaveBeenCalled();

@@ -1,4 +1,4 @@
-import { resourceId, didToAgent, assembleAnnotation } from '@semiont/core';
+import { resourceId, assembleAnnotation } from '@semiont/core';
 import type { EventBus, Logger, components } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import { assertAnnotatableTarget } from '../annotation-operations.js';
@@ -57,8 +57,9 @@ export function registerAnnotationAssemblyHandler(eventBus: EventBus, kb: { view
       // coordinate model the system does not have for this type.
       await assertAnnotatableTarget(kb, resId as string);
 
-      const agent = didToAgent(_userId);
-      const { annotation } = assembleAnnotation(request as CreateAnnotationRequest, agent);
+      // A person states nothing about provenance; the Stower derives who
+      // asked from `_userId` when it stows (VERIFIED-PROVENANCE P2).
+      const { annotation } = assembleAnnotation(request as CreateAnnotationRequest);
 
       inflight.set(cid, { annotationId: annotation.id });
 
