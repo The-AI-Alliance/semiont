@@ -29,6 +29,7 @@ import { asBusRequestPrimitive } from '../../bus-request-local';
 import { readEntityTypesProjection } from '../../views/entity-types-reader';
 import { readTagSchemasProjection } from '../../views/tag-schemas-reader';
 import { createTestProject } from '../helpers/test-project';
+import { makeJobQueueMock, type JobQueueMock } from '../helpers/job-queue-mock';
 
 /**
  * A stand-in for the Archivist's Browser: answers the two projection-read bus
@@ -69,32 +70,6 @@ const SCHEMA: TagSchema = {
   ],
 };
 
-interface MockJobQueue {
-  createJob: ReturnType<typeof vi.fn>;
-  getJob: ReturnType<typeof vi.fn>;
-  claimNextJob: ReturnType<typeof vi.fn>;
-  completeJob: ReturnType<typeof vi.fn>;
-  failJob: ReturnType<typeof vi.fn>;
-  checkpointUnits: ReturnType<typeof vi.fn>;
-  recordProgress: ReturnType<typeof vi.fn>;
-  cancelPendingJobs: ReturnType<typeof vi.fn>;
-  cancelJob: ReturnType<typeof vi.fn>;
-}
-
-function makeJobQueue(): MockJobQueue {
-  return {
-    createJob: vi.fn().mockResolvedValue(undefined),
-    getJob: vi.fn().mockResolvedValue(null),
-    claimNextJob: vi.fn().mockResolvedValue({ declined: 'none-available' }),
-    completeJob: vi.fn().mockResolvedValue(true),
-    failJob: vi.fn().mockResolvedValue('failed'),
-    checkpointUnits: vi.fn().mockResolvedValue(undefined),
-    recordProgress: vi.fn().mockResolvedValue(undefined),
-    cancelPendingJobs: vi.fn().mockResolvedValue(0),
-    cancelJob: vi.fn().mockResolvedValue(true),
-  };
-}
-
 async function writeTagSchemasProjection(project: SemiontProject, schemas: TagSchema[]): Promise<void> {
   const dir = join(project.stateDir, 'projections', '__system__');
   await fs.mkdir(dir, { recursive: true });
@@ -111,14 +86,14 @@ describe('registerJobCommandHandlers — tag-annotation dispatcher', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
   let eventBus: EventBus;
-  let jobQueue: MockJobQueue;
+  let jobQueue: JobQueueMock;
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('job-commands-dispatcher'));
     eventBus = new EventBus();
-    jobQueue = makeJobQueue();
+    jobQueue = makeJobQueueMock();
     wireBrowserStub(eventBus, project);
-    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
+    registerJobCommandHandlers(eventBus, jobQueue, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -295,14 +270,14 @@ describe('registerJobCommandHandlers — entity-type validation', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
   let eventBus: EventBus;
-  let jobQueue: MockJobQueue;
+  let jobQueue: JobQueueMock;
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('job-commands-entity-validation'));
     eventBus = new EventBus();
-    jobQueue = makeJobQueue();
+    jobQueue = makeJobQueueMock();
     wireBrowserStub(eventBus, project);
-    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
+    registerJobCommandHandlers(eventBus, jobQueue, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -455,14 +430,14 @@ describe('registerJobCommandHandlers — queue lifecycle sync', () => {
   let project: SemiontProject;
   let teardown: () => Promise<void>;
   let eventBus: EventBus;
-  let jobQueue: MockJobQueue;
+  let jobQueue: JobQueueMock;
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('job-commands-lifecycle'));
     eventBus = new EventBus();
-    jobQueue = makeJobQueue();
+    jobQueue = makeJobQueueMock();
     wireBrowserStub(eventBus, project);
-    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
+    registerJobCommandHandlers(eventBus, jobQueue, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {
@@ -833,14 +808,14 @@ describe('registerJobCommandHandlers — generation dispatcher (context-derived 
   let project: SemiontProject;
   let teardown: () => Promise<void>;
   let eventBus: EventBus;
-  let jobQueue: MockJobQueue;
+  let jobQueue: JobQueueMock;
 
   beforeEach(async () => {
     ({ project, teardown } = await createTestProject('job-commands-generation'));
     eventBus = new EventBus();
-    jobQueue = makeJobQueue();
+    jobQueue = makeJobQueueMock();
     wireBrowserStub(eventBus, project);
-    registerJobCommandHandlers(eventBus, jobQueue as never, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
+    registerJobCommandHandlers(eventBus, jobQueue, projectionReadsOverBus(asBusRequestPrimitive(eventBus)), silentLogger);
   });
 
   afterEach(async () => {

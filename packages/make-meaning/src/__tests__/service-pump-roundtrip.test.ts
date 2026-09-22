@@ -7,7 +7,7 @@
  * Calls `attachServicePumps`, not a local re-wiring of `relayFrames` — a test
  * that builds its own copy of the wiring is green whatever the wiring does.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Subject } from 'rxjs';
 import {
   BUS_OPERATIONS,
@@ -20,6 +20,8 @@ import {
 import {
   ARCHIVIST_INBOUND_CHANNELS,
   ARCHIVIST_OUTBOUND_CHANNELS,
+  DISPATCHER_INBOUND_CHANNELS,
+  DISPATCHER_OUTBOUND_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
 } from '../service-channels';
@@ -59,6 +61,7 @@ interface ServiceCase {
 const SERVICES: ServiceCase[] = [
   { name: 'Archivist', inbound: ARCHIVIST_INBOUND_CHANNELS, outbound: ARCHIVIST_OUTBOUND_CHANNELS },
   { name: 'Librarian', inbound: LIBRARIAN_INBOUND_CHANNELS, outbound: LIBRARIAN_OUTBOUND_CHANNELS },
+  { name: 'Dispatcher', inbound: DISPATCHER_INBOUND_CHANNELS, outbound: DISPATCHER_OUTBOUND_CHANNELS },
 ];
 
 /** Operations whose request is inbound and whose reply is outbound. */
@@ -106,6 +109,55 @@ describe.each(SERVICES)('$name — every operation it answers round-trips', (svc
       ).toBe(cid);
       expect(errors, 'a pump reported an error').toEqual([]);
       handler.unsubscribe();
+    } finally {
+      for (const p of pumps) p.unsubscribe();
+      localBus.destroy();
+    }
+  });
+});
+
+/**
+ * The other half of the pumps' contract: a reply the transport cannot carry
+ * is REPORTED, naming the channel, and the pump stays attached for the next
+ * one. The inbound direction has no such case to pin — its sink is the local
+ * `EventBus`, whose `emit` is synchronous and returns a count, so the inbound
+ * error callback is an unexercised handler by construction (core's
+ * `relayFrames` says the same). Only an async sink can reach `onError`, and
+ * the outbound sink (the HTTP transport) is one.
+ */
+describe('attachServicePumps — a reply the transport refuses is reported, not lost', () => {
+  it('logs "Reply forwarding failed" with the channel and the error, and keeps forwarding', async () => {
+    const localBus = new EventBus();
+    const { transport, fromService } = loopback();
+    const carried: string[] = [];
+    let refuseNext = true;
+    transport.emit = ((channel: string, payload: unknown, envelope: { correlationId?: string }) => {
+      if (refuseNext) {
+        refuseNext = false;
+        return Promise.reject(new Error('gateway answered 503'));
+      }
+      fromService.push({ channel, payload, correlationId: envelope?.correlationId });
+      carried.push(channel);
+      return Promise.resolve(1);
+    }) as FrameSink['emit'];
+    const logged: Array<[string, unknown]> = [];
+    const pumps = attachServicePumps({
+      transport,
+      localBus,
+      inbound: DISPATCHER_INBOUND_CHANNELS,
+      outbound: DISPATCHER_OUTBOUND_CHANNELS,
+      logger: { error: (message: string, meta?: unknown) => logged.push([message, meta]) },
+    });
+
+    try {
+      localBus.emit('job:created', { response: { jobId: 'j-1' } } as never, { correlationId: 'cid-lost' });
+      await vi.waitFor(() => expect(logged).toHaveLength(1));
+      expect(logged[0]![0]).toBe('Reply forwarding failed');
+      expect(logged[0]![1]).toMatchObject({ channel: 'job:created', error: { message: 'gateway answered 503' } });
+
+      localBus.emit('job:created', { response: { jobId: 'j-2' } } as never, { correlationId: 'cid-next' });
+      await vi.waitFor(() => expect(carried).toEqual(['job:created']));
+      expect(fromService[0]!.correlationId, 'the pump outlived the refusal').toBe('cid-next');
     } finally {
       for (const p of pumps) p.unsubscribe();
       localBus.destroy();

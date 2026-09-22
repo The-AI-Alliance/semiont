@@ -30,6 +30,7 @@ import { firstValueFrom, filter, map, race, timer, take } from 'rxjs';
 import { EventBus, WORKER_ROLE, SERVICE_ROLE, type EventMap, type Logger } from '@semiont/core';
 import { registerJobCommandHandlers } from '../../handlers/job-commands';
 import type { ProjectionReads } from '../../projection-reads-ask';
+import { makeJobQueueMock, type JobQueueMock } from '../helpers/job-queue-mock';
 
 const silentLogger: Logger = {
   debug: vi.fn(),
@@ -43,31 +44,18 @@ const silentLogger: Logger = {
 // (job:create validation, D7) off this suite's concern.
 const stubReads: ProjectionReads = { entityTypes: async () => [], tagSchemas: async () => [] };
 
-function makeJobQueue() {
-  return {
-    createJob: vi.fn().mockResolvedValue(undefined),
-    getJob: vi.fn().mockResolvedValue(null),
-    // Returns a CLAIMABLE job, so that absent an authorization check the handler
-    // takes the success path (`job:claimed`) — which is exactly the RED failure
-    // for a non-worker claim.
-    claimNextJob: vi.fn().mockResolvedValue({ job: { metadata: { id: 'job-claimable', type: 'generation' }, params: {} } }),
-    completeJob: vi.fn().mockResolvedValue(true),
-    failJob: vi.fn().mockResolvedValue('failed'),
-    checkpointUnits: vi.fn().mockResolvedValue(undefined),
-    recordProgress: vi.fn().mockResolvedValue(undefined),
-    cancelPendingJobs: vi.fn().mockResolvedValue(0),
-    cancelJob: vi.fn().mockResolvedValue(true),
-  };
-}
-
 describe('registerJobCommandHandlers — job:claim authorization (EXTRACT-JOBS P0)', () => {
   let eventBus: EventBus;
-  let jobQueue: ReturnType<typeof makeJobQueue>;
+  let jobQueue: JobQueueMock;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    jobQueue = makeJobQueue();
-    registerJobCommandHandlers(eventBus, jobQueue as never, stubReads, silentLogger);
+    jobQueue = makeJobQueueMock();
+    // Returns a CLAIMABLE job, so that absent an authorization check the handler
+    // takes the success path (`job:claimed`) — which is exactly the RED failure
+    // for a non-worker claim.
+    jobQueue.claimNextJob.mockResolvedValue({ job: { metadata: { id: 'job-claimable', type: 'generation' }, params: {} } });
+    registerJobCommandHandlers(eventBus, jobQueue, stubReads, silentLogger);
   });
 
   afterEach(() => {
@@ -94,6 +82,14 @@ describe('registerJobCommandHandlers — job:claim authorization (EXTRACT-JOBS P
     const outcome = await claim('cid-worker', { types: ['generation'], _roles: [WORKER_ROLE] });
     expect(outcome, 'a worker claim is admitted').toHaveProperty('ok');
     expect(jobQueue.claimNextJob).toHaveBeenCalledTimes(1);
+  });
+
+  it('a worker claim that finds nothing pending is DECLINED on job:claim-failed — an empty queue is an answer, not an error', async () => {
+    jobQueue.claimNextJob.mockResolvedValueOnce({ declined: 'none-available' });
+    const outcome = await claim('cid-empty', { types: ['generation'], _roles: [WORKER_ROLE] });
+    expect(outcome).toHaveProperty('failed');
+    expect((outcome as { failed: EventMap['job:claim-failed'] }).failed.message).toBe('No pending job of the requested types');
+    expect(jobQueue.claimNextJob).toHaveBeenCalledWith(['generation']);
   });
 
   it('refuses a claim carrying no capabilities (a person) and never touches the queue', async () => {
