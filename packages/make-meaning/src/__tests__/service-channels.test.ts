@@ -13,6 +13,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { BRIDGED_CHANNELS, BUS_OPERATIONS } from '@semiont/core';
 import {
   SMELTER_REPLY_CHANNELS,
@@ -22,6 +24,8 @@ import {
   ARCHIVIST_INBOUND_CHANNELS,
   ARCHIVIST_OUTBOUND_CHANNELS,
   ARCHIVIST_OUTBOUND_STRAYS,
+  DISPATCHER_INBOUND_CHANNELS,
+  DISPATCHER_OUTBOUND_CHANNELS,
 } from '../service-channels';
 
 describe('smelter transport channels', () => {
@@ -147,6 +151,35 @@ describe('archivist transport channels', () => {
   it('the outbound pump carries the strays — replies whose operation is keyed under a gateway handler channel', () => {
     for (const stray of ARCHIVIST_OUTBOUND_STRAYS) {
       expect(ARCHIVIST_OUTBOUND_CHANNELS).toContain(stray);
+    }
+  });
+});
+
+describe('dispatcher transport channels', () => {
+  /**
+   * The dispatcher is its own process: a channel its handlers emit reaches
+   * the rest of the system ONLY if the outbound pump relays it. A unit test
+   * on the local bus cannot see the difference — `job:assign` passed every
+   * handler test and never left the container (found live, 2026-09-22: the
+   * Stower held no assignment for any job, so every worker commit was
+   * refused). The denominator is the handler source: every literal channel
+   * it emits, reply or stray, must be in the pump.
+   */
+  it('every channel the job handlers emit is carried out by the outbound pump — nothing is stranded in-process', () => {
+    const source = readFileSync(join(__dirname, '../handlers/job-commands.ts'), 'utf8');
+    const emitted = [...new Set([...source.matchAll(/eventBus\.emit\('([a-z:-]+)'/g)].map((m) => m[1]))].sort();
+    expect(emitted.length).toBeGreaterThan(0);
+    for (const channel of emitted) {
+      expect(
+        DISPATCHER_OUTBOUND_CHANNELS,
+        `${channel} is emitted by a job handler but no pump carries it out of the dispatcher`,
+      ).toContain(channel);
+    }
+  });
+
+  it('nothing echoes: the outbound pump and the inbound subscription are disjoint', () => {
+    for (const channel of DISPATCHER_OUTBOUND_CHANNELS) {
+      expect(DISPATCHER_INBOUND_CHANNELS).not.toContain(channel);
     }
   });
 });
