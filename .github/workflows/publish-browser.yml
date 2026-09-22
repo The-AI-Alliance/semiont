@@ -126,7 +126,11 @@ jobs:
           context: .
           file: ./apps/browser/Dockerfile
           platforms: linux/amd64,linux/arm64
-          push: ${{ inputs.dry_run != 'true' }}
+          # `dry_run` is a boolean input. Comparing it to the STRING 'true' coerces
+          # both sides to numbers (true → 1, 'true' → NaN), so `!= 'true'` is true
+          # for every value and a dry run pushed — five :latest tags on 2026-09-20
+          # came from one, unattested. Negate the boolean, as the attest steps do.
+          push: ${{ !inputs.dry_run }}
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
             SEMIONT_BROWSER_VERSION=${{ inputs.version }}
