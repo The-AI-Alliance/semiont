@@ -18,8 +18,9 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 | **Librarian** | `@semiont/make-meaning/librarian-main` | Gatherer, Matcher |
 | **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
 | **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
+| **Dispatcher** | `@semiont/make-meaning/dispatcher-main` | the job queue and the `job:*` command handlers — no actor, a control plane |
 
-`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use, and it is unchanged. `startMakeMeaningGateway()` is the split-topology root: same stores, no actors, a handler subset.
+`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use, and it is unchanged. In the split topology no process assembles a subset: each sidecar's `*-main` composes exactly what it owns, and the gateway composes nothing from this package.
 
 ### The access actors — the bus-facing interface of the Knowledge Base
 

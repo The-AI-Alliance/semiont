@@ -4,7 +4,7 @@ A deployment-focused overview of Semiont's services. For API documentation, see 
 
 ## Service catalog
 
-Seven services run Semiont code. Each is a published container image; see [Container Images](../administration/IMAGES.md) and [Container Topology](../CONTAINER-TOPOLOGY.md).
+Eight services run Semiont code. Each is a published container image; see [Container Images](../administration/IMAGES.md) and [Container Topology](../CONTAINER-TOPOLOGY.md).
 
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
@@ -15,9 +15,11 @@ Seven services run Semiont code. Each is a published container image; see [Conta
 | **worker** | 24100 | Annotation/generation worker pool | `@semiont/jobs` | [README](../../../apps/worker/README.md) |
 | **smelter** | 24101 | Embedding/vector pipeline; owns anchored-text extraction | `@semiont/make-meaning` | [README](../../../apps/smelter/README.md) |
 | **weaver** | 24102 | Graph-projection pipeline | `@semiont/make-meaning` | [README](../../../apps/weaver/README.md) |
+| **dispatcher** | 24105 | Owns the job queue and answers the `job:*` lifecycle — a control plane; no content flows through it | `@semiont/make-meaning` | [README](../../../apps/dispatcher/README.md) |
 
 **The gateway holds no part of the knowledge base.** It authenticates callers, relays the
-bus, and proxies content bytes to the Archivist; its only datastore is PostgreSQL. The five
+bus, and proxies content bytes to the Archivist; it holds no datastore at all — identity is
+verified against the issuer, and the job queue is the dispatcher's. The five
 meaning-tier actors live in the Archivist and the Librarian. That split is enforced by a test,
 not by convention — `TestExactlyOneContainerMountsTheKB` pins it in the launcher's golden run
 arguments: exactly one container mounts the KB, and it is the Archivist.
@@ -35,7 +37,7 @@ For what the actors inside those containers are responsible for, see [Knowledge 
 
 | Role | Product | Port | Purpose |
 |---|---|---|---|
-| **database** | PostgreSQL | 5432 | User authentication only — see [Database Guide](../administration/DATABASE.md) |
+| **database** | PostgreSQL | 5432 | Keycloak's realm; Semiont stores nothing in it — see [Database Guide](../administration/DATABASE.md) |
 | **graph** | Neo4j | 7474, 7687 | Graph projection of the event log |
 | **vectors** | Qdrant | 6333 | Embeddings and semantic search |
 | **inference** | Ollama | 11434 | Local LLM + embeddings (or Anthropic instead, for LLM) |
@@ -81,7 +83,7 @@ semiont stop --service worker      # Stop one service
 semiont clean                      # Remove persistent state (PostgreSQL, Qdrant, Neo4j)
 ```
 
-`--service` takes one of `gateway`, `worker`, `smelter`, `weaver`, `archivist`, `librarian`, `browser`, `database`, `graph`, `vectors`, `inference`, `embedding`, `traces`, or `messaging` (present only when a broker-backed driver is selected). Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
+`--service` takes one of `gateway`, `worker`, `smelter`, `weaver`, `archivist`, `librarian`, `dispatcher`, `browser`, `database`, `graph`, `vectors`, `inference`, `embedding`, `traces`, or `messaging` (present only when a broker-backed driver is selected). Omitting it means the whole stack — there is no `--service all`. `semiont stop` deliberately leaves persistent state behind so the next `start` reuses it; `semiont clean` is the only thing that removes it.
 
 Run `semiont <command> --help` for a command's options and `semiont --help` for the full verb list.
 
@@ -166,9 +168,13 @@ See the [Configuration Guide](../administration/CONFIGURATION.md) for the full s
 
 ```mermaid
 graph LR
-    DB[PostgreSQL] --> GW[Gateway]
+    DB[PostgreSQL] --> KC[Keycloak]
+    KC --> GW[Gateway]
+    NATS[NATS] --> GW
     GW --> AR[Archivist]
     GW --> LB[Librarian]
+    GW --> DP[Dispatcher]
+    NATS --> DP
     GW --> W[Worker]
     GW --> SM[Smelter]
     GW --> WV[Weaver]
@@ -187,12 +193,13 @@ the **meaning-tier** services now, not to the gateway.
 ### Runtime dependencies
 
 - **Browser** → nothing. It serves static assets; the SPA in the user's browser talks to the gateway directly.
-- **Gateway** → PostgreSQL, and the Archivist (it proxies content bytes there). Nothing else — no graph, no vectors, no inference
+- **Gateway** → the issuer (token verification), NATS when the signal plane is broker-backed, and the Archivist (it proxies content bytes there and reads replay from it). No database, no graph, no vectors, no inference
 - **Archivist** → gateway bus, the KB working tree and state (**the only service that mounts them**), Neo4j for one query, an embedding provider
 - **Librarian** → gateway bus, Neo4j, Qdrant, inference + embeddings
 - **Worker** → gateway bus, inference, the Archivist's HTTP surface for bytes
 - **Smelter** → gateway bus, Qdrant, embeddings, the Archivist's HTTP surface for bytes
 - **Weaver** → gateway bus, Neo4j
+- **Dispatcher** → gateway bus, the NATS broker for the JetStream queue, and the Archivist over the bus for entity-type and tag-schema validation. No mount, no bytes
 - **MCP server** → gateway bus
 
 ## Service communication
@@ -217,6 +224,7 @@ See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 | weaver | `http://localhost:24102/health` |
 | archivist | `http://localhost:24103/health` |
 | librarian | `http://localhost:24104/health` |
+| dispatcher | `http://localhost:24105/health` |
 | database | TCP connect on 5432 |
 | graph | `http://localhost:7474` |
 | vectors | `http://localhost:6333/readyz` |
@@ -229,7 +237,7 @@ The gateway's `/api/health` reports database reachability and the environment na
 
 ## Observability
 
-Local stacks run Jaeger by default (`--no-observe` skips it). Every Semiont service — gateway, archivist, librarian, worker, smelter, weaver — exports OTLP traces and metrics to it; the UI is at http://localhost:16686. Application logs go to stdout as structured JSON — read them with `semiont logs`.
+Local stacks run Jaeger by default (`--no-observe` skips it). Every Semiont service — gateway, archivist, librarian, worker, smelter, weaver, dispatcher — exports OTLP traces and metrics to it; the UI is at http://localhost:16686. Application logs go to stdout as structured JSON — read them with `semiont logs`.
 
 ## Platform support
 

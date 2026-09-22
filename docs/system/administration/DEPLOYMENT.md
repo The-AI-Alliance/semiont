@@ -18,19 +18,20 @@ cloud container platform.
 
 ## What gets deployed
 
-Seven published service images, plus the infrastructure containers a stack needs
+Eight published service images, plus the infrastructure containers a stack needs
 (`postgres`, `neo4j`, `qdrant`, `ollama` for local inference, and `nats` when the
 `jetstream` jobs driver or the `nats` signal driver is selected):
 
 | Image | Role | Port |
 |---|---|---|
-| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, bus hub, job queue | 4000 |
+| `ghcr.io/the-ai-alliance/semiont-gateway` | API, auth, bus hub | 4000 |
 | `ghcr.io/the-ai-alliance/semiont-browser` | Browser UI | 3000 |
 | `ghcr.io/the-ai-alliance/semiont-worker` | Job / generation worker | 24100 |
 | `ghcr.io/the-ai-alliance/semiont-smelter` | Embedding / vector pipeline | 24101 |
 | `ghcr.io/the-ai-alliance/semiont-weaver` | Graph projection | 24102 |
 | `ghcr.io/the-ai-alliance/semiont-archivist` | Git-backed record, projection writer | 24103 |
 | `ghcr.io/the-ai-alliance/semiont-librarian` | Gatherer / view reader | 24104 |
+| `ghcr.io/the-ai-alliance/semiont-dispatcher` | Job queue, `job:*` lifecycle | 24105 |
 
 Images are built and published by CI, not by the CLI — see [IMAGES.md](./IMAGES.md).
 
@@ -106,36 +107,34 @@ solve:
 - **Migrations.** None are Semiont's. The gateway holds no database; Keycloak manages its own
   schema on first boot, so PostgreSQL must be reachable before the identity service becomes healthy
   rather than before the gateway does.
-- **Multiple gateway replicas.** The gateway scales horizontally behind a load balancer once both
-  broker-backed drivers are selected — without them, replicas race the filesystem job queue and
-  strand correlated replies on whichever replica saw the request:
+- **Multiple gateway replicas.** The gateway scales horizontally behind a load balancer once
+  the signal plane is broker-backed — without it, correlated replies strand on whichever replica
+  saw the request:
 
   ```toml
-  [environments.<env>.jobs]
-  type = "jetstream"
-  servers = "${NATS_HOST}:4222"
-
   [environments.<env>.signal]
   type = "nats"
   servers = "${NATS_HOST}:4222"
   ```
 
-  `${NATS_HOST}` resolves from each container's environment; a literal address works too. The
-  platform supplies: **one NATS server with JetStream enabled** (`-js -sd /data`, durable volume
-  for `/data`; the launcher pins `nats:2.14.0-alpine`) — the job queue uses JetStream while the
-  signal plane uses core subjects on the same server; **one shared PostgreSQL** for all replicas;
-  and **identical secrets on every replica** — a JWT minted by one replica must verify on another.
+  The job queue is not the gateway's: the dispatcher owns it, selects `[jobs] type =
+  "jetstream"` on the same server, and runs as exactly one instance per knowledge base
+  whatever the gateway count. `${NATS_HOST}` resolves from each container's environment; a
+  literal address works too. The platform supplies: **one NATS server with JetStream enabled**
+  (`-js -sd /data`, durable volume for `/data`; the launcher pins `nats:2.14.0-alpine`) — core
+  subjects carry the gateway's signal plane, JetStream carries the dispatcher's queue; and
+  **an identical `JWT_SECRET` on every replica** — an agent or media token minted by one replica
+  must verify on another. The gateway holds no database: a caller's identity is verified
+  against the issuer's published keys, and the PostgreSQL in a stack is Keycloak's.
 
   The load balancer needs **no session affinity** for the bus: correlated-reply ownership is
   shared across replicas, `pendingReplies` reconnect recovery answers from any replica, and
   `Last-Event-ID` replay reads the Archivist. It must pass long-lived SSE responses unbuffered,
-  with an idle timeout above the gateway's 15-second heartbeat. Gateway-resident commands
-  (`job:create` and its kin, `bind:update-body`) execute on exactly one replica per request;
-  each replica logs `Signal Plane handler bridge active` at boot, which is the line to check
-  when a command reaches no handler. Under the NATS driver a request nobody handles fails by
-  the 30-second bus timeout rather than fast — a broker cannot count observers. On a fresh
-  database, start one replica and let it report healthy before scaling out, so migrations
-  apply once.
+  with an idle timeout above the gateway's 15-second heartbeat. The gateway hosts no bus
+  command handler — `job:*` is answered by the dispatcher and everything else by the sidecars —
+  so a replica has nothing to bridge and nothing that must run exactly once. Under the NATS
+  driver a request nobody handles fails by the 30-second bus timeout rather than fast — a
+  broker cannot count observers.
 - **Restart and liveness.** Each image runs `tini` as PID 1 wrapping a single service process, and
   the container exits when that process dies, so your platform's restart policy and liveness probe
   behave as they normally would. Nothing restarts anything from inside the container on this path,

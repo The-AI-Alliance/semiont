@@ -26,8 +26,9 @@ directory is the container entry point plus its Dockerfile.
 | `semiont-smelter` | [smelter](./smelter/README.md) | 24101 | Chunks and embeds content into the vector store; owns anchored-text extraction |
 | `semiont-weaver` | [weaver](./weaver/README.md) | 24102 | Projects the event log into the graph |
 | `semiont-worker` | [worker](./worker/README.md) | 24100 | Claims queued jobs (detection, generation) and runs inference |
+| `semiont-dispatcher` | [dispatcher](./dispatcher/README.md) | 24105 | **Hands out the work** — owns the job queue and answers the `job:*` lifecycle commands; a control plane through which no content flows |
 
-All six service images (the five above plus the gateway) are built by
+All seven service images (the six above plus the gateway) are built by
 [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml).
 
 **The Archivist and the Librarian are a deliberate pair.** The Archivist holds the record

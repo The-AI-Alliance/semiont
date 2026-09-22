@@ -17,27 +17,28 @@ particularly `semiont.job.queue.size` (worker fan-out trigger),
 | Service | Replicas | How, and why |
 |---|---|---|
 | browser | N | Serves the UI; no server-side state. |
-| gateway | N | Behind a load balancer, once both broker-backed drivers are selected (`[signal] type = "nats"`, `[jobs] type = "jetstream"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas. |
-| worker | N | Workers claim jobs through the gateway; a claim is granted once — serialized in the gateway process on the `fs` driver, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete. |
+| gateway | N | Behind a load balancer, once the signal plane is broker-backed (`[signal] type = "nats"`). No session affinity: reply ownership is shared across replicas, reconnect recovery answers from any of them, and replay reads the Archivist. Full requirements: [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas. |
+| worker | N | Workers claim jobs from the dispatcher over the bus; a claim is granted once — atomic in the queue, held as stream leases on `jetstream` — so each job executes exactly once however many workers compete, and only a token carrying the worker role may claim. The worker is the one service built to run off-host: no mount, no broker credential, only network addresses — the gateway's bus, the Archivist's byte surface, an inference provider — so a pool can live on a GPU box the rest of the stack never shares, and a worker that is not yours joins by having its client granted the worker role at the issuer. |
 | archivist | 1 | The single writer of the git-backed record, which is the system of record. This is a design invariant, not a capacity limit. |
 | weaver | 1 | Owns the graph projection: checkpointed catch-up from the record at boot, then live tailing. Derived state — rebuildable, never authoritative. |
 | smelter | 1 | Owns the vector and anchored-text projections, same shape as the weaver. |
 | librarian | 1 | A reader over the indices the projectors maintain; it owns no store. |
+| dispatcher | 1 | Owns the job queue and answers `job:*`. It subscribes to the bus as a fan-out client, so a second would also receive every `job:create` and create a second job record; the launcher runs one. |
 
 The split is deliberate: everything on the request path (browser, gateway, worker) replicates,
-while the record and its projections each have exactly one writer. Write throughput to the
+while the record, its projections, and the job queue each have exactly one writer. Write throughput to the
 record scales vertically with the Archivist; read throughput scales with gateway replicas and
 the projections.
 
 ## Infrastructure
 
-- **PostgreSQL** — one database shared by every gateway replica. Scales vertically, or hand it
-  to a managed service; it holds users, tokens, and job bookkeeping, not the knowledge base.
+- **PostgreSQL** — Keycloak's, holding the realm and nothing of Semiont's; the gateway keeps no
+  rows and opens no connection. Scale it with the issuer, or hand it to a managed service.
 - **Neo4j and Qdrant** — the graph and vector indices. Derived state: sizeable, but
   rebuildable from the record. Managed equivalents work; durable volumes either way
   ([BACKUP.md](./BACKUP.md)).
-- **NATS** — one server carries both broker primitives: JetStream streams for the job queue
-  (durable `/data` volume) and core subjects for the signal plane. It needs failover more
+- **NATS** — one server carries both broker primitives: JetStream streams for the dispatcher's
+  job queue (durable `/data` volume) and core subjects for the gateway's signal plane. It needs failover more
   than it needs scale; a single server serves many gateway replicas.
 - **Ollama** — local inference and embeddings. Inference concurrency, not user count, is its
   load; the anthropic config moves LLM inference to the API and leaves embeddings local.
@@ -52,8 +53,6 @@ the projections.
 - `semiont.handler.duration` p95 rising on one actor: that actor's service is the bottleneck —
   give the projector or its backing store more resources; replicas will not help a
   single-writer service.
-- Postgres connection saturation: each gateway replica brings its own pool; scale the database
-  before the replica count.
 
 ## What adding replicas does not fix
 

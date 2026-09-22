@@ -19,7 +19,7 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 
 ## Dependencies and CVEs
 
-[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across four ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher` and `packages/sdk-go`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the six service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, and `opentelemetry`.
+[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across four ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher` and `packages/sdk-go`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the seven service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, and `opentelemetry`.
 
 Two things to know when reviewing those PRs:
 
