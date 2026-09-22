@@ -124,7 +124,7 @@ ANTHROPIC_API_KEY=<key> semiont start --config anthropic
 ```
 
 The OTel collector **always** runs (OTLP on `:4318`, its own readout on `:24110`) and
-`OTEL_EXPORTER_OTLP_ENDPOINT` is wired into all six service containers; `--no-observe`
+`OTEL_EXPORTER_OTLP_ENDPOINT` is wired into all seven service containers; `--no-observe`
 skips only Jaeger and Prometheus — the collector then discards traces, and the metrics
 readout is still served for anything that wants to scrape it. Jaeger's own OTLP ingest
 sits on `:14318` (the collector owns `:4318` and forwards). A single service started with
@@ -214,7 +214,7 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
 | `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
 | `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | `/bus/subscribe` connect/disconnect           |
-| `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Gateway `FsJobQueue.getStats()` |
+| `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Dispatcher `JobQueue.getStats()` — exported by the dispatcher, not the gateway, since the queue moved |
 | `semiont.bus.reply.suppressed` | counter        | `bus.channel`                                           | Gateway SSE: a correlated reply withheld from a non-owner |
 | `semiont.bus.resume_gap`     | counter          | `bus.resume_gap.reason`                                 | Gateway SSE: a resume that degraded to a gap  |
 | `semiont.bus.unanswerable`   | counter          | `bus.channel`                                           | Gateway `/bus/emit`: a request that reached zero subscribers |

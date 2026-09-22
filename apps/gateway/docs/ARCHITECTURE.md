@@ -6,50 +6,48 @@ This document describes the architectural patterns and design principles that go
 
 **All long-lived state is created once at startup in [src/index.ts](../src/index.ts); routes construct nothing.**
 
-Startup builds five things:
+Startup builds four things, and refuses rather than degrades when any is missing:
 
 1. **Config** — `loadEnvironmentConfig(null)`. No KB root: the gateway mounts no knowledge-base tree. Everything it needs — the KB's committed settings, the launcher-staged `[kb]` identity, the archivist address — arrives in the per-service config mounted at `~/.semiontconfig`.
-2. **EventBus** — the per-process RxJS bus. It is also the in-process *driver* of the Signal Plane (below); `POST /bus/emit` and the SSE subscription reach the other containers through the selected driver, which is this bus by default.
-3. **Signal Plane** — `compositionFor(eventBus, plane?)` ([src/signal/](../src/signal/)): plane (the fan-out driver) plus the correlation ledger. `[signal] type = "nats"` seeds it with the NATS driver and installs the handler bridge; absent, it lazily composes the in-process driver. See [The Signal Plane](#the-signal-plane).
-4. **Make-meaning slice** — `startMakeMeaningGateway(state, config, eventBus, logger)` returns `{ jobQueue, state, stop }`: the job queue (driver by `[jobs]`) plus the gateway's bus-handler subset (the `job:*` command channels and the `bind:update-body` relay). No knowledge system, no stores, no actors. It takes a `SemiontState` — name plus state-mount paths, not a `SemiontProject` — so the type itself guarantees this process cannot reach a KB tree.
-5. **Identity** — `JWTService` and the PostgreSQL connection ([src/db.ts](../src/db.ts)), the one datastore the gateway owns.
+2. **Identity** — two halves. `configureTrustedIssuer` ([src/identity/trusted-issuer.ts](../src/identity/trusted-issuer.ts)) names the issuer whose published keys verify every bearer this process accepts; people and service accounts alike obtain their tokens there, and the gateway keeps no account, no session and no row. `requireJwtSecret` ([src/auth/jwt.ts](../src/auth/jwt.ts)) checks the key ring the gateway signs its own two token kinds with — agent tokens minted at `POST /api/tokens/agent` and media tokens — the only credentials that originate here. A KB-identity check runs beside them: the launcher-staged `[kb] domain` and the `site.domain` agent DIDs are minted from must agree.
+3. **Archivist access** — `requireArchivistAccess` ([src/boot-requirements.ts](../src/boot-requirements.ts)): the address of the record and this process's own service-account credential for reaching it. Checked at boot so a misconfigured record fails once, loudly, rather than on the first content read.
+4. **EventBus + Signal Plane** — the per-process RxJS bus, composed with the fan-out driver by `compositionFor(eventBus, plane?)` ([src/signal/](../src/signal/)): plane plus the correlation ledger. `[signal] type = "nats"` seeds it with the NATS driver; absent, it lazily composes the in-process driver. See [The Signal Plane](#the-signal-plane).
 
-Routes read `config` and `eventBus` from Hono context (auth middleware adds `user` and `principalDid`) and reach everything KB-shaped remotely — content bytes through [src/lib/archivist.ts](../src/lib/archivist.ts), domain reads over the bus:
+Routes read `config` and `eventBus` from Hono context (auth middleware adds the caller's `principal`) and reach everything KB-shaped remotely — content bytes through [src/lib/archivist.ts](../src/lib/archivist.ts), domain reads over the bus:
 
 ```typescript
 // The pipe: bytes proxied from the archivist
 const { body, mediaType } = await getContent(c.get('config'), id);
 
 // A domain read: one bus round-trip, answered in another container
-const response = await eventBusRequest(
-  c.get('eventBus'),
-  'browse:resource-requested', { correlationId, resourceId: resourceId(id) },
-  'browse:resource-result', 'browse:resource-failed',
+const response = await busRequest(
+  requestPrimitiveFor(c.get('eventBus')),
+  'browse:resource-requested', { resourceId: resourceId(id) },
 );
 ```
 
-Graph, vectors, embedding, inference, the event store, and the working tree belong to other services. [package.json](../package.json) enforces this: `@semiont/graph`, `@semiont/vectors`, `@semiont/inference`, and `@semiont/event-sourcing` are not dependencies, so a route cannot import a store client at all.
+Graph, vectors, embedding, inference, the event store, the working tree, and the job queue belong to other services. [package.json](../package.json) enforces the store half: `@semiont/graph`, `@semiont/vectors`, `@semiont/inference`, and `@semiont/event-sourcing` are not dependencies, so a route cannot import a store client at all. A census test enforces the queue half: no gateway code references a `job:*` handler.
 
 ## Process Split
 
-The gateway is one process among seven service containers (see [CONTAINER-TOPOLOGY.md](../../../docs/system/CONTAINER-TOPOLOGY.md)). It hosts **no actors**: the archivist runs the record actors (Stower, Browser, CloneTokenManager), the librarian the LLM-bound ones (Gatherer, Matcher), and the smelter and weaver run the vector and graph projections. What remains here is HTTP/SSE termination, identity (PostgreSQL, JWT), bus-frame validation and relay, reply retention, the job queue, and the content proxy. Every other service connects over the same bus the Browser uses; a sidecar can crash and restart without affecting the gateway or connected clients.
+The gateway is one process among eight service containers (see [CONTAINER-TOPOLOGY.md](../../../docs/system/CONTAINER-TOPOLOGY.md)). It hosts **no actors** and **no handlers**: the archivist runs the record actors (Stower, Browser, CloneTokenManager), the librarian the LLM-bound ones (Gatherer, Matcher), the smelter and weaver the vector and graph projections, and the dispatcher owns the job queue and answers every `job:*` command. What remains here is HTTP/SSE termination, identity (verification against the issuer; the agent and media tokens it signs), bus-frame validation and relay, the correlation ledger, and the content proxy. Every other service connects over the same bus the Browser uses; a sidecar can crash and restart without affecting the gateway or connected clients.
 
-### Job Queue
+### Where the job queue went
 
-The job queue sits behind a `JobQueue` interface with two drivers, selected by `[jobs]`: `fs` (the launcher-mounted filesystem queue, the local default) and `jetstream` (NATS JetStream — streams and KV on the shared `messaging` daemon, required when the gateway runs as multiple replicas). Jobs are created here, announced on `job:queued`, claimed via the `job:claim` handler (which refuses non-pending jobs, so exactly one worker wins), and completed by events emitted back on the bus. Workers are stateless with respect to the KB.
+It was the last non-routing work in this process, and it left with the dispatcher. `job:create` and its kin are frames the gateway validates and routes like any other; the dispatcher subscribes to them, answers them, and dials JetStream itself. The gateway's one remaining part in a claim is the `_roles` it stamps onto every emitted frame from the caller's token — set or cleared on every emit, never taken from the payload — which is what the dispatcher authorizes a `job:claim` by. See [apps/dispatcher](../../dispatcher/README.md).
 
 ## The Signal Plane
 
 `src/signal/` is the hub's fan-out behind a driver interface ([interface.ts](../src/signal/interface.ts)) — the plane moves frames and honors reply addresses; it never inspects a payload or decides entitlement. Two drivers implement it, certified by one conformance suite:
 
 - **in-process** ([in-process.ts](../src/signal/in-process.ts)) — the per-process EventBus; the permanent local default.
-- **NATS** ([nats.ts](../src/signal/nats.ts)) — core subjects only, never JetStream (signals are not a record); the mapping lives once here and is boundary-gated. This driver is what lets the gateway run as N replicas.
+- **NATS** ([nats.ts](../src/signal/nats.ts)) — core subjects only, never JetStream (signals are not a record; JetStream on the same server is the dispatcher's queue). This driver is what lets the gateway run as N replicas.
 
-Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane, and under N replicas each claim is announced to a shared address so every replica's ledger converges (the driver never learns the correlation vocabulary — that census is enforced). When the driver is remote, `bridgeGatewayHandlers` ([bridge.ts](../src/signal/bridge.ts)) reconnects the gateway-resident handlers to the plane, one queue group so each command runs on exactly one replica. Under a broker outage emits fail and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
+Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane, and under N replicas each claim is announced to a shared address so every replica's ledger converges (the driver never learns the correlation vocabulary — that census is enforced). With the driver remote, startup flushes the plane before listening, so the ledger's standing tap and every early `/bus/subscribe` interest are registered with the broker before the first frame can be missed; shutdown drains it under a deadline for the same reason in reverse. Under a broker outage emits fail and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
 
 ## Domain Traffic Rides the Bus
 
-Domain reads and commands have no per-route HTTP faces: clients emit bus operations (`POST /bus/emit`, replies over the SSE subscription) via the SDK, and the answering actors live in other containers — the archivist's Browser answers `browse:*`, the librarian's Matcher and Gatherer answer `bind:*` and `gather:*`. The one delegating HTTP route left is `GET /resources/:id/jsonld`, which wraps `browse:resource-requested` via the `eventBusRequest()` helper (`src/utils/event-bus-request.ts`) for machine clients arriving over plain HTTP.
+Domain reads and commands have no per-route HTTP faces: clients emit bus operations (`POST /bus/emit`, replies over the SSE subscription) via the SDK, and the answering actors live in other containers — the archivist's Browser answers `browse:*`, the librarian's Matcher and Gatherer answer `bind:*` and `gather:*`, the dispatcher answers `job:*`. The one delegating HTTP route left is `GET /resources/:id/jsonld`, which wraps `browse:resource-requested` in core's `busRequest` over the gateway's plane primitive, for machine clients arriving over plain HTTP.
 
 ### The Content Plane
 
@@ -68,15 +66,16 @@ The gateway holds no bytes — both directions stream through the archivist's HT
 - **Content plane** — the four routes above
 - **Auth routes** — token verification against the trusted issuer's keys, and the agent and media
   tokens the gateway itself signs (orthogonal to knowledge domain)
+- **Resource metadata** — `/.well-known/oauth-protected-resource`, naming this KB's issuer for clients that discover it
 - **Health/Status** — infrastructure monitoring
 
 ## Related Documentation
 
-- [Make-Meaning Package](../../../packages/make-meaning/) - `startMakeMeaningGateway` and the bus handlers
-- [Jobs Package](../../../packages/jobs/) - `JobQueue` implementation and the worker pool
+- [Dispatcher](../../dispatcher/README.md) - the job queue and the `job:*` handlers this process used to host
+- [Jobs Package](../../../packages/jobs/) - `JobQueue`, its drivers, and the worker
 - [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - what runs where
 - [AUTHENTICATION.md](AUTHENTICATION.md) - the identity plane
 
 ---
 
-**Last Updated**: 2026-09-15
+**Last Updated**: 2026-09-21

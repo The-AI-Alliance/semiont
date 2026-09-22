@@ -18,7 +18,8 @@ Eight services run Semiont code. Each is a published container image; see [Conta
 | **dispatcher** | 24105 | Owns the job queue and answers the `job:*` lifecycle — a control plane; no content flows through it | `@semiont/make-meaning` | [README](../../../apps/dispatcher/README.md) |
 
 **The gateway holds no part of the knowledge base.** It authenticates callers, relays the
-bus, and proxies content bytes to the Archivist; its only datastore is PostgreSQL. The five
+bus, and proxies content bytes to the Archivist; it holds no datastore at all — identity is
+verified against the issuer, and the job queue is the dispatcher's. The five
 meaning-tier actors live in the Archivist and the Librarian. That split is enforced by a test,
 not by convention — `TestExactlyOneContainerMountsTheKB` pins it in the launcher's golden run
 arguments: exactly one container mounts the KB, and it is the Archivist.
@@ -36,7 +37,7 @@ For what the actors inside those containers are responsible for, see [Knowledge 
 
 | Role | Product | Port | Purpose |
 |---|---|---|---|
-| **database** | PostgreSQL | 5432 | User authentication only — see [Database Guide](../administration/DATABASE.md) |
+| **database** | PostgreSQL | 5432 | Keycloak's realm; Semiont stores nothing in it — see [Database Guide](../administration/DATABASE.md) |
 | **graph** | Neo4j | 7474, 7687 | Graph projection of the event log |
 | **vectors** | Qdrant | 6333 | Embeddings and semantic search |
 | **inference** | Ollama | 11434 | Local LLM + embeddings (or Anthropic instead, for LLM) |
@@ -167,10 +168,13 @@ See the [Configuration Guide](../administration/CONFIGURATION.md) for the full s
 
 ```mermaid
 graph LR
-    DB[PostgreSQL] --> GW[Gateway]
+    DB[PostgreSQL] --> KC[Keycloak]
+    KC --> GW[Gateway]
+    NATS[NATS] --> GW
     GW --> AR[Archivist]
     GW --> LB[Librarian]
     GW --> DP[Dispatcher]
+    NATS --> DP
     GW --> W[Worker]
     GW --> SM[Smelter]
     GW --> WV[Weaver]
@@ -189,7 +193,7 @@ the **meaning-tier** services now, not to the gateway.
 ### Runtime dependencies
 
 - **Browser** → nothing. It serves static assets; the SPA in the user's browser talks to the gateway directly.
-- **Gateway** → PostgreSQL, and the Archivist (it proxies content bytes there). Nothing else — no graph, no vectors, no inference
+- **Gateway** → the issuer (token verification), NATS when the signal plane is broker-backed, and the Archivist (it proxies content bytes there and reads replay from it). No database, no graph, no vectors, no inference
 - **Archivist** → gateway bus, the KB working tree and state (**the only service that mounts them**), Neo4j for one query, an embedding provider
 - **Librarian** → gateway bus, Neo4j, Qdrant, inference + embeddings
 - **Worker** → gateway bus, inference, the Archivist's HTTP surface for bytes

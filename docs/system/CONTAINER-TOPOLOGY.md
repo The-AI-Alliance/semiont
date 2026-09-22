@@ -79,16 +79,19 @@ config:
   layout: elk
 ---
 graph TB
-    subgraph G1 [" "]
+    subgraph G1 ["control plane"]
         GW["semiont-gateway<br/>bus hub · token verifier · content proxy"]
         DISP["semiont-dispatcher<br/>job queue · job:* lifecycle"]
-        NATS["semiont-nats<br/>messaging — signal plane · job queue"]
+        NATS["semiont-nats<br/>messaging — core subjects: signal plane · JetStream: job queue"]
         JS[("JetStream store")]
+    end
+
+    subgraph G4 ["identity"]
         KC["semiont-keycloak<br/>identity — the issuer this KB trusts"]
         PG["semiont-postgres<br/>PostgreSQL — Keycloak's realm"]
     end
 
-    subgraph G2 [" "]
+    subgraph G2 ["knowledge system"]
         ARCH["semiont-archivist<br/>Stower · Browser · CloneTokenManager"]
         TREE[("KB working tree<br/>content · event log · git state")]
         VIEWS[("views<br/>resources/ · projections/")]
@@ -102,9 +105,11 @@ graph TB
     LIB["semiont-librarian<br/>Gatherer · Matcher"]
     OL["semiont-ollama<br/>Ollama — embeddings · local inference"]
 
-    WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
+    subgraph G3 ["worker — any host that reaches the gateway and the Archivist"]
+        WORKER["semiont-worker<br/>worker pool — Generator · detection workers"]
+    end
 
-    subgraph G5 [" "]
+    subgraph G5 ["observability"]
         COLL["semiont-otel-collector<br/>OTel Collector — telemetry fan-in"]
         TRACES["semiont-jaeger<br/>Jaeger — traces"]
         METRICS["semiont-prometheus<br/>Prometheus — metrics"]
@@ -115,8 +120,9 @@ graph TB
     LIB -->|ro| VIEWS
     SMELT --> ANCH
     ARCH -->|ro| ANCH
-    GW -->|bus| NATS
-    DISP -->|jobs| NATS
+    WORKER -->|bytes · HTTP| ARCH
+    GW -->|signal plane| NATS
+    DISP -->|JetStream| NATS
     NATS --> JS
 
     WEAVE --> NEO
@@ -165,12 +171,14 @@ graph TB
 
     style G1 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
     style G2 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
+    style G3 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
+    style G4 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
     style G5 fill:none,stroke:#888,stroke-width:1.5px,stroke-dasharray:6 4
 ```
 
-Cylinders are file state on the host; their edges are mounts and the direction of use — `rw`/`ro` marked where it matters, and the working tree has exactly one writer. The deep-blue cylinder is the KB working tree — the git-tracked system of record; every purple cylinder is derived state, rebuildable from it. Rectangle-to-rectangle edges are each service's infrastructure attachments; dotted edges are telemetry — OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus off the collector's readout (a pull, drawn in the direction the data flows). The dashed frames are groupings, not components — the edges alone carry the attachment facts. The Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
+Cylinders are file state on the host; their edges are mounts and the direction of use — `rw`/`ro` marked where it matters, and the working tree has exactly one writer. The deep-blue cylinder is the KB working tree — the git-tracked system of record; every purple cylinder is derived state, rebuildable from it. Rectangle-to-rectangle edges are each service's infrastructure attachments; dotted edges are telemetry — OTLP into the collector, traces forwarded to Jaeger, metrics scraped by Prometheus off the collector's readout (a pull, drawn in the direction the data flows). The dashed frames group by concern — control plane, identity, knowledge system, observability, and the worker — not by component; the edges alone carry the attachment facts. The gateway attaches to exactly two things: the broker, for the signal plane when `[signal] type = "nats"`, and the issuer, whose published keys it verifies tokens against. It holds no database — the PostgreSQL in a stack is Keycloak's — and no queue: the dispatcher owns the queue and dials JetStream on the same broker. The worker's frame is the deployment boundary: it holds no mount and no broker credential, and everything it dials — the gateway's bus, the Archivist's byte surface, an inference provider — is a network address, so it can run on a host the rest of the stack never shares. A worker that is not the deployment's own joins the same way, its client granted the worker role at the issuer; the dispatcher admits its claims by that role. The Ollama edges show the fully-local default: with the anthropic config, LLM inference for the workers, Gatherer, and Matcher goes to the Anthropic API instead, while embeddings stay on Ollama either way.
 
-Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`. Each sidecar first authenticates at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then presents that issuer token as a bearer here along with a `(provider, model)` identity, and receives a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`); the existing auth middleware validates that JWT exactly as it would a person's. Two identities, deliberately: the service account is the process, the agent DID is the work. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
+Every service-to-gateway bus edge in the first diagram authenticates via `POST /api/tokens/agent`. Each sidecar first authenticates at the knowledge base's issuer as its own service account (client credentials, `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), then presents that issuer token as a bearer here along with a `(provider, model)` identity, and receives a JWT carrying a typed Software-agent DID (the smelter presents its embedding config; the weaver presents `(semiont, weaver)`; the dispatcher `(semiont, dispatcher)`); the existing auth middleware validates that JWT exactly as it would a person's. Two identities, deliberately: the service account is the process, the agent DID is the work. One nuance the drawing flattens: besides content bytes, the archivist's event read path also rides plain HTTP, by design. The split itself is why the partition exists — the record, retrieval, LLM, embedding, and graph-projection work run in separate V8 isolates, and the gateway stays responsive to human users.
 
 ### Who mounts what
 

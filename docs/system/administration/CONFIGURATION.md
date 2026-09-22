@@ -352,15 +352,16 @@ Available Voyage models: `voyage-3` (1024 dims), `voyage-3-lite` (512), `voyage-
 
 ## Job Queue Configuration
 
-The gateway selects its job queue driver from config; nothing is inferred. An absent section
-means `fs`.
+The dispatcher selects its job queue driver from config; nothing is inferred. An absent section
+means `fs` — a driver that needs a writable state tree the launcher's dispatcher does not mount,
+so a launcher-run stack selects `jetstream`.
 
 ```toml
-# Launcher-mounted filesystem queue (the local default; single gateway only)
+# Filesystem queue — the reference driver; needs a writable state tree
 [environments.local.jobs]
 type = "fs"
 
-# NATS JetStream — stream-held leases; required for gateway replicas
+# NATS JetStream — stream-held leases; what the launcher template ships
 [environments.local.jobs]
 type = "jetstream"
 servers = "${NATS_HOST}:4222"

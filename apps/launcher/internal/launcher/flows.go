@@ -161,16 +161,17 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// AHEAD of the stores the actors use. The gateway dials no graph, vector or
 	// embedding client, and no database of its own: the PostgreSQL started here
 	// is Keycloak's, whose realm lives in it. What the gateway does wait for is
-	// the broker its job queue dials and the issuer whose keys it verifies
-	// tokens against, both below. It has the most ways to fail, so it precedes
-	// the stores.
+	// the broker its signal plane dials (when [signal] selects nats) and the
+	// issuer whose keys it verifies tokens against, both below. It has the most
+	// ways to fail, so it precedes the stores.
 	// Invariant: everything below needs the Gateway; nothing above it does.
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
-	// The jobs broker (NATS, when the config selects the jetstream driver)
-	// is a gateway dependency like Postgres: the gateway's job queue dials
-	// it at boot. Absent config = the in-gateway fs driver; nothing runs.
+	// The broker (NATS, when the config selects the nats signal driver or the
+	// jetstream jobs driver) precedes the gateway for the signal plane's sake;
+	// the dispatcher's JetStream queue dials the same server later. Absent
+	// config = the in-process signal plane; nothing runs.
 	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
 		return code
 	}

@@ -7,7 +7,8 @@ and sidecar services dial, and in almost every deployment it runs as the
 Its job is narrow on purpose: **authenticate callers, run the bus hub, and proxy
 content bytes.** It holds no part of the knowledge base. The five actors that
 make meaning live in other processes, the resource tree belongs to the
-Archivist, and the event log is reached over HTTP like everything else.
+Archivist, the job queue belongs to the dispatcher, and the event log is
+reached over HTTP like everything else.
 
 ## What it owns, and what it does not
 
@@ -16,11 +17,10 @@ fastest way to understand it.
 
 | It owns | It does not |
 |---|---|
-| **Identity** — issues and verifies user and agent tokens, mints `did:web` agent identities | Host any actor (Stower, Browser, Gatherer, Matcher, CloneTokenManager) |
-| **Postgres** — users, sessions, admin state. Its only datastore | Mount the knowledge base. No `/kb`, no working tree, no `.git` |
-| **The bus hub** — `POST /bus/emit` in, `POST /bus/subscribe` (SSE) out, behind a driver (in-process or NATS) | Connect to Neo4j, Qdrant, or an inference provider |
-| **The job queue** — `fs` or NATS JetStream, selected by config | Read or write projections, views, or content directly |
-| **The content proxy** — forwards resource bytes to the Archivist | Store bytes. They never touch this process's disk |
+| **Identity** — verifies every bearer against the issuer's published keys; mints the `did:web` agent tokens and the media tokens it signs itself | Host any actor (Stower, Browser, Gatherer, Matcher, CloneTokenManager) or any bus handler |
+| **The bus hub** — `POST /bus/emit` in, `POST /bus/subscribe` (SSE) out, behind a driver (in-process, or NATS core subjects) | Mount the knowledge base. No `/kb`, no working tree, no `.git` |
+| **The correlation ledger** — records who asked, decides who may see the reply, retains replies for reconnect recovery | Own the job queue or hold a database: the queue is the dispatcher's, accounts live at the issuer, and the PostgreSQL in a stack is Keycloak's |
+| **The content proxy** — forwards resource bytes to the Archivist | Connect to Neo4j, Qdrant, or an inference provider; read or write projections, views, or content directly; store bytes |
 
 The invariant, enforced by tests rather than convention: the gateway **dials no
 meaning-tier service and writes no meaning-tier state.**
@@ -48,6 +48,7 @@ container run -d --name semiont-gateway \
   --env XDG_STATE_HOME=/semiont-state \
   --env POSTGRES_HOST=<host> --env NEO4J_HOST=<host> \
   --env QDRANT_HOST=<host>   --env OLLAMA_HOST=<host> \
+  --env NATS_HOST=<host>     --env KEYCLOAK_HOST=<host> \
   --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
   --env JWT_SECRET=<key> \
@@ -56,10 +57,11 @@ container run -d --name semiont-gateway \
 
 Two things in there are easy to misread:
 
-- **The three non-Postgres host variables do not mean it connects to those
-  services.** The config loader expands every `${VAR}` in the staged TOML
-  eagerly, so every referenced variable must be defined even for sections this
-  process never consumes.
+- **The `*_HOST` variables do not all mean it connects to those services.** It
+  dials NATS (the signal plane, when `[signal]` selects it) and Keycloak (token
+  verification) and nothing else on that list. The config loader expands every
+  `${VAR}` in the staged TOML eagerly, so every referenced variable must be
+  defined even for sections this process never consumes.
 - **There is no KB volume**, and that absence is the point. It is also enforced:
   the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
   signature change, not a line someone can slip in.
@@ -86,8 +88,8 @@ sign-in policy each stop the process before it listens — a gateway that accept
 connections it cannot authenticate is the failure mode these checks exist to
 prevent.
 
-`SIGTERM`/`SIGINT` close the listener, stop the job-status subscription, tear
-down the bus, and disconnect Postgres before exiting.
+`SIGTERM`/`SIGINT` close the listener, drain the signal plane under a deadline
+so in-flight frames reach the broker, tear down the bus, and exit.
 
 ## Configuration
 
@@ -97,10 +99,11 @@ with no project root — there is no tree to read from — so everything it need
 arrives in that file, including the launcher-staged `[kb]` identity card
 carrying the KB's committed name, `did:web` domain, and sign-in policy.
 
-Two sections select the gateway's drivers, both defaulting to the single-process
-local shape when absent: `[signal]` (`in-process` or `nats`) chooses the bus
-fan-out driver, and `[jobs]` (`fs` or `jetstream`) the job queue. `nats`/`jetstream`
-share one NATS daemon and require gateway replicas; see
+One section selects the gateway's driver, defaulting to the single-process local
+shape when absent: `[signal]` (`in-process` or `nats`) chooses the bus fan-out.
+The `[jobs]` section in the same file is the dispatcher's, not this process's;
+`nats` and `jetstream` share one NATS daemon, and `[signal] type = "nats"` is
+what gateway replicas require. See
 [CONFIGURATION.md](../../docs/system/administration/CONFIGURATION.md).
 
 Secrets are not in the file. They come from the environment.
@@ -111,9 +114,9 @@ Secrets are not in the file. They come from the environment.
 |---|---|
 | `root.ts` | Service metadata, OpenAPI spec, Swagger UI |
 | `health.ts` | `/api/health` — always 200; liveness, not readiness |
-| `auth.ts` | Token issuance and refresh, OAuth and password sign-in |
+| `auth.ts` | `/api/users/me`; the agent and media tokens the gateway mints (`/api/tokens/agent`, `/api/tokens/media`); cookie consent. People sign in at the issuer, not here |
 | `status.ts` | `/api/status` — KB identity, version, branch |
-| `admin.ts` | User administration |
+| `well-known.ts` | `/.well-known/oauth-protected-resource` — resource metadata naming this KB's issuer |
 | `resources/` | W3C-shaped resource and annotation endpoints; binary upload proxied to the Archivist |
 | `bus.ts` | `/bus/emit` and `/bus/subscribe` — the hub, over the selected signal driver (`src/signal/`) |
 
