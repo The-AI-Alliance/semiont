@@ -79,6 +79,7 @@ describe('Stower constructs from capability doubles (EXTRACT-ARCHIVIST P1)', () 
       eventStore: {
         appendEvent: vi.fn().mockResolvedValue({}),
         viewStorage: { get: vi.fn().mockResolvedValue(null) },
+        log: { getEvents: vi.fn().mockResolvedValue([]) },
       },
     } satisfies StowerStores;
     return stores;
@@ -444,7 +445,7 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
         const stower = new Stower(
           {
             content: { register: vi.fn(), move: vi.fn(), remove: vi.fn(), resolveUri: vi.fn() },
-            eventStore: { appendEvent: vi.fn(), viewStorage: { get: vi.fn().mockResolvedValue(null) } },
+            eventStore: { appendEvent: vi.fn(), viewStorage: { get: vi.fn().mockResolvedValue(null) }, log: { getEvents: vi.fn().mockResolvedValue([]) } },
           },
           bus, tp.project, mockLogger,
         );

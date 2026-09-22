@@ -426,7 +426,10 @@ async function handleJobInner(
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
-  const { userId, jobId } = job;
+  // `userId` — the requester — is deliberately NOT read here: the worker
+  // cites the job it holds and the Stower derives who asked from the
+  // dispatcher's record of it (VERIFIED-PROVENANCE P2).
+  const { jobId } = job;
   // `jobType` is a required, enumerated field on every lifecycle command, but
   // arrives off the bus as a plain string. Narrow once here so the emits below
   // are checked against the wire contract instead of asserted past it.
@@ -520,7 +523,7 @@ async function handleJobInner(
     // trace, which is exactly what made a 411 s opaque job hard to diagnose.
     const source = await withSpan(
       'detection:prepare',
-      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, userId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
+      () => prepareDetection(mediaType ?? '', config.contentReads, resourceId, generator, (rid) => session.client.browse.resourceAnchoredText(rid)),
       { attrs: { 'resource.id': resourceId as unknown as string, 'media.type': mediaType ?? 'unknown' } },
     );
 
@@ -868,7 +871,6 @@ async function handleJobInner(
           const citationRef = buildPdfAnnotation(
             layer,
             makeResourceId(String(newResourceId)),
-            userId,
             generator,
             'linking',
             { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },

@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "Bus command the dispatcher emits, under its own service identity, immediately after it accepts a job:claim — the correlated job:claimed reply is unchanged. The Stower persists it as job:assigned. It is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. A later write citing `jobId` is checked against the holder and its `creator` derived from the requester by reading the resource's own log, with nothing outside the record.",
+  "properties": {
+    "_userId": {
+      "type": "string",
+      "description": "The dispatcher's service DID, injected by the /bus/emit gateway. Clients do not set this."
+    },
+    "jobId": { "type": "string" },
+    "jobType": { "$ref": "JobType.json" },
+    "resourceId": { "type": "string", "description": "The job's resource — for a generation, the source it generates from. The assignment is persisted on this resource's log." },
+    "holder": { "type": "string", "description": "DID of the claimant whose claim was accepted — the `_userId` the gateway stamped on the job:claim, restated by the dispatcher." },
+    "requester": { "type": "string", "description": "DID of the emitter of the job:create that produced this job — the `_userId` the gateway stamped on that create, restated by the dispatcher." }
+  },
+  "required": ["jobId", "jobType", "resourceId", "holder", "requester"]
+}

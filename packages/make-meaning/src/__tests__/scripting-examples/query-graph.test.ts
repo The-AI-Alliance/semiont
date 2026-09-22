@@ -193,7 +193,6 @@ describe('Scripting Example: Query Graph Database', () => {
     const rId = resourceResult;
 
     // Create an annotation
-    const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
     await AnnotationOperations.createAnnotation(
       {
         motivation: 'commenting',
@@ -208,7 +207,6 @@ describe('Scripting Example: Query Graph Database', () => {
         }
       },
       userId('did:web:test:users:test-script'),
-      creator,
       eventBus,
       makeMeaning.knowledgeSystem.kb);
 
@@ -284,7 +282,6 @@ describe('Scripting Example: Query Graph Database', () => {
     const rId = resource;
 
     // Create a few annotations
-    const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
     for (let i = 0; i < 3; i++) {
       await AnnotationOperations.createAnnotation(
         {
@@ -300,7 +297,6 @@ describe('Scripting Example: Query Graph Database', () => {
           }
         },
         userId('did:web:test:users:test-script'),
-        creator,
         eventBus,
         makeMeaning.knowledgeSystem.kb);
     }

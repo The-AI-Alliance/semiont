@@ -507,8 +507,14 @@
       "JobStartCommand": {
         "$ref": "components/schemas/JobStartCommand.json"
       },
+      "JobAssignCommand": {
+        "$ref": "components/schemas/JobAssignCommand.json"
+      },
       "JobStartedPayload": {
         "$ref": "components/schemas/JobStartedPayload.json"
+      },
+      "JobAssignedPayload": {
+        "$ref": "components/schemas/JobAssignedPayload.json"
       },
       "JobStatusRequest": {
         "$ref": "components/schemas/JobStatusRequest.json"

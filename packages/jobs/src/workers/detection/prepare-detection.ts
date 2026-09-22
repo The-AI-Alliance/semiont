@@ -79,7 +79,6 @@ export async function prepareDetection(
   mediaType: string,
   content: ContentReads,
   resourceId: ResourceId,
-  userId: string,
   generator: Agent,
   consult: ConsultAnchoredText,
 ): Promise<DetectionSource> {
@@ -104,7 +103,7 @@ export async function prepareDetection(
         return {
           text: answer.text,
           buildAnnotation: (motivation, match, body) =>
-            buildPdfAnnotation(anchored, resourceId, userId, generator, motivation, match, body),
+            buildPdfAnnotation(anchored, resourceId, generator, motivation, match, body),
         };
       }
       // The Smelter's own decline (encrypted, corrupt) — passed through by name.
@@ -150,6 +149,6 @@ export async function prepareDetection(
   return {
     text,
     buildAnnotation: (motivation, match, body) =>
-      buildTextAnnotation(text, resourceId, userId, generator, motivation, match, body),
+      buildTextAnnotation(text, resourceId, generator, motivation, match, body),
   };
 }

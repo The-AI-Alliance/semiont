@@ -16,7 +16,7 @@ import { compileTypst, MAX_COMPILE_REPAIRS } from './workers/generation/typst-co
 import { withinByteBudget, MAX_PDF_BYTES } from '@semiont/content';
 import { resolveCitationTokens, collectContextResourceIds, type GenerationCitation } from './workers/generation/citation-resolver';
 import { annotationIdFor } from '@semiont/event-sourcing';
-import { didToAgent, GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult, type UnitCursor } from '@semiont/core';
+import { GENERATABLE_MEDIA_TYPES, type Annotation, type GenerationJobParams, type Logger, type ResourceId, type SupportedMediaType, type components, type JobReferenceAnnotationResult, type JobHighlightAnnotationResult, type JobCommentAnnotationResult, type JobAssessmentAnnotationResult, type JobTagAnnotationResult, type UnitCursor } from '@semiont/core';
 import { reconcileSelector, createFragmentSelector, locate, type ReconciledSelector, type AnchoredText } from '@semiont/core';
 import type { InferenceClient } from '@semiont/inference';
 import type {
@@ -190,7 +190,6 @@ function makeSpanDeduper(): (annotations: Annotation[]) => Annotation[] {
 export function buildTextAnnotation(
   content: string,
   resourceId: ResourceId,
-  userId: string,
   generator: Agent,
   motivation: Motivation,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
@@ -230,25 +229,16 @@ export function buildTextAnnotation(
     }
   }
 
-  // `userId` here is the DID of the human who initiated the work. The
-  // worker process is acting on their behalf using `generator` to
-  // produce content. Per the protocol attribution model:
-  //   creator        = who initiated (the human)
-  //   generator      = what produced (the software peer)
-  //   wasAttributedTo = both parties (PROV-O)
-  // For autonomous-agent work creator and generator collapse to the
-  // same Software Agent; the same field assignments still hold.
-  const creator = didToAgent(userId);
-  const wasAttributedTo: Agent[] =
-    creator['@id'] === generator['@id'] ? [generator] : [creator, generator];
+  // The worker says WHAT produced this — `generator`, which carries the
+  // model's parameters — and nothing about who asked. `creator` and
+  // `wasAttributedTo` are derived by the Stower from the cited job's own
+  // events (VERIFIED-PROVENANCE P2); a payload carrying them is refused.
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     'type': 'Annotation' as const,
     'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
     motivation,
-    creator,
     generator,
-    wasAttributedTo,
     created: new Date().toISOString(),
     target: {
       type: 'SpecificResource' as const,
@@ -307,7 +297,6 @@ export function buildTextAnnotation(
 export function buildPdfAnnotation(
   anchored: AnchoredText,
   resourceId: ResourceId,
-  userId: string,
   generator: Agent,
   motivation: Motivation,
   match: { exact: string; start: number; end: number; prefix?: string; suffix?: string },
@@ -345,18 +334,13 @@ export function buildPdfAnnotation(
     );
   }
 
-  const creator = didToAgent(userId);
-  const wasAttributedTo: Agent[] =
-    creator['@id'] === generator['@id'] ? [generator] : [creator, generator];
-
+  // As for the text builder: `generator` only; attribution is derived downstream.
   return {
     '@context': 'http://www.w3.org/ns/anno.jsonld' as const,
     'type': 'Annotation' as const,
     'id': annotationIdFor({ resourceId: resourceId as string, motivation, anchor: spanAnchor(match), body }),
     motivation,
-    creator,
     generator,
-    wasAttributedTo,
     created: new Date().toISOString(),
     target: {
       type: 'SpecificResource' as const,

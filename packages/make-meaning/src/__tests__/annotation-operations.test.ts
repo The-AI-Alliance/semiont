@@ -40,8 +40,7 @@ async function createAnnotationAndAwait(
   eventBus: EventBus,
   kb: { views: Pick<ViewStorage, 'get'> },
 ) {
-  const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
-  const result = await AnnotationOperations.createAnnotation(request, uid, creator, eventBus, kb);
+  const result = await AnnotationOperations.createAnnotation(request, uid, eventBus, kb);
   const expectedId = result.annotation.id;
   await firstValueFrom(eventBus.on('mark:added').pipe(
     filter((e) => e.payload?.annotation?.id === expectedId),
@@ -467,7 +466,6 @@ describe('AnnotationOperations', () => {
     });
 
     it('should reject invalid motivation', async () => {
-      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
       await expect(
         AnnotationOperations.createAnnotation(
           {
@@ -489,7 +487,6 @@ describe('AnnotationOperations', () => {
             },
           },
           userId('did:web:test:users:user-1'),
-          creator,
           eventBus,
           kb)
       ).rejects.toThrow('motivation is required');
@@ -872,6 +869,7 @@ describe('AnnotationOperations', () => {
         content: { register: vi.fn(), move: vi.fn(), remove: vi.fn(), resolveUri: vi.fn() } as unknown as StowerStores['content'],
         eventStore: {
           appendEvent: vi.fn().mockRejectedValue(new Error('disk full')),
+          log: { getEvents: vi.fn().mockResolvedValue([]) },
           // `mark:commit` diffs its batch against the resource's view before
           // appending (COMMIT-ACK-FALSE-FAILURE F3); an empty resource holds
           // nothing, so every annotation is new and the append still runs.

@@ -200,11 +200,12 @@ describe('Stower job:* handlers', () => {
   // forever whenever it flapped. These pin the contract the worker now bets a
   // unit's completion on.
   describe('mark:commit', () => {
+    // No `creator`: it is derived by the Stower from the emitter and the cited
+    // job, and a payload carrying one is refused (VERIFIED-PROVENANCE P2).
     const ann = (id: string) => ({
       '@context': 'http://www.w3.org/ns/anno.jsonld',
       type: 'Annotation', id, motivation: 'linking',
       target: { source: RID },
-      creator: { '@type': 'Person', name: 'Detector', '@id': 'did:web:test:agents:detect' },
       created: '2026-09-03T00:00:00.000Z',
     });
 

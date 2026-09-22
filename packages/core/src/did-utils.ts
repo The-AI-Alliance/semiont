@@ -155,6 +155,58 @@ export function softwareToAgent(software: {
  * append-only and the offending records cannot be edited away, so a strict reader
  * today would convert a partial failure into a total one.
  */
+/**
+ * Who a record is attributed to — derived, never asserted (VERIFIED-PROVENANCE P2).
+ *
+ * `requester` is the DID of whoever asked for the work: the emitter of the
+ * `job:create` a write cites, as the dispatcher recorded it on `job:assigned`;
+ * or the writer itself when it cites no job. `executor` is the write's own
+ * `_userId`. Both are identities the gateway stamped from a token — nothing
+ * here is read from a payload, which is what makes the result derived.
+ *
+ * The W3C/PROV fields follow from the pair:
+ * - `creator` is the requester.
+ * - `generator` is the executor when the executor is software. A caller may
+ *   supply one to carry the model's parameters, but its identity MUST be the
+ *   executor's — a generator naming someone else is exactly the assertion this
+ *   function exists to make impossible, and is refused.
+ * - `wasAttributedTo` is both parties in that order, collapsed to one when
+ *   requester and executor are the same.
+ *
+ * This is the ONE place these fields are built. `lint:attribution` fails the
+ * build if a second appears.
+ */
+export interface Attribution {
+  creator: Agent;
+  generator?: Agent;
+  wasAttributedTo: Agent[];
+}
+
+export function attribution(chain: { requester: string; executor: string; generator?: Agent }): Attribution {
+  const creator = didToAgent(chain.requester);
+  const executor = didToAgent(chain.executor);
+  const executorIsSoftware = executor['@type'] === 'Software';
+
+  let generator: Agent | undefined;
+  if (chain.generator !== undefined) {
+    if (!executorIsSoftware) {
+      throw new Error(`attribution: a generator was supplied, but the executor ${chain.executor} is not software`);
+    }
+    if (chain.generator['@id'] !== executor['@id']) {
+      throw new Error(`attribution: generator ${String(chain.generator['@id'])} is not the executor ${chain.executor}`);
+    }
+    generator = chain.generator;
+  } else if (executorIsSoftware) {
+    generator = executor;
+  }
+
+  // The executor's Agent as it should appear: the supplied generator when
+  // there is one (it carries parameters the DID does not), else the DID's.
+  const executorAgent: Agent = generator !== undefined ? generator : executor;
+  const wasAttributedTo = creator['@id'] === executor['@id'] ? [executorAgent] : [creator, executorAgent];
+  return generator !== undefined ? { creator, generator, wasAttributedTo } : { creator, wasAttributedTo };
+}
+
 export function didToAgent(did: string | undefined | null): Agent {
   if (!did) {
     // No `'unknown'` fabrication. `@id` is optional in every branch, so a missing

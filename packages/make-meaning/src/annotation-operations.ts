@@ -20,7 +20,6 @@ import { EventBus, annotationId, resourceId as makeResourceId, assembleAnnotatio
 import { AnnotationContext } from './annotation-context';
 import type { ViewStorage } from '@semiont/event-sourcing';
 
-type Agent = components['schemas']['Agent'];
 import type { Annotation } from '@semiont/core';
 type CreateAnnotationRequest = components['schemas']['CreateAnnotationRequest'];
 type UpdateAnnotationBodyRequest = components['schemas']['UpdateAnnotationBodyRequest'];
@@ -63,7 +62,6 @@ export class AnnotationOperations {
   static async createAnnotation(
     request: CreateAnnotationRequest,
     userId: UserId,
-    creator: Agent,
     eventBus: EventBus,
     kb: { views: Pick<ViewStorage, 'get'> },
   ): Promise<CreateAnnotationResult> {
@@ -71,7 +69,9 @@ export class AnnotationOperations {
     // published way around the handler's gate (MEDIA-CAPABILITY-DISPATCH D6).
     await assertAnnotatableTarget(kb, request.target.source);
 
-    const { annotation } = assembleAnnotation(request, creator);
+    // No creator is passed: the Stower derives who asked from `_userId` when
+    // it stows, and refuses a payload that names one (VERIFIED-PROVENANCE P2).
+    const { annotation } = assembleAnnotation(request);
     const resId = makeResourceId(request.target.source);
 
     // Emit mark:create — Stower subscribes and appends to event store

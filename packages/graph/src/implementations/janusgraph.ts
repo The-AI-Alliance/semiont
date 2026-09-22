@@ -148,7 +148,10 @@ export class JanusGraphDatabase implements GraphDatabase {
     if (!contentChecksum) throw new Error(`Resource ${id} missing required field: contentChecksum`);
     if (!mediaType) throw new Error(`Resource ${id} missing required field: contentType`);
 
-    const creator = typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw;
+    // The graph property is named `creator` for historical reasons; it holds
+    // the resource's `wasAttributedTo` verbatim, as the event carried it (see
+    // the write side). Nothing is derived here — the projection copies.
+    const storedAttribution = typeof creatorRaw === 'string' ? JSON.parse(creatorRaw) : creatorRaw;
 
     const resource: ResourceDescriptor = {
       '@context': 'https://schema.org/',
@@ -163,7 +166,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       }],
       archived: getPropertyValue(props, 'archived') === 'true',
       dateCreated: getPropertyValue(props, 'created'),
-      wasAttributedTo: creator,
+      wasAttributedTo: storedAttribution,
     };
 
     const sourceAnnotationId = getPropertyValue(props, 'sourceAnnotationId');

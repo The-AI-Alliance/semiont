@@ -2759,6 +2759,41 @@ type JobAssessmentAnnotationResult struct {
 // JobAssessmentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 type JobAssessmentAnnotationResultKind string
 
+// JobAssignCommand Bus command the dispatcher emits, under its own service identity, immediately after it accepts a job:claim — the correlated job:claimed reply is unchanged. The Stower persists it as job:assigned. It is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. A later write citing `jobId` is checked against the holder and its `creator` derived from the requester by reading the resource's own log, with nothing outside the record.
+type JobAssignCommand struct {
+	// UnderscoreUserId The dispatcher's service DID, injected by the /bus/emit gateway. Clients do not set this.
+	UnderscoreUserId *string `json:"_userId,omitempty"`
+
+	// Holder DID of the claimant whose claim was accepted — the `_userId` the gateway stamped on the job:claim, restated by the dispatcher.
+	Holder string `json:"holder"`
+	JobId  string `json:"jobId"`
+
+	// JobType Type of background job
+	JobType JobType `json:"jobType"`
+
+	// Requester DID of the emitter of the job:create that produced this job — the `_userId` the gateway stamped on that create, restated by the dispatcher.
+	Requester string `json:"requester"`
+
+	// ResourceId The job's resource — for a generation, the source it generates from. The assignment is persisted on this resource's log.
+	ResourceId string `json:"resourceId"`
+}
+
+// JobAssignedPayload Payload for job:assigned — the dispatcher's own record that it accepted a claim. Emitted by the dispatcher under its service identity after a successful job:claim (the correlated job:claimed reply is unchanged). This is the one fact only the dispatcher can vouch for: which holder took which job, and who requested it. The Stower persists it beside job:started so that a write citing `jobId` can be checked against the holder and its `creator` derived from the requester with no read outside the event log.
+type JobAssignedPayload struct {
+	// Holder DID of the emitter whose claim the dispatcher accepted. The bus stamped it on the job:claim as `_userId`; the dispatcher restates it here under its own identity.
+	Holder string `json:"holder"`
+	JobId  string `json:"jobId"`
+
+	// JobType Type of background job
+	JobType JobType `json:"jobType"`
+
+	// Requester DID of the emitter of the job:create that produced this job. The dispatcher restates the `_userId` the gateway stamped on that create.
+	Requester string `json:"requester"`
+
+	// ResourceId The job's resource — for a generation, the source it generates from. Job events are scoped here.
+	ResourceId string `json:"resourceId"`
+}
+
 // JobCancelCommand A worker's confirmation that it has cooperatively stopped a running job at a unit boundary (JOB-RESTART-SAFETY P4) — the queue moves the job to cancelled/. Distinct from JobCancelRequest (the client→worker REQUEST to stop): this is the worker announcing it did, so the running job is never yanked to cancelled/ out from under a live worker (the roach-motel race).
 type JobCancelCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
@@ -2808,7 +2843,10 @@ type JobCheckpointCommand struct {
 type JobClaimCommand struct {
 	// UnderscoreRoles The claimant's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. The dispatcher authorizes the claim by capability — it admits the claim only when this carries the worker role — so a claimant that is not a worker for this knowledge base is refused before the queue is consulted (EXTRACT-JOBS P0).
 	UnderscoreRoles *[]string `json:"_roles,omitempty"`
-	Types           []string  `json:"types"`
+
+	// UnderscoreUserId Authenticated claimant's DID, injected by the /bus/emit gateway. Clients do not set this. The dispatcher records it as the holder on job:assigned.
+	UnderscoreUserId *string  `json:"_userId,omitempty"`
+	Types            []string `json:"types"`
 }
 
 // JobCommentAnnotationResult Result of a completed comment-annotation job.
@@ -3715,9 +3753,12 @@ type ResourceArchivedPayload struct {
 
 // ResourceClonedPayload Payload for yield:cloned domain event
 type ResourceClonedPayload struct {
-	ContentByteSize *int      `json:"contentByteSize,omitempty"`
-	ContentChecksum string    `json:"contentChecksum"`
-	EntityTypes     *[]string `json:"entityTypes,omitempty"`
+	ContentByteSize *int   `json:"contentByteSize,omitempty"`
+	ContentChecksum string `json:"contentChecksum"`
+
+	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
+	Creator     *Agent    `json:"creator,omitempty"`
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
 	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
 	Format           ContentFormat `json:"format"`
@@ -3727,6 +3768,17 @@ type ResourceClonedPayload struct {
 
 	// StorageUri Where the clone's bytes are, on the resource's primary Representation — the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME).
 	StorageUri *string `json:"storageUri,omitempty"`
+
+	// WasAttributedTo PROV-O wasAttributedTo, derived at write time: the cloner alone. The value the resource view carries.
+	WasAttributedTo *ResourceClonedPayload_WasAttributedTo `json:"wasAttributedTo,omitempty"`
+}
+
+// ResourceClonedPayloadWasAttributedTo1 defines model for .
+type ResourceClonedPayloadWasAttributedTo1 = []Agent
+
+// ResourceClonedPayload_WasAttributedTo PROV-O wasAttributedTo, derived at write time: the cloner alone. The value the resource view carries.
+type ResourceClonedPayload_WasAttributedTo struct {
+	union json.RawMessage
 }
 
 // ResourceCreatedPayload Payload for yield:created domain event
@@ -3734,8 +3786,11 @@ type ResourceCreatedPayload struct {
 	ContentByteSize *int `json:"contentByteSize,omitempty"`
 
 	// ContentChecksum SHA-256 of content
-	ContentChecksum string    `json:"contentChecksum"`
-	EntityTypes     *[]string `json:"entityTypes,omitempty"`
+	ContentChecksum string `json:"contentChecksum"`
+
+	// Creator Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
+	Creator     *Agent    `json:"creator,omitempty"`
+	EntityTypes *[]string `json:"entityTypes,omitempty"`
 
 	// Format Content format as a MIME type, optionally with parameters. The base type (everything before the first ';') MUST be a SupportedMediaType; parameters such as charset are preserved as metadata. Semantic validation happens in code at the create/yield boundary — there is deliberately no pattern here, the vocabulary lives in SupportedMediaType. Examples: text/plain, text/plain; charset=iso-8859-1, text/markdown; charset=windows-1252, image/png, application/pdf
 	Format        ContentFormat `json:"format"`
@@ -3751,6 +3806,9 @@ type ResourceCreatedPayload struct {
 
 	// StorageUri The creating instruction's URI, recorded on the event. Append-only, so this value never changes — the LOCATION the projection serves is maintained across moves and lives on the resource's primary Representation, relocated by yield:moved. Optional: a resource may have no bytes. Working-tree URI, only file:// is supported (e.g. file://docs/overview.md).
 	StorageUri *string `json:"storageUri,omitempty"`
+
+	// WasAttributedTo PROV-O wasAttributedTo, derived at write time from `creator` and the executor: both parties when they differ, one when they are the same. The value the resource view carries; readers do not re-derive it.
+	WasAttributedTo *ResourceCreatedPayload_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 }
 
 // ResourceCreatedPayloadGenerator1 defines model for .
@@ -3758,6 +3816,14 @@ type ResourceCreatedPayloadGenerator1 = []Agent
 
 // ResourceCreatedPayload_Generator defines model for ResourceCreatedPayload.Generator.
 type ResourceCreatedPayload_Generator struct {
+	union json.RawMessage
+}
+
+// ResourceCreatedPayloadWasAttributedTo1 defines model for .
+type ResourceCreatedPayloadWasAttributedTo1 = []Agent
+
+// ResourceCreatedPayload_WasAttributedTo PROV-O wasAttributedTo, derived at write time from `creator` and the executor: both parties when they differ, one when they are the same. The value the resource view carries; readers do not re-derive it.
+type ResourceCreatedPayload_WasAttributedTo struct {
 	union json.RawMessage
 }
 
@@ -9364,6 +9430,68 @@ func (t *Representation_ConformsTo) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsAgent returns the union data inside the ResourceClonedPayload_WasAttributedTo as a Agent
+func (t ResourceClonedPayload_WasAttributedTo) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ResourceClonedPayload_WasAttributedTo as the provided Agent
+func (t *ResourceClonedPayload_WasAttributedTo) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ResourceClonedPayload_WasAttributedTo, using the provided Agent
+func (t *ResourceClonedPayload_WasAttributedTo) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResourceClonedPayloadWasAttributedTo1 returns the union data inside the ResourceClonedPayload_WasAttributedTo as a ResourceClonedPayloadWasAttributedTo1
+func (t ResourceClonedPayload_WasAttributedTo) AsResourceClonedPayloadWasAttributedTo1() (ResourceClonedPayloadWasAttributedTo1, error) {
+	var body ResourceClonedPayloadWasAttributedTo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceClonedPayloadWasAttributedTo1 overwrites any union data inside the ResourceClonedPayload_WasAttributedTo as the provided ResourceClonedPayloadWasAttributedTo1
+func (t *ResourceClonedPayload_WasAttributedTo) FromResourceClonedPayloadWasAttributedTo1(v ResourceClonedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceClonedPayloadWasAttributedTo1 performs a merge with any union data inside the ResourceClonedPayload_WasAttributedTo, using the provided ResourceClonedPayloadWasAttributedTo1
+func (t *ResourceClonedPayload_WasAttributedTo) MergeResourceClonedPayloadWasAttributedTo1(v ResourceClonedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResourceClonedPayload_WasAttributedTo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResourceClonedPayload_WasAttributedTo) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsAgent returns the union data inside the ResourceCreatedPayload_Generator as a Agent
 func (t ResourceCreatedPayload_Generator) AsAgent() (Agent, error) {
 	var body Agent
@@ -9422,6 +9550,68 @@ func (t ResourceCreatedPayload_Generator) MarshalJSON() ([]byte, error) {
 }
 
 func (t *ResourceCreatedPayload_Generator) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsAgent returns the union data inside the ResourceCreatedPayload_WasAttributedTo as a Agent
+func (t ResourceCreatedPayload_WasAttributedTo) AsAgent() (Agent, error) {
+	var body Agent
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAgent overwrites any union data inside the ResourceCreatedPayload_WasAttributedTo as the provided Agent
+func (t *ResourceCreatedPayload_WasAttributedTo) FromAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAgent performs a merge with any union data inside the ResourceCreatedPayload_WasAttributedTo, using the provided Agent
+func (t *ResourceCreatedPayload_WasAttributedTo) MergeAgent(v Agent) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsResourceCreatedPayloadWasAttributedTo1 returns the union data inside the ResourceCreatedPayload_WasAttributedTo as a ResourceCreatedPayloadWasAttributedTo1
+func (t ResourceCreatedPayload_WasAttributedTo) AsResourceCreatedPayloadWasAttributedTo1() (ResourceCreatedPayloadWasAttributedTo1, error) {
+	var body ResourceCreatedPayloadWasAttributedTo1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromResourceCreatedPayloadWasAttributedTo1 overwrites any union data inside the ResourceCreatedPayload_WasAttributedTo as the provided ResourceCreatedPayloadWasAttributedTo1
+func (t *ResourceCreatedPayload_WasAttributedTo) FromResourceCreatedPayloadWasAttributedTo1(v ResourceCreatedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeResourceCreatedPayloadWasAttributedTo1 performs a merge with any union data inside the ResourceCreatedPayload_WasAttributedTo, using the provided ResourceCreatedPayloadWasAttributedTo1
+func (t *ResourceCreatedPayload_WasAttributedTo) MergeResourceCreatedPayloadWasAttributedTo1(v ResourceCreatedPayloadWasAttributedTo1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t ResourceCreatedPayload_WasAttributedTo) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *ResourceCreatedPayload_WasAttributedTo) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

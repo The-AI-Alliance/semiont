@@ -200,7 +200,6 @@ describe('LLM Context', () => {
       // mark:added; this test emits mark:create directly, so we await the
       // persisted mark:added domain event instead.
       const created$ = firstValueFrom(eventBus.on('mark:added').pipe(take(1)));
-      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
       await AnnotationOperations.createAnnotation(
         {
           motivation: 'highlighting',
@@ -219,13 +218,15 @@ describe('LLM Context', () => {
           },
         },
         userId('did:web:test:users:user-1'),
-        creator,
         eventBus,
         kb);
       await created$;
 
       // The unified context sources annotations from the graph projection; this test's kb wires no
-      // Weaver, so add the annotation to the graph store directly.
+      // Weaver, so add the annotation to the graph store directly. The graph
+      // is a projection of already-derived events, so its write API takes
+      // `creator` as the event carried it.
+      const creator = { '@type': 'Person' as const, '@id': 'did:web:test.local:users:test-user', name: 'Test User' };
       await graphDb.createAnnotation({
         id: annotationId('llm-graph-ann'),
         motivation: 'highlighting',

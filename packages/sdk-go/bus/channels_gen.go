@@ -450,6 +450,9 @@ const (
 	// payload: StoredEvent(job:started) — not emittable
 	JobStarted Channel = "job:started"
 
+	// payload: StoredEvent(job:assigned) — not emittable
+	JobAssigned Channel = "job:assigned"
+
 	// payload: StoredEvent(job:completed) — not emittable
 	JobCompleted Channel = "job:completed"
 
@@ -458,6 +461,9 @@ const (
 
 	// payload: JobStartCommand
 	JobStart Channel = "job:start"
+
+	// payload: JobAssignCommand
+	JobAssign Channel = "job:assign"
 
 	// payload: JobReportProgressCommand
 	JobReportProgress Channel = "job:report-progress"
@@ -660,6 +666,7 @@ var ChannelSchemas = map[Channel]string{
 	BeckonFocus:                      "BeckonFocusEvent",
 	BeckonSparkle:                    "BeckonSparkleEvent",
 	JobStart:                         "JobStartCommand",
+	JobAssign:                        "JobAssignCommand",
 	JobReportProgress:                "JobReportProgressCommand",
 	JobComplete:                      "JobCompleteCommand",
 	JobFail:                          "JobFailCommand",

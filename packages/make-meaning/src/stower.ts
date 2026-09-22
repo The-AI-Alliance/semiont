@@ -42,7 +42,7 @@ import { promises as fs } from 'fs';
 import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
-import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid, hasWorkerRole } from '@semiont/core';
+import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid, hasWorkerRole, attribution } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
@@ -77,7 +77,7 @@ export const STOWER_CHANNELS = [
   'mark:create', 'mark:commit', 'mark:delete', 'mark:update-body',
   'frame:add-entity-type', 'frame:add-tag-schema',
   'mark:archive', 'mark:unarchive', 'mark:update-entity-types',
-  'job:start', 'job:complete', 'job:fail',
+  'job:start', 'job:assign', 'job:complete', 'job:fail',
 ] as const satisfies readonly (keyof EventMap)[];
 
 export class Stower {
@@ -129,6 +129,7 @@ export class Stower {
       pipe('mark:unarchive', (e, cid) => this.handleMarkUnarchive(e, cid)),
       pipe('mark:update-entity-types', (e, cid) => this.handleUpdateEntityTypes(e, cid)),
       pipe('job:start', (e) => this.handleJobStart(e)),
+      pipe('job:assign', (e) => this.handleJobAssign(e)),
       pipe('job:complete', (e) => this.handleJobComplete(e)),
       pipe('job:fail', (e) => this.handleJobFail(e)),
     ).subscribe({
@@ -151,6 +152,24 @@ export class Stower {
       if (hasWorkerRole({ roles: event._roles }) && !event.jobId) {
         throw new Error('yield:create refused: a worker-role emitter must cite the job it fulfils in `jobId`');
       }
+      // Who asked. A generation's job events sit on the resource it generates
+      // FROM, so a cited job is checked against the SOURCE's log — which the
+      // command names in generatedFrom.resourceId. A person's own upload is
+      // its own requester.
+      let requester: string;
+      if (event.jobId) {
+        const sourceRid = event.generatedFrom?.resourceId;
+        if (!sourceRid) {
+          throw new Error('yield:create refused: a create citing a job must name the source resource its job was assigned on (generatedFrom.resourceId)');
+        }
+        requester = await this.requesterOf(resourceId(sourceRid), event.jobId, event._userId);
+      } else {
+        requester = event._userId;
+      }
+      if (Array.isArray(event.generator)) {
+        throw new Error('yield:create refused: a multi-agent generator is not supported; derivation binds one generator to the executor');
+      }
+      const derived = attribution({ requester, executor: event._userId, generator: event.generator });
       const rId = resourceId(generateUuid());
 
       // Content is already on disk at storageUri (callers write before emitting).
@@ -183,7 +202,10 @@ export class Stower {
           isDraft: event.isDraft ?? false,
           generatedFrom,
           generationPrompt: event.generationPrompt,
-          generator: event.generator,
+          // Derived, never taken from the emitter (VERIFIED-PROVENANCE P2).
+          generator: derived.generator,
+          creator: derived.creator,
+          wasAttributedTo: derived.wasAttributedTo,
         },
       });
 
@@ -255,6 +277,10 @@ export class Stower {
       // verifies they are there and match the checksum.
       const stored = await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
 
+      // A clone is the cloner's own act — never job-fulfilling — so requester
+      // and executor are the same party.
+      const derived = attribution({ requester: event._userId, executor: event._userId });
+
       await this.stores.eventStore.appendEvent({
         type: 'yield:cloned',
         resourceId: rId,
@@ -269,6 +295,8 @@ export class Stower {
           parentResourceId: event.parentResourceId,
           entityTypes: event.entityTypes || [],
           language: event.language || undefined,
+          creator: derived.creator,
+          wasAttributedTo: derived.wasAttributedTo,
         },
       });
 
@@ -351,14 +379,26 @@ export class Stower {
       throw new Error('mark:create missing _userId (gateway injection)');
     }
     try {
-      this.logger.debug('Stowing annotation', { annotationId: event.annotation.id });
+      const annotation = event.annotation as Annotation;
+      // The emitter says at most what produced this. Who asked is derived
+      // here — for mark:create the emitter itself, since this is the
+      // assembled (person's) path and it cites no job. A payload naming a
+      // creator is the assertion this design refuses (VERIFIED-PROVENANCE P2).
+      if (annotation.creator !== undefined) {
+        throw new Error(`mark:create refused: \`creator\` on annotation ${String(annotation.id)} is derived by the knowledge base, never sent`);
+      }
+      if (Array.isArray(annotation.generator)) {
+        throw new Error(`mark:create refused: annotation ${String(annotation.id)} carries a multi-agent generator; derivation binds one generator to the executor`);
+      }
+      const derived = attribution({ requester: event._userId, executor: event._userId, generator: annotation.generator });
+      this.logger.debug('Stowing annotation', { annotationId: annotation.id });
       await this.stores.eventStore.appendEvent(
         {
           type: 'mark:added',
           resourceId: resourceId(event.resourceId),
           userId: makeUserId(event._userId),
           version: 1,
-          payload: { annotation: event.annotation as Annotation },
+          payload: { annotation: { ...annotation, ...derived } },
         },
         correlationId ? { correlationId } : undefined,
       );
@@ -415,17 +455,33 @@ export class Stower {
       if (hasWorkerRole({ roles: event._roles }) && !event.jobId) {
         throw new Error('mark:commit refused: a worker-role emitter must cite the job it fulfils in `jobId`');
       }
+      // Who asked for this work. From the log when a job is cited — the
+      // dispatcher's job:assigned on this resource, checked against the writer
+      // — and the writer itself otherwise. Never from the payload.
+      const requester = event.jobId
+        ? await this.requesterOf(rid, event.jobId, event._userId)
+        : event._userId;
+
       const view = await this.stores.eventStore.viewStorage.get(rid);
       const present = new Set((view?.annotations.annotations ?? []).map((a) => String(a.id)));
 
       for (const annotation of annotations) {
         if (present.has(String(annotation.id))) continue;
+        // The emitter says nothing about identity. `creator` is derived here;
+        // a payload carrying one is the assertion this design refuses.
+        if (annotation.creator !== undefined) {
+          throw new Error(`mark:commit refused: \`creator\` on annotation ${String(annotation.id)} is derived by the knowledge base, never sent`);
+        }
+        if (Array.isArray(annotation.generator)) {
+          throw new Error(`mark:commit refused: annotation ${String(annotation.id)} carries a multi-agent generator; derivation binds one generator to the executor`);
+        }
+        const derived = attribution({ requester, executor: event._userId, generator: annotation.generator });
         await this.stores.eventStore.appendEvent({
           type: 'mark:added',
           resourceId: rid,
           userId: makeUserId(event._userId),
           version: 1,
-          payload: { annotation },
+          payload: { annotation: { ...annotation, ...derived } },
         });
         // A batch may name the same annotation twice; the view read cannot see
         // an append this loop just made.
@@ -661,6 +717,53 @@ export class Stower {
         ...(event.annotationId ? { annotationId: event.annotationId } : {}),
       },
     });
+  }
+
+  /**
+   * The dispatcher's record that it accepted a claim: which holder took which
+   * job, and who requested it. Persisted under the dispatcher's own identity
+   * (`_userId` is the dispatcher's service DID) beside the worker's
+   * `job:started`, so a later write citing this job can be checked against the
+   * holder and its `creator` derived from the requester by reading this
+   * resource's log alone — nothing outside the record, and nothing the writer
+   * asserted (VERIFIED-PROVENANCE D1).
+   */
+  private async handleJobAssign(event: EventMap['job:assign']): Promise<void> {
+    if (!event._userId) {
+      throw new Error('job:assign missing _userId (gateway injection)');
+    }
+    await this.stores.eventStore.appendEvent({
+      type: 'job:assigned',
+      resourceId: resourceId(event.resourceId),
+      userId: makeUserId(event._userId),
+      version: 1,
+      payload: {
+        jobId: event.jobId,
+        jobType: event.jobType,
+        resourceId: event.resourceId,
+        holder: event.holder,
+        requester: event.requester,
+      },
+    });
+  }
+
+  /**
+   * The requester of a cited job, from this resource's own log — and the
+   * check that the writer is the job's recorded holder. A citation the log
+   * cannot back, or one made by someone other than the holder, is refused:
+   * this is what makes an external worker's writes trustworthy-as-identity
+   * without trusting the worker (VERIFIED-PROVENANCE row 6).
+   */
+  private async requesterOf(rid: ResourceId, jobId: string, writer: string): Promise<string> {
+    const events = await this.stores.eventStore.log.getEvents(rid);
+    const assigned = events.find((e) => e.type === 'job:assigned' && e.payload.jobId === jobId);
+    if (!assigned || assigned.type !== 'job:assigned') {
+      throw new Error(`refused: cites job ${jobId}, but this resource's log holds no assignment for it`);
+    }
+    if (assigned.payload.holder !== writer) {
+      throw new Error(`refused: job ${jobId}'s recorded holder is ${assigned.payload.holder}, not the writer ${writer}`);
+    }
+    return assigned.payload.requester;
   }
 
   private async handleJobComplete(event: EventMap['job:complete']): Promise<void> {

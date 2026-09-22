@@ -1,7 +1,58 @@
 import { describe, it, expect } from 'vitest';
-import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid, kbResource } from '../did-utils';
+import { userToDid, userToAgent, didToAgent, agentToDid, softwareToAgent, kbDid, kbResource, attribution } from '../did-utils';
 
 import { validators } from '../openapi';
+
+/**
+ * The one place `creator` / `generator` / `wasAttributedTo` are built
+ * (VERIFIED-PROVENANCE P2). Inputs are DIDs the gateway stamped from tokens;
+ * nothing here is read from a payload, which is what makes the output
+ * derived rather than asserted.
+ */
+describe('attribution — derived, never asserted', () => {
+  const PERSON = 'did:web:kb.test:users:alice%40example.com';
+  const AGENT = 'did:web:kb.test:agents:ollama:gemma2%3A27b';
+  const OTHER_AGENT = 'did:web:kb.test:agents:anthropic:claude';
+  const ids = (agents: { '@id'?: string }[]) => agents.map((a) => a['@id']);
+
+  it('a person on their own initiative: creator is the person, no generator, one party', () => {
+    const a = attribution({ requester: PERSON, executor: PERSON });
+    expect(a.creator).toMatchObject({ '@type': 'Person', '@id': PERSON });
+    expect(a.generator).toBeUndefined();
+    expect(ids(a.wasAttributedTo)).toEqual([PERSON]);
+  });
+
+  it('an agent on its own initiative: creator and generator are the agent, collapsed to one party', () => {
+    const a = attribution({ requester: AGENT, executor: AGENT });
+    expect(a.creator).toMatchObject({ '@type': 'Software', '@id': AGENT });
+    expect(a.generator).toMatchObject({ '@type': 'Software', '@id': AGENT });
+    expect(ids(a.wasAttributedTo)).toEqual([AGENT]);
+  });
+
+  it('a person requests, an agent executes: creator is the person, generator the agent, both parties in that order', () => {
+    const a = attribution({ requester: PERSON, executor: AGENT });
+    expect(a.creator).toMatchObject({ '@type': 'Person', '@id': PERSON });
+    expect(a.generator).toMatchObject({ '@type': 'Software', '@id': AGENT });
+    expect(ids(a.wasAttributedTo)).toEqual([PERSON, AGENT]);
+  });
+
+  it('a supplied generator carries the model\'s parameters, when its identity is the executor\'s', () => {
+    const generator = { '@type': 'Software' as const, '@id': AGENT, name: 'gemma', provider: 'ollama', model: 'gemma2:27b', parameters: { temperature: 0.2 } };
+    const a = attribution({ requester: PERSON, executor: AGENT, generator });
+    expect(a.generator).toBe(generator);
+    expect(a.wasAttributedTo[1]).toBe(generator);
+  });
+
+  it('refuses a supplied generator whose identity is not the executor — the assertion this exists to prevent', () => {
+    const generator = { '@type': 'Software' as const, '@id': OTHER_AGENT, name: 'claude' };
+    expect(() => attribution({ requester: PERSON, executor: AGENT, generator })).toThrow(/not the executor/);
+  });
+
+  it('refuses a generator when the executor is a person — a person does not generate', () => {
+    const generator = { '@type': 'Software' as const, '@id': AGENT, name: 'gemma' };
+    expect(() => attribution({ requester: PERSON, executor: PERSON, generator })).toThrow(/not software/);
+  });
+});
 
 /**
  * One legacy `userId` makes an entire reply unemittable.

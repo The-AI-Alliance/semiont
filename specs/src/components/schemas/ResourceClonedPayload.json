@@ -29,6 +29,24 @@
     },
     "language": {
       "type": "string"
+    },
+    "creator": {
+      "$ref": "Agent.json",
+      "description": "Who made the clone — the emitter, derived at write time. A clone is never job-fulfilling. Absent on events written before derivation existed, whose emitter was their only party."
+    },
+    "wasAttributedTo": {
+      "oneOf": [
+        {
+          "$ref": "Agent.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "Agent.json"
+          }
+        }
+      ],
+      "description": "PROV-O wasAttributedTo, derived at write time: the cloner alone. The value the resource view carries."
     }
   },
   "required": [

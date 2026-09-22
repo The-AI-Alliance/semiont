@@ -8,6 +8,10 @@
         "type": "string"
       }
     },
+    "_userId": {
+      "type": "string",
+      "description": "Authenticated claimant's DID, injected by the /bus/emit gateway. Clients do not set this. The dispatcher records it as the holder on job:assigned."
+    },
     "_roles": {
       "type": "array",
       "items": {
