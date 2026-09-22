@@ -62,8 +62,6 @@ export {
 export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
 
 // Attribution: who a record is attributed to, as a chain rather than a choice.
-export type { Principal } from './principal';
-export { principal } from './principal';
 
 // Graph types
 export type {

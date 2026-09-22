@@ -658,8 +658,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       }
     }
 
-    // `_userId` is the wire's name for the authority leg of the chain. The
-    // actor and client legs ride alongside it when the caller has them.
+    // `_userId` is the verified emitter — the one identity fact the gateway
+    // stamps. Who requested the work is derived downstream from the job the
+    // write cites, never carried here (VERIFIED-PROVENANCE).
     //
     // `_roles` carries the claimant's capabilities (the token's roles) as a
     // TRANSIENT authz fact — the dispatcher's `job:claim` authorizes by it
