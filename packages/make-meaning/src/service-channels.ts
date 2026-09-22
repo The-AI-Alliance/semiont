@@ -173,14 +173,20 @@ export const DISPATCHER_INBOUND_CHANNELS = [
 
 /**
  * The dispatcher's outbound pump: every reply DERIVED from BUS_OPERATIONS over
- * the inbound set, plus one stray — `job:queued`, the QUEUE's own broadcast
- * (JOB_QUEUE_EMITS in @semiont/jobs), which is no operation's reply and so is
- * not derivable. Workers subscribe to it to learn a job is available. A stray
- * for the same structural reason ARCHIVIST_OUTBOUND_STRAYS has its entries.
+ * the inbound set, plus two strays that are no operation's reply and so are
+ * not derivable — `job:queued`, the QUEUE's own broadcast (JOB_QUEUE_EMITS in
+ * @semiont/jobs) workers subscribe to, and `job:assign`, the dispatcher's own
+ * record of an accepted claim, which the Stower persists as `job:assigned` so
+ * a worker's write can cite the job (VERIFIED-PROVENANCE). Strays for the
+ * same structural reason ARCHIVIST_OUTBOUND_STRAYS has its entries. The
+ * census in `service-channels.test.ts` reads the handler source: a channel
+ * emitted there and absent here is stranded on the local bus, invisible to
+ * every in-process test and fatal in a deployment.
  */
 export const DISPATCHER_OUTBOUND_CHANNELS: readonly (keyof EventMap)[] = [
   ...replyChannelsFor(DISPATCHER_INBOUND_CHANNELS),
   'job:queued',
+  'job:assign',
 ];
 
 /**
