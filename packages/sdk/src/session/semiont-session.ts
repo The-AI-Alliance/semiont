@@ -49,7 +49,7 @@ import {
   isJwtExpired,
   kbGatewayUrl,
   parseJwtExpiry,
-  REFRESH_BEFORE_EXP_MS,
+  refreshDelayMs,
   sessionKey,
   setStoredSession,
   type StoredSession,
@@ -325,10 +325,13 @@ export class SemiontSession {
 
   private scheduleProactiveRefresh(token: string): void {
     this.clearRefreshTimer();
-    const expiresAt = parseJwtExpiry(token);
-    if (!expiresAt) return;
-    const refreshAt = expiresAt.getTime() - REFRESH_BEFORE_EXP_MS;
-    const delay = Math.max(0, refreshAt - Date.now());
+    // The delay is derived from the token's own lifetime, never from a fixed
+    // margin: a constant margin can equal the lifetime some issuer mints, and
+    // this one did — five minutes against Keycloak's five-minute default —
+    // producing a delay of zero that rescheduled itself on arrival. See
+    // `refreshDelayMs`.
+    const delay = refreshDelayMs(token);
+    if (delay === null) return;
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
       if (!this.disposed) void this.refresh();

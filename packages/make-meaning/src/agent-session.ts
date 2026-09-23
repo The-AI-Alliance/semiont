@@ -20,9 +20,16 @@
  * have gone quiet with nothing in the logs.
  *
  * So the lifetime is not restated here. When a token expires is that token's
- * own `exp` claim, and how long before expiry to renew is `REFRESH_BEFORE_EXP_MS`
- * — the same two facts `SemiontSession` schedules from for human and worker
+ * own `exp` claim, and how long before expiry to renew is `refreshDelayMs`
+ * — the same derivation `SemiontSession` schedules from for human and worker
  * sessions. One refresh policy, read from the credential itself.
+ *
+ * That policy stopped being a constant on 2026-09-23. A fixed five-minute
+ * margin equalled Keycloak's five-minute token lifetime in the browser and
+ * scheduled every refresh at delay zero. These tokens are gateway-minted and
+ * an hour long, so this path never stormed — but it subtracted the same
+ * constant from the same claim, and would have the moment its issuer changed.
+ * Sharing the derivation is what the paragraph above already claimed.
  *
  * Two recovery paths, unchanged from the copies this replaces:
  *   - `refresh` is handed to HttpTransport as its `tokenRefresher`, which
@@ -41,7 +48,7 @@ import {
 } from '@semiont/core';
 import type { ServiceAccountCredential } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
-import { parseJwtExpiry, REFRESH_BEFORE_EXP_MS } from '@semiont/sdk';
+import { parseJwtExpiry, refreshDelayMs } from '@semiont/sdk';
 
 /** The logging surface this module uses, structurally. */
 interface SessionLogger {
@@ -152,9 +159,8 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
    */
   const rearm = (token: string): void => {
     if (stopped) return;
-    const expiresAt = parseJwtExpiry(token);
-    if (!expiresAt) return;
-    const delay = Math.max(1_000, expiresAt.getTime() - REFRESH_BEFORE_EXP_MS - Date.now());
+    const delay = refreshDelayMs(token);
+    if (delay === null) return;
     timer = setTimeout(() => {
       refresh().catch((error) => {
         logger.error('Proactive re-authentication failed', {

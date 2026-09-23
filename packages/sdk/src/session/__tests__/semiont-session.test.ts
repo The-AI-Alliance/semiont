@@ -171,6 +171,52 @@ describe('SemiontSession — refresh', () => {
     await session.dispose();
   });
 
+  // ── proactive-refresh-margin-equals-token-lifetime (2026-09-23) ─────
+  // The unit tests above drive `refresh()` DIRECTLY, so a schedule that fires
+  // at `delay = 0` is indistinguishable from one that fires correctly — which
+  // is precisely why nothing caught a signed-in tab issuing 1418 successful
+  // `POST /token` in ten idle seconds. This one asserts the SCHEDULE.
+
+  it('does not storm: an idle session on a 300s token refreshes zero times in ten minutes', async () => {
+    vi.useFakeTimers();
+    try {
+      // 300s is the collision exactly: Keycloak's default lifespan, and what
+      // the old fixed five-minute margin was subtracted from.
+      const b64 = (o: unknown) => btoa(JSON.stringify(o));
+      // Minted fresh on every call, as a real issuer does — `iat` moves. A
+      // fixture that returns one fixed token instead ages past its own
+      // half-life and measures the FLOOR, not the schedule.
+      const mint = () => {
+        const iat = Math.floor(Date.now() / 1000);
+        return `${b64({ alg: 'none' })}.${b64({ iat, exp: iat + 300 })}.sig`;
+      };
+      seedStoredSession(storage, KB.id, mint(), 'refresh-tok');
+      refresh.mockImplementation(async () => mint());
+
+      const session = newSession();
+      await session.ready;
+      refresh.mockClear();
+
+      // Half the lifetime, less a moment: nothing is due yet.
+      await vi.advanceTimersByTimeAsync(149_000);
+      expect(refresh, 'refreshed before its half-life').not.toHaveBeenCalled();
+
+      // Past the half-life: exactly one refresh, and the token it returns
+      // schedules the next one another half-life out rather than immediately.
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(refresh).toHaveBeenCalledTimes(1);
+
+      // Ten more minutes at one refresh per half-life is four, plus the one
+      // already counted. The old rule produced 1418 in ten SECONDS.
+      await vi.advanceTimersByTimeAsync(10 * 60_000);
+      expect(refresh.mock.calls.length, 'refresh count over ten minutes').toBeLessThanOrEqual(6);
+
+      await session.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('fires onAuthFailed when refresh returns null', async () => {
     const jwt = freshJwt();
     seedStoredSession(storage, KB.id, jwt, 'refresh-tok');

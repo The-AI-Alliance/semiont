@@ -32,8 +32,71 @@ export const OPEN_RESOURCES_BY_KB_KEY = 'semiont.openResourcesByKb';
  */
 export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
 
-/** Refresh the access token this many milliseconds before it expires. */
+/**
+ * The LARGEST margin the proactive refresh will use. A ceiling, not the
+ * margin itself — see {@link refreshDelayMs}, which shrinks it to fit the
+ * token when the token is short-lived.
+ *
+ * It was the margin outright until 2026-09-23, and that was correct for as
+ * long as this client's tokens came from a gateway minting hour-long ones.
+ * Keycloak's default `accessTokenLifespan` is also exactly five minutes, so
+ * `exp - margin` landed on `iat` — always in the past, so the delay was always
+ * zero and each refresh scheduled the next immediately. An idle signed-in page
+ * issued 1418 successful `POST /token` in ten seconds.
+ */
 export const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;
+
+/**
+ * The shortest the proactive refresh will ever wait.
+ *
+ * `Math.max(0, …)` permitted a timer scheduled for "now" that rescheduled
+ * itself on arrival — a closed loop at whatever rate the event loop allowed.
+ * A floor makes that structurally impossible rather than merely unlikely: even
+ * an issuer minting already-expired tokens gets one attempt per interval, not
+ * a storm. Ten seconds because this timer is an optimisation, never the last
+ * line of defence — a 401 still drives a reactive refresh — so waiting is
+ * cheap and spinning is not.
+ */
+export const MIN_REFRESH_DELAY_MS = 10 * 1000;
+
+/**
+ * How long to wait before proactively refreshing `token`, or `null` when it
+ * carries no `exp` to schedule against (the caller then schedules nothing).
+ *
+ * **The margin is a fraction of the token's OWN lifetime**, capped at
+ * {@link REFRESH_BEFORE_EXP_MS}. That is the whole fix: a constant margin can
+ * equal — or exceed — the lifetime of a token some issuer mints, and when it
+ * does, the subtraction yields a moment already past. Half the lifetime cannot,
+ * for any lifetime, so no issuer's configuration can reproduce the loop. This
+ * matters beyond the realm Semiont runs: for `type = "oidc"` the launcher
+ * deliberately refuses to set a lifespan at all, so an external issuer's
+ * lifetime is not ours to correct and the client is the only place that can be
+ * right for every issuer.
+ */
+export function refreshDelayMs(token: string, now: number = Date.now()): number | null {
+  const claims = parseJwtClaims(token);
+  if (!claims?.exp) return null;
+
+  const expMs = claims.exp * 1000;
+  // `exp - iat` is the lifetime the issuer chose. Without `iat` — not every
+  // issuer sends one — the remaining life is the only lifetime observable,
+  // and halving that is bounded too, which is the property that matters.
+  const lifetimeMs = claims.iat ? (claims.exp - claims.iat) * 1000 : expMs - now;
+  const marginMs = Math.min(REFRESH_BEFORE_EXP_MS, Math.max(0, lifetimeMs) / 2);
+
+  return Math.max(MIN_REFRESH_DELAY_MS, expMs - marginMs - now);
+}
+
+/** The two claims scheduling depends on. Absent or unreadable reads as null. */
+function parseJwtClaims(token: string): { exp?: number; iat?: number } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3 || !parts[1]) return null;
+    return JSON.parse(atob(parts[1])) as { exp?: number; iat?: number };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The shape persisted per KB: the tokens an issuer issued, the client they
@@ -89,15 +152,8 @@ export function clearStoredSession(storage: SessionStorage, kbId: string): void 
 // ---------- JWT helpers ----------
 
 export function parseJwtExpiry(token: string): Date | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3 || !parts[1]) return null;
-    const payload = JSON.parse(atob(parts[1])) as { exp?: number };
-    if (!payload.exp) return null;
-    return new Date(payload.exp * 1000);
-  } catch {
-    return null;
-  }
+  const exp = parseJwtClaims(token)?.exp;
+  return exp ? new Date(exp * 1000) : null;
 }
 
 export function isJwtExpired(token: string): boolean {
