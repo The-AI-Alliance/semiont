@@ -1,12 +1,12 @@
 import { test, expect } from '../fixtures/auth';
-import { E2E_PASSWORD } from '../playwright.config';
+import { E2E_EMAIL, E2E_PASSWORD } from '../playwright.config';
 
 /**
  * Smoke test: sign out, then sign back in against the same KB, and
  * confirm the fresh session's bus + SSE + client are wired correctly.
  *
  * Regression target (VMs-from-Session refactor, Stages B-C): the session
- * lifetime is now owned by `SemiontBrowser.setActiveKb` — `signOut`
+ * lifetime is owned by `SemiontBrowser.setActiveKb` — `signOut`
  * disposes the old `SemiontSession` (which closes its client, completes
  * its observables, and unsubscribes the SessionStorage listener), and
  * `signIn` constructs a fresh session with a new `SemiontClient`
@@ -19,6 +19,12 @@ import { E2E_PASSWORD } from '../playwright.config';
  * This test asserts protocol-level health via
  * `bus.expectRequestResponse` on the second session, which is the
  * strongest signal that the dispose/reconstruct path is clean.
+ *
+ * The re-auth half goes through the issuer. Since identity moved out of
+ * the gateway, the Browser has no password field to type into: a
+ * registered KB whose session ended offers one button back to where its
+ * credentials live (`KnowledgeBasePanel.tsx` `handleReauth` →
+ * `beginSignIn` → `window.location.assign`).
  */
 test.describe('sign out and sign back in', () => {
   test('a fresh session after sign-out round-trips through the bus', async ({ signedInPage: page, bus }) => {
@@ -26,54 +32,49 @@ test.describe('sign out and sign back in', () => {
     await page.goto('/en/know/discover');
     await expect(page).toHaveURL(/\/know\/discover/);
 
-    // Sign out via the KnowledgeBasePanel's per-KB sign-out button.
-    // (UserPanel's "Sign Out" also works but also navigates, which
-    // confuses the fixture's URL assertions.) KnowledgeBasePanel's
-    // Sign Out is inside the KB list item; click it then wait for the
-    // sign-in form to reappear.
-    const kbPanel = page.getByRole('button', { name: /knowledge bases/i });
-    // Expand the Knowledge Bases panel if not already visible. The
-    // panel title is a toggle; the connected KB row is visible once
-    // expanded.
-    if (await kbPanel.isVisible().catch(() => false)) {
-      await kbPanel.click();
-    }
-
-    // Hover over the connected KB to reveal its sign-out button.
-    // KnowledgeBasePanel's sign-out button has title/aria-label from
-    // the i18n "signOut" key; match on that tooltip.
-    const signOutButton = page.getByTitle(/^sign out$/i).first();
+    // The per-KB sign-out control renders only for `status ===
+    // 'authenticated'` (KnowledgeBasePanel.tsx), which makes its absence
+    // and return exact readings of the session's state — not a proxy for
+    // one. UserPanel has a "Sign Out" of its own that also navigates, so
+    // scope this to the KB row.
+    const kbRow = page.locator('.semiont-panel-item--clickable').first();
+    const signOutButton = kbRow.getByTitle(/^sign out$/i);
     await expect(signOutButton).toBeVisible({ timeout: 10_000 });
     await signOutButton.click();
 
-    // After sign-out, the KB is still registered but has no active
-    // session. The panel collapses back to showing status "signed-out"
-    // for that KB and a Sign in re-auth form becomes available on click.
-    // The main content area swaps to the "no active session" empty state.
-    // Assert that no active session exists by waiting for the sign-in
-    // form (Password field) to become reachable via a click.
-    // Actually simpler: the password field appears once we click the KB
-    // to reauth.
-    // Click the KB to trigger re-auth flow. If the row name differs
-    // across fixtures, fall back to the first non-sign-out button in
-    // the panel list.
-    const kbEntries = page.locator('.semiont-panel-item--clickable');
-    await expect(kbEntries.first()).toBeVisible({ timeout: 10_000 });
-    await kbEntries.first().click();
+    // Sign-out landed: the KB is still registered, its session is not.
+    await expect(signOutButton).toBeHidden({ timeout: 10_000 });
 
-    const passwordInput = page.getByPlaceholder('Password');
-    await expect(passwordInput).toBeVisible({ timeout: 10_000 });
+    // Clicking a KB with no session opens the re-auth prompt rather than
+    // activating it (`handleKbClick`).
+    await kbRow.click();
+    const reauthButton = page.getByRole('button', { name: /^sign in$/i });
+    await expect(reauthButton).toBeVisible({ timeout: 10_000 });
+    await reauthButton.click();
 
-    // Re-auth. Fill password and submit.
-    await passwordInput.fill(E2E_PASSWORD);
-    await page.getByRole('button', { name: /^sign in$/i }).click();
+    // Credentials are entered at the issuer, never here. Signing out
+    // revokes the refresh token but need not end Keycloak's own SSO
+    // session, so the issuer is free to either prompt or send us
+    // straight back. Both are correct; race them rather than assuming.
+    const username = page.locator('#username');
+    await expect(async () => {
+      const prompted = await username.isVisible().catch(() => false);
+      const returned = await signOutButton.isVisible().catch(() => false);
+      expect(prompted || returned).toBe(true);
+    }).toPass({ timeout: 20_000 });
 
-    // Wait for the password form to close (session activated). Just
-    // asserting `toHaveURL(/know/)` is insufficient because the URL
-    // already matches from the signed-out state — asserting it passes
-    // immediately, and a subsequent `page.goto` would abort the
-    // still-in-flight sign-in POST.
-    await expect(passwordInput).toBeHidden({ timeout: 20_000 });
+    if (await username.isVisible().catch(() => false)) {
+      await username.fill(E2E_EMAIL);
+      await page.locator('#password').fill(E2E_PASSWORD);
+      await page.locator('#kc-login').click();
+    }
+
+    // The second session is live once the KB reads authenticated again.
+    // Waiting on this rather than on the URL matters: the URL already
+    // matches from the signed-out state, so asserting it would pass
+    // immediately and the `goto` below would abort the still-in-flight
+    // callback.
+    await expect(signOutButton).toBeVisible({ timeout: 30_000 });
     bus.clear();
 
     await page.goto('/en/know/discover');
