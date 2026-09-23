@@ -30,8 +30,8 @@
  * policy; this driver moves envelopes). Per-client inboxes remain
  * subscribed-and-unpublished — replies stay channel-broadcast under the
  * gateway's entitlement gate. Frames arriving on an inbox carry an
- * `{ channel, payload }` envelope, since the subject no longer names the
- * channel.
+ * `{ channel, payload }` envelope, since an inbox subject names the address
+ * rather than the channel.
  */
 import { JSONCodec, NatsError, connect, type NatsConnection, type Subscription } from 'nats';
 import { getLogger } from '../logger';

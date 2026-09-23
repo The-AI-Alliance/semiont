@@ -381,7 +381,11 @@
     "hoverDelay": "悬停延迟",
     "hoverDelayFast": "快速",
     "hoverDelaySlow": "慢速",
-    "hoverDelayDescription": "悬停效果出现前延迟 {{delay}}ms"
+    "hoverDelayDescription": "悬停效果出现前延迟 {{delay}}ms",
+    "tagline": "开源、面向未来的框架，使人类和智能代理能够共同创建共享知识——由您治理，经久耐用。",
+    "sourceCode": "源代码",
+    "keyboardShortcuts": "键盘快捷键",
+    "version": "版本 {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

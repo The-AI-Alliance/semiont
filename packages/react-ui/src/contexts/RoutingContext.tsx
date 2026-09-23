@@ -51,15 +51,6 @@ export interface RouteBuilder {
   /** Home/root page */
   home: () => string;
 
-  /** About page */
-  about?: () => string;
-
-  /** Privacy policy page */
-  privacy?: () => string;
-
-  /** Terms of service page */
-  terms?: () => string;
-
   /** Knowledge base page */
   knowledge?: () => string;
 

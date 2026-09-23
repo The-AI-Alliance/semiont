@@ -14,8 +14,7 @@ export default defineConfig({
   // 619ms build. Failures still fail the command; build.sh prints the per-package
   // check mark. Drop this line temporarily when you want the size column.
   silent: true,
-  // `semiont useradd` execs the second entry by name via `container exec`.
-  entry: ['src/index.ts', 'src/cli/useradd.ts'],
+  entry: ['src/index.ts'],
   format: ['esm'],
   dts: false,
   clean: true,

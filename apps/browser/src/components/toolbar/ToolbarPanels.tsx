@@ -1,4 +1,4 @@
-import React, { useTransition, useCallback } from 'react';
+import React, { useContext, useTransition, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   SettingsPanel,
@@ -13,6 +13,7 @@ import {
 } from '@semiont/react-ui';
 import { UserPanel } from '../UserPanel';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
+import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { useLocale } from '@/i18n/routing';
 import { usePathname, useRouter } from '@/i18n/routing';
 import { COMMON_PANELS } from '@semiont/react-ui';
@@ -64,6 +65,8 @@ export function ToolbarPanels({
   // `undefined`, which surfaced as `{undefined}ms delay` after the
   // translation interpolation ran.
   const { hoverDelayMs } = useHoverDelay();
+  // The keyboard-help opener the footer used to own; the panel absorbed it.
+  const keyboardContext = useContext(KeyboardShortcutsContext);
   const { t: _t } = useTranslation();
   const session = useObservable(useSemiont().activeSession$);
   const user = useObservable(session?.user$);
@@ -165,6 +168,9 @@ export function ToolbarPanels({
             hoverDelayMs={hoverDelayMs}
             locale={locale}
             isPendingLocaleChange={isPending}
+            version={__APP_VERSION__}
+            sourceCodeUrl="https://github.com/The-AI-Alliance/semiont"
+            onOpenKeyboardHelp={keyboardContext?.openKeyboardHelp ?? (() => {})}
           />
         )}
       </div>

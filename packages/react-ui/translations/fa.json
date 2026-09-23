@@ -381,7 +381,11 @@
     "hoverDelay": "تأخیر نشانگر",
     "hoverDelayFast": "سریع",
     "hoverDelaySlow": "آهسته",
-    "hoverDelayDescription": "{{delay}} میلی‌ثانیه تأخیر پیش از نمایش اثرات نشانگر"
+    "hoverDelayDescription": "{{delay}} میلی‌ثانیه تأخیر پیش از نمایش اثرات نشانگر",
+    "tagline": "چارچوب متن‌باز و آینده‌نگر که به انسان‌ها و عوامل هوشمند امکان می‌دهد دانش مشترک را هم‌آفرینی کنند — تحت حاکمیت شما و ساخته‌شده برای ماندگاری.",
+    "sourceCode": "کد منبع",
+    "keyboardShortcuts": "میانبرهای صفحه‌کلید",
+    "version": "نسخه {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

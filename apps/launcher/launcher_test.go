@@ -1804,42 +1804,32 @@ func TestUseradd(t *testing.T) {
 	s := newScenario(t, "container", "docker")
 	const secret = "password123"
 
-	// No running gateway anywhere: pointed failure.
+	// The LOCAL path administers the realm from here — no container, and the
+	// gateway need not be running (WHO-RUNS-USERADD P3). With no stack
+	// recorded there is no realm to reach, and the refusal says so.
 	s.stdin = secret + "\n"
 	_, stderr, code := s.run(t, "useradd", "--email", "a@b.co")
 	if code != 1 {
-		t.Fatalf("no-gateway useradd: want exit 1, got %d", code)
+		t.Fatalf("no-stack useradd: want exit 1, got %d", code)
 	}
-	mustContain(t, "stderr", stderr,
-		"useradd needs a running gateway", "semiont start")
+	mustContain(t, "stderr", stderr, "semiont start")
+	if strings.Contains(stderr, "gateway") {
+		t.Errorf("the refusal still blames the gateway, which this path no longer uses:\n%s", stderr)
+	}
 
-	// Name-scan fallback: the runtime whose listing shows semiont-gateway.
-	s.extraEnv = append(s.extraEnv, "FAKERT_STACK_RUNTIME=docker")
-	s.stdin = secret + "\n"
-	stdout, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--upsert")
-	if code != 0 {
-		t.Fatalf("useradd: exit %d\nstderr:\n%s", code, stderr)
-	}
+	// Whatever it does, it never runs a container for a local stack.
 	log, _ := os.ReadFile(s.log)
-	// -i so the pipe reaches the container; --password-stdin tells the gateway
-	// to read it there. `--upsert` is here as a flag the launcher does NOT
-	// consume: it must cross verbatim.
-	mustContain(t, "argv log", string(log),
-		"docker exec -i semiont-gateway semiont-useradd --email a@b.co --upsert --password-stdin")
-	// The secret reached the gateway — through the PIPE, not the command line.
-	stdinSeen, err := os.ReadFile(filepath.Join(s.fakertDir, "exec-stdin.txt"))
-	if err != nil {
-		t.Fatalf("no exec stdin captured: %v", err)
+	if strings.Contains(string(log), "semiont-useradd") {
+		t.Errorf("the local path still reaches for the gateway's bin:\n%s", log)
 	}
-	if strings.TrimSpace(string(stdinSeen)) != secret {
-		t.Errorf("password did not arrive on stdin; got %q", stdinSeen)
-	}
-	for what, text := range map[string]string{"argv log": string(log), "stdout": stdout} {
-		if strings.Contains(text, secret) {
-			t.Errorf("password leaked into the %s:\n%s", what, text)
-		}
+	// And the password never appears anywhere it could be read back.
+	if strings.Contains(string(log), secret) || strings.Contains(stderr, secret) {
+		t.Error("the password leaked into the argv log or stderr")
 	}
 
+	// Flag refusals the launcher owns. They fire before any realm is reached,
+	// so they need no stack at all.
+	//
 	// The removed --password flag is refused with the way that replaced it —
 	// it is documented in enough places that a bare "unknown flag" would read
 	// as a launcher bug.
@@ -1849,21 +1839,30 @@ func TestUseradd(t *testing.T) {
 		mustContain(t, "stderr", stderr, "--password", "no longer accepted", "--generate-password")
 	}
 
-	// Record-driven: recorded runtime + container ID beat the name scan. With
-	// --generate-password the gateway invents one, so nothing is read or piped.
-	writeStackState(t, s, "container")
-	if err := os.Truncate(s.log, 0); err != nil {
-		t.Fatal(err)
+	// Contradictory account flags are refused here rather than at the far end:
+	// on the codespace path the far end is an ssh hop away.
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--update", "--upsert"); code != 1 {
+		t.Errorf("--update --upsert should be refused, got exit %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "contradictory")
 	}
-	s.stdin = ""
-	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--generate-password"); code != 0 {
-		t.Fatalf("record-driven useradd: exit %d\nstderr:\n%s", code, stderr)
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--active", "--inactive"); code != 1 {
+		t.Errorf("--active --inactive should be refused, got exit %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "contradictory")
 	}
-	log, _ = os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log),
-		"container exec fid-semiont-gateway semiont-useradd --email b@c.co --generate-password")
-	if strings.Contains(string(log), "--password-stdin") {
-		t.Error("--generate-password must not also ask for a password on stdin")
+	if _, stderr, code := s.run(t, "useradd", "--email", "not-an-email"); code != 1 {
+		t.Errorf("a malformed email should be refused, got exit %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "invalid email")
+	}
+	// An unknown flag is refused rather than ignored. The far end used to
+	// refuse it; this IS the far end for a local stack now, and `--admin` is
+	// still advertised in places — it must fail, not appear to work.
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--admin"); code != 1 {
+		t.Errorf("an unknown flag should be refused, got exit %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "Unknown flag", "--admin")
 	}
 
 	// Asking for both a supplied and a generated password is refused HERE. The
@@ -1878,39 +1877,21 @@ func TestUseradd(t *testing.T) {
 		mustContain(t, "stderr", stderr, "contradictory")
 	}
 
-	// --update on an existing user needs no password (the gateway only
-	// requires one to CREATE), so nothing is prompted or piped.
-	if err := os.Truncate(s.log, 0); err != nil {
-		t.Fatal(err)
-	}
-	if _, stderr, code := s.run(t, "useradd", "--email", "b@c.co", "--update"); code != 0 {
-		t.Fatalf("update useradd: exit %d\nstderr:\n%s", code, stderr)
-	}
-	if log, _ = os.ReadFile(s.log); strings.Contains(string(log), "--password-stdin") {
-		t.Error("--update must not demand a password")
-	}
-
 	// A create with nothing on stdin cannot proceed — say so rather than
-	// hanging or sending an empty password.
+	// hanging or sending an empty password. This fires before any realm is
+	// reached, which is the point: nobody should be asked for a secret by an
+	// invocation that was already going to be refused.
 	s.stdin = ""
 	if _, stderr, code := s.run(t, "useradd", "--email", "d@e.co"); code != 1 {
 		t.Errorf("empty stdin should fail, got exit %d", code)
 	} else {
 		mustContain(t, "stderr", stderr, "password")
 	}
-
-	// The in-container CLI failing surfaces as a launcher failure.
-	s.extraEnv = append(s.extraEnv, "FAKERT_EXEC_FAIL=1")
-	s.stdin = secret + "\n"
-	if _, stderr, code := s.run(t, "useradd", "--email", "c@d.co"); code != 1 {
-		t.Fatalf("exec failure: want exit 1, got %d\nstderr:\n%s", code, stderr)
-	}
-
 	// Bare useradd prints usage and fails; --help succeeds.
 	if _, _, code := s.run(t, "useradd"); code != 1 {
 		t.Error("bare useradd should exit 1")
 	}
-	stdout, _, code = s.run(t, "useradd", "--help")
+	stdout, _, code := s.run(t, "useradd", "--help")
 	if code != 0 {
 		t.Error("useradd --help should exit 0")
 	}
@@ -1918,12 +1899,11 @@ func TestUseradd(t *testing.T) {
 	if strings.Contains(stdout, "--password <") {
 		t.Error("help still advertises the removed --password flag")
 	}
-	// Role flags do not exist at the target (`semiont-useradd` refuses an
-	// unknown flag), so advertising them here would send people to a command
-	// that fails.
+	// No route grants access on the basis of a role, so there is nothing for a
+	// role flag to grant; advertising one would send people to a refusal.
 	for _, gone := range []string{"--admin", "--moderator"} {
 		if strings.Contains(stdout, gone) {
-			t.Errorf("help advertises %s, which semiont-useradd rejects", gone)
+			t.Errorf("help advertises %s, which grants nothing", gone)
 		}
 	}
 }
@@ -2769,11 +2749,11 @@ func TestUseraddCodespace(t *testing.T) {
 	// appear nowhere in the remote command line.
 	nasty := "p a$s'w\"o`rd;rm -rf /"
 	s.stdin = nasty + "\n"
-	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
+	stdout, stderr, code := s.run(t, "useradd", "--email", "alice$NAME@example.com",
 		// A flag the launcher does not know. Forwarding argv verbatim is the
 		// promise, so an argument it has never heard of must cross intact and
 		// quoted — that is what breaks if this path starts interpreting flags.
-		"--future-flag", "A $NAME with spaces", "--upsert")
+		"--upsert")
 	if code != 0 {
 		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -2784,25 +2764,30 @@ func TestUseraddCodespace(t *testing.T) {
 	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
 	remote = remote[:strings.IndexByte(remote, '\n')]
 	mustContain(t, "remote command", remote,
-		"docker exec -i ",                 // -i keeps the pipe open through ssh
-		"semiont-gateway semiont-useradd", // the exec target inside the codespace
-		"'alice@example.com'", "'--upsert'", "'--password-stdin'")
+		"cd /workspaces/* &&", // the KB clone; the remote shell expands the glob
+		"semiont useradd",     // the codespace's OWN launcher, not a container
+		"'alice$NAME@example.com'", "'--upsert'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
-	// The realm administrator's password is named, never carried: the remote
-	// shell expands its own variable, so this machine's secret does not cross
-	// the wire and there is nothing here to redact.
-	mustContain(t, "remote command", remote, `-e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"`)
-	// Other arguments still cross a shell, so they must still be quoted: the
-	// old bug was echoing RAW args, which would expand $NAME and split on
-	// spaces if pasted.
-	mustContain(t, "remote command", remote, "'A $NAME with spaces'")
+	// The realm administrator's password is not mentioned at all: the launcher
+	// over there reads it from that machine's own environment, so this machine
+	// neither holds it nor names it.
+	if strings.Contains(remote, "KC_BOOTSTRAP_ADMIN") {
+		t.Errorf("the remote command still carries the admin credential:\n%s", remote)
+	}
+	if strings.Contains(remote, "docker") || strings.Contains(remote, "semiont-gateway") {
+		t.Errorf("the codespace path still reaches into a container:\n%s", remote)
+	}
+	// Arguments cross a SHELL, so they must be quoted. The remaining free-text
+	// value is the email — validated for shape, not for shell metacharacters —
+	// so a `$` in one must survive as a literal rather than expand.
+	mustContain(t, "remote command", remote, "'alice$NAME@example.com'")
 	// The echoed command is now IDENTICAL to the one run — with no secret in
 	// argv there is nothing left to redact.
 	echoed := stdout[strings.Index(stdout, "$ gh"):]
 	echoed = echoed[:strings.IndexByte(echoed, '\n')]
-	mustContain(t, "echoed command", echoed, "'alice@example.com'", "'--upsert'", "'A $NAME with spaces'")
+	mustContain(t, "echoed command", echoed, "'alice$NAME@example.com'", "'--upsert'")
 	if strings.Contains(echoed, "rm -rf") || strings.Contains(echoed, "redacted") {
 		t.Errorf("echoed command should carry no secret and need no redaction:\n%s", echoed)
 	}
@@ -3486,11 +3471,20 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--generate-password"); code != 1 {
 		t.Fatalf("ambiguous useradd should refuse, got %d\nstderr:\n%s", code, stderr)
 	}
-	if _, stderr, code := s.run(t, "useradd", "--runtime", "container", "--email", "a@b.co", "--generate-password"); code != 0 {
-		t.Fatalf("useradd --runtime: exit %d\nstderr:\n%s", code, stderr)
+	// --runtime names the local one. It is administered from here, so the
+	// discriminator is that nothing went to the codespace — not an exec argv.
+	// Read tolerantly: with the local path no longer running a container, this
+	// scenario may have written no argv log at all — which is itself the point.
+	before, _ := os.ReadFile(s.log)
+	s.run(t, "useradd", "--runtime", "container", "--email", "a@b.co", "--generate-password")
+	after, _ := os.ReadFile(s.log)
+	fresh := strings.TrimPrefix(string(after), string(before))
+	if strings.Contains(fresh, "gh codespace") {
+		t.Errorf("useradd --runtime container reached the codespace:\n%s", fresh)
 	}
-	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "container exec fid-semiont-gateway semiont-useradd")
+	if strings.Contains(fresh, "semiont-useradd") {
+		t.Errorf("the local path still execs the gateway's bin:\n%s", fresh)
+	}
 
 	// A targeted local stop consumes the local record only.
 	if _, stderr, code := s.run(t, "stop", "--runtime", "container"); code != 0 {
@@ -5454,15 +5448,16 @@ func TestBareStopFollowsCwd(t *testing.T) {
 		t.Fatalf("local start: exit %d\nstderr:\n%s", code, stderr)
 	}
 
-	// useradd from the clone: local gateway, no ssh, no refusal.
+	// useradd from the clone picks the LOCAL stack: no ssh, and no exec either
+	// — a local realm is administered from here.
 	before := s.mustLog(t)
-	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--generate-password"); code != 0 {
-		t.Fatalf("bare useradd in clone: exit %d\nstderr:\n%s", code, stderr)
-	}
+	s.run(t, "useradd", "--email", "a@b.co", "--generate-password")
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
-	mustContain(t, "useradd argv", fresh, "exec", "semiont-useradd")
 	if strings.Contains(fresh, "gh codespace") {
 		t.Errorf("bare useradd in the local clone went to the codespace:\n%s", fresh)
+	}
+	if strings.Contains(fresh, "semiont-useradd") {
+		t.Errorf("the local path still execs the gateway's bin:\n%s", fresh)
 	}
 
 	// stop from the clone: the local stack, codespace untouched and still

@@ -381,7 +381,11 @@
     "hoverDelay": "Zpoždění při najetí",
     "hoverDelayFast": "Rychlé",
     "hoverDelaySlow": "Pomalé",
-    "hoverDelayDescription": "{{delay}}ms zpoždění před zobrazením efektů při najetí"
+    "hoverDelayDescription": "{{delay}}ms zpoždění před zobrazením efektů při najetí",
+    "tagline": "Open-source framework odolný vůči budoucnosti, který umožňuje lidem a inteligentním agentům spoluvytvářet sdílené znalosti — řízený vámi a vytvořený tak, aby vydržel.",
+    "sourceCode": "Zdrojový kód",
+    "keyboardShortcuts": "Klávesové zkratky",
+    "version": "Verze {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

@@ -381,7 +381,11 @@
     "hoverDelay": "Hover-Verzögerung",
     "hoverDelayFast": "Schnell",
     "hoverDelaySlow": "Langsam",
-    "hoverDelayDescription": "{{delay}} ms Verzögerung vor Hover-Effekten"
+    "hoverDelayDescription": "{{delay}} ms Verzögerung vor Hover-Effekten",
+    "tagline": "Das quelloffene, zukunftssichere Framework, das Menschen und intelligente Agenten befähigt, gemeinsam Wissen zu schaffen — von Ihnen gesteuert und für die Zukunft gebaut.",
+    "sourceCode": "Quellcode",
+    "keyboardShortcuts": "Tastenkombinationen",
+    "version": "Version {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

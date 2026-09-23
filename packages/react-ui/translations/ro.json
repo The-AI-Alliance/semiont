@@ -381,7 +381,11 @@
     "hoverDelay": "Întârziere la trecere",
     "hoverDelayFast": "Rapidă",
     "hoverDelaySlow": "Lentă",
-    "hoverDelayDescription": "Întârziere de {{delay}}ms înainte de apariția efectelor de trecere"
+    "hoverDelayDescription": "Întârziere de {{delay}}ms înainte de apariția efectelor de trecere",
+    "tagline": "Cadrul open-source, pregătit pentru viitor, care permite oamenilor și agenților inteligenți să co-creeze cunoștințe partajate — guvernat de tine și construit să dureze.",
+    "sourceCode": "Cod sursă",
+    "keyboardShortcuts": "Comenzi rapide de la tastatură",
+    "version": "Versiunea {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

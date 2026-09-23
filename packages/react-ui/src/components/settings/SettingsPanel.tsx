@@ -13,6 +13,17 @@ interface SettingsPanelProps {
   locale: string;
   isPendingLocaleChange?: boolean;
   hoverDelayMs: number;
+  /**
+   * The three survivors of the deleted footer, which this panel absorbed.
+   *
+   * REQUIRED, not optional: react-ui cannot know the host's build version or
+   * reach its keyboard-shortcuts context, so the host must answer — and there
+   * is exactly one host (ToolbarPanels). An optional prop here would be a seam
+   * with nothing behind it.
+   */
+  version: string;
+  sourceCodeUrl: string;
+  onOpenKeyboardHelp: () => void;
 }
 
 /**
@@ -27,7 +38,10 @@ export function SettingsPanel({
   theme,
   locale,
   isPendingLocaleChange = false,
-  hoverDelayMs
+  hoverDelayMs,
+  version,
+  sourceCodeUrl,
+  onOpenKeyboardHelp
 }: SettingsPanelProps) {
   const t = useTranslations('Settings');
   const semiont = useSemiont();
@@ -185,6 +199,32 @@ export function SettingsPanel({
           <p id="hover-delay-description" className="semiont-form__help">
             {t('hoverDelayDescription', { delay: hoverDelayMs })}
           </p>
+        </div>
+
+        {/* About — what the footer used to carry, minus the policy links. */}
+        <div className="semiont-settings-panel__field semiont-settings-panel__about">
+          <h4 className="semiont-settings-panel__about-name">Semiont</h4>
+          <p className="semiont-settings-panel__about-tagline">{t('tagline')}</p>
+          <p className="semiont-settings-panel__about-version">
+            {t('version', { version })}
+          </p>
+          <div className="semiont-settings-panel__about-links">
+            <button
+              type="button"
+              onClick={onOpenKeyboardHelp}
+              className="semiont-settings-panel__about-link"
+            >
+              {t('keyboardShortcuts')}
+            </button>
+            <a
+              href={sourceCodeUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="semiont-settings-panel__about-link"
+            >
+              {t('sourceCode')}
+            </a>
+          </div>
         </div>
       </div>
     </div>

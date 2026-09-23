@@ -403,7 +403,6 @@ Beyond that, the gateway reads from the environment directly:
 |---|---|
 | `JWT_SECRET` | Token signing. An ordered, comma-separated key ring: the first key signs, every key verifies; minimum 32 characters **per key**. A single value is the one-key case. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
 | `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the knowledge base's issuer. It exchanges these for an access token to reach the Archivist; without them the first Archivist call fails |
-| `KC_BOOTSTRAP_ADMIN_USERNAME` / `KC_BOOTSTRAP_ADMIN_PASSWORD` | Master-realm credentials, read only by `semiont-useradd` when it administers accounts at a launcher-run Keycloak |
 
 `semiont init` generates both TOML files. See the
 [Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the

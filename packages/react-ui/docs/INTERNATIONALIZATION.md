@@ -294,7 +294,6 @@ The library uses **namespace-based** translations. Each component or feature are
 
 **Navigation:**
 - `Navigation` - home, know, moderate, administer
-- `Footer` - copyright, about, privacyPolicy, termsOfService, apiDocs, sourceCode, keyboardShortcuts
 
 **User Interface:**
 - `Settings` - title, lineNumbers, theme, language
@@ -345,15 +344,6 @@ The library uses **namespace-based** translations. Each component or feature are
     "know": "Know",
     "moderate": "Moderate",
     "administer": "Administer"
-  },
-  "Footer": {
-    "copyright": "© {year} Semiont. All rights reserved.",
-    "about": "About",
-    "privacyPolicy": "Privacy Policy",
-    "termsOfService": "Terms of Service",
-    "apiDocs": "API Docs",
-    "sourceCode": "Source Code",
-    "keyboardShortcuts": "Keyboard Shortcuts"
   }
 }
 ```
@@ -403,7 +393,7 @@ export function useTranslationManager(): AdvancedTranslationManager {
 }
 
 // Usage
-const t = useTranslations('Footer');
+const t = useTranslations('Navigation');
 const copyright = t('copyright', { year: 2024 });
 // "© 2024 Semiont. All rights reserved."
 ```
@@ -569,7 +559,7 @@ const cancel = t('cancel');
 // Avoid switching namespaces mid-component
 const toolbarT = useTranslations('Toolbar');
 const commonT = useTranslations('Common');
-const footerT = useTranslations('Footer'); // Too many!
+const navT = useTranslations('Navigation'); // Too many!
 ```
 
 ### ✅ Do: Provide fallbacks

@@ -381,7 +381,11 @@
     "hoverDelay": "Độ trễ di chuột",
     "hoverDelayFast": "Nhanh",
     "hoverDelaySlow": "Chậm",
-    "hoverDelayDescription": "Độ trễ {{delay}}ms trước khi hiệu ứng di chuột xuất hiện"
+    "hoverDelayDescription": "Độ trễ {{delay}}ms trước khi hiệu ứng di chuột xuất hiện",
+    "tagline": "Nền tảng mã nguồn mở, bền vững cho phép con người và các tác nhân thông minh cùng nhau tạo dựng tri thức chung — được quản trị bởi bạn và được xây dựng để trường tồn.",
+    "sourceCode": "Mã nguồn",
+    "keyboardShortcuts": "Phím tắt",
+    "version": "Phiên bản {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

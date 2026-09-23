@@ -27,7 +27,7 @@ The gateway makes exactly one authorization decision: **authenticated, or 401**.
 - **OpenAPI Security Spec**: the spec is the single source of truth for which routes are public
 
 **Access Levels**:
-- **Public**: `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the documentation meta-routes
+- **Public**: `GET /`, `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the documentation meta-routes
 - **Authenticated**: everything else — resources, annotations, entity types, search, the bus
 - **Service account**: `POST /api/tokens/agent` and the Archivist read path also require the `semiont-service` role
 

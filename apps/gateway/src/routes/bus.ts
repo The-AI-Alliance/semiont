@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
 import type { EventBus, StoredEvent, EnvironmentConfig } from '@semiont/core';
-import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, channelWrites, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
   injectTraceparent,
@@ -31,7 +31,7 @@ import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/no
 import type { ServiceAccountCredential } from '@semiont/core';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
-import { profileOnce } from '../identity/person-profile';
+import { profileForWrite } from '../identity/person-profile';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
@@ -44,10 +44,8 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
  * customer.
  *
  * What may live on the Archivist's HTTP surface at all is decided in ONE
- * place — the standing rule in `archivist-read-path.ts`, rewritten when
- * SINGLE-KB-MOUNT D1 re-examined it. Do not restate it here; a second copy
- * is how the two drift, which is precisely what happened to the version
- * this comment used to carry.
+ * place — the standing rule in `archivist-read-path.ts`. Do not restate it
+ * here; a second copy is how the two drift.
  *
  * Address and auth come from `archivistEndpoint` (@semiont/core/node),
  * shared with the content proxying and with the fleet's own byte readers so
@@ -676,11 +674,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // A person WRITING is when the record learns what they are called
       // (PERSON-PROFILE D3). Gated on the channel, not on the stamp: every
       // emit carries a `_userId`, `browse:*` requests included, so stamping
-      // is not the test for an act. Which channels write is the registry's
-      // `effect` axis, declared per channel and generated — not a roster
-      // restated here. The name rides its own system event, never this
-      // payload.
-      if (channelWrites(channel)) profileOnce(principal, (ch, p) => plane.ingest(ch, p));
+      // is not the test for an act. The name rides its own system event,
+      // never this payload.
+      profileForWrite(channel, principal, (ch, p) => plane.ingest(ch, p));
     }
 
     // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
@@ -733,8 +729,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       : undefined;
 
     // How many observers the target subject had AT DISPATCH. Zero means the
-    // signal reached nobody — the failure this route could not previously
-    // express.
+    // signal reached nobody, which is the failure this count exists to express.
     //
     // It is EXACT for a broadcast and an UPPER BOUND for a correlated channel:
     // since P3, a subscriber on a reply channel receives the frame only if it

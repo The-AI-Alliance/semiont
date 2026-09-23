@@ -381,7 +381,11 @@
     "hoverDelay": "Затримка наведення",
     "hoverDelayFast": "Швидка",
     "hoverDelaySlow": "Повільна",
-    "hoverDelayDescription": "Затримка {{delay}}мс перед появою ефектів наведення"
+    "hoverDelayDescription": "Затримка {{delay}}мс перед появою ефектів наведення",
+    "tagline": "Відкрита, перспективна платформа, яка дозволяє людям та інтелектуальним агентам спільно створювати знання — під вашим управлінням та на довгострокову перспективу.",
+    "sourceCode": "Вихідний код",
+    "keyboardShortcuts": "Комбінації клавіш",
+    "version": "Версія {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

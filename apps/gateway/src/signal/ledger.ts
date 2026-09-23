@@ -37,9 +37,9 @@
  * (relocated from `routes/bus.ts` at P3, so the route and the harness consume
  * ONE copy) is the per-frame entitlement decision over `owner`.
  *
- * Retention keeps only CLAIMED cids, with the old bounds (60 s TTL, FIFO cap,
- * eager sweep at insert — lookup-only expiry once pinned hundreds of MB of
- * reply payloads for nobody). Claims carry their own, longer budget. At N
+ * Retention keeps only CLAIMED cids, bounded (60 s TTL, FIFO cap, eager sweep
+ * at insert — lookup-only expiry pins reply payloads for nobody, hundreds of
+ * MB of them). Claims carry their own, longer budget. At N
  * replicas the cluster retains N copies of a reply (each replica within its
  * own caps) — that is what makes recovery replica-agnostic.
  *
@@ -108,7 +108,7 @@ interface Claim {
   clientId: string;
   principalDid: string | undefined;
   claimedAt: number;
-  /** First reply seen: the claim no longer counts against the per-client cap.
+  /** First reply seen: the claim stops counting against the per-client cap.
    *  A flag rather than reply-presence, because sweepReplies drops payloads
    *  while the claim (and its answered-ness) must persist. */
   answered?: boolean;

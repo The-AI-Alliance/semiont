@@ -26,7 +26,6 @@ const mockRoutes = {
 } as any;
 
 // Mock translation function
-const mockT = (key: string) => `translated.${key}`;
 const mockTNav = (key: string) => `nav.${key}`;
 const mockTHome = (key: string) => `home.${key}`;
 
@@ -37,7 +36,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -53,7 +51,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -66,7 +63,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -76,29 +72,11 @@ describe('PageLayout Component', () => {
       expect(container.querySelector('header')).toBeInTheDocument();
     });
 
-    it('should render footer', () => {
-      render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tNav={mockTNav}
-          tHome={mockTHome}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      // Real Footer renders contentinfo role
-      expect(screen.getByRole('contentinfo')).toBeInTheDocument();
-    });
-
     it('should render children in main element', () => {
       render(
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -118,7 +96,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -135,7 +112,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
           className="custom-class"
@@ -153,7 +129,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -170,7 +145,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -189,7 +163,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
           showAuthLinks={true}
@@ -204,7 +177,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
           showAuthLinks={false}
@@ -221,7 +193,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -232,81 +203,6 @@ describe('PageLayout Component', () => {
       expect(container.querySelector('header')).toBeInTheDocument();
     });
 
-    it('should pass translation functions to components', () => {
-      render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tNav={mockTNav}
-          tHome={mockTHome}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      // Real Footer renders copyright with dynamic year
-      expect(screen.getByText(`translated.copyright`)).toBeInTheDocument();
-    });
-  });
-
-  describe('Optional Props', () => {
-    it('should render without CookiePreferences', () => {
-      expect(() => {
-        render(
-          <PageLayout
-            Link={MockLink}
-            routes={mockRoutes}
-            t={mockT}
-            tNav={mockTNav}
-            tHome={mockTHome}
-          >
-            <div>Content</div>
-          </PageLayout>
-        );
-      }).not.toThrow();
-    });
-
-    it('should render with CookiePreferences component', () => {
-      const MockCookiePreferences = ({  }: any) => (
-        <div data-testid="cookie-prefs">Cookie Preferences</div>
-      );
-
-      render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tNav={mockTNav}
-          tHome={mockTHome}
-          CookiePreferences={MockCookiePreferences}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      // Real Footer renders contentinfo role
-      expect(screen.getByRole('contentinfo')).toBeInTheDocument();
-    });
-
-    it('should render with onOpenKeyboardHelp handler', () => {
-      const mockHandler = vi.fn();
-
-      render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tNav={mockTNav}
-          tHome={mockTHome}
-          onOpenKeyboardHelp={mockHandler}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      expect(screen.getByRole('contentinfo')).toBeInTheDocument();
-    });
   });
 
   describe('Accessibility', () => {
@@ -315,7 +211,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -331,7 +226,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -347,7 +241,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -380,7 +273,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >
@@ -400,7 +292,6 @@ describe('PageLayout Component', () => {
         <PageLayout
           Link={MockLink}
           routes={mockRoutes}
-          t={mockT}
           tNav={mockTNav}
           tHome={mockTHome}
         >

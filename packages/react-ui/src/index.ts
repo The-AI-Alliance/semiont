@@ -133,7 +133,6 @@ export * from './components/resource/panels/UnifiedAnnotationsPanel';
 export * from './components/viewers';
 
 // Components - Navigation
-export * from './components/navigation/Footer';
 export * from './components/navigation/NavigationMenu';
 export * from './components/navigation/ObservableLink';
 export * from './components/navigation/SimpleNavigation';

@@ -161,7 +161,6 @@ Content language per [WCAG 3.1.2](https://www.w3.org/WAI/WCAG21/Understanding/la
 
 | Component | Status | Coverage |
 |-----------|--------|----------|
-| Footer | ✅ Complete | WCAG 2.1 AA |
 | NavigationMenu | ✅ Complete | WCAG 2.1 AA |
 | LiveRegion | ✅ Complete | WCAG 2.1 AA |
 | SkipLinks | ✅ Complete | WCAG 2.1 AA |

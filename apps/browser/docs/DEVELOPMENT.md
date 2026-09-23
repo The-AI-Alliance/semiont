@@ -72,7 +72,7 @@ launcher pulls the published images and your changes are invisible.
 brew install the-ai-alliance/semiont/semiont
 git clone <a-kb-repo> && cd <a-kb-repo>
 semiont start
-semiont useradd --email admin@example.com --admin   # prompts for the password
+semiont useradd --email admin@example.com   # prompts for the password
 ```
 
 **Browser only** (point it at an existing KB):

@@ -21,9 +21,6 @@ vi.mock('@/app/providers', () => ({
   Providers: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-vi.mock('@/components/CookieBanner', () => ({
-  CookieBanner: () => null,
-}));
 
 // AuthShell mocked as a marker — test fails if locale layout mounts it
 vi.mock('@/contexts/AuthShell', () => ({

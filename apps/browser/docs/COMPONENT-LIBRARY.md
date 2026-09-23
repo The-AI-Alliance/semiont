@@ -39,10 +39,10 @@ composes the library.
 ### What Lives in `@semiont/react-ui`
 
 #### Components
-- **Core UI** — Toolbar, StatusDisplay, Toast, CookiePreferences
+- **Core UI** — Toolbar, StatusDisplay, Toast
 - **Resource viewer** — ResourceViewer, ResourceViewerPage
 - **Annotation system** — panels (Comments, References, Tags, Assessments, Highlights), entry components, popups
-- **Navigation** — Footer, NavigationMenu, SkipLinks, SidebarNavigation, CollapsibleResourceNavigation, SortableResourceTab
+- **Navigation** — NavigationMenu, SkipLinks, SidebarNavigation, CollapsibleResourceNavigation, SortableResourceTab
 - **Modals** — SearchModal, ResourceSearchModal, KeyboardShortcutsHelpModal, SessionExpiredModal, PermissionDeniedModal
 - **Layout** — UnifiedHeader, LeftSidebar, PageLayout
 - **Session** — SessionTimer, SessionExpiryBanner

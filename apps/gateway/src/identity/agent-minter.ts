@@ -13,12 +13,8 @@ import { trustedIssuer } from './trusted-issuer';
  * once, because per-job-type models are configurable, so the two cannot be the
  * same credential.
  *
- * This replaces a single shared secret that every sidecar carried in its
- * environment and that the gateway compared by string equality. That secret
- * granted ANY agent identity to anyone holding it, could only be rotated by
- * restarting the whole stack, and was never scoped to a caller. A service
- * account is rotatable on its own, its tokens expire, and the gateway verifies
- * a signature rather than holding the credential it checks against.
+ * The gateway verifies a signature rather than holding the credential it checks
+ * against: each service account is rotatable on its own, and its tokens expire.
  */
 
 /**

@@ -160,7 +160,7 @@ source of truth for the full (and evolving) list; the essentials are below.
 
 ### PageLayout
 
-The standard page shell — composes `UnifiedHeader` + `Footer` around your content. (It does
+The standard page shell — composes `UnifiedHeader` around your content. (It does
 *not* take `header` / `sidebar` slots.)
 
 ```tsx
@@ -171,7 +171,7 @@ import { PageLayout } from '@semiont/react-ui';
 </PageLayout>
 ```
 
-Also optional: `className`, `showAuthLinks`, `CookiePreferences`, `onOpenKeyboardHelp`.
+Also optional: `className`, `showAuthLinks`, `onOpenKeyboardHelp`.
 
 ### UnifiedHeader
 
@@ -204,16 +204,6 @@ role gates it, because no role exists to gate it with. `currentPath` highlights 
 <NavigationMenu Link={Link} routes={routes} t={t} currentPath={currentPath} />
 ```
 
-### Footer
-
-Application footer; rendered for you inside `PageLayout`. Optional: `showPolicyLinks`,
-`sourceCodeUrl`, `CookiePreferences`, `onOpenKeyboardHelp`.
-
-```tsx
-<Footer Link={Link} routes={routes} t={t} showPolicyLinks />
-```
-
----
 
 ## Annotation Components
 

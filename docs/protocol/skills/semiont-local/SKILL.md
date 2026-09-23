@@ -46,7 +46,7 @@ semiont logs                      # follow service logs
 semiont logs --service gateway    # one service
 semiont stop                      # tear the stack down
 semiont clean                     # remove persistent stack state (Postgres/Qdrant/Neo4j)
-semiont useradd --email you@example.com --generate-password --admin
+semiont useradd --email you@example.com --generate-password
 ```
 
 Run `semiont <command> --help` for a command's options, and `semiont --help` for the full verb list.

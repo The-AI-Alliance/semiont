@@ -44,7 +44,7 @@
  *     validated, handler accepts garbage."
  *
  * Everything derives from the spec and `app.routes`. The only
- * hand-curated lists are `DOCUMENTATION_META_ROUTES` (the five
+ * hand-curated lists are `DOCUMENTATION_META_ROUTES` (the four
  * self-referential docs endpoints) and `MANUAL_REQUEST_VALIDATION`
  * (auth/OAuth handlers that validate in-handler instead of via
  * middleware — each entry carries a one-line justification).
@@ -60,7 +60,6 @@ type GatewayApp = typeof import('../index').app;
 
 // Meta-routes that serve the API documentation itself (self-referential, not in spec)
 const DOCUMENTATION_META_ROUTES = [
-  '/',                 // Splash page (HTML, not an API endpoint)
   '/api/docs',         // Swagger UI
   '/api/swagger',      // Redirect to /api/docs
   '/api',              // Redirect to /api/docs
@@ -1057,7 +1056,6 @@ describe('Spec Contract Hygiene', () => {
 // anything else must use `validateRequestBody`.
 const MANUAL_REQUEST_VALIDATION = new Map<string, string>([
   ['MediaTokenRequest', 'auth handler does manual field presence check on resourceId'],
-  ['CookieConsentRequest', 'handler enforces necessary=true alongside shape check'],
   ['BusEmitRequest', 'bus emit validates per-channel payload shape, not the envelope'],
   ['BusSubscribeRequest', 'subscribe validates the matrix in-body (parseSubscribeBody) — semantic checks the schema cannot express: duplicate scopes, per-connection caps, non-empty entries — before streamSSE takes the response'],
   ['ExtractionOutcome', 'isExtractionOutcome in get-uri.ts narrows every item field plus the provenance (method enum, decline enum, ocrConfidence numbers): geometry that typechecks as JSON but is missing `page` or carries a string coordinate would store happily and place an annotation rectangle nowhere'],

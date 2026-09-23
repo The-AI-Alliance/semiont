@@ -54,7 +54,6 @@ vi.mock('@/components/knowledge/KnowledgeSidebarWrapper', () => ({
   KnowledgeSidebarWrapper: () => null,
 }));
 vi.mock('@/components/toolbar/ToolbarPanels', () => ({ ToolbarPanels: () => null }));
-vi.mock('@/components/CookiePreferences', () => ({ CookiePreferences: () => null }));
 vi.mock('@/lib/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   routes: {},
@@ -100,7 +99,6 @@ vi.mock('@semiont/react-ui', async () => {
     useSemiont: () => harness.browser,
     useKBDiscovery: () => ({ state: null, kbs: [] }),
     Toolbar: () => null,
-    Footer: () => null,
     GlobalEvents: () => null,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };

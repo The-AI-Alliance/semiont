@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router';
 import { Providers } from '../providers';
-import { CookieBanner } from '@/components/CookieBanner';
 import { SkipLinks } from '@semiont/react-ui';
 
 /**
@@ -16,7 +15,6 @@ export default function LocaleLayout() {
     <Providers>
       <SkipLinks />
       <Outlet />
-      <CookieBanner />
     </Providers>
   );
 }

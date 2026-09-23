@@ -381,7 +381,11 @@
     "hoverDelay": "Forsinkelse ved peg",
     "hoverDelayFast": "Hurtigt",
     "hoverDelaySlow": "Langsomt",
-    "hoverDelayDescription": "{{delay}}ms forsinkelse før pegeeffekter vises"
+    "hoverDelayDescription": "{{delay}}ms forsinkelse før pegeeffekter vises",
+    "tagline": "Det open source, fremtidssikrede framework, der gør det muligt for mennesker og intelligente agenter at samskabe delt viden — styret af dig og bygget til at holde.",
+    "sourceCode": "Kildekode",
+    "keyboardShortcuts": "Tastaturgenveje",
+    "version": "Version {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

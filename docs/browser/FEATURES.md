@@ -265,7 +265,6 @@ Split-view layout for reading and annotating documents.
 - **Content Area**: Rendered markdown with annotations highlighted
 - **Sidebar**: Highlights, references, entity tags, backlinks
 - **Header**: Document title, metadata, edit button
-- **Footer**: Keyboard shortcuts, help
 
 **Interactions**:
 - Text selection triggers annotation popup

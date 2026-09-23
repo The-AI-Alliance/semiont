@@ -1,21 +1,16 @@
-import { useContext } from 'react';
 import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import {
   LeftSidebar,
-  Footer,
   useSemiont,
   useObservable,
 } from '@semiont/react-ui';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
-import { CookiePreferences } from '@/components/CookiePreferences';
-import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useRouter } from '@/i18n/routing';
 
 function ModerateLayoutBody() {
   const { t } = useTranslation();
-  const keyboardContext = useContext(KeyboardShortcutsContext);
   const semiont = useSemiont();
   const session = useObservable(semiont.activeSession$);
   const user = useObservable(session?.user$);
@@ -56,13 +51,6 @@ function ModerateLayoutBody() {
           </div>
         </main>
       </div>
-      <Footer
-        Link={Link}
-        routes={routes}
-        t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-        CookiePreferences={CookiePreferences}
-        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-      />
     </div>
   );
 }

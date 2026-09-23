@@ -381,7 +381,11 @@
     "hoverDelay": "تأخير التمرير",
     "hoverDelayFast": "سريع",
     "hoverDelaySlow": "بطيء",
-    "hoverDelayDescription": "تأخير {{delay}} ميلي ثانية قبل ظهور تأثيرات التمرير"
+    "hoverDelayDescription": "تأخير {{delay}} ميلي ثانية قبل ظهور تأثيرات التمرير",
+    "tagline": "الإطار مفتوح المصدر والمُعَدّ للمستقبل الذي يُمكّن البشر والوكلاء الأذكياء من المشاركة في إنشاء المعرفة المشتركة — بإدارتك ومبنيّ ليدوم.",
+    "sourceCode": "الشيفرة المصدرية",
+    "keyboardShortcuts": "اختصارات لوحة المفاتيح",
+    "version": "الإصدار {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

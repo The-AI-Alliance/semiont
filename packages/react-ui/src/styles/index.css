@@ -47,7 +47,6 @@
 @import './features/resource-discovery.css';
 @import './features/resource-viewer.css';
 @import './features/schemas.css';
-@import './features/static-pages.css';
 
 /* Patterns - Reusable Design System Patterns */
 @import './patterns/panels-base.css';
@@ -76,7 +75,6 @@
 @import '../components/modals/SearchModal.css';
 @import '../components/layout/LeftSidebar.css';
 @import '../components/layout/Header.css';
-@import '../components/layout/Footer.css';
 @import '../components/layout/ResizeHandle.css';
 @import '../components/layout/SkipLinks.css';
 @import '../components/branding/Branding.css';

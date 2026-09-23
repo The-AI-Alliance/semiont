@@ -381,7 +381,11 @@
     "hoverDelay": "Hovringsfördröjning",
     "hoverDelayFast": "Snabb",
     "hoverDelaySlow": "Långsam",
-    "hoverDelayDescription": "{{delay}}ms fördröjning innan hovringseffekter visas"
+    "hoverDelayDescription": "{{delay}}ms fördröjning innan hovringseffekter visas",
+    "tagline": "Det öppna, framtidssäkra ramverket som gör det möjligt för människor och intelligenta agenter att samskapa delad kunskap — styrt av dig och byggt för att bestå.",
+    "sourceCode": "Källkod",
+    "keyboardShortcuts": "Tangentbordsgenvägar",
+    "version": "Version {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

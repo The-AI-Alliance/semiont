@@ -76,7 +76,7 @@ Translation file (`messages-source/en.json`):
 ## Translation File Organization
 
 **Source files (edit these):**
-- `apps/browser/messages-source/{locale}.json` — app-specific keys (Admin, CookiePreferences, UserPanel, etc.)
+- `apps/browser/messages-source/{locale}.json` — app-specific keys (Admin, UserPanel, etc.)
 - `packages/react-ui/translations/{locale}.json` — react-ui component keys (BrowseView, ResourceViewer, etc.)
 
 **Generated files (do not edit):**

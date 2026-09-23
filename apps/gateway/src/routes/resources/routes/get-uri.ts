@@ -12,9 +12,8 @@
  * - GET /resources/:id/jsonld — the JSON-LD description (GetResourceResponse:
  *   descriptor + annotations + inbound entity references) via the bus
  *   gateway. Live data — Cache-Control: no-cache.
- * The anchored-text faces that used to live here are gone
- * (ANCHORED-TEXT-TO-SMELTER P4): the store is reached over the bus, the
- * Smelter writes it, and the Archivist answers reads.
+ * No anchored-text face (ANCHORED-TEXT-TO-SMELTER P4): the store is reached
+ * over the bus, the Smelter writes it, and the Archivist answers reads.
  *
  * - GET /api/resources/:id — browser-friendly alias of the pipe. Exists only
  *   as the ?token= auth affordance for <img>, PDF.js, and download links,

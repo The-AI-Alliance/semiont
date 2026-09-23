@@ -495,7 +495,6 @@ const MockLink = ({ href, children, ...props }: any) => (
 // Mock routes
 const mockRoutes = {
   home: () => '/',
-  about: () => '/about',
 } as any;
 
 // Mock translation functions
@@ -869,7 +868,7 @@ The `@semiont/react-ui` library uses **composition-based testing** as the primar
 - Utility modules (`formatDate`, `parseJson`)
 
 **❌ DON'T Mock:**
-- React components (`NavigationMenu`, `Footer`, `SemiontBranding`)
+- React components (`NavigationMenu`, `SemiontBranding`)
 - EventBus methods (`on`, `off`, `emit`)
 - React Context Providers
 - Component props or callbacks
@@ -885,7 +884,7 @@ src/
 │   ├── annotation/__tests__/       # Annotation: AnnotateToolbar, AnnotationPanel
 │   ├── resource/__tests__/         # Resource views: BrowseView, ResourceViewer
 │   │   └── panels/__tests__/       # Resource panels: ResourceInfoPanel, CommentsPanel
-│   └── navigation/__tests__/       # Navigation: NavigationMenu, Footer
+│   └── navigation/__tests__/       # Navigation: NavigationMenu, SkipLinks
 └── hooks/__tests__/                # Custom hooks
 ```
 
@@ -895,7 +894,7 @@ Our codebase includes 1300+ tests demonstrating these patterns:
 
 - **[LeftSidebar.test.tsx](../src/components/layout/__tests__/LeftSidebar.test.tsx)** - Layout component with real NavigationMenu and SemiontBranding
 - **[UnifiedHeader.test.tsx](../src/components/layout/__tests__/UnifiedHeader.test.tsx)** - Header with real child components and dropdown hook
-- **[PageLayout.test.tsx](../src/components/layout/__tests__/PageLayout.test.tsx)** - Full page layout with real UnifiedHeader and Footer
+- **[PageLayout.test.tsx](../src/components/layout/__tests__/PageLayout.test.tsx)** - Full page layout with a real UnifiedHeader
 - **[BrowseView.test.tsx](../src/components/resource/__tests__/BrowseView.test.tsx)** - Event-driven component using EventTracker
 - **[AnnotateToolbar.test.tsx](../src/components/annotation/__tests__/AnnotateToolbar.test.tsx)** - Event emissions and subscriptions with EventTracker
 - **[ResourceInfoPanel.test.tsx](../src/components/resource/panels/__tests__/ResourceInfoPanel.test.tsx)** - Panel component with event tracking

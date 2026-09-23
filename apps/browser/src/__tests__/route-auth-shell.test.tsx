@@ -5,7 +5,7 @@
  * route group (know/* + moderate/*) in a single
  * shared AuthShell — mounted once at the ProtectedLayout parent — while
  * the pre-app routes (auth/connect, auth/error, landing,
- * about) do NOT mount AuthShell.
+ * auth surfaces) do NOT mount AuthShell.
  *
  * Catches regressions where someone reorganizes routes and accidentally
  * drops the ProtectedLayout wrapper or moves a section out from under it.
@@ -37,9 +37,6 @@ vi.mock('@/app/[locale]/page', () => ({
   default: () => <div data-testid="home-page">Home</div>,
 }));
 
-vi.mock('@/app/[locale]/about/page', () => ({ default: () => <div data-testid="about-page">About</div> }));
-vi.mock('@/app/[locale]/privacy/page', () => ({ default: () => <div data-testid="privacy-page">Privacy</div> }));
-vi.mock('@/app/[locale]/terms/page', () => ({ default: () => <div data-testid="terms-page">Terms</div> }));
 vi.mock('@/app/[locale]/auth/connect/page', () => ({ default: () => <div data-testid="connect-page">Connect</div> }));
 vi.mock('@/app/[locale]/auth/error/page', () => ({ default: () => <div data-testid="error-page">Error</div> }));
 vi.mock('@/app/[locale]/know/layout', () => ({
@@ -118,13 +115,6 @@ describe('App route definitions — AuthShell wrapping', () => {
       expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
     });
 
-    it('about does not mount AuthShell', async () => {
-      renderAppAt('/en/about');
-      await waitFor(() => {
-        expect(screen.getByTestId('about-page')).toBeInTheDocument();
-      });
-      expect(screen.queryByTestId('auth-shell-marker')).not.toBeInTheDocument();
-    });
   });
 
   describe('routes that should mount AuthShell (under ProtectedLayout)', () => {

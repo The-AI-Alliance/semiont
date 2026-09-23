@@ -381,7 +381,11 @@
     "hoverDelay": "Kelewatan Terapung",
     "hoverDelayFast": "Pantas",
     "hoverDelaySlow": "Perlahan",
-    "hoverDelayDescription": "Kelewatan {{delay}}ms sebelum kesan terapung muncul"
+    "hoverDelayDescription": "Kelewatan {{delay}}ms sebelum kesan terapung muncul",
+    "tagline": "Rangka kerja sumber terbuka dan kalis masa depan yang membolehkan manusia dan ejen pintar mencipta pengetahuan bersama — ditadbir oleh anda dan dibina untuk berkekalan.",
+    "sourceCode": "Kod Sumber",
+    "keyboardShortcuts": "Pintasan Papan Kekunci",
+    "version": "Versi {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

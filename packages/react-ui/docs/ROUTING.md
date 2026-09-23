@@ -477,7 +477,6 @@ const routingConfig = {
   routes: {
     // Public routes
     home: '/',
-    about: '/about',
 
     // Knowledge routes
     discover: '/know/discover',

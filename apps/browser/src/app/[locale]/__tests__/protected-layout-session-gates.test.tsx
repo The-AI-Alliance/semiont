@@ -50,7 +50,6 @@ vi.mock('react-router', async () => {
 });
 
 vi.mock('@/components/moderation/ModerationNavigation', () => ({ ModerationNavigation: () => null }));
-vi.mock('@/components/CookiePreferences', () => ({ CookiePreferences: () => null }));
 vi.mock('@/lib/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   routes: {},
@@ -76,7 +75,6 @@ vi.mock('@semiont/react-ui', async () => {
     useSemiont: () => harness.browser,
     LeftSidebar: ({ children }: { children: any }) =>
       typeof children === 'function' ? children(false, () => {}, null) : children,
-    Footer: () => null,
   };
 });
 

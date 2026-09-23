@@ -381,7 +381,11 @@
     "hoverDelay": "হোভার বিলম্ব",
     "hoverDelayFast": "দ্রুত",
     "hoverDelaySlow": "ধীর",
-    "hoverDelayDescription": "হোভার প্রভাব প্রদর্শনের আগে {{delay}}মি.সে. বিলম্ব"
+    "hoverDelayDescription": "হোভার প্রভাব প্রদর্শনের আগে {{delay}}মি.সে. বিলম্ব",
+    "tagline": "মুক্ত-উৎস, ভবিষ্যৎ-প্রস্তুত কাঠামো যা মানুষ এবং বুদ্ধিমান এজেন্টদের সম্মিলিত জ্ঞান সহ-সৃষ্টি করতে সক্ষম করে — আপনার দ্বারা পরিচালিত এবং স্থায়ীভাবে নির্মিত।",
+    "sourceCode": "সোর্স কোড",
+    "keyboardShortcuts": "কীবোর্ড শর্টকাট",
+    "version": "সংস্করণ {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

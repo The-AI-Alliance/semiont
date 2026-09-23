@@ -2,9 +2,9 @@
  * The gateway records what a person is CALLED, from the token it just
  * verified, at the moment that person WRITES (PERSON-PROFILE).
  *
- * The issuer's `name` claim is as verified as the DID stamped beside it, and
- * until this existed the gateway threw it away — leaving every artifact
- * attributed to a bare UUID, because a DID's subject is all `didToAgent` has.
+ * The issuer's `name` claim is as verified as the DID stamped beside it. Drop
+ * it and every artifact is attributed to a bare UUID, because a DID's subject
+ * is all `didToAgent` has.
  *
  * Two things this is deliberately NOT:
  *
@@ -20,7 +20,7 @@
  *    about (PERSON-PROFILE D3).
  */
 
-import { didToAgent } from '@semiont/core';
+import { channelWrites, didToAgent } from '@semiont/core';
 import type { Principal } from './principal';
 
 /**
@@ -62,4 +62,25 @@ export function profileOnce(principal: Principal | undefined, publish: PublishFr
   if (didToAgent(principal.did)['@type'] !== 'Person') return;
 
   publish('person:profile', { _userId: String(principal.did), name: principal.name });
+}
+
+/**
+ * THE rule: a person's name reaches the record when they make a WRITE.
+ *
+ * Both of the gateway's emit paths ask this — `/bus/emit` for the channel it
+ * was handed, the upload route for the channel it is about to emit. Neither
+ * decides for itself. The upload route used to assert "reaching this line IS
+ * the write", which is a second answer the registry cannot correct: a channel
+ * whose effect changed would move one path and leave the other behind.
+ *
+ * Which channels write is the registry's `effect` axis, generated — not a
+ * roster restated here.
+ */
+export function profileForWrite(
+  channel: string,
+  principal: Principal | undefined,
+  publish: PublishFrame,
+): void {
+  if (!channelWrites(channel)) return;
+  profileOnce(principal, publish);
 }
