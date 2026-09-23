@@ -47,8 +47,8 @@ graph TB
 ```
 
 No datastore appears in that diagram, and that is the point: step 5 reads the
-token, not a table. Semiont kept a `users` table until 2026-09-18; see
-[Database](./DATABASE.md) for what replaced it.
+token, not a table; the PostgreSQL in a stack is Keycloak's — see
+[Database](./DATABASE.md).
 
 ## Authentication Model
 
@@ -81,7 +81,7 @@ row against the literal, not against another document:
 
 **Disable the account at the issuer.** It stops minting for that person immediately, which ends their access as soon as the token they are holding expires.
 
-That delay is the whole of the trade, and it is deliberate. Semiont previously kept an `isActive` column and checked it on every request, which cut off a live token on its next call. It also meant two systems answering one question, able to disagree, with only the issuer's answer capable of stopping a token from being minted at all. The column is gone; the issuer decides, and the access token lifetime above bounds how long a revoked person can still act.
+That delay is the whole of the trade, and it is deliberate: one system answers who may act, so nothing can disagree with the issuer, and the access token lifetime above bounds how long a disabled person can still act.
 
 Disabling also stops the refresh grant, so the person cannot mint a replacement when the one they hold expires.
 
@@ -126,8 +126,6 @@ There is no password endpoint, no provider endpoint and no refresh endpoint. Peo
 
 Two identities, deliberately: the service account is the **process**, the agent DID is the **work**. One worker holds several agent identities at once when a deployment configures different models for different job types, so the caller's credential cannot be the agent's identity.
 
-This replaced a single shared secret (`SEMIONT_WORKER_SECRET`) that every sidecar carried and the gateway compared by string equality. That secret granted any agent identity to anyone holding it, was scoped to no caller, and could only be rotated by restarting the whole stack.
-
 ### Protected endpoints (`authMiddleware`)
 
 Require a valid `Authorization: Bearer` access token. Examples: `GET /api/users/me`, `GET /api/status`, `POST /api/tokens/media`, the bus endpoints, and all of `/api/resources/*`.
@@ -141,9 +139,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 `GET /api/users/me` answers with the caller's **DID**, which is the name the rest of the system
 uses for them: the bus stamps it on every event, resource creation is attributed to it, and the
 signal ledger claims under it. A client compares against this to recognise its own work in the
-data. It used to answer with the User row's id, which appeared nowhere else and so could be
-compared against nothing, and to echo the caller's own token back to the caller who had just
-sent it.
+data.
 
 ### Media tokens (`?token=`)
 
@@ -201,7 +197,7 @@ Agents and media only — a person's token is the issuer's, and its claims are w
 }
 ```
 
-`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. It replaced a `userId` cuid that named a row in a table that no longer exists. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification by `JWTPayloadSchema`.
+`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification by `JWTPayloadSchema`.
 
 ## Implementation Details
 
@@ -284,7 +280,7 @@ Details worth knowing:
 
 ### At the issuer
 
-The decisions that used to sit here now sit in the realm: who may register, which domains are admitted, how long an access token lives, and whether an account is enabled. Semiont enforces none of them and cannot compensate for them.
+These decisions sit in the realm: who may register, which domains are admitted, how long an access token lives, and whether an account is enabled. Semiont enforces none of them and cannot compensate for them.
 
 Two of those the launcher does write into the realm it imports, rather than inherit, so they are decisions someone can read back rather than Keycloak defaults that move with an upgrade — the access token lifetime in the table above, and the **user profile**. The profile requires `firstName` and `lastName`, so a person an administrator created an account for is asked for their own name at first sign-in. Keycloak composes the `name` claim from those two, and that claim is what every annotation and resource they author is attributed to; `semiont useradd` deliberately sets no display name, because splitting one typed string on a space gets "Mary Jane" and "van der Berg" wrong.
 
@@ -312,7 +308,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 1. Routes explicitly apply `authMiddleware`. 2. Rate-limit per IP/user (edge rate-limiting is your deployment platform's concern). 3. Validate inputs with Zod. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
 
-> **MCP programmatic access** — the old browser-mediated MCP token routes (`/api/tokens/mcp-setup`, `/api/tokens/mcp-generate`) were removed when auth moved bearer-only; MCP provisioning is being re-architected (each gateway KB owns its own grant handshake). MCP `login` is not available until that rebuild lands.
+> **MCP programmatic access** — MCP `login` is not available. The gateway serves no MCP token route; a per-KB grant handshake is a deferred decision.
 
 ## Troubleshooting
 

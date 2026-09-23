@@ -28,8 +28,6 @@ into the same claim. It is checked in
 ### There are no human roles
 
 The gateway reads no role, flag, or group to decide what a person may do. The
-`isAdmin` and `isModerator` flags are gone — not deprecated, removed. They lived
-on a User row that no longer exists, and the
 [`Principal`](../../apps/gateway/src/identity/principal.ts) built from a verified
 token carries no role field at all.
 

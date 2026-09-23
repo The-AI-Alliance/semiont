@@ -76,13 +76,8 @@ Guards, all of which refuse rather than repair:
 PostgreSQL holds user accounts only. Backing it up is not backing up the knowledge base, and
 backing up the knowledge base does not preserve accounts. See [DATABASE.md](./DATABASE.md).
 
-## History
+## Where export runs
 
-Backup and restore were once admin API routes with a GUI, and the archive was a bespoke format
-with a manifest, a format version and validators. The routes, the SDK calls and the page were
-removed in EXPORT-VIA-LAUNCHER P1–P2 and the TypeScript reader/writer in P3; the launcher verbs
-replaced them in P4–P5. The old format is gone and no archive of it exists — there were no users.
-
-**Consequence worth knowing:** export requires access to the working tree, so it is a
-local-operator capability. A KB you reach only over the network cannot be exported by you through
-the app; `--repo` covers the codespace case over ssh.
+Export requires access to the working tree, so it is a local-operator capability. A KB you reach
+only over the network cannot be exported by you through the app; `--repo` covers the codespace
+case over ssh.

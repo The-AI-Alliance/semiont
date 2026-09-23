@@ -33,7 +33,7 @@
  * handle escapes this file.
  */
 
-import { connect, RetentionPolicy, AckPolicy, DeliverPolicy, nanos } from 'nats';
+import { connect, NatsError, RetentionPolicy, AckPolicy, DeliverPolicy, nanos } from 'nats';
 import type { NatsConnection, JetStreamClient, JetStreamManager, JsMsg, KV, ConsumerMessages } from 'nats';
 import type { AnyJob, PendingJob, RunningJob, FailedJob, CompleteJob, CancelledJob } from './types';
 import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
@@ -137,8 +137,13 @@ export class JetStreamJobQueue implements JobQueue {
       ...(this.options.user === undefined ? {} : { user: this.options.user }),
       ...(this.options.pass === undefined ? {} : { pass: this.options.pass }),
       reconnect: this.options.reconnect ?? true,
+      // For as long as the broker is unreachable: a manual broker restart is
+      // the recovery, and the library's ten attempts (~20 s) closed the
+      // signal plane's connection for good in its first live outage.
+      maxReconnectAttempts: -1,
       timeout: 10_000,
     });
+    this.watchConnection();
     this.js = this.nc.jetstream();
     this.jsm = await this.nc.jetstreamManager();
     this.kv = await this.js.views.kv(BUCKET);
@@ -231,6 +236,31 @@ export class JetStreamJobQueue implements JobQueue {
         });
     }, this.tickMs);
     this.tick.unref?.();
+  }
+
+  /** An outage is never silent: one line down, one line back, one line if the client gives up. */
+  private watchConnection(): void {
+    const servers = this.options.servers;
+    void (async () => {
+      for await (const status of this.nc.status()) {
+        if (status.type === 'disconnect') {
+          this.logger.warn('[jobs BROKER-DOWN] NATS connection lost; queue operations fail until reconnect', { servers });
+        } else if (status.type === 'reconnect') {
+          this.logger.info('[jobs BROKER-RECONNECTED] NATS connection restored', { servers });
+        }
+      }
+    })();
+    // Unreachable is retried forever; refused is not. Two identical refusals
+    // in a row end the client's reconnect loop whatever the attempt budget
+    // says, and a broker that came back with other credentials is exactly
+    // that. destroy() closes without an error.
+    void this.nc.closed().then((err) => {
+      if (!err) return;
+      this.logger.error('[jobs BROKER-CLOSED] NATS connection closed; the client will not reconnect', {
+        servers,
+        reason: err instanceof NatsError ? err.code : err.message,
+      });
+    });
   }
 
   destroy(): void {

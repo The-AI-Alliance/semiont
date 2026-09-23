@@ -109,10 +109,6 @@ If `mark.assist` is called with a `schemaId` that isn't in the projection, the d
 | `frame:add-tag-schema` | `{ schema: TagSchema }` | Register a tag schema with the KB's runtime registry. Most-recent-wins by `schema.id`. |
 | `frame:tag-schema-added` | `{ payload: { schema: TagSchema }, ... }` (StoredEvent) | Emitted by Stower after persistence. The tag-schemas-projection materializer updates `tagschemas.json`; subscribers to `browse.tagSchemas()` see the registration on their next emit. Bridged channel — fan-out is global. |
 
-## Migrating from earlier channel names
-
-Frame's wire channels were renamed from `mark:*` to `frame:*` when Frame was promoted to flow status. KBs created before the rename have event logs containing `"type": "mark:entity-type-added"` records under `__system__.jsonl`. The SDK and gateway reject the old channel names — there is no fallback shim, and no migration tooling ships — so a pre-rename event log has to be rewritten to the current names before the runtime can read it.
-
 ## Future scope
 
 Frame is sized to grow. As the KB's schema layer matures, the namespace can absorb:

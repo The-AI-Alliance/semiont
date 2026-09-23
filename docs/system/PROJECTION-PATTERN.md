@@ -103,9 +103,9 @@ imperative shell*, sometimes *hexagonal architecture*, sometimes just
 1. **Tests are fast and trivial.** The reducer/validator unit tests
    run in single-digit milliseconds with no filesystem, no event-bus,
    no mock JobQueue. The integration tests for the I/O shells (in
-   `view-materializer.test.ts` and `local-transport.test.ts`) still
-   exist — they prove the wiring works — but they're no longer where
-   the projection-update *semantics* are tested.
+   `view-materializer.test.ts` and `local-transport.test.ts`) prove
+   the wiring works; the projection-update *semantics* are tested
+   against the pure functions.
 
 2. **Property-based testing becomes natural.** See [Axioms](#axioms)
    below — invariants like "no duplicate ids" or "every actually-

@@ -23,13 +23,10 @@ reaches it over the stack network. The launcher creates the `keycloak` database 
 PostgreSQL itself; against an external PostgreSQL that database must already exist, and the launcher
 says so at start.
 
-## What happened to the users table
+## Where accounts live
 
-Semiont kept a `users` table until 2026-09-18. It held roles, a display name, and a join key to the
-identity that authenticated. Every row of it was either a fact the token already carried or a flag
-no route read, so it was dropped along with Prisma and the gateway's PostgreSQL dependency.
-
-The consequences worth knowing:
+Semiont keeps no user table. Every fact about a caller rides their token, and the gateway holds no
+row of its own. What follows from that:
 
 - **Accounts live at the issuer.** Create them with `semiont useradd`, which writes to Keycloak and
   nowhere else. Disable one with `--inactive`, restore it with `--active`.
@@ -51,8 +48,8 @@ Restoring it restores who can sign in. It restores nothing else, because nothing
 
 ## Health and monitoring
 
-The gateway's `GET /api/health` no longer reports on a database, because it has none to report on.
-Check PostgreSQL directly, and check the identity service for whether Keycloak is actually using it:
+The gateway's `GET /api/health` reports on no database; it has none. Check PostgreSQL directly,
+and check the identity service for whether Keycloak is actually using it:
 
 ```bash
 container exec semiont-postgres pg_isready -U postgres

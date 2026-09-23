@@ -33,7 +33,7 @@
  * `{ channel, payload }` envelope, since the subject no longer names the
  * channel.
  */
-import { JSONCodec, connect, type NatsConnection, type Subscription } from 'nats';
+import { JSONCodec, NatsError, connect, type NatsConnection, type Subscription } from 'nats';
 import { getLogger } from '../logger';
 import type {
   ClientSubscriptionSpec,
@@ -115,11 +115,11 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
     ...(opts.user === undefined ? {} : { user: opts.user }),
     ...(opts.pass === undefined ? {} : { pass: opts.pass }),
     // The plane's recovery story is "restart the broker manually" (Live
-    // gate, broker-down protocol) — so the client retries FOREVER. The
-    // library default (10 attempts, ~20 s) closed the connection
-    // permanently in the first live broker-down run: every emit 500'd
-    // even after the broker returned, and only a gateway restart would
-    // have recovered. Found by the gate, 2026-09-15.
+    // gate, broker-down protocol) — so the client retries for as long as
+    // the broker is unreachable. The library default (10 attempts, ~20 s)
+    // closed the connection permanently in the first live broker-down run:
+    // every emit 500'd even after the broker returned, and only a gateway
+    // restart would have recovered. Found by the gate, 2026-09-15.
     maxReconnectAttempts: -1,
     ...(opts.reconnect === undefined ? {} : { reconnect: opts.reconnect }),
   });
@@ -146,6 +146,19 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
       }
     }
   })();
+
+  // Unreachable is retried forever; refused is not. Two identical refusals
+  // in a row end the client's reconnect loop whatever the attempt budget
+  // says, and a broker that came back with other credentials is exactly
+  // that: no broker restart recovers it, only a gateway restart with
+  // credentials the broker accepts. dispose() closes without an error.
+  void nc.closed().then((err) => {
+    if (!err) return;
+    getSignalLogger().error('[signal BROKER-CLOSED] NATS connection closed; the client will not reconnect', {
+      servers: opts.servers,
+      reason: err instanceof NatsError ? err.code : err.message,
+    });
+  });
 
   const track = (s: Subscription): Subscription => {
     open.add(s);

@@ -208,7 +208,7 @@ Every actor that runs Semiont code is a bus participant. The gateway exposes exa
 
 The sidecar services authenticate via `POST /api/tokens/agent`: each holds its own service account at the knowledge base's issuer (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), presents the resulting issuer token as a bearer, and exchanges it plus a `(provider, model)` identity for a JWT carrying a typed Software-agent DID.
 
-**Replay is served by the Archivist, not the gateway.** The gateway keeps `/bus/subscribe` but no longer holds the event log, so a `Last-Event-ID` resume fetches from the Archivist over `host:port`, presenting the gateway's own service-account token. If that fetch fails, the subscription degrades to a scoped `bus:resume-gap` rather than silently serving nothing.
+**Replay is served by the Archivist, not the gateway.** The gateway serves `/bus/subscribe` but holds no event log, so a `Last-Event-ID` resume fetches from the Archivist over `host:port`, presenting the gateway's own service-account token. If that fetch fails, the subscription degrades to a scoped `bus:resume-gap` rather than silently serving nothing.
 
 See [Container Topology](../CONTAINER-TOPOLOGY.md) for the full picture.
 

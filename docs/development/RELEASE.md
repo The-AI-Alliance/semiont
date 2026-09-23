@@ -192,8 +192,8 @@ the bumped versions. This keeps `npm ci` usable for reproducible/clean installs
 (release seed builds, Docker images) — and the **CI test/build jobs run
 `npm ci --include=optional`**, so any lockfile drift fails the build loudly at
 install instead of being silently healed by `npm install`. (The publish workflow
-intentionally stays on `npm install` — it stamps `"*"`→exact versions, after
-which the tree no longer matches the committed lock.)
+intentionally stays on `npm install` — it stamps `"*"`→exact versions, which
+leaves the tree not matching the committed lock.)
 
 **Contributor rule:** any dependency change must commit the regenerated
 `package-lock.json` — regenerate with `npm install --package-lock-only
@@ -219,9 +219,8 @@ jq -r '.packages | to_entries[]
 ```
 
 If any nested copy sits below the advisory's patched version, the override is
-still load-bearing. This is not hypothetical: `js-yaml` was retired as "no longer
-load-bearing" while `@redocly/openapi-core` (via `openapi-typescript`) still
-pinned `js-yaml` at exactly `4.2.0`, which re-opened a HIGH alert. Also target
+still load-bearing — dropping one while a transitive dependency still pins the
+vulnerable version re-opens the alert. Also target
 the **newest** fixed release, not the first one that cleared the original
 advisory — patched versions routinely draw later CVEs of their own.
 
@@ -274,22 +273,21 @@ for external version ranges.** At staging, `stageGateway`
    external ranges and the internal `@semiont/*` set. They are read from source,
    so they **can never drift** from it.
 2. Promoting the curated runtime deps that source keeps as `devDependencies`
-   (`GATEWAY_RUNTIME_DEVDEPS` — currently empty, since the gateway holds no database; it was `prisma`, the migration CLI the
-   deployed package runs). Their ranges also come from source.
+   (`GATEWAY_RUNTIME_DEVDEPS` — currently empty). Their ranges also come from
+   source.
 3. Pinning the internal `@semiont/*` deps to the exact release version via the
    shared `stampInternalDeps` (see **Internal dependency pinning** above).
 
 Do **not** add a `dependencies` block to `package.publish.json` — the staging
 script overwrites it, so hand-authored entries there are silently ignored. To
 add a runtime dependency, add it to `apps/gateway/package.json`. If it must stay
-a `devDependency` in source but ship at runtime (like `prisma`), add it to
+a `devDependency` in source but ship at runtime, add it to
 `GATEWAY_RUNTIME_DEVDEPS` in `scripts/ci/publish-npm-apps.mjs`.
 
-This replaced a hand-maintained copy of the dep ranges in
-`package.publish.json` that drifted from source on every dependency bump (it had
-shipped a `@hono/node-server` *major* behind source, and had dropped
-`@semiont/observability` entirely even though the built gateway imports it at
-startup).
+The ranges are read from source rather than restated in
+`package.publish.json`, where a hand-maintained copy drifts on every dependency
+bump — shipping a range a major behind source, or dropping a package the built
+gateway imports at startup.
 
 The **Browser** is deliberately different: `apps/browser/package.publish.json`
 declares **no** runtime dependencies and nothing derives them, because the

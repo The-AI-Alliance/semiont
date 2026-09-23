@@ -4,9 +4,6 @@ Local development is built around **[`./scripts/ci/local-build.sh`](../../script
 it builds your working tree into the real service images, and the launcher runs those. What you test
 is what ships.
 
-> The old workflow — a globally npm-installed CLI running `init`/`provision`/`start` against host
-> processes — is gone. Nothing in this repo provides it.
-
 ## Prerequisites
 
 - **Node.js 24+** — [nodejs.org](https://nodejs.org/)
