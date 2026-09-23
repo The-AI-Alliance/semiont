@@ -76,6 +76,28 @@ export interface FaultyTransportConfig {
   makeResponse?: (operation: BusOperationKey, payload: Record<string, unknown>) => unknown;
 }
 
+/**
+ * The default `makeResponse`: refuse, rather than invent.
+ *
+ * This used to be `() => ({})`, which answered every unscripted operation with
+ * a SUCCESS whose every field was `undefined`. That is not a neutral default —
+ * it is a fabricated reply, and it surfaces far from its cause (a caller doing
+ * `result.agents.find(...)` reports `undefined is not a function`, naming
+ * neither the operation nor the missing script). A shape-correct empty default
+ * would be worse still: a hand-written mirror of a wire shape the spec owns,
+ * carrying a fallback.
+ *
+ * So the default names the gap. A test that wants an answer scripts one via
+ * `queueReply` or its own `makeResponse`.
+ */
+export function refuseUnscriptedOperation(operation: string): never {
+  throw new Error(
+    `No response scripted for bus operation "${operation}". ` +
+      `Script one with transport.queueReply('${operation}', <response>) ` +
+      `or pass a makeResponse that handles it.`,
+  );
+}
+
 function isOperation(channel: string): channel is BusOperationKey {
   return channel in BUS_OPERATIONS;
 }
@@ -109,7 +131,7 @@ export class FaultyTransport implements ITransport {
 
   constructor(cfg: FaultyTransportConfig = {}) {
     this.schedule = cfg.schedule ?? [];
-    this.makeResponse = cfg.makeResponse ?? (() => ({}));
+    this.makeResponse = cfg.makeResponse ?? refuseUnscriptedOperation;
   }
 
   /**

@@ -11,7 +11,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {
   renderWithProviders,
-  createMockKnowledgeBaseSession,
+  createTestBrowserWithSignals,
 } from '../../../test-utils';
 import { SessionExpiredModal } from '../SessionExpiredModal';
 
@@ -47,7 +47,7 @@ describe('SessionExpiredModal', () => {
   describe('initial render', () => {
     it('does not render modal content when sessionExpiredAt is null', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           sessionExpiredAt: null,
         }),
       });
@@ -58,7 +58,7 @@ describe('SessionExpiredModal', () => {
   describe('when sessionExpiredAt is set', () => {
     it('renders the modal with default message', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           sessionExpiredAt: Date.now(),
         }),
       });
@@ -70,7 +70,7 @@ describe('SessionExpiredModal', () => {
 
     it('renders the custom message from sessionExpiredMessage', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           sessionExpiredAt: Date.now(),
           sessionExpiredMessage: 'Your token expired at 5pm',
         }),
@@ -84,7 +84,7 @@ describe('SessionExpiredModal', () => {
       const ack = vi.fn();
       mockLocation.pathname = '/know/discover';
       renderWithProviders(<SessionExpiredModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           sessionExpiredAt: Date.now(),
           acknowledgeSessionExpired: ack,
         }),
@@ -99,7 +99,7 @@ describe('SessionExpiredModal', () => {
     it('calls acknowledgeSessionExpired and navigates to / on Go to Home', () => {
       const ack = vi.fn();
       renderWithProviders(<SessionExpiredModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           sessionExpiredAt: Date.now(),
           acknowledgeSessionExpired: ack,
         }),

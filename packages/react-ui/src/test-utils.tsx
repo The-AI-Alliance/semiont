@@ -3,13 +3,20 @@
  *
  * Provides a renderWithProviders helper that wraps components with all necessary providers
  * for testing, with customizable mock implementations.
+ *
+ * THE DOUBLES LIVE IN `@semiont/sdk/testing`, NOT HERE — `createTestClient` /
+ * `createTestSession` (real client and session over `FaultyTransport`),
+ * `stubGateway`, `inMemoryContent`, `refuseUnscriptedOperation`. This module
+ * only assembles them into React providers. Reach for the SDK's first; a
+ * hand-rolled double here encodes its author's model of a contract the SDK
+ * already owns, which is the mistake SDK-DEBT M1 was raised for.
  */
 
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi, afterEach } from 'vitest';
 import { SemiontBrowser, SessionSignals, type SemiontClient, type SemiontSession } from '@semiont/sdk';
-import { createTestSession, refuseUnscriptedOperation, stubGateway } from '@semiont/sdk/testing';
+import { createTestSession, stubGateway } from '@semiont/sdk/testing';
 import { EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { LineNumbersProvider } from './contexts/LineNumbersContext';
@@ -18,7 +25,7 @@ import type { TranslationManager } from './types/TranslationManager';
 import { SemiontProvider } from './session/SemiontProvider';
 
 /**
-  * Every fake browser below builds a REAL SemiontClient over the SDK's own
+  * Every browser below is a REAL `SemiontBrowser` over the SDK's own
   * in-memory doubles — no HTTP, no localhost, no network. Clients are still
   * disposed at test end: a chain straddling teardown dies in the cache's B16
   * disposed-guard rather than logging while the vitest worker's RPC closes
@@ -38,23 +45,23 @@ afterEach(async () => {
 });
 
 /**
- * Minimal fake SemiontBrowser for tests. Emits a fake session whose `client`
- * is a fresh SemiontClient over in-memory transports. Tests that spy
- * on client methods (e.g. `BindNamespace.prototype.body`) rely on the
- * real-ish client surface. Tests that inspect events production code emits
- * subscribe via `client.on(channel, handler)`.
+ * A real `SemiontBrowser` for tests, carrying a real `SemiontSession` whose
+ * client speaks to in-memory transports. Nothing here is impersonated, so a
+ * test spying on `BindNamespace.prototype.body` — or reading
+ * `browser.activeSession$` — sees the production surface.
  */
 
-function createFakeBrowserForTests(): SemiontBrowser {
+function createTestBrowser(): SemiontBrowser {
   // A REAL `SemiontBrowser` over real in-memory collaborators — not a
   // look-alike. `SemiontBrowserConfig` is only `{storage, sessionFactory}`
   // and the class is transport-agnostic by design ("every HTTP-vs-local
   // construction concern lives in the factory"), so the double stops at the
   // transport layer and production code sees the production surface.
-  const { session, client, storage } = createTestSession({
-    gateway: stubGateway(),
-    transport: { makeResponse: refuseUnscriptedOperation },
-  });
+  // Both doubles refuse rather than invent: `stubGateway`'s ops reject by
+  // name, and `FaultyTransport` now refuses unscripted bus operations by
+  // default — so a unit that reaches something the test never scripted fails
+  // saying which one.
+  const { session, client, storage } = createTestSession({ gateway: stubGateway() });
   liveTestClients.push(client);
   const browser = new SemiontBrowser({ storage, sessionFactory: () => session });
   liveTestBrowsers.push(browser);
@@ -139,14 +146,14 @@ export function renderWithProviders(
     ...renderOptions
   } = options || {};
 
-  const fakeBrowser = browser ?? createFakeBrowserForTests();
-  const fakeSession = fakeBrowser.activeSession$.getValue();
-  const client = fakeSession?.client;
+  const testBrowser = browser ?? createTestBrowser();
+  const testSession = testBrowser.activeSession$.getValue();
+  const client = testSession?.client;
 
   function Wrapper({ children }: { children: React.ReactNode }) {
     return (
       <TranslationProvider translationManager={translationManager}>
-        <SemiontProvider browser={fakeBrowser}>
+        <SemiontProvider browser={testBrowser}>
           <ToastProvider>
             <LineNumbersProvider>
               {children}
@@ -161,14 +168,14 @@ export function renderWithProviders(
 
   const extras: Partial<RenderWithProvidersResult> = {};
   if (returnEventBus && client) extras.eventBus = busOf(client);
-  if (returnShellBus) extras.browser = fakeBrowser;
-  return { ...result, session: fakeSession, ...extras };
+  if (returnShellBus) extras.browser = testBrowser;
+  return { ...result, session: testSession, ...extras };
 }
 
 /**
  * Build a minimal `<SemiontProvider>` wrapper for tests that roll their
  * own render wrapper (instead of `renderWithProviders`). The returned
- * `eventBus` is the bus backing the fake session's client — same
+ * `eventBus` is the bus backing the session's client — same
  * reference production code pokes via `session.client.emit(...)`.
  */
 export function createTestSemiontWrapper(): {
@@ -182,18 +189,18 @@ export function createTestSemiontWrapper(): {
   /** The session — pass as the `session` prop to provider-free components. */
   session: SemiontSession;
 } {
-  const fakeBrowser = createFakeBrowserForTests();
-  const fakeSession = fakeBrowser.activeSession$.getValue()!;
-  const client = fakeSession.client;
+  const testBrowser = createTestBrowser();
+  const testSession = testBrowser.activeSession$.getValue()!;
+  const client = testSession.client;
   const SemiontWrapper = ({ children }: { children: React.ReactNode }) => (
-    <SemiontProvider browser={fakeBrowser}>{children}</SemiontProvider>
+    <SemiontProvider browser={testBrowser}>{children}</SemiontProvider>
   );
   return {
     SemiontWrapper,
     eventBus: busOf(client),
-    browser: fakeBrowser,
+    browser: testBrowser,
     client,
-    session: fakeSession,
+    session: testSession,
   };
 }
 
@@ -211,12 +218,11 @@ export function createMockTranslationManager(
 }
 
 /**
- * Build a fake SemiontBrowser with the active SessionSignals
- * observables pre-populated. Used by SessionExpiredModal and
+ * A real `SemiontBrowser` whose `SessionSignals` are pre-populated. Used by SessionExpiredModal and
  * PermissionDeniedModal tests that need to control the modal flags
  * without driving a real session through its state machine.
  */
-export function createMockKnowledgeBaseSession(overrides: {
+export function createTestBrowserWithSignals(overrides: {
   permissionDeniedAt?: number | null;
   permissionDeniedMessage?: string | null;
   sessionExpiredAt?: number | null;
@@ -224,7 +230,7 @@ export function createMockKnowledgeBaseSession(overrides: {
   acknowledgePermissionDenied?: () => void;
   acknowledgeSessionExpired?: () => void;
 } = {}): SemiontBrowser {
-  const browser = createFakeBrowserForTests();
+  const browser = createTestBrowser();
   const signals = browser.activeSignals$.getValue()!;
 
   // Push the flags the modal reads. These are the same BehaviorSubjects

@@ -11,7 +11,7 @@ import { screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import {
   renderWithProviders,
-  createMockKnowledgeBaseSession,
+  createTestBrowserWithSignals,
 } from '../../../test-utils';
 import { PermissionDeniedModal } from '../PermissionDeniedModal';
 
@@ -52,7 +52,7 @@ describe('PermissionDeniedModal', () => {
   describe('initial render', () => {
     it('does not render modal content when permissionDeniedAt is null', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: null,
         }),
       });
@@ -63,7 +63,7 @@ describe('PermissionDeniedModal', () => {
   describe('when permissionDeniedAt is set', () => {
     it('shows modal with default message when no message provided', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: Date.now(),
         }),
       });
@@ -74,7 +74,7 @@ describe('PermissionDeniedModal', () => {
 
     it('shows custom message from permissionDeniedMessage', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: Date.now(),
           permissionDeniedMessage: 'Admin access required for this resource',
         }),
@@ -85,7 +85,7 @@ describe('PermissionDeniedModal', () => {
 
     it('renders all three action buttons', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: Date.now(),
         }),
       });
@@ -100,7 +100,7 @@ describe('PermissionDeniedModal', () => {
     it('acknowledges and calls window.history.back on Go Back', () => {
       const ack = vi.fn();
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: Date.now(),
           permissionDeniedMessage: 'denied',
           acknowledgePermissionDenied: ack,
@@ -116,7 +116,7 @@ describe('PermissionDeniedModal', () => {
     it('acknowledges and navigates to / on Go to Home', () => {
       const ack = vi.fn();
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: Date.now(),
           permissionDeniedMessage: 'denied',
           acknowledgePermissionDenied: ack,
@@ -133,7 +133,7 @@ describe('PermissionDeniedModal', () => {
       const ack = vi.fn();
       mockLocation.pathname = '/admin/users';
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createMockKnowledgeBaseSession({
+        browser: createTestBrowserWithSignals({
           permissionDeniedAt: Date.now(),
           permissionDeniedMessage: 'denied',
           acknowledgePermissionDenied: ack,

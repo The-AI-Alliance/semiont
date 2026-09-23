@@ -25,7 +25,14 @@ describe('createTestClient', () => {
     // keeps B14's chain in test time. First fetch times out → [cache RETRY]
     // → retry times out → [cache IDLE] + B15 errors the observers.
     const { client } = createTestClient({
-      transport: { schedule: [{ kind: 'drop-reply' }] },
+      // The gateway ANSWERS (scripted here); the wire eats every reply. Both
+      // halves matter: `drop-reply` still consumes the gateway's answer, so
+      // leaving it unscripted would fail on the refusing default instead of
+      // on the timeout this test is about.
+      transport: {
+        schedule: [{ kind: 'drop-reply' }],
+        makeResponse: () => ({ entityTypes: [] }),
+      },
       busTimeoutMs: 40,
     });
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
