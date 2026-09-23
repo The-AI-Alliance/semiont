@@ -3,13 +3,20 @@
  *
  * Provides a renderWithProviders helper that wraps components with all necessary providers
  * for testing, with customizable mock implementations.
+ *
+ * THE DOUBLES LIVE IN `@semiont/sdk/testing`, NOT HERE — `createTestClient` /
+ * `createTestSession` (real client and session over `FaultyTransport`),
+ * `stubGateway`, `inMemoryContent`, `refuseUnscriptedOperation`. This module
+ * only assembles them into React providers. Reach for the SDK's first; a
+ * hand-rolled double here encodes its author's model of a contract the SDK
+ * already owns, which is the mistake SDK-DEBT M1 was raised for.
  */
 
 import React, { ReactElement } from 'react';
 import { render, RenderOptions, RenderResult } from '@testing-library/react';
 import { vi, afterEach } from 'vitest';
 import { SemiontBrowser, SessionSignals, type SemiontClient, type SemiontSession } from '@semiont/sdk';
-import { createTestSession, refuseUnscriptedOperation, stubGateway } from '@semiont/sdk/testing';
+import { createTestSession, stubGateway } from '@semiont/sdk/testing';
 import { EventBus } from '@semiont/core';
 import { TranslationProvider } from './contexts/TranslationContext';
 import { LineNumbersProvider } from './contexts/LineNumbersContext';
@@ -51,10 +58,11 @@ function createFakeBrowserForTests(): SemiontBrowser {
   // and the class is transport-agnostic by design ("every HTTP-vs-local
   // construction concern lives in the factory"), so the double stops at the
   // transport layer and production code sees the production surface.
-  const { session, client, storage } = createTestSession({
-    gateway: stubGateway(),
-    transport: { makeResponse: refuseUnscriptedOperation },
-  });
+  // Both doubles refuse rather than invent: `stubGateway`'s ops reject by
+  // name, and `FaultyTransport` now refuses unscripted bus operations by
+  // default — so a unit that reaches something the test never scripted fails
+  // saying which one.
+  const { session, client, storage } = createTestSession({ gateway: stubGateway() });
   liveTestClients.push(client);
   const browser = new SemiontBrowser({ storage, sessionFactory: () => session });
   liveTestBrowsers.push(browser);

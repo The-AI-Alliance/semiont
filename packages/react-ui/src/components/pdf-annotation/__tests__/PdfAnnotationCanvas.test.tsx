@@ -152,6 +152,8 @@ describe('PdfAnnotationCanvas', () => {
   afterEach(() => {
     // Stubs must not leak into other files sharing this Vitest environment.
     vi.unstubAllGlobals();
+    // ...and prototype spies must not leak into later tests in THIS file.
+    vi.restoreAllMocks();
   });
 
   beforeEach(() => {
@@ -943,8 +945,9 @@ describe('PdfAnnotationCanvas', () => {
     test('clicking a strip rectangle jumps to that page', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
-      const scrollIntoView = vi.fn();
-      Element.prototype.scrollIntoView = scrollIntoView;
+      const scrollIntoView = vi
+        .spyOn(Element.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -973,8 +976,9 @@ describe('PdfAnnotationCanvas', () => {
       // page taller than the viewport.
       const io = stubIntersectionObserver();
       scannedDoc();
-      const scrollIntoView = vi.fn();
-      Element.prototype.scrollIntoView = scrollIntoView;
+      const scrollIntoView = vi
+        .spyOn(Element.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1016,8 +1020,9 @@ describe('PdfAnnotationCanvas', () => {
     test('Left/Right step pages, and never steal keys from a text field', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
-      const scrollIntoView = vi.fn();
-      Element.prototype.scrollIntoView = scrollIntoView;
+      const scrollIntoView = vi
+        .spyOn(Element.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1057,7 +1062,7 @@ describe('PdfAnnotationCanvas', () => {
       // snatches focus away from whatever the reader was doing.
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1089,7 +1094,7 @@ describe('PdfAnnotationCanvas', () => {
       // with arrows (which already page the document).
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1116,7 +1121,7 @@ describe('PdfAnnotationCanvas', () => {
       // phase) a change of one value rather than a second layout.
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1151,7 +1156,7 @@ describe('PdfAnnotationCanvas', () => {
       // reader wants from it on a long document.
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1183,7 +1188,7 @@ describe('PdfAnnotationCanvas', () => {
       // height of its own — that is what produced scroll-within-scroll.
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1"
@@ -1214,7 +1219,7 @@ describe('PdfAnnotationCanvas', () => {
       // off-screen — it must come from actual visibility.
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
@@ -1274,7 +1279,7 @@ describe('PdfAnnotationCanvas', () => {
       // rather than nothing.
       scannedDoc();
       vi.stubGlobal('IntersectionObserver', undefined);
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}
@@ -1291,7 +1296,7 @@ describe('PdfAnnotationCanvas', () => {
       // one bad moment pins the whole document to geometry-only.
       const io = stubIntersectionObserver();
       scannedDoc();
-      Element.prototype.scrollIntoView = vi.fn();
+      vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {});
 
       const resourceAnchoredText = vi.fn()
         .mockRejectedValueOnce(new Error('transport down'))
@@ -1318,8 +1323,9 @@ describe('PdfAnnotationCanvas', () => {
     test('the pager still works in the column, and modifiers are left alone', async () => {
       const io = stubIntersectionObserver();
       scannedDoc();
-      const scrollIntoView = vi.fn();
-      Element.prototype.scrollIntoView = scrollIntoView;
+      const scrollIntoView = vi
+        .spyOn(Element.prototype, 'scrollIntoView')
+        .mockImplementation(() => {});
 
       render(
         <PdfAnnotationCanvas resourceUri="res-1" pdfUrl={mockPdfUrl}

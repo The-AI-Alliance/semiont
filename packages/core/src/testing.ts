@@ -19,6 +19,7 @@
 
 export {
   FaultyTransport,
+  refuseUnscriptedOperation,
   retryKeyOf,
   type FaultAction,
   type FaultyTransportConfig,

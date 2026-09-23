@@ -45,11 +45,8 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 // (used by useMediaToken) wired, rejecting by name rather than reaching out.
 const { stubBrowser, stubClient } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');
-  const { createTestClient, refuseUnscriptedOperation, stubGateway } = require('@semiont/sdk/testing');
-  const { client } = createTestClient({
-    gateway: stubGateway(),
-    transport: { makeResponse: refuseUnscriptedOperation },
-  });
+  const { createTestClient, stubGateway } = require('@semiont/sdk/testing');
+  const { client } = createTestClient({ gateway: stubGateway() });
   const stubActiveSession$ = new BehaviorSubject({ client });
   const stubOpenResources$ = new BehaviorSubject([]);
   const stubBrowser = {

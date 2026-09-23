@@ -30,6 +30,23 @@ if (typeof globalThis !== 'undefined' && !(globalThis as any).DOMMatrix) {
   };
 }
 
+// jsdom does not implement Element.prototype.scrollIntoView AT ALL — the
+// property is undefined, with no descriptor. Tests that need to observe
+// scrolling therefore could not `vi.spyOn` it and had to assign the prototype
+// directly, which nothing restores: the clobbered method then leaked to every
+// later test in the file. Defining a no-op here gives `vi.spyOn` something to
+// attach to, so those tests become ordinary restorable spies.
+if (typeof globalThis !== 'undefined' && (globalThis as any).Element) {
+  const ElementCtor = (globalThis as any).Element;
+  if (typeof ElementCtor.prototype.scrollIntoView !== 'function') {
+    Object.defineProperty(ElementCtor.prototype, 'scrollIntoView', {
+      configurable: true,
+      writable: true,
+      value: function scrollIntoView(): void {},
+    });
+  }
+}
+
 // Polyfill for HTMLElement.focus to fix @headlessui/react Dialog focus issues in jsdom
 // jsdom's focus is read-only and doesn't properly set document.activeElement
 if (typeof globalThis !== 'undefined' && (globalThis as any).HTMLElement) {
