@@ -30,12 +30,6 @@
     "/api/status": {
       "$ref": "paths/api_status.json"
     },
-    "/api/cookies/consent": {
-      "$ref": "paths/api_cookies_consent.json"
-    },
-    "/api/cookies/export": {
-      "$ref": "paths/api_cookies_export.json"
-    },
     "/bus/subscribe": {
       "$ref": "paths/bus_subscribe.json"
     },
@@ -269,18 +263,6 @@
       },
       "ContextualSummaryResponse": {
         "$ref": "components/schemas/ContextualSummaryResponse.json"
-      },
-      "CookieConsent": {
-        "$ref": "components/schemas/CookieConsent.json"
-      },
-      "CookieConsentRequest": {
-        "$ref": "components/schemas/CookieConsentRequest.json"
-      },
-      "CookieConsentResponse": {
-        "$ref": "components/schemas/CookieConsentResponse.json"
-      },
-      "CookieExportResponse": {
-        "$ref": "components/schemas/CookieExportResponse.json"
       },
       "CreateAnnotationRequest": {
         "$ref": "components/schemas/CreateAnnotationRequest.json"

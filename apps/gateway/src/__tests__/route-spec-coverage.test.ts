@@ -1057,7 +1057,6 @@ describe('Spec Contract Hygiene', () => {
 // anything else must use `validateRequestBody`.
 const MANUAL_REQUEST_VALIDATION = new Map<string, string>([
   ['MediaTokenRequest', 'auth handler does manual field presence check on resourceId'],
-  ['CookieConsentRequest', 'handler enforces necessary=true alongside shape check'],
   ['BusEmitRequest', 'bus emit validates per-channel payload shape, not the envelope'],
   ['BusSubscribeRequest', 'subscribe validates the matrix in-body (parseSubscribeBody) — semantic checks the schema cannot express: duplicate scopes, per-connection caps, non-empty entries — before streamSSE takes the response'],
   ['ExtractionOutcome', 'isExtractionOutcome in get-uri.ts narrows every item field plus the provenance (method enum, decline enum, ocrConfidence numbers): geometry that typechecks as JSON but is missing `page` or carries a string coordinate would store happily and place an annotation rectangle nowhere'],

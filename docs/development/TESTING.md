@@ -371,19 +371,6 @@ export const handlers = [
       }
     })
   }),
-
-  // Cookie consent endpoint
-  http.post('/api/cookies/consent', async ({ request }) => {
-    const consent = await request.json()
-    return HttpResponse.json({
-      success: true,
-      consent: {
-        ...consent,
-        timestamp: new Date().toISOString(),
-        version: '1.0'
-      }
-    })
-  }),
 ]
 ```
 
@@ -459,59 +446,6 @@ describe('CookiePreferences', () => {
       version: expect.any(String)
     })
     expect(onClose).toHaveBeenCalled()
-  })
-})
-```
-
-### API Route Tests
-
-```typescript
-import { describe, it, expect, vi } from 'vitest'
-import { POST } from '../route'
-import { NextRequest } from 'next/server'
-
-describe('POST /api/cookies/consent', () => {
-  it('should store cookie consent', async () => {
-    const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        necessary: true,
-        analytics: true,
-        marketing: false,
-        preferences: true
-      })
-    })
-
-    const response = await POST(request)
-    const data = await response.json()
-
-    expect(response.status).toBe(200)
-    expect(data.success).toBe(true)
-    expect(data.consent).toMatchObject({
-      necessary: true,
-      analytics: true,
-      marketing: false,
-      preferences: true
-    })
-  })
-
-  it('should reject invalid consent data', async () => {
-    const request = new NextRequest('http://localhost:3000/api/cookies/consent', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        necessary: false, // Invalid - necessary cookies are required
-        analytics: true
-      })
-    })
-
-    const response = await POST(request)
-    expect(response.status).toBe(400)
   })
 })
 ```

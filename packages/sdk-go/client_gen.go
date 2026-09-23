@@ -236,36 +236,6 @@ func (e CommandErrorCode) Valid() bool {
 	}
 }
 
-// Defines values for CookieConsentNecessary.
-const (
-	CookieConsentNecessaryTrue CookieConsentNecessary = true
-)
-
-// Valid indicates whether the value is a known member of the CookieConsentNecessary enum.
-func (e CookieConsentNecessary) Valid() bool {
-	switch e {
-	case CookieConsentNecessaryTrue:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CookieConsentRequestNecessary.
-const (
-	CookieConsentRequestNecessaryTrue CookieConsentRequestNecessary = true
-)
-
-// Valid indicates whether the value is a known member of the CookieConsentRequestNecessary enum.
-func (e CookieConsentRequestNecessary) Valid() bool {
-	switch e {
-	case CookieConsentRequestNecessaryTrue:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for DirEntryType.
 const (
 	Dir DirEntryType = "dir"
@@ -2083,50 +2053,6 @@ type ContextualSummaryResponse struct {
 	} `json:"context"`
 	RelevantFields map[string]interface{} `json:"relevantFields"`
 	Summary        string                 `json:"summary"`
-}
-
-// CookieConsent User's cookie consent preferences. `necessary` is always true — necessary cookies cannot be disabled. Timestamps and version are stamped server-side.
-type CookieConsent struct {
-	Analytics   bool                   `json:"analytics"`
-	Marketing   bool                   `json:"marketing"`
-	Necessary   CookieConsentNecessary `json:"necessary"`
-	Preferences bool                   `json:"preferences"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Version     string                 `json:"version"`
-}
-
-// CookieConsentNecessary defines model for CookieConsent.Necessary.
-type CookieConsentNecessary bool
-
-// CookieConsentRequest Request body for POST /api/cookies/consent. All four preference fields must be booleans; `necessary` must be true.
-type CookieConsentRequest struct {
-	Analytics   bool                          `json:"analytics"`
-	Marketing   bool                          `json:"marketing"`
-	Necessary   CookieConsentRequestNecessary `json:"necessary"`
-	Preferences bool                          `json:"preferences"`
-}
-
-// CookieConsentRequestNecessary defines model for CookieConsentRequest.Necessary.
-type CookieConsentRequestNecessary bool
-
-// CookieConsentResponse Standard envelope for cookie consent endpoints. On success `success: true` and `consent` carries the current preferences; on error `success: false` and `error` carries a human-readable message.
-type CookieConsentResponse struct {
-	// Consent User's cookie consent preferences. `necessary` is always true — necessary cookies cannot be disabled. Timestamps and version are stamped server-side.
-	Consent *CookieConsent `json:"consent,omitempty"`
-	Error   *string        `json:"error,omitempty"`
-	Success bool           `json:"success"`
-}
-
-// CookieExportResponse GDPR data export of a user's cookie-related data. The response is returned as a file download (Content-Disposition: attachment).
-type CookieExportResponse struct {
-	// Consent User's cookie consent preferences. `necessary` is always true — necessary cookies cannot be disabled. Timestamps and version are stamped server-side.
-	Consent             CookieConsent `json:"consent"`
-	DataRetentionPolicy string        `json:"dataRetentionPolicy"`
-	ExportDate          time.Time     `json:"exportDate"`
-	User                struct {
-		Email string `json:"email"`
-		Id    string `json:"id"`
-	} `json:"user"`
 }
 
 // CreateAnnotationRequest defines model for CreateAnnotationRequest.
@@ -4726,9 +4652,6 @@ type PostResourcesMultipartBody struct {
 	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
 	StorageUri string `json:"storageUri"`
 }
-
-// PostApiCookiesConsentJSONRequestBody defines body for PostApiCookiesConsent for application/json ContentType.
-type PostApiCookiesConsentJSONRequestBody = CookieConsentRequest
 
 // PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
 type PostApiTokensAgentJSONRequestBody PostApiTokensAgentJSONBody
@@ -11211,17 +11134,6 @@ type ClientInterface interface {
 	// GetWellKnownOauthProtectedResource request
 	GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetApiCookiesConsent request
-	GetApiCookiesConsent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// PostApiCookiesConsentWithBody request with any body
-	PostApiCookiesConsentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	PostApiCookiesConsent(ctx context.Context, body PostApiCookiesConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
-
-	// GetApiCookiesExport request
-	GetApiCookiesExport(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
-
 	// GetApiHealth request
 	GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11266,54 +11178,6 @@ type ClientInterface interface {
 
 func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetWellKnownOauthProtectedResourceRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetApiCookiesConsent(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiCookiesConsentRequest(c.Server)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiCookiesConsentWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiCookiesConsentRequestWithBody(c.Server, contentType, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) PostApiCookiesConsent(ctx context.Context, body PostApiCookiesConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewPostApiCookiesConsentRequest(c.Server, body)
-	if err != nil {
-		return nil, err
-	}
-	req = req.WithContext(ctx)
-	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
-		return nil, err
-	}
-	return c.Client.Do(req)
-}
-
-func (c *Client) GetApiCookiesExport(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGetApiCookiesExportRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11514,100 +11378,6 @@ func NewGetWellKnownOauthProtectedResourceRequest(server string) (*http.Request,
 	}
 
 	operationPath := fmt.Sprintf("/.well-known/oauth-protected-resource")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewGetApiCookiesConsentRequest generates requests for GetApiCookiesConsent
-func NewGetApiCookiesConsentRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/cookies/consent")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return req, nil
-}
-
-// NewPostApiCookiesConsentRequest calls the generic PostApiCookiesConsent builder with application/json body
-func NewPostApiCookiesConsentRequest(server string, body PostApiCookiesConsentJSONRequestBody) (*http.Request, error) {
-	var bodyReader io.Reader
-	buf, err := json.Marshal(body)
-	if err != nil {
-		return nil, err
-	}
-	bodyReader = bytes.NewReader(buf)
-	return NewPostApiCookiesConsentRequestWithBody(server, "application/json", bodyReader)
-}
-
-// NewPostApiCookiesConsentRequestWithBody generates requests for PostApiCookiesConsent with any type of body
-func NewPostApiCookiesConsentRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/cookies/consent")
-	if operationPath[0] == '/' {
-		operationPath = "." + operationPath
-	}
-
-	queryURL, err := serverURL.Parse(operationPath)
-	if err != nil {
-		return nil, err
-	}
-
-	req, err := http.NewRequest("POST", queryURL.String(), body)
-	if err != nil {
-		return nil, err
-	}
-
-	req.Header.Add("Content-Type", contentType)
-
-	return req, nil
-}
-
-// NewGetApiCookiesExportRequest generates requests for GetApiCookiesExport
-func NewGetApiCookiesExportRequest(server string) (*http.Request, error) {
-	var err error
-
-	serverURL, err := url.Parse(server)
-	if err != nil {
-		return nil, err
-	}
-
-	operationPath := fmt.Sprintf("/api/cookies/export")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -12043,17 +11813,6 @@ type ClientWithResponsesInterface interface {
 	// GetWellKnownOauthProtectedResourceWithResponse request
 	GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error)
 
-	// GetApiCookiesConsentWithResponse request
-	GetApiCookiesConsentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiCookiesConsentResponse, error)
-
-	// PostApiCookiesConsentWithBodyWithResponse request with any body
-	PostApiCookiesConsentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiCookiesConsentResponse, error)
-
-	PostApiCookiesConsentWithResponse(ctx context.Context, body PostApiCookiesConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiCookiesConsentResponse, error)
-
-	// GetApiCookiesExportWithResponse request
-	GetApiCookiesExportWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiCookiesExportResponse, error)
-
 	// GetApiHealthWithResponse request
 	GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error)
 
@@ -12113,76 +11872,6 @@ func (r GetWellKnownOauthProtectedResourceResponse) Status() string {
 
 // StatusCode returns HTTPResponse.StatusCode
 func (r GetWellKnownOauthProtectedResourceResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetApiCookiesConsentResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *CookieConsentResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiCookiesConsentResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiCookiesConsentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type PostApiCookiesConsentResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *CookieConsentResponse
-	JSON400      *CookieConsentResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r PostApiCookiesConsentResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r PostApiCookiesConsentResponse) StatusCode() int {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.StatusCode
-	}
-	return 0
-}
-
-type GetApiCookiesExportResponse struct {
-	Body         []byte
-	HTTPResponse *http.Response
-	JSON200      *CookieExportResponse
-	JSON401      *ErrorResponse
-}
-
-// Status returns HTTPResponse.Status
-func (r GetApiCookiesExportResponse) Status() string {
-	if r.HTTPResponse != nil {
-		return r.HTTPResponse.Status
-	}
-	return http.StatusText(0)
-}
-
-// StatusCode returns HTTPResponse.StatusCode
-func (r GetApiCookiesExportResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -12460,41 +12149,6 @@ func (c *ClientWithResponses) GetWellKnownOauthProtectedResourceWithResponse(ctx
 	return ParseGetWellKnownOauthProtectedResourceResponse(rsp)
 }
 
-// GetApiCookiesConsentWithResponse request returning *GetApiCookiesConsentResponse
-func (c *ClientWithResponses) GetApiCookiesConsentWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiCookiesConsentResponse, error) {
-	rsp, err := c.GetApiCookiesConsent(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetApiCookiesConsentResponse(rsp)
-}
-
-// PostApiCookiesConsentWithBodyWithResponse request with arbitrary body returning *PostApiCookiesConsentResponse
-func (c *ClientWithResponses) PostApiCookiesConsentWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostApiCookiesConsentResponse, error) {
-	rsp, err := c.PostApiCookiesConsentWithBody(ctx, contentType, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiCookiesConsentResponse(rsp)
-}
-
-func (c *ClientWithResponses) PostApiCookiesConsentWithResponse(ctx context.Context, body PostApiCookiesConsentJSONRequestBody, reqEditors ...RequestEditorFn) (*PostApiCookiesConsentResponse, error) {
-	rsp, err := c.PostApiCookiesConsent(ctx, body, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParsePostApiCookiesConsentResponse(rsp)
-}
-
-// GetApiCookiesExportWithResponse request returning *GetApiCookiesExportResponse
-func (c *ClientWithResponses) GetApiCookiesExportWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiCookiesExportResponse, error) {
-	rsp, err := c.GetApiCookiesExport(ctx, reqEditors...)
-	if err != nil {
-		return nil, err
-	}
-	return ParseGetApiCookiesExportResponse(rsp)
-}
-
 // GetApiHealthWithResponse request returning *GetApiHealthResponse
 func (c *ClientWithResponses) GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error) {
 	rsp, err := c.GetApiHealth(ctx, reqEditors...)
@@ -12653,112 +12307,6 @@ func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWe
 			return nil, err
 		}
 		response.JSON404 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiCookiesConsentResponse parses an HTTP response from a GetApiCookiesConsentWithResponse call
-func ParseGetApiCookiesConsentResponse(rsp *http.Response) (*GetApiCookiesConsentResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiCookiesConsentResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CookieConsentResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParsePostApiCookiesConsentResponse parses an HTTP response from a PostApiCookiesConsentWithResponse call
-func ParsePostApiCookiesConsentResponse(rsp *http.Response) (*PostApiCookiesConsentResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &PostApiCookiesConsentResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CookieConsentResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
-		var dest CookieConsentResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON400 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
-
-	}
-
-	return response, nil
-}
-
-// ParseGetApiCookiesExportResponse parses an HTTP response from a GetApiCookiesExportWithResponse call
-func ParseGetApiCookiesExportResponse(rsp *http.Response) (*GetApiCookiesExportResponse, error) {
-	bodyBytes, err := io.ReadAll(rsp.Body)
-	defer func() { _ = rsp.Body.Close() }()
-	if err != nil {
-		return nil, err
-	}
-
-	response := &GetApiCookiesExportResponse{
-		Body:         bodyBytes,
-		HTTPResponse: rsp,
-	}
-
-	switch {
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest CookieExportResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON200 = &dest
-
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
-		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
-			return nil, err
-		}
-		response.JSON401 = &dest
 
 	}
 
