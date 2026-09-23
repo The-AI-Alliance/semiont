@@ -8,10 +8,10 @@ import (
 
 const useraddUsage = `Usage: semiont useradd --email <email> [--generate-password] [options]
 
-Create or update a user in a RUNNING Semiont stack, local or codespace. The
-launcher execs 'semiont-useradd' inside the gateway container and passes every
-other flag through verbatim — the ISSUER holds the account, the profile and the
-password; this launcher only decides which stack is meant.
+Create or update a user in a Semiont stack, local or codespace. The ISSUER holds
+the account, the profile and the password; this decides which realm is meant and
+speaks to it. A local realm is administered from here; a codespace's is reached
+through its own gateway, which runs the same command over there.
 
 The password is never typed as an argument. Creating a user prompts for one on
 a terminal, or reads it from stdin when piped:
@@ -19,8 +19,7 @@ a terminal, or reads it from stdin when piped:
   semiont useradd --email admin@example.com               # prompts
   cat pw | semiont useradd --email bot@example.com        # scripted
 
-Options that command understands (its own --help is authoritative; this list
-restates apps/gateway/src/cli/useradd.ts and an unknown flag is refused there):
+Options:
 
   --email <email>       User email address (required)
   --generate-password   Generate a random 16-char password (printed once)
@@ -42,8 +41,9 @@ Launcher-owned (consumed here, not forwarded):
   --runtime <name>      Target the LOCAL stack (selector only, as in stop)
   --help, -h            Show this help
 
-Needs a running gateway: semiont start first. With more than one stack
-recorded, the working directory disambiguates (the clone whose local stack
+Needs a started stack: the realm is reached at the issuer this KB configures,
+and semiont start is what records which config that is. With more than one
+stack recorded, the working directory disambiguates (the clone whose local stack
 is running means local; a clone whose origin names a codespace stack, with
 no local stack, means that one) — anywhere less certain, useradd refuses to
 guess: say which with --repo or --runtime.
@@ -60,22 +60,16 @@ Examples:
   semiont useradd --repo The-AI-Alliance/my-kb --email alice@example.com --generate-password
 `
 
-// Useradd implements `semiont useradd` — a thin exec bridge to the gateway's
-// own `semiont-useradd`. The launcher contributes only what it knows: which
-// stack is meant, and the sharpest handle into its gateway. Everything else
-// passes through verbatim — the ISSUER owns the account, the profile and the
-// password hashing, and `semiont-useradd` is what speaks to it.
+// Useradd implements `semiont useradd`. The ISSUER owns the account, the
+// profile and the password hashing; this decides which realm is meant and
+// speaks to it.
 //
-// It goes through the container rather than administering the realm directly
-// on purpose. The gateway container is where the trusted issuer's URL is
-// already resolved from the KB's config, and where the admin API client lives;
-// an outside writer would have to re-derive both. Keeping the write with the
-// process that already knows the issuer also keeps this launcher
-// technology-agnostic: it runs containers, and need not know that Keycloak
-// exists.
-//
-// (The exec target is the gateway image's own `semiont-useradd` bin, not a
-// `semiont useradd` subcommand: there is no CLI inside the image to host one.)
+// A LOCAL stack is administered here, through the same admin client
+// `identity sync` uses — no container, and the gateway need not be running.
+// A CODESPACE still execs the gateway image's `semiont-useradd` bin, because
+// the launcher is not installed over there yet and the remote realm's admin
+// password lives in that machine's environment, never this one's
+// (WHO-RUNS-USERADD P1 removes the exception).
 //
 // The password NEVER travels in argv. It used to ride into the container as an
 // env var (readable via `inspect` for the stack's whole lifetime); then as an
@@ -97,16 +91,28 @@ func Useradd(args []string) int {
 		return 1
 	}
 
-	// --repo and --runtime are the ONLY flags the launcher consumes rather
-	// than forwards (they select a stack); everything else stays verbatim so
-	// `semiont-useradd` can grow flags without touching this file. The
-	// password-bearing flags are READ here as well as forwarded, because the
-	// launcher is what reads the password.
+	// Every flag is READ here — the local path acts on them directly — and
+	// every flag but --repo and --runtime is also FORWARDED, because the
+	// codespace path still hands them to the gateway's bin. --repo and
+	// --runtime select a stack and never cross.
 	repo, wantLocal := "", false
 	generate, update, wantStdin := false, false, false
+	o := useraddOpts{}
 	rest := make([]string, 0, len(args))
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
+		case "--email":
+			if i+1 >= len(args) {
+				u.fail("Missing value for --email")
+				return 1
+			}
+			o.email = args[i+1]
+		case "--upsert":
+			o.upsert = true
+		case "--active":
+			o.active = true
+		case "--inactive":
+			o.inactive = true
 		case "--repo":
 			if i+1 >= len(args) {
 				u.fail("Missing value for --repo")
@@ -134,10 +140,13 @@ func Useradd(args []string) int {
 			return 1
 		case "--generate-password":
 			generate = true
+			o.generate = true
 		case "--update":
 			update = true
+			o.update = true
 		case "--password-stdin":
 			wantStdin = true
+			o.stdin = true
 			continue // re-added below, exactly once
 		}
 		rest = append(rest, args[i])
@@ -152,20 +161,14 @@ func Useradd(args []string) int {
 		u.fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
 		return 1
 	}
+	if !useraddValidate(u, o) {
+		return 1
+	}
 
 	// Which stack? The shared knowledge-verb ladder (stackselect.go).
 	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)
 	if !ok {
 		return 1
-	}
-
-	rt, handle := "", ""
-	if target == nil {
-		if rt, handle = gatewayHandle(); rt == "" {
-			u.fail("useradd needs a running gateway, and none was found under any installed runtime.")
-			fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
-			return 1
-		}
 	}
 
 	// The password is read LAST, after every refusal this command can make.
@@ -189,34 +192,32 @@ func Useradd(args []string) int {
 	if target != nil {
 		return useraddCodespace(u, target, rest, password)
 	}
-	// `semiont-useradd` is a bin the gateway package declares, linked onto PATH
-	// by its image. -i attaches stdin so the password can cross that way; it is
-	// omitted when there is no password to send, so the echoed command is the
-	// exact command run in both cases.
-	head := []string{"exec"}
-	if password != "" {
-		head = append(head, "-i")
+	return useraddLocal(u, o, password)
+}
+
+// useraddValidate: the mutual exclusions and the one format check. They belong
+// here rather than at the far end because a refusal the caller can make is one
+// the caller should make — and on the codespace path the far end is an ssh hop
+// away.
+func useraddValidate(u *ui, o useraddOpts) bool {
+	if o.email == "" {
+		u.fail("--email is required")
+		return false
 	}
-	// The realm administrator's credentials, for the one command that needs
-	// them. They ride a ONE-SHOT exec rather than the gateway's own container
-	// environment on purpose: a long-running service holding a credential that
-	// can create any account is a far larger blast radius than a command that
-	// exits. `redactEnvArgs` blanks the value in the echoed line, and when no
-	// password is resolvable nothing is passed — the gateway then refuses and
-	// names both variables, which is more use than a launcher-side guess about
-	// whether this KB even has a realm.
-	if secret, _ := keycloakAdminPassword(cwdKBRoot()); secret != "" {
-		head = append(head,
-			"--env", "KC_BOOTSTRAP_ADMIN_USERNAME="+keycloakAdminUser,
-			"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD="+secret)
+	if !strings.Contains(o.email, "@") || strings.ContainsAny(o.email, " \t") ||
+		!strings.Contains(o.email[strings.Index(o.email, "@"):], ".") {
+		u.fail("invalid email format: %s", o.email)
+		return false
 	}
-	execArgs := append(append(head, handle, "semiont-useradd"), rest...)
-	u.echoCmd(rt, execArgs...)
-	if err := runVisibleWithStdin(password, rt, execArgs...); err != nil {
-		u.fail("useradd failed inside the gateway container (see output above).")
-		return 1
+	if o.update && o.upsert {
+		u.fail("--update and --upsert are contradictory: one demands the account exist, the other tolerates it.")
+		return false
 	}
-	return 0
+	if o.inactive && o.active {
+		u.fail("--inactive and --active are contradictory.")
+		return false
+	}
+	return true
 }
 
 // useraddCodespace runs the same verb one hop further out: through ssh into
@@ -280,23 +281,4 @@ func remoteUseraddCmd(args []string, stdin bool) string {
 // reopened. Nothing inside can be interpreted as shell syntax.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// gatewayHandle finds the runtime running the stack and the sharpest handle
-// for its gateway container: the record's runtime + ID when present (and
-// that runtime is installed), else the name under whichever runtime's
-// listing shows semiont-gateway.
-func gatewayHandle() (rt, handle string) {
-	if st := loadLocalState(); st != nil && st.Runtime != "" && onPath(st.Runtime) {
-		if e, ok := st.Services["gateway"]; ok && e.Provided == providedLauncher {
-			if e.ID != "" {
-				return st.Runtime, e.ID
-			}
-			return st.Runtime, "semiont-gateway"
-		}
-	}
-	if rt := stackRuntime(); rt != "" {
-		return rt, "semiont-gateway"
-	}
-	return "", ""
 }

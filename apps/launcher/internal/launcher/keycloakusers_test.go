@@ -231,3 +231,107 @@ func TestUserCallsReportARefusedPut(t *testing.T) {
 	}
 	_ = fmt.Sprint(s.requests)
 }
+
+// The flag decision tree (WHO-RUNS-USERADD P3), against a stub realm. What an
+// operator gets wrong is which flag they needed, so each refusal is pinned by
+// the message it gives rather than by its exit code alone.
+
+func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) int {
+	t.Helper()
+	return applyUseradd(newUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token"}, o, password)
+}
+
+func TestUseraddCreatesWhenTheRealmHoldsNothing(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co"}, "hunter2hunter2"); code != 0 {
+		t.Fatalf("create: exit %d", code)
+	}
+	if s.posted == nil {
+		t.Fatal("no account was created")
+	}
+	if s.posted["enabled"] != true {
+		t.Error("a create with neither --active nor --inactive must be enabled")
+	}
+}
+
+func TestUseraddInactiveCreatesDisabled(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co", inactive: true}, "hunter2hunter2"); code != 0 {
+		t.Fatalf("create --inactive: exit %d", code)
+	}
+	if s.posted["enabled"] != false {
+		t.Error("--inactive did not reach the create")
+	}
+}
+
+func TestUseraddRefusesToCreateWithoutAPassword(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co"}, ""); code != 1 {
+		t.Fatalf("a create with no password should refuse, got %d", code)
+	}
+	if s.posted != nil {
+		t.Error("an account was created with no password")
+	}
+}
+
+func TestUseraddUpsertIsSilentWhenTheAccountExists(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co"}})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co", upsert: true}, ""); code != 0 {
+		t.Fatalf("upsert over an existing account should succeed, got %d", code)
+	}
+	if len(s.puts) != 0 || s.posted != nil {
+		t.Error("upsert modified an account it was told to leave alone")
+	}
+}
+
+func TestUseraddRefusesAnUnflaggedCollision(t *testing.T) {
+	// Without --update or --upsert, an existing account is an error: the
+	// alternative is silently rewriting someone's password.
+	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co"}})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co"}, "newpassword1"); code != 1 {
+		t.Fatalf("a collision should refuse, got %d", code)
+	}
+	if len(s.puts) != 0 {
+		t.Error("a refused collision still wrote to the account")
+	}
+}
+
+func TestUseraddUpdateRefusesAnAbsentAccount(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co", update: true}, "newpassword1"); code != 1 {
+		t.Fatalf("--update on an absent account should refuse, got %d", code)
+	}
+	if s.posted != nil {
+		t.Error("--update created an account instead of refusing")
+	}
+}
+
+func TestUseraddUpdateTouchesOnlyWhatTheFlagsName(t *testing.T) {
+	// No --active/--inactive means the account's sign-in state is not this
+	// command's business: an operator changing a password must not silently
+	// re-enable someone who was disabled.
+	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co", "enabled": false}})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co", update: true}, "newpassword1"); code != 0 {
+		t.Fatalf("update: exit %d", code)
+	}
+	if _, wrote := s.puts["/admin/realms/semiont/users/abc-123/reset-password"]; !wrote {
+		t.Error("the password was not set")
+	}
+	if _, wrote := s.puts["/admin/realms/semiont/users/abc-123"]; wrote {
+		t.Error("an update with no --active/--inactive changed the account's enabled state")
+	}
+}
+
+func TestUseraddActiveRestoresADisabledAccount(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co", "enabled": false}})
+	if code := applyAgainst(t, s, useraddOpts{email: "sam@x.co", update: true, active: true}, ""); code != 0 {
+		t.Fatalf("update --active: exit %d", code)
+	}
+	body, _ := s.puts["/admin/realms/semiont/users/abc-123"].(map[string]any)
+	if body == nil || body["enabled"] != true {
+		t.Errorf("--active did not enable the account: %v", body)
+	}
+	if _, wrote := s.puts["/admin/realms/semiont/users/abc-123/reset-password"]; wrote {
+		t.Error("an update with no password reset one anyway")
+	}
+}
