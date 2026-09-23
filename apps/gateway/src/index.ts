@@ -181,7 +181,6 @@ const logger = getLogger();
 const eventBus = new EventBus();
 
 // Import route definitions
-import { rootRouter } from './routes/root';
 import { healthRouter } from './routes/health';
 import { wellKnownRouter } from './routes/well-known';
 import { authRouter } from './routes/auth';
@@ -263,7 +262,6 @@ app.use('*', async (c, next) => {
 });
 
 // Mount route routers
-app.route('/', rootRouter);
 app.route('/', healthRouter);
 app.route('/', wellKnownRouter);
 app.route('/', authRouter);
