@@ -5,7 +5,7 @@
  * generated from the OpenAPI spec.
  */
 
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
 import type { components } from '@semiont/core';
 
 type HealthResponse = components['schemas']['HealthResponse'];
@@ -14,12 +14,10 @@ type HealthResponse = components['schemas']['HealthResponse'];
 export const healthRouter = new Hono();
 
 /**
- * GET /api/health
- *
- * Health check endpoint - no validation needed (no request body)
- * Response type comes from OpenAPI spec via generated types
+ * Health check - no validation needed (no request body).
+ * Response type comes from OpenAPI spec via generated types.
  */
-healthRouter.get('/api/health', async (c) => {
+async function health(c: Context) {
   const nodeEnv = process.env.NODE_ENV;
   if (!nodeEnv) {
     throw new Error('NODE_ENV environment variable is required');
@@ -34,4 +32,10 @@ healthRouter.get('/api/health', async (c) => {
   };
 
   return c.json(response, 200);
-});
+}
+
+healthRouter.get('/api/health', health);
+
+// `/` is where a person who typed this host lands. One handler, so the two
+// can never disagree: a bare 404 there reads as "the gateway is down".
+healthRouter.get('/', health);

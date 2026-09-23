@@ -15,6 +15,9 @@
     "/api/health": {
       "$ref": "paths/api_health.json"
     },
+    "/": {
+      "$ref": "paths/api_health.json"
+    },
     "/.well-known/oauth-protected-resource": {
       "$ref": "paths/well-known_oauth-protected-resource.json"
     },

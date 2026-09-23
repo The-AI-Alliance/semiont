@@ -1,7 +1,7 @@
 {
   "get": {
     "summary": "Health Check",
-    "description": "Check if the API is operational and database is connected",
+    "description": "Check if the API is operational. Served at both /api/health and /, so a person who types the host gets an answer rather than a 404.",
     "tags": [
       "System"
     ],

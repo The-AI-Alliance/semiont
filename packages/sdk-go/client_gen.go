@@ -11131,6 +11131,9 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
+	// Get request
+	Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetWellKnownOauthProtectedResource request
 	GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11174,6 +11177,18 @@ type ClientInterface interface {
 
 	// GetResourcesIdJsonld request
 	GetResourcesIdJsonld(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
+}
+
+func (c *Client) Get(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
 }
 
 func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -11366,6 +11381,33 @@ func (c *Client) GetResourcesIdJsonld(ctx context.Context, id string, reqEditors
 		return nil, err
 	}
 	return c.Client.Do(req)
+}
+
+// NewGetRequest generates requests for Get
+func NewGetRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
 }
 
 // NewGetWellKnownOauthProtectedResourceRequest generates requests for GetWellKnownOauthProtectedResource
@@ -11810,6 +11852,9 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
+	// GetWithResponse request
+	GetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetResponse, error)
+
 	// GetWellKnownOauthProtectedResourceWithResponse request
 	GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error)
 
@@ -11853,6 +11898,28 @@ type ClientWithResponsesInterface interface {
 
 	// GetResourcesIdJsonldWithResponse request
 	GetResourcesIdJsonldWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetResourcesIdJsonldResponse, error)
+}
+
+type GetResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *HealthResponse
+}
+
+// Status returns HTTPResponse.Status
+func (r GetResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
 }
 
 type GetWellKnownOauthProtectedResourceResponse struct {
@@ -12140,6 +12207,15 @@ func (r GetResourcesIdJsonldResponse) StatusCode() int {
 	return 0
 }
 
+// GetWithResponse request returning *GetResponse
+func (c *ClientWithResponses) GetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetResponse, error) {
+	rsp, err := c.Get(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetResponse(rsp)
+}
+
 // GetWellKnownOauthProtectedResourceWithResponse request returning *GetWellKnownOauthProtectedResourceResponse
 func (c *ClientWithResponses) GetWellKnownOauthProtectedResourceWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetWellKnownOauthProtectedResourceResponse, error) {
 	rsp, err := c.GetWellKnownOauthProtectedResource(ctx, reqEditors...)
@@ -12278,6 +12354,32 @@ func (c *ClientWithResponses) GetResourcesIdJsonldWithResponse(ctx context.Conte
 		return nil, err
 	}
 	return ParseGetResourcesIdJsonldResponse(rsp)
+}
+
+// ParseGetResponse parses an HTTP response from a GetWithResponse call
+func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest HealthResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
 }
 
 // ParseGetWellKnownOauthProtectedResourceResponse parses an HTTP response from a GetWellKnownOauthProtectedResourceWithResponse call
