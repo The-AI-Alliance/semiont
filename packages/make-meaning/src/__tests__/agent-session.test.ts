@@ -205,6 +205,34 @@ describe('startAgentSession', () => {
     expect(session.token$.value).toBe(second);
   });
 
+  // ── REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P3 ─────────────────────────
+  // The browser session ended on ANY refresh failure; this one re-armed on any
+  // failure forever. Neither disagreement was chosen. Both now read the same
+  // named rule: the issuer's answer is the verdict, its absence never is.
+
+  it('STOPS re-arming when the credential is refused — a revoked worker is not renewable', async () => {
+    // The behaviour this phase adds. Re-arming forever against a credential an
+    // administrator revoked is the case revocation exists to prevent, and it
+    // was indistinguishable from riding out a restart.
+    const first = tokenExpiringIn(400_000, 'first');
+    fetchMock
+      .mockResolvedValueOnce(minted(first))
+      .mockResolvedValueOnce(new Response('', { status: 401, statusText: 'Unauthorized' }));
+    const logger = makeLogger();
+    session = await start(logger);
+
+    await vi.advanceTimersByTimeAsync(200_000);
+    expect(fetchMock, 'the refusal was received').toHaveBeenCalledTimes(2);
+
+    // Long past any floor or half-life: nothing more is attempted.
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(fetchMock, 'a refusal ends the loop').toHaveBeenCalledTimes(2);
+    expect(logger.error).toHaveBeenCalledWith(
+      'Re-authentication refused; not retrying',
+      expect.objectContaining({ error: expect.stringContaining('401') }),
+    );
+  });
+
   it('a token with no readable exp schedules nothing', async () => {
     fetchMock.mockResolvedValueOnce(minted(jwt({ sub: 'no-exp' })));
     session = await start();

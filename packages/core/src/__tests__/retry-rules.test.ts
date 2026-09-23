@@ -45,8 +45,53 @@ describe('RETRY_RULES', () => {
   it('is the only way to reach a rule, so a new one cannot be unreachable-but-forgotten', () => {
     // Reachability IS the census gate: rules are not exported individually, so a
     // rule absent from this record cannot be consumed by anyone.
-    expect(Object.keys(RETRY_RULES).sort()).toEqual(['boot', 'job', 'transport']);
+    expect(Object.keys(RETRY_RULES).sort()).toEqual(['boot', 'job', 'refresh', 'transport']);
     expect(Object.isFrozen(RETRY_RULES)).toBe(true);
+  });
+
+  describe('the refresh rule separates a refusal from an outage', () => {
+    // REFRESH-FAILURE-TRANSIENT-VS-TERMINAL. A token refresh had one answer for
+    // every failure — `catch { return null }` — and the caller treats null as
+    // terminal, so a lost packet ended the session exactly like a revocation.
+
+    it('a refused grant is terminal, on the first answer', () => {
+      // RFC 6749 §5.2: a revoked, expired or already-rotated refresh token comes
+      // back as 400 `invalid_grant`. Retrying cannot change that answer, and
+      // spending a budget on it only delays a re-login the user must do anyway.
+      expect(RETRY_RULES.refresh.retryable({ status: 400 })).toBe(false);
+      expect(RETRY_RULES.refresh.retryable({ status: 401 })).toBe(false);
+      expect(RETRY_RULES.refresh.retryable({ status: 403 })).toBe(false);
+    });
+
+    it('an issuer saying "not now" is transient', () => {
+      for (const status of [408, 429, 500, 502, 503, 504]) {
+        expect(RETRY_RULES.refresh.retryable({ status }), `on ${status}`).toBe(true);
+      }
+    });
+
+    it('no response at all is transient — that is the case this rule exists for', () => {
+      // `fetch` throws before a status exists. The absence of an answer is not
+      // the issuer refusing; it is the network, and the session survives it.
+      expect(RETRY_RULES.refresh.retryable({})).toBe(true);
+    });
+
+    it('anything unclassified is TERMINAL, which inverts the usual instinct on purpose', () => {
+      // A 404 on the token endpoint is a misconfiguration and a 418 is nonsense.
+      // Neither is a promise to recover, and the honest answer to an
+      // unclassified fault is the visible re-login — over-retrying here means a
+      // user staring at a hung app instead.
+      expect(RETRY_RULES.refresh.retryable({ status: 404 })).toBe(false);
+      expect(RETRY_RULES.refresh.retryable({ status: 418 })).toBe(false);
+    });
+
+    it('disagrees with the boot rule about 500, and both are right', () => {
+      // These will read as contradictory. They are not: a boot pass replays
+      // whatever broke it, while a token refresh is a single idempotent exchange
+      // with nothing to replay. Different questions, different answers, one
+      // taxonomy that can hold both.
+      expect(RETRY_RULES.boot.retryable({ status: 500 })).toBe(false);
+      expect(RETRY_RULES.refresh.retryable({ status: 500 })).toBe(true);
+    });
   });
 
   describe('the transport rule keys on method as well as status', () => {

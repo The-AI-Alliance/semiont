@@ -49,6 +49,20 @@ import {
 import type { ServiceAccountCredential } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
 import { parseJwtExpiry, refreshDelayMs } from '@semiont/sdk';
+import { RETRY_RULES } from '@semiont/core';
+
+/**
+ * An HTTP-level refusal from the token endpoint, carrying its status.
+ *
+ * A plain `Error` put the status in the message and nowhere else, so the one
+ * caller that needs to branch on it — is this renewable? — could not.
+ */
+class AuthRefused extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'AuthRefused';
+  }
+}
 
 /** The logging surface this module uses, structurally. */
 interface SessionLogger {
@@ -107,7 +121,10 @@ async function authenticate(opts: AgentSessionOptions): Promise<string> {
       });
 
       if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+        throw new AuthRefused(
+          `Authentication failed: ${response.status} ${response.statusText}`,
+          response.status,
+        );
       }
 
       const { token } = await response.json() as { token: string; did: string };
@@ -163,10 +180,18 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
     if (delay === null) return;
     timer = setTimeout(() => {
       refresh().catch((error) => {
-        logger.error('Proactive re-authentication failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        // Keep trying against the token in hand; it may still be valid.
+        const detail = { error: error instanceof Error ? error.message : String(error) };
+        // The issuer's answer is the verdict; its absence never is
+        // (REFRESH-FAILURE-TRANSIENT-VS-TERMINAL). A refused credential cannot
+        // become valid again, so re-arming against it is an infinite loop that
+        // outlives the revocation it should have respected — measured at 47
+        // attempts in ten minutes before this. An outage is the other case: the
+        // token in hand may still be good, and the loop is how it recovers.
+        if (!RETRY_RULES.refresh.retryable(error instanceof AuthRefused ? { status: error.status } : {})) {
+          logger.error('Re-authentication refused; not retrying', detail);
+          return;
+        }
+        logger.error('Proactive re-authentication failed', detail);
         rearm(token$.value ?? '');
       });
     }, delay);
