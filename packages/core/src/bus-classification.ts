@@ -26,6 +26,28 @@ export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */
   readonly recorded: boolean;
   readonly direction: ChannelDirection;
+  /**
+   * Does emitting this channel CHANGE the knowledge base, or only ask it
+   * something?
+   *
+   * A WRITE is an act: it appends to the event log, or it enqueues or
+   * transitions durable work the log will later cite. A READ answers from
+   * state that already exists and leaves nothing behind — every `browse:*`
+   * request, and the three lookups that merely resolve a token or a summary.
+   *
+   * The domain is exactly the EMITTABLE set: an operation's request, or a
+   * `kind: command`. Inbound replies, broadcast events and in-process UI
+   * signals are absent because nobody emits them at the gateway, so the
+   * question does not arise. Every emittable channel names one side or the
+   * other and the generator refuses — there is no default.
+   *
+   * The gateway reads this to decide when the record learns a person's name:
+   * a `_userId` stamp is NOT the test, because a read carries one too
+   * (PERSON-PROFILE D3). Someone who signs in and only browses is never
+   * named, and the profile publish rate is the WRITE rate rather than the
+   * emit rate — orders of magnitude apart.
+   */
+  readonly writes?: boolean;
   readonly delivery?: ChannelDelivery;
 }
 
@@ -36,14 +58,14 @@ export const CHANNEL_ATTRS = {
   'yield:moved':                      { recorded: true, direction: 'inbound' },
   'yield:representation-added':       { recorded: true, direction: 'inbound' },
   'yield:representation-removed':     { recorded: true, direction: 'inbound' },
-  'yield:create':                     { recorded: false, direction: 'outbound' },
-  'yield:clone-persist':              { recorded: false, direction: 'outbound' },
-  'yield:update':                     { recorded: false, direction: 'outbound' },
+  'yield:create':                     { recorded: false, direction: 'outbound', writes: true },
+  'yield:clone-persist':              { recorded: false, direction: 'outbound', writes: true },
+  'yield:update':                     { recorded: false, direction: 'outbound', writes: true },
   'yield:mv':                         { recorded: false, direction: 'in-process' },
   'yield:clone':                      { recorded: false, direction: 'in-process' },
-  'yield:clone-token-requested':      { recorded: false, direction: 'outbound' },
-  'yield:clone-resource-requested':   { recorded: false, direction: 'outbound' },
-  'yield:clone-create':               { recorded: false, direction: 'outbound' },
+  'yield:clone-token-requested':      { recorded: false, direction: 'outbound', writes: false },
+  'yield:clone-resource-requested':   { recorded: false, direction: 'outbound', writes: false },
+  'yield:clone-create':               { recorded: false, direction: 'outbound', writes: true },
   'yield:create-ok':                  { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'yield:create-failed':              { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'yield:clone-persist-ok':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
@@ -64,16 +86,16 @@ export const CHANNEL_ATTRS = {
   'mark:entity-tag-removed':          { recorded: true, direction: 'inbound' },
   'mark:archived':                    { recorded: true, direction: 'inbound' },
   'mark:unarchived':                  { recorded: true, direction: 'inbound' },
-  'mark:create-request':              { recorded: false, direction: 'outbound' },
+  'mark:create-request':              { recorded: false, direction: 'outbound', writes: true },
   'mark:create':                      { recorded: false, direction: 'in-process' },
-  'mark:delete':                      { recorded: false, direction: 'outbound' },
-  'mark:update-body':                 { recorded: false, direction: 'outbound' },
-  'mark:archive':                     { recorded: false, direction: 'outbound' },
-  'mark:unarchive':                   { recorded: false, direction: 'outbound' },
-  'mark:update-entity-types':         { recorded: false, direction: 'outbound' },
+  'mark:delete':                      { recorded: false, direction: 'outbound', writes: true },
+  'mark:update-body':                 { recorded: false, direction: 'outbound', writes: true },
+  'mark:archive':                     { recorded: false, direction: 'outbound', writes: true },
+  'mark:unarchive':                   { recorded: false, direction: 'outbound', writes: true },
+  'mark:update-entity-types':         { recorded: false, direction: 'outbound', writes: true },
   'mark:create-ok':                   { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'mark:create-failed':               { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'mark:commit':                      { recorded: false, direction: 'outbound' },
+  'mark:commit':                      { recorded: false, direction: 'outbound', writes: true },
   'mark:commit-ok':                   { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'mark:commit-failed':               { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'mark:delete-ok':                   { recorded: false, direction: 'inbound', delivery: 'correlated' },
@@ -100,67 +122,67 @@ export const CHANNEL_ATTRS = {
   'bind:body-error':                  { recorded: false, direction: 'in-process' },
   'frame:entity-type-added':          { recorded: true, direction: 'inbound' },
   'frame:tag-schema-added':           { recorded: true, direction: 'inbound' },
-  'frame:add-entity-type':            { recorded: false, direction: 'outbound' },
-  'frame:add-tag-schema':             { recorded: false, direction: 'outbound' },
+  'frame:add-entity-type':            { recorded: false, direction: 'outbound', writes: true },
+  'frame:add-tag-schema':             { recorded: false, direction: 'outbound', writes: true },
   'frame:entity-type-add-ok':         { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:entity-type-add-failed':     { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:tag-schema-add-ok':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'frame:tag-schema-add-failed':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'person:profiled':                  { recorded: true, direction: 'inbound' },
-  'person:profile':                   { recorded: false, direction: 'outbound' },
+  'person:profile':                   { recorded: false, direction: 'outbound', writes: true },
   'bind:initiate':                    { recorded: false, direction: 'in-process' },
-  'bind:update-body':                 { recorded: false, direction: 'outbound' },
+  'bind:update-body':                 { recorded: false, direction: 'outbound', writes: true },
   'bind:body-updated':                { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'bind:body-update-failed':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'match:search-requested':           { recorded: false, direction: 'outbound' },
+  'match:search-requested':           { recorded: false, direction: 'outbound', writes: false },
   'match:search-results':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'match:search-failed':              { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'gather:requested':                 { recorded: false, direction: 'outbound' },
+  'gather:requested':                 { recorded: false, direction: 'outbound', writes: false },
   'gather:complete':                  { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'gather:failed':                    { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'gather:resource-requested':        { recorded: false, direction: 'outbound' },
+  'gather:resource-requested':        { recorded: false, direction: 'outbound', writes: false },
   'gather:resource-complete':         { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'gather:resource-failed':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'gather:summary-requested':         { recorded: false, direction: 'outbound' },
+  'gather:summary-requested':         { recorded: false, direction: 'outbound', writes: false },
   'gather:summary-result':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'gather:summary-failed':            { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:resource-requested':        { recorded: false, direction: 'outbound' },
+  'browse:resource-requested':        { recorded: false, direction: 'outbound', writes: false },
   'browse:resource-result':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:resource-failed':           { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:anchored-text-requested':   { recorded: false, direction: 'outbound' },
+  'browse:anchored-text-requested':   { recorded: false, direction: 'outbound', writes: false },
   'browse:anchored-text-result':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:anchored-text-failed':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:resources-requested':       { recorded: false, direction: 'outbound' },
+  'browse:resources-requested':       { recorded: false, direction: 'outbound', writes: false },
   'browse:resources-result':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:resources-failed':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:annotations-requested':     { recorded: false, direction: 'outbound' },
+  'browse:annotations-requested':     { recorded: false, direction: 'outbound', writes: false },
   'browse:annotations-result':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:annotations-failed':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:annotation-requested':      { recorded: false, direction: 'outbound' },
+  'browse:annotation-requested':      { recorded: false, direction: 'outbound', writes: false },
   'browse:annotation-result':         { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:annotation-failed':         { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:events-requested':          { recorded: false, direction: 'outbound' },
+  'browse:events-requested':          { recorded: false, direction: 'outbound', writes: false },
   'browse:events-result':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:events-failed':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:annotation-history-requested': { recorded: false, direction: 'outbound' },
+  'browse:annotation-history-requested': { recorded: false, direction: 'outbound', writes: false },
   'browse:annotation-history-result': { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:annotation-history-failed': { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:annotation-context-requested': { recorded: false, direction: 'outbound' },
+  'browse:annotation-context-requested': { recorded: false, direction: 'outbound', writes: false },
   'browse:annotation-context-result': { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:annotation-context-failed': { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:referenced-by-requested':   { recorded: false, direction: 'outbound' },
+  'browse:referenced-by-requested':   { recorded: false, direction: 'outbound', writes: false },
   'browse:referenced-by-result':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:referenced-by-failed':      { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:entity-types-requested':    { recorded: false, direction: 'outbound' },
+  'browse:entity-types-requested':    { recorded: false, direction: 'outbound', writes: false },
   'browse:entity-types-result':       { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:entity-types-failed':       { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:tag-schemas-requested':     { recorded: false, direction: 'outbound' },
+  'browse:tag-schemas-requested':     { recorded: false, direction: 'outbound', writes: false },
   'browse:tag-schemas-result':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:tag-schemas-failed':        { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:agents-requested':          { recorded: false, direction: 'outbound' },
+  'browse:agents-requested':          { recorded: false, direction: 'outbound', writes: false },
   'browse:agents-result':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:agents-failed':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'browse:directory-requested':       { recorded: false, direction: 'outbound' },
+  'browse:directory-requested':       { recorded: false, direction: 'outbound', writes: false },
   'browse:directory-result':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:directory-failed':          { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'browse:click':                     { recorded: false, direction: 'inbound' },
@@ -183,18 +205,18 @@ export const CHANNEL_ATTRS = {
   'job:assigned':                     { recorded: true, direction: 'inbound' },
   'job:completed':                    { recorded: true, direction: 'inbound' },
   'job:failed':                       { recorded: true, direction: 'inbound' },
-  'job:start':                        { recorded: false, direction: 'outbound' },
-  'job:assign':                       { recorded: false, direction: 'outbound' },
+  'job:start':                        { recorded: false, direction: 'outbound', writes: true },
+  'job:assign':                       { recorded: false, direction: 'outbound', writes: true },
   'job:report-progress':              { recorded: false, direction: 'inbound' },
   'job:complete':                     { recorded: false, direction: 'inbound' },
   'job:fail':                         { recorded: false, direction: 'inbound' },
-  'job:checkpoint':                   { recorded: false, direction: 'outbound' },
+  'job:checkpoint':                   { recorded: false, direction: 'outbound', writes: true },
   'job:queued':                       { recorded: false, direction: 'inbound' },
-  'job:cancel-requested':             { recorded: false, direction: 'outbound' },
-  'job:cancel':                       { recorded: false, direction: 'outbound' },
-  'job:status-requested':             { recorded: false, direction: 'outbound' },
-  'job:create':                       { recorded: false, direction: 'outbound' },
-  'job:claim':                        { recorded: false, direction: 'outbound' },
+  'job:cancel-requested':             { recorded: false, direction: 'outbound', writes: true },
+  'job:cancel':                       { recorded: false, direction: 'outbound', writes: true },
+  'job:status-requested':             { recorded: false, direction: 'outbound', writes: false },
+  'job:create':                       { recorded: false, direction: 'outbound', writes: true },
+  'job:claim':                        { recorded: false, direction: 'outbound', writes: true },
   'job:status-result':                { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'job:status-failed':                { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'job:created':                      { recorded: false, direction: 'inbound', delivery: 'correlated' },
@@ -205,10 +227,10 @@ export const CHANNEL_ATTRS = {
   'job:cancel-failed':                { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'weave:applied':                    { recorded: false, direction: 'inbound' },
   'smelt:settled':                    { recorded: false, direction: 'inbound' },
-  'weave:rebuild':                    { recorded: false, direction: 'outbound' },
+  'weave:rebuild':                    { recorded: false, direction: 'outbound', writes: true },
   'weave:rebuild-ok':                 { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'weave:rebuild-failed':             { recorded: false, direction: 'inbound', delivery: 'correlated' },
-  'smelt:rebuild-anchors':            { recorded: false, direction: 'outbound' },
+  'smelt:rebuild-anchors':            { recorded: false, direction: 'outbound', writes: true },
   'smelt:rebuild-anchors-ok':         { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'smelt:rebuild-anchors-failed':     { recorded: false, direction: 'inbound', delivery: 'correlated' },
   'settings:theme-changed':           { recorded: false, direction: 'in-process' },
@@ -228,3 +250,8 @@ const BY_CHANNEL: ReadonlyMap<string, ChannelAttrs> = new Map(Object.entries(CHA
  *  EventName. Undefined means "not a channel", never "unclassified" — the
  *  satisfies above makes unclassified unrepresentable. */
 export const channelAttrsOf = (channel: string): ChannelAttrs | undefined => BY_CHANNEL.get(channel);
+
+/** Did emitting this channel CHANGE the knowledge base? False for a read, and
+ *  for anything nobody emits — both are "no act happened", which is the
+ *  question every caller is actually asking. */
+export const channelWrites = (channel: string): boolean => BY_CHANNEL.get(channel)?.writes === true;

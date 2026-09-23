@@ -3,7 +3,6 @@ import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
 import { EventBus, annotationId, resourceId as makeResourceId, userId } from '@semiont/core';
 import type { Principal } from '../../identity/principal';
-import { resetProfileCache } from '../../identity/person-profile';
 import type {
   EventBus as EventBusType,
   StoredEvent,
@@ -206,10 +205,6 @@ describe('bus routes', () => {
   beforeEach(() => {
     eventBus = new EventBus();
     app = buildApp(eventBus);
-    // The profile cache is process state (PERSON-PROFILE): without this, the
-    // first test to emit as the fake user suppresses every later one's
-    // person:profile and the assertion below would pass or fail on file order.
-    resetProfileCache();
   });
 
   // Presence is SSE CONNECTION LIFECYCLE, not login (D5): `semiont login`
@@ -318,26 +313,24 @@ describe('bus routes', () => {
     // PERSON-PROFILE D3: the record learns what a person is called when that
     // person ACTS, and an emit is the act. The name rides its own system
     // event — never this payload, which carries only the DID.
-    it('emits person:profile beside the stamp on a person\'s first emit, and not on the second', async () => {
+    it('emits person:profile when the person WRITES, and not when they only read', async () => {
       const profiles: Array<{ name: string }> = [];
       eventBus.on('person:profile' as any).subscribe((p) => profiles.push(p as never));
-      const stamped: Array<Record<string, unknown>> = [];
-      eventBus.on('mark:added' as any).subscribe((p) => stamped.push(p as never));
 
-      const emit = () => app.request('/bus/emit', {
+      const emit = (channel: string, payload: Record<string, unknown>) => app.request('/bus/emit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channel: 'mark:added', payload: { annotationId: 'a-1' } }),
+        body: JSON.stringify({ channel, payload }),
       });
 
-      await emit();
+      // A read carries a `_userId` exactly as a write does, which is why
+      // stamping is not the test. Recording this would name every reader.
+      await emit('browse:resources-requested', {});
+      expect(profiles, 'reading is not an act').toEqual([]);
+
+      // A write is.
+      await emit('mark:delete', { resourceId: 'r-1', annotationId: 'a-1' });
       expect(profiles).toEqual([{ _userId: expect.any(String), name: 'Test' }]);
-
-      await emit();
-      expect(profiles, 'the name is news once, not once per act').toHaveLength(1);
-
-      expect(stamped[0], 'the act itself carries the DID and no name').not.toHaveProperty('name');
-      expect(stamped[0]).toHaveProperty('_userId');
     });
 
     it('emits an event onto the bus and returns 202 for unvalidated channel', async () => {

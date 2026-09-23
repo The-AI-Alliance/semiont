@@ -198,6 +198,49 @@ export function validateRegistry(reg) {
     }
   }
 
+  // ── effect: does emitting this channel CHANGE anything? ─────────────────
+  //
+  // The domain is the EMITTABLE set — an operation's request, or a
+  // `kind: command`. Nothing else: a reply, a broadcast event and an
+  // in-process UI signal are never emitted at the gateway, so the question
+  // does not arise for them.
+  //
+  // Every member names one side and there is no default, because the gateway
+  // reads this to decide whether an emit was an ACT. A channel that fell
+  // through would read as "not an act" and quietly stop the record from ever
+  // learning that person's name (PERSON-PROFILE D3) — the same silent shape
+  // as the direction fallthrough that starved every worker.
+  const emittable = new Set([...reg.operations.map((op) => op.request), ...(reg.kind?.command ?? [])]);
+  const effectOf = new Map();
+  for (const side of ['writes', 'reads']) {
+    const seen = new Set();
+    for (const ch of reg.effect?.[side] ?? []) {
+      known(ch, `effect.${side}`);
+      if (seen.has(ch)) problems.push(`effect.${side} lists "${ch}" more than once`);
+      seen.add(ch);
+      const prior = effectOf.get(ch);
+      if (prior) {
+        problems.push(`"${ch}" is declared BOTH effect.${prior} and effect.${side} — an emit either changes the knowledge base or it does not`);
+      } else {
+        effectOf.set(ch, side);
+      }
+      if (!emittable.has(ch)) {
+        problems.push(
+          `effect.${side} names "${ch}", which nobody emits — the domain is ` +
+            `an operation's request or a kind.command`,
+        );
+      }
+    }
+  }
+  for (const ch of emittable) {
+    if (!effectOf.has(ch)) {
+      problems.push(
+        `emittable channel "${ch}" declares no effect — add it to effect.writes ` +
+          `or effect.reads. There is no default.`,
+      );
+    }
+  }
+
   // A directive for whichever single handler owns it, broadcast to every
   // default client, is a combination no member wants. Refuse it rather than
   // leave it expressible and untested.

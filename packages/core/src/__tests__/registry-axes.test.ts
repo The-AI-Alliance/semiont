@@ -50,6 +50,10 @@ function baseRegistry() {
     },
     inProcess: { doc: [], channels: ['demo:internal'] },
     resourceBroadcasts: { channels: [], bodyComment: [] },
+    // The third axis: does emitting it CHANGE the knowledge base? Its domain
+    // is the emittable set — an operation's request, or a kind.command —
+    // which here is `demo:requested` alone.
+    effect: { doc: '', writes: ['demo:requested'] as string[], reads: [] as string[] },
   };
 }
 
@@ -124,4 +128,29 @@ describe('registry axes — a channel declares HOW it crosses, or refuses to gen
     reg.audience.declared = ['demo:typo'];
     expect(complains(reg, 'demo:typo')).toBe(true);
   });
+
+  test('refuses an emittable channel with NO effect', () => {
+    const reg = baseRegistry();
+    reg.effect.writes = [];
+    expect(
+      complains(reg, 'declares no effect'),
+      'the gateway reads this to decide whether an emit was an act — a gap reads as "no act"',
+    ).toBe(true);
+  });
+
+  test('refuses a channel declared BOTH a write and a read', () => {
+    const reg = baseRegistry();
+    reg.effect.reads = ['demo:requested'];
+    expect(complains(reg, 'both effect.writes and effect.reads')).toBe(true);
+  });
+
+  test('refuses an effect declared for a channel nobody emits', () => {
+    const reg = baseRegistry();
+    reg.effect.reads = ['demo:happened'];
+    expect(
+      complains(reg, 'which nobody emits'),
+      'an event is delivered, never emitted at the gateway — the question does not arise',
+    ).toBe(true);
+  });
+
 });

@@ -236,6 +236,14 @@ for (const ch of [...commandSet, ...declaredSet, ...inProcessSet]) {
   if (!roster.has(ch)) throw new Error(`registry: "${ch}" is classified but not in channelOrder.eventMap`);
 }
 
+// `effect` is the fourth axis, and the only one whose domain is narrower than
+// the roster: it answers "does emitting this channel CHANGE the knowledge
+// base?", and only an operation's request or a `kind: command` is ever
+// emitted. Membership and completeness are gated in validate-registry.mjs,
+// which this generator runs first — here we only read the decision.
+const writesSet = new Set(reg.effect.writes);
+const emittableSet = new Set([...requestSet, ...commandSet]);
+
 const attrLines = reg.channelOrder.eventMap.map((ch) => {
   const c = channelOr(ch, 'eventMap');
   const recorded = Boolean(c.event);
@@ -251,8 +259,12 @@ const attrLines = reg.channelOrder.eventMap.map((ch) => {
           `kind + audience, or inProcess. There is no default.`,
         );
       })();
+  // Absent rather than false off the emittable set: "nobody emits this" is a
+  // different answer from "emitting this changes nothing", and collapsing them
+  // would let a reply channel read as a deliberate read.
+  const effect = emittableSet.has(ch) ? `, writes: ${writesSet.has(ch)}` : '';
   const tail = delivery ? `, delivery: '${delivery}'` : '';
-  return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `{ recorded: ${recorded}, direction: '${direction}'${tail} },`;
+  return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `{ recorded: ${recorded}, direction: '${direction}'${effect}${tail} },`;
 });
 
 const classification =
@@ -276,6 +288,9 @@ export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */
   readonly recorded: boolean;
   readonly direction: ChannelDirection;
+` +
+  reg.effect.doc.replace(/^/gm, '  ') + `
+  readonly writes?: boolean;
   readonly delivery?: ChannelDelivery;
 }
 
@@ -291,6 +306,11 @@ const BY_CHANNEL: ReadonlyMap<string, ChannelAttrs> = new Map(Object.entries(CHA
  *  EventName. Undefined means "not a channel", never "unclassified" — the
  *  satisfies above makes unclassified unrepresentable. */
 export const channelAttrsOf = (channel: string): ChannelAttrs | undefined => BY_CHANNEL.get(channel);
+
+/** Did emitting this channel CHANGE the knowledge base? False for a read, and
+ *  for anything nobody emits — both are "no act happened", which is the
+ *  question every caller is actually asking. */
+export const channelWrites = (channel: string): boolean => BY_CHANNEL.get(channel)?.writes === true;
 `;
 
 const outputs = [
