@@ -25,8 +25,8 @@ import * as os from 'os';
 import * as net from 'net';
 import { connect } from 'nats';
 import { JetStreamJobQueue } from '../jetstream-job-queue';
-import type { JobId } from '@semiont/core';
-import { runJobQueueConformance } from './job-queue-conformance';
+import type { JobId, Logger } from '@semiont/core';
+import { createPendingDetectionJob, runJobQueueConformance } from './job-queue-conformance';
 
 const mockLogger = {
   debug: vi.fn(),
@@ -73,12 +73,38 @@ async function waitForServer(port: number, proc: ChildProcess): Promise<void> {
   }
 }
 
+interface Auth {
+  user: string;
+  pass: string;
+}
+
+/**
+ * JetStream state lives under `dataDir`, so a respawn on the same dir is a
+ * broker RESTART — stream, consumer and bucket intact — not a fresh broker.
+ */
+async function spawnServer(port: number, dataDir: string, auth?: Auth): Promise<ChildProcess> {
+  const args = ['-js', '-sd', dataDir, '-p', String(port), '-a', '127.0.0.1'];
+  if (auth) args.push('--user', auth.user, '--pass', auth.pass);
+  const server = spawn('nats-server', args, { stdio: 'ignore' });
+  server.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT') {
+      throw new Error(
+        'nats-server not found on PATH — the JetStream suite runs against a real server. ' +
+        'Install it: `apk add nats-server` (alpine test container), `brew install nats-server` (mac), ' +
+        'or the nats-io/nats-server release binary (CI).',
+      );
+    }
+    throw error;
+  });
+  await waitForServer(port, server);
+  return server;
+}
+
 describe('multi-instance — the property this plan exists to buy (JOB-QUEUE-DRIVER P2)', () => {
   test('two gateways over one NATS: every job completes exactly once, and every lease settles', async () => {
     const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-multi-'));
     const port = await freePort();
-    const server = spawn('nats-server', ['-js', '-sd', dataDir, '-p', String(port), '-a', '127.0.0.1'], { stdio: 'ignore' });
-    await waitForServer(port, server);
+    const server = await spawnServer(port, dataDir);
     const servers = `127.0.0.1:${port}`;
 
     // Short lease window so settle-reconciliation runs inside the test.
@@ -90,7 +116,6 @@ describe('multi-instance — the property this plan exists to buy (JOB-QUEUE-DRI
       await b.initialize();
 
       const ids = Array.from({ length: 12 }, (_, i) => `job-multi-${i}`);
-      const { createPendingDetectionJob } = await import('./job-queue-conformance');
       for (const id of ids) await a.createJob(createPendingDetectionJob(id));
 
       // Let deliveries spread across both instances' consumers.
@@ -145,12 +170,11 @@ describe('the periodic tick — re-announce and worker-death sweep (driver-speci
   test('an unclaimed pending job is re-announced, and a stale running job recovers without an explicit sweep call', async () => {
     const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-tick-'));
     const port = await freePort();
-    const server = spawn('nats-server', ['-js', '-sd', dataDir, '-p', String(port), '-a', '127.0.0.1'], { stdio: 'ignore' });
-    await waitForServer(port, server);
+    const server = await spawnServer(port, dataDir);
     const servers = `127.0.0.1:${port}`;
 
     const { EventBus, jobId } = await import('@semiont/core');
-    const { createPendingDetectionJob, createRunningDetectionJob } = await import('./job-queue-conformance');
+    const { createRunningDetectionJob } = await import('./job-queue-conformance');
     const bus = new EventBus();
     const announced: string[] = [];
     bus.on('job:queued').subscribe((e) => announced.push(e.jobId as string));
@@ -187,24 +211,162 @@ describe('the periodic tick — re-announce and worker-death sweep (driver-speci
   }, 30_000);
 });
 
+/**
+ * The broker-outage contract of the queue's connection — the same three
+ * facts the gateway's signal plane pins (`nats-reconnect.test.ts`), on the
+ * Dispatcher's connection:
+ *
+ *  1. an outage longer than the library's default attempt budget (ten
+ *     tries, ~20 s) is survived: a manual broker restart is the recovery,
+ *     and the budget closing the connection for good is the bug the
+ *     gateway found live on 2026-09-15;
+ *  2. the outage is not silent: `[jobs BROKER-DOWN]` and
+ *     `[jobs BROKER-RECONNECTED]`;
+ *  3. credentials are re-presented on reconnect — and a broker back with a
+ *     ROTATED pair is the outage retry-forever does not survive (two
+ *     refusals end the client's loop), so the queue must say so:
+ *     `[jobs BROKER-CLOSED]`, and writes fail rather than buffer.
+ */
+const USER = 'semiont';
+const PASS = 'correct-horse-battery-staple';
+
+function captureLogs() {
+  const warns: string[] = [];
+  const infos: string[] = [];
+  const errors: Array<{ msg: string; meta?: unknown }> = [];
+  const logger: Logger = {
+    debug: () => {},
+    info: (msg) => { infos.push(msg); },
+    warn: (msg) => { warns.push(msg); },
+    error: (msg, meta) => { errors.push({ msg, meta }); },
+    child: () => logger,
+  };
+  return { logger, warns, infos, errors };
+}
+
+async function settle(check: () => boolean, ms: number): Promise<void> {
+  const deadline = Date.now() + ms;
+  while (!check()) {
+    if (Date.now() > deadline) return;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+}
+
+const has = (lines: string[], breadcrumb: string) => lines.some((m) => m.includes(breadcrumb));
+
+/** Created, delivered to this instance's consumer, claimed, completed: the whole path, not just the bucket. */
+async function proveQueue(q: JetStreamJobQueue, id: string): Promise<void> {
+  const { jobId } = await import('@semiont/core');
+  await q.createJob(createPendingDetectionJob(id));
+  const deadline = Date.now() + 10_000;
+  for (;;) {
+    const r = await q.claimNextJob([]);
+    if ('job' in r) {
+      expect(r.job.metadata.id, 'the claim took a job this test did not create').toBe(id);
+      await q.completeJob(jobId(id), {});
+      return;
+    }
+    if (Date.now() > deadline) throw new Error(`${id} was created but never delivered for claim`);
+    await new Promise((res) => setTimeout(res, 50));
+  }
+}
+
+describe('broker outage and return — the queue connection', () => {
+  test('an outage longer than the default attempt budget is survived, and both breadcrumbs fire', async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-outage-'));
+    const port = await freePort();
+    let server = await spawnServer(port, dataDir);
+    const log = captureLogs();
+    const q = new JetStreamJobQueue({ servers: `127.0.0.1:${port}` }, log.logger);
+    try {
+      await q.initialize();
+      await proveQueue(q, 'job-outage-before');
+
+      server.kill('SIGKILL');
+      await settle(() => has(log.warns, '[jobs BROKER-DOWN]'), 10_000);
+      expect(has(log.warns, '[jobs BROKER-DOWN]'), 'outage breadcrumb').toBe(true);
+
+      // Past ten attempts two seconds apart.
+      await new Promise((r) => setTimeout(r, 25_000));
+      server = await spawnServer(port, dataDir);
+      await settle(() => has(log.infos, '[jobs BROKER-RECONNECTED]'), 10_000);
+      expect(has(log.infos, '[jobs BROKER-RECONNECTED]'), 'return breadcrumb').toBe(true);
+
+      await proveQueue(q, 'job-outage-after');
+    } finally {
+      q.destroy();
+      await new Promise((r) => setTimeout(r, 100));
+      server.kill('SIGKILL');
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  test('an authenticated broker restarted with the same credentials admits the same queue', async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-auth-'));
+    const port = await freePort();
+    const auth = { user: USER, pass: PASS };
+    let server = await spawnServer(port, dataDir, auth);
+    const log = captureLogs();
+    const q = new JetStreamJobQueue({ servers: `127.0.0.1:${port}`, ...auth }, log.logger);
+    try {
+      await q.initialize();
+      await proveQueue(q, 'job-auth-before');
+
+      server.kill('SIGKILL');
+      await settle(() => has(log.warns, '[jobs BROKER-DOWN]'), 10_000);
+
+      server = await spawnServer(port, dataDir, auth);
+      await settle(() => has(log.infos, '[jobs BROKER-RECONNECTED]'), 10_000);
+      expect(has(log.infos, '[jobs BROKER-RECONNECTED]'), 'credentials re-presented on reconnect').toBe(true);
+
+      await proveQueue(q, 'job-auth-after');
+    } finally {
+      q.destroy();
+      await new Promise((r) => setTimeout(r, 100));
+      server.kill('SIGKILL');
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  test('restarted with different credentials, the queue stops retrying and says so', async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-rotated-'));
+    const port = await freePort();
+    let server = await spawnServer(port, dataDir, { user: USER, pass: PASS });
+    const log = captureLogs();
+    const q = new JetStreamJobQueue({ servers: `127.0.0.1:${port}`, user: USER, pass: PASS }, log.logger);
+    try {
+      await q.initialize();
+      await proveQueue(q, 'job-rotated-before');
+
+      server.kill('SIGKILL');
+      await settle(() => has(log.warns, '[jobs BROKER-DOWN]'), 10_000);
+
+      server = await spawnServer(port, dataDir, { user: USER, pass: 'rotated' });
+      // Two refusals end the loop: two attempts, ~2 s apart.
+      await settle(() => log.errors.some((e) => e.msg.includes('[jobs BROKER-CLOSED]')), 20_000);
+
+      const closed = log.errors.find((e) => e.msg.includes('[jobs BROKER-CLOSED]'));
+      expect(closed, 'the queue went dark without a breadcrumb').toBeDefined();
+      expect(closed!.meta).toMatchObject({ reason: 'AUTHORIZATION_VIOLATION' });
+      expect(has(log.infos, '[jobs BROKER-RECONNECTED]'), 'no false recovery').toBe(false);
+      await expect(
+        q.createJob(createPendingDetectionJob('job-after-rotation')),
+        'a closed queue refuses writes; it must not buffer them forever',
+      ).rejects.toThrow();
+    } finally {
+      q.destroy();
+      await new Promise((r) => setTimeout(r, 100));
+      server.kill('SIGKILL');
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  }, 40_000);
+});
+
 runJobQueueConformance('JetStreamJobQueue', {
   async setup() {
     const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-test-'));
     const port = await freePort();
-    const server = spawn('nats-server', ['-js', '-sd', dataDir, '-p', String(port), '-a', '127.0.0.1'], {
-      stdio: 'ignore',
-    });
-    server.on('error', (error: NodeJS.ErrnoException) => {
-      if (error.code === 'ENOENT') {
-        throw new Error(
-          'nats-server not found on PATH — the JetStream conformance suite runs against a real server. ' +
-          'Install it: `apk add nats-server` (alpine test container), `brew install nats-server` (mac), ' +
-          'or the nats-io/nats-server release binary (CI).',
-        );
-      }
-      throw error;
-    });
-    await waitForServer(port, server);
+    const server = await spawnServer(port, dataDir);
 
     const servers = `127.0.0.1:${port}`;
     const opened: JetStreamJobQueue[] = [];
