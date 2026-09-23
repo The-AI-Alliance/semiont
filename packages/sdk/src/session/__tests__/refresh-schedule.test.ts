@@ -19,6 +19,8 @@ import {
   REFRESH_BEFORE_EXP_MS,
   MIN_REFRESH_DELAY_MS,
   refreshDelayMs,
+  parseJwtExpiry,
+  isJwtExpired,
 } from '../storage';
 
 const NOW = 1_800_000_000_000; // fixed, so these assert arithmetic not clocks
@@ -123,5 +125,48 @@ describe('the margin can never again reach the lifetime it is subtracted from', 
     // "A meaningful fraction of it" — not merely non-zero, which a one-second
     // floor would also satisfy while leaving the storm essentially intact.
     expect(delay).toBeGreaterThanOrEqual((REALM_LIFESPAN_SEC * 1000) / 4);
+  });
+});
+
+describe('JWT payloads are base64URL, which is not base64', () => {
+  // `atob` implements base64 strictly and throws `InvalidCharacterError` on
+  // `-` and `_` — the two characters base64url substitutes for `+` and `/`.
+  // Pure-ASCII payloads rarely produce them, which is why this survived; a
+  // non-ASCII `name` claim produces them often (measured: 2 of 8 sample
+  // names, including "Zoë Fauré"). It is deterministic per user, so an
+  // affected account hits it on every token it is ever issued.
+  //
+  // The damage is not a missing refresh. `isJwtExpired` answers TRUE when the
+  // parse fails, and it gates startup (`semiont-session.ts:202`) and the KB
+  // panel's status (`semiont-browser.ts:378`) — so a valid session reads as
+  // expired, forever, for those users.
+
+  /** A token whose payload really does contain base64url's substitutions. */
+  function base64UrlToken(iat = 1_700_000_000, exp = 1_700_000_300): string {
+    const payload = { name: 'Zoë Fauré', iat, exp };
+    const bytes = new TextEncoder().encode(JSON.stringify(payload));
+    const std = btoa(String.fromCharCode(...bytes));
+    const url = std.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // Guard the fixture: if this ever stops containing them it stops testing.
+    expect(url, 'fixture must exercise the base64url alphabet').toMatch(/[-_]/);
+    return `eyJhbGciOiJub25lIn0.${url}.sig`;
+  }
+
+  it('schedules a refresh for a token whose payload uses -/_', () => {
+    expect(refreshDelayMs(base64UrlToken(), 1_700_000_000_000)).toBe(150_000);
+  });
+
+  it('reads its expiry rather than reporting none', () => {
+    expect(parseJwtExpiry(base64UrlToken())?.getTime()).toBe(1_700_000_300_000);
+  });
+
+  it('does NOT report a valid token as expired — the user-visible half', () => {
+    // `isJwtExpired` reads the real clock, so this one needs a live token —
+    // the point is that a VALID token must not read as expired merely because
+    // its payload would not decode. It fails closed, so an unreadable payload
+    // is indistinguishable from a dead one; for an affected account that is
+    // every token, at every startup, and in the panel.
+    const live = base64UrlToken(1_700_000_000, 4_000_000_000);
+    expect(isJwtExpired(live)).toBe(false);
   });
 });

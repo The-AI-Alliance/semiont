@@ -92,10 +92,35 @@ function parseJwtClaims(token: string): { exp?: number; iat?: number } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3 || !parts[1]) return null;
-    return JSON.parse(atob(parts[1])) as { exp?: number; iat?: number };
+    return JSON.parse(decodeBase64Url(parts[1])) as { exp?: number; iat?: number };
   } catch {
     return null;
   }
+}
+
+/**
+ * JWT segments are base64**url**, and `atob` is strict base64: it throws
+ * `InvalidCharacterError` on `-` and `_`, the two characters base64url
+ * substitutes for `+` and `/`, and it wants the `=` padding JWTs omit.
+ *
+ * Pure-ASCII payloads seldom produce those characters, which is how reading
+ * them with a bare `atob` survived this long. A non-ASCII `name` claim
+ * produces them often — measured at 2 of 8 sample names, "Zoë Fauré" among
+ * them — and it is deterministic per account, so an affected user hits it on
+ * every token they are ever issued.
+ *
+ * The consequence was not a missing refresh. `isJwtExpired` answers `true`
+ * when the payload will not parse, and it gates both startup and the KB
+ * panel's status — so those users' perfectly valid sessions read as expired,
+ * every time. `TextDecoder` rather than a charCode loop because the payload
+ * is UTF-8 by definition, and that is the whole reason those bytes are there.
+ */
+function decodeBase64Url(segment: string): string {
+  const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+  const binary = atob(padded);
+  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }
 
 /**

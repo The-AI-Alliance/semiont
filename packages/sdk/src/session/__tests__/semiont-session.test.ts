@@ -177,7 +177,7 @@ describe('SemiontSession — refresh', () => {
   // is precisely why nothing caught a signed-in tab issuing 1418 successful
   // `POST /token` in ten idle seconds. This one asserts the SCHEDULE.
 
-  it('does not storm: an idle session on a 300s token refreshes zero times in ten minutes', async () => {
+  it('does not storm: an idle session on a 300s token refreshes about once per half-life', async () => {
     vi.useFakeTimers();
     try {
       // 300s is the collision exactly: Keycloak's default lifespan, and what
