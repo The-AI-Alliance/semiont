@@ -20,9 +20,16 @@
  * have gone quiet with nothing in the logs.
  *
  * So the lifetime is not restated here. When a token expires is that token's
- * own `exp` claim, and how long before expiry to renew is `REFRESH_BEFORE_EXP_MS`
- * — the same two facts `SemiontSession` schedules from for human and worker
+ * own `exp` claim, and how long before expiry to renew is `refreshDelayMs`
+ * — the same derivation `SemiontSession` schedules from for human and worker
  * sessions. One refresh policy, read from the credential itself.
+ *
+ * That policy stopped being a constant on 2026-09-23. A fixed five-minute
+ * margin equalled Keycloak's five-minute token lifetime in the browser and
+ * scheduled every refresh at delay zero. These tokens are gateway-minted and
+ * an hour long, so this path never stormed — but it subtracted the same
+ * constant from the same claim, and would have the moment its issuer changed.
+ * Sharing the derivation is what the paragraph above already claimed.
  *
  * Two recovery paths, unchanged from the copies this replaces:
  *   - `refresh` is handed to HttpTransport as its `tokenRefresher`, which
@@ -41,7 +48,21 @@ import {
 } from '@semiont/core';
 import type { ServiceAccountCredential } from '@semiont/core';
 import type { AccessToken } from '@semiont/core';
-import { parseJwtExpiry, REFRESH_BEFORE_EXP_MS } from '@semiont/sdk';
+import { parseJwtExpiry, refreshDelayMs } from '@semiont/sdk';
+import { RETRY_RULES } from '@semiont/core';
+
+/**
+ * An HTTP-level refusal from the token endpoint, carrying its status.
+ *
+ * A plain `Error` put the status in the message and nowhere else, so the one
+ * caller that needs to branch on it — is this renewable? — could not.
+ */
+class AuthRefused extends Error {
+  constructor(message: string, readonly status: number) {
+    super(message);
+    this.name = 'AuthRefused';
+  }
+}
 
 /** The logging surface this module uses, structurally. */
 interface SessionLogger {
@@ -100,7 +121,10 @@ async function authenticate(opts: AgentSessionOptions): Promise<string> {
       });
 
       if (!response.ok) {
-        throw new Error(`Authentication failed: ${response.status} ${response.statusText}`);
+        throw new AuthRefused(
+          `Authentication failed: ${response.status} ${response.statusText}`,
+          response.status,
+        );
       }
 
       const { token } = await response.json() as { token: string; did: string };
@@ -152,15 +176,22 @@ export async function startAgentSession(opts: AgentSessionOptions): Promise<Agen
    */
   const rearm = (token: string): void => {
     if (stopped) return;
-    const expiresAt = parseJwtExpiry(token);
-    if (!expiresAt) return;
-    const delay = Math.max(1_000, expiresAt.getTime() - REFRESH_BEFORE_EXP_MS - Date.now());
+    const delay = refreshDelayMs(token);
+    if (delay === null) return;
     timer = setTimeout(() => {
       refresh().catch((error) => {
-        logger.error('Proactive re-authentication failed', {
-          error: error instanceof Error ? error.message : String(error),
-        });
-        // Keep trying against the token in hand; it may still be valid.
+        const detail = { error: error instanceof Error ? error.message : String(error) };
+        // The issuer's answer is the verdict; its absence never is
+        // (REFRESH-FAILURE-TRANSIENT-VS-TERMINAL). A refused credential cannot
+        // become valid again, so re-arming against it is an infinite loop that
+        // outlives the revocation it should have respected — measured at 47
+        // attempts in ten minutes before this. An outage is the other case: the
+        // token in hand may still be good, and the loop is how it recovers.
+        if (!RETRY_RULES.refresh.retryable(error instanceof AuthRefused ? { status: error.status } : {})) {
+          logger.error('Re-authentication refused; not retrying', detail);
+          return;
+        }
+        logger.error('Proactive re-authentication failed', detail);
         rearm(token$.value ?? '');
       });
     }, delay);

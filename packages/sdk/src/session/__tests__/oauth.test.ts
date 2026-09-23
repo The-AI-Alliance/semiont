@@ -17,6 +17,7 @@ import {
   completeAuthorization,
   discoverIssuer,
   refreshAtIssuer,
+  refreshStoredSession,
   revokeAtIssuer,
   signInWithDeviceGrant,
 } from '../oauth';
@@ -197,6 +198,119 @@ describe('refresh and revocation', () => {
 
     await expect(refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref-1'))
       .rejects.toThrow(/invalid_grant: revoked/);
+  });
+
+  // ── REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P2 ─────────────────────────
+  // `refreshStoredSession` answered `null` for every failure, and its caller
+  // treats `null` as terminal — so a lost packet ended the session exactly
+  // like a revocation. The issuer's answer is the verdict; its absence is not.
+  //
+  // The retry lives HERE and not in the session on purpose: SSE-AUTH-RESILIENCE
+  // P0 settled that a session terminates on `null`, and rejected retry-on-throw
+  // with "Retry belongs in the callback, which owns the HTTP call."
+
+  describe('refreshStoredSession separates a refusal from an outage', () => {
+    const KB = 'kb-alpha';
+
+    function seeded() {
+      const storage = new InMemorySessionStorage();
+      storage.set(`semiont.session.${KB}`, JSON.stringify({
+        access: 'acc-1',
+        refresh: 'ref-1',
+        clientId: BROWSER_CLIENT_ID,
+        tokenEndpoint: `${ISSUER}/token`,
+        issuer: ISSUER,
+      }));
+      return storage;
+    }
+
+    const stored = (storage: InMemorySessionStorage) =>
+      JSON.parse(storage.get(`semiont.session.${KB}`) ?? 'null') as { access: string } | null;
+
+    it('rides out a 503 and returns the renewed token', async () => {
+      fetchMock
+        .mockImplementationOnce(async () => reply(undefined, 503))
+        .mockImplementationOnce(async () => reply({ access_token: 'acc-2', refresh_token: 'ref-2' }));
+      const storage = seeded();
+
+      expect(await refreshStoredSession(storage, KB)).toBe('acc-2');
+      expect(stored(storage)?.access, 'the rotation is persisted').toBe('acc-2');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('rides out a network failure, which is the case with no status at all', async () => {
+      fetchMock
+        .mockImplementationOnce(async () => { throw new TypeError('fetch failed'); })
+        .mockImplementationOnce(async () => reply({ access_token: 'acc-2' }));
+
+      expect(await refreshStoredSession(seeded(), KB)).toBe('acc-2');
+    });
+
+    it('does NOT retry a refused grant — null on the first answer', async () => {
+      // A revoked refresh token cannot become valid. Spending the budget on it
+      // only delays a re-login the user has to do anyway.
+      fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant' }, 400));
+
+      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow();
+      expect(fetchMock, 'a refusal is final on the first answer').toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry an unclassified fault either — terminal by default', async () => {
+      fetchMock.mockImplementation(async () => reply(undefined, 404));
+
+      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow();
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('exhausts a bounded budget and then gives up, rather than retrying forever', async () => {
+      // The answer to SSE-AUTH-RESILIENCE's objection: an invisible zombie
+      // session is worse than a visible re-login, so the budget must END.
+      fetchMock.mockImplementation(async () => reply(undefined, 503));
+      const storage = seeded();
+
+      await expect(refreshStoredSession(storage, KB)).rejects.toThrow();
+      expect(fetchMock.mock.calls.length, 'bounded').toBeLessThanOrEqual(4);
+      expect(fetchMock.mock.calls.length, 'and it did retry').toBeGreaterThan(1);
+      expect(stored(storage), 'the stored session is left for the caller to clear').not.toBeNull();
+    });
+  });
+
+  describe('a failed renewal says WHY, and how hard it tried (D4)', () => {
+    const KB = 'kb-alpha';
+    function seeded() {
+      const storage = new InMemorySessionStorage();
+      storage.set(`semiont.session.${KB}`, JSON.stringify({
+        access: 'acc-1', refresh: 'ref-1', clientId: BROWSER_CLIENT_ID,
+        tokenEndpoint: `${ISSUER}/token`, issuer: ISSUER,
+      }));
+      return storage;
+    }
+
+    // Returning `null` discards the reason: `tryRefresh` carries a cause only
+    // from a THROW. SSE-AUTH-RESILIENCE made throw and null equivalent at the
+    // session precisely so the informative one could be used — so a failure
+    // throws, and only "nothing is stored" answers null.
+
+    it('throws the issuer\'s own words on a refusal', async () => {
+      fetchMock.mockImplementation(async () => reply({ error: 'invalid_grant', error_description: 'revoked' }, 400));
+
+      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow(/invalid_grant: revoked/);
+    });
+
+    it('names the exhausted budget as well as the last cause', async () => {
+      // An operator reading "Token refresh failed: HTTP 503" cannot tell
+      // whether that was tried once or four times, and the difference decides
+      // whether they look at the network or at the issuer.
+      fetchMock.mockImplementation(async () => reply(undefined, 503));
+
+      await expect(refreshStoredSession(seeded(), KB)).rejects.toThrow(/4 attempts.*HTTP 503/s);
+    });
+
+    it('still answers null — not a throw — when there is simply nothing stored', async () => {
+      // An absence is not a failure. The caller distinguishes "never signed in"
+      // from "could not renew", and this is the only case that is the former.
+      expect(await refreshStoredSession(new InMemorySessionStorage(), KB)).toBeNull();
+    });
   });
 
   it('revokes the refresh token as the client it was issued to', async () => {

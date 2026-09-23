@@ -172,7 +172,7 @@ export {
   // expires is the token's own claim, and how long before that to renew is
   // a single number. Sidecars outside this package schedule from both.
   parseJwtExpiry,
-  REFRESH_BEFORE_EXP_MS,
+  refreshDelayMs,
   type StoredSession,
 } from './session/storage';
 

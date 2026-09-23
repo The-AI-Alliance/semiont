@@ -119,4 +119,27 @@ const transport: RetryRule = {
  *
  * Frozen and exhaustive on purpose — see the census-gate note above.
  */
-export const RETRY_RULES = Object.freeze({ boot, job, transport });
+const refresh: RetryRule = {
+  name: 'refresh',
+  rationale:
+    'Exchanging a refresh token at its issuer. The issuer\'s answer is the verdict and its ' +
+    'absence never is: a refused grant (RFC 6749 §5.2 returns 400 `invalid_grant` for a ' +
+    'revoked, expired or already-rotated token) is terminal on the first answer, because ' +
+    'retrying cannot change it and only delays a re-login the user must perform anyway. No ' +
+    'response at all, or one saying "not now" (408, 429, 5xx), is transient — the session ' +
+    'survives a lost packet. 5xx is included where the boot rule excludes it, and the two are ' +
+    'not in conflict: a boot pass replays whatever broke it, while this is a single idempotent ' +
+    'exchange with no side effect to replay. Unclassified faults are TERMINAL, which inverts ' +
+    'the usual instinct deliberately — a 404 on the token endpoint is a misconfiguration, not ' +
+    'a promise to recover, and over-retrying here shows the user a hung app instead of the ' +
+    'honest re-login.',
+  retryable: ({ status }) => {
+    // No status means `fetch` threw before there was a response — the network,
+    // not the issuer. That is the case this rule exists to keep alive, so it is
+    // the one place absence reads as permission rather than as refusal.
+    if (status === undefined) return true;
+    return status === 408 || status === 429 || status >= 500;
+  },
+};
+
+export const RETRY_RULES = Object.freeze({ boot, job, refresh, transport });

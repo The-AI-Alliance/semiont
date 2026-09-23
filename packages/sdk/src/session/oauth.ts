@@ -8,7 +8,14 @@
  */
 
 import { APIError, HttpTransport } from '@semiont/http-transport';
-import { baseUrl, isObject, isString } from '@semiont/core';
+import {
+  RETRY_RULES,
+  baseUrl,
+  isObject,
+  isString,
+  retryWithBackoff,
+  type RetryPolicy,
+} from '@semiont/core';
 import type { HttpEndpoint } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
 import { getStoredSession, kbGatewayUrl, setStoredSession } from './storage';
@@ -34,7 +41,16 @@ export type SignInErrorCode =
   | 'exchange';
 
 export class SignInError extends Error {
-  constructor(readonly code: SignInErrorCode, message: string) {
+  /**
+   * The HTTP status the issuer answered with, when there was one.
+   *
+   * Absent means no response existed to read — `fetch` threw. That difference
+   * is the whole of REFRESH-FAILURE-TRANSIENT-VS-TERMINAL: an issuer refusing
+   * a grant and a network losing a packet are not the same event, and until
+   * this field existed the status was read to build the message and then
+   * dropped, leaving the two indistinguishable one layer up.
+   */
+  constructor(readonly code: SignInErrorCode, message: string, readonly status?: number) {
     super(message);
     this.name = 'SignInError';
   }
@@ -289,7 +305,7 @@ function refusal(status: number, body: Record<string, unknown> | null): string {
 async function tokenGrant(endpoint: string, form: Record<string, string>): Promise<{ access: string; refresh?: string }> {
   const { status, body } = await postForm(endpoint, form);
   if (status !== 200 || !body || !isString(body['access_token'])) {
-    throw new SignInError('exchange', `The issuer refused the token request (${refusal(status, body)})`);
+    throw new SignInError('exchange', `The issuer refused the token request (${refusal(status, body)})`, status);
   }
   return { access: body['access_token'], ...(isString(body['refresh_token']) ? { refresh: body['refresh_token'] } : {}) };
 }
@@ -305,19 +321,71 @@ export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, r
 }
 
 /**
- * Renew a stored session at its issuer and persist the rotation. Null when
- * there is nothing stored or the issuer refuses — both mean "this session
- * cannot be renewed", and the caller tears down either way.
+ * How hard to try before a renewal is declared unrenewable
+ * (REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P0.2). Four attempts with ceilings of
+ * 0.5 s, 1 s, 2 s — long enough to ride out a gateway restart or a rolling
+ * deploy, short enough that a user with no connectivity waits seconds rather
+ * than a minute before being told. Not `STARTUP_FETCH_RETRY`: that one is sized
+ * for a cold stack, and a refresh rides an already-running one.
+ */
+const REFRESH_RETRY: RetryPolicy = { attempts: 4, initialDelayMs: 500, maxDelayMs: 4_000 };
+
+/**
+ * Renew a stored session at its issuer and persist the rotation.
+ *
+ * **Null means only that nothing is stored** — an absence, not a failure. A
+ * renewal that FAILS throws, carrying the issuer's own words and, when the
+ * retry budget ran out, how many attempts it took to give up.
+ *
+ * That is a deliberate narrowing of what `null` meant (it used to mean every
+ * failure too), and it costs the caller nothing: SSE-AUTH-RESILIENCE P0 made a
+ * throw and a null identical at the session — `tryRefresh` converts one to the
+ * other — and it did so specifically to keep the cause, which a bare `null`
+ * cannot carry. An operator reading `Token refresh failed: HTTP 503` still
+ * cannot tell whether that was tried once or four times, and the difference
+ * decides whether they look at the network or at the issuer.
+ *
+ * **A refusal and an outage are no longer the same event.** They used to be: a
+ * bare `catch { return null }` meant one lost packet ended a session exactly
+ * like a revocation. `RETRY_RULES.refresh` draws the line — the issuer's answer
+ * is the verdict, its absence never is — and the retry lives here rather than
+ * in the session because SSE-AUTH-RESILIENCE P0 settled that a session
+ * terminates on `null` and said where retry belongs instead: "in the callback,
+ * which owns the HTTP call."
+ *
+ * The budget is bounded and exhaustion is still terminal, which is the answer
+ * to that plan's objection — an invisible zombie session would be worse than a
+ * visible re-login, so this only ever delays the re-login, never replaces it.
  */
 export async function refreshStoredSession(storage: SessionStorage, kbId: string): Promise<string | null> {
   const stored = getStoredSession(storage, kbId);
   if (!stored) return null;
+
+  let attempts = 0;
   try {
-    const { access, refresh } = await refreshAtIssuer(stored.tokenEndpoint, stored.clientId, stored.refresh);
+    const { access, refresh } = await retryWithBackoff(
+      () => {
+        attempts += 1;
+        return refreshAtIssuer(stored.tokenEndpoint, stored.clientId, stored.refresh);
+      },
+      // `status` absent means `fetch` threw before a response existed, which
+      // the rule reads as transient — the one place absence means "try again".
+      (error) => RETRY_RULES.refresh.retryable(
+        error instanceof SignInError && error.status !== undefined ? { status: error.status } : {},
+      ),
+      REFRESH_RETRY,
+    );
     setStoredSession(storage, kbId, { ...stored, access, refresh });
     return access;
-  } catch {
-    return null;
+  } catch (error) {
+    const cause = error instanceof Error ? error.message : String(error);
+    // One attempt means the issuer answered and the answer was final; more
+    // means the budget ran out. Saying which is the whole point of counting.
+    if (attempts <= 1) throw error;
+    throw new SignInError(
+      'exchange',
+      `The session could not be renewed after ${attempts} attempts: ${cause}`,
+    );
   }
 }
 
