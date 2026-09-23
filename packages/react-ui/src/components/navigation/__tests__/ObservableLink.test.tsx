@@ -28,14 +28,14 @@ describe('ObservableLink', () => {
   it('emits nav:link-clicked with href and label on click', () => {
     const handler = vi.fn();
 
-    const { shellBus } = renderWithProviders(
+    const { browser } = renderWithProviders(
       <ObservableLink href="/discover" label="Discover">
         Discover Resources
       </ObservableLink>,
       { returnShellBus: true }
     );
 
-    const subscription = shellBus!.on('nav:link-clicked').subscribe(handler);
+    const subscription = browser!.stream('nav:link-clicked').subscribe(handler);
 
     const link = screen.getByRole('link');
     fireEvent.click(link);

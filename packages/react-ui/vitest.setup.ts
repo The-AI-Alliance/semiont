@@ -68,26 +68,28 @@ afterEach(() => {
   cleanup();
 });
 
-// Unit tests must never touch the network. The test-utils fake browsers
-// construct REAL SemiontClients over HttpTransport (localhost:4000); without
-// this stub their live-query caches issue real fetches that fail, and the
-// B14 fail→log→retry→log chain rides an async tail that can straddle the
-// vitest worker's RPC teardown (the `EnvironmentTeardownError` CI failures).
-// A never-settling fetch produces no rejection, no retry chain, no
-// post-teardown logs. A test that needs fetch behavior stubs it locally
-// (test-local stubs override this default). Belt to the braces in
-// test-utils' afterEach client disposal, which closes the same class for
-// chains already in flight.
+// Unit tests must never touch the network — they compose the SDK's in-memory
+// doubles (`@semiont/sdk/testing`), so any real request is a wiring mistake.
+// This refuses one loudly and names the URL, rather than letting it fail
+// against a server that is not there.
 //
-// ⚠️ ACKNOWLEDGED INTERIM, not architecture. A never-settling promise models
-// nothing — it's a black hole, and its shape was chosen to dodge the B14 log
-// chain (a rejecting stub would re-trigger it), not because it's a good test
-// double. If a test ever legitimately awaits fetch, it will HANG here with no
-// error — that's this stub, not your code. The real defect is one layer down:
-// test-utils composes a real HttpTransport into unit tests. The right fix is
-// an in-memory ITransport double in test-utils (pending-by-default requests,
-// controllable responses, a baseUrl) — when that lands, DELETE this stub;
-// its continued existence past that point is a bug.
-// Diagnosis: .plans/bugs/panels-tests-b14-tail-races-vitest-teardown.md
-const neverSettlingFetch: typeof fetch = () => new Promise<Response>(() => {});
-globalThis.fetch = neverSettlingFetch;
+// It replaced a never-settling stub that silently absorbed every request: the
+// interim tier-1 fix from
+// `.plans/bugs/panels-tests-b14-tail-races-vitest-teardown.md`, whose own
+// acceptance criterion was its deletion once test-utils stopped composing a
+// real HttpTransport. That happened 2026-09-23
+// (.plans/TEST-UTILS-IN-MEMORY-TRANSPORT.md); throwing is safe now only
+// because the suite makes no requests at all — a rejecting stub would
+// otherwise re-trigger the B14 fail→log→retry→log chain that races vitest's
+// worker teardown.
+const refuseNetwork: typeof fetch = (input) => {
+  const url =
+    typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+  throw new Error(
+    `Unit test attempted a network request: ${url}\n` +
+      `Unit tests compose the SDK's in-memory doubles, never a real transport. ` +
+      `Build clients via test-utils (or @semiont/sdk/testing directly) and script ` +
+      `the response, rather than issuing a request no server answers.`,
+  );
+};
+globalThis.fetch = refuseNetwork;

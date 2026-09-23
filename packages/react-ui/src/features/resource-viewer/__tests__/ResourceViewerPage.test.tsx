@@ -39,17 +39,17 @@ vi.mock('../../../hooks/useResourceContent', () => ({
 
 
 // Stub SemiontBrowser whose activeSession$ emits a session carrying a real
-// SemiontClient (wired to a dummy baseUrl). The real client surface lets
+// SemiontClient over the SDK's in-memory doubles. The real client surface lets
 // createResourceViewerPageStateUnit run against the full namespace API without us
-// hand-stubbing every method it touches.
+// hand-stubbing every method it touches; `stubGateway` keeps `client.auth`
+// (used by useMediaToken) wired, rejecting by name rather than reaching out.
 const { stubBrowser, stubClient } = vi.hoisted(() => {
   const { BehaviorSubject } = require('rxjs');
-  const { SemiontClient, HttpTransport, HttpContentTransport } = require('@semiont/sdk');
-  const { baseUrl } = require('@semiont/core');
-  const transport = new HttpTransport({ baseUrl: baseUrl('http://localhost:4000') });
-  // HttpTransport implements both ITransport and IGatewayOperations; pass it
-  // as gateway so `client.auth` (used by useMediaToken) is wired.
-  const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
+  const { createTestClient, refuseUnscriptedOperation, stubGateway } = require('@semiont/sdk/testing');
+  const { client } = createTestClient({
+    gateway: stubGateway(),
+    transport: { makeResponse: refuseUnscriptedOperation },
+  });
   const stubActiveSession$ = new BehaviorSubject({ client });
   const stubOpenResources$ = new BehaviorSubject([]);
   const stubBrowser = {
