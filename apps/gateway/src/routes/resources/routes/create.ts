@@ -14,7 +14,7 @@ import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { putContent } from '../../../lib/archivist';
-import { requestPrimitiveFor } from '../../../signal';
+import { requestPrimitiveFor, compositionFor } from '../../../signal';
 import { profileOnce } from '../../../identity/person-profile';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
@@ -122,10 +122,12 @@ export function registerCreateResource(router: ResourcesRouterType) {
           // remote driver (the yield:create starvation bug, 2026-09-15).
           const bus = requestPrimitiveFor(c.get('eventBus'));
 
-          // The second place the gateway stamps a person onto the record, and
-          // so the second place it learns what they are called
-          // (PERSON-PROFILE D3). An upload is an act.
-          profileOnce(principal, c.get('eventBus'));
+          // The other place a person writes through the gateway. No channel
+          // to gate on here and none needed: an upload creates a resource,
+          // so reaching this line IS the write (PERSON-PROFILE D3). Through
+          // the PLANE, for the reason the comment above gives — a raw bus
+          // emit never leaves this process under a remote driver.
+          profileOnce(principal, (ch, p) => compositionFor(c.get('eventBus')).plane.ingest(ch, p));
 
           // Clone uploads carry a token instead of full metadata: the
           // CloneTokenManager validates it and inherits the source's entity

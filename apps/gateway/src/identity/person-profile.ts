@@ -1,6 +1,6 @@
 /**
  * The gateway records what a person is CALLED, from the token it just
- * verified, at the moment that person ACTS (PERSON-PROFILE).
+ * verified, at the moment that person WRITES (PERSON-PROFILE).
  *
  * The issuer's `name` claim is as verified as the DID stamped beside it, and
  * until this existed the gateway threw it away — leaving every artifact
@@ -12,59 +12,54 @@
  *    event and no artifact carries a copy. Readers resolve it from the people
  *    projection, which is what lets a correction reach everything its subject
  *    ever wrote instead of freezing the old name in each artifact.
- *  - **Not a record of presence.** It fires where the gateway stamps
- *    `_userId` — on an act — and never from the auth middleware. Someone who
- *    signs in and only reads is never named in the log, because they did
- *    nothing the log is about (PERSON-PROFILE D3).
+ *  - **Not a record of presence.** Being stamped with `_userId` is NOT the
+ *    test for an act: a `browse:*` request carries one too. The test is
+ *    whether the emit WRITES, which the bus registry's `effect` axis answers
+ *    per channel and `channelWrites` reads. Someone who signs in and only
+ *    reads is never named in the log, because they did nothing the log is
+ *    about (PERSON-PROFILE D3).
  */
 
-import type { EventBus } from '@semiont/core';
 import { didToAgent } from '@semiont/core';
 import type { Principal } from './principal';
 
 /**
- * The last name this process told the Stower about, per DID.
+ * How the frame LEAVES this process — `plane.ingest`, the same dispatch
+ * `/bus/emit` gives every other command.
  *
- * A cheap in-memory approximation of the Stower's own compare-to-latest, and
- * it exists to spare the Stower a system-log read per act: a person's access
- * token lives 300 s, so an hour of work is a dozen tokens and potentially
- * hundreds of acts, all carrying the same name.
- *
- * The LAST name, not a set of names seen. A set would swallow a rename back
- * to an earlier name — A → B → A would emit twice and the log would end at B,
- * which is the wrong answer written permanently. One entry per person who has
- * acted since boot, which is bounded by the people who use this knowledge
- * base.
- *
- * Being an approximation is safe in both directions. A restart or a second
- * replica emits again; the Stower compares against the log and appends
- * nothing. Nothing here is authoritative, and nothing downstream trusts it.
+ * Not the per-process `EventBus`: under `[signal] type = "nats"` the Stower is
+ * in the Archivist, and a raw bus emit never leaves the gateway. A profile
+ * published that way is silently lost on every real deployment while passing
+ * every in-process test — the yield:create starvation shape (2026-09-15),
+ * observed here on a live stack before this seam existed.
  */
-const lastProfiled = new Map<string, string>();
-
-/** Test seam: the cache is process state, and a test that cannot clear it leaks into the next. */
-export function resetProfileCache(): void {
-  lastProfiled.clear();
-}
+export type PublishFrame = (channel: 'person:profile', payload: { _userId: string; name: string }) => unknown;
 
 /**
- * Emit `person:profile` if this person's name is news.
+ * Publish this person's name, for a write they are making.
  *
- * Called beside the `_userId` injection, so "acts" needs no separate
- * definition: if the gateway is stamping an identity onto something, that is
- * an act. Silent for an agent (a gateway-minted token names a model, not a
- * person) and for a token that carries no name — absence is recorded as
- * absence, and the issuer is where a name is set.
+ * **There is deliberately no de-dup cache here.** An earlier version kept one,
+ * keyed by DID and set at the moment of publish — which records "I sent a
+ * frame", never "the Stower has it". The two differ whenever a frame does not
+ * arrive, and on a live stack one did not: a publish landed while the
+ * Archivist was still re-subscribing after a gateway restart, the frame was
+ * dropped, the cache was set, and that person was suppressed for the whole
+ * life of the gateway process. Neither side retries, so it never heals.
+ *
+ * The Stower's compare-to-latest is the only de-dup, and it is authoritative
+ * because it reads the log it is about to append to. Gating on writes is what
+ * keeps that affordable: the publish rate becomes the write rate, which is
+ * orders of magnitude below the rate of emits in general.
+ *
+ * Silent for an agent (a gateway-minted token names a model, not a person)
+ * and for a token carrying no name — absence is recorded as absence, and the
+ * issuer is where a name is set.
  */
-export function profileOnce(principal: Principal | undefined, eventBus: EventBus): void {
+export function profileOnce(principal: Principal | undefined, publish: PublishFrame): void {
   if (!principal?.name) return;
   // `didToAgent` already owns "what kind of DID is this"; asking it is one
   // reader of that rule rather than a second parser that can disagree.
   if (didToAgent(principal.did)['@type'] !== 'Person') return;
 
-  const did = String(principal.did);
-  if (lastProfiled.get(did) === principal.name) return;
-  lastProfiled.set(did, principal.name);
-
-  eventBus.emit('person:profile', { _userId: did, name: principal.name } as never);
+  publish('person:profile', { _userId: String(principal.did), name: principal.name });
 }

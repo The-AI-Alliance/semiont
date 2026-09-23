@@ -4057,5 +4057,56 @@
       "person:profiled",
       "person:profile"
     ]
+  },
+  "effect": {
+    "doc": "/**\n * Does emitting this channel CHANGE the knowledge base, or only ask it\n * something?\n *\n * A WRITE is an act: it appends to the event log, or it enqueues or\n * transitions durable work the log will later cite. A READ answers from\n * state that already exists and leaves nothing behind — every `browse:*`\n * request, and the three lookups that merely resolve a token or a summary.\n *\n * The domain is exactly the EMITTABLE set: an operation's request, or a\n * `kind: command`. Inbound replies, broadcast events and in-process UI\n * signals are absent because nobody emits them at the gateway, so the\n * question does not arise. Every emittable channel names one side or the\n * other and the generator refuses — there is no default.\n *\n * The gateway reads this to decide when the record learns a person's name:\n * a `_userId` stamp is NOT the test, because a read carries one too\n * (PERSON-PROFILE D3). Someone who signs in and only browses is never\n * named, and the profile publish rate is the WRITE rate rather than the\n * emit rate — orders of magnitude apart.\n */",
+    "writes": [
+      "bind:update-body",
+      "frame:add-entity-type",
+      "frame:add-tag-schema",
+      "job:assign",
+      "job:cancel",
+      "job:cancel-requested",
+      "job:checkpoint",
+      "job:claim",
+      "job:create",
+      "job:start",
+      "mark:archive",
+      "mark:commit",
+      "mark:create-request",
+      "mark:delete",
+      "mark:unarchive",
+      "mark:update-body",
+      "mark:update-entity-types",
+      "person:profile",
+      "smelt:rebuild-anchors",
+      "weave:rebuild",
+      "yield:clone-create",
+      "yield:clone-persist",
+      "yield:create",
+      "yield:update"
+    ],
+    "reads": [
+      "browse:agents-requested",
+      "browse:anchored-text-requested",
+      "browse:annotation-context-requested",
+      "browse:annotation-history-requested",
+      "browse:annotation-requested",
+      "browse:annotations-requested",
+      "browse:directory-requested",
+      "browse:entity-types-requested",
+      "browse:events-requested",
+      "browse:referenced-by-requested",
+      "browse:resource-requested",
+      "browse:resources-requested",
+      "browse:tag-schemas-requested",
+      "gather:requested",
+      "gather:resource-requested",
+      "gather:summary-requested",
+      "job:status-requested",
+      "match:search-requested",
+      "yield:clone-resource-requested",
+      "yield:clone-token-requested"
+    ]
   }
 }

@@ -258,6 +258,7 @@ export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './b
 export {
   CHANNEL_ATTRS,
   channelAttrsOf,
+  channelWrites,
   type ChannelAttrs,
   type ChannelDelivery,
   type ChannelDirection,

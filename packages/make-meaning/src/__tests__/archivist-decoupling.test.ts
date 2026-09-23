@@ -22,7 +22,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { firstValueFrom, race, timeout, filter, map, type Observable } from 'rxjs';
 import { promises as fs } from 'fs';
 import { join } from 'path';
-import { EventBus, resourceId as makeResourceId, type BusFrame, type Logger } from '@semiont/core';
+import { EventBus, channelAttrsOf, resourceId as makeResourceId, type BusFrame, type Logger } from '@semiont/core';
 import { writeStorageUriEntry } from '@semiont/event-sourcing';
 import { Stower, STOWER_CHANNELS, type StowerStores } from '../stower';
 import { Browser, BROWSER_CHANNELS, type BrowserReads } from '../browser';
@@ -496,5 +496,37 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
       return ctm;
     });
     expect(channels).toEqual(new Set(CLONE_TOKEN_CHANNELS));
+  });
+});
+
+// ── The registry's `effect` axis, pinned to the actors ────────────────────────
+//
+// `effect` says whether emitting a channel CHANGES the knowledge base, and the
+// gateway reads it to decide whether an emit was an act worth naming its author
+// for (PERSON-PROFILE D3). The registry's own validator gates COMPLETENESS —
+// every emittable channel names a side. It cannot gate CORRECTNESS: nothing
+// there knows that the Stower appends and the Browser answers.
+//
+// These two actors do know, because subscribing is what makes it true, and the
+// census above already pins each roster to its real subscriptions. So a channel
+// the Stower handles that the registry calls a read is a contradiction between
+// two files, and this is where it surfaces.
+describe('registry effect axis agrees with the actors (census gate)', () => {
+  it('nothing the Stower appends for is declared a read', () => {
+    const misdeclared = STOWER_CHANNELS.filter((channel) => channelAttrsOf(channel)?.writes === false);
+    expect(misdeclared, 'the Stower appends to the event log for every one of these').toEqual([]);
+  });
+
+  it('every Stower channel a client can emit is declared a write', () => {
+    // `mark:create` and `yield:mv` are in-process: the Archivist re-emits them
+    // locally, so they are outside the axis's domain and carry no `writes`.
+    const emittable = STOWER_CHANNELS.filter((channel) => channelAttrsOf(channel)?.writes !== undefined);
+    expect(emittable.filter((channel) => !channelAttrsOf(channel)?.writes)).toEqual([]);
+    expect(emittable.length, 'a roster that grew without reaching the registry').toBeGreaterThan(0);
+  });
+
+  it('nothing the Browser answers is declared a write', () => {
+    const misdeclared = BROWSER_CHANNELS.filter((channel) => channelAttrsOf(channel)?.writes !== false);
+    expect(misdeclared, 'a read that changes the record is not a read').toEqual([]);
   });
 });

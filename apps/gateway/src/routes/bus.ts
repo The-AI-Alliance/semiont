@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
 import type { EventBus, StoredEvent, EnvironmentConfig } from '@semiont/core';
-import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, channelWrites, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
   injectTraceparent,
@@ -673,11 +673,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     if (principal) {
       payload._userId = principal.did;
       if (principal.roles?.length) payload._roles = principal.roles;
-      // A person acting is when the record learns what they are called
-      // (PERSON-PROFILE D3). Beside the stamp, never in the auth middleware:
-      // reading is not an act, and the name belongs to its own system event
-      // rather than to this payload.
-      profileOnce(principal, c.get('eventBus'));
+      // A person WRITING is when the record learns what they are called
+      // (PERSON-PROFILE D3). Gated on the channel, not on the stamp: every
+      // emit carries a `_userId`, `browse:*` requests included, so stamping
+      // is not the test for an act. Which channels write is the registry's
+      // `effect` axis, declared per channel and generated — not a roster
+      // restated here. The name rides its own system event, never this
+      // payload.
+      if (channelWrites(channel)) profileOnce(principal, (ch, p) => plane.ingest(ch, p));
     }
 
     // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
