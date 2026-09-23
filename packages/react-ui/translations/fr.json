@@ -381,7 +381,11 @@
     "hoverDelay": "Délai au survol",
     "hoverDelayFast": "Rapide",
     "hoverDelaySlow": "Lent",
-    "hoverDelayDescription": "{{delay}} ms de délai avant l'apparition des effets au survol"
+    "hoverDelayDescription": "{{delay}} ms de délai avant l'apparition des effets au survol",
+    "tagline": "Le cadre open source et pérenne qui permet aux humains et aux agents intelligents de co-créer des connaissances partagées — gouverné par vous et conçu pour durer.",
+    "sourceCode": "Code source",
+    "keyboardShortcuts": "Raccourcis clavier",
+    "version": "Version {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

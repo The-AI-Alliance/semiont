@@ -9,7 +9,6 @@ import { Link } from '@/i18n/routing';
 export default function AuthError() {
   const { t: _t } = useTranslation();
   const t = (k: string, p?: Record<string, unknown>) => _t(`AuthError.${k}`, p as any) as string;
-  const tFooter = (k: string, p?: Record<string, unknown>) => _t(`Footer.${k}`, p as any) as string;
   const tNav = (k: string, p?: Record<string, unknown>) => _t(`Navigation.${k}`, p as any) as string;
   const tHome = (k: string, p?: Record<string, unknown>) => _t(`Home.${k}`, p as any) as string;
   const [searchParams] = useSearchParams();
@@ -30,7 +29,6 @@ export default function AuthError() {
     <PageLayout
       Link={RoutingLink}
       routes={routes}
-      t={tFooter}
       tNav={tNav}
       tHome={tHome}
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}

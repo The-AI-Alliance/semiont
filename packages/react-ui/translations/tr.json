@@ -381,7 +381,11 @@
     "hoverDelay": "Üzerine Gelme Gecikmesi",
     "hoverDelayFast": "Hızlı",
     "hoverDelaySlow": "Yavaş",
-    "hoverDelayDescription": "Üzerine gelme efektleri görünmeden önce {{delay}}ms gecikme"
+    "hoverDelayDescription": "Üzerine gelme efektleri görünmeden önce {{delay}}ms gecikme",
+    "tagline": "İnsanların ve akıllı ajanların ortak bilgiyi birlikte oluşturmasını sağlayan, sizin tarafınızdan yönetilen ve kalıcı olmak üzere inşa edilen açık kaynaklı, geleceğe hazır çerçeve.",
+    "sourceCode": "Kaynak Kodu",
+    "keyboardShortcuts": "Klavye Kısayolları",
+    "version": "Sürüm {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

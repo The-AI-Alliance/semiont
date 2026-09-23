@@ -381,7 +381,11 @@
     "hoverDelay": "השהיית ריחוף",
     "hoverDelayFast": "מהיר",
     "hoverDelaySlow": "איטי",
-    "hoverDelayDescription": "השהייה של {{delay}} מ\"ש לפני הופעת אפקטי ריחוף"
+    "hoverDelayDescription": "השהייה של {{delay}} מ\"ש לפני הופעת אפקטי ריחוף",
+    "tagline": "המסגרת בקוד פתוח והעמידה לעתיד, המאפשרת לבני אדם ולסוכנים חכמים ליצור ידע משותף — בשליטתכם ובנויה להתמיד.",
+    "sourceCode": "קוד מקור",
+    "keyboardShortcuts": "קיצורי מקלדת",
+    "version": "גרסה {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

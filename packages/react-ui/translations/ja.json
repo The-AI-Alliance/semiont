@@ -381,7 +381,11 @@
     "hoverDelay": "ホバー遅延",
     "hoverDelayFast": "速い",
     "hoverDelaySlow": "遅い",
-    "hoverDelayDescription": "ホバー効果が表示されるまで{{delay}}ミリ秒の遅延"
+    "hoverDelayDescription": "ホバー効果が表示されるまで{{delay}}ミリ秒の遅延",
+    "tagline": "人間とインテリジェントエージェントが共有知識を共創できる、オープンソースで将来にも対応したフレームワーク。あなたが管理し、長く使えるように設計されています。",
+    "sourceCode": "ソースコード",
+    "keyboardShortcuts": "キーボードショートカット",
+    "version": "バージョン {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

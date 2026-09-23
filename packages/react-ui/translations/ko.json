@@ -381,7 +381,11 @@
     "hoverDelay": "호버 지연",
     "hoverDelayFast": "빠름",
     "hoverDelaySlow": "느림",
-    "hoverDelayDescription": "호버 효과가 나타나기까지 {{delay}}ms 지연"
+    "hoverDelayDescription": "호버 효과가 나타나기까지 {{delay}}ms 지연",
+    "tagline": "인간과 지능형 에이전트가 공유 지식을 함께 창조할 수 있게 해주는 오픈소스 미래지향적 프레임워크 — 당신이 관리하고, 오래 지속되도록 구축되었습니다.",
+    "sourceCode": "소스 코드",
+    "keyboardShortcuts": "키보드 단축키",
+    "version": "버전 {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

@@ -75,7 +75,6 @@ vi.mock('@semiont/react-ui', async () => {
     useSemiont: () => harness.browser,
     LeftSidebar: ({ children }: { children: any }) =>
       typeof children === 'function' ? children(false, () => {}, null) : children,
-    Footer: () => null,
   };
 });
 

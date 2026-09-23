@@ -381,7 +381,11 @@
     "hoverDelay": "Pekerforsinkelse",
     "hoverDelayFast": "Rask",
     "hoverDelaySlow": "Langsom",
-    "hoverDelayDescription": "{{delay}}ms forsinkelse før pekereffekter vises"
+    "hoverDelayDescription": "{{delay}}ms forsinkelse før pekereffekter vises",
+    "tagline": "Det åpne, fremtidssikre rammeverket som gjør det mulig for mennesker og intelligente agenter å samskape delt kunnskap — styrt av deg og bygget for å vare.",
+    "sourceCode": "Kildekode",
+    "keyboardShortcuts": "Tastatursnarveier",
+    "version": "Versjon {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

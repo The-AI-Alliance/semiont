@@ -381,7 +381,11 @@
     "hoverDelay": "Zweefvertraging",
     "hoverDelayFast": "Snel",
     "hoverDelaySlow": "Langzaam",
-    "hoverDelayDescription": "{{delay}}ms vertraging voordat zweefeffecten verschijnen"
+    "hoverDelayDescription": "{{delay}}ms vertraging voordat zweefeffecten verschijnen",
+    "tagline": "Het open-source, toekomstbestendige framework dat mensen en intelligente agenten in staat stelt samen gedeelde kennis te creëren — beheerd door jou en gebouwd om te blijven.",
+    "sourceCode": "Broncode",
+    "keyboardShortcuts": "Sneltoetsen",
+    "version": "Versie {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

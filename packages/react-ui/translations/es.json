@@ -381,7 +381,11 @@
     "hoverDelay": "Retardo al Pasar el Ratón",
     "hoverDelayFast": "Rápido",
     "hoverDelaySlow": "Lento",
-    "hoverDelayDescription": "{{delay}}ms de retardo antes de que aparezcan los efectos al pasar el ratón"
+    "hoverDelayDescription": "{{delay}}ms de retardo antes de que aparezcan los efectos al pasar el ratón",
+    "tagline": "El marco de código abierto y a prueba de futuro que permite a humanos y agentes inteligentes co-crear conocimiento compartido — gobernado por ti y construido para durar.",
+    "sourceCode": "Código Fuente",
+    "keyboardShortcuts": "Atajos de Teclado",
+    "version": "Versión {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

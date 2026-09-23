@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { UnifiedHeader } from './UnifiedHeader';
-import { Footer } from '../navigation/Footer';
 import { SkipLinks } from './SkipLinks';
 import type { LinkComponentProps, RouteBuilder } from '../../contexts/RoutingContext';
 import type { TranslateFn } from '../../types/translation';
@@ -10,25 +9,21 @@ import type { TranslateFn } from '../../types/translation';
 interface PageLayoutProps {
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
-  t: TranslateFn;
   tNav: TranslateFn;
   tHome: TranslateFn;
   children: React.ReactNode;
   className?: string;
   showAuthLinks?: boolean;
-  onOpenKeyboardHelp?: () => void;
 }
 
 export function PageLayout({
   Link,
   routes,
-  t,
   tNav,
   tHome,
   children,
   className = '',
   showAuthLinks = true,
-  onOpenKeyboardHelp
 }: PageLayoutProps) {
   return (
     <div className="semiont-page-layout">
@@ -56,13 +51,6 @@ export function PageLayout({
       >
         {children}
       </main>
-
-      <Footer
-        Link={Link}
-        routes={routes}
-        t={t}
-        {...(onOpenKeyboardHelp && { onOpenKeyboardHelp })}
-      />
     </div>
   );
 }

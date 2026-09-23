@@ -1,9 +1,8 @@
-import { useContext, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Outlet } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { KnowledgeSidebarWrapper } from '@/components/knowledge/KnowledgeSidebarWrapper';
 import {
-  Footer,
   ResourceAnnotationsProvider,
   Toolbar,
   useSemiont,
@@ -13,9 +12,7 @@ import {
   useKBDiscovery,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { useKbPanelOnLogin } from '@/hooks/useKbPanelOnLogin';
-import { Link, routes } from '@/lib/routing';
 
 function GlobalEventsConnector() {
   return null;
@@ -77,7 +74,7 @@ export function DiscoverEmptyState() {
   );
 }
 
-function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: string, params?: Record<string, unknown>) => string; keyboardContext: { openKeyboardHelp?: () => void } | null }) {
+function UnauthenticatedKnowledgeLayout() {
   const browseStateUnit = useShellStateUnit();
   const activePanel = useObservable(browseStateUnit.activePanel$) ?? null;
   const { theme } = useTheme();
@@ -106,7 +103,7 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
   }, [activePanel, browseStateUnit]);
 
   return (
-    <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+    <div className="h-screen semiont-knowledge-layout flex flex-col overflow-hidden">
       <div className="flex flex-1 overflow-hidden">
         <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
           <div className="w-full mx-auto flex-1 flex flex-col h-full overflow-hidden items-center justify-center">
@@ -119,20 +116,11 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
         />
         <Toolbar activePanel={activePanel} context="simple" />
       </div>
-      <Footer
-        Link={Link}
-        routes={routes}
-        t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-        showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
-        {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-      />
     </div>
   );
 }
 
 function KnowledgeLayoutBody() {
-  const { t } = useTranslation();
-  const keyboardContext = useContext(KeyboardShortcutsContext);
   const semiont = useSemiont();
   const activeKbId = useObservable(semiont.activeKbId$);
   const session = useObservable(semiont.activeSession$);
@@ -162,14 +150,14 @@ function KnowledgeLayoutBody() {
 
   if (!activeKnowledgeBase || !token) {
     return (
-      <UnauthenticatedKnowledgeLayout t={(key: string, params?: Record<string, unknown>) => t(key, params as any) as string} keyboardContext={keyboardContext} />
+      <UnauthenticatedKnowledgeLayout />
     );
   }
 
   return (
     <ResourceAnnotationsProvider>
       <GlobalEventsConnector />
-      <div className="h-screen semiont-knowledge-layout semiont-layout-with-footer flex flex-col overflow-hidden">
+      <div className="h-screen semiont-knowledge-layout flex flex-col overflow-hidden">
         <div className="flex flex-1 overflow-hidden">
           <KnowledgeSidebarWrapper />
           <main className="flex-1 w-full px-2 pb-6 flex flex-col overflow-hidden">
@@ -178,13 +166,6 @@ function KnowledgeLayoutBody() {
             </div>
           </main>
         </div>
-        <Footer
-          Link={Link}
-          routes={routes}
-          t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-          showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
-          {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
-        />
       </div>
     </ResourceAnnotationsProvider>
   );

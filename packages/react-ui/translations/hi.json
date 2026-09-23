@@ -381,7 +381,11 @@
     "hoverDelay": "होवर विलंब",
     "hoverDelayFast": "तेज़",
     "hoverDelaySlow": "धीमा",
-    "hoverDelayDescription": "होवर प्रभाव दिखने से पहले {{delay}}ms विलंब"
+    "hoverDelayDescription": "होवर प्रभाव दिखने से पहले {{delay}}ms विलंब",
+    "tagline": "ओपन-सोर्स, भविष्य-सुरक्षित फ्रेमवर्क जो मनुष्यों और बुद्धिमान एजेंटों को साझा ज्ञान का सह-निर्माण करने में सक्षम बनाता है — आपके द्वारा शासित और स्थायी बनाया गया।",
+    "sourceCode": "स्रोत कोड",
+    "keyboardShortcuts": "कीबोर्ड शॉर्टकट",
+    "version": "संस्करण {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

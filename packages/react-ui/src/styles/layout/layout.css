@@ -47,10 +47,6 @@
 }
 
 /* Layout with footer */
-.semiont-layout-with-footer {
-  /* Footer participates in flex layout flow. Content areas are scrollable within their flex boundaries. */
-}
-
 .semiont-app-layout__content {
   flex: 1;
   display: flex;

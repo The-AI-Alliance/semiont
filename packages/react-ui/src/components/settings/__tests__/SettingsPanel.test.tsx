@@ -27,10 +27,14 @@ vi.mock('@semiont/core', async () => {
 });
 
 describe('SettingsPanel', () => {
+  const openKeyboardHelp = vi.fn();
   const defaultProps = {
     theme: 'light' as const,
     locale: 'en',
     hoverDelayMs: 150,
+    version: '9.9.9',
+    sourceCodeUrl: 'https://example.invalid/semiont',
+    onOpenKeyboardHelp: openKeyboardHelp,
   };
 
   beforeEach(() => {
@@ -208,6 +212,38 @@ describe('SettingsPanel', () => {
       });
       expect(handler).toHaveBeenCalledWith({ hoverDelayMs: 300 });
       sub.unsubscribe();
+    });
+  });
+
+  /**
+   * The footer was deleted; Settings absorbed the three items worth keeping
+   * (the policy links were dropped outright). These pin that they arrived —
+   * a relocation that silently lost one of them would otherwise look like a
+   * clean deletion.
+   */
+  describe('About block (absorbed from the deleted footer)', () => {
+    it('names the app, its tagline and the running version', () => {
+      renderWithProviders(<SettingsPanel {...defaultProps} />);
+
+      expect(screen.getByText('Semiont')).toBeInTheDocument();
+      expect(screen.getByText('Settings.tagline')).toBeInTheDocument();
+      expect(screen.getByText('Settings.version')).toBeInTheDocument();
+    });
+
+    it('links to the source at the URL the host supplied', () => {
+      renderWithProviders(<SettingsPanel {...defaultProps} />);
+
+      const link = screen.getByText('Settings.sourceCode');
+      expect(link).toHaveAttribute('href', 'https://example.invalid/semiont');
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    });
+
+    it('opens the keyboard help through the host callback', () => {
+      renderWithProviders(<SettingsPanel {...defaultProps} />);
+
+      fireEvent.click(screen.getByText('Settings.keyboardShortcuts'));
+
+      expect(openKeyboardHelp).toHaveBeenCalledTimes(1);
     });
   });
 });

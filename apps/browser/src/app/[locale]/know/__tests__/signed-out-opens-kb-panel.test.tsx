@@ -52,7 +52,6 @@ vi.mock('@semiont/react-ui', async () => {
   return {
     ...actual,
     Toolbar: () => null,
-    Footer: () => null,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => children,
   };
 });

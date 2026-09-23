@@ -6,9 +6,6 @@ import { DEFAULT_LOCALE, isSupportedLocale } from './i18n/config';
 // Lazy-load page components for code splitting
 const LocaleLayout = React.lazy(() => import('./app/[locale]/layout'));
 const HomePage = React.lazy(() => import('./app/[locale]/page'));
-const AboutPage = React.lazy(() => import('./app/[locale]/about/page'));
-const PrivacyPage = React.lazy(() => import('./app/[locale]/privacy/page'));
-const TermsPage = React.lazy(() => import('./app/[locale]/terms/page'));
 const ConnectPage = React.lazy(() => import('./app/[locale]/auth/connect/page'));
 const AuthErrorPage = React.lazy(() => import('./app/[locale]/auth/error/page'));
 const AuthCallbackPage = React.lazy(() => import('./app/[locale]/auth/callback/page'));
@@ -95,9 +92,6 @@ export default function App() {
           }
         >
           <Route index element={<HomePage />} />
-          <Route path="about" element={<AboutPage />} />
-          <Route path="privacy" element={<PrivacyPage />} />
-          <Route path="terms" element={<TermsPage />} />
 
           {/* Auth routes (pre-app — no AuthShell) */}
           <Route path="auth/connect" element={<ConnectPage />} />

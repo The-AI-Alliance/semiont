@@ -381,7 +381,11 @@
     "hoverDelay": "Jeda Hover",
     "hoverDelayFast": "Cepat",
     "hoverDelaySlow": "Lambat",
-    "hoverDelayDescription": "Jeda {{delay}}md sebelum efek hover muncul"
+    "hoverDelayDescription": "Jeda {{delay}}md sebelum efek hover muncul",
+    "tagline": "Kerangka kerja sumber terbuka dan tahan masa depan yang memungkinkan manusia dan agen cerdas untuk bersama-sama menciptakan pengetahuan bersama — dikelola oleh Anda dan dibangun untuk bertahan lama.",
+    "sourceCode": "Kode Sumber",
+    "keyboardShortcuts": "Pintasan Keyboard",
+    "version": "Versi {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

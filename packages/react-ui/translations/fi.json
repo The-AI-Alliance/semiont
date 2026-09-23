@@ -381,7 +381,11 @@
     "hoverDelay": "Osoitusviive",
     "hoverDelayFast": "Nopea",
     "hoverDelaySlow": "Hidas",
-    "hoverDelayDescription": "{{delay}} ms viive ennen osoitustehosteiden ilmestymistä"
+    "hoverDelayDescription": "{{delay}} ms viive ennen osoitustehosteiden ilmestymistä",
+    "tagline": "Avoimen lähdekoodin, tulevaisuudenvarma kehys, joka mahdollistaa ihmisten ja älykkäiden agenttien yhteistyön jaetun tiedon luomisessa — sinun hallitsemana ja kestäväksi rakennettu.",
+    "sourceCode": "Lähdekoodi",
+    "keyboardShortcuts": "Pikanäppäimet",
+    "version": "Versio {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

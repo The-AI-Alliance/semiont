@@ -381,7 +381,11 @@
     "hoverDelay": "Atraso ao Passar o Mouse",
     "hoverDelayFast": "Rápido",
     "hoverDelaySlow": "Lento",
-    "hoverDelayDescription": "{{delay}}ms de atraso antes dos efeitos ao passar o mouse aparecerem"
+    "hoverDelayDescription": "{{delay}}ms de atraso antes dos efeitos ao passar o mouse aparecerem",
+    "tagline": "O framework open-source e preparado para o futuro que permite que humanos e agentes inteligentes cocriem conhecimento compartilhado — governado por você e feito para durar.",
+    "sourceCode": "Código-Fonte",
+    "keyboardShortcuts": "Atalhos de Teclado",
+    "version": "Versão {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

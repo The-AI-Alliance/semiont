@@ -99,7 +99,6 @@ vi.mock('@semiont/react-ui', async () => {
     useSemiont: () => harness.browser,
     useKBDiscovery: () => ({ state: null, kbs: [] }),
     Toolbar: () => null,
-    Footer: () => null,
     GlobalEvents: () => null,
     ResourceAnnotationsProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
   };

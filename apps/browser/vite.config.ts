@@ -1,11 +1,16 @@
 import { defineConfig } from 'vite';
+import { createRequire } from 'module';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// The app's own version, for the Settings panel's About block. Read from
+// package.json at build time rather than carried in an env var.
+const pkgVersion = createRequire(import.meta.url)('./package.json').version as string;
 
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(pkgVersion) },
   plugins: [react()],
   resolve: {
     alias: {

@@ -381,7 +381,11 @@
     "hoverDelay": "Hover Delay",
     "hoverDelayFast": "Fast",
     "hoverDelaySlow": "Slow",
-    "hoverDelayDescription": "{{delay}}ms delay before hover effects appear"
+    "hoverDelayDescription": "{{delay}}ms delay before hover effects appear",
+    "tagline": "The open-source, future-proof framework that enables humans and intelligent agents to co-create shared knowledge — governed by you and built to last.",
+    "sourceCode": "Source Code",
+    "keyboardShortcuts": "Keyboard Shortcuts",
+    "version": "Version {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {

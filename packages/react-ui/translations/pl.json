@@ -381,7 +381,11 @@
     "hoverDelay": "Opóźnienie najechania",
     "hoverDelayFast": "Szybkie",
     "hoverDelaySlow": "Wolne",
-    "hoverDelayDescription": "{{delay}}ms opóźnienia przed pojawieniem się efektów najechania"
+    "hoverDelayDescription": "{{delay}}ms opóźnienia przed pojawieniem się efektów najechania",
+    "tagline": "Otwartoźródłowy, przyszłościowy framework, który umożliwia ludziom i inteligentnym agentom współtworzenie wspólnej wiedzy — zarządzany przez Ciebie i zbudowany na lata.",
+    "sourceCode": "Kod źródłowy",
+    "keyboardShortcuts": "Skróty klawiszowe",
+    "version": "Wersja {{version}}"
   },
   "AnnotateView": {},
   "ResourceGenerate": {
