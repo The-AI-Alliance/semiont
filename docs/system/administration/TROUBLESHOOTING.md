@@ -86,7 +86,7 @@ If `JWT_SECRET` changed between when a token was issued and when it was presente
 semiont logs --service gateway | grep -i "invalid token"
 ```
 
-Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invalidates every token previously issued, so treat a rotation as requiring every client to re-authenticate.
+Reconnecting the knowledge base gets a fresh token. Rotating `JWT_SECRET` invalidates every token already issued, so treat a rotation as requiring every client to re-authenticate.
 
 ### Commands hang, or real-time updates stop, on a NATS stack
 

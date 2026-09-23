@@ -132,12 +132,11 @@ shapes:
 | `e-<channel>:<cid>` | Correlation reply (payload carries a `correlationId`). **Deterministic** — the same reply is tagged with the same id on every connection, so a make-before-break overlap dedups it to one emission. | No. |
 | `e-<connectionId>-<counter>` | Any other ephemeral event (no `correlationId`). Unique per connection; no replay meaning. | No. |
 
-Resumption is **per scope** (since 2026-07-29): clients track the
-last persisted (`p-*`) id seen PER SCOPE and send each as the
-`lastEventId` field on that scope's entry in the subscribe body —
-there is no `Last-Event-ID` header. Ephemeral ids are never stored as
-watermarks (the old single-header design let an ephemeral id displace
-the persisted watermark — a silent replay-loss hole this shape closes).
+Resumption is **per scope**: clients track the last persisted (`p-*`)
+id seen PER SCOPE and send each as the `lastEventId` field on that
+scope's entry in the subscribe body — there is no `Last-Event-ID`
+header. Ephemeral ids are never stored as watermarks: one displacing a
+persisted watermark is a silent replay-loss hole.
 For each scoped entry carrying a watermark:
 
 1. If the watermark parses and its embedded scope matches the entry's
@@ -154,20 +153,19 @@ For each scoped entry carrying a watermark:
 
 Clients that send no watermarks get live-only behavior.
 
-### HTTP-specific quirk: response-lost during a genuine disconnect — NARROWED TO RETENTION BOUNDS
+### HTTP-specific quirk: response-lost during a genuine disconnect — bounded by retention
 
 The shared contract publishes a `busRequest` reply exactly once, at
-publish time. The historical quirk — connection lost during the request
-window ⇒ reply published to a dead subscriber ⇒ 30s timeout with no
-retry — has been closed in layers:
+publish time, so a connection lost inside the request window would leave
+the reply published to a dead subscriber and the caller waiting out its
+30s deadline with no retry. Three mechanisms bound that:
 
-- A **channel-set change no longer causes this** (#847): those
-  reconnects are make-before-break (see "Reconnect discipline" below),
-  so the old connection stays live to deliver the in-flight result
-  while the new one takes over.
-- The **attach gate** (2026-07-29): no correlated emit leaves
-  before the reply path is `'open'`.
-- **Correlated-reply retention** (2026-07-29):
+- **Make-before-break reconnects**: a channel-set change keeps the old
+  connection live to deliver the in-flight result while the new one
+  takes over (see "Reconnect discipline" below).
+- The **attach gate**: no correlated emit leaves before the reply path
+  is `'open'`.
+- **Correlated-reply retention**:
   the gateway retains recent replies (bounded: 60s TTL / 1024 entries,
   keyed by correlationId), `busRequest` registers its cid with the
   transport BEFORE emitting, and every subscribe body carries the
@@ -309,7 +307,7 @@ non-replayable by design (`e-*` ids). So the rule:
 > (b) terminal teardown (`stop()`/`dispose()`), where no consumer
 > remains to receive the bytes.**
 
-Audit of every live `.abort()` site (2026-07-05):
+Every live `.abort()` site:
 
 | Site | Class | Verdict |
 |---|---|---|
@@ -443,18 +441,6 @@ Consequence: every race in the cache (stuck guard, invalidate-loop,
 concurrent refetches) is a bug that published SWR implementations have
 documented fixes for, which we rediscover by bisection.
 
-### ~~Scope is per-connection, not per-channel~~ — RESOLVED
-
-**RESOLVED (2026-07-29) by the multi-resource-scope rewrite.** The subscribe body
-is a matrix: one connection subscribes any number of resource scopes
-simultaneously, each with its own channel set and resumption
-watermark. The transport ref-counts subscriptions per resource and
-distinct resources compose — the old one-scope floor (and the
-`subscribeToResource` different-resource throw, and the sdk's interim
-scope-contention degradation) no longer exist. The widening triggers
-this entry named all fired via the embeddable viewer's
-resource-per-chat-message pattern.
-
 ### No channel-level authorization
 
 Any authenticated user who subscribes to a channel receives everything
@@ -516,61 +502,3 @@ above is the decision tree.
 - `packages/http-transport/src/bus-request.ts` — correlation-ID matcher.
 - `packages/event-sourcing/src/event-store.ts` — persisted-event
   dual-publish (global + scoped).
-
-## Revision log
-
-A deliberate choice to keep this as a separate section so changes to
-the contract are visible.
-
-- **2026-07-29** — correlated-reply retention landed. The gateway retains recent replies (60s TTL,
-  1024-entry FIFO); the subscribe body's new `pendingReplies` field
-  (cap 256) names the cids a client still awaits and the server replays
-  matches with their deterministic ids. `busRequest` tracks its cid via
-  the transport's optional `trackReply` BEFORE emitting (a reconnect
-  body built mid-emit must already carry it) and releases on every
-  settle path. The "response-lost during a genuine disconnect" quirk
-  narrows to retention bounds; B14/B15 remain as defense in depth.
-- **2026-07-29** — multi-resource scope landed. `/bus/subscribe` is
-  POST with a JSON subscription matrix (`global` + N `scoped` entries);
-  the GET query form and the `Last-Event-ID` header are GONE (clean
-  cutover — resumption watermarks ride per-scope on the body, closing
-  the ephemeral-displaces-watermark replay-loss hole). One connection
-  holds many resource scopes; the transport ref-counts per resource and
-  distinct resources compose. Client-side: scope removals reconnect
-  lazily (`lazyRemoveMs` hysteresis) so hover churn doesn't storm;
-  additions keep the 100 ms debounce; make-before-break + linger-drain
-  unchanged. Scope cap 512/connection.
-- **2026-04-19** — initial draft, reflecting the contract after the
-  bus-simplification work plus the reconnect debounce fix.
-- **2026-04-19** — `Last-Event-ID` resumption landed. Persisted events
-  now carry `p-<scope>-<seq>` ids; scoped-subscribe requests with
-  `Last-Event-ID` trigger event-store replay. `bus:resume-gap` is the
-  server's signal that it couldn't cover the gap. Consumer contract
-  changes: bare reconnects no longer require cache invalidation. Also:
-  actor-state-unit now tracks all in-flight fetch controllers and aborts every
-  previous one on new connect, closing an orphan-stream leak.
-- **2026-04-19** — connection-state machine landed.
-- **2026-07-05** — linger-drain handoff landed (starvation fix P2):
-  superseded connections drain `LINGER_MS` before abort; their read-loop
-  exit no longer restarts reconnect. New **Abort discipline
-  (drain-over-abort)** section with the site audit; the rule is the
-  contract for any future `.abort()` call.
-  `actor.connected$: Observable<boolean>` replaced with
-  `actor.state$: Observable<ConnectionState>` (initial / connecting /
-  open / reconnecting / degraded / closed). Transitions are enforced;
-  `degraded` fires after 3 s in `reconnecting`, giving UI a
-  non-timing-heuristic signal to differentiate mount churn from
-  sustained disconnection.
-- **2026-04-21** — client SSE parser state moved outside the
-  `reader.read()` loop. Previously, assembly state reset on every
-  chunk, silently dropping any event whose `data:` header and
-  terminating blank line landed in different TCP reads. Contract
-  change: the "Wire framing and client parser obligations" section
-  now formally documents this requirement. Regression-tested.
-- **2026-04-26** — scope narrowed to HTTP-specific. Shared transport
-  guarantees moved to
-  [TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md).
-  This doc now covers only HTTP + SSE wire concerns: schema validation
-  at `/bus/emit`, `Last-Event-ID` resumption, the six-state connection
-  machine, SSE parser chunking obligations, response-lost on reconnect,
-  and the HTTP-specific known gaps.
