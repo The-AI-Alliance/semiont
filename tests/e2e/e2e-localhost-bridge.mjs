@@ -9,7 +9,7 @@
  */
 import net from 'node:net';
 const HOST = process.env.E2E_HOST_BRIDGE ?? '192.168.64.1';
-const PORTS = [3000, 4000, 8080];
+const PORTS = [3000, 4000, 8080, 24100];
 for (const port of PORTS) {
   net.createServer((c) => {
     const up = net.connect(port, HOST);
