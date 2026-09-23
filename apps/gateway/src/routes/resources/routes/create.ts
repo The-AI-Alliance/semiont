@@ -15,7 +15,7 @@ import type { components } from '@semiont/core';
 import { ResourceOperations } from '@semiont/make-meaning';
 import { putContent } from '../../../lib/archivist';
 import { requestPrimitiveFor, compositionFor } from '../../../signal';
-import { profileOnce } from '../../../identity/person-profile';
+import { profileForWrite } from '../../../identity/person-profile';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 type ContentFormat = components['schemas']['ContentFormat'];
@@ -122,12 +122,16 @@ export function registerCreateResource(router: ResourcesRouterType) {
           // remote driver (the yield:create starvation bug, 2026-09-15).
           const bus = requestPrimitiveFor(c.get('eventBus'));
 
-          // The other place a person writes through the gateway. No channel
-          // to gate on here and none needed: an upload creates a resource,
-          // so reaching this line IS the write (PERSON-PROFILE D3). Through
-          // the PLANE, for the reason the comment above gives — a raw bus
-          // emit never leaves this process under a remote driver.
-          profileOnce(principal, (ch, p) => compositionFor(c.get('eventBus')).plane.ingest(ch, p));
+          // The other place a person writes through the gateway. It ASKS the
+          // same rule /bus/emit asks, naming the channel this request is about
+          // to emit rather than asserting that reaching this line is a write —
+          // one answer, and the registry can correct it. Through the PLANE: a
+          // raw bus emit never leaves this process under a remote driver.
+          profileForWrite(
+            cloneToken ? 'yield:clone-persist' : 'yield:create',
+            principal,
+            (ch, p) => compositionFor(c.get('eventBus')).plane.ingest(ch, p),
+          );
 
           // Clone uploads carry a token instead of full metadata: the
           // CloneTokenManager validates it and inherits the source's entity

@@ -3,7 +3,7 @@ import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
 import type { EventBus, StoredEvent, EnvironmentConfig } from '@semiont/core';
-import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, channelWrites, resourceId as makeResourceId } from '@semiont/core';
+import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
   injectTraceparent,
@@ -31,7 +31,7 @@ import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/no
 import type { ServiceAccountCredential } from '@semiont/core';
 import { validators, formatErrors } from '@semiont/core/openapi';
 import type { HttpBindings } from '@hono/node-server';
-import { profileOnce } from '../identity/person-profile';
+import { profileForWrite } from '../identity/person-profile';
 
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
@@ -674,11 +674,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // A person WRITING is when the record learns what they are called
       // (PERSON-PROFILE D3). Gated on the channel, not on the stamp: every
       // emit carries a `_userId`, `browse:*` requests included, so stamping
-      // is not the test for an act. Which channels write is the registry's
-      // `effect` axis, declared per channel and generated — not a roster
-      // restated here. The name rides its own system event, never this
-      // payload.
-      if (channelWrites(channel)) profileOnce(principal, (ch, p) => plane.ingest(ch, p));
+      // is not the test for an act. The name rides its own system event,
+      // never this payload.
+      profileForWrite(channel, principal, (ch, p) => plane.ingest(ch, p));
     }
 
     // ── Emit-as-claim (CORRELATED-REPLY-ROUTING D2) ────────────────────
