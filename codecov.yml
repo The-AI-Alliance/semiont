@@ -83,6 +83,18 @@ component_management:
       name: "@semiont/react-ui"
       paths:
         - packages/react-ui/**
+    - component_id: mcp-server
+      name: "@semiont/mcp-server"
+      paths:
+        - packages/mcp-server/**
+    - component_id: sdk
+      name: "@semiont/sdk"
+      paths:
+        - packages/sdk/**
+    - component_id: vectors
+      name: "@semiont/vectors"
+      paths:
+        - packages/vectors/**
 
 # Ignore certain files from coverage
 ignore:
@@ -183,7 +195,18 @@ flags:
       - packages/react-ui/**
     carryforward: true
 
-  # App flags (for future use)
+  sdk:
+    paths:
+      - packages/sdk/**
+    carryforward: true
+
+  vectors:
+    paths:
+      - packages/vectors/**
+    carryforward: true
+
+  # App flags. These upload from security-tests.yml, not the package matrix.
+
   browser:
     paths:
       - apps/browser/**
