@@ -42,7 +42,6 @@ Focus on security-critical functionality:
 - Authorization checks
 - Input sanitization
 - GDPR compliance features
-- Cookie consent management
 - Admin access controls
 
 ### 🎭 **End-to-End Tests**
@@ -380,72 +379,23 @@ export const handlers = [
 
 ```typescript
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { CookiePreferences } from '../CookiePreferences'
-import * as cookieLib from '@/lib/cookies'
+import { render, screen, fireEvent } from '@testing-library/react'
+import { SemiontBranding } from '@semiont/react-ui'
 
-// Mock the cookies library
-vi.mock('@/lib/cookies', () => ({
-  getCookieConsent: vi.fn(),
-  setCookieConsent: vi.fn(),
-  exportUserData: vi.fn(),
-  COOKIE_CATEGORIES: [
-    {
-      id: 'necessary',
-      name: 'Strictly Necessary',
-      description: 'Essential cookies',
-      required: true,
-      cookies: ['session', 'csrf-token']
-    },
-    // ... more categories
-  ]
-}))
+describe('SemiontBranding', () => {
+  it('renders the tagline the host supplies', () => {
+    const t = (key: string) => (key === 'tagline' ? 'make meaning' : key)
+    render(<SemiontBranding t={t} />)
 
-describe('CookiePreferences', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    // Set up default mock behavior
-    (cookieLib.getCookieConsent as vi.Mock).mockReturnValue({
-      necessary: true,
-      analytics: false,
-      marketing: false,
-      preferences: true,
-      timestamp: '2024-01-01T00:00:00Z',
-      version: '1.0'
-    })
+    expect(screen.getByText('make meaning')).toBeInTheDocument()
   })
 
-  it('should display all cookie categories', () => {
-    render(<CookiePreferences isOpen={true} onClose={vi.fn()} />)
-    
-    expect(screen.getByText('Strictly Necessary')).toBeInTheDocument()
-    expect(screen.getByText('Analytics')).toBeInTheDocument()
-    expect(screen.getByText('Marketing')).toBeInTheDocument()
-    expect(screen.getByText('Preferences')).toBeInTheDocument()
-  })
+  it('omits the tagline when asked to', () => {
+    const t = vi.fn((key: string) => key)
+    render(<SemiontBranding t={t} showTagline={false} />)
 
-  it('should save preferences when clicking save button', async () => {
-    const onClose = vi.fn()
-    render(<CookiePreferences isOpen={true} onClose={onClose} />)
-    
-    // Toggle analytics on
-    const analyticsSwitch = screen.getByRole('checkbox', { name: /Analytics/ })
-    fireEvent.click(analyticsSwitch)
-    
-    // Click save
-    const saveButton = screen.getByText('Save Changes')
-    fireEvent.click(saveButton)
-    
-    // Verify the save was called with correct data
-    expect(cookieLib.setCookieConsent).toHaveBeenCalledWith({
-      necessary: true,
-      analytics: true,
-      marketing: false,
-      preferences: true,
-      timestamp: expect.any(String),
-      version: expect.any(String)
-    })
-    expect(onClose).toHaveBeenCalled()
+    expect(screen.queryByText('tagline')).not.toBeInTheDocument()
+    expect(t).not.toHaveBeenCalledWith('tagline')
   })
 })
 ```
@@ -851,7 +801,6 @@ The operational depth lives in [`tests/e2e/docs/`](../../tests/e2e/docs/):
 
 ### Current Coverage
 - Overall: ~22% line coverage
-- Cookie management: 87.57%
 - UI Components: 88-100%
 - API routes: Limited coverage
 
@@ -956,7 +905,7 @@ to bring the stack up.
 1. **Module resolution errors**
    ```typescript
    // Use dynamic imports for ESM modules
-   const cookiesModule = await import('@/lib/cookies')
+   const sessionModule = await import('@/lib/session')
    ```
 
 2. **Vitest globals not found**

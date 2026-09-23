@@ -36,8 +36,8 @@ Nothing in Semiont is waiting on them.
 
 ### Access levels
 
-- **Public**: `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the
-  documentation meta-routes (`/`, `/api`, `/api/docs`, `/api/swagger`, `/api/openapi.json`)
+- **Public**: `GET /`, `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the
+  documentation meta-routes (`/api`, `/api/docs`, `/api/swagger`, `/api/openapi.json`)
 - **Authenticated**: everything else — resources, annotations, entity types, search,
   graph queries, status, and the bus
 - **Service account**: `POST /api/tokens/agent` and the Archivist read path additionally

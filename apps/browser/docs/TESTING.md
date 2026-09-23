@@ -68,7 +68,7 @@ Testing in the Semiont Browser is split between two packages following the compo
 **In apps/browser** (Vite SPA specific):
 - App shell, routing, and provider composition (`providers.tsx`, `AuthShell`)
 - Integration flows across pages (e.g. the sign-up flow)
-- App-specific components (Home, About, CookieBanner, etc.)
+- App-specific components (Home, KnowledgeBasePanel, etc.)
 
 ## Running Tests
 
@@ -121,7 +121,7 @@ src/
 ```
 
 **Example locations**:
-- `src/components/__tests__/CookieBanner.test.tsx`
+- `src/components/__tests__/KnowledgeBasePanel.test.tsx`
 - `src/lib/__tests__/cookies.test.ts`
 - `src/contexts/__tests__/AuthShell.test.tsx`
 
@@ -177,26 +177,24 @@ src/mocks/                        # MSW mock handlers
 ### Component Test Example
 
 ```typescript
-// src/components/__tests__/CookieBanner.test.tsx
+// src/components/__tests__/KnowledgeBasePanel.test.tsx
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { CookieBanner } from '../CookieBanner';
+import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
 
-describe('CookieBanner', () => {
-  it('should show banner when consent is not given', async () => {
-    render(<CookieBanner />);
+describe('KnowledgeBasePanel', () => {
+  it('lists each recorded knowledge base', async () => {
+    render(<KnowledgeBasePanel />);
 
-    expect(screen.getByText(/We use cookies/)).toBeInTheDocument();
+    expect(screen.getByText(/knowledge base/i)).toBeInTheDocument();
   });
 
-  it('should handle accept all cookies', async () => {
-    render(<CookieBanner />);
+  it('selects one when clicked', async () => {
+    const onSelect = vi.fn();
+    render(<KnowledgeBasePanel onSelect={onSelect} />);
 
-    const acceptButton = screen.getByText('Accept All');
-    fireEvent.click(acceptButton);
-
-    // Banner should be hidden after accepting
-    expect(screen.queryByText('Accept All')).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button')[0]);
+    expect(onSelect).toHaveBeenCalled();
   });
 });
 ```
@@ -231,9 +229,9 @@ Vitest provides a Jest-compatible API with better ESM support:
 
 ```typescript
 // Mocking modules
-vi.mock('@/lib/cookies', () => ({
-  getCookieConsent: vi.fn(),
-  setCookieConsent: vi.fn(),
+vi.mock('@/lib/session', () => ({
+  getStoredSession: vi.fn(),
+  clearStoredSession: vi.fn(),
 }));
 
 // Spying on functions
@@ -423,7 +421,6 @@ The project uses native ES modules throughout, ensuring compatibility with moder
 - **42 test files** with **903 tests** - 100% passing
 - Comprehensive coverage of cookie consent system, authentication, and UI components
 - Key areas with excellent coverage:
-  - Cookie management (`cookies.ts`) - 87.57% coverage
   - Cookie UI components - 100% coverage
   - Authentication components - 100% coverage
   - Error boundaries - 100% coverage
@@ -614,7 +611,7 @@ it('renders page', () => {
 **apps/browser:**
 - App shell & routing: providers, AuthShell, route guards
 - Integration tests: Multi-step user flows
-- App-specific components: Home, About, Privacy, CookieBanner
+- App-specific components: Home, KnowledgeBasePanel, ResourceViewer
 
 ### Reference Examples
 

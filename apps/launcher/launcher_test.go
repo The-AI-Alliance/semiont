@@ -1856,6 +1856,14 @@ func TestUseradd(t *testing.T) {
 	} else {
 		mustContain(t, "stderr", stderr, "invalid email")
 	}
+	// An unknown flag is refused rather than ignored. The far end used to
+	// refuse it; this IS the far end for a local stack now, and `--admin` is
+	// still advertised in places — it must fail, not appear to work.
+	if _, stderr, code := s.run(t, "useradd", "--email", "a@b.co", "--admin"); code != 1 {
+		t.Errorf("an unknown flag should be refused, got exit %d", code)
+	} else {
+		mustContain(t, "stderr", stderr, "Unknown flag", "--admin")
+	}
 
 	// Asking for both a supplied and a generated password is refused HERE. The
 	// launcher strips --password-stdin and re-adds it only when it actually
@@ -2741,11 +2749,11 @@ func TestUseraddCodespace(t *testing.T) {
 	// appear nowhere in the remote command line.
 	nasty := "p a$s'w\"o`rd;rm -rf /"
 	s.stdin = nasty + "\n"
-	stdout, stderr, code := s.run(t, "useradd", "--email", "alice@example.com",
+	stdout, stderr, code := s.run(t, "useradd", "--email", "alice$NAME@example.com",
 		// A flag the launcher does not know. Forwarding argv verbatim is the
 		// promise, so an argument it has never heard of must cross intact and
 		// quoted — that is what breaks if this path starts interpreting flags.
-		"--future-flag", "A $NAME with spaces", "--upsert")
+		"--upsert")
 	if code != 0 {
 		t.Fatalf("codespace useradd: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -2758,7 +2766,7 @@ func TestUseraddCodespace(t *testing.T) {
 	mustContain(t, "remote command", remote,
 		"cd /workspaces/* &&", // the KB clone; the remote shell expands the glob
 		"semiont useradd",     // the codespace's OWN launcher, not a container
-		"'alice@example.com'", "'--upsert'", "'--password-stdin'")
+		"'alice$NAME@example.com'", "'--upsert'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
@@ -2771,15 +2779,15 @@ func TestUseraddCodespace(t *testing.T) {
 	if strings.Contains(remote, "docker") || strings.Contains(remote, "semiont-gateway") {
 		t.Errorf("the codespace path still reaches into a container:\n%s", remote)
 	}
-	// Other arguments still cross a shell, so they must still be quoted: the
-	// old bug was echoing RAW args, which would expand $NAME and split on
-	// spaces if pasted.
-	mustContain(t, "remote command", remote, "'A $NAME with spaces'")
+	// Arguments cross a SHELL, so they must be quoted. The remaining free-text
+	// value is the email — validated for shape, not for shell metacharacters —
+	// so a `$` in one must survive as a literal rather than expand.
+	mustContain(t, "remote command", remote, "'alice$NAME@example.com'")
 	// The echoed command is now IDENTICAL to the one run — with no secret in
 	// argv there is nothing left to redact.
 	echoed := stdout[strings.Index(stdout, "$ gh"):]
 	echoed = echoed[:strings.IndexByte(echoed, '\n')]
-	mustContain(t, "echoed command", echoed, "'alice@example.com'", "'--upsert'", "'A $NAME with spaces'")
+	mustContain(t, "echoed command", echoed, "'alice$NAME@example.com'", "'--upsert'")
 	if strings.Contains(echoed, "rm -rf") || strings.Contains(echoed, "redacted") {
 		t.Errorf("echoed command should carry no secret and need no redaction:\n%s", echoed)
 	}

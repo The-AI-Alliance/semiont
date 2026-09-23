@@ -155,7 +155,6 @@ packages/react-ui/src/
 │   ├── resource-discovery.css # Resource discovery
 │   ├── resource-viewer.css   # Resource viewing/editing
 │   ├── schemas.css           # Tag schemas
-│   ├── static-pages.css      # Static pages
 │   └── welcome.css           # Welcome/onboarding
 └── patterns/                  # Reusable patterns
     ├── errors.css            # Error states

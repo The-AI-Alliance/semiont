@@ -71,7 +71,7 @@ The Browser leverages **@semiont/react-ui**, a comprehensive framework-agnostic 
 - **Resource Components**: ResourceViewer, AnnotateView, BrowseView
 - **Annotation Components**: Complete annotation system with popups and overlays
 - **Panel Components**: Comments, References, Tags, Statistics, JSON-LD panels
-- **Navigation**: Footer, NavigationMenu, SkipLinks
+- **Navigation**: NavigationMenu, SkipLinks
 - **Layout**: UnifiedHeader, LeftSidebar, PageLayout
 - **Session**: SessionTimer, SessionExpiryBanner
 

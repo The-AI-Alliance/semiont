@@ -147,6 +147,17 @@ func Useradd(args []string) int {
 			wantStdin = true
 			o.stdin = true
 			continue // re-added below, exactly once
+		default:
+			// An unknown flag is REFUSED, not forwarded. The far end used to
+			// refuse it; now that this is the far end for a local stack,
+			// silently ignoring one would let `--admin` — which several
+			// documents still advertise and which grants nothing — look like
+			// it worked.
+			if strings.HasPrefix(args[i], "--") {
+				u.fail("Unknown flag: %s", args[i])
+				fmt.Fprintln(os.Stderr, "  See:  semiont useradd --help")
+				return 1
+			}
 		}
 		rest = append(rest, args[i])
 	}
