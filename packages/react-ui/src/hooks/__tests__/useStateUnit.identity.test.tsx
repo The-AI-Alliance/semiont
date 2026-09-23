@@ -23,9 +23,10 @@ import { render, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { BehaviorSubject, Subject, map } from 'rxjs';
 import { readyValue } from '@semiont/sdk';
+import { inMemoryContent } from '@semiont/sdk/testing';
 import type { ConnectionState, SemiontError } from '@semiont/core';
 import { EventBus, baseUrl } from '@semiont/core';
-import { type ITransport, type IContentTransport } from '@semiont/core';
+import { type ITransport } from '@semiont/core';
 import { BrowseNamespace } from '@semiont/sdk';
 import { useStateUnit } from '../useStateUnit';
 import { useObservable } from '../useObservable';
@@ -52,6 +53,11 @@ const NINE_TYPES = [
  * here returns the bus subject for whatever channel is asked, so this
  * transport genuinely does deliver every channel.
  */
+// NOT `FaultyTransport` from `@semiont/sdk/testing`, deliberately: that double
+// scripts replies declaratively (a fault schedule + a reply queue), and the
+// DEAD-CACHE WRITE test below must hold a request pending, observe its
+// correlationId, re-render, and only THEN answer it. No fault kind expresses
+// "resolve this one later", so this file keeps a callback-scripted transport.
 function inMemoryTransport(
   bus: EventBus,
   onEmit: (
@@ -87,16 +93,6 @@ function inMemoryTransport(
   };
 }
 
-/** The content half, which no test in this file exercises. */
-function inMemoryContent(): IContentTransport {
-  return {
-    putBinary: vi.fn(),
-    getBinary: vi.fn(),
-    getBinaryStream: vi.fn(),
-    getResourceGraph: vi.fn(),
-    dispose: vi.fn(),
-  };
-}
 
 /**
  * Build a minimal BrowseNamespace with a controllable mock transport. The

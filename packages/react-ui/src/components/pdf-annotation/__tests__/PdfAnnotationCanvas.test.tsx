@@ -118,8 +118,22 @@ function stubIntersectionObserver() {
     fireFor(visible, (m) => m === '0px');
   }
 
+  /**
+   * Pages currently registered with an observer, deduped. The slots reach the
+   * DOM one effect BEFORE `observe()` runs on them, so waiting on the DOM and
+   * then firing delivers entries to nobody — the component never learns a page
+   * became visible, and the test sees an empty mount list. Wait on this
+   * instead. (Both observers are created in the same effect pass, so a page
+   * appearing here means both have it.)
+   */
+  function observedPages(): number[] {
+    const pages = new Set(observed.map(({ el }) => Number((el as HTMLElement).dataset.page)));
+    return [...pages].sort((a, b) => a - b);
+  }
+
   return {
     fireOnscreen,
+    observedPages,
     /**
      * Fire both observers: these pages are mounted AND on screen — the
      * ordinary case. A test that needs the two to differ (a page preloaded
@@ -690,7 +704,7 @@ describe('PdfAnnotationCanvas', () => {
       );
 
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
       // Nothing rasterized before anything is visible.
       expect(mountedPages()).toEqual([]);
@@ -712,7 +726,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       io.fire([1, 2]);
@@ -746,7 +760,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       io.fire([1, 2, 3]);
@@ -773,7 +787,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       const slotOf = (page: number) =>
@@ -816,7 +830,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       io.fire([2, 3]);
@@ -853,7 +867,7 @@ describe('PdfAnnotationCanvas', () => {
       );
 
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
       io.fire([1]);
       await waitFor(() => expect(mountedPages()).toEqual([1]));
@@ -880,7 +894,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       const ticks = () => document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page');
@@ -970,7 +984,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
       io.fire([2]);
       await waitFor(() => expect(mountedPages()).toEqual([2]));
@@ -1013,7 +1027,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
       io.fire([1]);
       await waitFor(() => expect(mountedPages()).toEqual([1]));
@@ -1179,7 +1193,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
       io.fire([1]);
 
@@ -1207,7 +1221,7 @@ describe('PdfAnnotationCanvas', () => {
           drawingMode={null} pageLayout="scroll" />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       // Pages 1-3 are within the preload window; only 3 is actually on screen.
@@ -1291,7 +1305,7 @@ describe('PdfAnnotationCanvas', () => {
           drawingMode={null} pageLayout="scroll" session={session} />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
 
       io.fire([1]);
@@ -1312,7 +1326,7 @@ describe('PdfAnnotationCanvas', () => {
           drawingMode={null} pageLayout="scroll" />
       );
       await waitFor(() => {
-        expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__slot')).toHaveLength(5);
+        expect(io.observedPages()).toHaveLength(5);
       });
       io.fire([3]);
       await waitFor(() => {

@@ -172,6 +172,27 @@ export function stubGateway(): IGatewayOperations {
   };
 }
 
+/**
+ * A `makeResponse` that refuses instead of inventing.
+ *
+ * `FaultyTransport` answers every bus operation, falling back to a default that
+ * returns `{}` — which reaches the caller as a SUCCESS whose every field is
+ * `undefined`, and surfaces far away as `undefined.find is not a function`
+ * rather than as "nobody scripted this operation". A shape-correct empty
+ * default would be worse still: a hand-written mirror of a wire shape the spec
+ * owns, carrying a fallback. So this refuses, naming the operation.
+ *
+ * Pass as `transport: { makeResponse: refuseUnscriptedOperation }` in any suite
+ * whose units should never reach an unscripted operation.
+ */
+export function refuseUnscriptedOperation(operation: string): never {
+  throw new Error(
+    `No response scripted for bus operation "${operation}". ` +
+      `Script one with transport.queueReply('${operation}', <response>) ` +
+      `or pass a makeResponse that handles it.`,
+  );
+}
+
 export function createTestClient(options: TestClientOptions = {}): {
   client: SemiontClient;
   transport: FaultyTransport;

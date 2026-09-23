@@ -95,12 +95,12 @@ describe('SimpleNavigation', () => {
     it('emits shell:sidebar-toggle on collapse button click', () => {
       const handler = vi.fn();
 
-      const { shellBus } = renderWithProviders(
+      const { browser } = renderWithProviders(
         <SimpleNavigation {...defaultProps} />,
         { returnShellBus: true }
       );
 
-      const subscription = shellBus!.on('shell:sidebar-toggle').subscribe(handler);
+      const subscription = browser!.stream('shell:sidebar-toggle').subscribe(handler);
 
       const collapseButton = screen.getByLabelText('Collapse sidebar');
       fireEvent.click(collapseButton);

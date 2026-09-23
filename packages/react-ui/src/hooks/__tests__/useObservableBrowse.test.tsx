@@ -2,17 +2,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { EventBus } from '@semiont/core';
+import type { SemiontBrowser } from '@semiont/sdk';
 import { useObservableRouter, useObservableExternalNavigation } from '../useObservableBrowse';
 import { createTestSemiontWrapper } from '../../test-utils';
 
-function makeWrapper(): { Wrapper: React.ComponentType<{ children: React.ReactNode }>; eventBus: EventBus } {
+function makeWrapper(): { Wrapper: React.ComponentType<{ children: React.ReactNode }>; browser: SemiontBrowser } {
   // useObservableRouter/ExternalNavigation emit nav:* on the app-scoped
-  // (SemiontBrowser) bus. Return that bus as `eventBus` so the existing
-  // test bodies keep working without rewiring each assertion.
-  const { SemiontWrapper, shellBus } = createTestSemiontWrapper();
+  // (SemiontBrowser) bus; `browser.stream(channel)` is its published reader.
+  const { SemiontWrapper, browser } = createTestSemiontWrapper();
   const Wrapper = ({ children }: { children: React.ReactNode }) => <SemiontWrapper>{children}</SemiontWrapper>;
-  return { Wrapper, eventBus: shellBus };
+  return { Wrapper, browser };
 }
 
 describe('useObservableRouter', () => {
@@ -23,11 +22,11 @@ describe('useObservableRouter', () => {
     const basePush = vi.fn();
     const baseRouter = { push: basePush };
 
-    const { Wrapper, eventBus } = makeWrapper();
+    const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.on('nav:push').subscribe((e: any) => events.push(e));
+    browser.stream('nav:push').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current.push('/test-path', { reason: 'test' });
@@ -42,11 +41,11 @@ describe('useObservableRouter', () => {
     const baseReplace = vi.fn();
     const baseRouter = { push: vi.fn(), replace: baseReplace };
 
-    const { Wrapper, eventBus } = makeWrapper();
+    const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableRouter(baseRouter), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.on('nav:push').subscribe((e: any) => events.push(e));
+    browser.stream('nav:push').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current.replace!('/replaced', { reason: 'nav' });
@@ -86,11 +85,11 @@ describe('useObservableExternalNavigation', () => {
   });
 
   it('emits nav:external event with url and metadata', () => {
-    const { Wrapper, eventBus } = makeWrapper();
+    const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     const events: any[] = [];
-    eventBus.on('nav:external').subscribe((e: any) => events.push(e));
+    browser.stream('nav:external').subscribe((e: any) => events.push(e));
 
     act(() => {
       result.current('/some/url', { resourceId: 'res-123' });
@@ -107,11 +106,11 @@ describe('useObservableExternalNavigation', () => {
   });
 
   it('provides cancelFallback that prevents window.location fallback', () => {
-    const { Wrapper, eventBus } = makeWrapper();
+    const { Wrapper, browser } = makeWrapper();
     const { result } = renderHook(() => useObservableExternalNavigation(), { wrapper: Wrapper });
 
     // Subscribe and cancel the fallback
-    eventBus.on('nav:external').subscribe((e: any) => {
+    browser.stream('nav:external').subscribe((e: any) => {
       e.cancelFallback();
     });
 
