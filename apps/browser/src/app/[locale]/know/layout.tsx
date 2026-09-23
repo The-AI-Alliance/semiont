@@ -13,7 +13,6 @@ import {
   useKBDiscovery,
 } from '@semiont/react-ui';
 import { ToolbarPanels } from '@/components/toolbar/ToolbarPanels';
-import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { useKbPanelOnLogin } from '@/hooks/useKbPanelOnLogin';
 import { Link, routes } from '@/lib/routing';
@@ -124,7 +123,6 @@ function UnauthenticatedKnowledgeLayout({ t, keyboardContext }: { t: (key: strin
         Link={Link}
         routes={routes}
         t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-        CookiePreferences={CookiePreferences}
         showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
         {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       />
@@ -184,7 +182,6 @@ function KnowledgeLayoutBody() {
           Link={Link}
           routes={routes}
           t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-          CookiePreferences={CookiePreferences}
           showPolicyLinks={!('__TAURI_INTERNALS__' in window)}
           {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
         />

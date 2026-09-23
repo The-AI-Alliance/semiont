@@ -1,7 +1,6 @@
 import { useContext } from 'react';
 import { useTranslation } from 'react-i18next';
 import { PageLayout, buttonStyles } from '@semiont/react-ui';
-import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 import { Link } from '@/i18n/routing';
@@ -25,7 +24,6 @@ export default function AboutPage() {
       tNav={tNav}
       tHome={tHome}
       showAuthLinks={false}
-      CookiePreferences={CookiePreferences}
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       className="semiont-static-page"
     >

@@ -37,7 +37,6 @@ vi.mock('@/components/toolbar/ToolbarPanels', () => ({
 }));
 
 vi.mock('@/components/knowledge/KnowledgeSidebarWrapper', () => ({ KnowledgeSidebarWrapper: () => null }));
-vi.mock('@/components/CookiePreferences', () => ({ CookiePreferences: () => null }));
 vi.mock('@/lib/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   routes: {},

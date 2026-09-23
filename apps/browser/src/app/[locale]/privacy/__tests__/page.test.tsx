@@ -2,10 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import PrivacyPolicyPage from '../page';
 
-// Mock CookiePreferences component
-vi.mock('@/components/CookiePreferences', () => ({
-  CookiePreferences: () => <div data-testid="cookie-preferences">Cookie Preferences Component</div>
-}));
 
 // Mock PageLayout component from react-ui
 vi.mock('@semiont/react-ui', async () => {

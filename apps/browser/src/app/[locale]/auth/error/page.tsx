@@ -2,7 +2,6 @@ import { useContext } from 'react';
 import { useSearchParams } from 'react-router';
 import { useTranslation } from 'react-i18next';
 import { PageLayout, AuthErrorDisplay } from '@semiont/react-ui';
-import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link as RoutingLink, routes } from '@/lib/routing';
 import { Link } from '@/i18n/routing';
@@ -34,7 +33,6 @@ export default function AuthError() {
       t={tFooter}
       tNav={tNav}
       tHome={tHome}
-      CookiePreferences={CookiePreferences}
       {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       className="bg-gray-50 dark:bg-gray-900"
     >

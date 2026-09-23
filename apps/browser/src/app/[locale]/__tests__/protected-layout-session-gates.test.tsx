@@ -50,7 +50,6 @@ vi.mock('react-router', async () => {
 });
 
 vi.mock('@/components/moderation/ModerationNavigation', () => ({ ModerationNavigation: () => null }));
-vi.mock('@/components/CookiePreferences', () => ({ CookiePreferences: () => null }));
 vi.mock('@/lib/routing', () => ({
   Link: ({ children, ...props }: any) => <a {...props}>{children}</a>,
   routes: {},

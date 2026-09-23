@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import '../layout/Footer.css';
 
@@ -10,10 +10,9 @@ interface FooterProps {
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
   t: TranslateFn;
-  CookiePreferences?: React.ComponentType<{ isOpen: boolean; onClose: () => void }>;
   onOpenKeyboardHelp?: () => void;
   sourceCodeUrl?: string;
-  /** Show About, Privacy Policy, Terms of Service, Cookie Preferences links. False for desktop apps. */
+  /** Show About, Privacy Policy and Terms of Service links. False for desktop apps. */
   showPolicyLinks?: boolean;
 }
 
@@ -21,12 +20,10 @@ export function Footer({
   Link,
   routes,
   t,
-  CookiePreferences,
   onOpenKeyboardHelp,
   sourceCodeUrl = 'https://github.com/The-AI-Alliance/semiont',
   showPolicyLinks = true,
 }: FooterProps) {
-  const [showCookiePreferences, setShowCookiePreferences] = useState(false);
 
   return (
     <>
@@ -52,14 +49,6 @@ export function Footer({
                   >
                     {t('privacyPolicy')}
                   </Link>
-                  {CookiePreferences && (
-                    <button
-                      onClick={() => setShowCookiePreferences(true)}
-                      className="semiont-footer__link"
-                    >
-                      {t('cookiePreferences')}
-                    </button>
-                  )}
                   <Link
                     href={routes.terms?.() || '/terms'}
                     className="semiont-footer__link"
@@ -91,13 +80,6 @@ export function Footer({
           </div>
         </div>
       </footer>
-
-      {showPolicyLinks && CookiePreferences && (
-        <CookiePreferences
-          isOpen={showCookiePreferences}
-          onClose={() => setShowCookiePreferences(false)}
-        />
-      )}
     </>
   );
 }

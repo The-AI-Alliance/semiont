@@ -16,7 +16,6 @@ interface PageLayoutProps {
   children: React.ReactNode;
   className?: string;
   showAuthLinks?: boolean;
-  CookiePreferences?: React.ComponentType<{ isOpen: boolean; onClose: () => void }>;
   onOpenKeyboardHelp?: () => void;
 }
 
@@ -29,7 +28,6 @@ export function PageLayout({
   children,
   className = '',
   showAuthLinks = true,
-  CookiePreferences,
   onOpenKeyboardHelp
 }: PageLayoutProps) {
   return (
@@ -63,7 +61,6 @@ export function PageLayout({
         Link={Link}
         routes={routes}
         t={t}
-        {...(CookiePreferences && { CookiePreferences })}
         {...(onOpenKeyboardHelp && { onOpenKeyboardHelp })}
       />
     </div>

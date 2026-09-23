@@ -251,44 +251,6 @@ describe('PageLayout Component', () => {
   });
 
   describe('Optional Props', () => {
-    it('should render without CookiePreferences', () => {
-      expect(() => {
-        render(
-          <PageLayout
-            Link={MockLink}
-            routes={mockRoutes}
-            t={mockT}
-            tNav={mockTNav}
-            tHome={mockTHome}
-          >
-            <div>Content</div>
-          </PageLayout>
-        );
-      }).not.toThrow();
-    });
-
-    it('should render with CookiePreferences component', () => {
-      const MockCookiePreferences = ({  }: any) => (
-        <div data-testid="cookie-prefs">Cookie Preferences</div>
-      );
-
-      render(
-        <PageLayout
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          tNav={mockTNav}
-          tHome={mockTHome}
-          CookiePreferences={MockCookiePreferences}
-        >
-          <div>Content</div>
-        </PageLayout>
-      );
-
-      // Real Footer renders contentinfo role
-      expect(screen.getByRole('contentinfo')).toBeInTheDocument();
-    });
-
     it('should render with onOpenKeyboardHelp handler', () => {
       const mockHandler = vi.fn();
 

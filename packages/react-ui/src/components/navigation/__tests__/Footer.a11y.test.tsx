@@ -37,7 +37,6 @@ describe('Footer - Accessibility', () => {
       'termsOfService': 'Terms of Service',
       'copyright': '© 2024 Semiont. All rights reserved.',
       'keyboardShortcuts': 'Keyboard Shortcuts (press ? for help)',
-      'cookiePreferences': 'Cookie Preferences',
       'apiDocs': 'API Docs',
       'sourceCode': 'Source Code',
     };
@@ -47,7 +46,6 @@ describe('Footer - Accessibility', () => {
     return translations[key] || key;
   });
 
-  const MockCookiePreferences = () => <div>Cookie Preferences</div>;
 
   describe('WCAG 2.1 AA - Automated axe-core Tests', () => {
     it('should have no accessibility violations', async () => {
@@ -56,7 +54,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -72,7 +69,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -89,7 +85,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -108,7 +103,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -129,7 +123,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -147,7 +140,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -168,7 +160,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -188,7 +179,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -205,7 +195,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -223,7 +212,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -240,7 +228,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -262,7 +249,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -281,7 +267,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -301,7 +286,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -320,7 +304,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -339,7 +322,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -355,7 +337,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -373,28 +354,11 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
       // Translation function should be called for footer content
       expect(mockTranslate).toHaveBeenCalled();
-    });
-  });
-
-  describe('Cookie Preferences Component', () => {
-    it('should render Cookie Preferences button', () => {
-      render(
-        <Footer
-          Link={mockLink}
-          routes={mockRoutes}
-          t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
-        />
-      );
-
-      const button = screen.getByRole('button', { name: /Cookie Preferences/i });
-      expect(button).toBeInTheDocument();
     });
   });
 
@@ -407,7 +371,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
           onOpenKeyboardHelp={onOpenKeyboardHelp}
         />
       );
@@ -424,7 +387,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 
@@ -440,7 +402,6 @@ describe('Footer - Accessibility', () => {
           Link={mockLink}
           routes={mockRoutes}
           t={mockTranslate}
-          CookiePreferences={MockCookiePreferences}
         />
       );
 

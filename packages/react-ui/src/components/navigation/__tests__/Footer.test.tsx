@@ -110,86 +110,6 @@ describe('Footer Component', () => {
   });
 
   describe('Optional Features', () => {
-    it('should not render Cookie Preferences button when not provided', () => {
-      render(
-        <Footer
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-        />
-      );
-
-      expect(screen.queryByText('footer.cookiePreferences')).not.toBeInTheDocument();
-    });
-
-    it('should render Cookie Preferences button when provided', () => {
-      const MockCookiePrefs = ({  }: any) => null;
-
-      render(
-        <Footer
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          CookiePreferences={MockCookiePrefs}
-        />
-      );
-
-      expect(screen.getByText('footer.cookiePreferences')).toBeInTheDocument();
-    });
-
-    it('should open Cookie Preferences modal when button clicked', () => {
-      const MockCookiePrefs = ({ isOpen }: any) => (
-        isOpen ? <div data-testid="cookie-modal">Cookie Preferences</div> : null
-      );
-
-      render(
-        <Footer
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          CookiePreferences={MockCookiePrefs}
-        />
-      );
-
-      expect(screen.queryByTestId('cookie-modal')).not.toBeInTheDocument();
-
-      const button = screen.getByText('footer.cookiePreferences');
-      fireEvent.click(button);
-
-      expect(screen.getByTestId('cookie-modal')).toBeInTheDocument();
-    });
-
-    it('should close Cookie Preferences modal when onClose called', () => {
-      const MockCookiePrefs = ({ isOpen, onClose }: any) => {
-        return isOpen ? (
-          <div data-testid="cookie-modal">
-            <button onClick={onClose}>Close</button>
-          </div>
-        ) : null;
-      };
-
-      render(
-        <Footer
-          Link={MockLink}
-          routes={mockRoutes}
-          t={mockT}
-          CookiePreferences={MockCookiePrefs}
-        />
-      );
-
-      // Open modal
-      const button = screen.getByText('footer.cookiePreferences');
-      fireEvent.click(button);
-
-      expect(screen.getByTestId('cookie-modal')).toBeInTheDocument();
-
-      // Close modal
-      const closeButton = screen.getByText('Close');
-      fireEvent.click(closeButton);
-
-      expect(screen.queryByTestId('cookie-modal')).not.toBeInTheDocument();
-    });
-
     it('should not render Keyboard Shortcuts button when not provided', () => {
       render(
         <Footer
@@ -384,20 +304,15 @@ describe('Footer Component', () => {
 
     it('should have proper button elements for interactive features', () => {
       const mockHandler = vi.fn();
-      const MockCookiePrefs = ({  }: any) => null;
 
       render(
         <Footer
           Link={MockLink}
           routes={mockRoutes}
           t={mockT}
-          CookiePreferences={MockCookiePrefs}
           onOpenKeyboardHelp={mockHandler}
         />
       );
-
-      const cookieButton = screen.getByText('footer.cookiePreferences');
-      expect(cookieButton.tagName).toBe('BUTTON');
 
       const keyboardButton = screen.getByText('footer.keyboardShortcuts');
       expect(keyboardButton.tagName).toBe('BUTTON');

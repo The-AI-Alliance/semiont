@@ -8,7 +8,6 @@ import {
   useObservable,
 } from '@semiont/react-ui';
 import { ModerationNavigation } from '@/components/moderation/ModerationNavigation';
-import { CookiePreferences } from '@/components/CookiePreferences';
 import { KeyboardShortcutsContext } from '@/contexts/KeyboardShortcutsContext';
 import { Link, routes } from '@/lib/routing';
 import { useRouter } from '@/i18n/routing';
@@ -60,7 +59,6 @@ function ModerateLayoutBody() {
         Link={Link}
         routes={routes}
         t={(key: string, params?: Record<string, unknown>) => t(`Footer.${key}`, params as any) as string}
-        CookiePreferences={CookiePreferences}
         {...(keyboardContext?.openKeyboardHelp && { onOpenKeyboardHelp: keyboardContext.openKeyboardHelp })}
       />
     </div>
