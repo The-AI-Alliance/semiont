@@ -119,6 +119,59 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
 
+      # Generate the SBOM before push so it gates the publish AND is reused for
+      # the attestation below (one SBOM, two uses). Runs on dry-run too: a dry
+      # run should exercise every gate, or it proves less than it appears to.
+      #
+      # Built from the same amd64 image we already scanned. OS packages and
+      # language libraries are platform-independent, so the amd64 SBOM
+      # accurately describes the multi-arch image's contents.
+      - name: Generate SBOM with Trivy
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: semiont-browser:scan
+          format: spdx-json
+          output: sbom.spdx.json
+
+      # License-policy gate, matching publish-service-images.yml.
+      #
+      # Scope note, so this is not read as more than it is: @semiont/browser
+      # ships a PRE-BUILT SPA, so its third-party dependencies are bundled into
+      # the output before the package is published and never appear as npm
+      # packages in the image. Measured on 0.5.39 this inspects exactly 2
+      # packages (@semiont/browser itself and the installer-stage scaffold).
+      # It is here for symmetry and to catch drift if this image ever gains a
+      # real runtime dependency tree -- NOT as assurance about the bundle.
+      - name: License policy gate
+        run: node .github/scripts/check-licenses.mjs sbom.spdx.json .github/licenses/allowlist.txt .github/licenses/exceptions.txt
+
+      # Boot smoke, module load only. Unlike the service images -- which refuse
+      # with the config loader's "No environment selected" and exit -- this CMD
+      # is a static server that never exits, so there is no refusal to assert
+      # and a bare `docker run` would hang. Surviving a short window IS the
+      # signal: a missing entry point or unresolved import dies in milliseconds.
+      #
+      # Deliberately not a liveness probe: that the server answers correctly on
+      # 3000 is e2e's question, not a publish gate's.
+      - name: Boot smoke (module load)
+        run: |
+          set +e
+          out=$(timeout 10 docker run --rm semiont-browser:scan 2>&1)
+          rc=$?
+          set -e
+          echo "$out"
+          if echo "$out" | grep -qE "Cannot find module|Cannot find package|ERR_MODULE_NOT_FOUND|MODULE_NOT_FOUND"; then
+            echo "::error::browser image died at module load — the entry point or a dependency is missing from the image."
+            exit 1
+          fi
+          # 124 is `timeout` killing a process that was still running: the
+          # server came up and stayed up, which is what we are asserting.
+          if [ "$rc" -ne 124 ]; then
+            echo "::error::browser image exited on its own (status $rc) instead of serving; see the output above."
+            exit 1
+          fi
+          echo "browser: entry point and imports resolved, process stayed up"
+
       - name: Build and push Docker image
         id: build-push
         uses: docker/build-push-action@v7
@@ -136,17 +189,6 @@ jobs:
             SEMIONT_BROWSER_VERSION=${{ inputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
-      # Generate SBOM from the same amd64 image we already scanned. OS
-      # packages and language libraries are platform-independent, so the
-      # amd64 SBOM accurately describes the multi-arch image's contents.
-      - name: Generate SBOM with Trivy
-        if: ${{ !inputs.dry_run }}
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: semiont-browser:scan
-          format: spdx-json
-          output: sbom.spdx.json
 
       # SLSA build provenance via GitHub's OIDC + Sigstore. Stored as an
       # OCI attestation alongside the image in GHCR. Verify with:
