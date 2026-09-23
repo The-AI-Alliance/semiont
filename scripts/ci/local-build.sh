@@ -317,25 +317,62 @@ GOPROXY_CACHED='file:///go/pkg/mod/cache/download,https://proxy.golang.org,direc
 # changed without regenerating the Go client": a specific cause the gate had
 # not established, and one that sends the reader to regenerate a file that was
 # never stale. Ignorance is not a finding.
-DRIFT_RC=0
+# The corrupt-cache signature, in ONE place: the retry below and the diagnosis
+# further down must agree about what a poisoned extraction looks like, or the
+# run either retries a failure it cannot fix or prints a remedy it already
+# applied. `cannot embed` / `no embeddable files` is the shape a TRUNCATED
+# extraction produces — the tree is THERE, so Go trusts it and never
+# re-extracts, and every retry fails identically until it is removed.
+CORRUPT_CACHE_RE='no such file or directory|no matching files found|cannot embed|no embeddable files|pattern .*: .*matching|cannot find package'
+
 # Output is tee'd, not just streamed: the exit-3 handler below reads it to tell a
 # CORRUPT MODULE CACHE from a network failure, and the two have opposite remedies.
 # `set -o pipefail` (line 2) is what makes `$?` the container's code rather than
 # tee's — without it this silently reports success on every failure.
 DRIFT_LOG=$(mktemp "${TMPDIR:-/tmp}/semiont-drift.XXXXXX")
-$RT run --rm \
-  -v "$REPO_ROOT":/workspace \
-  -v "$GOCACHE_DIR":/root/.cache/go-build \
-  -v "$GOMODCACHE_DIR":/go/pkg/mod \
-  -e GOPROXY="$GOPROXY_CACHED" \
-  -w /workspace \
-  "$GO_IMAGE" \
-  sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
-           -generate types,client,skip-prune -package semiont \
-           -o /tmp/client_gen.check.go specs/openapi.json || exit 3
-         diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
-  2>&1 | tee "$DRIFT_LOG" \
-  || DRIFT_RC=$?
+
+run_drift_check() {
+  DRIFT_RC=0
+  $RT run --rm \
+    -v "$REPO_ROOT":/workspace \
+    -v "$GOCACHE_DIR":/root/.cache/go-build \
+    -v "$GOMODCACHE_DIR":/go/pkg/mod \
+    -e GOPROXY="$GOPROXY_CACHED" \
+    -w /workspace \
+    "$GO_IMAGE" \
+    sh -c 'go run github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen@v2.6.0 \
+             -generate types,client,skip-prune -package semiont \
+             -o /tmp/client_gen.check.go specs/openapi.json || exit 3
+           diff -q /tmp/client_gen.check.go packages/sdk-go/client_gen.go >/dev/null || exit 4' \
+    2>&1 | tee "$DRIFT_LOG" \
+    || DRIFT_RC=$?
+}
+
+# Purge the EXTRACTED module trees, keeping cache/download — the downloads are a
+# content-addressed store and a valid proxy (GOPROXY_CACHED points at it), so Go
+# re-extracts from them offline. On the HOST: rm through the mount fails with
+# Permission denied even as root. Go writes the cache read-only, hence the chmod.
+purge_modcache_extractions() {
+  chmod -R u+w "$GOMODCACHE_DIR" 2>/dev/null || true
+  find "$GOMODCACHE_DIR" -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} + 2>/dev/null || true
+}
+
+run_drift_check
+
+# Self-heal, once. This failure has cost four builds, and its remedy was already
+# written out in full below — a message telling someone to run two commands the
+# script can run itself is a manual step pretending to be a diagnosis. Retried
+# ONLY on the corrupt-cache signature and ONLY when the generator failed to run
+# (3): a STALE client (4) is a real verdict about the spec, and re-running it on
+# a fresh cache would just burn a download to reach the same answer.
+if [[ "$DRIFT_RC" == 3 ]] && grep -qiE "$CORRUPT_CACHE_RE" "$DRIFT_LOG"; then
+  warn "The Go module cache is corrupt (a partial extraction). Purging the extracted trees — the downloads are kept — and retrying once."
+  purge_modcache_extractions
+  run_drift_check
+  if [[ "$DRIFT_RC" == 0 ]]; then
+    ok "Recovered after purging the module cache"
+  fi
+fi
 
 case "$DRIFT_RC" in
   0)
@@ -375,11 +412,14 @@ case "$DRIFT_RC" in
     # signature — the tree is THERE, so Go trusts it and never re-extracts, and
     # every retry fails identically. Matching only the first sent the reader to
     # the network branch below to wait out a network that was already working.
-    if grep -qiE 'no such file or directory|no matching files found|cannot embed|no embeddable files|pattern .*: .*matching|cannot find package' "$DRIFT_LOG"; then
+    if grep -qiE "$CORRUPT_CACHE_RE" "$DRIFT_LOG"; then
       echo -e "  ${BOLD}Cause: a corrupt Go module cache, not the network.${RESET} A previous run was"
       echo -e "  interrupted mid-extraction and left a partial module tree."
       echo ""
-      echo -e "  Purge the EXTRACTED trees and keep the downloads (no re-fetch, works offline):"
+      echo -e "  ${BOLD}This run already purged the extracted trees and retried once${RESET}, so the"
+      echo -e "  cache was not merely poisoned — it is cold, or the purge could not remove it."
+      echo ""
+      echo -e "  Purge by hand and see whether the error changes:"
       echo ""
       echo -e "    ${BOLD}chmod -R u+w $GOMODCACHE_DIR${RESET}"
       echo -e "    ${BOLD}find $GOMODCACHE_DIR -mindepth 1 -maxdepth 1 ! -name cache -exec rm -rf {} +${RESET}"
