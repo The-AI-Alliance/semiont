@@ -19,8 +19,8 @@
  *
  * One composition per EventBus, cached: the route reaches it per-request,
  * boot pre-seeds it with the configured driver, tests get a lazy in-process
- * one — the same lifecycle the route's WeakMaps used to own. Passing a
- * DIFFERENT plane for a bus that already composed is refused loudly.
+ * one. Passing a DIFFERENT plane for a bus that already composed is refused
+ * loudly.
  *
  * This file never learns the correlation vocabulary: announcement shape and
  * parsing live in the ledger (the census-exempt file); frames pass through

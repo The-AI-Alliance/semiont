@@ -44,10 +44,8 @@ const getBusLogger = () => getLogger().child({ component: 'bus' });
  * customer.
  *
  * What may live on the Archivist's HTTP surface at all is decided in ONE
- * place — the standing rule in `archivist-read-path.ts`, rewritten when
- * SINGLE-KB-MOUNT D1 re-examined it. Do not restate it here; a second copy
- * is how the two drift, which is precisely what happened to the version
- * this comment used to carry.
+ * place — the standing rule in `archivist-read-path.ts`. Do not restate it
+ * here; a second copy is how the two drift.
  *
  * Address and auth come from `archivistEndpoint` (@semiont/core/node),
  * shared with the content proxying and with the fleet's own byte readers so
@@ -733,8 +731,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       : undefined;
 
     // How many observers the target subject had AT DISPATCH. Zero means the
-    // signal reached nobody — the failure this route could not previously
-    // express.
+    // signal reached nobody, which is the failure this count exists to express.
     //
     // It is EXACT for a broadcast and an UPPER BOUND for a correlated channel:
     // since P3, a subscriber on a reply channel receives the frame only if it

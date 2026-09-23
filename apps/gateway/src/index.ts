@@ -53,17 +53,16 @@ requireJwtSecret();
 //                from (JWTService.getDomainForAgent).
 //
 // The committed side is the launcher-staged top-level `[kb] domain`
-// (SINGLE-KB-MOUNT P5) — read there and NOWHERE else. It used to come off
-// this process's own `/kb` mount, which it no longer has. `[site]` remains
-// the wrong source for it either way: an environment section can override the
-// project's, so it can report an identity the KB never declared. `[kb]` sits
+// (SINGLE-KB-MOUNT P5) — read there and NOWHERE else. `[site]` is the wrong
+// source for it: an environment section can override the project's, so it can
+// report an identity the KB never declared. `[kb]` sits
 // beside `[defaults]`, out of that reach, and the launcher stages NO domain
 // when the KB declares none — so an undeclared identity still arrives here as
 // absent, and still refuses below.
 //
 // All three resolved values escape the block so JWTService.initialize and the
 // trusted issuer can be handed them, rather than re-deriving them from a config
-// shape this process no longer fully has.
+// shape this process does not fully hold.
 let effectiveDomain: string;
 let committedKbDomain: string;
 
@@ -140,8 +139,8 @@ const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => 
 })();
 configureTrustedIssuer(identity, { audience: kbResource(committedKbDomain), domain: effectiveDomain });
 
-// What it takes to reach the record, with the rest of the startup
-// requirements — both used to surface on the first Archivist read instead.
+// What it takes to reach the record, asserted with the rest of the startup
+// requirements rather than on the first Archivist read.
 const { requireArchivistAccess } = await import('./boot-requirements');
 const archivistAccess = requireArchivistAccess(config);
 
@@ -238,8 +237,8 @@ app.use('*', requestLoggerMiddleware);   // Log requests third
  *
  * Resolved HERE because this is the gateway's boundary, which is where every
  * other service resolves it — six `*-main.ts` entry points read the same pair.
- * It used to be read inside `archivistAddress`, so the gateway never named the
- * credential it depends on and nothing could supply a different one.
+ * Resolving it inside `archivistAddress` instead would leave the gateway never
+ * naming the credential it depends on, and nothing able to supply another.
  *
  * Eager: requireArchivistAccess asserted both halves above, so nothing here
  * could legitimately be absent and none of it needs discovering on a request.
@@ -296,10 +295,9 @@ logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-
 // same composition through the bus.
 compositionFor(eventBus, signalPlane);
 
-// THE READINESS GATE (SIGNAL-PLANE-FLUSH D4) — kept when the plane is remote,
-// though the handler bridge it used to sit beside is gone (EXTRACT-JOBS P3: the
-// gateway hosts no `job:*` handler, so there is no island to reconnect). What
-// remains to register is the gateway's OWN plane interest: `compositionFor`
+// THE READINESS GATE (SIGNAL-PLANE-FLUSH D4) — for the remote plane. The
+// gateway hosts no `job:*` handler, so there is no handler island to
+// reconnect; what it registers is its OWN plane interest: `compositionFor`
 // above opened the ledger's standing tap (claim announcements, reply
 // retention), and every /bus/subscribe client opens more. Subscribing is
 // synchronous; REGISTERING that interest with the broker is not, and core NATS
@@ -440,11 +438,10 @@ if (config.env?.NODE_ENV !== 'test') {
   // site.domain — without both the process cannot mint or attribute a token,
   // so it must not accept connections.
   //
-  // It used to run inside the serve callback wrapped in a try/catch that only
-  // logged, which meant a missing secret or site config produced a container
-  // that listened, answered /api/health with 200 (that endpoint returns 200
-  // unconditionally), reported healthy in `semiont status` — and failed every
-  // sign-in. Failing here instead makes the misconfiguration undeployable.
+  // Inside the serve callback it would be too late: /api/health answers 200
+  // unconditionally, so a missing secret would yield a container that listens,
+  // reports healthy in `semiont status`, and fails every sign-in. Failing here
+  // makes the misconfiguration undeployable.
   const { JWTService } = await import('./auth/jwt');
   // The RESOLVED domain, not `config`: it may come from the staged `[kb]`
   // identity rather than a `[site]` section, and the resolution above is its one

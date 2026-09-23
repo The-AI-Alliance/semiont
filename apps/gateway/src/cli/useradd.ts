@@ -11,9 +11,9 @@
  * everything the gateway knows about a caller it reads off the token, and the
  * identity is a DID derived from those claims rather than a local id.
  *
- * So this command no longer touches a database, and there is no display name or
- * role to pre-create: the issuer holds the profile, and nothing here grants
- * access on the basis of a role.
+ * So this command touches no database, and there is no display name or role to
+ * pre-create: the issuer holds the profile, and nothing here grants access on
+ * the basis of a role.
  */
 
 import * as crypto from 'crypto';
@@ -109,7 +109,7 @@ async function readPasswordFromStdin(): Promise<string> {
   return password;
 }
 
-/** Same shape the old CLI produced: 16 base64 chars from 12 random bytes. */
+/** 16 base64 chars from 12 random bytes. */
 function generatePassword(): string {
   return crypto.randomBytes(12).toString('base64');
 }

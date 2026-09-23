@@ -106,16 +106,14 @@ export class KeycloakAdminApi {
   }
 
   /**
-   * Create the account and return its id — the `sub` its tokens will carry,
-   * and so the `providerId` of the User row that backs it.
+   * Create the account and return its id — the `sub` its tokens will carry.
    *
    * `enabled` is the issuer's answer to "may this person sign in", and it is
-   * the ONLY answer: the gateway admits every subject whose token verifies.
-   * Semiont used to hold a second answer, `isActive` on the User row, checked
-   * on every request. Two systems deciding one thing meant they could disagree,
-   * and only one of them could actually stop a token being minted.
+   * the ONLY answer: the gateway admits every subject whose token verifies. A
+   * second answer anywhere else could disagree with this one, and only this one
+   * can stop a token being minted at all.
    *
-   * The consequence of moving it here is worth stating plainly: disabling
+   * The consequence is worth stating plainly: disabling
    * someone stops new tokens immediately, but an access token already in hand
    * keeps working until it expires. That window is the access token lifetime.
    *

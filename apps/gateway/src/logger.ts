@@ -65,18 +65,12 @@ function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
     };
   }
 
-  // File logging is OPT-IN on LOG_DIR, not the default.
+  // File logging is OPT-IN on LOG_DIR, never a relative-path default: WORKDIR
+  // is /kb, so winston would write logs/ inside the user's knowledge base — a
+  // git repo they commit.
   //
-  // It used to be unconditional here, with createTransports falling back to the
-  // relative path 'logs' when LOG_DIR was unset. The retired CLI always set
-  // LOG_DIR (to its per-project state dir), so that fallback never fired. Once
-  // the CLI went, the container ran with LOG_DIR unset and WORKDIR /kb — and
-  // winston created /kb/logs/, inside the user's knowledge base, which is a git
-  // repo they commit.
-  //
-  // Stdout is the contract for the container anyway: node is PID 1 and
-  // `semiont logs` reads the runtime's stream, so the files were duplication as
-  // well as pollution. Anyone who does want files sets LOG_DIR to a real path.
+  // Stdout is the container's contract anyway: node is PID 1 and `semiont logs`
+  // reads the runtime's stream. Anyone who wants files sets LOG_DIR to a path.
   const transports: ('console' | 'file')[] = ['console'];
   if (process.env.LOG_DIR) {
     transports.push('file');

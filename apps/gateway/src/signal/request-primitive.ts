@@ -11,7 +11,7 @@
  * `[bus DROP]`, then the caller's full timeout. Every gateway-internal
  * `busRequest` therefore rides THIS primitive (a driver-boundary gate bans
  * the raw one from the gateway), which is driver-agnostic: over the
- * in-process plane it is bit-for-bit the old behavior.
+ * in-process plane it is bit-for-bit a raw-bus emit.
  *
  * `state$` is constant `'open'` and `trackReply` is omitted, both for the
  * in-process reason: the requester lives and dies with this process, so

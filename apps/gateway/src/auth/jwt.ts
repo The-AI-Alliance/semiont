@@ -210,10 +210,10 @@ export class JWTService {
   /**
    * A media token names the one resource it may fetch and nothing else.
    *
-   * It used to also carry the requester's id, which `verifyMediaToken` never
-   * read — an identity claim nobody checked, which is worse than no claim at
-   * all, because it looks like the token is principal-scoped when it is not.
-   * Anyone holding this token may fetch this resource; that is the contract.
+   * No principal claim: `verifyMediaToken` would not read one, and a claim
+   * nobody checks is worse than none — it reads as principal scoping that
+   * does not exist. Anyone holding this token may fetch this resource; that
+   * is the contract.
    */
   static generateMediaToken(resourceId: string): string {
     const payload = { purpose: 'media', sub: resourceId };

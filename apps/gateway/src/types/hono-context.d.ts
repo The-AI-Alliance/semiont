@@ -14,10 +14,10 @@ declare module 'hono' {
     /**
      * The authenticated caller, set by authMiddleware from the token's claims.
      *
-     * The attribution chain lives here and nowhere else. It used to be
-     * accompanied by a `principalDid` carrying `principal.did` a second time,
-     * which meant a consumer could read the authority without ever seeing that
-     * an `actor` or a `client` stood behind it. One shape, read one way.
+     * The attribution chain lives here and nowhere else. A second variable
+     * carrying `principal.did` would let a consumer read the authority without
+     * ever seeing that an `actor` or a `client` stands behind it. One shape,
+     * read one way.
      */
     principal: Principal;
 

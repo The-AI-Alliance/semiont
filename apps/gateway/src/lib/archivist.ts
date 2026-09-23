@@ -39,8 +39,8 @@ const archivistSpan = <T>(op: string, run: () => Promise<T>): Promise<T> =>
 
 /**
  * The KB working tree's current branch, for `/api/status` (SINGLE-KB-MOUNT
- * P5). The gateway used to read this off its own `/kb` mount; the Archivist
- * holds the tree now, so it answers.
+ * P5). The Archivist holds the tree, so it answers — this process has no
+ * mount to read it off.
  *
  * `undefined` on every failure — unreachable, 401, malformed — because the
  * field is optional and `/api/status` must still answer. A status endpoint
@@ -69,17 +69,14 @@ export async function kbBranch(
  * The `Blob` is handed to `fetch` directly rather than read into a Buffer:
  * undici streams a blob body, so this adds no copy of its own. Note the
  * gateway is still not chunk-bounded end to end — `c.req.formData()` has
- * already materialized the upload before this is called — so the memory win
- * here is the removal of the old `arrayBuffer()` + `Buffer.from()` pair, not
- * the whole of D7. Bounding the multipart parse itself is separate work.
+ * already materialized the upload before this is called — so this is not the
+ * whole of D7. Bounding the multipart parse itself is separate work.
  *
  * The full ledger, so nobody reads "it streams" as more than it is: of the
  * three hops an upload takes, **two stream** (this one, and the Archivist's
  * body → temp file) and **one does not** (`formData()` above). The Archivist
- * used to add a fourth materialization on top — `register` re-read the whole
- * file off disk to verify it on event apply — which is now streamed too
- * (2026-08-31), so exactly one full copy of an upload is held anywhere, in
- * this process, by the multipart parser.
+ * streams its verification read as well, so exactly one full copy of an upload
+ * is held anywhere, in this process, by the multipart parser.
  *
  * No `?checksum` is sent: the gateway has no independent checksum to assert
  * (its old one came FROM the local `store` call this replaces), and the

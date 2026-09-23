@@ -2,9 +2,9 @@
  * The gateway records what a person is CALLED, from the token it just
  * verified, at the moment that person WRITES (PERSON-PROFILE).
  *
- * The issuer's `name` claim is as verified as the DID stamped beside it, and
- * until this existed the gateway threw it away — leaving every artifact
- * attributed to a bare UUID, because a DID's subject is all `didToAgent` has.
+ * The issuer's `name` claim is as verified as the DID stamped beside it. Drop
+ * it and every artifact is attributed to a bare UUID, because a DID's subject
+ * is all `didToAgent` has.
  *
  * Two things this is deliberately NOT:
  *
