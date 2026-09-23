@@ -10,8 +10,8 @@ const useraddUsage = `Usage: semiont useradd --email <email> [--generate-passwor
 
 Create or update a user in a Semiont stack, local or codespace. The ISSUER holds
 the account, the profile and the password; this decides which realm is meant and
-speaks to it. A local realm is administered from here; a codespace's is reached
-through its own gateway, which runs the same command over there.
+speaks to it. A local realm is administered from here; a codespace's by its own
+launcher, over ssh, so that machine's admin credential never crosses the wire.
 
 The password is never typed as an argument. Creating a user prompts for one on
 a terminal, or reads it from stdin when piped:
@@ -66,10 +66,9 @@ Examples:
 //
 // A LOCAL stack is administered here, through the same admin client
 // `identity sync` uses — no container, and the gateway need not be running.
-// A CODESPACE still execs the gateway image's `semiont-useradd` bin, because
-// the launcher is not installed over there yet and the remote realm's admin
-// password lives in that machine's environment, never this one's
-// (WHO-RUNS-USERADD P1 removes the exception).
+// A CODESPACE runs its OWN launcher over ssh, for the same reason: the remote
+// realm's admin password lives in that machine's environment and never crosses
+// the wire.
 //
 // The password NEVER travels in argv. It used to ride into the container as an
 // env var (readable via `inspect` for the stack's whole lifetime); then as an
@@ -220,18 +219,19 @@ func useraddValidate(u *ui, o useraddOpts) bool {
 	return true
 }
 
-// useraddCodespace runs the same verb one hop further out: through ssh into
-// the codespace, then docker exec into its gateway.
+// useraddCodespace runs the same verb one hop further out: ssh into the
+// codespace and run ITS launcher, which administers that stack's realm exactly
+// as this one administers a local stack.
+//
+// The realm's admin password never crosses the wire. It lives in the
+// codespace's own environment, and the launcher over there reads it from there
+// — this machine neither holds it nor needs to.
 //
 // CRITICAL: `gh codespace ssh -- cmd` runs the remote side through a SHELL
-// (proven live — a `/workspaces/*` glob expands there). The local path has no
-// shell, so passing argv straight through is safe there; here it is not, and
-// every argument is single-quote escaped before it crosses the wire.
-//
-// The password is exempt from all of that by never being an argument: it goes
-// down ssh's stdin into `docker exec -i`. That removes the sharpest edge of
-// this path — a password containing $, a backtick or a quote used to be one
-// escaping bug away from injecting shell into the user's own codespace.
+// (proven live — a `/workspaces/*` glob expands there, which is how the KB
+// root is reached). So every argument is single-quote escaped before it
+// crosses. The password is exempt by never being an argument: it goes down
+// ssh's stdin to `--password-stdin`.
 func useraddCodespace(u *ui, st *stackState, args []string, password string) int {
 	if !requireGh(u, "useradd against a codespace stack") {
 		return 1
@@ -246,30 +246,23 @@ func useraddCodespace(u *ui, st *stackState, args []string, password string) int
 	u.log("useradd on %s %s", u.bold(st.Repo), u.dim("(codespace "+st.Codespace+")"))
 	u.echoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
 	if err := runVisibleWithStdin(password, "gh", sshArgs...); err != nil {
-		u.fail("useradd failed inside the codespace's gateway (see output above).")
+		u.fail("useradd failed inside the codespace (see output above).")
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Repo)
 		return 1
 	}
 	return 0
 }
 
-// remoteUseraddCmd composes the command the codespace's shell will run. With
-// stdin set, `docker exec -i` keeps the pipe attached through ssh so the
-// password can arrive that way. Nothing here needs redacting any more: no
-// argument carries a secret.
-func remoteUseraddCmd(args []string, stdin bool) string {
-	cmd := "docker exec"
-	if stdin {
-		cmd += " -i"
-	}
-	// The realm administrator's password is read from the CODESPACE's own
-	// environment by the remote shell — written as a variable reference, never
-	// a value, so this machine's secret never crosses the wire and there is
-	// nothing in the echoed command to redact. Unset there, it arrives empty
-	// and the gateway refuses by name.
-	cmd += ` -e KC_BOOTSTRAP_ADMIN_USERNAME=` + shellQuote(keycloakAdminUser) +
-		` -e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"`
-	cmd += " semiont-gateway semiont-useradd"
+// remoteUseraddCmd composes the command the codespace's shell will run: cd to
+// the KB clone, then the launcher's own useradd. The glob is what the remote
+// shell is for — a codespace mounts the repo under /workspaces/<name>, and the
+// name is the repo's, not ours to guess.
+//
+// Nothing here carries a secret, so nothing needs redacting: the password goes
+// by stdin, and the realm admin's password is already in that machine's
+// environment.
+func remoteUseraddCmd(args []string, _ bool) string {
+	cmd := "cd /workspaces/* && semiont useradd"
 	for _, a := range args {
 		cmd += " " + shellQuote(a)
 	}

@@ -551,7 +551,7 @@ func ghCodespace(args []string, joined string) {
 				body = "[site]\ndomain = \"example.com:remote-kb\"\n"
 			}
 			fmt.Println(body)
-		case strings.Contains(joined, "docker exec"):
+		case strings.Contains(joined, "semiont useradd"):
 			// The remote side is a SHELL, so echo back what the shell would
 			// actually receive — that is what proves quoting works.
 			fmt.Println("remote-cmd: " + args[len(args)-1])

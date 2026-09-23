@@ -198,12 +198,11 @@ semiont stop
   announces both, because a default that deletes user state is never silent.
   Codespace placement is never sticky — every codespace start says
   `--runtime codespace` (or rides an existing record).
-- `semiont useradd` creates or updates users in the RUNNING stack: the
-  launcher execs the gateway's own `semiont-useradd` inside the gateway
-  container (record-driven runtime + container ID, name-scan fallback) and
-  passes every other flag through verbatim (`--generate-password`,
+- `semiont useradd` creates or updates users at the stack's issuer: a local
+  realm is administered by this launcher directly, a codespace's by the
+  launcher over there, reached by ssh. Flags are `--generate-password`,
   `--update`, `--upsert`, …; there are no role flags, because no route grants
-  access on the basis of a role). The ISSUER owns the account, the profile and
+  access on the basis of a role. The ISSUER owns the account, the profile and
   the password hashing; this launcher only decides which stack is meant. The password is the one thing it does NOT pass as an argument: it is
   prompted for on a terminal (or read from stdin when piped) and fed to
   `--password-stdin` down the exec's pipe, because argv is readable by every

@@ -783,9 +783,9 @@ func tracesArgs() []string {
 
 // gatewayArgs: the gateway takes the four dependency hosts but must NOT
 // receive the gateway-host vars (publicURL derives from them; see the DID/site.domain
-// history before ever changing this). Admin seeding deliberately does NOT
-// ride in here — `semiont useradd` execs the gateway's own `semiont-useradd`
-// instead, so no password ever sits in the container's inspectable env.
+// history before ever changing this). Admin seeding deliberately does NOT ride
+// in here — `semiont useradd` administers the realm itself, so no admin
+// password ever sits in the container's inspectable env.
 // jwt is the token-signing key — gateway-only, deliberately not in sidecarArgs:
 // the sidecars present agent tokens the gateway minted and never sign anything.
 // kbMountTarget is where the KB clone lands inside the ARCHIVIST container —

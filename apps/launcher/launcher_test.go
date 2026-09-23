@@ -2756,16 +2756,21 @@ func TestUseraddCodespace(t *testing.T) {
 	remote := stdout[strings.Index(stdout, "remote-cmd: "):]
 	remote = remote[:strings.IndexByte(remote, '\n')]
 	mustContain(t, "remote command", remote,
-		"docker exec -i ",                 // -i keeps the pipe open through ssh
-		"semiont-gateway semiont-useradd", // the exec target inside the codespace
+		"cd /workspaces/* &&", // the KB clone; the remote shell expands the glob
+		"semiont useradd",     // the codespace's OWN launcher, not a container
 		"'alice@example.com'", "'--upsert'", "'--password-stdin'")
 	if strings.Contains(remote, "rm -rf") {
 		t.Fatalf("the password reached the remote COMMAND LINE:\n%s", remote)
 	}
-	// The realm administrator's password is named, never carried: the remote
-	// shell expands its own variable, so this machine's secret does not cross
-	// the wire and there is nothing here to redact.
-	mustContain(t, "remote command", remote, `-e KC_BOOTSTRAP_ADMIN_PASSWORD="$KC_BOOTSTRAP_ADMIN_PASSWORD"`)
+	// The realm administrator's password is not mentioned at all: the launcher
+	// over there reads it from that machine's own environment, so this machine
+	// neither holds it nor names it.
+	if strings.Contains(remote, "KC_BOOTSTRAP_ADMIN") {
+		t.Errorf("the remote command still carries the admin credential:\n%s", remote)
+	}
+	if strings.Contains(remote, "docker") || strings.Contains(remote, "semiont-gateway") {
+		t.Errorf("the codespace path still reaches into a container:\n%s", remote)
+	}
 	// Other arguments still cross a shell, so they must still be quoted: the
 	// old bug was echoing RAW args, which would expand $NAME and split on
 	// spaces if pasted.
