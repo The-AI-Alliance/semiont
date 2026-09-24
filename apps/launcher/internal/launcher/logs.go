@@ -72,7 +72,7 @@ func Logs(args []string) int {
 		}
 	}
 	if service != "" {
-		if _, known := roles[service]; !known {
+		if !knownRole(service) {
 			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
@@ -165,7 +165,7 @@ func Logs(args []string) int {
 				}
 			}
 		}
-		return roles[svc].container, true
+		return roleContainer(svc), true
 	}
 
 	follow := logServices
@@ -175,7 +175,7 @@ func Logs(args []string) int {
 	targets := make(map[string]string, len(follow)) // svc → handle
 	for _, svc := range follow {
 		if csName != "" { // codespace: wire-level names, no per-service record
-			targets[svc] = roles[svc].container
+			targets[svc] = roleContainer(svc)
 			continue
 		}
 		h, ok := handleFor(svc)

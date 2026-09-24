@@ -27,7 +27,7 @@ import (
 	"strings"
 )
 
-// memCeilingGB parses a roles-table ceiling ("8G", "512M") into GB. Unknown
+// memCeilingGB parses a descriptor ceiling ("8G", "512M") into GB. Unknown
 // shapes count as zero — the table is ours, so a new suffix is a bug the
 // completeness test catches, not a runtime concern.
 func memCeilingGB(m string) float64 {
@@ -51,25 +51,28 @@ func memCeilingGB(m string) float64 {
 // inference or the embedding role provides it as a container.
 func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 	sum := 0.0
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser", "collector"} {
-		sum += memCeilingGB(roles[svc].mem)
+	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser"} {
+		sum += memCeilingGB(semiontDescriptor(svc).mem)
 	}
+	// The collector runs on every start too, but it is not one of ours:
+	// --no-observe declines the backends, never the collector.
+	sum += memCeilingGB(descriptorFor("collector", "otel").mem)
 	if opts.observe {
-		sum += memCeilingGB(roles["traces"].mem)
-		sum += memCeilingGB(roles["metrics"].mem)
+		sum += memCeilingGB(descriptorFor("traces", "jaeger").mem)
+		sum += memCeilingGB(descriptorFor("metrics", "prometheus").mem)
 	}
 	if plan == nil {
 		return sum
 	}
 	for _, role := range []string{"graph", "vectors", "database", "messaging", "identity"} {
 		if plan.Roles[role].Obligation == obligationProvided {
-			sum += memCeilingGB(roles[role].mem)
+			sum += memCeilingGB(descriptorFor(role, plan.Roles[role].Driver).mem)
 		}
 	}
 	inf, emb := plan.Roles["inference"], plan.Roles["embedding"]
 	if (inf.Driver == "ollama" && inf.Obligation == obligationProvided) ||
 		(emb.Driver == "ollama" && emb.Obligation == obligationProvided) {
-		sum += memCeilingGB(roles["inference"].mem)
+		sum += memCeilingGB(descriptorFor("inference", "ollama").mem)
 	}
 	return sum
 }
@@ -83,7 +86,7 @@ func memoryBudgetWarning(sumGB, hostGB float64) string {
 	}
 	return fmt.Sprintf(
 		"Memory ceilings total %.1fG of this machine's %.0fG. On Apple container each ceiling sizes a per-container VM, so the stack can grow toward that total — expect pressure (compression, swap). Each container's ceiling is on its --dry-run line; the gateway's %s is the largest fixed one.",
-		sumGB, hostGB, roles["gateway"].mem)
+		sumGB, hostGB, semiontDescriptor("gateway").mem)
 }
 
 // hostMemGB reads the machine's physical memory: sysctl on darwin,

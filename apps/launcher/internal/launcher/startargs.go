@@ -178,7 +178,7 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 	// --service compatibility: flags that don't apply to the named service are
 	// rejected rather than silently ignored.
 	if opts.service != "" {
-		if _, known := roles[opts.service]; !known {
+		if !knownRole(opts.service) {
 			return opts, false, fmt.Sprintf("Unknown --service '%s' (expected: %s)", opts.service, roleList)
 		}
 		switch {

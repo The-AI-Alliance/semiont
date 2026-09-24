@@ -267,7 +267,7 @@ func (st *StackState) recordService(role, id, image, provided, endpoint, driver 
 		StartedAt:    time.Now().UTC(),
 	}
 	if provided == providedLauncher {
-		e.Container = roles[role].container
+		e.Container = descriptorFor(role, driver).container
 		// A container-less role (embedding) gets NO container here even when
 		// provided reads "launcher" — that value may be INHERITED from the
 		// role that runs its Ollama (SharesOllamaWith), and stamping a

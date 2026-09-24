@@ -5,19 +5,20 @@ import (
 	"testing"
 )
 
-// Every containered role carries an explicit ceiling — the silent default is
-// the worst value on both runtimes (1G-quietly on Apple container, unlimited
-// on docker). embedding is the one legitimate blank: it has no container.
-func TestEveryContaineredRoleHasAMemoryCeiling(t *testing.T) {
-	for role, spec := range roles {
-		if spec.container == "" {
+// Every container-bearing driver carries an explicit ceiling — the silent
+// default is the worst value on both runtimes (1G-quietly on Apple
+// container, unlimited on docker). The drivers that launch nothing (oidc,
+// anthropic, voyage, a shared Ollama) are the legitimate blanks.
+func TestEveryContaineredDriverHasAMemoryCeiling(t *testing.T) {
+	for _, d := range serviceDescriptors {
+		if d.container == "" {
 			continue
 		}
-		if spec.mem == "" {
-			t.Errorf("role %q (%s) has no memory ceiling — it would get the runtime's silent default", role, spec.container)
+		if d.mem == "" {
+			t.Errorf("%s/%s (%s) has no memory ceiling — it would get the runtime's silent default", d.role, d.driver, d.container)
 		}
-		if memCeilingGB(spec.mem) <= 0 {
-			t.Errorf("role %q ceiling %q does not parse — the preflight would undercount", role, spec.mem)
+		if memCeilingGB(d.mem) <= 0 {
+			t.Errorf("%s/%s ceiling %q does not parse — the preflight would undercount", d.role, d.driver, d.mem)
 		}
 	}
 }
@@ -42,9 +43,9 @@ func TestStartCeilingsGB(t *testing.T) {
 		t.Fatalf("base ceilings = %vG, want 16G (did a service's ceiling change without this test?)", base)
 	}
 	plan := &launchPlan{Roles: map[string]rolePlan{
-		"graph":     {Obligation: obligationProvided},
-		"vectors":   {Obligation: obligationProvided},
-		"database":  {Obligation: obligationProvided},
+		"graph":     {Driver: "neo4j", Obligation: obligationProvided},
+		"vectors":   {Driver: "qdrant", Obligation: obligationProvided},
+		"database":  {Driver: "postgres", Obligation: obligationProvided},
 		"inference": {Driver: "ollama", Obligation: obligationProvided},
 	}}
 	full := startCeilingsGB(plan, startOptions{observe: true})

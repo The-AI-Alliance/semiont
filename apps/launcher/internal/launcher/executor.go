@@ -393,7 +393,7 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 		}
 	}
 	stanza := fmt.Sprintf("\n# Staged by the launcher: where THIS stack's archivist listens.\n[environments.%s.archivist]\nhost = %q\nport = %d\n",
-		envName, addr, roles["archivist"].ports[0].port)
+		envName, addr, semiontDescriptor("archivist").ports[0].port)
 	return append(cfg, []byte(stanza)...)
 }
 
@@ -542,7 +542,7 @@ func (x *liveExec) waitTCP(label, addr string, port, seconds int) (time.Duration
 }
 
 func (x *liveExec) waitPGAccepting(seconds int) bool {
-	return waitPGAccepting(x.u, x.rt, roles["database"].container, seconds)
+	return waitPGAccepting(x.u, x.rt, descriptorFor("database", "postgres").container, seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -681,7 +681,7 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 // how a recovered start came to look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
-	args := []string{"exec", "-i", roles["database"].container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	args := []string{"exec", "-i", descriptorFor("database", "postgres").container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
 	x.u.EchoCmd(x.rt, args...)
 	var err error
 	var out string
@@ -1238,7 +1238,7 @@ func (x *planExec) waitHTTP(_, url string, seconds int) (time.Duration, bool) {
 
 func (x *planExec) waitPGAccepting(seconds int) bool {
 	x.c("wait: %s exec %s pg_isready -h 127.0.0.1 (%ds) — the REAL server; initdb's temporary one answers the socket only",
-		x.rt, roles["database"].container, seconds)
+		x.rt, descriptorFor("database", "postgres").container, seconds)
 	return true
 }
 

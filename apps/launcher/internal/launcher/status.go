@@ -161,7 +161,7 @@ func Status(args []string) int {
 		}
 	}
 	if service != "" {
-		if _, known := roles[service]; !known {
+		if !knownRole(service) {
 			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
@@ -426,7 +426,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			fmt.Println()
 		}
 		lastGroup = svc.group
-		handle := roles[svc.name].container
+		handle := roleContainer(svc.name)
 		endpoint := svc.endpoint
 		var rec *ServiceState
 		if st != nil {
@@ -445,7 +445,10 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		// (PostgreSQL)" — rather than a column that is an em-dash for every
 		// Semiont service.
 		label := svc.name
-		tech := roles[svc.name].product
+		// No record, no driver, no product: the launcher does not name a
+		// technology for a role nothing has selected one for. Every record a
+		// start writes carries its driver.
+		tech := ""
 		if rec != nil && rec.Driver != "" {
 			tech = driverDisplay(svc.name, rec.Driver)
 		}

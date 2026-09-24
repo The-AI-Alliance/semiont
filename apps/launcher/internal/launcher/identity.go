@@ -7,6 +7,7 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -100,7 +101,20 @@ func identityEndpoint(rp rolePlan) string {
 // the agent exchange and false in general: the gateway dials the Archivist for
 // content, events and the working tree's branch, and has to prove who it is
 // like anyone else.
-var serviceClients = []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"}
+// Derived from the descriptor set: Semiont's own services, minus the
+// Browser, which presents nothing — it is a viewer, and the only one of ours
+// without a realm account. Sorted, because the realm reconcile reports in
+// this order and a map's order is not an order.
+var serviceClients = func() []string {
+	var out []string
+	for _, d := range serviceDescriptors {
+		if d.driver == driverSemiont && d.role != "browser" {
+			out = append(out, d.role)
+		}
+	}
+	sort.Strings(out)
+	return out
+}()
 
 // serviceClientID: the realm client id for one service's account.
 func serviceClientID(svc string) string { return "semiont-" + svc }

@@ -116,7 +116,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 		d, ok := x.waitHTTP("traces (Jaeger)", "http://localhost:16686", 30)
 		if !ok {
-			x.dumpLogs(roles["traces"].container, "traces")
+			x.dumpLogs(roleContainer("traces"), "traces")
 			return 1
 		}
 		x.say(sayOK, "traces — Jaeger UI on http://localhost:16686 %s", x.dim("("+took(d)+")"))
@@ -131,11 +131,11 @@ func flowFullStart(x executor, fc flowCtx) int {
 		}
 		pd, pok := x.waitHTTP("metrics (Prometheus)", "http://localhost:9090/-/healthy", 30)
 		if !pok {
-			x.dumpLogs(roles["metrics"].container, "metrics")
+			x.dumpLogs(roleContainer("metrics"), "metrics")
 			return 1
 		}
 		x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(pd)+")"))
-		x.record("metrics", pid, pargs[len(pargs)-1], providedLauncher, "http://localhost:9090/-/healthy", "")
+		x.record("metrics", pid, pargs[len(pargs)-1], providedLauncher, "http://localhost:9090/-/healthy", "prometheus")
 	}
 
 	// The collector always runs; --no-observe declines only trace storage
@@ -150,11 +150,11 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	cd, cok := x.waitHTTP("collector", "http://localhost:24110/metrics", 30)
 	if !cok {
-		x.dumpLogs(roles["collector"].container, "collector")
+		x.dumpLogs(roleContainer("collector"), "collector")
 		return 1
 	}
 	x.say(sayOK, "collector — OTLP on %s:4318, metrics on http://localhost:24110/metrics %s", addr, x.dim("("+took(cd)+")"))
-	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "")
+	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "otel")
 	otel := otelArgs(addr)
 
 	// Database, messaging and identity — everything the Gateway itself needs —
@@ -378,7 +378,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// the wait is the realm gate as well as the liveness gate.
 			d, ok := x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90)
 			if !ok {
-				x.dumpLogs(roles["identity"].container, "identity")
+				x.dumpLogs(roleContainer("identity"), "identity")
 				return 1
 			}
 			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp), x.dim("("+took(d)+")"))
@@ -395,7 +395,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			aux := fc.plan.AuxPorts("graph")[0].port
 			d, ok := x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", aux), 30)
 			if !ok {
-				x.dumpLogs(roles["graph"].container, "graph")
+				x.dumpLogs(roleContainer("graph"), "graph")
 				return 1
 			}
 			x.say(sayOK, "graph — bolt://localhost:%d (browser: http://localhost:%d) %s", rp.Port, aux, x.dim("("+took(d)+")"))
@@ -403,7 +403,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "vectors":
 			d, ok := x.waitHTTP("vectors ("+disp+")", fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15)
 			if !ok {
-				x.dumpLogs(roles["vectors"].container, "vectors")
+				x.dumpLogs(roleContainer("vectors"), "vectors")
 				return 1
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
@@ -411,12 +411,12 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "database":
 			d, ok := x.waitTCP("PostgreSQL", addr, rp.Port, 20)
 			if !ok {
-				x.dumpLogs(roles["database"].container, "database")
+				x.dumpLogs(roleContainer("database"), "database")
 				return 1
 			}
 			// The port is the runtime's; sessions are the server's.
 			if !x.waitPGAccepting(30) {
-				x.dumpLogs(roles["database"].container, "database")
+				x.dumpLogs(roleContainer("database"), "database")
 				return 1
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
@@ -426,7 +426,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			// the container path the gateway will dial.
 			d, ok := x.waitTCP("NATS", addr, rp.Port, 15)
 			if !ok {
-				x.dumpLogs(roles["messaging"].container, "messaging")
+				x.dumpLogs(roleContainer("messaging"), "messaging")
 				return 1
 			}
 			x.say(sayOK, "messaging — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
@@ -611,7 +611,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 			}
 			x.say(sayOK, "%s — Ollama container on http://localhost:%d (24 GB memory) %s", role, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
-			if roles[role].container == "" {
+			if descriptorFor(role, "ollama").container == "" {
 				// embedding owns this launch: record the container it ran,
 				// or stop could never find it.
 				x.noteContainer(role, "semiont-ollama")
@@ -661,7 +661,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !x.gatewayReachable(addr, port) {
 		return 1
 	}
-	x.record("gateway", id, image("gateway", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", port), "")
+	x.record("gateway", id, image("gateway", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", port), driverSemiont)
 	return 0
 }
 
@@ -696,11 +696,11 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	}
 	d, ok := x.waitHTTP(sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
 	if !ok {
-		x.dumpLogs(roles[sc.svc].container, sc.svc)
+		x.dumpLogs(semiontDescriptor(sc.svc).container, sc.svc)
 		return 1
 	}
 	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, sc.port, x.dim("("+took(d)+")"))
-	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port), "")
+	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port), driverSemiont)
 	return 0
 }
 
@@ -739,7 +739,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 		return 1
 	}
 	x.say(sayOK, "Archivist healthy (http://localhost:24103) %s", x.dim("("+took(d)+")"))
-	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:24103/health", "")
+	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:24103/health", driverSemiont)
 	return 0
 }
 
@@ -771,7 +771,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 		return 1
 	}
 	x.say(sayOK, "Librarian healthy (http://localhost:24104) %s", x.dim("("+took(d)+")"))
-	x.record("librarian", id, image("librarian", fc.version), providedLauncher, "http://localhost:24104/health", "")
+	x.record("librarian", id, image("librarian", fc.version), providedLauncher, "http://localhost:24104/health", driverSemiont)
 	return 0
 }
 
@@ -802,7 +802,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 		return 1
 	}
 	x.say(sayOK, "Dispatcher healthy (http://localhost:24105) %s", x.dim("("+took(d)+")"))
-	x.record("dispatcher", id, image("dispatcher", fc.version), providedLauncher, "http://localhost:24105/health", "")
+	x.record("dispatcher", id, image("dispatcher", fc.version), providedLauncher, "http://localhost:24105/health", driverSemiont)
 	return 0
 }
 
@@ -826,14 +826,14 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	}
 
-	x.banner("Restarting " + roleTitle(svc))
+	x.banner("Restarting " + roleTitle(svc, restartDriver(svc, fc.plan)))
 	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
 	// and its port must NEVER enter the STACK's recorded claims: stop
 	// verifies stack-port release while the Browser deliberately keeps
 	// running on its port.
 	if svc != "inference" && svc != "browser" {
 		ports := servicePortNeeds(svc, fc.plan, fc.opts)
-		if x.stopRm(roles[svc].container) {
+		if x.stopRm(roleContainer(svc)) {
 			x.say(sayLog, "Removed prior %s container", svc)
 			x.settle(portNumbers(ports)...)
 		}
@@ -886,10 +886,10 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		if d, ok = x.waitHTTP("collector", "http://localhost:24110/metrics", 30); !ok {
-			x.dumpLogs(roles["collector"].container, "collector")
+			x.dumpLogs(roleContainer("collector"), "collector")
 			return 1
 		}
-		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "")
+		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "otel")
 	case "metrics":
 		mstage, ok := x.stageMetrics(addr)
 		if !ok {
@@ -902,10 +902,10 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		if d, ok = x.waitHTTP("metrics (Prometheus)", "http://localhost:9090/-/healthy", 30); !ok {
-			x.dumpLogs(roles["metrics"].container, "metrics")
+			x.dumpLogs(roleContainer("metrics"), "metrics")
 			return 1
 		}
-		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "")
+		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "prometheus")
 	case "traces":
 		args := tracesArgs()
 		id, ok := x.runDetached(args)
@@ -914,7 +914,7 @@ func flowOneService(x executor, fc flowCtx) int {
 			return 1
 		}
 		if d, ok = x.waitHTTP("traces (Jaeger UI)", "http://localhost:16686", 30); !ok {
-			x.dumpLogs(roles["traces"].container, "traces")
+			x.dumpLogs(roleContainer("traces"), "traces")
 			return 1
 		}
 		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "jaeger")
@@ -946,31 +946,31 @@ func flowOneService(x executor, fc flowCtx) int {
 		switch svc {
 		case "graph":
 			if d, ok = x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", fc.plan.AuxPorts("graph")[0].port), 30); !ok {
-				x.dumpLogs(roles["graph"].container, "graph")
+				x.dumpLogs(roleContainer("graph"), "graph")
 				return 1
 			}
 		case "vectors":
 			if d, ok = x.waitHTTP("vectors ("+disp+")", fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15); !ok {
-				x.dumpLogs(roles["vectors"].container, "vectors")
+				x.dumpLogs(roleContainer("vectors"), "vectors")
 				return 1
 			}
 		case "database":
 			if d, ok = x.waitTCP(disp, addr, rp.Port, 20); !ok {
-				x.dumpLogs(roles["database"].container, "database")
+				x.dumpLogs(roleContainer("database"), "database")
 				return 1
 			}
 			if !x.waitPGAccepting(30) {
-				x.dumpLogs(roles["database"].container, "database")
+				x.dumpLogs(roleContainer("database"), "database")
 				return 1
 			}
 		case "messaging":
 			if d, ok = x.waitTCP(disp, addr, rp.Port, 15); !ok {
-				x.dumpLogs(roles["messaging"].container, "messaging")
+				x.dumpLogs(roleContainer("messaging"), "messaging")
 				return 1
 			}
 		case "identity":
 			if d, ok = x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90); !ok {
-				x.dumpLogs(roles["identity"].container, "identity")
+				x.dumpLogs(roleContainer("identity"), "identity")
 				return 1
 			}
 			// Same gate as a full start: a realm restarted alone must still
@@ -1053,7 +1053,7 @@ func flowOneService(x executor, fc flowCtx) int {
 // plan for config-owned ports (dependency roles, gateway); the static role
 // table covers only the launcher-fiat ports (sidecars, browser, traces).
 func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNeed {
-	ports := roles[svc].ports
+	ports := stackPortNeeds(svc)
 	switch {
 	case svc == "browser" && opts.port != 0:
 		ports = []portNeed{{opts.port, "Browser"}}
@@ -1061,7 +1061,7 @@ func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNee
 		ports = []portNeed{{plan.GatewayPort, "Gateway"}}
 	case plan != nil:
 		if rp, ok := plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
-			spec := driverCatalog[svc][rp.Driver]
+			spec := descriptorFor(svc, rp.Driver)
 			ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
 		}
 	}

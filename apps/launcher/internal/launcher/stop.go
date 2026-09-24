@@ -37,19 +37,26 @@ less certain, stop refuses and lists the choices: --repo <owner/name>
 targets a codespace stack, --runtime targets the local one.
 `
 
-// stopNames sweeps every stack container in REVERSE start order —
-// dependents before their dependencies, so nothing spends teardown alive
-// with its upstream already gone (start brings up jaeger → neo4j → qdrant →
-// ollama → postgres → gateway → worker → smelter → weaver → browser).
-// semiont-browser is deliberately ABSENT: the Browser is not a stack
-// member (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
-// (announced), and `stop --service browser` is its explicit off-switch.
-var stopNames = []string{
-	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
-	"semiont-librarian", "semiont-dispatcher",
-	"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
-	"semiont-neo4j", "semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
+// stopRoles is the teardown order: dependents before their dependencies, so
+// nothing spends teardown alive with its upstream already gone. It is a
+// RELATION written as a list, which is why it is not simply the start order
+// reversed — LAUNCHER-SERVICE-MODEL P2 replaces both with dependency edges.
+// Container names come from the descriptor set.
+//
+// `browser` is deliberately ABSENT: the Browser is not a stack member
+// (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
+// (announced), and `stop --service browser` is its explicit off-switch. That
+// absence, and the one name this sweep has beyond the start preflight
+// (semiont-ollama, which start handles in its own section), are gated by
+// descriptor_census_test.go.
+var stopRoles = []string{
+	"archivist", "weaver", "smelter", "worker",
+	"librarian", "dispatcher",
+	"gateway", "identity", "messaging", "database", "inference", "vectors",
+	"graph", "collector", "metrics", "traces",
 }
+
+var stopNames = containersFor(stopRoles)
 
 // Stop implements `semiont stop` — the port of the fleet's stop.sh.
 func Stop(args []string) int {
@@ -143,11 +150,11 @@ func Stop(args []string) int {
 	// bindings), in which case the record names the container it ran.
 	serviceContainer := ""
 	if service != "" {
-		if _, known := roles[service]; !known {
+		if !knownRole(service) {
 			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
-		serviceContainer = roles[service].container
+		serviceContainer = roleContainer(service)
 		if serviceContainer == "" {
 			if st := loadLocalState(); st != nil {
 				if e, ok := st.Services[service]; ok && e.Provided == providedLauncher && e.Container != "" {

@@ -1687,8 +1687,7 @@ func TestStatusMixed(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"SERVICE", "RUNTIME", "STATUS",
-		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
-		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
+		"LOCAL STACK",
 		"KNOWLEDGE BASES",
 		"semiont roots",
 		// The merged STATUS cell: mark + word, probe dimmed after. The
@@ -1699,6 +1698,13 @@ func TestStatusMixed(t *testing.T) {
 		"http://localhost:24100/health",
 		"tcp://localhost:5432",
 	)
+	// No stack is recorded here, so the rows are discovered BY NAME and no
+	// config has selected a driver. The report says so by naming no product:
+	// "database (PostgreSQL)" would be a guess that is only right while the
+	// database role has one driver, and guessing it is exactly what the
+	// descriptor set removed (LAUNCHER-SERVICE-MODEL P1). A recorded stack
+	// still names its products — every record carries its driver.
+	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
 	if strings.Contains(stdout, "LAUNCHER PATHS") {
 		t.Errorf("default status printed LAUNCHER PATHS without --verbose:\n%s", stdout)

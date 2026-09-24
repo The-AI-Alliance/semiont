@@ -15,24 +15,29 @@ const (
 	imageRegistry = "ghcr.io/the-ai-alliance"
 )
 
-// preflightNames is the stop-then-rm sweep order at start; semiont-ollama is
-// deliberately absent — it is handled in the Ollama section, where a host
-// instance may make a container unnecessary.
-// semiont-browser is deliberately ABSENT: the Browser is not a stack
-// member (BROWSER-LIFECYCLE.md) — its keep-or-refresh lifecycle lives in
-// flowBrowser, and the preflight must not sweep a viewer the user keeps
-// open across stacks.
 // configFreeService: services that read no KB config — --service <name>
 // needs neither a config nor a root.
 func configFreeService(svc string) bool {
 	return svc == "browser" || svc == "traces" || svc == "metrics" || svc == "collector"
 }
 
-var preflightNames = []string{
-	"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-nats", "semiont-postgres",
-	"semiont-keycloak", "semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
-	"semiont-archivist", "semiont-librarian", "semiont-dispatcher",
+// preflightRoles is the stop-then-rm sweep at start, in sweep order; the
+// container names come from the descriptor set, so a role whose driver
+// changes its container cannot be missed.
+//
+// `inference` is deliberately absent — it is handled in the Ollama section,
+// where a host instance may make a container unnecessary. `browser` is
+// deliberately absent: the Browser is not a stack member
+// (BROWSER-LIFECYCLE.md) — its keep-or-refresh lifecycle lives in
+// flowBrowser, and the preflight must not sweep a viewer the user keeps open
+// across stacks. Both absences are gated by descriptor_census_test.go.
+var preflightRoles = []string{
+	"collector", "metrics", "traces", "graph", "vectors", "messaging", "database",
+	"identity", "gateway", "worker", "smelter", "weaver",
+	"archivist", "librarian", "dispatcher",
 }
+
+var preflightNames = containersFor(preflightRoles)
 
 type startOptions struct {
 	configName   string
@@ -546,10 +551,10 @@ scrape_configs:
 
 func prometheusArgs(stage string) []string {
 	return []string{"run", "-d", "--name", "semiont-prometheus", // no --rm: see providedRunArgs
-		"--memory", roles["metrics"].mem,
+		"--memory", descriptorFor("metrics", "prometheus").mem,
 		"-p", "9090:9090",
 		"--volume", stage + "/prometheus.yml:/etc/prometheus/prometheus.yml:ro",
-		"prom/prometheus:v3.9.1"}
+		descriptorFor("metrics", "prometheus").image}
 }
 
 func collectorConfig(addr string, traces bool) string {
@@ -586,17 +591,17 @@ service:
 
 func collectorArgs(stage string) []string {
 	return []string{"run", "-d", "--name", "semiont-otel-collector", // no --rm: see providedRunArgs
-		"--memory", roles["collector"].mem,
+		"--memory", descriptorFor("collector", "otel").mem,
 		"-p", "4318:4318", "-p", "24110:24110",
 		"--volume", stage + "/collector.yaml:/etc/otelcol/config.yaml:ro",
-		"otel/opentelemetry-collector:0.137.0"}
+		descriptorFor("collector", "otel").image}
 }
 
 func tracesArgs() []string {
 	return []string{"run", "-d", "--name", "semiont-jaeger", // no --rm: see providedRunArgs
-		"--memory", roles["traces"].mem,
+		"--memory", descriptorFor("traces", "jaeger").mem,
 		// 14318: the collector owns 4318 and exports traces here.
-		"-p", "16686:16686", "-p", "14318:4318", "jaegertracing/all-in-one:1.76.0"}
+		"-p", "16686:16686", "-p", "14318:4318", descriptorFor("traces", "jaeger").image}
 }
 
 // gatewayArgs: the gateway takes the four dependency hosts but must NOT
@@ -620,7 +625,7 @@ const kbMountTarget = "/kb"
 // gateway's own state.
 func gatewayArgs(stage, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
-		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", roles["gateway"].mem,
+		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
 		"--volume", stage + "/gateway.toml:/home/semiont/.semiontconfig:ro"}
 	// Persistent state the gateway itself owns (stateStores["gateway"]).
 	a = append(a, state...)
@@ -678,7 +683,7 @@ func superviseEnv() []string {
 func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
-		"--memory", roles[svc].mem, "--publish", p + ":" + p,
+		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
 		"--volume", stage + "/" + svc + ".toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -712,7 +717,7 @@ func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string
 // verifying theirs (the same fact D1's read path relies on).
 func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
-		"--memory", roles["archivist"].mem, "--publish", "24103:24103",
+		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
 		"--volume", stage + "/archivist.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
@@ -746,7 +751,7 @@ func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, o
 // service; it dials the gateway for the bus and the Archivist for bytes.
 func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
-		"--memory", roles["librarian"].mem, "--publish", "24104:24104",
+		"--memory", semiontDescriptor("librarian").mem, "--publish", "24104:24104",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, state...)
 	a = append(a, userEnv...)
@@ -777,7 +782,7 @@ func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []st
 // config may reference, exactly as the other sidecars do.
 func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
-		"--memory", roles["dispatcher"].mem, "--publish", "24105:24105",
+		"--memory", semiontDescriptor("dispatcher").mem, "--publish", "24105:24105",
 		"--volume", stage + "/dispatcher.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
@@ -797,7 +802,7 @@ func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []s
 
 func browserArgs(version string, port int) []string {
 	a := []string{"run", "-d", "--name", "semiont-browser", // no --rm: see providedRunArgs
-		"--memory", roles["browser"].mem, "--publish", fmt.Sprintf("%d:3000", port)}
+		"--memory", semiontDescriptor("browser").mem, "--publish", fmt.Sprintf("%d:3000", port)}
 	// The Browser's KB-discovery view (BROWSER-KB-DISCOVERY.md lane 1): a
 	// read-only DIRECTORY mount (Apple container cannot single-file mount).
 	// Inert until the Browser image serves /discovery — a dormant feature

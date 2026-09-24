@@ -29,8 +29,8 @@ func TestPatchArchivistTopologyAppends(t *testing.T) {
 	if got := arch["host"]; got != "192.168.64.1" {
 		t.Fatalf("host = %v, want the literal launcher address", got)
 	}
-	if got := arch["port"]; got != int64(roles["archivist"].ports[0].port) {
-		t.Fatalf("port = %v, want the roles table's %d (one home for the port)", got, roles["archivist"].ports[0].port)
+	if got := arch["port"]; got != int64(semiontDescriptor("archivist").ports[0].port) {
+		t.Fatalf("port = %v, want the descriptor set's %d (one home for the port)", got, semiontDescriptor("archivist").ports[0].port)
 	}
 }
 
