@@ -40,7 +40,7 @@ database already holds.
 `
 
 func Identity(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
 		fmt.Print(identityUsage)
 		if len(args) == 0 {
@@ -49,7 +49,7 @@ func Identity(args []string) int {
 		return 0
 	}
 	if args[0] != "sync" {
-		u.fail("Unknown identity subcommand: %s", args[0])
+		u.Fail("Unknown identity subcommand: %s", args[0])
 		fmt.Fprint(os.Stderr, identityUsage)
 		return 1
 	}
@@ -60,7 +60,7 @@ func Identity(args []string) int {
 		switch rest[i] {
 		case "--root", "--config":
 			if i+1 >= len(rest) {
-				u.fail("Missing value for %s", rest[i])
+				u.Fail("Missing value for %s", rest[i])
 				return 1
 			}
 			if rest[i] == "--root" {
@@ -70,7 +70,7 @@ func Identity(args []string) int {
 			}
 			i++
 		default:
-			u.fail("Unknown flag: %s", rest[i])
+			u.Fail("Unknown flag: %s", rest[i])
 			return 1
 		}
 	}
@@ -83,12 +83,12 @@ func Identity(args []string) int {
 		root, _, err = resolveKBRoot()
 	}
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 		return 1
 	}
 	if err := os.Chdir(root); err != nil {
-		u.fail("Cannot enter KB root %s: %v", root, err)
+		u.Fail("Cannot enter KB root %s: %v", root, err)
 		return 1
 	}
 
@@ -99,42 +99,42 @@ func Identity(args []string) int {
 	if configName == "" {
 		if rec := configForRealm(root); rec != "" {
 			configName = rec
-			u.log("Config: %s", u.dim(configName+" (the running stack's; override with --config)"))
+			u.Log("Config: %s", u.Dim(configName+" (the running stack's; override with --config)"))
 		} else {
-			u.fail("Cannot tell which config this knowledge base runs, and none given — pass --config <name>.")
+			u.Fail("Cannot tell which config this knowledge base runs, and none given — pass --config <name>.")
 			return 1
 		}
 	}
 	configFile := filepath.Join(configDir, configName+".toml")
 	envCfg, envName, _, err := loadConfig(configFile)
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return 1
 	}
 	plan, err := derivePlan(envCfg, envName, configFile)
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return 1
 	}
 
 	rp, ok := plan.Roles["identity"]
 	if !ok || rp.Issuer == "" {
-		u.fail("This config declares no identity role, so there is no realm to reconcile.")
+		u.Fail("This config declares no identity role, so there is no realm to reconcile.")
 		return 1
 	}
 	if rp.Obligation != obligationProvided {
-		u.fail("The identity role is not launcher-run, so its realm is not ours to reconcile.")
+		u.Fail("The identity role is not launcher-run, so its realm is not ours to reconcile.")
 		fmt.Fprintln(os.Stderr, "  Create one client per service at your own issuer — see the AUTHENTICATION docs for the claims each needs.")
 		return 1
 	}
 
 	adminPass, source := keycloakAdminPassword(root)
 	if adminPass == "" {
-		u.fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
+		u.Fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
 		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")
 		return 1
 	}
-	u.log("Keycloak admin password: %s", u.dim(source))
+	u.Log("Keycloak admin password: %s", u.Dim(source))
 
 	secrets := map[string]string{}
 	for _, svc := range serviceClients {
@@ -147,27 +147,27 @@ func Identity(args []string) int {
 
 	realm := keycloakRealm(issuerPath(rp.Issuer))
 	base := fmt.Sprintf("http://localhost:%d", rp.Port)
-	u.log("Reconciling realm %s at %s", u.bold(realm), base)
+	u.Log("Reconciling realm %s at %s", u.Bold(realm), base)
 
 	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,
 		committedResource(root), rp.AccessTokenLifespan, runningBrowserPort(),
 		func(svc string) string { return secrets[svc] })
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return 1
 	}
 
 	for _, id := range rep.created {
-		u.log("  created %s", u.bold(id))
+		u.Log("  created %s", u.Bold(id))
 	}
 	for _, change := range rep.updated {
-		u.log("  updated %s", u.bold(change))
+		u.Log("  updated %s", u.Bold(change))
 	}
 	if len(rep.created) == 0 && len(rep.updated) == 0 {
-		u.ok("identity — realm matches this knowledge base (%d clients checked)", len(rep.present))
+		u.Ok("identity — realm matches this knowledge base (%d clients checked)", len(rep.present))
 		return 0
 	}
-	u.ok("identity — %d created, %d updated, %d already correct",
+	u.Ok("identity — %d created, %d updated, %d already correct",
 		len(rep.created), len(rep.updated), len(rep.present))
 	fmt.Fprintln(os.Stderr, "  Run `semiont start` again; the preflight will now find what it was missing.")
 	return 0

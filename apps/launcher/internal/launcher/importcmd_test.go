@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // stateHome isolates roots.json so an import in a test cannot touch the real
@@ -106,12 +108,12 @@ func TestImportRefusesANonEmptyRoot(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	_, errOut := captureOutput(t, func() {
+	_, errOut := harness.CaptureOutput(t, func() {
 		if code := Import([]string{archive, "--root", dest}); code == 0 {
 			t.Error("must refuse a non-empty root")
 		}
 	})
-	mustContainAll(t, "refusal", errOut, "not empty", "merge two KBs")
+	harness.MustContainAll(t, "refusal", errOut, "not empty", "merge two KBs")
 	// The refusal must not have written anything first.
 	if _, err := os.Stat(filepath.Join(dest, ".semiont")); err == nil {
 		t.Error("a refused import still unpacked into the directory")
@@ -139,12 +141,12 @@ func TestImportRefusesPathTraversal(t *testing.T) {
 	})
 	dest := filepath.Join(dir, "root")
 
-	_, errOut := captureOutput(t, func() {
+	_, errOut := harness.CaptureOutput(t, func() {
 		if code := Import([]string{archive, "--root", dest}); code == 0 {
 			t.Error("must refuse an archive that escapes the root")
 		}
 	})
-	mustContainAll(t, "refusal", errOut, "escapes the root")
+	harness.MustContainAll(t, "refusal", errOut, "escapes the root")
 	if _, err := os.Stat(filepath.Join(dir, "escaped.md")); err == nil {
 		t.Fatal("the traversal entry was written OUTSIDE the root")
 	}
@@ -158,12 +160,12 @@ func TestImportRefusesANonKBArchive(t *testing.T) {
 	archive := filepath.Join(dir, "notakb.tar.gz")
 	writeTarGzFixture(t, archive, map[string]string{"README.md": "just a tarball"})
 
-	_, errOut := captureOutput(t, func() {
+	_, errOut := harness.CaptureOutput(t, func() {
 		if code := Import([]string{archive, "--root", filepath.Join(dir, "root")}); code == 0 {
 			t.Error("must refuse an archive with no .semiont/")
 		}
 	})
-	mustContainAll(t, "refusal", errOut, "not a Semiont KB")
+	harness.MustContainAll(t, "refusal", errOut, "not a Semiont KB")
 }
 
 func TestImportRefusals(t *testing.T) {
@@ -177,12 +179,12 @@ func TestImportRefusals(t *testing.T) {
 		{"unknown flag", "Unknown argument", []string{"--nope"}},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			_, errOut := captureOutput(t, func() {
+			_, errOut := harness.CaptureOutput(t, func() {
 				if code := Import(c.args); code == 0 {
 					t.Error("must refuse")
 				}
 			})
-			mustContainAll(t, "refusal", errOut, c.want)
+			harness.MustContainAll(t, "refusal", errOut, c.want)
 		})
 	}
 }

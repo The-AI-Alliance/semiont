@@ -2,9 +2,11 @@
 
 package launcher
 
-import "encoding/json"
-import "fmt"
-import "reflect"
+import (
+	"encoding/json"
+	"fmt"
+	"reflect"
+)
 
 // One knowledge base the Semiont launcher manages on this machine, as published in
 // the discovery document (see DiscoveryDocument). Endpoints and identity only —
@@ -110,7 +112,7 @@ func (j *DiscoveredKB) UnmarshalJSON(value []byte) error {
 }
 
 // The launcher's KB discovery document — the schema authority for
-// <stateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher)
+// <StateDir>/discovery/kbs.json, which the semiont launcher (Go, apps/launcher)
 // regenerates on every stack mutation and the Browser container mounts read-only
 // at /discovery. NOT an API endpoint: a static document fetched same-origin by
 // browsers (via the Browser's static server) or read from disk by local Node

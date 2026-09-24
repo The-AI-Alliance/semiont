@@ -45,17 +45,17 @@ func ceilingKey(provider, model string) string { return provider + "\x00" + mode
 // roster and indexes the entries that carry limits. A nil result is the
 // answer for every unhappy path, and callers need not tell them apart:
 // "no ceiling to show" is one outcome however it arose.
-func fetchModelCeilings(st *stackState) modelCeilings {
+func fetchModelCeilings(st *StackState) modelCeilings {
 	if st == nil {
 		return nil
 	}
-	base := gatewayBase(st)
+	base := GatewayBase(st)
 	if base == "" {
 		return nil
 	}
 	// The same credential printSessions verifies with. No session means no
 	// roster — status never prompts and never resolves secrets.
-	e, ok := loadTokens()["local"]
+	e, ok := LoadTokens()["local"]
 	if !ok || e.Token == "" {
 		return nil
 	}

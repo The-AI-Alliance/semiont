@@ -14,20 +14,20 @@ detected on this machine.
 
 // About implements `semiont about` — the identity card behind the header.
 func About(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	for _, a := range args {
 		switch a {
 		case "--help", "-h":
 			fmt.Print(aboutUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", a)
+			u.Fail("Unknown argument: %s", a)
 			return 1
 		}
 	}
 
-	fmt.Println(u.bold("Semiont 🌐"))
-	fmt.Println(u.wrap(ansiCyan, "The AI Alliance 🌎🌍"))
+	fmt.Println(u.Bold("Semiont 🌐"))
+	fmt.Println(u.Wrap(AnsiCyan, "The AI Alliance 🌎🌍"))
 	fmt.Println()
 	fmt.Println("An open, source-grounded semantic knowledge platform — a shared workspace")
 	fmt.Println("where humans and AI agents annotate, connect, enrich, and govern domain")
@@ -36,25 +36,25 @@ func About(args []string) int {
 
 	runtimes := "none found — install Apple container, Docker, or Podman"
 	if found := installedRuntimes(); len(found) > 0 {
-		runtimes = strings.Join(found, ", ") + " " + u.dim("(detected on PATH)")
+		runtimes = strings.Join(found, ", ") + " " + u.Dim("(detected on PATH)")
 	}
 	row := func(label, value string) {
-		fmt.Printf("  %s %s\n", u.bold(fmt.Sprintf("%-9s", label)), value)
+		fmt.Printf("  %s %s\n", u.Bold(fmt.Sprintf("%-9s", label)), value)
 	}
-	row("Version", fmt.Sprintf("%s %s", BuildVersion, u.dim(fmt.Sprintf("(commit %s, built %s)", BuildCommit, BuildDate))))
+	row("Version", fmt.Sprintf("%s %s", BuildVersion, u.Dim(fmt.Sprintf("(commit %s, built %s)", BuildCommit, BuildDate))))
 	row("Website", "https://the-ai-alliance.github.io/semiont/")
 	row("Source", "https://github.com/The-AI-Alliance/semiont")
 	row("Issues", "https://github.com/The-AI-Alliance/semiont/issues")
-	row("Images", imageRegistry+" "+u.dim("(SEMIONT_VERSION selects the tag; default latest)"))
+	row("Images", imageRegistry+" "+u.Dim("(SEMIONT_VERSION selects the tag; default latest)"))
 	row("License", "Apache-2.0")
 	row("Runtimes", runtimes)
 
 	fmt.Println()
-	fmt.Println(u.dim("This launcher runs the local Semiont stack — graph (Neo4j), vectors"))
-	fmt.Println(u.dim("(Qdrant), inference (Ollama), database (PostgreSQL), traces (Jaeger), and the"))
-	fmt.Println(u.dim("Semiont gateway, worker, smelter, weaver, and Browser — by driving your"))
-	fmt.Println(u.dim("container runtime directly. Try: semiont start --help"))
+	fmt.Println(u.Dim("This launcher runs the local Semiont stack — graph (Neo4j), vectors"))
+	fmt.Println(u.Dim("(Qdrant), inference (Ollama), database (PostgreSQL), traces (Jaeger), and the"))
+	fmt.Println(u.Dim("Semiont gateway, worker, smelter, weaver, and Browser — by driving your"))
+	fmt.Println(u.Dim("container runtime directly. Try: semiont start --help"))
 	fmt.Println()
-	fmt.Println(u.wrap(ansiMagenta, "✨ Make Meaning"))
+	fmt.Println(u.Wrap(AnsiMagenta, "✨ Make Meaning"))
 	return 0
 }

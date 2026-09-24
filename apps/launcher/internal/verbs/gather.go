@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // gather.go — `semiont gather`: assemble LLM-optimized context for a
 // resource or an annotation. Resource-focus is a plain request/reply;
@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -46,7 +48,7 @@ const (
 )
 
 func Gather(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var positional []string
 	var repo string
 	depth, maxResources, contextWindow := gatherDefaultDepth, gatherDefaultMaxResources, 0
@@ -56,13 +58,13 @@ func Gather(args []string) int {
 		a := args[i]
 		num := func() (int, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return 0, false
 			}
 			i++
 			n, err := strconv.Atoi(args[i])
 			if err != nil || n < 0 {
-				u.fail("%s wants a number, got %q", a, args[i])
+				u.Fail("%s wants a number, got %q", a, args[i])
 				return 0, false
 			}
 			return n, true
@@ -88,14 +90,14 @@ func Gather(args []string) int {
 			contextWindow = n
 		case "--repo":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+				u.Fail("Missing value for --repo")
 				return 1
 			}
 			i++
 			repo = args[i]
 		case "--runtime":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+				u.Fail("Missing value for --runtime")
 				return 1
 			}
 			i++
@@ -111,7 +113,7 @@ func Gather(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			positional = append(positional, a)
@@ -122,11 +124,11 @@ func Gather(args []string) int {
 		return 1
 	}
 
-	t, ok := verbSession(u, "gather", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "gather", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	// The two gathers take DIFFERENT option sets — the resource variant
 	// traverses a graph, the annotation variant windows text around a mark.
@@ -211,8 +213,8 @@ func Gather(args []string) int {
 		fmt.Printf("  %s\n\n", relSummary)
 	}
 	if len(bits) > 0 {
-		fmt.Printf("  %s\n", u.dim(strings.Join(bits, " · ")))
+		fmt.Printf("  %s\n", u.Dim(strings.Join(bits, " · ")))
 	}
-	fmt.Printf("  %s\n", u.dim("full context: add --json"))
+	fmt.Printf("  %s\n", u.Dim("full context: add --json"))
 	return 0
 }

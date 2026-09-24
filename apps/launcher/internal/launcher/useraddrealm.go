@@ -37,57 +37,57 @@ type realmAdmin struct {
 // which precondition failed. The sticky config, exactly as `identity sync`
 // resolves it — administering a realm the operator does not actually start
 // with would write to the wrong one.
-func resolveRealmAdmin(u *ui) (realmAdmin, bool) {
+func resolveRealmAdmin(u *UI) (realmAdmin, bool) {
 	root, _, err := resolveKBRoot()
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT.")
 		return realmAdmin{}, false
 	}
 	configName := configForRealm(root)
 	if configName == "" {
-		u.fail("Cannot tell which config this knowledge base runs, so there is no realm to administer.")
+		u.Fail("Cannot tell which config this knowledge base runs, so there is no realm to administer.")
 		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
 		return realmAdmin{}, false
 	}
 	configFile := filepath.Join(root, ".semiont", "semiontconfig", configName+".toml")
 	envCfg, envName, _, err := loadConfig(configFile)
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
 	plan, err := derivePlan(envCfg, envName, configFile)
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
 	rp, ok := plan.Roles["identity"]
 	if !ok || rp.Issuer == "" {
-		u.fail("This knowledge base configures no identity provider — add an [identity] section before creating users.")
+		u.Fail("This knowledge base configures no identity provider — add an [identity] section before creating users.")
 		return realmAdmin{}, false
 	}
 	// An issuer Semiont does not administer. The account is created THERE and
 	// then signs in here; nothing about this command can reach it.
 	if rp.Driver != "keycloak" {
-		u.fail("Identity type %q is an issuer Semiont does not administer.", rp.Driver)
+		u.Fail("Identity type %q is an issuer Semiont does not administer.", rp.Driver)
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
 	if rp.Obligation != obligationProvided {
-		u.fail("The identity role is not launcher-run, so its accounts are not ours to administer.")
+		u.Fail("The identity role is not launcher-run, so its accounts are not ours to administer.")
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
 	adminPass, _ := keycloakAdminPassword(root)
 	if adminPass == "" {
-		u.fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
+		u.Fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
 		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")
 		return realmAdmin{}, false
 	}
 	base := fmt.Sprintf("http://localhost:%d", rp.Port)
 	token, err := adminToken(base, keycloakAdminUser, adminPass)
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
 	return realmAdmin{base: base, realm: keycloakRealm(issuerPath(rp.Issuer)), token: token}, true
@@ -96,7 +96,7 @@ func resolveRealmAdmin(u *ui) (realmAdmin, bool) {
 // useraddLocal: the account decisions, in the order the flags imply. The
 // issuer holds whether a person may sign in, so `--active`/`--inactive` are
 // written there and nowhere else; absent both, an update leaves that alone.
-func useraddLocal(u *ui, o useraddOpts, password string) int {
+func useraddLocal(u *UI, o useraddOpts, password string) int {
 	a, ok := resolveRealmAdmin(u)
 	if !ok {
 		return 1
@@ -107,10 +107,10 @@ func useraddLocal(u *ui, o useraddOpts, password string) int {
 // applyUseradd: the decision tree, against an already-resolved realm. Split
 // from the resolution so the branching — which the flags drive and an operator
 // gets wrong — is testable without a config, a plan or a token exchange.
-func applyUseradd(u *ui, a realmAdmin, o useraddOpts, password string) int {
+func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) int {
 	account, err := findUserByEmail(a.base, a.realm, a.token, o.email)
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		return 1
 	}
 	if account != nil && o.upsert {
@@ -118,11 +118,11 @@ func applyUseradd(u *ui, a realmAdmin, o useraddOpts, password string) int {
 		return 0
 	}
 	if account != nil && !o.update {
-		u.fail("User %s already exists. Use --update to modify or --upsert to skip silently.", o.email)
+		u.Fail("User %s already exists. Use --update to modify or --upsert to skip silently.", o.email)
 		return 1
 	}
 	if account == nil && o.update {
-		u.fail("User %s not found. Remove --update to create a new user.", o.email)
+		u.Fail("User %s not found. Remove --update to create a new user.", o.email)
 		return 1
 	}
 
@@ -130,25 +130,25 @@ func applyUseradd(u *ui, a realmAdmin, o useraddOpts, password string) int {
 	if account != nil {
 		if password != "" {
 			if err := setUserPassword(a.base, a.realm, a.token, account.id, password); err != nil {
-				u.fail("%v", err)
+				u.Fail("%v", err)
 				return 1
 			}
 		}
 		if o.inactive || o.active {
 			if err := setUserEnabled(a.base, a.realm, a.token, account.id, o.active); err != nil {
-				u.fail("%v", err)
+				u.Fail("%v", err)
 				return 1
 			}
 		}
 		subject = account.id
 	} else {
 		if password == "" {
-			u.fail("Password required: use --password-stdin or --generate-password")
+			u.Fail("Password required: use --password-stdin or --generate-password")
 			return 1
 		}
 		subject, err = createUser(a.base, a.realm, a.token, o.email, password, !o.inactive)
 		if err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			return 1
 		}
 	}

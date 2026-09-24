@@ -16,7 +16,7 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", "")
 	root := t.TempDir()
-	x := &liveExec{u: newUI(true)}
+	x := &liveExec{u: NewUI(true)}
 
 	dir := stateRootDir(root)
 	sd := stateStores["state"].storeDir(root)

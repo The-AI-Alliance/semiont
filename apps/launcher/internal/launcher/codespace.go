@@ -34,7 +34,7 @@ const kbRemotePort = 4000
 // allocateKBPort picks this stack's local KB port: 4000, or the lowest
 // free port above it — skipping every port other recorded stacks claim
 // (local stack's port checks, other codespaces' forwards) and live holders.
-func allocateKBPort(ss *stackSet, repo string) int {
+func allocateKBPort(ss *StackSet, repo string) int {
 	used := map[int]bool{}
 	if local := ss.Stacks["local"]; local != nil {
 		for _, p := range local.Ports {
@@ -62,7 +62,7 @@ var repoSlugRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
 // startCodespace is the whole §1 recipe as one blocking command, with
 // local-start parity as the contract: preflight, create-or-resume, forward,
 // health-gate, summary-and-exit.
-func startCodespace(u *ui, opts startOptions) int {
+func startCodespace(u *UI, opts startOptions) int {
 	// gh is the earliest failure of all — check it before any git or
 	// registry work, so a missing CLI never surfaces as a confusing
 	// downstream error. The one exception is --dry-run: a plan reaches for
@@ -76,7 +76,7 @@ func startCodespace(u *ui, opts startOptions) int {
 	// skips the local stack's recorded claims and any live holder. So the
 	// local KB keeps 4000, a codespace KB takes 4001, and one browser works
 	// both from its Knowledge Bases panel — the point of per-stack ports.
-	ss := loadStackSet()
+	ss := LoadStackSet()
 
 	// Identity ladder, repo-first (the repo IS the identity; many codespace
 	// stacks may be recorded at once): --repo → root's origin (create-path
@@ -93,18 +93,18 @@ func startCodespace(u *ui, opts startOptions) int {
 		} else if len(cs) == 1 {
 			repo = cs[0].Repo
 		} else if len(cs) > 1 {
-			u.fail("%d codespace stacks are recorded — say which:", len(cs))
+			u.Fail("%d codespace stacks are recorded — say which:", len(cs))
 			for _, c := range cs {
 				fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Repo)
 			}
 			return 1
 		} else {
-			u.fail("No KB clone here and no codespace stack recorded.")
+			u.Fail("No KB clone here and no codespace stack recorded.")
 			fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
 			return 1
 		}
 	} else if !repoSlugRe.MatchString(repo) {
-		u.fail("--repo must be owner/name, got '%s'.", repo)
+		u.Fail("--repo must be owner/name, got '%s'.", repo)
 		return 1
 	}
 	st := ss.Stacks["codespace:"+repo]
@@ -118,7 +118,7 @@ func startCodespace(u *ui, opts startOptions) int {
 		return 0
 	}
 
-	u.log("KB repo: %s %s", u.bold(repo), u.dim("(codespace placement — the stack runs on a GitHub-hosted machine)"))
+	u.Log("KB repo: %s %s", u.Bold(repo), u.Dim("(codespace placement — the stack runs on a GitHub-hosted machine)"))
 
 	// Preflights, early and loud — §1's silent/late failures become
 	// first-second failures.
@@ -132,13 +132,13 @@ func startCodespace(u *ui, opts startOptions) int {
 		// create only when the repo truly has no codespace.
 		instances, err := ghCodespaceList(repo)
 		if err != nil {
-			u.fail("Could not list codespaces (`gh codespace list`): %v", err)
+			u.Fail("Could not list codespaces (`gh codespace list`): %v", err)
 			return 1
 		}
 		switch {
 		case len(instances) == 0:
 			if !secretOK {
-				u.fail("ANTHROPIC_API_KEY is not a Codespaces user secret selected for %s — the stack would come up with inference dead, silently.", repo)
+				u.Fail("ANTHROPIC_API_KEY is not a Codespaces user secret selected for %s — the stack would come up with inference dead, silently.", repo)
 				// A codespace can't reach your local provider, so the
 				// value must live in GitHub too. When a source is
 				// registered, name the one command that bridges it.
@@ -158,8 +158,8 @@ func startCodespace(u *ui, opts startOptions) int {
 			created = true
 		case len(instances) == 1:
 			name = instances[0].Name
-			u.log("Found existing codespace for %s: %s %s", repo, u.bold(name),
-				u.dim("(state: "+instances[0].State+") — resuming, not creating"))
+			u.Log("Found existing codespace for %s: %s %s", repo, u.Bold(name),
+				u.Dim("(state: "+instances[0].State+") — resuming, not creating"))
 		default:
 			if opts.csName != "" {
 				for _, c := range instances {
@@ -168,11 +168,11 @@ func startCodespace(u *ui, opts startOptions) int {
 					}
 				}
 				if name == "" {
-					u.fail("--codespace '%s' is not among %s's codespaces.", opts.csName, repo)
+					u.Fail("--codespace '%s' is not among %s's codespaces.", opts.csName, repo)
 					return 1
 				}
 			} else {
-				u.fail("%s has %d codespaces — the launcher manages at most one per repo.", repo, len(instances))
+				u.Fail("%s has %d codespaces — the launcher manages at most one per repo.", repo, len(instances))
 				for _, c := range instances {
 					fmt.Fprintf(os.Stderr, "    %s  (%s)\n", c.Name, c.State)
 				}
@@ -181,9 +181,9 @@ func startCodespace(u *ui, opts startOptions) int {
 			}
 		}
 	} else {
-		u.log("Resuming recorded codespace %s %s", u.bold(name), u.dim("("+repo+")"))
+		u.Log("Resuming recorded codespace %s %s", u.Bold(name), u.Dim("("+repo+")"))
 		if !secretOK {
-			u.warn("ANTHROPIC_API_KEY is not selected for %s in the Codespaces user secrets — inference may be dead inside the stack.", repo)
+			u.Warn("ANTHROPIC_API_KEY is not selected for %s in the Codespaces user secrets — inference may be dead inside the stack.", repo)
 		}
 		// A dead recorded forward is normal here; a live one means the
 		// stack is already reachable and respawning would fail the binds.
@@ -197,10 +197,10 @@ func startCodespace(u *ui, opts startOptions) int {
 	// existing codespace can't change its VM class, so say so rather than
 	// letting the flag look effective.
 	if opts.machine != "" && !created {
-		u.warn("--machine %s ignored: %s already exists and keeps the class it was created with.", opts.machine, name)
+		u.Warn("--machine %s ignored: %s already exists and keeps the class it was created with.", opts.machine, name)
 	}
 	if (opts.idleTimeout != "" || opts.retention != "") && !created {
-		u.warn("--idle-timeout/--retention-period ignored: %s already exists and keeps its create-time settings.", name)
+		u.Warn("--idle-timeout/--retention-period ignored: %s already exists and keeps its create-time settings.", name)
 	}
 
 	// One KB port per stack — other codespaces' forwards keep running;
@@ -243,7 +243,7 @@ func startCodespace(u *ui, opts startOptions) int {
 		// that way IS the not-ready answer — and one that survives is both
 		// the answer and the tunnel we wanted.
 		askable = false
-		u.log("Cannot check the stack over ssh — probing by connecting instead")
+		u.Log("Cannot check the stack over ssh — probing by connecting instead")
 	}
 	pid, fwdDead, code := establishForward(u, name, kbPort, askable)
 	if code != 0 {
@@ -251,11 +251,11 @@ func startCodespace(u *ui, opts startOptions) int {
 	}
 	// The record binds the stack to its executor before the health gate —
 	// belief, verified by status; a failed wait leaves an honest record.
-	newSt := &stackState{
+	newSt := &StackState{
 		Runtime: "codespace", Codespace: name, Repo: repo,
 		ForwardPID: pid, ForwardPort: kbPort, Ports: []int{kbPort},
 		KBDid:    repoDid,
-		Services: map[string]serviceState{},
+		Services: map[string]ServiceState{},
 	}
 	// A --repo-only start has no clone to read an identity from; don't drop
 	// one we learned earlier.
@@ -276,7 +276,7 @@ func startCodespace(u *ui, opts startOptions) int {
 	tick := func(elapsed time.Duration) bool {
 		select {
 		case <-fwdDead:
-			u.fail("The port forward (pid %d) died after %s.", pid, took(elapsed))
+			u.Fail("The port forward (pid %d) died after %s.", pid, took(elapsed))
 			if last := lastForwardError(pid); last != "" {
 				fmt.Fprintf(os.Stderr, "  gh said: %s\n", last)
 			}
@@ -290,7 +290,7 @@ func startCodespace(u *ui, opts startOptions) int {
 	if !ok {
 		return 1
 	}
-	u.ok("KB healthy %s", u.dim("("+took(d)+")"))
+	u.Ok("KB healthy %s", u.Dim("("+took(d)+")"))
 
 	// The stack is up, so this is the cheapest moment to reach in. Only fires
 	// when nothing is recorded — a --repo-only start (no clone to read) has
@@ -302,10 +302,10 @@ func startCodespace(u *ui, opts startOptions) int {
 	reconcileDid(u, newSt, false)
 
 	fmt.Println()
-	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont KB is up in codespace "+name), u.dim("("+took(d)+" to healthy)"))
+	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 Semiont KB is up in codespace "+name), u.Dim("("+took(d)+" to healthy)"))
 	fmt.Println()
-	fmt.Printf("  Semiont KB         %s %s\n", u.bold(fmt.Sprintf("http://localhost:%d", kbPort)),
-		u.dim("(add Host localhost, Port "+fmt.Sprintf("%d", kbPort)+" in the browser's Knowledge Bases panel)"))
+	fmt.Printf("  Semiont KB         %s %s\n", u.Bold(fmt.Sprintf("http://localhost:%d", kbPort)),
+		u.Dim("(add Host localhost, Port "+fmt.Sprintf("%d", kbPort)+" in the browser's Knowledge Bases panel)"))
 	// The browser is NOT forwarded — only the KB is. It runs locally and
 	// views any number of KBs. ANY start ensures it (BROWSER-LIFECYCLE.md
 	// decision 2) — but only when a container runtime exists here: codespace
@@ -321,13 +321,13 @@ func startCodespace(u *ui, opts startOptions) int {
 		_ = flowBrowser(bx, version, 3000, false)
 	}
 	if httpOK("http://localhost:3000") {
-		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("http://localhost:3000"), u.dim("(discovery-synced — this KB appears in its panel)"))
+		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold("http://localhost:3000"), u.Dim("(discovery-synced — this KB appears in its panel)"))
 	} else {
-		fmt.Printf("  Semiont Browser    %s %s\n", u.bold("semiont start --service browser"),
-			u.dim("(no local container runtime found — install one, or browse from another machine)"))
+		fmt.Printf("  Semiont Browser    %s %s\n", u.Bold("semiont start --service browser"),
+			u.Dim("(no local container runtime found — install one, or browse from another machine)"))
 	}
 	fmt.Println()
-	fmt.Printf("  %s\n", u.dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
+	fmt.Printf("  %s\n", u.Dim("Runs "+repo+" as pushed — local uncommitted changes don't travel."))
 	// The hardware burning and its auto-stop — the summary is where a fresh
 	// VM's cost begins (CODESPACE-COSTS.md P0 q1).
 	if f, ok := fetchCodespaceFacts()[name]; ok && f.Machine != "" {
@@ -335,25 +335,25 @@ func startCodespace(u *ui, opts startOptions) int {
 		if f.IdleMin > 0 {
 			line += fmt.Sprintf(" · auto-stops after %dm idle", f.IdleMin)
 		}
-		fmt.Printf("  %s\n", u.dim(line))
+		fmt.Printf("  %s\n", u.Dim(line))
 	}
 	fmt.Println()
 	// No account exists yet — nothing auto-creates one. This is the actual next
 	// step after a first start, so it leads the follow-ups.
-	fmt.Printf("  First user:    %s\n", u.bold(useraddHint(repo)))
-	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
-	fmt.Printf("  Follow logs:   %s %s\n", u.bold("semiont logs --repo "+repo), u.dim("(bare logs when unambiguous)"))
+	fmt.Printf("  First user:    %s\n", u.Bold(useraddHint(repo)))
+	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))
+	fmt.Printf("  Follow logs:   %s %s\n", u.Bold("semiont logs --repo "+repo), u.Dim("(bare logs when unambiguous)"))
 	// "Halt billing" overpromised: stopping halts COMPUTE billing; storage
 	// bills until retention auto-deletes the codespace (CODESPACE-COSTS.md).
-	fmt.Printf("  Halt compute:  %s %s\n", u.bold("semiont stop --repo "+repo), u.dim("(storage bills until auto-delete; --delete destroys now)"))
+	fmt.Printf("  Halt compute:  %s %s\n", u.Bold("semiont stop --repo "+repo), u.Dim("(storage bills until auto-delete; --delete destroys now)"))
 	fmt.Println()
 	return 0
 }
 
-// cwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
+// CwdKBRoot: the KB root the working directory resolves to (SEMIONT_ROOT,
 // else the .semiont/ walk) — "" when not inside a clone. The cwd is context
 // every command may consult: standing in a clone says which stack is meant.
-func cwdKBRoot() string {
+func CwdKBRoot() string {
 	root, _, err := resolveKBRoot()
 	if err != nil {
 		return ""
@@ -364,7 +364,7 @@ func cwdKBRoot() string {
 // originCodespace: the recorded codespace stack whose repo this clone's git
 // origin names, nil when none does (or root is ""). This is the stop/useradd
 // counterpart of repoFromRoot's create-path convenience.
-func originCodespace(cs []*stackState, root string) *stackState {
+func originCodespace(cs []*StackState, root string) *StackState {
 	if root == "" {
 		return nil
 	}
@@ -386,7 +386,7 @@ func originCodespace(cs []*stackState, root string) *stackState {
 
 // repoFromRoot: the create-path convenience — resolve the KB root as usual
 // and read the slug from its origin remote.
-func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) {
+func repoFromRoot(u *UI, opts startOptions) (slug string, did string, code int) {
 	var root string
 	var err error
 	if opts.root != "" {
@@ -395,19 +395,19 @@ func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) 
 		root, _, err = resolveKBRoot()
 	}
 	if err != nil {
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a KB clone (its origin supplies the repo).")
 		return "", "", 1
 	}
 	origin, err := capture("git", "-C", root, "remote", "get-url", "origin")
 	if err != nil || origin == "" {
-		u.fail("Cannot read the origin remote of %s.", root)
+		u.Fail("Cannot read the origin remote of %s.", root)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>.")
 		return "", "", 1
 	}
 	slug, ok := parseGitHubSlug(origin)
 	if !ok {
-		u.fail("The origin of %s is not a GitHub repo (%s) — codespaces are GitHub-only.", root, origin)
+		u.Fail("The origin of %s is not a GitHub repo (%s) — codespaces are GitHub-only.", root, origin)
 		fmt.Fprintln(os.Stderr, "  Pass --repo <owner>/<name>, or run from a GitHub clone.")
 		return "", "", 1
 	}
@@ -422,7 +422,7 @@ func repoFromRoot(u *ui, opts startOptions) (slug string, did string, code int) 
 		// warning was the earliest tell that a start had gone cloud-shaped,
 		// but nothing in its old wording said so — the first word must name
 		// which path is running.
-		u.warn("Starting a CODESPACE for %s — it runs the repo as PUSHED to GitHub; the uncommitted changes in %s don't travel.", slug, root)
+		u.Warn("Starting a CODESPACE for %s — it runs the repo as PUSHED to GitHub; the uncommitted changes in %s don't travel.", slug, root)
 	}
 	return slug, did, 0
 }
@@ -450,15 +450,15 @@ func parseGitHubSlug(origin string) (string, bool) {
 
 // preflightGhScope: §1 precondition 1 — the scope gap otherwise surfaces
 // later as a misleading "must have admin rights to Repository".
-func preflightGhScope(u *ui) int {
+func preflightGhScope(u *UI) int {
 	out, err := captureBoth("gh", "auth", "status")
 	if err != nil {
-		u.fail("gh is not authenticated.")
+		u.Fail("gh is not authenticated.")
 		fmt.Fprintln(os.Stderr, "  Run:  gh auth login")
 		return 1
 	}
 	if !strings.Contains(out, "codespace") {
-		u.fail("The gh token is missing the 'codespace' scope (it surfaces later as a misleading admin-rights error).")
+		u.Fail("The gh token is missing the 'codespace' scope (it surfaces later as a misleading admin-rights error).")
 		fmt.Fprintln(os.Stderr, "  Grant it:  gh auth refresh -h github.com -s codespace")
 		return 1
 	}
@@ -554,15 +554,15 @@ func availableMachines(repo string) ([]codespaceMachine, string, error) {
 // choice), else the largest available by cores, announced with the reason —
 // premium-then-largest rather than always-largest, so an account with
 // largePremiumLinux isn't silently upgraded to a costlier VM.
-func chooseMachine(u *ui, repo, requested string) (string, int) {
+func chooseMachine(u *UI, repo, requested string) (string, int) {
 	machines, raw, err := availableMachines(repo)
 	if err != nil {
-		u.fail("Could not list machine classes for %s: %s", repo, strings.TrimSpace(raw))
+		u.Fail("Could not list machine classes for %s: %s", repo, strings.TrimSpace(raw))
 		fmt.Fprintln(os.Stderr, "  Likely causes: the account has no Codespaces access, or an org policy restricts machine types.")
 		return "", 1
 	}
 	if len(machines) == 0 {
-		u.fail("GitHub offers no machine classes for %s.", repo)
+		u.Fail("GitHub offers no machine classes for %s.", repo)
 		fmt.Fprintln(os.Stderr, "  Likely causes: an org policy restricts machine types, or the devcontainer's hostRequirements exceed every class available to you.")
 		return "", 1
 	}
@@ -572,7 +572,7 @@ func chooseMachine(u *ui, repo, requested string) (string, int) {
 				return requested, 0
 			}
 		}
-		u.fail("--machine %s is not available to you for %s. Available:", requested, repo)
+		u.Fail("--machine %s is not available to you for %s. Available:", requested, repo)
 		for _, m := range machines {
 			fmt.Fprintf(os.Stderr, "    %-20s %s\n", m.Name, m.DisplayName)
 		}
@@ -589,13 +589,13 @@ func chooseMachine(u *ui, repo, requested string) (string, int) {
 			best = m
 		}
 	}
-	u.warn("premiumLinux isn't available to you for %s — using %s (%s).", repo, best.Name, best.DisplayName)
+	u.Warn("premiumLinux isn't available to you for %s — using %s (%s).", repo, best.Name, best.DisplayName)
 	return best.Name, 0
 }
 
 // createCodespace with the §1 503-aware backoff: GitHub-side incidents are
 // retried (bounded), everything else fails with the CLI's own words.
-func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
+func createCodespace(u *UI, repo string, opts startOptions) (string, int) {
 	machine, code := chooseMachine(u, repo, opts.machine)
 	if code != 0 {
 		return "", code
@@ -614,27 +614,27 @@ func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
 	if retention == "" {
 		retention = "720h"
 	}
-	u.log("Creating codespace for %s %s", u.bold(repo), u.dim("(--machine "+machine+"; ~4 min to Available, hooks run minutes past it)"))
-	u.log("Cost levers: %s", u.dim("auto-stop after "+idle+" idle; kept "+retention+" after stopping, then AUTO-DELETED (state and all)"))
+	u.Log("Creating codespace for %s %s", u.Bold(repo), u.Dim("(--machine "+machine+"; ~4 min to Available, hooks run minutes past it)"))
+	u.Log("Cost levers: %s", u.Dim("auto-stop after "+idle+" idle; kept "+retention+" after stopping, then AUTO-DELETED (state and all)"))
 	args := []string{"codespace", "create", "--repo", repo, "--machine", machine,
 		"--idle-timeout", idle, "--retention-period", retention}
-	u.echoCmd("gh", args...)
+	u.EchoCmd("gh", args...)
 	for attempt := 1; ; attempt++ {
 		out, err := captureBoth("gh", args...)
 		if err == nil {
 			lines := strings.Fields(out)
 			if len(lines) == 0 {
-				u.fail("`gh codespace create` printed no codespace name.")
+				u.Fail("`gh codespace create` printed no codespace name.")
 				return "", 1
 			}
 			return lines[len(lines)-1], 0
 		}
 		if strings.Contains(out, "503") && attempt < 5 {
-			u.warn("GitHub returned 503 (their side — attempt %d/5); retrying in %ds...", attempt, attempt*2)
+			u.Warn("GitHub returned 503 (their side — attempt %d/5); retrying in %ds...", attempt, attempt*2)
 			time.Sleep(time.Duration(attempt*2) * time.Second)
 			continue
 		}
-		u.fail("Create failed: %s", strings.TrimSpace(out))
+		u.Fail("Create failed: %s", strings.TrimSpace(out))
 		return "", 1
 	}
 }
@@ -644,7 +644,7 @@ func createCodespace(u *ui, repo string, opts startOptions) (string, int) {
 // there is a trigger step: `gh codespace ssh -- true` both wakes it and
 // blocks until it is connectable (measured: ~19s), which also proves the
 // ssh path the credentials read needs.
-func ensureCodespaceAvailable(u *ui, repo, name string) int {
+func ensureCodespaceAvailable(u *UI, repo, name string) int {
 	ghHere := onPath("gh")
 	var instances []codespaceInstance
 	var lerr error
@@ -659,15 +659,15 @@ func ensureCodespaceAvailable(u *ui, repo, name string) int {
 	// 720h retention) — fail in two seconds with the real reason, never
 	// poll a ghost. No auto-create: a paid VM is an explicit choice.
 	if state == "deleted" {
-		u.fail("Codespace %s no longer exists — GitHub deleted it under the 30-day retention set at create.", name)
+		u.Fail("Codespace %s no longer exists — GitHub deleted it under the 30-day retention set at create.", name)
 		fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
 		fmt.Fprintln(os.Stderr, "  Then create fresh:  semiont start --runtime codespace --repo "+repo)
 		return 1
 	}
 	if state == "Shutdown" {
-		u.log("Codespace is stopped — waking it %s", u.dim("(connecting is what resumes a codespace; ~20s)"))
+		u.Log("Codespace is stopped — waking it %s", u.Dim("(connecting is what resumes a codespace; ~20s)"))
 		if err := runSilent("gh", "codespace", "ssh", "-c", name, "--", "true"); err != nil {
-			u.fail("Could not wake codespace %s.", name)
+			u.Fail("Could not wake codespace %s.", name)
 			fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
 			return 1
 		}
@@ -682,7 +682,7 @@ func ensureCodespaceAvailable(u *ui, repo, name string) int {
 // Liveness during the minutes-long wait: on a terminal, one redrawn line
 // carrying the polled state and elapsed time; piped, a 30s heartbeat —
 // silence and a spinner are different claims, and this wait had neither.
-func waitCodespaceAvailable(u *ui, repo, name string) int {
+func waitCodespaceAvailable(u *UI, repo, name string) int {
 	t0 := time.Now()
 	lastBeat := t0
 	state := ""
@@ -702,25 +702,25 @@ func waitCodespaceAvailable(u *ui, repo, name string) int {
 			if u.color {
 				fmt.Print("\r\033[K")
 			}
-			u.fail("Codespace %s no longer exists — deleted while waiting for it.", name)
+			u.Fail("Codespace %s no longer exists — deleted while waiting for it.", name)
 			fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
 			return 1
 		}
 		if i == 0 {
-			u.log("Waiting for the codespace VM %s", u.dim("(GitHub reports Provisioning until the machine is up)"))
+			u.Log("Waiting for the codespace VM %s", u.Dim("(GitHub reports Provisioning until the machine is up)"))
 		}
 		if u.color {
-			fmt.Printf("\r  %s\033[K", u.dim(state+"… ("+took(time.Since(t0))+")"))
+			fmt.Printf("\r  %s\033[K", u.Dim(state+"… ("+took(time.Since(t0))+")"))
 		} else if time.Since(lastBeat) >= 30*time.Second {
 			lastBeat = time.Now()
-			u.log("Still waiting for the VM — %s (%s elapsed)", state, took(time.Since(t0)))
+			u.Log("Still waiting for the VM — %s (%s elapsed)", state, took(time.Since(t0)))
 		}
 		time.Sleep(2 * time.Second)
 	}
 	if u.color {
 		fmt.Print("\r\033[K")
 	}
-	u.fail("Codespace %s did not reach Available within 10 minutes.", name)
+	u.Fail("Codespace %s did not reach Available within 10 minutes.", name)
 	fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
 	return 1
 }
@@ -732,7 +732,7 @@ func waitCodespaceAvailable(u *ui, repo, name string) int {
 // the newest line instead. Decoration, never a gate: if gh cannot stream
 // (briefly true right at Available), the window simply stays empty.
 type creationLogTail struct {
-	u        *ui
+	u        *UI
 	cmd      *exec.Cmd
 	mu       sync.Mutex
 	lines    []string // ring: the newest creationLogWindow lines (the display)
@@ -768,9 +768,9 @@ var hookFailure = regexp.MustCompile(`(onCreateCommand|updateContentCommand|post
 // startCreationLogTail spawns the follower. CREATE path only: a resumed
 // codespace's creation log is stale history and tailing it would narrate
 // the wrong boot.
-func startCreationLogTail(u *ui, name string) *creationLogTail {
+func startCreationLogTail(u *UI, name string) *creationLogTail {
 	args := []string{"codespace", "logs", "--follow", "-c", name}
-	u.echoCmd("gh", args...)
+	u.EchoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -830,9 +830,9 @@ func (lt *creationLogTail) tick(elapsed time.Duration) {
 		if time.Since(lt.lastBeat) >= 30*time.Second {
 			lt.lastBeat = time.Now()
 			if n := len(lines); n > 0 {
-				lt.u.log("Still waiting (%s elapsed) — %s", took(elapsed), lines[n-1])
+				lt.u.Log("Still waiting (%s elapsed) — %s", took(elapsed), lines[n-1])
 			} else {
-				lt.u.log("Still waiting (%s elapsed)", took(elapsed))
+				lt.u.Log("Still waiting (%s elapsed)", took(elapsed))
 			}
 		}
 		return
@@ -843,7 +843,7 @@ func (lt *creationLogTail) tick(elapsed time.Duration) {
 	for _, ln := range lines {
 		// Hard truncation keeps every window line to one terminal row —
 		// a wrapped line would break the cursor-up arithmetic.
-		fmt.Printf("\033[K  %s\n", lt.u.dim(truncateLine(ln, 100)))
+		fmt.Printf("\033[K  %s\n", lt.u.Dim(truncateLine(ln, 100)))
 	}
 	lt.rendered = len(lines)
 }
@@ -917,7 +917,7 @@ func (lt *creationLogTail) stop() {
 // it). Each codespace stack runs its own. The returned channel closes if
 // the forward dies while THIS launcher still runs — the health gate's
 // fail-fast signal.
-func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
+func spawnForward(u *UI, name string, kbPort int) (int, <-chan struct{}, int) {
 	// Argument order is <codespacePort>:<localPort> — NOT the reverse.
 	// Getting it backwards forwards a port nothing serves onto a local port
 	// something else may already own: gh then fails to bind but the process
@@ -926,7 +926,7 @@ func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 	// found it.
 	args := []string{"codespace", "ports", "forward",
 		fmt.Sprintf("%d:%d", kbRemotePort, kbPort), "-c", name}
-	u.echoCmd("gh", args...)
+	u.EchoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
 	// Keep gh's stderr. It was discarded, so a dead forward could be
 	// reported but never EXPLAINED — and gh's own message is the whole
@@ -937,7 +937,7 @@ func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 	cmd.Stdout = nil
 	cmd.Stderr = newForwardLog()
 	if err := cmd.Start(); err != nil {
-		u.fail("Could not start the port forward: %v", err)
+		u.Fail("Could not start the port forward: %v", err)
 		return 0, nil, 1
 	}
 	pid := cmd.Process.Pid
@@ -952,7 +952,7 @@ func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 		_ = cmd.Wait()
 		close(dead)
 	}()
-	u.log("Port forward running %s", u.dim(fmt.Sprintf("(detached, pid %d — recorded; semiont stop ends it)", pid)))
+	u.Log("Port forward running %s", u.Dim(fmt.Sprintf("(detached, pid %d — recorded; semiont stop ends it)", pid)))
 	return pid, dead, 0
 }
 
@@ -974,7 +974,7 @@ func spawnForward(u *ui, name string, kbPort int) (int, <-chan struct{}, int) {
 // codespace now answers with a different one, the interesting fact is that
 // the two disagree — the record is a claim about which KB this is, and
 // replacing it without a word would erase the evidence.
-func reconcileDid(u *ui, st *stackState, force bool) {
+func reconcileDid(u *UI, st *StackState, force bool) {
 	if st.KBDid != "" && !force {
 		return
 	}
@@ -986,11 +986,11 @@ func reconcileDid(u *ui, st *stackState, force bool) {
 	case st.KBDid == "":
 		st.KBDid = remote
 		saveStack(st)
-		u.ok("Recorded KB identity %s", u.dim(remote))
+		u.Ok("Recorded KB identity %s", u.Dim(remote))
 	case st.KBDid == remote:
-		u.ok("KB identity confirmed %s", u.dim(remote))
+		u.Ok("KB identity confirmed %s", u.Dim(remote))
 	default:
-		u.warn("This codespace's KB identity does not match the record.")
+		u.Warn("This codespace's KB identity does not match the record.")
 		fmt.Fprintf(os.Stderr, "    recorded: %s\n", st.KBDid)
 		fmt.Fprintf(os.Stderr, "    running:  %s\n", remote)
 		fmt.Fprintln(os.Stderr, "    The codespace is running a different KB than when the record was made")
@@ -1005,12 +1005,12 @@ func reconcileDid(u *ui, st *stackState, force bool) {
 // directory". The glob expands remotely and does not depend on the workspace
 // directory's name. (Found live 2026-07-20, on the since-removed admin.json
 // read that shared this shape.)
-func fetchRemoteDid(u *ui, name string) (string, bool) {
+func fetchRemoteDid(u *UI, name string) (string, bool) {
 	const cfgPath = "/workspaces/*/.semiont/config"
-	u.log("Reading KB identity %s", u.dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
+	u.Log("Reading KB identity %s", u.Dim("(gh codespace ssh -c "+name+" -- cat "+cfgPath+")"))
 	out, err := capture("gh", "codespace", "ssh", "-c", name, "--", "cat", cfgPath)
 	if err != nil {
-		u.warn("Could not read .semiont/config over ssh — identity left as recorded.")
+		u.Warn("Could not read .semiont/config over ssh — identity left as recorded.")
 		return "", false
 	}
 	return parseKBIdentity([]byte(out)).didWeb(), true
@@ -1046,12 +1046,12 @@ func renderCodespacePlan(opts startOptions, repo, recorded string) {
 // and KEEPS the record — the rule is that the record mirrors existence, and
 // a stopped codespace still exists (state, credentials, billing identity).
 // --delete destroys and forgets. Both kill the recorded forward first.
-func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int {
+func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int {
 	if !dryRun && !requireGh(u, "stopping a codespace stack") {
 		return 1
 	}
 	if service != "" {
-		u.fail("--service does not apply to a codespace stack (compose owns the services inside).")
+		u.Fail("--service does not apply to a codespace stack (compose owns the services inside).")
 		return 1
 	}
 	if dryRun {
@@ -1072,7 +1072,7 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 	// codespace's live forward legitimately holds the same local ports.
 	hadLens := forwardProcAlive(st.ForwardPID)
 	if hadLens {
-		u.log("Stopping the port forward %s", u.dim(fmt.Sprintf("(pid %d)", st.ForwardPID)))
+		u.Log("Stopping the port forward %s", u.Dim(fmt.Sprintf("(pid %d)", st.ForwardPID)))
 		_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
 	}
 	if del {
@@ -1083,20 +1083,20 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 		instances, lerr := ghCodespaceList(st.Repo)
 		if classifyCodespaceState(instances, lerr, true, st.Codespace) == "deleted" {
 			forgetStack("codespace:" + st.Repo)
-			u.ok("GitHub had already removed codespace %s (30-day retention) — record forgotten.", st.Codespace)
+			u.Ok("GitHub had already removed codespace %s (30-day retention) — record forgotten.", st.Codespace)
 			return 0
 		}
-		u.log("Deleting codespace %s %s", u.bold(st.Codespace), u.dim("("+st.Repo+" — destroys its state and credentials)"))
-		u.echoCmd("gh", "codespace", "delete", "-c", st.Codespace, "--force")
+		u.Log("Deleting codespace %s %s", u.Bold(st.Codespace), u.Dim("("+st.Repo+" — destroys its state and credentials)"))
+		u.EchoCmd("gh", "codespace", "delete", "-c", st.Codespace, "--force")
 		if out, err := captureBoth("gh", "codespace", "delete", "-c", st.Codespace, "--force"); err != nil {
 			// The genuine race: present when classified above, reaped
 			// between the two calls. Already-deleted is the goal state.
 			if strings.Contains(out, "HTTP 404") {
 				forgetStack("codespace:" + st.Repo)
-				u.ok("GitHub had already removed codespace %s — record forgotten.", st.Codespace)
+				u.Ok("GitHub had already removed codespace %s — record forgotten.", st.Codespace)
 				return 0
 			}
-			u.fail("Delete failed: %s", strings.TrimSpace(out))
+			u.Fail("Delete failed: %s", strings.TrimSpace(out))
 			return 1
 		}
 		forgetStack("codespace:" + st.Repo)
@@ -1106,10 +1106,10 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 		fmt.Println("Codespace deleted — stack, state, and credentials destroyed.")
 		return 0
 	}
-	u.log("Stopping codespace %s %s", u.bold(st.Codespace), u.dim("("+st.Repo+" — billing halts; state persists)"))
-	u.echoCmd("gh", "codespace", "stop", "-c", st.Codespace)
+	u.Log("Stopping codespace %s %s", u.Bold(st.Codespace), u.Dim("("+st.Repo+" — billing halts; state persists)"))
+	u.EchoCmd("gh", "codespace", "stop", "-c", st.Codespace)
 	if out, err := captureBoth("gh", "codespace", "stop", "-c", st.Codespace); err != nil {
-		u.fail("Stop failed: %s", strings.TrimSpace(out))
+		u.Fail("Stop failed: %s", strings.TrimSpace(out))
 		return 1
 	}
 	st.ForwardPID = 0
@@ -1127,8 +1127,8 @@ func stopCodespace(u *ui, st *stackState, service string, del, dryRun bool) int 
 // gh, health through the forwards (re-established if the recorded one
 // died), credentials read fresh, and a LOCAL section that doesn't pretend
 // the remote VM's directories are here.
-func statusCodespace(u *ui, st *stackState, refresh bool) int {
-	u.section("CODESPACE")
+func statusCodespace(u *UI, st *StackState, refresh bool) int {
+	u.Section("CODESPACE")
 	// Distinguish three different things that all used to look alike:
 	// GitHub says it's gone, GitHub says it's not ready, and we could not
 	// ask at all. Only the first justifies telling anyone to delete a record.
@@ -1156,43 +1156,43 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 			stateDetail += fmt.Sprintf(" · idle-stop %dm", f.IdleMin)
 		}
 	}
-	fmt.Printf("  %s  %s %s\n", u.bold(st.Codespace), st.Repo, u.dim("("+stateDetail+")"))
+	fmt.Printf("  %s  %s %s\n", u.Bold(st.Codespace), st.Repo, u.Dim("("+stateDetail+")"))
 	// --refresh needs an ssh, and an ssh to a stopped codespace WAKES it —
 	// resuming compute billing from a command the user ran to look, not to
 	// launch. Say so and skip rather than do it quietly.
 	if refresh && state != "Available" {
-		u.warn("--refresh needs to ssh in, which would wake this codespace (state: %s) — skipped.", state)
+		u.Warn("--refresh needs to ssh in, which would wake this codespace (state: %s) — skipped.", state)
 		fmt.Fprintln(os.Stderr, "  Resume it first, then refresh:  semiont start --runtime codespace --repo "+st.Repo)
 	}
 	switch state {
 	case "unqueryable":
-		u.warn("Could not ask GitHub about this codespace (is 'gh' installed and authenticated?) — it may well be running.")
+		u.Warn("Could not ask GitHub about this codespace (is 'gh' installed and authenticated?) — it may well be running.")
 		fmt.Fprintln(os.Stderr, "  Check directly:  gh codespace list")
 		printRootsPointer(u, nil, nil)
 		return 1
 	case "deleted":
-		u.warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
+		u.Warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
 		printRootsPointer(u, nil, nil)
 		return 1
 	case "Available":
 	case "Shutdown":
-		fmt.Printf("  %s\n", u.dim("stopped — state and credentials persist; compute billing halted (storage still bills)"))
-		fmt.Printf("  Resume:   %s\n", u.bold("semiont start"))
+		fmt.Printf("  %s\n", u.Dim("stopped — state and credentials persist; compute billing halted (storage still bills)"))
+		fmt.Printf("  Resume:   %s\n", u.Bold("semiont start"))
 		printRootsPointer(u, nil, nil)
 		return 1
 	default:
 		// Queued / Provisioning / Starting / Rebuilding / Failed …: coming
 		// up (and billing) — NOT stopped. Saying "stopped, billing halted"
 		// here would be wrong on both counts.
-		fmt.Printf("  %s\n", u.dim("not ready yet (state: "+state+") — GitHub is still working on it; re-run semiont status"))
+		fmt.Printf("  %s\n", u.Dim("not ready yet (state: "+state+") — GitHub is still working on it; re-run semiont status"))
 		printRootsPointer(u, nil, nil)
 		return 1
 	}
 
 	if !forwardAlive(st.ForwardPID, st.ForwardPort) {
-		u.log("Recorded KB forward is not running — re-establishing")
+		u.Log("Recorded KB forward is not running — re-establishing")
 		if st.ForwardPort == 0 {
-			st.ForwardPort = allocateKBPort(loadStackSet(), st.Repo)
+			st.ForwardPort = allocateKBPort(LoadStackSet(), st.Repo)
 		}
 		if pid, _, code := spawnForward(u, st.Codespace, st.ForwardPort); code == 0 {
 			st.ForwardPID = pid
@@ -1210,14 +1210,14 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	mark := u.wrap(ansiGreen, "healthy")
+	mark := u.Wrap(AnsiGreen, "healthy")
 	if !healthy {
-		mark = u.wrap(ansiRed, "unreachable")
+		mark = u.Wrap(AnsiRed, "unreachable")
 	}
-	fmt.Printf("  KB          %s  %s\n", mark, u.dim(url))
-	fmt.Printf("  %s\n", u.dim("(browser, sidecars, and infra run inside the codespace via compose)"))
+	fmt.Printf("  KB          %s  %s\n", mark, u.Dim(url))
+	fmt.Printf("  %s\n", u.Dim("(browser, sidecars, and infra run inside the codespace via compose)"))
 
-	fmt.Printf("  %s\n", u.dim(fmt.Sprintf("(connect at Host localhost, Port %d — semiont useradd --repo %s creates a user)", st.ForwardPort, st.Repo)))
+	fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("(connect at Host localhost, Port %d — semiont useradd --repo %s creates a user)", st.ForwardPort, st.Repo)))
 
 	// Backfill a missing identity, or re-verify a recorded one on --refresh.
 	//
@@ -1226,9 +1226,9 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 	// admin — so this is now the only reach here.)
 	reconcileDid(u, st, refresh)
 
-	u.section("LOCAL")
+	u.Section("LOCAL")
 	fmt.Printf("  state      %s\n", statePath())
-	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.dim(fmt.Sprintf("(KB localhost:%d → codespace:%d)", st.ForwardPort, kbRemotePort)))
+	fmt.Printf("  forward    pid %d %s\n", st.ForwardPID, u.Dim(fmt.Sprintf("(KB localhost:%d → codespace:%d)", st.ForwardPort, kbRemotePort)))
 
 	printRootsPointer(u, nil, nil)
 	if healthy {
@@ -1239,8 +1239,8 @@ func statusCodespace(u *ui, st *stackState, refresh bool) int {
 
 // forwardedStacks: every codespace stack with a live KB forward — any
 // number may be forwarded at once, each on its own local port.
-func forwardedStacks(cs []*stackState) []*stackState {
-	var out []*stackState
+func forwardedStacks(cs []*StackState) []*StackState {
+	var out []*StackState
 	for _, c := range cs {
 		if forwardAlive(c.ForwardPID, c.ForwardPort) {
 			out = append(out, c)
@@ -1254,14 +1254,14 @@ func forwardedStacks(cs []*stackState) []*stackState {
 // ports keep running (concurrent KBs are the point). A dropped forward is a
 // view, not a stack: nothing stops in the cloud (announced, with the
 // re-attach command — which will re-allocate around the local stack).
-func dropCollidingForwards(u *ui, needs []portNeed) {
+func dropCollidingForwards(u *UI, needs []portNeed) {
 	claimed := map[int]bool{}
 	for _, p := range needs {
 		claimed[p.port] = true
 	}
-	for _, st := range codespaceStacks(loadStackSet()) {
+	for _, st := range codespaceStacks(LoadStackSet()) {
 		if forwardProcAlive(st.ForwardPID) && claimed[st.ForwardPort] {
-			u.warn("Dropping %s's KB forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
+			u.Warn("Dropping %s's KB forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
 				st.Repo, st.ForwardPort, st.Repo)
 			_ = syscall.Kill(st.ForwardPID, syscall.SIGTERM)
 			st.ForwardPID = 0
@@ -1346,7 +1346,7 @@ func formatUptime(d time.Duration) string {
 // the repo leads each entry and the instance name is a dimmed detail.
 // Reports how many it printed: the KNOWLEDGE BASES section is shared with the
 // local half, so only the caller can know whether it came out empty.
-func printRemoteKBs(u *ui, cs []*stackState) int {
+func printRemoteKBs(u *UI, cs []*StackState) int {
 	if len(cs) == 0 {
 		return 0
 	}
@@ -1371,7 +1371,7 @@ func printRemoteKBs(u *ui, cs []*stackState) int {
 	// Repos under one owner then share a prefix exactly as KB clones under
 	// one checkout directory do, and collapse by the same rule.
 	items := make([]treeItem, 0, len(cs))
-	byAddr := map[string]*stackState{}
+	byAddr := map[string]*StackState{}
 	for _, c := range cs {
 		a := "https://github.com/" + c.Repo
 		items = append(items, treeItem{full: a, rest: a})
@@ -1381,14 +1381,14 @@ func printRemoteKBs(u *ui, cs []*stackState) int {
 		c := byAddr[it.full]
 		lead := strings.Repeat("  ", depth+1)
 		pad := lead + "  "
-		fmt.Printf("%s%s\n", lead, u.bold(it.rest))
+		fmt.Printf("%s%s\n", lead, u.Bold(it.rest))
 		// ONLY the did recorded at creation, read from the very clone whose
 		// origin named this repo. Matching a local root by directory name
 		// would attach one fork's identity to another's — and did:web is the
 		// permanent identity stamped into the committed event log, so a wrong
 		// one is worse than none.
 		if c.KBDid != "" {
-			fmt.Printf("%s%s\n", pad, u.dim(c.KBDid))
+			fmt.Printf("%s%s\n", pad, u.Dim(c.KBDid))
 		}
 		state := states[c.Codespace]
 		switch {
@@ -1411,25 +1411,25 @@ func printRemoteKBs(u *ui, cs []*stackState) int {
 				}
 			}
 		}
-		fmt.Printf("%s%s %s\n", pad, u.dim("codespace "+c.Codespace), u.dim("("+detail+")"))
+		fmt.Printf("%s%s %s\n", pad, u.Dim("codespace "+c.Codespace), u.Dim("("+detail+")"))
 		// Status layered on top: where its KB is reachable, or what to run.
 		switch {
 		case forwardAlive(c.ForwardPID, c.ForwardPort):
-			mark := u.wrap(ansiRed, "✗")
+			mark := u.Wrap(AnsiRed, "✗")
 			if httpOK(fmt.Sprintf("http://localhost:%d/api/health", c.ForwardPort)) {
-				mark = u.wrap(ansiGreen, "✓")
+				mark = u.Wrap(AnsiGreen, "✓")
 			}
-			fmt.Printf("%sKB %s  %s\n", pad, mark, u.dim(fmt.Sprintf("http://localhost:%d", c.ForwardPort)))
+			fmt.Printf("%sKB %s  %s\n", pad, mark, u.Dim(fmt.Sprintf("http://localhost:%d", c.ForwardPort)))
 		case state == "Available":
-			fmt.Printf("%s%s\n", pad, u.dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
+			fmt.Printf("%s%s\n", pad, u.Dim("not forwarded — semiont start --runtime codespace --repo "+c.Repo))
 		case state == "Shutdown":
 			bill := "stopped (storage still bills"
 			if f, ok := facts[c.Codespace]; ok && f.AutoDel != "" {
 				bill += "; auto-deletes " + f.AutoDel + ", state and all"
 			}
-			fmt.Printf("%s%s\n", pad, u.dim(bill+") — resume: semiont start --runtime codespace --repo "+c.Repo))
+			fmt.Printf("%s%s\n", pad, u.Dim(bill+") — resume: semiont start --runtime codespace --repo "+c.Repo))
 		default:
-			fmt.Printf("%s%s\n", pad, u.dim("details: semiont status --repo "+c.Repo))
+			fmt.Printf("%s%s\n", pad, u.Dim("details: semiont status --repo "+c.Repo))
 		}
 	})
 	return len(cs)
@@ -1444,11 +1444,11 @@ func captureBoth(name string, args ...string) (string, error) {
 
 // requireGh: one message for every codespace path that needs the CLI, so a
 // missing gh is never inferred from downstream symptoms.
-func requireGh(u *ui, what string) bool {
+func requireGh(u *UI, what string) bool {
 	if onPath("gh") {
 		return true
 	}
-	u.fail("%s needs the GitHub CLI, and 'gh' is not on PATH.", what)
+	u.Fail("%s needs the GitHub CLI, and 'gh' is not on PATH.", what)
 	fmt.Fprintln(os.Stderr, "  Install it: https://cli.github.com  (then: gh auth login)")
 	return false
 }
@@ -1490,11 +1490,11 @@ func forwardAlive(pid, port int) bool {
 // nothing. Each attempt is a fresh `gh codespace ssh`, so the cadence is slow
 // on purpose — ssh setup dwarfs the request, and a fresh create is a
 // minutes-long wait where seconds of resolution buy nothing.
-func waitForRemoteKB(u *ui, name string, created bool) int {
+func waitForRemoteKB(u *UI, name string, created bool) int {
 	if created {
-		u.log("Waiting for the stack %s", u.dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
+		u.Log("Waiting for the stack %s", u.Dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
 	} else {
-		u.log("Waiting for the stack %s", u.dim("(resume: the VM wakes already provisioned — usually seconds)"))
+		u.Log("Waiting for the stack %s", u.Dim("(resume: the VM wakes already provisioned — usually seconds)"))
 	}
 	// A fresh create narrates its hooks while the gate waits; a resume has
 	// only a stale creation log, so it tails nothing.
@@ -1508,7 +1508,7 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 	for {
 		switch askRemoteKB(name) {
 		case remoteReady:
-			u.ok("Stack ready inside the codespace %s", u.dim("("+took(time.Since(t0))+")"))
+			u.Ok("Stack ready inside the codespace %s", u.Dim("("+took(time.Since(t0))+")"))
 			tail.stop()
 			return 0
 		case remoteUnknown:
@@ -1528,7 +1528,7 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 		// in the log this wait is already streaming; read it.
 		if marker, context := tail.failure(); marker != "" {
 			tail.stop()
-			u.fail("The codespace's setup failed after %s — its stack will not come up.", took(time.Since(t0)))
+			u.Fail("The codespace's setup failed after %s — its stack will not come up.", took(time.Since(t0)))
 			fmt.Fprintln(os.Stderr, "  "+marker)
 			// The marker is the announcement, not the reason: print the run-up
 			// to it, which is where the failing command said what went wrong.
@@ -1549,7 +1549,7 @@ func waitForRemoteKB(u *ui, name string, created bool) int {
 		time.Sleep(remoteReadyPoll)
 	}
 	tail.stop()
-	u.fail("The stack did not come up inside %s within %s.", name, took(remoteReadyBudget))
+	u.Fail("The stack did not come up inside %s within %s.", name, took(remoteReadyBudget))
 	fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'docker ps; docker logs --tail 50 semiont-gateway'\n", name)
 	fmt.Fprintln(os.Stderr, "  A crash-looping gateway is the usual cause; its logs name the reason.")
 	return 1
@@ -1688,7 +1688,7 @@ const forwardSettle = time.Second
 //
 // forwardAlive DIALS the port, which is what kills a tunnel whose remote is
 // empty. That is deliberate here: the death is the measurement.
-func tryForward(u *ui, name string, kbPort int) (int, <-chan struct{}, forwardOutcome, string) {
+func tryForward(u *UI, name string, kbPort int) (int, <-chan struct{}, forwardOutcome, string) {
 	pid, dead, code := spawnForward(u, name, kbPort)
 	if code != 0 {
 		return 0, nil, forwardDied, ""
@@ -1752,7 +1752,7 @@ func tryForward(u *ui, name string, kbPort int) (int, <-chan struct{}, forwardOu
 // "not ready" and the answer is to wait and try again — not to fail, and not
 // to assume the stack is up, which is what rebuilt the original bug
 // (live 2026-07-28, semiont-caselaw-kb).
-func establishForward(u *ui, name string, kbPort int, askable bool) (int, <-chan struct{}, int) {
+func establishForward(u *UI, name string, kbPort int, askable bool) (int, <-chan struct{}, int) {
 	deadline := time.Now().Add(remoteReadyBudget)
 	announced := false
 	for {
@@ -1763,8 +1763,8 @@ func establishForward(u *ui, name string, kbPort int, askable bool) (int, <-chan
 		// The one retriable case, and only while we have no better instrument.
 		if outcome == forwardRemoteEmpty && !askable && time.Now().Before(deadline) {
 			if !announced {
-				u.log("The stack is not accepting connections yet — waiting for it %s",
-					u.dim("(the codespace is still coming up)"))
+				u.Log("The stack is not accepting connections yet — waiting for it %s",
+					u.Dim("(the codespace is still coming up)"))
 				announced = true
 			}
 			retireForward(pid)
@@ -1774,11 +1774,11 @@ func establishForward(u *ui, name string, kbPort int, askable bool) (int, <-chan
 		retireForward(pid)
 		switch outcome {
 		case forwardNeverBound:
-			u.fail("The port forward did not come up on localhost:%d within %ds.", kbPort, forwardBindTries)
+			u.Fail("The port forward did not come up on localhost:%d within %ds.", kbPort, forwardBindTries)
 		case forwardRemoteEmpty:
-			u.fail("Nothing is listening on the codespace's port %d — its stack is not up.", kbRemotePort)
+			u.Fail("Nothing is listening on the codespace's port %d — its stack is not up.", kbRemotePort)
 		default:
-			u.fail("The port forward exited before it could bind — localhost:%d is probably already in use.", kbPort)
+			u.Fail("The port forward exited before it could bind — localhost:%d is probably already in use.", kbPort)
 			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", kbPort)
 		}
 		if ghErr != "" {

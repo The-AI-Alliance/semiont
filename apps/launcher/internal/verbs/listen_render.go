@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // listen_render.go — the human half of `semiont listen` (GUIDED-TOUR P9).
 //
@@ -34,6 +34,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -90,7 +92,7 @@ func shortParticipant(did string) string {
 
 // line renders ONE event for a human and folds it into the renderer's state.
 // Returns the text to print; callers print it verbatim.
-func (r *listenRenderer) line(u *ui, ev bus.Event) string {
+func (r *listenRenderer) line(u *launcher.UI, ev bus.Event) string {
 	var p struct {
 		ResourceID   string `json:"resourceId"`
 		AnnotationID string `json:"annotationId"`
@@ -101,22 +103,22 @@ func (r *listenRenderer) line(u *ui, ev bus.Event) string {
 		ConnectionID string `json:"connectionId"`
 	}
 	_ = json.Unmarshal(ev.Payload, &p)
-	stamp := u.dim(time.Now().Format("15:04:05"))
+	stamp := u.Dim(time.Now().Format("15:04:05"))
 
 	// Presence gets its own shape: the event is the transition, the number is
 	// the state, and both belong on the line.
 	switch ev.Channel {
 	case bus.SessionJoined, bus.SessionLeft:
 		who := shortParticipant(p.Participant)
-		verb, mark := "joined", u.wrap(ansiGreen, "●")
+		verb, mark := "joined", u.Wrap(launcher.AnsiGreen, "●")
 		if ev.Channel == bus.SessionLeft {
-			verb, mark = "left", u.dim("○")
+			verb, mark = "left", u.Dim("○")
 			delete(r.present, p.ConnectionID)
 		} else {
 			r.present[p.ConnectionID] = p.Participant
 		}
 		return fmt.Sprintf("  %s %s %s %s %s",
-			stamp, mark, who, verb, u.dim(fmt.Sprintf("— %s watching", plural(r.watching(), "connection"))))
+			stamp, mark, who, verb, u.Dim(fmt.Sprintf("— %s watching", plural(r.watching(), "connection"))))
 	}
 
 	var bits []string
@@ -133,7 +135,7 @@ func (r *listenRenderer) line(u *ui, ev bus.Event) string {
 			bits = append(bits, kv.k+"="+kv.v)
 		}
 	}
-	return fmt.Sprintf("  %s %-28s %s", stamp, ev.Channel, u.dim(strings.Join(bits, "  ")))
+	return fmt.Sprintf("  %s %-28s %s", stamp, ev.Channel, u.Dim(strings.Join(bits, "  ")))
 }
 
 // plural renders "1 connection" / "2 connections" — English-only, which is

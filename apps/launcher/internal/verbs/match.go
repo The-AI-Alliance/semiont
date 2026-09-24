@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // match.go — `semiont match`: find candidate resources an annotation could
 // bind to. Two bus exchanges, in the order the npm CLI uses: gather the
@@ -12,6 +12,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
@@ -33,7 +35,7 @@ Requires a session:  semiont login
 `
 
 func Match(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var positional []string
 	var repo string
 	limit := 10
@@ -43,7 +45,7 @@ func Match(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -57,7 +59,7 @@ func Match(args []string) int {
 			if ok {
 				n, err := strconv.Atoi(v)
 				if err != nil || n < 1 {
-					u.fail("--limit wants a positive number, got %q", v)
+					u.Fail("--limit wants a positive number, got %q", v)
 					return 1
 				}
 				limit = n
@@ -76,7 +78,7 @@ func Match(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			positional = append(positional, a)
@@ -92,15 +94,15 @@ func Match(args []string) int {
 	}
 	resourceID, annotationID := positional[0], positional[1]
 
-	t, ok := verbSession(u, "match", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "match", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 	ctx := context.Background()
 
 	// Step 1: the annotation's context (streaming operation).
-	u.log("Gathering context for %s...", annotationID)
+	u.Log("Gathering context for %s...", annotationID)
 	gathered, err := cli.Request(ctx, "gather:requested", semiont.GatherAnnotationRequest{
 		ResourceId:   resourceID,
 		AnnotationId: annotationID,
@@ -110,7 +112,7 @@ func Match(args []string) int {
 	}
 	var gc semiont.GatherAnnotationComplete
 	if json.Unmarshal(gathered, &gc) != nil {
-		u.fail("match: the gathered context could not be read.")
+		u.Fail("match: the gathered context could not be read.")
 		return 1
 	}
 
@@ -142,7 +144,7 @@ func Match(args []string) int {
 	}
 	rows := results.Response
 	if len(rows) == 0 {
-		u.log("No candidates found.")
+		u.Log("No candidates found.")
 		return 0
 	}
 	for _, r := range rows {
@@ -153,9 +155,9 @@ func Match(args []string) int {
 		if r.MatchReason != nil && *r.MatchReason != "" {
 			trailer = strings.TrimSpace(trailer + "  " + *r.MatchReason)
 		}
-		fmt.Printf("  %-28s %-40s %s\n", r.Id, r.Name, u.dim(trailer))
+		fmt.Printf("  %-28s %-40s %s\n", r.Id, r.Name, u.Dim(trailer))
 	}
-	fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d candidate(s) — bind one with: semiont bind %s %s <resourceId>",
+	fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d candidate(s) — bind one with: semiont bind %s %s <resourceId>",
 		len(rows), resourceID, annotationID)))
 	return 0
 }

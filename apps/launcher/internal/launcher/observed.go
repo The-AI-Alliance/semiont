@@ -178,7 +178,7 @@ func ledgerOccupancy(readout string) (claims, claimsMax, retained, retainedMax i
 // service's boot and its first metric export is 30 seconds wide, and "queue 0
 // pending" during it would be a confident lie about a dispatcher that has not
 // spoken yet. Silence is the honest rendering of a number nobody has reported.
-func printInFlight(u *ui, role, readout string) {
+func printInFlight(u *UI, role, readout string) {
 	switch role {
 	case "dispatcher":
 		if pending, running, ok := queueDepth(readout); ok {
@@ -189,12 +189,12 @@ func printInFlight(u *ui, role, readout string) {
 				line += fmt.Sprintf(" · %d completed · %d failed since worker start",
 					completed, failed)
 			}
-			fmt.Printf("      %-10s %s\n", "queue", u.dim(line))
+			fmt.Printf("      %-10s %s\n", "queue", u.Dim(line))
 		}
 	case "gateway":
 		if claims, claimsMax, retained, retainedMax, ok := ledgerOccupancy(readout); ok {
 			fmt.Printf("      %-10s %s\n", "ledger",
-				u.dim(fmt.Sprintf("%d/%d claims · %d/%d retained replies",
+				u.Dim(fmt.Sprintf("%d/%d claims · %d/%d retained replies",
 					claims, claimsMax, retained, retainedMax)))
 		}
 	}

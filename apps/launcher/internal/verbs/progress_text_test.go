@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // The English progress map's completeness census — WIRE-UNION-DISCRIMINANTS
 // P5b. `progressText` has a `default: ""` that degrades SILENTLY on an

@@ -82,7 +82,7 @@ type rootsRegistry struct {
 }
 
 func rootsPath() string {
-	dir := stateDir()
+	dir := StateDir()
 	if dir == "" {
 		return ""
 	}
@@ -291,9 +291,9 @@ func resolveRootArg(arg string) (string, error) {
 // event log via git, so a real clone is mandatory wherever /kb is mounted.
 // Fails with instructions rather than git's opaque fatal when someone used
 // GitHub's "Download ZIP" (or has no git at all).
-func requireGitClone(u *ui, root string) bool {
+func requireGitClone(u *UI, root string) bool {
 	if _, err := capture("git", "-C", root, "rev-parse", "--show-toplevel"); err != nil {
-		u.fail("The KB root must be a git clone (the gateway versions the event log via git): %s", root)
+		u.Fail("The KB root must be a git clone (the gateway versions the event log via git): %s", root)
 		fmt.Fprintln(os.Stderr, "  If you used GitHub's 'Download ZIP', clone the repository instead:  git clone <repo-url>")
 		return false
 	}
@@ -332,7 +332,7 @@ func icloudZone(root, home string) string {
 // Desktop/Documents warn only when Finder says the sync is actually on
 // (FXICloudDriveDesktop=1) — a Desktop KB on a non-synced Mac is fine and
 // must not nag.
-func warnICloudRoot(u *ui, root string) {
+func warnICloudRoot(u *UI, root string) {
 	if runtime.GOOS != "darwin" {
 		return
 	}
@@ -348,7 +348,7 @@ func warnICloudRoot(u *ui, root string) {
 		}
 	}
 	if zone != "" {
-		u.warn("KB root %s is in an iCloud-managed folder — container reads can fail on iCloud-evicted files (errno -35), typically once the event log is non-empty. Prefer a non-synced path (e.g. ~/Developer).", root)
+		u.Warn("KB root %s is in an iCloud-managed folder — container reads can fail on iCloud-evicted files (errno -35), typically once the event log is non-empty. Prefer a non-synced path (e.g. ~/Developer).", root)
 	}
 }
 
@@ -368,7 +368,7 @@ files and no stack state. The running stack's root is refused; stop first.
 // gone (a moved KB, a deleted trial root), which the registry's
 // annotate-don't-drop policy otherwise keeps forever.
 func Forget(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	arg := ""
 	for _, a := range args {
 		switch a {
@@ -377,7 +377,7 @@ func Forget(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") || arg != "" {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			arg = a
@@ -405,11 +405,11 @@ func Forget(args []string) int {
 	}
 	switch {
 	case len(matches) == 0:
-		u.fail("%q is not in the registry.", arg)
+		u.Fail("%q is not in the registry.", arg)
 		fmt.Fprintln(os.Stderr, "  Registered roots: semiont roots")
 		return 1
 	case len(matches) > 1:
-		u.fail("%q names %d registered roots — forget one by its full path:", arg, len(matches))
+		u.Fail("%q names %d registered roots — forget one by its full path:", arg, len(matches))
 		for _, i := range matches {
 			fmt.Fprintln(os.Stderr, "    "+reg.Roots[i].Path)
 		}
@@ -417,13 +417,13 @@ func Forget(args []string) int {
 	}
 	e := reg.Roots[matches[0]]
 	if st := loadLocalState(); st != nil && st.KBRoot == e.Path {
-		u.fail("%s is the running stack's root (per %s).", e.Path, statePath())
+		u.Fail("%s is the running stack's root (per %s).", e.Path, statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
 		return 1
 	}
 	reg.Roots = append(reg.Roots[:matches[0]], reg.Roots[matches[0]+1:]...)
 	saveRoots(reg)
-	u.ok("Forgot %s — registry entry removed. No files were deleted.", e.Path)
+	u.Ok("Forgot %s — registry entry removed. No files were deleted.", e.Path)
 	// Persistent stack state is keyed by identity, not by the registry: say
 	// so when some exists, or the forgotten row's state lives on unnamed.
 	// UNLESS a surviving row shares the did — state keys derive from the

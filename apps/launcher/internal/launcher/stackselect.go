@@ -11,26 +11,26 @@ import (
 	"os"
 )
 
-// selectVerbStack resolves the target. (nil, true) = the local stack;
+// SelectVerbStack resolves the target. (nil, true) = the local stack;
 // (non-nil, true) = that codespace stack; ok=false = refused, message
 // printed with verb-specific fix-it lines.
-func selectVerbStack(u *ui, verb string, ss *stackSet, repo string, wantLocal bool) (*stackState, bool) {
+func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bool) (*StackState, bool) {
 	// The contradiction check lives HERE, once — a verb that forgot it
 	// would silently resolve --repo+--runtime to the local stack (the
 	// wantLocal arm wins the switch), targeting the wrong KB.
 	if repo != "" && wantLocal {
-		u.fail("--repo and --runtime are contradictory: one names a codespace stack, the other the local one.")
+		u.Fail("--repo and --runtime are contradictory: one names a codespace stack, the other the local one.")
 		return nil, false
 	}
 	cs := codespaceStacks(ss)
 	local := ss.Stacks["local"]
-	cwdRoot := cwdKBRoot()
+	cwdRoot := CwdKBRoot()
 	switch {
 	case wantLocal:
 	case repo != "":
 		target := ss.Stacks["codespace:"+repo]
 		if target == nil {
-			u.fail("No codespace stack recorded for %s.", repo)
+			u.Fail("No codespace stack recorded for %s.", repo)
 			for _, c := range cs {
 				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
 			}
@@ -53,7 +53,7 @@ func selectVerbStack(u *ui, verb string, ss *stackSet, repo string, wantLocal bo
 				return c, true
 			}
 		}
-		u.fail("Multiple stacks are recorded — say which:")
+		u.Fail("Multiple stacks are recorded — say which:")
 		if local != nil {
 			fmt.Fprintf(os.Stderr, "    semiont %s --runtime %s ...   (the local stack)\n", verb, local.Runtime)
 		}

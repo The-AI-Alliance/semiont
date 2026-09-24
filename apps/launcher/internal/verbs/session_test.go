@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // The invisible session refresh, as EVERY verb gets it.
 //
@@ -28,6 +28,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
@@ -71,7 +74,7 @@ const renewed = `{"access_token":"token-2","refresh_token":"refresh-2","token_ty
 // access token token-1, refresh token refresh-1, the stub as its issuer.
 func storeSession(t *testing.T, issuer *issuerStub, expiresAt time.Time) {
 	t.Helper()
-	if err := saveToken("local", tokenEntry{
+	if err := launcher.SaveToken("local", launcher.TokenEntry{
 		Token: "token-1", RefreshToken: "refresh-1", Email: "t@example.com",
 		Issuer: issuer.URL, TokenEndpoint: issuer.URL + "/token", ExpiresAt: expiresAt,
 	}); err != nil {
@@ -85,7 +88,7 @@ func storeSession(t *testing.T, issuer *issuerStub, expiresAt time.Time) {
 func transportsByToken(t *testing.T, fakes map[string]*bustest.Fake) (built *[]string, restore func()) {
 	t.Helper()
 	var order []string
-	restore = useTransport(func(base, token string) bus.Transport {
+	restore = launcher.UseTransport(func(base, token string) bus.Transport {
 		order = append(order, token)
 		f, ok := fakes[token]
 		if !ok {
@@ -138,7 +141,7 @@ func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
 	defer restore()
 
-	stdout, stderr := captureOutput(t, func() {
+	stdout, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse([]string{"--json"}); code != 0 {
 			t.Errorf("browse: exit %d — a session the issuer can renew must not fail", code)
 		}
@@ -156,13 +159,13 @@ func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
 	if len(grants) != 1 {
 		t.Fatalf("want exactly one refresh grant at the issuer, got %d", len(grants))
 	}
-	if g := grants[0]; g.Get("grant_type") != "refresh_token" || g.Get("client_id") != cliClientID || g.Get("refresh_token") != "refresh-1" {
+	if g := grants[0]; g.Get("grant_type") != "refresh_token" || g.Get("client_id") != launcher.CliClientID || g.Get("refresh_token") != "refresh-1" {
 		t.Errorf("the grant was not the public client's refresh_token grant carrying the stored refresh token")
 	}
 
 	// The rotation is SAVED: the next command starts from the renewed pair,
 	// and knows when the renewed access token expires.
-	e := loadTokens()["local"]
+	e := launcher.LoadTokens()["local"]
 	if e.Token != "token-2" || e.RefreshToken != "refresh-2" {
 		t.Errorf("tokens.json was not rotated to the renewed access and refresh tokens")
 	}
@@ -172,7 +175,7 @@ func TestBusVerbRenewsARejectedSessionAndRetriesOnce(t *testing.T) {
 
 	// The renewal is narrated on stderr and nowhere near the result: a --json
 	// reply piped to jq must still be one JSON document.
-	mustContainAll(t, "stderr", stderr, "Session refreshed")
+	harness.MustContainAll(t, "stderr", stderr, "Session refreshed")
 	if !json.Valid([]byte(strings.TrimSpace(stdout))) {
 		t.Errorf("--json output is no longer one JSON document:\n%s", stdout)
 	}
@@ -194,7 +197,7 @@ func TestEmitVerbRenewsARejectedSessionToo(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
 	defer restore()
 
-	captureOutput(t, func() {
+	harness.CaptureOutput(t, func() {
 		if code := Beckon([]string{"--resource", "res-1", "--annotation", "ann-2"}); code != 0 {
 			t.Errorf("beckon: exit %d — a session the issuer can renew must not fail", code)
 		}
@@ -216,14 +219,14 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale})
 	defer restore()
 
-	_, stderr := captureOutput(t, func() {
+	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
 			t.Errorf("browse must fail when the session is rejected and the issuer will not renew it")
 		}
 	})
 	// The refusal names the verb, the rejection, WHY the renewal failed, and
 	// the one fix that applies.
-	mustContainAll(t, "stderr", stderr, "browse", "session was rejected", "could not renew", "invalid_grant", "semiont login")
+	harness.MustContainAll(t, "stderr", stderr, "browse", "session was rejected", "could not renew", "invalid_grant", "semiont login")
 	// A renewal that failed earns no retry, and no second grant.
 	if len(stale.Requests) != 1 {
 		t.Errorf("want exactly one request (no retry without a renewed token), got %d", len(stale.Requests))
@@ -233,7 +236,7 @@ func TestBusVerbReportsRejectionWhenTheRefreshFails(t *testing.T) {
 		t.Errorf("want exactly one refresh grant, got %d", n)
 	}
 	// The stored session is untouched: nothing was renewed, so nothing rotates.
-	if e := loadTokens()["local"]; e.Token != "token-1" || e.RefreshToken != "refresh-1" {
+	if e := launcher.LoadTokens()["local"]; e.Token != "token-1" || e.RefreshToken != "refresh-1" {
 		t.Errorf("a failed renewal must leave tokens.json as it was")
 	}
 }
@@ -246,14 +249,14 @@ func TestBusVerbRefusedAfterASuccessfulRefreshSaysSo(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
 	defer restore()
 
-	_, stderr := captureOutput(t, func() {
+	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
 			t.Errorf("browse must fail when the renewed token is refused too")
 		}
 	})
 	// The renewal WORKED; "could not renew" would contradict the refresh line
 	// just printed. This is the gateway refusing the account.
-	mustContainAll(t, "stderr", stderr, "after a successful refresh", "semiont login")
+	harness.MustContainAll(t, "stderr", stderr, "after a successful refresh", "semiont login")
 	if strings.Contains(stderr, "could not renew") {
 		t.Errorf("claimed the refresh failed when it succeeded:\n%s", stderr)
 	}
@@ -275,12 +278,12 @@ func TestBusVerbWithNoRefreshTokenReportsRejection(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"test-token": stale})
 	defer restore()
 
-	_, stderr := captureOutput(t, func() {
+	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
 			t.Errorf("browse must fail when the session is rejected and there is no refresh token")
 		}
 	})
-	mustContainAll(t, "stderr", stderr, "session was rejected", "semiont login")
+	harness.MustContainAll(t, "stderr", stderr, "session was rejected", "semiont login")
 	wantOrder(t, built, "test-token")
 	if len(stale.Requests) != 1 {
 		t.Errorf("want exactly one request, got %d", len(stale.Requests))
@@ -297,7 +300,7 @@ func TestExpiredSessionIsRenewedBeforeTheFirstRequest(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale, "token-2": fresh})
 	defer restore()
 
-	captureOutput(t, func() {
+	harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code != 0 {
 			t.Errorf("browse: exit %d", code)
 		}
@@ -324,7 +327,7 @@ func TestALiveSessionIsSentWithoutRenewal(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": live})
 	defer restore()
 
-	captureOutput(t, func() {
+	harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code != 0 {
 			t.Errorf("browse: exit %d", code)
 		}
@@ -346,12 +349,12 @@ func TestExpiredSessionWhoseRenewalFailsIsStillTriedOnce(t *testing.T) {
 	built, restore := transportsByToken(t, map[string]*bustest.Fake{"token-1": stale})
 	defer restore()
 
-	_, stderr := captureOutput(t, func() {
+	_, stderr := harness.CaptureOutput(t, func() {
 		if code := Browse(nil); code == 0 {
 			t.Errorf("browse must fail when neither the stored nor a renewed token works")
 		}
 	})
-	mustContainAll(t, "stderr", stderr, "session was rejected", "could not renew", "semiont login")
+	harness.MustContainAll(t, "stderr", stderr, "session was rejected", "could not renew", "semiont login")
 	wantOrder(t, built, "token-1")
 	if len(stale.Requests) != 1 {
 		t.Errorf("want the stored token tried exactly once, got %d request(s)", len(stale.Requests))

@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // browse.go — `semiont browse`: reads over the event bus (the launcher's
 // first bus verb). Every read is one correlated request/reply exchange
@@ -14,6 +14,8 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -56,7 +58,7 @@ Requires a session:  semiont login
 `
 
 func Browse(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var resourceID, search, entityType, repo, browserURL, annotation string
 	limit := 20
 	annotations, entityTypes, asJSON, wantLocal := false, false, false, false
@@ -66,7 +68,7 @@ func Browse(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -92,7 +94,7 @@ func Browse(args []string) int {
 			}
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 1 {
-				u.fail("--limit wants a positive number, got %q", v)
+				u.Fail("--limit wants a positive number, got %q", v)
 				return 1
 			}
 			limit = n
@@ -134,11 +136,11 @@ func Browse(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			if resourceID != "" {
-				u.fail("Only one resourceId may be given (got %q and %q).", resourceID, a)
+				u.Fail("Only one resourceId may be given (got %q and %q).", resourceID, a)
 				return 1
 			}
 			resourceID = a
@@ -149,11 +151,11 @@ func Browse(args []string) int {
 	// RENDERS a list here. Name the trap — "conflicting flags" is exactly the
 	// message a typo needs and does not get.
 	if annotation != "" && annotations {
-		u.fail("--annotation <id> opens ONE annotation on the participant's screen; --annotations (plural) lists them here. Pick one.")
+		u.Fail("--annotation <id> opens ONE annotation on the participant's screen; --annotations (plural) lists them here. Pick one.")
 		return 1
 	}
 	if annotations && resourceID == "" {
-		u.fail("--annotations needs a resourceId: semiont browse <resourceId> --annotations")
+		u.Fail("--annotations needs a resourceId: semiont browse <resourceId> --annotations")
 		return 1
 	}
 	// --browser names a DESTINATION; the rendering flags each name a local
@@ -165,7 +167,7 @@ func Browse(args []string) int {
 			flag string
 		}{{asJSON, "--json"}, {annotations, "--annotations"}, {entityTypes, "--entity-types"}} {
 			if conflict.set {
-				u.fail("--browser opens it in the Browser; %s renders it here. Pick one.", conflict.flag)
+				u.Fail("--browser opens it in the Browser; %s renders it here. Pick one.", conflict.flag)
 				return 1
 			}
 		}
@@ -178,11 +180,11 @@ func Browse(args []string) int {
 		// echoed back as a lie.
 		if annotation != "" {
 			if resourceID != "" {
-				u.fail("--annotation %s already names one annotation on one resource; drop the resourceId %q.", annotation, resourceID)
+				u.Fail("--annotation %s already names one annotation on one resource; drop the resourceId %q.", annotation, resourceID)
 				return 1
 			}
 		} else if resourceID == "" {
-			u.fail("--browser needs a resourceId: semiont browse <resourceId> --browser")
+			u.Fail("--browser needs a resourceId: semiont browse <resourceId> --browser")
 			fmt.Fprintln(os.Stderr, "  (Opening the resource LIST in the Browser is a different route and is not supported yet.)")
 			return 1
 		}
@@ -195,16 +197,16 @@ func Browse(args []string) int {
 		flag string
 	}{{launch, "--launch"}, {browserURL != "", "--browser-url"}, {annotation != "", "--annotation"}} {
 		if dep.set && !toBrowser {
-			u.fail("%s only applies with --browser.", dep.flag)
+			u.Fail("%s only applies with --browser.", dep.flag)
 			return 1
 		}
 	}
 
-	t, ok := verbSession(u, "browse", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "browse", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	// --browser is the one path in this file that SIGNALS instead of reading:
 	// a fire-and-forget emit, no correlation id, no reply, nothing rendered
@@ -236,7 +238,7 @@ func Browse(args []string) int {
 		if subscribers == 0 {
 			return nobodySaw(u, d, browserURL, launch)
 		}
-		u.ok("Opened %s in the Browser %s", d.subject, audienceNote(u, subscribers, string(d.channel)))
+		u.Ok("Opened %s in the Browser %s", d.subject, audienceNote(u, subscribers, string(d.channel)))
 		return 0
 	}
 
@@ -304,8 +306,8 @@ type drive struct {
 // asked for a specific outcome — a resource on a participant's screen — and
 // it did not happen. A tour that narrates on to step 2 is worse than one that
 // stops.
-func nobodySaw(u *ui, d drive, override string, launch bool) int {
-	p := browserTarget(loadStackSet(), override)
+func nobodySaw(u *launcher.UI, d drive, override string, launch bool) int {
+	p := launcher.BrowserTarget(launcher.LoadStackSet(), override)
 	if !p.Running && launch {
 		next, ok := launchBrowser(u, override)
 		if !ok {
@@ -314,7 +316,7 @@ func nobodySaw(u *ui, d drive, override string, launch bool) int {
 		p = next
 	}
 
-	u.fail("Nobody saw %s — nothing is subscribed to %s.", d.subject, d.channel)
+	u.Fail("Nobody saw %s — nothing is subscribed to %s.", d.subject, d.channel)
 	if p.Running {
 		// The Browser CONTAINER is up; what is missing is a human's web
 		// browser pointed at it. Those two fail independently — this branch
@@ -342,36 +344,36 @@ func nobodySaw(u *ui, d drive, override string, launch bool) int {
 //
 // It starts a CONTAINER. It cannot open a window or log anyone in, so its
 // caller still prints the "nobody is watching" message afterwards.
-func launchBrowser(u *ui, override string) (browserProbe, bool) {
+func launchBrowser(u *launcher.UI, override string) (launcher.BrowserProbe, bool) {
 	// The runtime is named explicitly. A bare start on a machine whose only
 	// recorded stacks are codespaces dispatches to the cloud (start.go), and
 	// waking a paid VM is not what --launch asked for. The Browser is
 	// machine-level — it serves every KB here — so it is always local.
-	rt, ok := selectRuntime(u, "")
+	rt, ok := launcher.SelectRuntime(u, "")
 	if !ok {
-		return browserProbe{}, false
+		return launcher.BrowserProbe{}, false
 	}
-	if code := Start([]string{"--service", "browser", "--runtime", rt}); code != 0 {
-		u.fail("--launch could not start the Browser.")
-		return browserProbe{}, false
+	if code := launcher.Start([]string{"--service", "browser", "--runtime", rt}); code != 0 {
+		u.Fail("--launch could not start the Browser.")
+		return launcher.BrowserProbe{}, false
 	}
-	return browserTarget(loadStackSet(), override), true
+	return launcher.BrowserTarget(launcher.LoadStackSet(), override), true
 }
 
 // busFail turns a bus error into the launcher's voice: a rejection carries
 // the gateway's own message, a timeout says what went unanswered, and a
 // session the gateway refused and the issuer could not renew points at login
 // rather than leaving the user guessing.
-func busFail(u *ui, verb string, err error) int {
+func busFail(u *launcher.UI, verb string, err error) int {
 	var re *bus.RequestError
-	var rej *sessionRejected
+	var rej *launcher.SessionRejected
 	switch {
 	case errors.As(err, &re):
-		u.fail("%s was rejected: %s", verb, re.Error())
+		u.Fail("%s was rejected: %s", verb, re.Error())
 	case errors.As(err, &rej):
-		return rejectedFail(u, verb, rej)
+		return launcher.RejectedFail(u, verb, rej)
 	default:
-		u.fail("%s failed: %v", verb, err)
+		u.Fail("%s failed: %v", verb, err)
 	}
 	return 1
 }
@@ -379,7 +381,7 @@ func busFail(u *ui, verb string, err error) int {
 // renderBrowse prints the human table from the GENERATED reply type for each
 // operation. Nothing here parses a field name by hand — that habit shipped a
 // verb that printed blank identifiers because resources are JSON-LD (`@id`).
-func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
+func renderBrowse(u *launcher.UI, op bus.Channel, reply json.RawMessage) int {
 	switch op {
 	case "browse:resources-requested":
 		var r semiont.BrowseResourcesResult
@@ -387,47 +389,47 @@ func renderBrowse(u *ui, op bus.Channel, reply json.RawMessage) int {
 			return rawFallback(reply)
 		}
 		if len(r.Response.Resources) == 0 {
-			u.log("No resources match.")
+			u.Log("No resources match.")
 			return 0
 		}
 		for _, res := range r.Response.Resources {
 			types := ""
 			if res.EntityTypes != nil && len(*res.EntityTypes) > 0 {
-				types = u.dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
+				types = u.Dim("(" + strings.Join(*res.EntityTypes, ", ") + ")")
 			}
 			fmt.Printf("  %-28s %s %s\n", res.Id, res.Name, types)
 		}
-		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d shown, %d total", len(r.Response.Resources), int(r.Response.Total))))
+		fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d shown, %d total", len(r.Response.Resources), int(r.Response.Total))))
 	case "browse:resource-requested":
 		var r semiont.BrowseResourceResult
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
-		fmt.Printf("  %s  %s\n", u.bold(r.Response.Resource.Name), u.dim(r.Response.Resource.Id))
+		fmt.Printf("  %s  %s\n", u.Bold(r.Response.Resource.Name), u.Dim(r.Response.Resource.Id))
 		if r.Response.Resource.EntityTypes != nil && len(*r.Response.Resource.EntityTypes) > 0 {
-			fmt.Printf("  %s\n", u.dim("entity types: "+strings.Join(*r.Response.Resource.EntityTypes, ", ")))
+			fmt.Printf("  %s\n", u.Dim("entity types: "+strings.Join(*r.Response.Resource.EntityTypes, ", ")))
 		}
-		fmt.Printf("  %s\n", u.dim(fmt.Sprintf("%d annotation(s)", len(r.Response.Annotations))))
+		fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("%d annotation(s)", len(r.Response.Annotations))))
 	case "browse:annotations-requested":
 		var r semiont.BrowseAnnotationsResult
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
 		if len(r.Response.Annotations) == 0 {
-			u.log("No annotations on that resource.")
+			u.Log("No annotations on that resource.")
 			return 0
 		}
 		for _, a := range r.Response.Annotations {
-			fmt.Printf("  %-28s %s\n", a.Id, u.dim(string(a.Motivation)))
+			fmt.Printf("  %-28s %s\n", a.Id, u.Dim(string(a.Motivation)))
 		}
-		fmt.Printf("\n  %s\n", u.dim(fmt.Sprintf("%d of %d", len(r.Response.Annotations), int(r.Response.Total))))
+		fmt.Printf("\n  %s\n", u.Dim(fmt.Sprintf("%d of %d", len(r.Response.Annotations), int(r.Response.Total))))
 	case "browse:entity-types-requested":
 		var r semiont.BrowseEntityTypesResult
 		if err := json.Unmarshal(reply, &r); err != nil {
 			return rawFallback(reply)
 		}
 		if len(r.Response.EntityTypes) == 0 {
-			u.log("This KB declares no entity types yet.")
+			u.Log("This KB declares no entity types yet.")
 			return 0
 		}
 		for _, e := range r.Response.EntityTypes {

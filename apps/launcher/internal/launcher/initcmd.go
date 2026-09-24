@@ -56,7 +56,7 @@ With --yes and neither source, init refuses rather than guessing.
 
 // Init implements `semiont init`.
 func Init(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	var name, domain, siteName string
 	var inference, model, modelLight, embedding, configName string
 	var fromTemplate, templateRef string
@@ -68,7 +68,7 @@ func Init(args []string) int {
 	for i := 0; i < len(args); i++ {
 		need := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", args[i])
+				u.Fail("Missing value for %s", args[i])
 				return "", false
 			}
 			return args[i+1], true
@@ -181,21 +181,21 @@ func Init(args []string) int {
 			fmt.Print(initUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", args[i])
+			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
 	}
 
 	// Config-builder inputs validate BEFORE anything touches disk.
 	if fromTemplate != "" && inference != "" {
-		u.fail("--from-template and --inference are two sources for the same configs — pick one.")
+		u.Fail("--from-template and --inference are two sources for the same configs — pick one.")
 		return 1
 	}
 	if templateRef == "" {
 		templateRef = "main"
 	}
 	if inference != "" && inference != "anthropic" && inference != "ollama" {
-		u.fail("--inference must be anthropic or ollama, got %q.", inference)
+		u.Fail("--inference must be anthropic or ollama, got %q.", inference)
 		return 1
 	}
 	embModel := ""
@@ -204,29 +204,29 @@ func Init(args []string) int {
 		switch kind {
 		case "ollama":
 			if m == "" {
-				u.fail("--embedding ollama:<model> needs a model name.")
+				u.Fail("--embedding ollama:<model> needs a model name.")
 				return 1
 			}
 			embModel = m
 		case "voyage":
 			// No established key variable exists for voyage, and the
 			// launcher never invents environment variables. Deferred.
-			u.fail("voyage embedding is not supported yet (no established key variable) — use --embedding ollama:<model>.")
+			u.Fail("voyage embedding is not supported yet (no established key variable) — use --embedding ollama:<model>.")
 			return 1
 		default:
-			u.fail("--embedding must be ollama:<model>, got %q.", embedding)
+			u.Fail("--embedding must be ollama:<model>, got %q.", embedding)
 			return 1
 		}
 	}
 	if inference == "ollama" && model == "" && yes {
 		// No registry listing exists to derive an ollama default from.
-		u.fail("--inference ollama needs --model <id> (no list-all registry API exists to pick a default from).")
+		u.Fail("--inference ollama needs --model <id> (no list-all registry API exists to pick a default from).")
 		return 1
 	}
 
 	dir, err := os.Getwd()
 	if err != nil {
-		u.fail("Cannot determine the current directory: %v", err)
+		u.Fail("Cannot determine the current directory: %v", err)
 		return 1
 	}
 	if name == "" {
@@ -235,17 +235,17 @@ func Init(args []string) int {
 	semiontDir := filepath.Join(dir, ".semiont")
 	if _, err := os.Stat(semiontDir); err == nil {
 		if !force {
-			u.fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
+			u.Fail(".semiont/ already exists here — this KB is already born. Re-initialize with --force.")
 			return 1
 		}
 		// --force is a fresh birth, not a merge: remove the old tree so no
 		// stale semiontconfig/*.toml survives beside the new identity
 		// (Copilot review, PR #1065). This is destructive by request.
 		if err := os.RemoveAll(semiontDir); err != nil {
-			u.fail("--force: could not remove the existing .semiont/: %v", err)
+			u.Fail("--force: could not remove the existing .semiont/: %v", err)
 			return 1
 		}
-		u.warn("--force: removed the existing .semiont/ — re-initializing from scratch.")
+		u.Warn("--force: removed the existing .semiont/ — re-initializing from scratch.")
 	}
 
 	in := bufio.NewReader(os.Stdin)
@@ -272,13 +272,13 @@ func Init(args []string) int {
 			if slug, ok := parseGitHubSlug(origin); ok {
 				owner, repo, _ := strings.Cut(slug, "/")
 				domain = strings.ToLower(owner) + ".github.io:" + repo
-				u.log("did:web domain derived from the git origin: %s", u.bold(domain))
+				u.Log("did:web domain derived from the git origin: %s", u.Bold(domain))
 			}
 		}
 	}
 	if domain == "" {
 		if yes {
-			u.fail("No did:web domain: it is the KB's permanent identity (stamped into the committed event log) and has no safe default.")
+			u.Fail("No did:web domain: it is the KB's permanent identity (stamped into the committed event log) and has no safe default.")
 			fmt.Fprintln(os.Stderr, "  Pass --domain <owner_lc>.github.io:<repo>, or run from a clone whose git origin can supply it.")
 			return 1
 		}
@@ -286,7 +286,7 @@ func Init(args []string) int {
 		fmt.Println("into the committed event log and should never change.")
 		domain = prompt("did:web domain (e.g. owner.github.io:repo)", "")
 		if domain == "" {
-			u.fail("A did:web domain is required.")
+			u.Fail("A did:web domain is required.")
 			return 1
 		}
 	}
@@ -355,13 +355,13 @@ siteName = %q
 		if inference == "skip" || inference == "" {
 			inference = ""
 		} else if inference != "anthropic" && inference != "ollama" {
-			u.fail("Provider must be anthropic or ollama, got %q.", inference)
+			u.Fail("Provider must be anthropic or ollama, got %q.", inference)
 			return 1
 		}
 		if inference != "" && model == "" {
 			model = prompt("Model id (heavy: gatherer, matcher, default worker)", "")
 			if model == "" {
-				u.fail("A model id is required.")
+				u.Fail("A model id is required.")
 				return 1
 			}
 		}
@@ -428,12 +428,12 @@ siteName = %q
 		}
 	}()
 	fail := func(format string, a ...any) int {
-		u.fail(format, a...)
+		u.Fail(format, a...)
 		return 1
 	}
 
 	if noGit {
-		u.warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the gateway versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
+		u.Warn("--no-git: git init is skipped, git.sync = false, and .semiont/ is not staged — the gateway versions the event log via git, so this KB cannot run the full stack until it becomes a clone.")
 	}
 	startedWriting = true
 	if err := os.MkdirAll(semiontDir, 0o755); err != nil {
@@ -442,7 +442,7 @@ siteName = %q
 	if err := os.WriteFile(filepath.Join(semiontDir, "config"), []byte(cfg), 0o644); err != nil {
 		return fail("Writing .semiont/config: %v", err)
 	}
-	u.ok(".semiont/config written %s", u.dim("("+domain+")"))
+	u.Ok(".semiont/config written %s", u.Dim("("+domain+")"))
 
 	if genContent != "" {
 		if !writeVettedConfig(u, dir, genName, genContent) {
@@ -462,12 +462,12 @@ siteName = %q
 
 	if !noGit {
 		if !onPath("git") {
-			u.warn("git is not on PATH — skipping git init/add; the full stack needs this KB to be a clone.")
+			u.Warn("git is not on PATH — skipping git init/add; the full stack needs this KB to be a clone.")
 		} else {
 			if out, err := captureBoth("git", "-C", dir, "init"); err != nil {
 				return fail("git init: %s", strings.TrimSpace(out))
 			}
-			u.ok("git init")
+			u.Ok("git init")
 			addArgs := []string{"-C", dir, "add", ".semiont"}
 			if devcontainer {
 				addArgs = append(addArgs, ".devcontainer")
@@ -475,7 +475,7 @@ siteName = %q
 			if out, err := captureBoth("git", addArgs...); err != nil {
 				return fail("git add: %s", strings.TrimSpace(out))
 			}
-			u.ok("git add")
+			u.Ok("git add")
 		}
 	}
 
@@ -484,18 +484,18 @@ siteName = %q
 	success = true
 
 	fmt.Println()
-	fmt.Printf("%s\n", u.wrap(ansiBold+ansiGreen, "🌱 "+name+" is born"))
+	fmt.Printf("%s\n", u.Wrap(AnsiBold+AnsiGreen, "🌱 "+name+" is born"))
 	fmt.Println()
 	fmt.Println("  Next steps:")
 	step := 1
 	if inference == "" {
-		fmt.Printf("    %d. %s %s\n", step, u.bold("add a config"), u.dim("(rerun with --inference, or write .semiont/semiontconfig/<name>.toml)"))
+		fmt.Printf("    %d. %s %s\n", step, u.Bold("add a config"), u.Dim("(rerun with --inference, or write .semiont/semiontconfig/<name>.toml)"))
 		step++
 	}
 	if inference == "anthropic" {
-		fmt.Printf("    %d. %s\n", step, u.bold("semiont secret set ANTHROPIC_API_KEY"))
+		fmt.Printf("    %d. %s\n", step, u.Bold("semiont secret set ANTHROPIC_API_KEY"))
 		step++
 	}
-	fmt.Printf("    %d. %s\n", step, u.bold("semiont start"))
+	fmt.Printf("    %d. %s\n", step, u.Bold("semiont start"))
 	return 0
 }

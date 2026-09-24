@@ -15,6 +15,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // fakeKB builds a KB root: content at natural paths, a committed-looking event
@@ -188,12 +190,12 @@ func TestExportRefusesToOverwriteWithoutForce(t *testing.T) {
 	if err := os.WriteFile(out, []byte("PRECIOUS"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, errOut := captureOutput(t, func() {
+	_, errOut := harness.CaptureOutput(t, func() {
 		if code := Export([]string{"--root", root, "-o", out}); code == 0 {
 			t.Error("must refuse to overwrite")
 		}
 	})
-	mustContainAll(t, "refusal", errOut, "already exists", "--force")
+	harness.MustContainAll(t, "refusal", errOut, "already exists", "--force")
 	if b, _ := os.ReadFile(out); string(b) != "PRECIOUS" {
 		t.Error("the existing archive was clobbered by a refused export")
 	}
@@ -213,12 +215,12 @@ func TestExportRefusals(t *testing.T) {
 		{"root is not a KB", []string{"--root", os.TempDir()}, ".semiont"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			_, errOut := captureOutput(t, func() {
+			_, errOut := harness.CaptureOutput(t, func() {
 				if code := Export(c.args); code == 0 {
 					t.Error("must refuse")
 				}
 			})
-			mustContainAll(t, "refusal", errOut, c.want)
+			harness.MustContainAll(t, "refusal", errOut, c.want)
 		})
 	}
 }

@@ -23,32 +23,32 @@ import (
 // warning (keyless). model=="" with a key picks the ONE editorial default:
 // the newest capable model — the API lists newest first; prefer the first
 // sonnet-class id, else the newest of all (decision 7).
-func resolveAnthropicModel(u *ui, base, key, model string) (string, bool) {
+func resolveAnthropicModel(u *UI, base, key, model string) (string, bool) {
 	if key == "" {
 		if model == "" {
-			u.fail("No ANTHROPIC_API_KEY in the environment and no --model: with no key the list cannot be fetched, and a permanent default cannot be guessed.")
+			u.Fail("No ANTHROPIC_API_KEY in the environment and no --model: with no key the list cannot be fetched, and a permanent default cannot be guessed.")
 			return "", false
 		}
-		u.warn("ANTHROPIC_API_KEY is not set — %s is recorded unvalidated (the live list needs a key; a typo surfaces only when a job runs).", model)
+		u.Warn("ANTHROPIC_API_KEY is not set — %s is recorded unvalidated (the live list needs a key; a typo surfaces only when a job runs).", model)
 		return model, true
 	}
 	list, ok := anthropicModelList(base, key)
 	if !ok || len(list) == 0 {
 		if model == "" {
-			u.fail("Could not fetch the model list from %s — pass --model explicitly.", base)
+			u.Fail("Could not fetch the model list from %s — pass --model explicitly.", base)
 			return "", false
 		}
-		u.warn("Could not fetch the model list from %s — %s is recorded unvalidated.", base, model)
+		u.Warn("Could not fetch the model list from %s — %s is recorded unvalidated.", base, model)
 		return model, true
 	}
 	if model != "" {
 		for _, m := range list {
 			if m.ID == model {
-				u.ok("Model %s validated against the live list %s", model, u.dim("("+base+")"))
+				u.Ok("Model %s validated against the live list %s", model, u.Dim("("+base+")"))
 				return model, true
 			}
 		}
-		u.fail("Model %q is not listed for this API key (withdrawn, or a typo?).", model)
+		u.Fail("Model %q is not listed for this API key (withdrawn, or a typo?).", model)
 		fmt.Fprintln(os.Stderr, "  Available:")
 		for _, m := range list {
 			fmt.Fprintf(os.Stderr, "    %-32s %s\n", m.ID, m.DisplayName)
@@ -62,7 +62,7 @@ func resolveAnthropicModel(u *ui, base, key, model string) (string, bool) {
 			break
 		}
 	}
-	u.ok("Model %s %s", u.bold(pick.ID), u.dim("(newest capable per the live list — override with --model)"))
+	u.Ok("Model %s %s", u.Bold(pick.ID), u.Dim("(newest capable per the live list — override with --model)"))
 	return pick.ID, true
 }
 
@@ -109,11 +109,11 @@ func anthropicModelList(base, key string) ([]anthropicModel, bool) {
 // validateOllamaModel: installed → ok; pullable per the registry probe →
 // ok (start pulls it); registry 404 → refusal; sources unreachable →
 // accept-with-warning.
-func validateOllamaModel(u *ui, ollamaBase, registryBase, model string) bool {
+func validateOllamaModel(u *UI, ollamaBase, registryBase, model string) bool {
 	facts := fetchModelFacts(ollamaBase)
 	if facts.found {
 		if _, ok := facts.installed[normalizeModel(model)]; ok {
-			u.ok("Model %s is installed %s", model, u.dim("("+ollamaBase+")"))
+			u.Ok("Model %s is installed %s", model, u.Dim("("+ollamaBase+")"))
 			return true
 		}
 	}
@@ -124,13 +124,13 @@ func validateOllamaModel(u *ui, ollamaBase, registryBase, model string) bool {
 	url := fmt.Sprintf("%s/v2/library/%s/manifests/%s", registryBase, name, tag)
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Get(url)
 	if err != nil {
-		u.warn("Model %s could not be verified (registry unreachable) — recorded as typed; start will attempt the pull.", model)
+		u.Warn("Model %s could not be verified (registry unreachable) — recorded as typed; start will attempt the pull.", model)
 		return true
 	}
 	defer resp.Body.Close()
 	switch resp.StatusCode {
 	case 200:
-		u.ok("Model %s exists in the ollama registry %s", model, u.dim("(not installed yet — pulled at start)"))
+		u.Ok("Model %s exists in the ollama registry %s", model, u.Dim("(not installed yet — pulled at start)"))
 		return true
 	case 404:
 		// A registry 404 is a refusal ONLY when the local Ollama could be
@@ -139,13 +139,13 @@ func validateOllamaModel(u *ui, ollamaBase, registryBase, model string) bool {
 		// be a custom/local-only model) and we simply cannot know: unknown
 		// is not missing (Copilot review, PR #1065).
 		if !facts.found {
-			u.warn("Model %s is not in the ollama registry, and the local Ollama (%s) is unreachable — recorded as typed; verify it is installed before start.", model, ollamaBase)
+			u.Warn("Model %s is not in the ollama registry, and the local Ollama (%s) is unreachable — recorded as typed; verify it is installed before start.", model, ollamaBase)
 			return true
 		}
-		u.fail("Model %q is not in the ollama registry (404) and is not installed locally — a typo?", model)
+		u.Fail("Model %q is not in the ollama registry (404) and is not installed locally — a typo?", model)
 		return false
 	default:
-		u.warn("Model %s could not be verified (registry answered %d) — recorded as typed.", model, resp.StatusCode)
+		u.Warn("Model %s could not be verified (registry answered %d) — recorded as typed.", model, resp.StatusCode)
 		return true
 	}
 }

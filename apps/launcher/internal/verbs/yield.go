@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // yield.go — `semiont yield --upload`: register local files as KB
 // resources via the generated packages/sdk-go client (multipart POST
@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -53,7 +55,7 @@ var extMediaTypes = map[string]string{
 }
 
 func Yield(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var uploads, positional []string
 	name, repo, wantLocal := "", "", false
 	delegate := false
@@ -65,7 +67,7 @@ func Yield(args []string) int {
 			a := args[i]
 			val := func() (string, bool) {
 				if i+1 >= len(args) {
-					u.fail("Missing value for %s", a)
+					u.Fail("Missing value for %s", a)
 					return "", false
 				}
 				i++
@@ -97,7 +99,7 @@ func Yield(args []string) int {
 				return 0
 			default:
 				if strings.HasPrefix(a, "-") {
-					u.fail("Unknown argument: %s", a)
+					u.Fail("Unknown argument: %s", a)
 					return 1
 				}
 				positional = append(positional, a)
@@ -113,28 +115,28 @@ func Yield(args []string) int {
 			delegate = true
 		case "--upload":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --upload")
+				u.Fail("Missing value for --upload")
 				return 1
 			}
 			uploads = append(uploads, args[i+1])
 			i++
 		case "--name":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --name")
+				u.Fail("Missing value for --name")
 				return 1
 			}
 			name = args[i+1]
 			i++
 		case "--repo":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+				u.Fail("Missing value for --repo")
 				return 1
 			}
 			repo = args[i+1]
 			i++
 		case "--runtime":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+				u.Fail("Missing value for --runtime")
 				return 1
 			}
 			wantLocal = true
@@ -143,7 +145,7 @@ func Yield(args []string) int {
 			fmt.Print(yieldUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", args[i])
+			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
 	}
@@ -153,14 +155,14 @@ func Yield(args []string) int {
 			return 1
 		}
 		if dopts.storageURI == "" {
-			u.fail("--delegate needs --storage-uri (the generated resource must be given a home).")
+			u.Fail("--delegate needs --storage-uri (the generated resource must be given a home).")
 			return 1
 		}
 		if dopts.title == "" {
-			u.fail("--delegate needs --title: GenerationJobParams requires it, so the gateway rejects a job without one.")
+			u.Fail("--delegate needs --title: GenerationJobParams requires it, so the gateway rejects a job without one.")
 			return 1
 		}
-		t, ok := verbSession(u, "yield", repo, wantLocal)
+		t, ok := launcher.VerbSession(u, "yield", repo, wantLocal)
 		if !ok {
 			return 1
 		}
@@ -171,12 +173,12 @@ func Yield(args []string) int {
 		return 1
 	}
 	if name != "" && len(uploads) > 1 {
-		u.fail("--name applies to a single --upload only.")
+		u.Fail("--name applies to a single --upload only.")
 		return 1
 	}
 
-	ss := loadStackSet()
-	target, ok := selectVerbStack(u, "yield", ss, repo, wantLocal)
+	ss := launcher.LoadStackSet()
+	target, ok := launcher.SelectVerbStack(u, "yield", ss, repo, wantLocal)
 	if !ok {
 		return 1
 	}
@@ -186,42 +188,42 @@ func Yield(args []string) int {
 		key = "codespace:" + target.Repo
 		// Storage URIs are repo-relative; for a codespace target the cwd's
 		// clone is the only tree that can anchor them.
-		root = cwdKBRoot()
+		root = launcher.CwdKBRoot()
 		if root == "" {
-			u.fail("yield --upload against a codespace needs a local clone of %s to anchor repo-relative paths.", target.Repo)
+			u.Fail("yield --upload against a codespace needs a local clone of %s to anchor repo-relative paths.", target.Repo)
 			fmt.Fprintln(os.Stderr, "  Run it from inside the clone.")
 			return 1
 		}
 	} else {
 		local := ss.Stacks["local"]
 		if local == nil {
-			u.fail("yield needs a running stack, and none is recorded.")
+			u.Fail("yield needs a running stack, and none is recorded.")
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return 1
 		}
-		base = gatewayBase(local)
+		base = launcher.GatewayBase(local)
 		key = "local"
 		root = local.KBRoot
 		if root == "" {
-			root = cwdKBRoot()
+			root = launcher.CwdKBRoot()
 		}
 		if root == "" {
 			// A legacy record can lack KBRoot; refuse plainly rather than
 			// let the path check babble about a KB root named "".
-			u.fail("Cannot determine the KB root (the stack record predates root tracking, and the current directory is not inside a KB clone).")
+			u.Fail("Cannot determine the KB root (the stack record predates root tracking, and the current directory is not inside a KB clone).")
 			fmt.Fprintln(os.Stderr, "  Run yield from inside the KB clone, or set SEMIONT_ROOT.")
 			return 1
 		}
 	}
 
-	sess, ok := loadSession(u, key)
+	sess, ok := launcher.LoadSession(u, key)
 	if !ok {
 		return 1
 	}
 
 	cli, err := semiont.NewClientWithResponses(base)
 	if err != nil {
-		u.fail("client: %v", err)
+		u.Fail("client: %v", err)
 		return 1
 	}
 	for _, up := range uploads {
@@ -238,7 +240,7 @@ func Yield(args []string) int {
 // The post runs under the session's renew-and-retry policy (session.go), the
 // same one every bus verb's calls run under: an expired access token is
 // plumbing, not the user's problem.
-func yieldOne(u *ui, cli *semiont.ClientWithResponses, sess *session, root, up, name string) int {
+func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.Session, root, up, name string) int {
 	abs := up
 	if !filepath.IsAbs(abs) {
 		if a, err := filepath.Abs(abs); err == nil {
@@ -247,13 +249,13 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, sess *session, root, up, 
 	}
 	rel, err := filepath.Rel(root, abs)
 	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
-		u.fail("%s is outside the KB root (%s) — storage URIs are repo-relative, and the content belongs in the repo.", up, root)
+		u.Fail("%s is outside the KB root (%s) — storage URIs are repo-relative, and the content belongs in the repo.", up, root)
 		fmt.Fprintf(os.Stderr, "  Copy it into the KB first:  cp %s %s/\n", up, root)
 		return 1
 	}
 	content, err := os.ReadFile(abs)
 	if err != nil {
-		u.fail("cannot read %s: %v", up, err)
+		u.Fail("cannot read %s: %v", up, err)
 		return 1
 	}
 	rel = filepath.ToSlash(rel)
@@ -287,17 +289,17 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, sess *session, root, up, 
 		}
 		return w.Close()
 	}(); buildErr != nil {
-		u.fail("building upload for %s: %v", up, buildErr)
+		u.Fail("building upload for %s: %v", up, buildErr)
 		return 1
 	}
 
 	body := buf.Bytes()
 	var resp *semiont.PostResourcesResponse
-	err = sess.authorized(func(token string) error {
+	err = sess.Authorized(func(token string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 		r, err := cli.PostResourcesWithBodyWithResponse(ctx, w.FormDataContentType(),
-			bytes.NewReader(body), bearer(token))
+			bytes.NewReader(body), launcher.Bearer(token))
 		if err != nil {
 			return err
 		}
@@ -309,24 +311,24 @@ func yieldOne(u *ui, cli *semiont.ClientWithResponses, sess *session, root, up, 
 		resp = r
 		return nil
 	})
-	var rej *sessionRejected
+	var rej *launcher.SessionRejected
 	switch {
 	case errors.As(err, &rej):
-		return rejectedFail(u, "yield", rej)
+		return launcher.RejectedFail(u, "yield", rej)
 	case err != nil:
-		u.fail("Gateway unreachable: %v", err)
+		u.Fail("Gateway unreachable: %v", err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 		return 1
 	}
 	switch {
 	case resp.JSON202 != nil:
-		u.ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
+		u.Ok("Yielded: %s → %s", up, resp.JSON202.ResourceId)
 		return 0
 	case resp.JSON400 != nil:
-		u.fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
+		u.Fail("Gateway rejected %s: %s", up, resp.JSON400.Error)
 		return 1
 	default:
-		u.fail("Upload of %s failed: HTTP %d.", up, resp.StatusCode())
+		u.Fail("Upload of %s failed: HTTP %d.", up, resp.StatusCode())
 		return 1
 	}
 }
@@ -360,8 +362,8 @@ Options:
 Requires a session:  semiont login
 `
 
-func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOptions) int {
-	cli := t.transport()
+func runYieldDelegate(u *launcher.UI, t launcher.VerbTarget, positional []string, opts delegateOptions) int {
+	cli := t.Transport()
 	ctx := context.Background()
 	resourceID := positional[0]
 
@@ -377,7 +379,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 		}
 		var gc semiont.GatherAnnotationComplete
 		if json.Unmarshal(reply, &gc) != nil {
-			u.fail("yield --delegate: the gathered context could not be read.")
+			u.Fail("yield --delegate: the gathered context could not be read.")
 			return 1
 		}
 		gathered = gc.Response
@@ -396,7 +398,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 		}
 		var gc semiont.GatherResourceComplete
 		if json.Unmarshal(reply, &gc) != nil {
-			u.fail("yield --delegate: the gathered context could not be read.")
+			u.Fail("yield --delegate: the gathered context could not be read.")
 			return 1
 		}
 		gathered = gc.Response
@@ -439,11 +441,11 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 	}
 	var jc semiont.JobCreatedResult
 	if json.Unmarshal(created, &jc) != nil || jc.Response.JobId == "" {
-		u.fail("yield --delegate: the gateway accepted the job but named no jobId.")
+		u.Fail("yield --delegate: the gateway accepted the job but named no jobId.")
 		return 1
 	}
 	jobID := jc.Response.JobId
-	u.log("Generating %s", u.dim("(job "+jobID+")"))
+	u.Log("Generating %s", u.Dim("(job "+jobID+")"))
 
 	// Follow the job. A generation can run for minutes; narrate it rather
 	// than leaving a silent terminal.
@@ -453,7 +455,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 			return 1
 		case ev, open := <-sub.Events:
 			if !open {
-				u.fail("The event stream closed before job %s finished.", jobID)
+				u.Fail("The event stream closed before job %s finished.", jobID)
 				fmt.Fprintln(os.Stderr, "  The job may still be running:  semiont browse "+resourceID)
 				return 1
 			}
@@ -480,7 +482,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 					// printed `stage` as the label with this as dim detail, so
 					// when both were empty it emitted a bare "▸ " with no text.
 					if text := progressText(p.Progress.Message); text != "" {
-						u.log("%s", u.dim(text))
+						u.Log("%s", u.Dim(text))
 					}
 				}
 			case "job:fail":
@@ -488,7 +490,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				if json.Unmarshal(ev.Payload, &f) != nil || f.JobId != jobID {
 					continue
 				}
-				u.fail("Generation failed: %s", f.Error)
+				u.Fail("Generation failed: %s", f.Error)
 				return 1
 			case "job:complete":
 				var done semiont.JobCompleteCommand
@@ -521,7 +523,7 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 					// wording. Non-zero all the same: the caller asked for a
 					// resource and has none, and nothing downstream of a
 					// `yield --delegate && ...` should run.
-					u.fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
+					u.Fail("Declined (%s): %s", declined.Reason, declineText(declined.Reason))
 					fmt.Fprintf(os.Stderr, "  Nothing was written to %s.\n", opts.storageURI)
 					return 1
 				}
@@ -529,11 +531,11 @@ func runYieldDelegate(u *ui, t verbTarget, positional []string, opts delegateOpt
 				// the resource it produced.
 				if done.Result != nil {
 					if gen, err := done.Result.AsJobGenerationResult(); err == nil && gen.ResourceId != "" {
-						u.ok("Yielded %s → %s %s", opts.storageURI, gen.ResourceId, u.dim(gen.ResourceName))
+						u.Ok("Yielded %s → %s %s", opts.storageURI, gen.ResourceId, u.Dim(gen.ResourceName))
 						return 0
 					}
 				}
-				u.ok("Yielded %s", opts.storageURI)
+				u.Ok("Yielded %s", opts.storageURI)
 				return 0
 			}
 		}

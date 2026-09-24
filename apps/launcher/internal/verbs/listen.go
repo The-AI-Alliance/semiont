@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // listen.go — `semiont listen`: subscribe to the KB's live event stream and
 // print events until interrupted. The pure-streaming verb: no request, no
@@ -15,6 +15,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -56,7 +58,7 @@ const (
 // which is precisely the drift the registry exists to prevent.
 
 func Listen(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var channels []bus.Channel
 	var scope, repo string
 	asJSON, wantLocal := false, false
@@ -65,7 +67,7 @@ func Listen(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -92,7 +94,7 @@ func Listen(args []string) int {
 			fmt.Print(listenUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", a)
+			u.Fail("Unknown argument: %s", a)
 			return 1
 		}
 		if !ok {
@@ -106,15 +108,15 @@ func Listen(args []string) int {
 	// than sitting there pretending to listen.
 	for _, ch := range channels {
 		if !bus.Bridged(ch) {
-			u.warn("%s is not a bridged channel — it will deliver nothing.", ch)
+			u.Warn("%s is not a bridged channel — it will deliver nothing.", ch)
 		}
 	}
 
-	t, ok := verbSession(u, "listen", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "listen", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	// Resource names, fetched ONCE before the stream opens. Not per event: a
 	// lookup is a correlated Request, which opens its own SSE connection, and
@@ -141,30 +143,30 @@ func Listen(args []string) int {
 	if scope != "" {
 		where = "resource " + scope
 	}
-	u.log("Listening to %s %s", where, u.dim("(Ctrl-C to stop)"))
+	u.Log("Listening to %s %s", where, u.Dim("(Ctrl-C to stop)"))
 	// INBOUND ONLY. The guide's own cues (`browse --browser`, `beckon`) are not
 	// echoed back on this stream, and silence where a cue should appear must not
 	// read as "the cue never landed" — so say it once, up front, rather than
 	// letting the absence speak.
 	if !asJSON {
-		u.log("%s", u.dim("Shows events RECEIVED from this KB — your own beckon/browse cues are not echoed here."))
+		u.Log("%s", u.Dim("Shows events RECEIVED from this KB — your own beckon/browse cues are not echoed here."))
 	}
 
 	for {
 		select {
 		case <-ctx.Done():
 			fmt.Println()
-			u.log("Stopped.")
+			u.Log("Stopped.")
 			return 0
 		case ev, open := <-sub.Events:
 			if !open {
 				// The stream ended on its own — say so rather than exiting 0
 				// as though the user had asked to stop.
 				if err := sub.Err(); err != nil {
-					u.fail("The event stream ended: %v", err)
+					u.Fail("The event stream ended: %v", err)
 					return 1
 				}
-				u.warn("The event stream closed.")
+				u.Warn("The event stream closed.")
 				return 1
 			}
 			printEvent(u, render, ev, asJSON)
@@ -197,7 +199,7 @@ func prefetchResourceNames(cli bus.Transport) map[string]string {
 	return names
 }
 
-func printEvent(u *ui, render *listenRenderer, ev bus.Event, asJSON bool) {
+func printEvent(u *launcher.UI, render *listenRenderer, ev bus.Event, asJSON bool) {
 	if asJSON {
 		// UNCHANGED, deliberately: scripts parse this. The human rendering must
 		// never leak into the machine one.

@@ -349,25 +349,25 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 	// client exists AND may use the grant.
 	if eps.device == "" {
 		findings = append(findings, publicClientFinding{
-			clientID: cliClientID,
+			clientID: CliClientID,
 			reason:   "the issuer publishes no device_authorization_endpoint",
 			fix:      "`semiont login` cannot work against this issuer",
 		})
 	} else {
-		switch code, oauthErr, err := deviceGrantProbe(eps.device, cliClientID); {
+		switch code, oauthErr, err := deviceGrantProbe(eps.device, CliClientID); {
 		case err != nil:
-			findings = append(findings, publicClientFinding{clientID: cliClientID, reason: err.Error()})
+			findings = append(findings, publicClientFinding{clientID: CliClientID, reason: err.Error()})
 		case code == http.StatusOK:
 			// exists, and the grant is enabled
 		case oauthErr == "invalid_client":
 			findings = append(findings, publicClientFinding{
-				clientID: cliClientID,
+				clientID: CliClientID,
 				reason:   "the realm has no such client",
 				fix:      "a realm imported before this client existed will not have it",
 			})
 		default:
 			findings = append(findings, publicClientFinding{
-				clientID: cliClientID,
+				clientID: CliClientID,
 				reason:   fmt.Sprintf("device authorization refused (HTTP %d, %s)", code, oauthErr),
 				fix:      "the client exists but may not use the device grant",
 			})
@@ -454,7 +454,7 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 	// resource-owner grant hands a public client someone's password directly —
 	// no browser, nothing phishing-resistant, and it walks straight past the
 	// realm's required actions, including the first-sign-in profile form.
-	for _, id := range []string{browserClientID, cliClientID} {
+	for _, id := range []string{browserClientID, CliClientID} {
 		oauthErr, err := directAccessGrantProbe(eps.token, id)
 		if err != nil || oauthErr == "unauthorized_client" {
 			continue // unreachable, or correctly refused

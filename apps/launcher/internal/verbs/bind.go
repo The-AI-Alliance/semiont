@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // bind.go — `semiont bind`: resolve a linking annotation to a target
 // resource by adding a SpecificResource body item (purpose: linking). One
@@ -9,6 +9,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
@@ -29,7 +31,7 @@ Requires a session:  semiont login
 `
 
 func Bind(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var positional []string
 	var unbind, repo string
 	asJSON, wantLocal := false, false
@@ -38,7 +40,7 @@ func Bind(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -60,7 +62,7 @@ func Bind(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			positional = append(positional, a)
@@ -88,11 +90,11 @@ func Bind(args []string) int {
 		op = "remove"
 	}
 
-	t, ok := verbSession(u, "bind", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "bind", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	var item semiont.AnnotationBody
 	purpose := semiont.BodyPurpose("linking")
@@ -101,7 +103,7 @@ func Bind(args []string) int {
 	if err := item.FromSpecificResource(semiont.SpecificResource{
 		Source: target, Purpose: &purpose,
 	}); err != nil {
-		u.fail("could not build the body item: %v", err)
+		u.Fail("could not build the body item: %v", err)
 		return 1
 	}
 	cmd := semiont.BindUpdateBodyCommand{
@@ -121,9 +123,9 @@ func Bind(args []string) int {
 		return 0
 	}
 	if unbind != "" {
-		u.ok("Unbound %s from %s", annotationID, target)
+		u.Ok("Unbound %s from %s", annotationID, target)
 	} else {
-		u.ok("Bound %s → %s", annotationID, target)
+		u.Ok("Bound %s → %s", annotationID, target)
 	}
 	return 0
 }

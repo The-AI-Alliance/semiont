@@ -126,13 +126,13 @@ func generateSemiontconfig(p genParams) string {
 // file, loadConfig + derivePlan judge it, and only success renames it into
 // place. The same gate template copies pass through (P4): no path may write
 // a config this launcher cannot start.
-func writeVettedConfig(u *ui, root, name, content string) bool {
+func writeVettedConfig(u *UI, root, name, content string) bool {
 	// name becomes a filename and (via --config-name) is user-controlled — a
 	// separator or ".." would escape .semiont/semiontconfig. Require a plain
 	// stem (Copilot review, PR #1065).
 	if name == "" || name == "." || name == ".." ||
 		strings.ContainsAny(name, `/\`) || strings.Contains(name, "..") {
-		u.fail("Config name %q must be a simple file stem (no path separators).", name)
+		u.Fail("Config name %q must be a simple file stem (no path separators).", name)
 		return false
 	}
 	// Vet in a SYSTEM temp file: loadConfig+derivePlan judge the content
@@ -140,14 +140,14 @@ func writeVettedConfig(u *ui, root, name, content string) bool {
 	// tree behind.
 	vf, err := os.CreateTemp("", "semiont-vet-*.toml")
 	if err != nil {
-		u.fail("Vetting config: %v", err)
+		u.Fail("Vetting config: %v", err)
 		return false
 	}
 	vetPath := vf.Name()
 	defer os.Remove(vetPath)
 	if _, err := vf.WriteString(content); err != nil {
 		vf.Close()
-		u.fail("Vetting config: %v", err)
+		u.Fail("Vetting config: %v", err)
 		return false
 	}
 	vf.Close()
@@ -156,18 +156,18 @@ func writeVettedConfig(u *ui, root, name, content string) bool {
 		_, err = derivePlan(env, envName, vetPath)
 	}
 	if err != nil {
-		u.fail("The config did not pass the launcher's own deriver — refusing to write it: %v", err)
+		u.Fail("The config did not pass the launcher's own deriver — refusing to write it: %v", err)
 		return false
 	}
 	dir := filepath.Join(root, ".semiont", "semiontconfig")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
-		u.fail("Creating %s: %v", dir, err)
+		u.Fail("Creating %s: %v", dir, err)
 		return false
 	}
 	if err := os.WriteFile(filepath.Join(dir, name+".toml"), []byte(content), 0o644); err != nil {
-		u.fail("Writing config: %v", err)
+		u.Fail("Writing config: %v", err)
 		return false
 	}
-	u.ok(".semiont/semiontconfig/%s.toml written %s", name, u.dim("(vetted by the plan deriver)"))
+	u.Ok(".semiont/semiontconfig/%s.toml written %s", name, u.Dim("(vetted by the plan deriver)"))
 	return true
 }

@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // `semiont login` shows the one-time code AND the verification URI, always,
@@ -24,8 +26,8 @@ func TestPromptToOpenAlwaysShowsTheCodeAndURI(t *testing.T) {
 		VerificationURI:         "https://issuer.test/device",
 		VerificationURIComplete: "https://issuer.test/device?user_code=ABCD-1234",
 	}
-	s := captureStdout(t, func() {
-		promptToOpen(newUI(false), da, da.VerificationURIComplete, 10*time.Minute)
+	s := harness.CaptureStdout(t, func() {
+		promptToOpen(NewUI(false), da, da.VerificationURIComplete, 10*time.Minute)
 	})
 	// The code comes first and verbatim: a person has to compare it against the
 	// page, and retype it if they approve on another machine.

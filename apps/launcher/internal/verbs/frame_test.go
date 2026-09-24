@@ -1,8 +1,11 @@
-package launcher
+package verbs
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
@@ -24,7 +27,7 @@ func withFake(t *testing.T) (*bustest.Fake, func()) {
 	t.Helper()
 	verbFixture(t)
 	fake := bustest.NewFake()
-	restore := useTransport(func(base, token string) bus.Transport {
+	restore := launcher.UseTransport(func(base, token string) bus.Transport {
 		fake.Base, fake.Token = base, token
 		return fake
 	})
@@ -36,12 +39,12 @@ func TestFrameAddsEachEntityTypeSeparatelyInProcess(t *testing.T) {
 	defer restore()
 	fake.Replies["frame:add-entity-type"] = []byte(`{"response":{}}`)
 
-	out := captureStdout(t, func() {
+	out := harness.CaptureStdout(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code != 0 {
 			t.Fatalf("frame: exit %d", code)
 		}
 	})
-	mustContainAll(t, "stdout", out, "Person", "Organization")
+	harness.MustContainAll(t, "stdout", out, "Person", "Organization")
 
 	// TWO commands, in order — one per entity type. A verb that batched them
 	// into a single request, or dropped the second, passes any assertion that
@@ -70,19 +73,19 @@ func TestFrameStopsAtTheFirstRejectionInProcess(t *testing.T) {
 	// gateway's own words. A plain error would take a different branch.
 	fake.RequestErr = &bus.RequestError{Channel: "frame:add-entity-type-failed", Message: "vocabulary is frozen"}
 
-	out, errOut := captureOutput(t, func() {
+	out, errOut := harness.CaptureOutput(t, func() {
 		if code := Frame([]string{"--entity-type", "Person", "--entity-type", "Organization"}); code == 0 {
 			t.Fatal("a rejected add must fail the command")
 		}
 	})
-	mustContainAll(t, "rejection", out+errOut, "vocabulary is frozen")
+	harness.MustContainAll(t, "rejection", out+errOut, "vocabulary is frozen")
 
 	if len(fake.Requests) != 1 {
 		t.Errorf("frame kept going after a rejection: %d requests: %v", len(fake.Requests), fake.Requests)
 	}
 }
 
-// Argument refusals never reach a transport — they land before verbSession, so
+// Argument refusals never reach a transport — they land before launcher.VerbSession, so
 // nothing should be sent, whichever stream the message goes to.
 func TestFrameArgumentRefusals(t *testing.T) {
 	for _, c := range []struct {
@@ -96,12 +99,12 @@ func TestFrameArgumentRefusals(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			fake, restore := withFake(t)
 			defer restore()
-			out, errOut := captureOutput(t, func() {
+			out, errOut := harness.CaptureOutput(t, func() {
 				if code := Frame(c.args); code == 0 {
 					t.Fatal("must refuse")
 				}
 			})
-			mustContainAll(t, "refusal", out+errOut, c.want)
+			harness.MustContainAll(t, "refusal", out+errOut, c.want)
 			if len(fake.Requests) != 0 || len(fake.Emits) != 0 {
 				t.Errorf("a refused argument still reached the wire: %v %v", fake.Requests, fake.Emits)
 			}

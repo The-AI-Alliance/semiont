@@ -22,62 +22,125 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 )
 
-type executor interface {
-	// --- effects ---
-	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
-	stopRm(name string) bool                  // teardown; reports whether anything existed
-	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	settle(ports ...int)                      // wait for torn-down ports to be released
-	sweepStaging()                            // /tmp/semiont-config.* removal (+ state forget)
-	portChecks(ports []portNeed) bool
-	portCheck(p portNeed) bool    // singular wording in plan mode
-	recordPorts(ports []portNeed) // note claimed host ports in the belief record
-	hostOllamaReachable(addr string, port int) bool
+// stager: writes what a container will read: per-service config copies, the launcher-owned
+// collector and Prometheus configs, the realm document, the broker's authorization block.
+type stager interface {
 	stageAll(configFile, envName, addr string, traces bool) (string, bool) // per-service config copies + the collector's own; returns stage dir
 	stageOne(svc, configFile, envName, addr string) (string, bool)         // one service's fresh private copy
 	stageCollector(addr string) (string, bool)                             // the collector's own config: launcher-owned, no KB config involved
 	stageMetrics(addr string) (string, bool)                               // Prometheus's scrape config: same launcher-owned pattern
-	initStack(root, config, version, addr, stage string)                   // begin the belief record
+	stageRealm(realm string, doc []byte) (string, bool)                    // the realm file Keycloak imports; returns its staged path
+	stageNatsConf(doc []byte) (string, bool)                               // the broker's authorization block (no secret in it); returns its staged path
+	sweepStaging()                                                         // /tmp/semiont-config.* removal (+ state forget)
+}
+
+// runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
+// happened when a gate fails.
+type runner interface {
 	pull(img string) bool
-	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
+	runDetached(args []string) (string, bool) // echo + run -d; returns runtime-reported id
+	stopRm(name string) bool                  // teardown; reports whether anything existed
+	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	settle(ports ...int)                      // wait for torn-down ports to be released
+	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
+	dumpLogs(container, svc string)           // failed health gate: show the crash where it is
+}
+
+// prober: asks whether something is up, and waits on a WALL-CLOCK budget rather than a count
+// of attempts.
+type prober interface {
+	portChecks(ports []portNeed) bool
+	portCheck(p portNeed) bool // singular wording in plan mode
+	hostOllamaReachable(addr string, port int) bool
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
 	waitTCP(label, addr string, port, seconds int) (time.Duration, bool)
 	waitPGAccepting(seconds int) bool       // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
 	gatewayReachable(addr string, port int) bool
-	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
-	either(cond func() bool, then, els func() int) int
-	otelDetect(addr string) []string                     // --service: OTel iff the collector is up
-	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
-	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
-	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
-	stageRealm(realm string, doc []byte) (string, bool)  // the realm file Keycloak imports; returns its staged path
-	stageNatsConf(doc []byte) (string, bool)             // the broker's authorization block (no secret in it); returns its staged path
-	createDatabase(user, name string) bool               // a database on the launcher-run PostgreSQL, if absent
-	ollamaVolume(opts startOptions) string               // model-cache choice (prompt is live-only)
+	resolveAddr() (string, bool)     // container→host address ("<host-addr>" in plan mode)
+	otelDetect(addr string) []string // --service: OTel iff the collector is up
+}
+
+// recorder: the belief record: what this machine thinks is running, and how each role was
+// provided. Written as the stack comes up, read by status and by the next start.
+type recorder interface {
+	initStack(root, config, version, addr, stage string) // begin the belief record
+	recordPorts(ports []portNeed)                        // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
 	browserCurrent(desired string) bool   // running AND image identity matches
-	browserRecord() *serviceState         // the machine-level browser record
+	browserRecord() *ServiceState         // the machine-level browser record
 	recordBrowser(id, image, version string, port int)
-	dumpLogs(container, svc string)                                                                                // failed health gate: show the crash where it is
-	verifyRemoteModels(role, base, key string, models []string)                                                    // record /v1/models metadata; warn on unlisted
+}
+
+// keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
+// because a regenerated one invalidates every token already issued.
+type keeper interface {
+	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
+	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
+}
+
+// admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
+// credential or a person is sent to sign in.
+type admitter interface {
 	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
 	preflightBrowserMove(issuerBase string, port int) bool                                                         // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
-	ensureModels(base string, models []modelNeed)                                                                  // pull configured ollama models that are absent
-	stateMounts(role, image, root string) ([]string, bool)                                                         // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)                                                          // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                                                                            // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
-	val(live, plan string) string                                                                                  // mode-scoped value (kb root, admin password)
-	rtName() string
+}
 
-	// --- decoration ---
+// storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
+// database a launcher-run PostgreSQL must already carry.
+type storer interface {
+	stateMounts(role, image, root string) ([]string, bool) // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)  // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	createDatabase(user, name string) bool                 // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string                 // model-cache choice (prompt is live-only)
+}
+
+// modeler: the models a role serves — pulled when absent locally, verified when remote.
+type modeler interface {
+	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
+	ensureModels(base string, models []modelNeed)               // pull configured ollama models that are absent
+}
+
+// narrator: what the operator sees. `say` narrates a live run and is silent in plan mode;
+// `note` is the reverse, so one flow text serves both walks.
+type narrator interface {
 	banner(s string)
 	dim(s string) string
 	bold(s string) string
 	say(kind sayKind, format string, a ...any) // live narration; nothing in plan mode
 	note(format string, a ...any)              // plan comment; nothing in live mode
+}
+
+// modeScope: the few places a flow must ask which walk it is on, rather than being written once
+// for both.
+type modeScope interface {
+	val(live, plan string) string // mode-scoped value (kb root, admin password)
+	rtName() string
+	either(cond func() bool, then, els func() int) int
+}
+
+// executor: the seam that lets each launch flow be written ONCE and walked
+// twice — live by liveExec, as a plan by planExec.
+//
+// A composition of roles rather than a list, since a list of 52 is something
+// you append to without deciding anything. A new effect belongs to one of these
+// roles; if it belongs to none, that is worth noticing before it is written,
+// and executor_roles_test.go is what notices.
+type executor interface {
+	stager
+	runner
+	prober
+	recorder
+	keeper
+	admitter
+	storer
+	modeler
+	narrator
+	modeScope
 }
 
 type sayKind int
@@ -92,9 +155,9 @@ const (
 // --- live ---
 
 type liveExec struct {
-	u  *ui
+	u  *UI
 	rt string
-	st *stackState
+	st *StackState
 	// existing: semiont-* container names per runtime, listed once and cached
 	// for the life of the command (see present).
 	existing map[string]map[string]bool
@@ -151,7 +214,7 @@ func (x *liveExec) present(rt string) map[string]bool {
 
 func (x *liveExec) snapshotLogs(root string, names []string) {
 	if dir, n := writeLogSnapshot(x.rt, root, names); n > 0 {
-		x.u.log("Snapshotted %d container log(s) %s", n, x.u.dim("("+dir+")"))
+		x.u.Log("Snapshotted %d container log(s) %s", n, x.u.Dim("("+dir+")"))
 	}
 }
 
@@ -188,7 +251,7 @@ func (x *liveExec) sweepStray(names []string) bool {
 		}
 		if removed > 0 {
 			swept = true
-			x.u.warn("Removed %d stray Semiont container(s) under %s.", removed, rt)
+			x.u.Warn("Removed %d stray Semiont container(s) under %s.", removed, rt)
 		}
 	}
 	return swept
@@ -211,7 +274,7 @@ func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 		return true
 	}
 	fmt.Println()
-	x.u.warn("Ollama is running on the host but not reachable from containers.")
+	x.u.Warn("Ollama is running on the host but not reachable from containers.")
 	fmt.Printf("   The gateway runs in a container and needs Ollama at %s:%d.\n", addr, port)
 	fmt.Println()
 	if runSilent("pgrep", "-f", "Ollama.app/Contents") == nil {
@@ -221,11 +284,11 @@ func (x *liveExec) hostOllamaReachable(addr string, port int) bool {
 	}
 	fmt.Println()
 	fmt.Println("   Fix: configure Ollama to listen on all interfaces:")
-	fmt.Printf("     %s\n", x.u.bold("launchctl setenv OLLAMA_HOST 0.0.0.0"))
+	fmt.Printf("     %s\n", x.u.Bold("launchctl setenv OLLAMA_HOST 0.0.0.0"))
 	fmt.Println("   Then fully quit Ollama Desktop from the menu bar and relaunch it.")
 	fmt.Println()
 	fmt.Println("   (If launchctl doesn't stick, quit Ollama Desktop entirely and run")
-	fmt.Printf("    %s from a terminal.)\n", x.u.bold("OLLAMA_HOST=0.0.0.0:11434 ollama serve"))
+	fmt.Printf("    %s from a terminal.)\n", x.u.Bold("OLLAMA_HOST=0.0.0.0:11434 ollama serve"))
 	fmt.Println()
 	return false
 }
@@ -254,9 +317,9 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 	if x.st == nil {
 		x.st = loadLocalState()
 		if x.st == nil {
-			x.st = &stackState{
+			x.st = &StackState{
 				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
-				Version: x.version, Services: map[string]serviceState{},
+				Version: x.version, Services: map[string]ServiceState{},
 			}
 		}
 	}
@@ -276,7 +339,7 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 func (x *liveExec) stageDir() (string, bool) {
 	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
 	if err != nil {
-		x.u.fail("Cannot create config staging dir: %v", err)
+		x.u.Fail("Cannot create config staging dir: %v", err)
 		return "", false
 	}
 	return stage, true
@@ -375,24 +438,24 @@ func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (stri
 	}
 	cfg, err := os.ReadFile(configFile)
 	if err != nil {
-		x.u.fail("Reading %s: %v", configFile, err)
+		x.u.Fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
 	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"} {
 		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
-			x.u.fail("Staging config for %s: %v", svc, err)
+			x.u.Fail("Staging config for %s: %v", svc, err)
 			return "", false
 		}
 	}
 	// The collector's config is launcher-owned, not a KB copy; the variant
 	// follows --observe (traces → Jaeger or nop).
 	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, traces)), 0o644); err != nil {
-		x.u.fail("Staging the collector config: %v", err)
+		x.u.Fail("Staging the collector config: %v", err)
 		return "", false
 	}
 	if err := os.WriteFile(filepath.Join(stage, "prometheus.yml"), []byte(prometheusConfig(addr)), 0o644); err != nil {
-		x.u.fail("Staging the Prometheus config: %v", err)
+		x.u.Fail("Staging the Prometheus config: %v", err)
 		return "", false
 	}
 	return stage, true
@@ -404,7 +467,7 @@ func (x *liveExec) stageMetrics(addr string) (string, bool) {
 		return "", false
 	}
 	if err := os.WriteFile(filepath.Join(stage, "prometheus.yml"), []byte(prometheusConfig(addr)), 0o644); err != nil {
-		x.u.fail("Staging the Prometheus config: %v", err)
+		x.u.Fail("Staging the Prometheus config: %v", err)
 		return "", false
 	}
 	return stage, true
@@ -419,7 +482,7 @@ func (x *liveExec) stageCollector(addr string) (string, bool) {
 		return "", false
 	}
 	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, httpOK("http://localhost:16686"))), 0o644); err != nil {
-		x.u.fail("Staging the collector config: %v", err)
+		x.u.Fail("Staging the collector config: %v", err)
 		return "", false
 	}
 	return stage, true
@@ -432,29 +495,29 @@ func (x *liveExec) stageOne(svc, configFile, envName, addr string) (string, bool
 	}
 	cfg, err := os.ReadFile(configFile)
 	if err != nil {
-		x.u.fail("Reading %s: %v", configFile, err)
+		x.u.Fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
 	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, envName, addr), 0o644); err != nil {
-		x.u.fail("Staging config for %s: %v", svc, err)
+		x.u.Fail("Staging config for %s: %v", svc, err)
 		return "", false
 	}
 	return stage, true
 }
 
 func (x *liveExec) initStack(root, config, version, addr, stage string) {
-	x.st = &stackState{
+	x.st = &StackState{
 		Runtime: x.rt, KBRoot: root, KBDid: loadKBIdentity(root).didWeb(),
 		Config: config, Version: version,
-		HostAddr: addr, Stage: stage, Services: map[string]serviceState{},
+		HostAddr: addr, Stage: stage, Services: map[string]ServiceState{},
 	}
 }
 
 func (x *liveExec) pull(img string) bool {
 	args := pullArgs(x.rt, img)
-	x.u.echoCmd(x.rt, args...)
+	x.u.EchoCmd(x.rt, args...)
 	if err := runVisible(x.rt, args...); err != nil {
-		x.u.fail("Pull failed: %s", img)
+		x.u.Fail("Pull failed: %s", img)
 		return false
 	}
 	return true
@@ -462,7 +525,7 @@ func (x *liveExec) pull(img string) bool {
 
 func (x *liveExec) runDetached(args []string) (string, bool) {
 	args = withLogOpts(x.rt, args)
-	x.u.echoCmd(x.rt, args...)
+	x.u.EchoCmd(x.rt, args...)
 	id, err := runDetached(x.rt, args...)
 	if err != nil {
 		return "", false
@@ -487,24 +550,24 @@ func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
 }
 
 func (x *liveExec) gatewayReachable(addr string, port int) bool {
-	x.u.log("Verifying gateway reachable from containers...")
+	x.u.Log("Verifying gateway reachable from containers...")
 	t0 := time.Now()
 	for i := 0; i < 20; i++ {
 		if runSilent(x.rt, "run", "--rm", "busybox:1.38.0", "sh", "-c",
 			fmt.Sprintf("wget -q -O- http://%s:%d/api/health", addr, port)) == nil {
-			x.u.ok("Gateway reachable from containers %s", x.u.dim("("+took(time.Since(t0))+")"))
+			x.u.Ok("Gateway reachable from containers %s", x.u.Dim("("+took(time.Since(t0))+")"))
 			return true
 		}
 		time.Sleep(time.Second)
 	}
-	x.u.fail("Gateway not reachable from containers at %s:%d within 20s.", addr, port)
+	x.u.Fail("Gateway not reachable from containers at %s:%d within 20s.", addr, port)
 	return false
 }
 
 func (x *liveExec) resolveAddr() (string, bool) {
 	addr := resolveHostAddr(x.rt)
 	if addr == "" {
-		x.u.fail("Could not determine host address for container networking.")
+		x.u.Fail("Could not determine host address for container networking.")
 		if fixit := daemonDownFixit(x.rt); fixit != "" {
 			fmt.Fprintln(os.Stderr, "  "+fixit)
 		} else {
@@ -550,7 +613,7 @@ func (x *liveExec) otelDetect(addr string) []string {
 	// Probe the COLLECTOR — it owns the port services export to. Its :24110
 	// readout is a plain 200 when up; the OTLP receiver rejects GETs.
 	if httpOK("http://localhost:24110/metrics") {
-		x.u.log("OTel collector detected — export enabled")
+		x.u.Log("OTel collector detected — export enabled")
 		return otelArgs(addr)
 	}
 	return nil
@@ -588,7 +651,7 @@ func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
 	}
 	p := filepath.Join(stage, "nats-semiont.conf")
 	if err := os.WriteFile(p, doc, 0o644); err != nil {
-		x.u.fail("Cannot stage the broker config at %s: %v", p, err)
+		x.u.Fail("Cannot stage the broker config at %s: %v", p, err)
 		return "", false
 	}
 	return p, true
@@ -601,7 +664,7 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 	}
 	p := filepath.Join(stage, "keycloak-"+realm+"-realm.json")
 	if err := os.WriteFile(p, doc, 0o644); err != nil {
-		x.u.fail("Staging the Keycloak realm: %v", err)
+		x.u.Fail("Staging the Keycloak realm: %v", err)
 		return "", false
 	}
 	return p, true
@@ -619,20 +682,20 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
 	args := []string{"exec", "-i", roles["database"].container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
-	x.u.echoCmd(x.rt, args...)
+	x.u.EchoCmd(x.rt, args...)
 	var err error
 	var out string
 	for i := 0; i < 5; i++ {
 		if out, err = runWithStdinCaptured(x.rt, sql, args...); err == nil {
-			x.u.ok("PostgreSQL has database %q", name)
+			x.u.Ok("PostgreSQL has database %q", name)
 			return true
 		}
 		if i == 0 {
-			x.u.log("PostgreSQL is still settling — retrying %s", x.u.dim("(a first start finishes initdb after the port opens)"))
+			x.u.Log("PostgreSQL is still settling — retrying %s", x.u.Dim("(a first start finishes initdb after the port opens)"))
 		}
 		time.Sleep(time.Second)
 	}
-	x.u.fail("Creating database %q on PostgreSQL: %v", name, err)
+	x.u.Fail("Creating database %q on PostgreSQL: %v", name, err)
 	if s := strings.TrimSpace(out); s != "" {
 		fmt.Fprintln(os.Stderr, indentLines(s, "    "))
 	}
@@ -647,9 +710,9 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 	if x.st == nil { // --service mode: load, or create with full metadata
 		x.st = loadLocalState()
 		if x.st == nil {
-			x.st = &stackState{
+			x.st = &StackState{
 				Runtime: x.rt, KBRoot: x.root, KBDid: loadKBIdentity(x.root).didWeb(),
-				Version: x.version, Services: map[string]serviceState{},
+				Version: x.version, Services: map[string]ServiceState{},
 			}
 		}
 	}
@@ -698,7 +761,7 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	}
 	listed, found := fetchAnthropicModels(base, key)
 	if !found {
-		x.u.log("Model metadata: %s", x.u.dim("("+base+"/v1/models did not answer — skipping; status will show plain 'remote')"))
+		x.u.Log("Model metadata: %s", x.u.Dim("("+base+"/v1/models did not answer — skipping; status will show plain 'remote')"))
 		return
 	}
 	metas := map[string]remoteModelMeta{}
@@ -708,7 +771,7 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 			continue
 		}
 		metas[m] = remoteModelMeta{Available: false}
-		x.u.warn("Model %s is not listed for this API key — withdrawn, or a typo'd id? Jobs bound to it will fail.", m)
+		x.u.Warn("Model %s is not listed for this API key — withdrawn, or a typo'd id? Jobs bound to it will fail.", m)
 	}
 	e, ok := x.st.Services[role]
 	if !ok {
@@ -736,7 +799,7 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 // sync, reload — which is the order the message asks for.
 func (x *liveExec) preflightBrowserMove(issuerBase string, port int) bool {
 	if f, bad := verifyBrowserRedirect(issuerBase, port); bad {
-		x.u.fail("The realm will not redirect to the port this Browser is being moved to.")
+		x.u.Fail("The realm will not redirect to the port this Browser is being moved to.")
 		fmt.Fprintln(os.Stderr, "  "+f.String())
 		return false
 	}
@@ -758,7 +821,7 @@ func (x *liveExec) preflightBrowserMove(issuerBase string, port int) bool {
 func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool {
 	findings, observedLifespan := verifyServiceAccounts(issuerBase, audience, secrets)
 	if len(findings) > 0 {
-		x.u.fail("The issuer does not honour the service-account credentials this start would inject.")
+		x.u.Fail("The issuer does not honour the service-account credentials this start would inject.")
 		for _, f := range findings {
 			fmt.Fprintln(os.Stderr, "  "+f.String())
 		}
@@ -772,11 +835,11 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		// start again; the half that DETECTS the problem used to stop at
 		// naming a verb and leave the sequence to be inferred.
 		if managed {
-			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.bold("semiont identity sync"))
-			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("Adds the missing clients and reconciles an existing one's roles mapper. Touches no accounts."))
+			fmt.Fprintf(os.Stderr, "  Fix it:  %s\n", x.u.Bold("semiont identity sync"))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("Adds the missing clients and reconciles an existing one's roles mapper. Touches no accounts."))
 			fmt.Fprintln(os.Stderr, "")
-			fmt.Fprintf(os.Stderr, "  Then:    %s\n", x.u.bold("semiont start"))
-			fmt.Fprintf(os.Stderr, "           %s\n", x.u.dim("This start again, which will then get past this gate."))
+			fmt.Fprintf(os.Stderr, "  Then:    %s\n", x.u.Bold("semiont start"))
+			fmt.Fprintf(os.Stderr, "           %s\n", x.u.Dim("This start again, which will then get past this gate."))
 			fmt.Fprintln(os.Stderr, "")
 			// The case sync cannot repair, said plainly rather than left for
 			// the operator to discover by looping. On a client that already
@@ -795,11 +858,11 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		fmt.Fprintln(os.Stderr, "  This issuer is one you run, so its clients are yours to create.")
 		fmt.Fprintln(os.Stderr, "  For each client named above: create it, enable the client-credentials grant,")
 		fmt.Fprintf(os.Stderr, "  and supply its secret as %s — for example %s\n",
-			x.u.bold("SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>"),
+			x.u.Bold("SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>"),
 			serviceClientSecretEnv(findings[0].svc)+" for "+serviceClientID(findings[0].svc)+".")
 		return false
 	}
-	x.u.log("Service accounts: %s", x.u.dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))
+	x.u.Log("Service accounts: %s", x.u.Dim(fmt.Sprintf("%d verified at the realm", len(serviceClients))))
 
 	// The realm imports on FIRST BOOT and never again, so a knowledge base can
 	// configure a revocation window its realm has never heard of and nothing
@@ -807,7 +870,7 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 	// stamps, which is the only reading available without administrator
 	// credentials — see tokenLifespan.
 	if wantLifespan > 0 && observedLifespan > 0 && observedLifespan != wantLifespan {
-		x.u.warn("This realm mints access tokens that live %ds, but the config asks for %ds.", observedLifespan, wantLifespan)
+		x.u.Warn("This realm mints access tokens that live %ds, but the config asks for %ds.", observedLifespan, wantLifespan)
 		fmt.Fprintln(os.Stderr, "    A realm is imported once, on its first boot — a lifespan changed afterwards does")
 		fmt.Fprintln(os.Stderr, "    not reach it. The revocation window in force is the realm's, not the config's.")
 		fmt.Fprintln(os.Stderr, "    Change it in the Keycloak console, or `semiont clean --store database` and start again.")
@@ -820,13 +883,13 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 	var blocking []publicClientFinding
 	for _, f := range public {
 		if f.warnOnly {
-			x.u.warn("%s", f.String())
+			x.u.Warn("%s", f.String())
 			continue
 		}
 		blocking = append(blocking, f)
 	}
 	if len(blocking) > 0 {
-		x.u.fail("The issuer would not let anyone sign in to this knowledge base.")
+		x.u.Fail("The issuer would not let anyone sign in to this knowledge base.")
 		for _, f := range blocking {
 			fmt.Fprintln(os.Stderr, "  "+f.String())
 		}
@@ -836,7 +899,7 @@ func (x *liveExec) preflightIdentity(issuerBase, audience string, secrets map[st
 		fmt.Fprintln(os.Stderr, "  nobody could open the knowledge base.")
 		return false
 	}
-	x.u.log("Sign-in clients: %s", x.u.dim(browserClientID+" and "+cliClientID+" verified at the realm"))
+	x.u.Log("Sign-in clients: %s", x.u.Dim(browserClientID+" and "+CliClientID+" verified at the realm"))
 	return true
 }
 
@@ -904,12 +967,12 @@ func (x *liveExec) browserCurrent(desired string) bool {
 	return strings.TrimSpace(idOut) == runningID
 }
 
-func (x *liveExec) browserRecord() *serviceState {
-	return loadStackSet().Browser
+func (x *liveExec) browserRecord() *ServiceState {
+	return LoadStackSet().Browser
 }
 
 func (x *liveExec) recordBrowser(id, img, version string, port int) {
-	saveBrowser(&serviceState{
+	saveBrowser(&ServiceState{
 		Container: "semiont-browser", ID: id, Image: img, Provided: providedLauncher,
 		Runtime: x.rt, Endpoint: fmt.Sprintf("http://localhost:%d", port),
 		StartedAt: time.Now().UTC(),
@@ -936,14 +999,14 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 	}
 	if storeDirNonEmpty(sd) {
 		if !spec.projection {
-			x.u.fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
+			x.u.Fail("%s state at %s was written by %s; this config launches %s.", role, sd, prev, image)
 			fmt.Fprintln(os.Stderr, "  That data is not auto-deleted. Remove it first: semiont clean --store "+role)
 			return false
 		}
-		x.u.log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
+		x.u.Log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
 			role, sd, prev, image)
 		if err := clearStoreContents(sd); err != nil {
-			x.u.fail("cannot clear %s state %s: %v", role, sd, err)
+			x.u.Fail("cannot clear %s state %s: %v", role, sd, err)
 			return false
 		}
 	}
@@ -1001,14 +1064,14 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	for _, m := range spec.mounts {
 		mp := filepath.Join(sd, m.sub)
 		if err := os.MkdirAll(mp, 0o755); err != nil {
-			x.u.fail("cannot create state dir %s: %v", mp, err)
+			x.u.Fail("cannot create state dir %s: %v", mp, err)
 			return nil, false
 		}
 		if spec.mode != 0 {
 			// MkdirAll perms pass through the umask; the virtiofs gate needs
 			// the literal mode, so stamp it explicitly.
 			if err := os.Chmod(mp, spec.mode); err != nil {
-				x.u.fail("cannot chmod state dir %s: %v", mp, err)
+				x.u.Fail("cannot chmod state dir %s: %v", mp, err)
 				return nil, false
 			}
 		}
@@ -1019,7 +1082,7 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 		// users can't traverse to them. The container never sees the
 		// parent; only the mount dirs cross the boundary.
 		if err := os.Chmod(sd, 0o700); err != nil {
-			x.u.fail("cannot chmod state dir %s: %v", sd, err)
+			x.u.Fail("cannot chmod state dir %s: %v", sd, err)
 			return nil, false
 		}
 	}
@@ -1057,7 +1120,7 @@ func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 	sd := spec.storeDir(root)
 	for _, m := range spec.mounts {
 		if err := os.MkdirAll(filepath.Join(sd, m.sub), 0o755); err != nil {
-			x.u.fail("cannot create state dir %s: %v", filepath.Join(sd, m.sub), err)
+			x.u.Fail("cannot create state dir %s: %v", filepath.Join(sd, m.sub), err)
 			return nil, false
 		}
 	}
@@ -1066,21 +1129,21 @@ func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 
 func (x *liveExec) val(live, _ string) string { return live }
 func (x *liveExec) rtName() string            { return x.rt }
-func (x *liveExec) dim(s string) string       { return x.u.dim(s) }
-func (x *liveExec) bold(s string) string      { return x.u.bold(s) }
+func (x *liveExec) dim(s string) string       { return x.u.Dim(s) }
+func (x *liveExec) bold(s string) string      { return x.u.Bold(s) }
 
-func (x *liveExec) banner(s string) { x.u.banner(s) }
+func (x *liveExec) banner(s string) { x.u.Banner(s) }
 
 func (x *liveExec) say(kind sayKind, format string, a ...any) {
 	switch kind {
 	case sayLog:
-		x.u.log(format, a...)
+		x.u.Log(format, a...)
 	case sayOK:
-		x.u.ok(format, a...)
+		x.u.Ok(format, a...)
 	case sayWarn:
-		x.u.warn(format, a...)
+		x.u.Warn(format, a...)
 	case sayFail:
-		x.u.fail(format, a...)
+		x.u.Fail(format, a...)
 	}
 }
 
@@ -1301,7 +1364,7 @@ func (x *planExec) dumpLogs(string, string) {}
 // --dry-run: the keep-or-restart decision is a runtime fact; either() shows
 // both branches, so these answer neutrally.
 func (x *planExec) browserCurrent(string) bool                { return false }
-func (x *planExec) browserRecord() *serviceState              { return nil }
+func (x *planExec) browserRecord() *ServiceState              { return nil }
 func (x *planExec) recordBrowser(string, string, string, int) {}
 
 // --dry-run reaches for nothing: whether the realm honours a credential is a
@@ -1312,10 +1375,10 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 		x.c("client-credentials grant at %s as %s — require flat `roles` containing %q and `aud` containing %s",
 			issuerBase, serviceClientID(svc), serviceRole, audience)
 	}
-	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, cliClientID)
+	x.c("device authorization at %s as %s — require the grant to be enabled for it", issuerBase, CliClientID)
 	x.c("authorization request at %s as %s — require a redirect to %s", issuerBase, browserClientID, probeRedirect)
 	x.c("the same request carrying NO code challenge — require it to be refused, so PKCE is enforced rather than merely offered")
-	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, browserClientID, cliClientID)
+	x.c("password grant at %s as %s and %s, sending no credential — require both to refuse it", issuerBase, browserClientID, CliClientID)
 	if wantLifespan > 0 {
 		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was imported with another", wantLifespan)
 	}
@@ -1388,14 +1451,14 @@ func probeHostOllama(port int) func() bool {
 // verifyExternal confirms an externally-provided role is reachable at its
 // configured address — the launcher launches nothing but refuses to bring up
 // dependents against a dead dependency.
-func verifyExternal(u *ui, role string, rp rolePlan) bool {
+func verifyExternal(u *UI, role string, rp rolePlan) bool {
 	addr := net.JoinHostPort(rp.Address, fmt.Sprintf("%d", rp.Port))
 	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
 	if err != nil {
-		u.fail("%s is externally provided at %s but unreachable: %v", role, addr, err)
+		u.Fail("%s is externally provided at %s but unreachable: %v", role, addr, err)
 		return false
 	}
 	conn.Close()
-	u.ok("%s — externally provided at %s %s", role, addr, u.dim("(reachable)"))
+	u.Ok("%s — externally provided at %s %s", role, addr, u.Dim("(reachable)"))
 	return true
 }

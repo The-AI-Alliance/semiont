@@ -21,13 +21,13 @@ func TestRealmConfigComesFromTheRunningStack(t *testing.T) {
 
 	// A bare start: stack.json carries the resolved config, roots.json carries
 	// no preference. This is the case that refused.
-	saveStack(&stackState{Runtime: "container", KBRoot: root, Config: "ollama-gemma", Services: map[string]serviceState{}})
+	saveStack(&StackState{Runtime: "container", KBRoot: root, Config: "ollama-gemma", Services: map[string]ServiceState{}})
 	if got := configForRealm(root); got != "ollama-gemma" {
 		t.Errorf("running stack's config = %q, want %q", got, "ollama-gemma")
 	}
 
 	// A stack running against a DIFFERENT root says nothing about this one.
-	saveStack(&stackState{Runtime: "container", KBRoot: t.TempDir(), Config: "anthropic", Services: map[string]serviceState{}})
+	saveStack(&StackState{Runtime: "container", KBRoot: t.TempDir(), Config: "anthropic", Services: map[string]ServiceState{}})
 	if got := configForRealm(root); got != "" {
 		t.Errorf("another root's stack leaked its config: %q", got)
 	}

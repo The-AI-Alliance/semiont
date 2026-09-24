@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	cliClientID = "semiont-cli"
+	CliClientID = "semiont-cli"
 	// offline_access asks for a refresh token that outlives the issuer's
 	// browser session — a CLI session is a once-a-month event, not an
 	// hourly chore.
@@ -71,7 +71,7 @@ func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base 
 		return issuerEndpoints{}, fmt.Errorf("issuer %s: discovery names no token endpoint", issuer)
 	}
 	if ep.DeviceAuthorization == "" {
-		return issuerEndpoints{}, fmt.Errorf("issuer %s offers no device authorization endpoint — semiont login needs the device grant (RFC 8628) enabled for client %s", issuer, cliClientID)
+		return issuerEndpoints{}, fmt.Errorf("issuer %s offers no device authorization endpoint — semiont login needs the device grant (RFC 8628) enabled for client %s", issuer, CliClientID)
 	}
 	return ep, nil
 }
@@ -111,9 +111,9 @@ type tokenResponse struct {
 // Nothing is opened when stdin is not a terminal. `semiont login` runs from
 // scripts, and a CI box either has no browser or should not be sent to one —
 // there the output is what it always was, and the poll starts immediately.
-func promptToOpen(u *ui, da deviceAuthorization, where string, expires time.Duration) {
-	valid := u.dim("(valid " + expires.Round(time.Second).String() + ")")
-	u.log("Your one-time code: %s %s", u.bold(da.UserCode), valid)
+func promptToOpen(u *UI, da deviceAuthorization, where string, expires time.Duration) {
+	valid := u.Dim("(valid " + expires.Round(time.Second).String() + ")")
+	u.Log("Your one-time code: %s %s", u.Bold(da.UserCode), valid)
 
 	short := da.VerificationURI
 	if short == "" {
@@ -123,7 +123,7 @@ func promptToOpen(u *ui, da deviceAuthorization, where string, expires time.Dura
 	// It is what a person needs when the browser does not open, opens on the
 	// wrong machine, or is not where they want to approve — so it must not be
 	// gated on detecting a terminal correctly.
-	u.log("To sign in, open %s and enter it.", u.bold(short))
+	u.Log("To sign in, open %s and enter it.", u.Bold(short))
 
 	if !stdinIsTerminal() {
 		return
@@ -131,7 +131,7 @@ func promptToOpen(u *ui, da deviceAuthorization, where string, expires time.Dura
 	fmt.Fprintf(os.Stderr, "Press Enter to open it in your browser (Ctrl-C to open it yourself)... ")
 	_, _ = bufio.NewReader(os.Stdin).ReadString('\n')
 	if err := openBrowser(where); err != nil {
-		u.warn("Could not open a browser (%v).", err)
+		u.Warn("Could not open a browser (%v).", err)
 	}
 }
 
@@ -174,10 +174,10 @@ func openBrowser(url string) error {
 }
 
 // interval until approval, denial, or expiry.
-func deviceLogin(ctx context.Context, u *ui, ep issuerEndpoints) (tokenResponse, error) {
+func deviceLogin(ctx context.Context, u *UI, ep issuerEndpoints) (tokenResponse, error) {
 	var da deviceAuthorization
 	status, err := postForm(ctx, ep.DeviceAuthorization, url.Values{
-		"client_id": {cliClientID},
+		"client_id": {CliClientID},
 		"scope":     {deviceScope},
 	}, &da)
 	if err != nil {
@@ -195,7 +195,7 @@ func deviceLogin(ctx context.Context, u *ui, ep issuerEndpoints) (tokenResponse,
 		expires = 10 * time.Minute
 	}
 	promptToOpen(u, da, where, expires)
-	u.log("Waiting for approval at the issuer...")
+	u.Log("Waiting for approval at the issuer...")
 
 	interval := time.Duration(da.Interval) * time.Second
 	if interval < time.Second {
@@ -215,7 +215,7 @@ func deviceLogin(ctx context.Context, u *ui, ep issuerEndpoints) (tokenResponse,
 		status, err := postForm(ctx, ep.Token, url.Values{
 			"grant_type":  {deviceGrantType},
 			"device_code": {da.DeviceCode},
-			"client_id":   {cliClientID},
+			"client_id":   {CliClientID},
 		}, &tr)
 		if err != nil {
 			return tokenResponse{}, fmt.Errorf("token request: %w", err)
@@ -243,7 +243,7 @@ func refreshTokens(ctx context.Context, tokenEndpoint, refreshToken string) (tok
 	status, err := postForm(ctx, tokenEndpoint, url.Values{
 		"grant_type":    {"refresh_token"},
 		"refresh_token": {refreshToken},
-		"client_id":     {cliClientID},
+		"client_id":     {CliClientID},
 	}, &tr)
 	if err != nil {
 		return tokenResponse{}, err
@@ -260,7 +260,7 @@ func revokeToken(ctx context.Context, revocationEndpoint, refreshToken string) e
 	status, err := postForm(ctx, revocationEndpoint, url.Values{
 		"token":           {refreshToken},
 		"token_type_hint": {"refresh_token"},
-		"client_id":       {cliClientID},
+		"client_id":       {CliClientID},
 	}, nil)
 	if err != nil {
 		return err

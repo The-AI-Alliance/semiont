@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 import (
 	"encoding/json"
@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bustest"
@@ -21,7 +24,7 @@ import (
 //
 // The suite it replaces takes minutes; this takes microseconds.
 
-// verbFixture puts the on-disk state `verbSession` reads — a recorded local
+// verbFixture puts the on-disk state `VerbSession` reads — a recorded local
 // stack and a stored token — under a temp HOME, so a verb can run without a
 // started stack.
 func verbFixture(t *testing.T) {
@@ -29,15 +32,15 @@ func verbFixture(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	t.Setenv("XDG_STATE_HOME", filepath.Join(home, "state"))
-	dir := stateDir()
+	dir := launcher.StateDir()
 	if dir == "" {
-		t.Fatal("stateDir() is empty under the fixture HOME")
+		t.Fatal("StateDir() is empty under the fixture HOME")
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	ss := &stackSet{Stacks: map[string]*stackState{
-		"local": {Runtime: "container", Services: map[string]serviceState{
+	ss := &launcher.StackSet{Stacks: map[string]*launcher.StackState{
+		"local": {Runtime: "container", Services: map[string]launcher.ServiceState{
 			"gateway": {Endpoint: "http://localhost:4000/api/health"},
 		}},
 	}}
@@ -45,7 +48,7 @@ func verbFixture(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "stack.json"), b, 0o600); err != nil {
 		t.Fatal(err)
 	}
-	toks, _ := json.Marshal(map[string]tokenEntry{"local": {Token: "test-token", Email: "t@example.com"}})
+	toks, _ := json.Marshal(map[string]launcher.TokenEntry{"local": {Token: "test-token", Email: "t@example.com"}})
 	if err := os.WriteFile(filepath.Join(dir, "tokens.json"), toks, 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +58,7 @@ func TestBeckonDrivesTheInjectedTransport(t *testing.T) {
 	verbFixture(t)
 	fake := bustest.NewFake()
 	fake.Subscribers = 2
-	restore := useTransport(func(base, token string) bus.Transport {
+	restore := launcher.UseTransport(func(base, token string) bus.Transport {
 		fake.Base, fake.Token = base, token
 		return fake
 	})
@@ -99,11 +102,11 @@ func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 		verbFixture(t)
 		fake := bustest.NewFake()
 		fake.Subscribers = c.subscribers
-		restore := useTransport(func(base, token string) bus.Transport {
+		restore := launcher.UseTransport(func(base, token string) bus.Transport {
 			fake.Base, fake.Token = base, token
 			return fake
 		})
-		out := captureStdout(t, func() {
+		out := harness.CaptureStdout(t, func() {
 			if code := Beckon([]string{"--resource", "res-1", "--annotation", "ann-2"}); code != 0 {
 				t.Fatalf("beckon: exit %d", code)
 			}
@@ -118,54 +121,8 @@ func TestBeckonReportsTheTransportsSubscriberCount(t *testing.T) {
 // captureOutput runs fn with both standard streams redirected and returns what
 // each received. Verbs print results to stdout and refusals to stderr, so a
 // helper that saw only one would silently miss half the behaviour under test.
-func captureOutput(t *testing.T, fn func()) (stdout, stderr string) {
-	t.Helper()
-	oldOut, oldErr := os.Stdout, os.Stderr
-	rOut, wOut, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	rErr, wErr, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	os.Stdout, os.Stderr = wOut, wErr
-	drain := func(r *os.File, out chan<- string) {
-		var sb strings.Builder
-		buf := make([]byte, 4096)
-		for {
-			n, err := r.Read(buf)
-			sb.Write(buf[:n])
-			if err != nil {
-				break
-			}
-		}
-		out <- sb.String()
-	}
-	outCh, errCh := make(chan string, 1), make(chan string, 1)
-	go drain(rOut, outCh)
-	go drain(rErr, errCh)
-	fn()
-	wOut.Close()
-	wErr.Close()
-	os.Stdout, os.Stderr = oldOut, oldErr
-	return <-outCh, <-errCh
-}
 
-// captureStdout is the stdout-only convenience the earlier tests read better with.
-func captureStdout(t *testing.T, fn func()) string {
-	t.Helper()
-	out, _ := captureOutput(t, fn)
-	return out
-}
+// harness.CaptureStdout is the stdout-only convenience the earlier tests read better with.
 
 // mustContainAll is the in-process twin of the black-box suite's mustContain
 // (that one lives in package launcher_test and is not importable here).
-func mustContainAll(t *testing.T, label, haystack string, needles ...string) {
-	t.Helper()
-	for _, n := range needles {
-		if !strings.Contains(haystack, n) {
-			t.Errorf("%s missing %q; full text:\n%s", label, n, haystack)
-		}
-	}
-}
