@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 /**
- * Two questions about the stylesheet set that no single-file linter can answer:
- * is each class defined in ONE file, and is it rendered by any markup?
+ * Three questions about the stylesheet set that no single-file linter can
+ * answer: is each class defined in ONE file, is it rendered by any markup, and
+ * — the reverse — does each class the markup renders actually HAVE any CSS?
+ *
+ * The third was added 2026-09-24 after `/auth/error` was found rendering as
+ * unstyled text on the page background, very nearly invisible in dark mode.
+ * `AuthErrorDisplay` had referred to seven classes that existed in no
+ * stylesheet since #401 moved this package off Tailwind — eight months, with a
+ * green build the whole time, because a gate that only looks for CSS nobody
+ * renders is blind to markup nobody styles. 87 more such classes were found
+ * alongside it.
  *
  * BOTH ARE ENFORCED AGAINST A BASELINE, not against zero. The first run found
  * debt this plan did not create: 36 classes with a bare rule in two files, and
@@ -54,8 +63,8 @@ const ALLOWLIST = new Map([
  */
 const BASELINE_PATH = path.join(__dirname, 'css-classes-baseline.json');
 const baseline = fs.existsSync(BASELINE_PATH)
-  ? JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8'))
-  : { duplicated: [], unrendered: [] };
+  ? { unstyled: [], ...JSON.parse(fs.readFileSync(BASELINE_PATH, 'utf8')) }
+  : { duplicated: [], unrendered: [], unstyled: [] };
 
 function walk(dir, ext, out = []) {
   if (!fs.existsSync(dir)) return out;
@@ -126,10 +135,61 @@ for (const root of CSS_ROOTS) {
   }
 }
 
-// Everything the markup could possibly emit, as one haystack.
+// Everything the markup could possibly emit, as one haystack — plus a record
+// of which file each name came from, so the reverse check can name the site.
+const RENDERED = /semiont-[a-zA-Z0-9_-]+/g;
+
+/**
+ * The `semiont-` names in a source file that are actually CLASSES.
+ *
+ * A bare scan cannot be used here. The prefix is also worn by CSS custom
+ * properties (`--semiont-color-primary-500`), localStorage keys
+ * (`semiont-toolbar-click`, `semiont-panel-width`) and assorted identifiers —
+ * none of which any stylesheet should define. Reporting those as "unstyled"
+ * would bury the real finding under ~25 entries that can never be fixed, which
+ * is how a gate teaches people to ignore it.
+ *
+ * Note the asymmetry with the `unrendered` check above: there, being loose is
+ * permissive (it spares a class from being called dead). Here, being loose
+ * ACCUSES. So this side has to be strict.
+ */
+function classNamesIn(source) {
+  const names = new Set();
+  // In a className position: `className="a b"`, `className={cn('a', x)}`,
+  // `` className={`a ${b}`} ``. A window, because the expression forms vary.
+  for (const at of source.matchAll(/className/g)) {
+    const window = source.slice(at.index, at.index + 200);
+    for (const t of window.matchAll(RENDERED)) {
+      // `--semiont-x` is a custom property, not a class.
+      if (window[t.index - 1] === '-') continue;
+      // `semiont-badge-${kind}` is a concatenation PREFIX, not a class.
+      if (window.startsWith('${', t.index + t[0].length)) continue;
+      // A name touching the window's edge was CUT by it: the window is a fixed
+      // slice, so a class straddling the boundary yields a fragment
+      // (`semiont-error-boun`) that no stylesheet could ever define. Dropping
+      // these loses a class ending exactly at the edge, which is the right way
+      // to be wrong for a check that accuses.
+      if (t.index + t[0].length >= window.length) continue;
+      names.add(t[0]);
+    }
+  }
+  // Selector form — `querySelector('.semiont-x')`, `closest('.semiont-x')`.
+  // A literal dot before the prefix is unambiguous: no valid JS reads a
+  // property with a hyphen in it.
+  for (const m of source.matchAll(/\.(semiont-[a-zA-Z0-9_-]+)/g)) names.add(m[1]);
+  return names;
+}
 let markup = '';
+const renderedIn = new Map(); // class -> Set<file>
 for (const root of MARKUP_ROOTS) {
-  for (const file of walk(root, ['.tsx', '.ts'])) markup += fs.readFileSync(file, 'utf8');
+  for (const file of walk(root, ['.tsx', '.ts'])) {
+    const source = fs.readFileSync(file, 'utf8');
+    markup += source;
+    for (const cls of classNamesIn(source)) {
+      if (!renderedIn.has(cls)) renderedIn.set(cls, new Set());
+      renderedIn.get(cls).add(file);
+    }
+  }
 }
 
 const duplicated = [];
@@ -148,11 +208,25 @@ for (const [cls, files] of [...mentioned].sort()) {
   if (!literal && !built) unrendered.push([cls, [...files]]);
 }
 
+/**
+ * The reverse of `unrendered`: markup names a class, no stylesheet mentions it.
+ * `mentioned` is the right denominator — a class styled only inside an
+ * `@media` block is still styled, just conditionally.
+ */
+const unstyled = [];
+for (const [cls, files] of [...renderedIn].sort()) {
+  if (ALLOWLIST.has(cls)) continue;
+  if (mentioned.has(cls)) continue;
+  unstyled.push([cls, [...files]]);
+}
+
 const known = (list, cls) => list.includes(cls);
 const newDuplicates = duplicated.filter(([cls]) => !known(baseline.duplicated, cls));
 const newUnrendered = unrendered.filter(([cls]) => !known(baseline.unrendered, cls));
+const newUnstyled = unstyled.filter(([cls]) => !known(baseline.unstyled, cls));
 const fixedDuplicates = baseline.duplicated.filter((c) => !duplicated.some(([cls]) => cls === c));
 const fixedUnrendered = baseline.unrendered.filter((c) => !unrendered.some(([cls]) => cls === c));
+const fixedUnstyled = baseline.unstyled.filter((c) => !unstyled.some(([cls]) => cls === c));
 
 let failed = false;
 if (newDuplicates.length) {
@@ -161,13 +235,14 @@ if (newDuplicates.length) {
   for (const [cls, files] of newDuplicates) console.error(`  .${cls}\n      ${files.join('\n      ')}`);
   console.error('\n  One file owns a class. Delete the copies, or qualify the variant.');
 }
-if (fixedDuplicates.length || fixedUnrendered.length) {
+if (fixedDuplicates.length || fixedUnrendered.length || fixedUnstyled.length) {
   failed = true;
   console.error(
-    `\n✖ ${fixedDuplicates.length + fixedUnrendered.length} baseline entr(ies) are now clean — ` +
+    `\n✖ ${fixedDuplicates.length + fixedUnrendered.length + fixedUnstyled.length} baseline ` +
+    'entr(ies) are now clean — ' +
     'delete them from scripts/lint/css-classes-baseline.json so they cannot come back:\n',
   );
-  for (const c of [...fixedDuplicates, ...fixedUnrendered]) console.error(`  .${c}`);
+  for (const c of [...fixedDuplicates, ...fixedUnrendered, ...fixedUnstyled]) console.error(`  .${c}`);
 }
 if (newUnrendered.length) {
   failed = true;
@@ -175,18 +250,49 @@ if (newUnrendered.length) {
   for (const [cls, files] of newUnrendered) console.error(`  .${cls}\n      ${files.join('\n      ')}`);
   console.error('\n  Delete the rules, or add the class to ALLOWLIST here with the reason.');
 }
-if (process.argv.includes('--debt')) {
-  console.error(`\nBaseline debt: ${duplicated.length} duplicated, ${unrendered.length} unrendered`);
-  for (const [cls, files] of [...duplicated, ...unrendered]) console.error(`  .${cls}  (${files.join(', ')})`);
+if (newUnstyled.length) {
+  failed = true;
+  console.error(`\n✖ ${newUnstyled.length} NEW class(es) rendered by markup but styled nowhere:\n`);
+  for (const [cls, files] of newUnstyled) console.error(`  .${cls}\n      ${files.join('\n      ')}`);
+  console.error(
+    '\n  The markup refers to nothing: the element renders unstyled, which on a\n' +
+    '  themed background can mean invisible. Write the rule, or fix the name.',
+  );
 }
+if (process.argv.includes('--debt')) {
+  console.error(
+    `\nBaseline debt: ${duplicated.length} duplicated, ${unrendered.length} unrendered, ` +
+    `${unstyled.length} unstyled`,
+  );
+  for (const [cls, files] of [...duplicated, ...unrendered, ...unstyled]) {
+    console.error(`  .${cls}  (${files.join(', ')})`);
+  }
+}
+if (process.argv.includes('--write-baseline')) {
+  fs.writeFileSync(BASELINE_PATH, `${JSON.stringify({
+    // Carried forward, not regenerated: the note records WHEN and WHY each
+    // tranche was frozen, which a rewrite would silently discard.
+    _note: baseline._note,
+    _note_unstyled: baseline._note_unstyled
+      ?? 'Unstyled debt frozen 2026-09-24: markup naming classes no stylesheet defines, '
+         + 'found when /auth/error rendered invisible. Entries may only be REMOVED.',
+    duplicated: duplicated.map(([cls]) => cls),
+    unrendered: unrendered.map(([cls]) => cls),
+    unstyled: unstyled.map(([cls]) => cls),
+  }, null, 2)}\n`);
+  console.log(`Wrote baseline: ${duplicated.length} duplicated, ${unrendered.length} unrendered, ${unstyled.length} unstyled`);
+  process.exit(0);
+}
+
 if (failed) process.exit(1);
 
 console.log(
   `✅ no new CSS-class debt (${definedIn.size} classes defined, ${mentioned.size} styled)`,
 );
-if (duplicated.length || unrendered.length) {
+if (duplicated.length || unrendered.length || unstyled.length) {
   console.log(
-    `   carrying ${duplicated.length} duplicated + ${unrendered.length} unrendered from the ` +
-    'baseline — run with --debt to list, see .plans/CLEAN-PROGRESS.md',
+    `   carrying ${duplicated.length} duplicated + ${unrendered.length} unrendered + ` +
+    `${unstyled.length} unstyled from the baseline — run with --debt to list, ` +
+    'see .plans/CLEAN-PROGRESS.md',
   );
 }
