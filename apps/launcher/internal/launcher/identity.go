@@ -193,8 +193,9 @@ func serviceAccountClient(svc, secret, audience string) map[string]any {
 //
 // Import SKIPS a realm that already exists, so a second start changes nothing —
 // including the values here. A deployment whose realm predates a change to this
-// function keeps the settings it was created with; adjusting those is a console
-// or admin-API job, not a restart.
+// function keeps the settings it was created with; `semiont identity sync`
+// reconciles clients, roles, redirect URIs and lifetime, and the rest is a
+// console or admin-API job, not a restart.
 // browserClient / cliClient: the two PUBLIC registrations, rendered once so
 // the realm import and `semiont identity sync` cannot disagree about them.
 // They were inline in keycloakRealmJSON until sync needed to reconcile the
@@ -312,17 +313,19 @@ func keycloakRealmJSON(realm, audience, addr string, accessTokenLifespan int, si
 // `firstName` and `lastName` are required, so a person an administrator created
 // an account for NAMES THEMSELVES at first login — Keycloak collects both before
 // it lets them through. That is deliberate: Keycloak composes the `name` claim
-// from these two, and that claim is what every event a person authors carries.
-// The alternative is an administrator typing one string that something then has
-// to split, and splitting a display name on a space gets "Mary Jane" and
-// "van der Berg" wrong. Nobody here is willing to guess, so the person says.
+// from these two — the display name the gateway carries and the Browser shows.
+// Identity is the DID, built from the `[identity] subjectClaim` claim; a name
+// never is. The alternative is an administrator typing one string that
+// something then has to split, and splitting a display name on a space gets
+// "Mary Jane" and "van der Berg" wrong. Nobody here is willing to guess, so
+// the person says.
 //
 // This is Keycloak's own default written out, so it changes nothing today. It is
 // pinned for the reason keycloakAccessTokenLifespan is: inherited, the first-run
 // experience moves with a Keycloak upgrade and differs on any other issuer, with
 // no line to read back. An operator federating a different issuer owes Semiont
-// only `email` — the gateway refuses a token carrying none, or carrying
-// `email_verified` false.
+// the `subjectClaim` claim and an `email` — the gateway refuses a token lacking
+// either, or carrying `email_verified` false.
 func keycloakUserProfile() string {
 	attribute := func(name string, required bool, validations map[string]any) map[string]any {
 		a := map[string]any{

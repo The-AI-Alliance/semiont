@@ -119,8 +119,8 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway.
 the device grant: it prints a URL, the person approves in any browser, and the session comes
 back live. `SemiontSession` owns the token lifecycle (proactive refresh at the issuer, storage,
 disposal); `kb.id` is the storage key, so distinct scripts use distinct ids. There is no
-client-level signIn: the access token lives ten minutes, so a construction without refresh
-was a trap rather than a shortcut.
+client-level signIn: the issuer decides how long an access token lives and it is short — minutes,
+not hours — so a construction without refresh was a trap rather than a shortcut.
 
 ```ts
 import { SemiontSession, InMemorySessionStorage, httpKb } from '@semiont/sdk';

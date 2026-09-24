@@ -6,6 +6,20 @@ import (
 	"strings"
 )
 
+// useraddHint renders the "run this next" command a successful start prints.
+// Every such line is BUILT here rather than typed at the call site, because
+// the typed ones drifted: both summaries advertised `--admin` for as long as
+// that flag had been gone (roles went with the issuer), so a fresh install's
+// first instruction was a command useradd refuses. A flag that does not exist
+// cannot be spelled in one place any more.
+func useraddHint(repo string) string {
+	cmd := "semiont useradd"
+	if repo != "" {
+		cmd += " --repo " + repo
+	}
+	return cmd + " --email <email>"
+}
+
 const useraddUsage = `Usage: semiont useradd --email <email> [--generate-password] [options]
 
 Create or update a user in a Semiont stack, local or codespace. The ISSUER holds

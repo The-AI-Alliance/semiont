@@ -66,6 +66,17 @@ Its startup contract is strict, and each unmet requirement throws:
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
+### `semiont start` refuses at the identity preflight
+
+The realm is imported on first boot and never again, so one an older `semiont` created lacks the clients or roles a newer one needs. The preflight refuses rather than start services that cannot authenticate, and names the fix:
+
+```bash
+semiont identity sync   # adds missing clients, reconciles roles, redirects, lifetime; touches no secret or account
+semiont start
+```
+
+Needs the bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one persisted for this root). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
+
 ### Workers, smelter, or weaver never pick up work
 
 These three authenticate at the knowledge base's issuer as their own service accounts (client credentials), then exchange that issuer token at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. Either leg can fail and leave them idle: the issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, or a realm that never imported the client), or the gateway may refuse the exchange because the token carries no `semiont-service` role in its flat `roles` claim.
@@ -74,7 +85,7 @@ These three authenticate at the knowledge base's issuer as their own service acc
 semiont logs --service worker | grep -iE "token|auth|oidc|client"
 ```
 
-`semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client up front rather than leaving you to find it here.
+`semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client — and [the repair](#semiont-start-refuses-at-the-identity-preflight) — up front.
 
 A service restarted with `semiont start --service worker` reads the same per-root credential the full start wrote, so it rejoins with nothing to recover. One started by hand must be given its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 

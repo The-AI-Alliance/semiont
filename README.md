@@ -46,6 +46,8 @@ semiont start
 
 One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service browser` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
+**Started this KB with an older `semiont`?** The realm is imported once, on first boot. If `semiont start` refuses at the identity preflight, run `semiont identity sync`, then `semiont start` again.
+
 ### 4. Connect
 
 Create your first user. A fresh stack has none — the account is created at the knowledge base's identity provider, which is what Semiont trusts to authenticate people:
@@ -56,7 +58,7 @@ semiont useradd --email admin@example.com   # prompts for the password
 
 Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. Sign-in happens at the identity provider, not at Semiont, so you'll be handed to its page and back. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
 
-**First sign-in asks for your first and last name.** That's deliberate: the identity provider composes your display name from them, and that name is what every annotation and resource you create is attributed to. Semiont never guesses it from your email.
+**First sign-in asks for your first and last name.** The identity provider composes your display name from them; the browser shows it for your account. Your work is attributed to your identity — a DID built from the provider's stable subject, never from your email.
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 
@@ -70,6 +72,15 @@ semiont start --service browser --port 3001   # 3000 busy? move the browser
 For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
 
 ## Automate
+
+Your shell is the shortest way in — the launcher speaks the same verbs:
+
+```bash
+semiont login          # approve in a browser; only tokens come back
+semiont browse --help  # then any of the eight verbs
+```
+
+No password reaches the launcher, and the session renews itself; `semiont logout` ends it. It is the CLI's own session — an SDK app signs in separately.
 
 Everything the browser does travels over one event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it — a type-safe TypeScript client whose namespaces are the **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark, frame, gather, match, beckon. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
 

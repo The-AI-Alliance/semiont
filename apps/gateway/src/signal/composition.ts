@@ -27,7 +27,6 @@
  * here opaque.
  */
 import type { EventBus } from '@semiont/core';
-import { registerCorrelationRegistryProvider } from '@semiont/observability';
 import { CORRELATED_CHANNELS } from './channels';
 import { createInProcessSignalPlane } from './in-process';
 import type { SignalPlane } from './interface';
@@ -44,7 +43,7 @@ export interface SignalComposition {
    *  entitlement gate, and this file stays clear of the correlation
    *  vocabulary the P0.5 census bans on the plane side. */
   mayDeliver: CorrelationRegistry['mayDeliver'];
-  occupancy(): { claims: number; retainedReplies: number };
+  occupancy: CorrelationRegistry['occupancy'];
   dispose(): void;
 }
 
@@ -73,11 +72,6 @@ export function compositionFor(eventBus: EventBus, plane?: SignalPlane): SignalC
       else ledger.observe(channel, payload, envelope.meta);
     },
   });
-
-  // Occupancy is the closest observable to the heap question two OOM
-  // investigations keep asking: a retained browse result is 1-2 MB and up
-  // to REPLY_RETENTION_MAX of them are held at once.
-  registerCorrelationRegistryProvider(() => ledger.occupancy());
 
   const composition: SignalComposition = {
     plane: composedPlane,

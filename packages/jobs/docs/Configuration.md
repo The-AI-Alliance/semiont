@@ -117,10 +117,12 @@ The worker process handles its own `SIGTERM`/`SIGINT` — disposing each agent's
 
 ### Job Cleanup
 
-Retention is automatic: `initialize()` starts an hourly sweep that deletes completed/failed/cancelled jobs older than 24 hours. For ad-hoc pruning with a different window, call `cleanupOldJobs` directly:
+Retention is automatic in both drivers: `initialize()` starts an hourly sweep that deletes completed/failed/cancelled jobs older than `TERMINAL_JOB_RETENTION_MS` (24 hours). The window and the sweep cadence are exported from `job-queue-interface.ts` and shared — restated per driver they would drift, and the drift only shows up when two deployments are compared.
+
+For ad-hoc pruning with a different window, call the driver's sweep directly — `cleanupOldJobs` on `FsJobQueue`, `pruneTerminalJobs` on `JetStreamJobQueue`:
 
 ```typescript
-const removed = await queue.cleanupOldJobs(168); // 1 week in hours
+const removed = await queue.cleanupOldJobs(7 * 24 * 60 * 60 * 1000); // 1 week
 ```
 
 ### Health Checks

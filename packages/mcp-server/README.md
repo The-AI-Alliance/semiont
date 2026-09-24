@@ -77,7 +77,7 @@ Both are required — the process exits at startup if either is missing.
 existing account, so a fresh stack needs one created first:
 
 ```bash
-semiont useradd --email you@example.com --admin
+semiont useradd --email you@example.com
 semiont login --email you@example.com     # password read from stdin
 ```
 

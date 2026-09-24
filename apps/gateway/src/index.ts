@@ -432,6 +432,18 @@ if (config.env?.NODE_ENV !== 'test') {
   const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
   registerSupervisorRestartCount();
 
+  // `semiont.bus.correlation.size` — the closest observable to the heap
+  // question two OOM investigations keep asking: a retained browse result is
+  // 1-2 MB and up to REPLY_RETENTION_MAX of them are held at once.
+  //
+  // Registered HERE rather than inside `compositionFor`, which the module
+  // scope above already called: an observable gauge binds the meter that
+  // exists when it is created, and before this init that is the no-op one.
+  // Composing at import time is correct for the ledger's tap and wrong for
+  // its metric, so the two happen where each of them works.
+  const { registerCorrelationRegistryProvider } = await import('@semiont/observability');
+  registerCorrelationRegistryProvider(() => compositionFor(eventBus).occupancy());
+
   // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET and
   // site.domain — without both the process cannot mint or attribute a token,
   // so it must not accept connections.

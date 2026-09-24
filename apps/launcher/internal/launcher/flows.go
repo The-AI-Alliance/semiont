@@ -414,6 +414,11 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				x.dumpLogs(roles["database"].container, "database")
 				return 1
 			}
+			// The port is the runtime's; sessions are the server's.
+			if !x.waitPGAccepting(30) {
+				x.dumpLogs(roles["database"].container, "database")
+				return 1
+			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
 		case "messaging":
@@ -951,6 +956,10 @@ func flowOneService(x executor, fc flowCtx) int {
 			}
 		case "database":
 			if d, ok = x.waitTCP(disp, addr, rp.Port, 20); !ok {
+				x.dumpLogs(roles["database"].container, "database")
+				return 1
+			}
+			if !x.waitPGAccepting(30) {
 				x.dumpLogs(roles["database"].container, "database")
 				return 1
 			}

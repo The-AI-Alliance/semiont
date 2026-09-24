@@ -15,18 +15,17 @@ const observed = vi.hoisted(() => ({
   replySuppressed: vi.fn(),
   resumeGap: vi.fn(),
   unanswerable: vi.fn(),
-  registryProvider: vi.fn(),
 }));
 vi.mock('@semiont/observability', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@semiont/observability')>()),
   recordReplySuppressed: (...args: unknown[]) => observed.replySuppressed(...args),
   recordResumeGap: (...args: unknown[]) => observed.resumeGap(...args),
   recordUnanswerableRequest: (...args: unknown[]) => observed.unanswerable(...args),
-  registerCorrelationRegistryProvider: (p: unknown) => observed.registryProvider(p),
 }));
 
 import { createBusRouter } from '../../routes/bus';
 import { createCorrelationRegistry } from '../../signal/ledger';
+import { compositionFor } from '../../signal';
 import { initializeLogger, getLogger } from '../../logger';
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
@@ -1431,15 +1430,16 @@ describe('bus routes', () => {
       expect(observed.resumeGap.mock.calls[0]?.[0]).toMatch(/last-event-id|scope|replay/);
     });
 
-    it('registers a registry-occupancy provider that reports claims and retained replies', async () => {
-      observed.registryProvider.mockClear();
+    it('reports occupancy — claims, retained replies, and the ceilings they are measured against', async () => {
+      // The composition the ROUTE used, not a hand-built registry: occupancy
+      // is what the gateway's boot feeds `semiont.bus.correlation.size`, and
+      // a private registry would move without the served one moving.
       await subscribe(app, { clientId: 'client-occ', global: ['gather:resource-complete'] });
-      expect(observed.registryProvider).toHaveBeenCalled();
-
-      const provider = observed.registryProvider.mock.calls[0]?.[0] as () => {
-        claims: number; retainedReplies: number;
-      };
-      expect(provider()).toEqual({ claims: 0, retainedReplies: 0 });
+      const provider = () => compositionFor(eventBus).occupancy();
+      expect(provider()).toMatchObject({ claims: 0, retainedReplies: 0 });
+      // The ceilings ride the same snapshot so no reader restates them.
+      expect(provider().claimsMax).toBeGreaterThan(0);
+      expect(provider().retainedRepliesMax).toBeGreaterThan(0);
 
       await app.request('/bus/emit', {
         method: 'POST',

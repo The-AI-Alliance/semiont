@@ -143,8 +143,8 @@ Examples:
   export ANTHROPIC_API_KEY=<your-key>
   semiont start --config anthropic
 
-  # First admin user, once the stack is up
-  semiont useradd --email admin@example.com --admin
+  # First user, once the stack is up
+  semiont useradd --email admin@example.com
 
   # See available configs
   semiont start --list-configs
@@ -1068,7 +1068,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	}
 	fmt.Println("  Metrics readout    http://localhost:24110/metrics")
 	fmt.Println()
-	fmt.Printf("  Add a user:    %s\n", u.bold("semiont useradd --email <email> --admin"))
+	fmt.Printf("  Add a user:    %s\n", u.bold(useraddHint("")))
 	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
 	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
 	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))

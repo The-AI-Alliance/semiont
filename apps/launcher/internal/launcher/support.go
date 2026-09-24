@@ -266,6 +266,29 @@ func runDetached(name string, args ...string) (string, error) {
 // runWithStdin feeds input on stdin and shows stderr — for handing a secret
 // value to a subprocess without it ever appearing in argv (where any process
 // on the machine could read it via ps).
+// runWithStdinCaptured is runWithStdin with the child's output held rather
+// than passed through, for a step that RETRIES: the stderr of an attempt the
+// loop expects to absorb is not a failure the operator needs to read. The
+// caller decides whether to show it.
+func runWithStdinCaptured(name, input string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	cmd.Stdin = strings.NewReader(input)
+	var buf strings.Builder
+	cmd.Stdout, cmd.Stderr = &buf, &buf
+	err := cmd.Run()
+	return buf.String(), err
+}
+
+// indentLines prefixes every line, so captured child output reads as quoted
+// evidence rather than as this program's own words.
+func indentLines(s, prefix string) string {
+	lines := strings.Split(s, "\n")
+	for i, l := range lines {
+		lines[i] = prefix + l
+	}
+	return strings.Join(lines, "\n")
+}
+
 func runWithStdin(name, input string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Stdin = strings.NewReader(input)
@@ -372,6 +395,27 @@ func httpOK(url string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
+// httpBody fetches one body for a host-side read — same client and budget as
+// httpOK, so a status report cannot stall longer on a readout than on any
+// probe. Capped: the collector's readout grows with the stack, and a status
+// command must not be the thing that runs a machine out of memory.
+func httpBody(url string) (string, bool) {
+	resp, err := healthClient.Get(url)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return "", false
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return "", false
+	}
+	return string(b), true
+}
+
 // took renders a wait duration for the ✓ lines.
 func took(d time.Duration) string {
 	if d < time.Second {
@@ -452,10 +496,16 @@ func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed tim
 // waitForTCP waits for a TCP service in two phases. Phase 1 polls the published
 // port from the host — no container spawn per attempt (the old pg_isready-in-
 // a-container loop cost a fresh VM per attempt under Apple Container).
-// Port-open implies ready with the official postgres image: its init-time
-// temporary server listens on the unix socket only, so TCP 5432 opens only
-// when the real server is up. Phase 2 is a single container-side probe
-// confirming the gateway path the services actually dial.
+// Phase 2 is a single container-side probe confirming the gateway path the
+// services actually dial.
+//
+// Port-open does NOT imply ready. This comment used to claim it did, on the
+// grounds that the postgres image's init-time temporary server listens on the
+// unix socket only — true of the SERVER, false of the gate, because the host
+// port belongs to the runtime's mapping and opens when the CONTAINER starts.
+// Measured on Apple container with an empty data dir: the host port answered
+// at 20ms and the real server accepted at 1579ms. Anything that must talk to
+// the database follows this with waitPGAccepting.
 func waitForTCP(u *ui, rt, label, host string, port, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
@@ -483,4 +533,29 @@ func waitForTCP(u *ui, rt, label, host string, port, seconds int) (time.Duration
 		return time.Since(t0), false
 	}
 	return time.Since(t0), true
+}
+
+// waitPGAccepting waits for PostgreSQL to accept SESSIONS, which the port gate
+// above does not prove. On a first start the image runs initdb, and the
+// temporary server it uses for that is started with an empty listen_addresses
+// — socket only — so a TCP probe INSIDE the container cannot be answered by
+// it. That is the whole discriminator: `-h 127.0.0.1` is load-bearing, and a
+// bare pg_isready (the obvious version) would talk to the socket the
+// temporary server does answer.
+//
+// `exec` into the running container, not `run` — the VM already exists, which
+// is what made the old per-attempt `run` loop expensive.
+func waitPGAccepting(u *ui, rt, container string, seconds int) bool {
+	t0 := time.Now()
+	deadline := t0.Add(time.Duration(seconds) * time.Second)
+	for {
+		if runSilent(rt, "exec", container, "pg_isready", "-h", "127.0.0.1", "-q") == nil {
+			return true
+		}
+		if !time.Now().Before(deadline) {
+			u.fail("PostgreSQL opened its port but was not accepting sessions within %ds (waited %s).", seconds, took(time.Since(t0)))
+			return false
+		}
+		time.Sleep(pollDelay(time.Since(t0)))
+	}
 }

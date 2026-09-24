@@ -307,16 +307,17 @@ Stops the maintenance intervals. Call when shutting down.
 queue.destroy();
 ```
 
-### `cleanupOldJobs(retentionHours?: number): Promise<number>`
+### `cleanupOldJobs(retentionMs: number): Promise<number>`
 
-Removes completed, failed, and cancelled jobs older than the retention period. Default: 24 hours.
+Removes completed, failed, and cancelled jobs whose `completedAt` is older than `retentionMs`. Runs automatically on the shared sweep interval with the shared window; the parameter is required, because a default here would be a second copy of `TERMINAL_JOB_RETENTION_MS`.
 
 ```typescript
-// Default 24-hour retention
-const removed = await queue.cleanupOldJobs();
+import { TERMINAL_JOB_RETENTION_MS } from '@semiont/jobs';
+
+const removed = await queue.cleanupOldJobs(TERMINAL_JOB_RETENTION_MS);
 
 // Custom 1-week retention
-const removed = await queue.cleanupOldJobs(168);
+const removed = await queue.cleanupOldJobs(7 * 24 * 60 * 60 * 1000);
 ```
 
 ### `getStats(): Promise<{ pending, running, complete, failed, cancelled }>`
@@ -383,7 +384,7 @@ console.log(`Pending: ${stats.pending}, Running: ${stats.running}, Failed: ${sta
 
 **Directory size limits:**
 - Performance degrades with >1000 jobs per status directory
-- Use `cleanupOldJobs()` for completed/failed/cancelled jobs
+- The hourly retention sweep (`cleanupOldJobs`) keeps completed/failed/cancelled out of the way on its own; call it directly only to prune a different window
 
 **File I/O:**
 - Each `createJob`/`updateJob`/`getJob` reads/writes a JSON file

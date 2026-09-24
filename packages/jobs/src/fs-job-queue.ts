@@ -11,7 +11,7 @@ import * as path from 'path';
 import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, FailedJob, PendingJob, RunningJob } from './types';
 import type { SemiontState } from '@semiont/core/node';
 import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
-import type { JobQueue } from './job-queue-interface';
+import { TERMINAL_JOB_RETENTION_MS, TERMINAL_JOB_SWEEP_INTERVAL_MS, type JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
 
@@ -44,12 +44,6 @@ const STALE_RUNNING_MS = 30 * 60_000;
 
 /** Minimum spacing between progress writes per job — workers can be chatty. */
 const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
-
-/** Terminal jobs (complete/failed/cancelled) are pruned after this long. */
-const RETENTION_HOURS = 24;
-
-/** How often the retention pruning runs. */
-const CLEANUP_INTERVAL_MS = 3_600_000;
 
 export class FsJobQueue implements JobQueue {
   private jobsDir: string;
@@ -106,12 +100,12 @@ export class FsJobQueue implements JobQueue {
 
     if (!this.cleanupTimer) {
       this.cleanupTimer = setInterval(() => {
-        this.cleanupOldJobs(RETENTION_HOURS).catch((error) => {
+        this.cleanupOldJobs(TERMINAL_JOB_RETENTION_MS).catch((error) => {
           this.logger.warn('Job retention cleanup failed', {
             error: error instanceof Error ? error.message : String(error),
           });
         });
-      }, CLEANUP_INTERVAL_MS);
+      }, TERMINAL_JOB_SWEEP_INTERVAL_MS);
       this.cleanupTimer.unref?.();
     }
 
@@ -567,10 +561,13 @@ export class FsJobQueue implements JobQueue {
   }
 
   /**
-   * Clean up old completed/failed jobs (older than retention period)
+   * Delete terminal jobs whose `completedAt` is older than `retentionMs`.
+   * The window is a parameter with no default: the ONE value the queue runs
+   * on is `TERMINAL_JOB_RETENTION_MS`, and a default here would be a second
+   * copy of it that nobody notices going stale.
    */
-  async cleanupOldJobs(retentionHours: number = 24): Promise<number> {
-    const cutoffTime = Date.now() - (retentionHours * 60 * 60 * 1000);
+  async cleanupOldJobs(retentionMs: number): Promise<number> {
+    const cutoffTime = Date.now() - retentionMs;
     let deletedCount = 0;
 
     const cleanupStatuses: JobStatus[] = ['complete', 'failed', 'cancelled'];

@@ -205,7 +205,7 @@ that exactly matches the current branch's source:
 cd ../semiont-template-kb
 ANTHROPIC_API_KEY="$(op read op://OSS/Anthropic/credential)" \
   SEMIONT_VERSION=local semiont start --config anthropic
-echo password | semiont useradd --email admin@example.com --admin
+echo password | semiont useradd --email admin@example.com
 
 # 3. Run the e2e suite (see Quick start above). The stack publishes
 #    :3000 / :4000 / :24100 on the host — reach them from the Playwright

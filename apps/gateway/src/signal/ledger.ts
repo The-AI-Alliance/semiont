@@ -139,8 +139,10 @@ export function createCorrelationRegistry(
   announcementFor(cid: string, clientId: string, principalDid: string | undefined): ClaimAnnouncement;
   /** Per-frame entitlement: may THIS subscriber see THIS unscoped frame? */
   mayDeliver(channel: string, correlationId: string | undefined, clientId: string, principalDid: string | undefined): boolean;
-  /** Live claims and how many of them still hold a reply payload. */
-  occupancy(): { claims: number; retainedReplies: number };
+  /** Live claims and how many of them still hold a reply payload, each with
+   *  the ceiling it is measured against — the ceilings ride along so no
+   *  reader has to restate a number this file owns. */
+  occupancy(): { claims: number; retainedReplies: number; claimsMax: number; retainedRepliesMax: number };
   dispose(): void;
 } {
   const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
@@ -338,7 +340,7 @@ export function createCorrelationRegistry(
     occupancy() {
       let retainedReplies = 0;
       for (const claim of claims.values()) if (claim.reply) retainedReplies++;
-      return { claims: claims.size, retainedReplies };
+      return { claims: claims.size, retainedReplies, claimsMax: claimMaxGlobal, retainedRepliesMax: max };
     },
     dispose() {
       claims.clear();

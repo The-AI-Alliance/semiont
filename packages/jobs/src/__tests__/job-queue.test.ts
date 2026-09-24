@@ -17,6 +17,7 @@ import { promises as fs } from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { FsJobQueue } from '../fs-job-queue';
+import { TERMINAL_JOB_RETENTION_MS } from '../job-queue-interface';
 import type { JobStatus } from '../types';
 import { SemiontProject } from '@semiont/core/node';
 import { jobId, userId, EventBus, type JobId } from '@semiont/core';
@@ -176,7 +177,7 @@ describe('FsJobQueue (driver-specific)', () => {
 
       await jobQueue.createJob(oldJob);
 
-      const deletedCount = await jobQueue.cleanupOldJobs(24); // 24 hour retention
+      const deletedCount = await jobQueue.cleanupOldJobs(TERMINAL_JOB_RETENTION_MS);
 
       expect(deletedCount).toBe(1);
       expect(await jobQueue.getJob(jobId('job-old'))).toBeNull();
@@ -185,7 +186,7 @@ describe('FsJobQueue (driver-specific)', () => {
     test('should not delete recent jobs', async () => {
       await jobQueue.createJob(createCompleteDetectionJob('job-recent'));
 
-      const deletedCount = await jobQueue.cleanupOldJobs(24);
+      const deletedCount = await jobQueue.cleanupOldJobs(TERMINAL_JOB_RETENTION_MS);
 
       expect(deletedCount).toBe(0);
       expect(await jobQueue.getJob(jobId('job-recent'))).not.toBeNull();

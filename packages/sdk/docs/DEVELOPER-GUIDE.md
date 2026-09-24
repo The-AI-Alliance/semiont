@@ -40,8 +40,8 @@ Sign-in happens at the knowledge base's identity provider, never at the gateway:
 `SemiontSession.signInDevice(...)` for a script (the device grant — it prints a URL, the person
 approves in any browser) and `SemiontBrowser.beginSignIn` / `completeSignIn` for a browser app
 (authorization code with PKCE). Both come back as a session that refreshes at the issuer.
-`SemiontClient` has no sign-in of its own: a bare token lives ten minutes with nothing to renew
-it. Already hold an access and refresh pair? `SemiontSession.fromIssuedSession(...)`. A bare
+`SemiontClient` has no sign-in of its own: a bare token lives as long as the issuer says —
+minutes — with nothing to renew it. Already hold an access and refresh pair? `SemiontSession.fromIssuedSession(...)`. A bare
 JWT? The `fromHttp(...)` variants.
 → [Usage § Setup](./Usage.md#setup).
 
