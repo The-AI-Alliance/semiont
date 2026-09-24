@@ -52,8 +52,8 @@ func TestStdinIsNotATerminalUnderTest(t *testing.T) {
 
 // The platform mapping is a fact per OS, not a guess at one.
 func TestOpenBrowserNamesThePlatformCommand(t *testing.T) {
-	for _, goos := range []string{"darwin", "windows", "linux"} {
-		want := map[string]string{"darwin": "open", "windows": "rundll32", "linux": "xdg-open"}[goos]
+	for _, goos := range []string{"darwin", "linux"} {
+		want := map[string]string{"darwin": "open", "linux": "xdg-open"}[goos]
 		if got := browserCommand(goos, "https://x.test"); got[0] != want {
 			t.Errorf("%s: want %q, got %q", goos, want, got[0])
 		}

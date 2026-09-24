@@ -155,15 +155,15 @@ func stdinIsTerminal() bool {
 
 // browserCommand: how one platform opens a URL. Separated from running it so
 // the mapping is a fact a test can read, not a guess compiled into one branch.
+//
+// Two platforms, because the launcher ships for two: .goreleaser.yaml builds
+// darwin and linux, and local-build falls back to linux for anything else. A
+// windows branch lived here and could not run in any shipped binary.
 func browserCommand(goos, url string) []string {
-	switch goos {
-	case "darwin":
+	if goos == "darwin" {
 		return []string{"open", url}
-	case "windows":
-		return []string{"rundll32", "url.dll,FileProtocolHandler", url}
-	default:
-		return []string{"xdg-open", url}
 	}
+	return []string{"xdg-open", url}
 }
 
 // openBrowser hands a URL to whatever the platform uses. Shelled out rather
