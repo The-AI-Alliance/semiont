@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -55,21 +54,41 @@ type ServiceState struct {
 }
 
 type StackState struct {
-	Schema      int                     `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
-	UpdatedAt   time.Time               `json:"updatedAt"`
-	Runtime     string                  `json:"runtime"`
-	KBRoot      string                  `json:"kbRoot,omitempty"`
-	KBDid       string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
-	Config      string                  `json:"config,omitempty"`
-	Version     string                  `json:"imageVersion,omitempty"`
-	HostAddr    string                  `json:"hostAddr,omitempty"`
-	Stage       string                  `json:"configStage,omitempty"`
-	Ports       []int                   `json:"ports,omitempty"`       // host ports this stack claimed — stop verifies their release
-	Codespace   string                  `json:"codespace,omitempty"`   // runtime "codespace": the instance name (a PID — never user input)
-	Repo        string                  `json:"repo,omitempty"`        // runtime "codespace": owner/name slug (the user-facing identity)
-	ForwardPID  int                     `json:"forwardPid,omitempty"`  // runtime "codespace": the detached `gh codespace ports forward`
-	ForwardPort int                     `json:"forwardPort,omitempty"` // runtime "codespace": this stack's local KB port (4000, or allocated above)
-	Services    map[string]ServiceState `json:"services"`
+	Schema    int       `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
+	UpdatedAt time.Time `json:"updatedAt"`
+	Runtime   string    `json:"runtime"`
+	KBRoot    string    `json:"kbRoot,omitempty"`
+	KBDid     string    `json:"kbDid,omitempty"` // did:web from .semiont/config
+	Config    string    `json:"config,omitempty"`
+	Version   string    `json:"imageVersion,omitempty"`
+	HostAddr  string    `json:"hostAddr,omitempty"`
+	Stage     string    `json:"configStage,omitempty"`
+	Ports     []int     `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
+	// Codespace: the placement facts a stack on a codespace has and a local
+	// one cannot. Its PRESENCE is the platform (D5) — there is no separate
+	// platform field to keep in sync with it, and no local stack carrying
+	// four zeroed codespace fields for every reader to test one at a time.
+	Codespace *codespacePlacement     `json:"codespace,omitempty"`
+	Services  map[string]ServiceState `json:"services"`
+}
+
+// codespacePlacement: where a codespace stack is and how this machine
+// reaches it. Runtime stays empty on one of these — compose owns the
+// services inside, so there is no container runtime of ours to name.
+type codespacePlacement struct {
+	Name        string `json:"name"`                  // the instance name (a PID — never user input)
+	Repo        string `json:"repo"`                  // owner/name slug (the user-facing identity)
+	ForwardPID  int    `json:"forwardPid,omitempty"`  // the detached `gh codespace ports forward`
+	ForwardPort int    `json:"forwardPort,omitempty"` // this stack's local KB port (4000, or allocated above)
+}
+
+// platform: derived from the record's shape, never stored beside it. A stack
+// lives on a codespace exactly when it has a placement.
+func (st *StackState) platform() platform {
+	if st.Codespace != nil {
+		return platformCodespace
+	}
+	return platformLocal
 }
 
 // StateDir is the launcher's XDG state home: ~/Library/Application Support/
@@ -116,8 +135,8 @@ type StackSet struct {
 // stackKey: "local" for the machine's one local stack, "codespace:<repo>"
 // per codespace stack (the repo is the user-facing identity there).
 func stackKey(st *StackState) string {
-	if st.Runtime == "codespace" {
-		return "codespace:" + st.Repo
+	if st.Codespace != nil {
+		return "codespace:" + st.Codespace.Repo
 	}
 	return "local"
 }
@@ -174,15 +193,28 @@ func loadLocalState() *StackState {
 	return LoadStackSet().Stacks["local"]
 }
 
+// codespaceStack: the recorded stack for one repo, or nil. The key can only
+// exist for a stack that HAS a placement — stackKey builds the key out of
+// the placement — so a non-nil result always has one, and every caller that
+// goes through here may read it without asking again. This function is where
+// that invariant is stated, instead of at six lookups that each assumed it.
+func codespaceStack(ss *StackSet, repo string) *StackState {
+	st := ss.Stacks["codespace:"+repo]
+	if st == nil || st.Codespace == nil {
+		return nil
+	}
+	return st
+}
+
 // codespaceStacks: every recorded codespace stack, sorted by repo.
 func codespaceStacks(ss *StackSet) []*StackState {
 	var out []*StackState
-	for k, st := range ss.Stacks {
-		if strings.HasPrefix(k, "codespace:") {
+	for _, st := range ss.Stacks {
+		if st.platform() == platformCodespace {
 			out = append(out, st)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Repo < out[j].Repo })
+	sort.Slice(out, func(i, j int) bool { return out[i].Codespace.Repo < out[j].Codespace.Repo })
 	return out
 }
 

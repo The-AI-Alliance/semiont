@@ -33,10 +33,14 @@ func configFreeService(svc string) bool {
 var preflightNames = sweepNames("browser", "inference")
 
 type startOptions struct {
-	configName   string
-	configSet    bool // --config given explicitly (drives --service compatibility)
-	listConfigs  bool
-	cleanOllama  bool
+	configName  string
+	configSet   bool // --config given explicitly (drives --service compatibility)
+	listConfigs bool
+	cleanOllama bool
+	// platform is where the stack lives; runtime is how a container is run
+	// on it, and only `local` has one. `--runtime codespace` sets the first,
+	// every other value the second (D5).
+	platform     platform
 	runtime      string
 	observe      bool
 	noObserveSet bool // --no-observe given explicitly
@@ -172,7 +176,7 @@ func Start(args []string) int {
 	// discovery (the record replaces the clone), no config load, no local
 	// preflight. Explicit --runtime codespace; or, implicitly, a bare start
 	// on a machine whose ONLY recorded stack(s) are codespaces.
-	if opts.runtime == "codespace" {
+	if opts.platform == platformCodespace {
 		return startCodespace(u, opts)
 	}
 	if opts.runtime == "" {
@@ -193,7 +197,7 @@ func Start(args []string) int {
 			if len(cs) > 1 {
 				u.Fail("%d codespace stacks are recorded — say which:", len(cs))
 				for _, c := range cs {
-					fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Repo)
+					fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Codespace.Repo)
 				}
 				return 1
 			}
@@ -204,8 +208,8 @@ func Start(args []string) int {
 			}
 			// Name the stack being resumed: the repo IS the identity, and the
 			// resolution itself lives in startCodespace's ladder.
-			u.Log("Using recorded stack's runtime: %s %s", u.Bold("codespace"),
-				u.Dim("(per "+statePath()+" — "+cs[0].Repo+")"))
+			u.Log("Using recorded stack's platform: %s %s", u.Bold("codespace"),
+				u.Dim("(per "+statePath()+" — "+cs[0].Codespace.Repo+")"))
 			return startCodespace(u, opts)
 		}
 	}
@@ -312,9 +316,7 @@ func Start(args []string) int {
 	// error; a recorded preference that vanished from PATH just falls back.
 	requested, rtSticky := opts.runtime, false
 	if requested == "" {
-		// "codespace" can never be a sticky preference (we never write it);
-		// a hand-edited registry saying so is ignored, not obeyed.
-		if rec := loadRoots().Runtime; rec != "" && rec != "codespace" {
+		if rec := loadRoots().Runtime; rec != "" {
 			if onPath(rec) {
 				requested, rtSticky = rec, true
 			} else if !opts.dryRun { // keep the dry-run seam machine-clean

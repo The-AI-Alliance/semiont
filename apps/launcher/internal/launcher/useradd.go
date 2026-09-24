@@ -267,12 +267,12 @@ func useraddCodespace(u *UI, st *StackState, args []string, password string) int
 	// would print something that behaves differently if pasted: $VARs would
 	// expand and values with spaces would split.
 	remote := remoteUseraddCmd(args, password != "")
-	sshArgs := []string{"codespace", "ssh", "-c", st.Codespace, "--", remote}
-	u.Log("useradd on %s %s", u.Bold(st.Repo), u.Dim("(codespace "+st.Codespace+")"))
-	u.EchoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
+	sshArgs := []string{"codespace", "ssh", "-c", st.Codespace.Name, "--", remote}
+	u.Log("useradd on %s %s", u.Bold(st.Codespace.Repo), u.Dim("(codespace "+st.Codespace.Name+")"))
+	u.EchoCmd("gh", "codespace", "ssh", "-c", st.Codespace.Name, "--", remote)
 	if err := runVisibleWithStdin(password, "gh", sshArgs...); err != nil {
 		u.Fail("useradd failed inside the codespace (see output above).")
-		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Repo)
+		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Codespace.Repo)
 		return 1
 	}
 	return 0

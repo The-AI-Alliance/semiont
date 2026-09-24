@@ -35,7 +35,7 @@ func TestMemCeilingGB(t *testing.T) {
 }
 
 // The sum mirrors what a start actually runs: base services always; infra by
-// obligation; ollama once whichever role provides it; traces with --observe.
+// presence; ollama once whichever role provides it; traces with --observe.
 func TestStartCeilingsGB(t *testing.T) {
 	base := startCeilingsGB(nil, startOptions{})
 	// gateway 2 + worker 2 + smelter 2 + weaver 2 + archivist 2 + librarian 2 + dispatcher 2 + browser 1 + collector 1
@@ -43,10 +43,10 @@ func TestStartCeilingsGB(t *testing.T) {
 		t.Fatalf("base ceilings = %vG, want 16G (did a service's ceiling change without this test?)", base)
 	}
 	plan := &launchPlan{Roles: map[string]rolePlan{
-		"graph":     {Driver: "neo4j", Obligation: obligationProvided},
-		"vectors":   {Driver: "qdrant", Obligation: obligationProvided},
-		"database":  {Driver: "postgres", Obligation: obligationProvided},
-		"inference": {Driver: "ollama", Obligation: obligationProvided},
+		"graph":     {Driver: "neo4j", Presence: presenceLauncher},
+		"vectors":   {Driver: "qdrant", Presence: presenceLauncher},
+		"database":  {Driver: "postgres", Presence: presenceLauncher},
+		"inference": {Driver: "ollama", Presence: presenceLauncher},
 	}}
 	full := startCeilingsGB(plan, startOptions{observe: true})
 	// base 16 + graph 2 + vectors 2 + database 1 + ollama 24 + traces 1 + metrics 1
@@ -54,14 +54,14 @@ func TestStartCeilingsGB(t *testing.T) {
 		t.Fatalf("full ceilings = %vG, want 47G", full)
 	}
 	// An external inference (anthropic) runs no Ollama container.
-	plan.Roles["inference"] = rolePlan{Driver: "anthropic", Obligation: obligationExternal}
+	plan.Roles["inference"] = rolePlan{Driver: "anthropic", Presence: presenceExternal}
 	if got := startCeilingsGB(plan, startOptions{}); got != 21 {
 		t.Fatalf("external-inference ceilings = %vG, want 21G", got)
 	}
 	// THE DEFAULT: host-process Ollama (models get Metal on the host; the
 	// container is the fallback). Its host RAM is outside this sum — the
 	// launcher neither sets nor sees it — so the default stack is 19G too.
-	plan.Roles["inference"] = rolePlan{Driver: "ollama", Obligation: obligationHostProcess}
+	plan.Roles["inference"] = rolePlan{Driver: "ollama", Presence: presenceHostPreferred}
 	if got := startCeilingsGB(plan, startOptions{}); got != 21 {
 		t.Fatalf("host-ollama (default) ceilings = %vG, want 21G — the host process must not be counted", got)
 	}

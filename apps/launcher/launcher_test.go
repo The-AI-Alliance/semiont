@@ -2310,7 +2310,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"Halt compute:")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
-		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
+		`"name": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
 		`"forwardPid"`, `"forwardPort": 4000`)
 	// No credentials exist to leak any more — the launcher neither reads nor
 	// prints them. Assert the record stays free of any password-shaped field so
@@ -2478,7 +2478,7 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 		t.Fatalf("bare resume: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Using recorded stack's runtime: codespace",
+		"Using recorded stack's platform: codespace",
 		"Resuming recorded codespace fake-cs-1",
 		// The wait narrates a RESUME, not a fresh create — the VM wakes
 		// with the stack already provisioned.
@@ -2550,7 +2550,7 @@ func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
 		t.Fatalf("disambiguated: exit %d\nstderr:\n%s", code, stderr)
 	}
 	b, _ := os.ReadFile(statePathFor(s2.home))
-	mustContain(t, "stack.json", string(b), `"codespace": "cs-b"`)
+	mustContain(t, "stack.json", string(b), `"name": "cs-b"`)
 }
 
 func TestCodespaceCreate503Retry(t *testing.T) {
@@ -2821,7 +2821,7 @@ func TestUseraddAmbiguousStacks(t *testing.T) {
 	}
 	both := `{"schema":3,"stacks":{` +
 		`"local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
-		`"codespace:` + csRepo + `":{"runtime":"codespace","codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"services":{}}}}`
+		`"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"services":{}}}}`
 	if err := os.WriteFile(p, []byte(both), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -2905,8 +2905,10 @@ func writeCodespaceState(t *testing.T, s *scenario) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"runtime":"codespace",` +
-		`"codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"ports":[4001],"services":{}}}}`
+	// The placement IS the platform (LAUNCHER-SERVICE-MODEL P3): no runtime
+	// key, and the four codespace facts travel together inside it.
+	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{` +
+		`"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"ports":[4001],"services":{}}}}`
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -3072,7 +3074,7 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	if err != nil {
 		t.Fatal("stop forgot a codespace record that still mirrors an existing codespace")
 	}
-	mustContain(t, "stack.json after stop", string(b), `"codespace": "fake-cs-1"`)
+	mustContain(t, "stack.json after stop", string(b), `"name": "fake-cs-1"`)
 	if strings.Contains(string(b), `"forwardPid"`) {
 		t.Errorf("stop left a dead forward pid recorded:\n%s", b)
 	}
@@ -3305,7 +3307,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 	}
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
-		"codespace:"+csRepo, "codespace:other/bar", `"codespace": "bar-cs-1"`,
+		"codespace:"+csRepo, "codespace:other/bar", `"name": "bar-cs-1"`,
 		`"forwardPort": 4000`, `"forwardPort": 4001`)
 	// BOTH KBs are reachable at once — the point of all of this.
 	for _, url := range []string{"http://localhost:4000/api/health", "http://localhost:4001/api/health"} {
@@ -3457,7 +3459,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	s := newCodespaceScenario(t)
 	set := `{"schema":3,"stacks":{
 	  "local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
-	  "codespace:pingel-org/foo-kb":{"runtime":"codespace","codespace":"fake-cs-1","repo":"pingel-org/foo-kb","ports":[3000,4000,24100,24101,24102],"services":{}}}}`
+	  "codespace:pingel-org/foo-kb":{"codespace":{"name":"fake-cs-1","repo":"pingel-org/foo-kb"},"ports":[3000,4000,24100,24101,24102],"services":{}}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
@@ -5019,7 +5021,7 @@ func TestBareResumeUsesRecordedRepoNotCwd(t *testing.T) {
 	if strings.Contains(stdout+stderr, "someone/unrelated") {
 		t.Errorf("bare resume targeted the cwd's repo, not the recorded stack:\n%s\n%s", stdout, stderr)
 	}
-	mustContain(t, "the codespace branch actually fired", stdout+stderr, "Using recorded stack's runtime")
+	mustContain(t, "the codespace branch actually fired", stdout+stderr, "Using recorded stack's platform")
 	mustContain(t, "resume names the recorded repo", stdout+stderr, csRepo)
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	if strings.Contains(fresh, "someone/unrelated") {

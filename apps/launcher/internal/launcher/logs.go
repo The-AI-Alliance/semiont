@@ -96,7 +96,7 @@ func Logs(args []string) int {
 	rt := ""
 	csName := ""
 	if repoFlag != "" {
-		target := ss.Stacks["codespace:"+repoFlag]
+		target := codespaceStack(ss, repoFlag)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repoFlag)
 			return 1
@@ -105,7 +105,7 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "'gh' is not on PATH.")
 			return 1
 		}
-		csName = target.Codespace
+		csName = target.Codespace.Name
 		st = nil
 	} else if runtime != "" {
 		if !onPath(runtime) {
@@ -124,7 +124,7 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "A codespace stack is forwarded but 'gh' is not on PATH.")
 			return 1
 		}
-		csName = fwd[0].Codespace
+		csName = fwd[0].Codespace.Name
 		u.Log("Using the forwarded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		rt = st.Runtime
@@ -134,13 +134,13 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
 			return 1
 		}
-		csName = cs[0].Codespace
+		csName = cs[0].Codespace.Name
 		st = nil
 		u.Log("Using recorded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if len(cs) > 1 {
 		fmt.Fprintln(os.Stderr, "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
 		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 		}
 		return 1
 	} else {

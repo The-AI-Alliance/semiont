@@ -122,7 +122,7 @@ func Identity(args []string) int {
 		u.Fail("This config declares no identity role, so there is no realm to reconcile.")
 		return 1
 	}
-	if rp.Obligation != obligationProvided {
+	if !mayConfigure(rp) {
 		u.Fail("The identity role is not launcher-run, so its realm is not ours to reconcile.")
 		fmt.Fprintln(os.Stderr, "  Create one client per service at your own issuer — see the AUTHENTICATION docs for the claims each needs.")
 		return 1

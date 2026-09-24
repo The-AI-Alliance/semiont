@@ -24,7 +24,7 @@ import (
 // caller should print it; a non-empty message means the command line was
 // refused and names why.
 func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
-	opts = startOptions{configName: "ollama-gemma", observe: true}
+	opts = startOptions{configName: "ollama-gemma", observe: true, platform: platformLocal}
 
 	// needVal reports a missing value rather than printing it — the whole
 	// point here is that every refusal is a value a test can read.
@@ -120,7 +120,15 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 			if !ok {
 				return opts, false, missing
 			}
-			opts.runtime = v
+			// One flag, two axes: "codespace" names a PLATFORM, the rest
+			// name a container runtime. They part company here and nowhere
+			// else, so no later reader has to know that one of the runtimes
+			// is not a runtime.
+			if p, isPlatform := runtimeFlagPlatform(v); isPlatform {
+				opts.platform = p
+			} else {
+				opts.runtime = v
+			}
 			i++
 		case "--no-observe":
 			opts.observe = false
@@ -151,7 +159,7 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 	// Codespace placement: the codespace-only flags are rejected elsewhere,
 	// and the local-only knobs are rejected on a codespace start — nothing
 	// is silently ignored, per the flag-scoping pattern.
-	if opts.runtime == "codespace" {
+	if opts.platform == platformCodespace {
 		switch {
 		case opts.service != "":
 			return opts, false, "--service does not apply to --runtime codespace (compose owns the services inside)."
@@ -171,7 +179,7 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" || opts.idleTimeout != "" || opts.retention != "" {
 		return opts, false, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace."
 	}
-	if opts.port != 0 && (opts.service != "browser" || opts.runtime == "codespace") {
+	if opts.port != 0 && (opts.service != "browser" || opts.platform == platformCodespace) {
 		return opts, false, "--port only applies to --service browser — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port)."
 	}
 

@@ -16,22 +16,34 @@ import (
 	"strings"
 )
 
-type obligation int
+// presence: whether a role is part of this stack, and WHO runs it — one of
+// the three questions `obligation` used to answer at once (D6). The other
+// two have left: what the launcher may change inside a service is
+// `authority`, declared on the descriptor, and the memory preflight reads
+// presence because "do we run it" is genuinely its question.
+//
+// `absent` is not a way to run. It is a presence — the role is not here —
+// and naming it so is what stops it being treated as a fourth mechanism.
+//
+// Distinct from ServiceState.Provided, which shares this vocabulary and is
+// NOT a restatement of it: presence is plan-time INTENT (host preferred, a
+// container if there is none), Provided is the OUTCOME a start recorded.
+type presence int
 
 const (
-	obligationAbsent      obligation = iota // no section / not referenced: not needed
-	obligationProvided                      // launcher launches a container (driver by type)
-	obligationExternal                      // provided elsewhere: verify, never launch
-	obligationHostProcess                   // host process preferred (container fallback per driver)
+	presenceAbsent        presence = iota // no section / not referenced: not needed
+	presenceLauncher                      // the launcher runs it here (driver by type)
+	presenceExternal                      // somebody else runs it: verify, never launch
+	presenceHostPreferred                 // a host process is preferred; a container is the fallback
 )
 
-func (o obligation) String() string {
-	return [...]string{"absent", "provided", "external", "host-process"}[o]
+func (p presence) String() string {
+	return [...]string{"absent", "provided", "external", "host-process"}[p]
 }
 
 type rolePlan struct {
 	Role             string
-	Obligation       obligation
+	Presence         presence
 	Driver           string   // config `type` (catalog key)
 	Image            string   // catalog, for provided/host-fallback launches
 	Address          string   // external host, for reachability probes
@@ -277,7 +289,7 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	var checks []portNeed
 	addRole := func(role string) {
 		rp := plan.Roles[role]
-		if rp.Obligation != obligationProvided {
+		if rp.Presence != presenceLauncher {
 			return
 		}
 		spec := descriptorFor(role, rp.Driver)
@@ -333,7 +345,7 @@ func parseHostPort(s string) (host string, port int) {
 	return s, 0
 }
 
-// derivePlan maps the selected environment to per-role launch obligations.
+// derivePlan maps the selected environment to each role's presence.
 func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	plan := &launchPlan{Roles: map[string]rolePlan{}, GatewayPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
 	if env.Gateway != nil && env.Gateway.Port != 0 {
@@ -373,16 +385,16 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	// means external to the gateway PROCESS, not "someone else runs it".
 	// Until that word means one thing in both places, the address shape is
 	// the authority. See GO-LAUNCHER.md follow-ups.
-	classify := func(host, injectedVar string) obligation {
+	classify := func(host, injectedVar string) presence {
 		if host == "${"+injectedVar+"}" {
-			return obligationProvided
+			return presenceLauncher
 		}
-		return obligationExternal
+		return presenceExternal
 	}
 
 	// graph
 	if g := env.Graph; g == nil {
-		plan.Roles["graph"] = rolePlan{Role: "graph", Obligation: obligationAbsent}
+		plan.Roles["graph"] = rolePlan{Role: "graph", Presence: presenceAbsent}
 	} else {
 		if g.Type == "" {
 			return nil, secErr("graph", "missing required key %q", "type")
@@ -405,17 +417,17 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		rp := rolePlan{Role: "graph", Driver: g.Type, Port: port}
 		switch {
 		case g.Platform == "posix":
-			rp.Obligation = obligationHostProcess
+			rp.Presence = presenceHostPreferred
 			rp.Image = img
-		case classify(host, "NEO4J_HOST") == obligationProvided:
+		case classify(host, "NEO4J_HOST") == presenceLauncher:
 			if g.Username == "" || g.Password == "" {
 				return nil, secErr("graph", "missing required key %q (needed to provision the container)", "username/password")
 			}
-			rp.Obligation = obligationProvided
+			rp.Presence = presenceLauncher
 			rp.Image = img
 			rp.Env = []string{"NEO4J_AUTH=" + g.Username + "/" + g.Password, "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
 		default:
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 		}
 		plan.Roles["graph"] = rp
@@ -454,21 +466,21 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		vectorsPort = vspec.defaultPort
 	}
 	vectorsPlan := rolePlan{Role: "vectors", Driver: v.Type, Port: vectorsPort}
-	if classify(v.Host, "QDRANT_HOST") == obligationProvided {
-		vectorsPlan.Obligation = obligationProvided
+	if classify(v.Host, "QDRANT_HOST") == presenceLauncher {
+		vectorsPlan.Presence = presenceLauncher
 		vectorsPlan.Image = vspec.image
 		if v.Image != "" {
 			vectorsPlan.Image = v.Image
 		}
 	} else {
-		vectorsPlan.Obligation = obligationExternal
+		vectorsPlan.Presence = presenceExternal
 		vectorsPlan.Address = v.Host
 	}
 	plan.Roles["vectors"] = vectorsPlan
 
 	// database — type defaults to "postgres" (the template omits it).
 	if d := env.Database; d == nil {
-		plan.Roles["database"] = rolePlan{Role: "database", Obligation: obligationAbsent}
+		plan.Roles["database"] = rolePlan{Role: "database", Presence: presenceAbsent}
 	} else {
 		typ := d.Type
 		if typ == "" {
@@ -486,14 +498,14 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			port = spec.defaultPort
 		}
 		rp := rolePlan{Role: "database", Driver: typ, Port: port}
-		if classify(d.Host, "POSTGRES_HOST") == obligationProvided {
+		if classify(d.Host, "POSTGRES_HOST") == presenceLauncher {
 			if d.Password == "" {
 				return nil, secErr("database", "missing required key %q (needed to provision the container)", "password")
 			}
 			if d.Name == "" {
 				return nil, secErr("database", "missing required key %q (needed to provision the container)", "name")
 			}
-			rp.Obligation = obligationProvided
+			rp.Presence = presenceLauncher
 			rp.Image = spec.image
 			if d.Image != "" {
 				rp.Image = d.Image
@@ -505,7 +517,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
 			}
 		} else {
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = d.Host
 		}
 		plan.Roles["database"] = rp
@@ -551,7 +563,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if j != nil && j.Type == "fs" {
 			fsDriver = "fs"
 		}
-		plan.Roles["messaging"] = rolePlan{Role: "messaging", Driver: fsDriver, Obligation: obligationAbsent}
+		plan.Roles["messaging"] = rolePlan{Role: "messaging", Driver: fsDriver, Presence: presenceAbsent}
 	} else {
 		servers := ""
 		if jobsWantBroker {
@@ -600,8 +612,8 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			port = spec.defaultPort
 		}
 		rp := rolePlan{Role: "messaging", Driver: daemonShape, Port: port}
-		if classify(host, "NATS_HOST") == obligationProvided {
-			rp.Obligation = obligationProvided
+		if classify(host, "NATS_HOST") == presenceLauncher {
+			rp.Presence = presenceLauncher
 			rp.Image = spec.image
 			// Delivered as the daemon's own environment, the way the graph role
 			// hands neo4j NEO4J_AUTH and the database role hands postgres
@@ -614,7 +626,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 				rp.CmdExtra = []string{"-c", natsConfPath}
 			}
 		} else {
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 		}
 		plan.Roles["messaging"] = rp
@@ -674,7 +686,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		}
 		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer, AccessTokenLifespan: lifespan}
 		switch {
-		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == obligationProvided:
+		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == presenceLauncher:
 			if keycloakRealm(path) == "" {
 				return nil, secErr("identity", "issuer %q must end in /realms/<realm> for type \"keycloak\"", id.Issuer)
 			}
@@ -692,7 +704,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			if user == "" {
 				user = "postgres"
 			}
-			rp.Obligation = obligationProvided
+			rp.Presence = presenceLauncher
 			rp.Image = spec.image
 			if id.Image != "" {
 				rp.Image = id.Image
@@ -702,7 +714,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		case strings.HasPrefix(host, "${"):
 			return nil, secErr("identity", "issuer %q names a launcher-injected host, which only type = \"keycloak\" on ${KEYCLOAK_HOST} can be", id.Issuer)
 		default:
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 		}
 		plan.Roles["identity"] = rp
@@ -745,7 +757,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			return nil, secErr("embedding", "missing required key %q", "baseURL")
 		}
 		rp := rolePlan{
-			Role: "embedding", Obligation: obligationExternal,
+			Role: "embedding", Presence: presenceExternal,
 			Driver: e.Type, Address: host, Port: port,
 		}
 		rp.Models = []string{e.Model}
@@ -764,7 +776,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			if bindingsUseOllama {
 				rp.SharesOllamaWith = "inference"
 			} else {
-				rp.Obligation = obligationHostProcess
+				rp.Presence = presenceHostPreferred
 				rp.Address = ""
 				rp.Image = spec.image
 				if rp.Image == "" {
@@ -805,12 +817,12 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			port = 443 // an unknown remote provider is still TLS SaaS
 		}
 		plan.Roles["inference"] = rolePlan{
-			Role: "inference", Obligation: obligationExternal,
+			Role: "inference", Presence: presenceExternal,
 			Driver: driver, Address: host, Port: port,
 			Models: bindingModels(env), OllamaServed: []string{},
 		}
 	case !bindingsUseOllama:
-		plan.Roles["inference"] = rolePlan{Role: "inference", Obligation: obligationAbsent}
+		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}
 	default:
 		spec := descriptorFor("inference", "ollama")
 		baseURL := ""
@@ -838,9 +850,9 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		// — let alone "pulled" into — Ollama.
 		rp.OllamaServed = ollamaBindingModels(env)
 		if host == "${OLLAMA_HOST}" {
-			rp.Obligation = obligationHostProcess
+			rp.Presence = presenceHostPreferred
 		} else {
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 			rp.Image = ""
 		}

@@ -1029,7 +1029,7 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 		spec := stateStores[role]
 		var img string
 		if rp, ok := fc.plan.Roles[spec.owner]; ok {
-			if rp.Obligation != obligationProvided {
+			if rp.Presence != presenceLauncher {
 				continue // remote or absent: this boot mounts no such store
 			}
 			img = rp.Image

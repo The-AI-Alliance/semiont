@@ -300,13 +300,13 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 }
 
 // flowDepRole: the uniform dependency-role shape for graph / vectors /
-// database, obligation-dispatched.
+// database, presence-dispatched.
 func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles[role]
 	// An embedding that OWNS the local Ollama (all-remote bindings — nothing
 	// else runs it) is the same host-process dance inference runs when the
 	// bindings are ollama-typed; only the owning role differs.
-	if role == "embedding" && rp.Obligation == obligationHostProcess {
+	if role == "embedding" && rp.Presence == presenceHostPreferred {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
 	// jobs without a [jobs] section is a WORKING DEFAULT, not a gap: the
@@ -315,13 +315,13 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	// first person who saw it — say what IS running instead, in one line,
 	// no banner. Same for identity without an [identity] section: the
 	// gateway issues its own tokens.
-	if role == "messaging" && rp.Obligation == obligationAbsent {
+	if role == "messaging" && rp.Presence == presenceAbsent {
 		x.say(sayLog, "messaging — nothing to launch: jobs ride the gateway's fs queue; signals are in-process")
 		x.note("messaging: nothing to launch (jobs: fs driver; signal: in-process)")
 		x.record(role, "", "", providedNone, "", rp.Driver)
 		return 0
 	}
-	if role == "identity" && rp.Obligation == obligationAbsent {
+	if role == "identity" && rp.Presence == presenceAbsent {
 		x.say(sayLog, "identity — nothing to launch: no [identity] section; the gateway issues its own tokens")
 		x.note("identity: nothing to launch (no [identity] section; gateway-issued tokens)")
 		x.record(role, "", "", providedNone, "", "")
@@ -329,8 +329,8 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	}
 	disp := driverDisplay(role, rp.Driver)
 	x.banner(depRoleTitles[role] + " (" + disp + ")")
-	switch rp.Obligation {
-	case obligationProvided:
+	switch rp.Presence {
+	case presenceLauncher:
 		// Persistent state rides the run argv (LAUNCHER-STATE.md): roles in
 		// stateStores mount their per-root dir; a database refusal (data
 		// written by another image) stops the start here.
@@ -432,17 +432,17 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.say(sayOK, "messaging — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
 		}
-	case obligationAbsent:
+	case presenceAbsent:
 		x.say(sayLog, "%s — not configured; skipping", role)
 		x.note("%s: not referenced by the config — nothing to launch", role)
 		x.record(role, "", "", providedNone, "", "")
-	case obligationHostProcess:
+	case presenceHostPreferred:
 		x.note("%s: host process at localhost:%d — verify reachability, launch nothing", role, rp.Port)
 		if !x.probeTCP(role, rp) {
 			return 1
 		}
 		x.record(role, "", "", providedExternal, externalEndpoint(role, rp), rp.Driver)
-	case obligationExternal:
+	case presenceExternal:
 		x.note("%s: externally provided at %s:%d — verify reachability, launch nothing", role, rp.Address, rp.Port)
 		if !x.probeTCP(role, rp) {
 			return 1
@@ -522,14 +522,14 @@ func externalEndpoint(role string, rp rolePlan) string {
 	}
 }
 
-// flowInferenceRole: obligation dispatch for inference (the host-process
+// flowInferenceRole: presence dispatch for inference (the host-process
 // dance lives in flowOllama).
 func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles["inference"]
-	switch rp.Obligation {
-	case obligationHostProcess:
+	switch rp.Presence {
+	case presenceHostPreferred:
 		return flowOllama(x, fc, "inference", rp, addr)
-	case obligationExternal:
+	case presenceExternal:
 		x.banner("Inference (" + driverDisplay("inference", rp.Driver) + ")")
 		if rp.Driver != "ollama" {
 			// Remote SaaS (Anthropic): nothing to launch, and a start-time
@@ -552,7 +552,7 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 			return 1
 		}
 		x.record("inference", "", "", providedExternal, externalEndpoint("inference", rp), rp.Driver)
-	case obligationAbsent:
+	case presenceAbsent:
 		x.banner("Inference")
 		x.say(sayLog, "inference — not referenced by the config; skipping")
 		x.note("inference: not referenced by the config — nothing to launch")
@@ -806,19 +806,19 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	return 0
 }
 
-// flowOneService: `start --service` — the no-op obligation gate, the
+// flowOneService: `start --service` — the no-op presence gate, the
 // service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
 // staging for config consumers, then the service's launch and gate.
 func flowOneService(x executor, fc flowCtx) int {
 	svc := fc.opts.service
 	if fc.plan != nil {
 		if rp, ok := fc.plan.Roles[svc]; ok {
-			switch rp.Obligation {
-			case obligationExternal:
+			switch rp.Presence {
+			case presenceExternal:
 				x.say(sayWarn, "%s is externally provided per %s (%s:%d); nothing to launch.", svc, fc.configFile, rp.Address, rp.Port)
 				x.note("%s: externally provided at %s:%d — verify reachability, launch nothing", svc, rp.Address, rp.Port)
 				return 0
-			case obligationAbsent:
+			case presenceAbsent:
 				x.say(sayWarn, "%s is not referenced by %s; nothing to launch.", svc, fc.configFile)
 				x.note("%s: not referenced by the config — nothing to launch", svc)
 				return 0
@@ -1031,7 +1031,7 @@ func flowOneService(x executor, fc flowCtx) int {
 		if bp != 3000 && fc.plan != nil {
 			if rp, ok := fc.plan.Roles["identity"]; ok && rp.Issuer != "" {
 				base := rp.Issuer
-				if rp.Obligation == obligationProvided {
+				if rp.Presence == presenceLauncher {
 					base = identityEndpoint(rp)
 				}
 				if !x.preflightBrowserMove(base, bp) {
@@ -1060,7 +1060,7 @@ func servicePortNeeds(svc string, plan *launchPlan, opts startOptions) []portNee
 	case svc == "gateway" && plan != nil:
 		ports = []portNeed{{plan.GatewayPort, "Gateway"}}
 	case plan != nil:
-		if rp, ok := plan.Roles[svc]; ok && rp.Obligation == obligationProvided {
+		if rp, ok := plan.Roles[svc]; ok && rp.Presence == presenceLauncher {
 			spec := descriptorFor(svc, rp.Driver)
 			ports = append(append([]portNeed{}, spec.auxPorts...), portNeed{rp.Port, spec.portLabel})
 		}

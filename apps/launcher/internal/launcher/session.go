@@ -184,8 +184,8 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 	var t VerbTarget
 	key := ""
 	if target != nil {
-		t.base = fmt.Sprintf("http://localhost:%d", target.ForwardPort)
-		key = "codespace:" + target.Repo
+		t.base = fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort)
+		key = "codespace:" + target.Codespace.Repo
 		t.root = CwdKBRoot()
 	} else {
 		local := ss.Stacks["local"]
@@ -253,7 +253,7 @@ func Logout(args []string) int {
 	}
 	key := "local"
 	if target != nil {
-		key = "codespace:" + target.Repo
+		key = "codespace:" + target.Codespace.Repo
 	}
 
 	e, have := LoadTokens()[key]

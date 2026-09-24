@@ -180,11 +180,11 @@ func Stop(args []string) int {
 	// explicit --runtime keeps its narrow local meaning. --delete means
 	// nothing for local stacks (stop+rm already destroys them).
 	if repo != "" {
-		target := ss.Stacks["codespace:"+repo]
+		target := codespaceStack(ss, repo)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repo)
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 			}
 			return 1
 		}
@@ -206,7 +206,7 @@ func Stop(args []string) int {
 					return stopCodespace(u, cs[0], service, del, dryRun)
 				}
 				if c := originCodespace(cs, root); c != nil {
-					u.Log("Stopping %s %s", u.Bold(c.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
+					u.Log("Stopping %s %s", u.Bold(c.Codespace.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
 					return stopCodespace(u, c, service, del, dryRun)
 				}
 			}
@@ -215,7 +215,7 @@ func Stop(args []string) int {
 				fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
 			}
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Codespace.Repo)
 			}
 			return 1
 		}

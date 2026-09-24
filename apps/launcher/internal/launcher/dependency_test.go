@@ -193,3 +193,42 @@ func TestDryRunLaunchOrderFollowsTheDeclaredStartOrder(t *testing.T) {
 		}
 	}
 }
+
+// mayConfigure looks the role up by rp.Role, so every plan row must name the
+// role it is filed under. A row that does not would be read as a role with
+// no descriptor — authority zero, permission refused — and the refusal would
+// look like policy rather than a missing field.
+func TestEveryPlanRowNamesItsRole(t *testing.T) {
+	plan := mustDerive(t, variantConfig(t, nil))
+	if len(plan.Roles) == 0 {
+		t.Fatal("no roles in the derived plan")
+	}
+	for key, rp := range plan.Roles {
+		if rp.Role != key {
+			t.Errorf("plan.Roles[%q].Role = %q — mayConfigure would look up the wrong descriptor, and its refusal would read as policy rather than a missing field", key, rp.Role)
+		}
+	}
+}
+
+// The authority the code already draws, asserted rather than described: a
+// service we run is ours; a host Ollama may be configured within; an
+// external PostgreSQL and an issuer somebody else runs may only be watched.
+func TestAuthorityMatchesTheLinesTheCodeDraws(t *testing.T) {
+	for _, c := range []struct {
+		label string
+		rp    rolePlan
+		want  bool
+	}{
+		{"a PostgreSQL we run", rolePlan{Role: "database", Driver: "postgres", Presence: presenceLauncher}, true},
+		{"somebody else's PostgreSQL", rolePlan{Role: "database", Driver: "postgres", Presence: presenceExternal}, false},
+		{"a Keycloak we run", rolePlan{Role: "identity", Driver: "keycloak", Presence: presenceLauncher}, true},
+		{"somebody else's Keycloak", rolePlan{Role: "identity", Driver: "keycloak", Presence: presenceExternal}, false},
+		{"an issuer that is not ours", rolePlan{Role: "identity", Driver: "oidc", Presence: presenceExternal}, false},
+		{"a host Ollama", rolePlan{Role: "inference", Driver: "ollama", Presence: presenceHostPreferred}, true},
+		{"a remote Anthropic", rolePlan{Role: "inference", Driver: "anthropic", Presence: presenceExternal}, false},
+	} {
+		if got := mayConfigure(c.rp); got != c.want {
+			t.Errorf("mayConfigure(%s) = %v, want %v", c.label, got, c.want)
+		}
+	}
+}

@@ -191,8 +191,8 @@ func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 		return 1
 	}
 	ss := LoadStackSet()
-	st := ss.Stacks["codespace:"+repo]
-	if st == nil || st.Codespace == "" {
+	st := codespaceStack(ss, repo)
+	if st == nil {
 		u.Fail("No codespace stack recorded for %s.", repo)
 		fmt.Fprintln(os.Stderr, "  Start it first:  semiont start --runtime codespace --repo "+repo)
 		return 1
@@ -213,14 +213,14 @@ func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 	if withGit {
 		remote = "tar czf - -C /workspaces/*/ ."
 	}
-	u.Log("Streaming %s %s", repo, u.Dim("(gh codespace ssh -c "+st.Codespace+" -- "+remote+")"))
+	u.Log("Streaming %s %s", repo, u.Dim("(gh codespace ssh -c "+st.Codespace.Name+" -- "+remote+")"))
 
 	f, err := os.Create(output)
 	if err != nil {
 		u.Fail("could not create %s: %v", output, err)
 		return 1
 	}
-	cmd := exec.Command("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
+	cmd := exec.Command("gh", "codespace", "ssh", "-c", st.Codespace.Name, "--", remote)
 	cmd.Stdout = f
 	cmd.Stderr = os.Stderr
 	runErr := cmd.Run()

@@ -492,7 +492,10 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
 	dbHost := db.Address
-	if db.Obligation == obligationProvided {
+	// Authority, not presence: an external PostgreSQL is somebody's shared
+	// server, and creating a database in it is a privileged persistent
+	// change the launcher is not entitled to make (D6).
+	if mayConfigure(db) {
 		dbHost = addr
 		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {
 			return nil, nil, false

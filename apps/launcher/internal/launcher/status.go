@@ -197,11 +197,11 @@ func Status(args []string) int {
 
 	// --repo: one remote stack, health-coded for scripting.
 	if repoFlag != "" {
-		target := ss.Stacks["codespace:"+repoFlag]
+		target := codespaceStack(ss, repoFlag)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repoFlag)
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 			}
 			return 1
 		}
@@ -652,11 +652,11 @@ func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 		fmt.Printf("  active: file://%s %s\n", st.KBRoot, u.Dim("(the running local stack)"))
 	}
 	for _, c := range cs {
-		if !forwardAlive(c.ForwardPID, c.ForwardPort) {
+		if !forwardAlive(c.Codespace.ForwardPID, c.Codespace.ForwardPort) {
 			continue
 		}
-		fmt.Printf("  active: https://github.com/%s %s\n", c.Repo,
-			u.Dim(fmt.Sprintf("(codespace %s → http://localhost:%d)", c.Codespace, c.ForwardPort)))
+		fmt.Printf("  active: https://github.com/%s %s\n", c.Codespace.Repo,
+			u.Dim(fmt.Sprintf("(codespace %s → http://localhost:%d)", c.Codespace.Name, c.Codespace.ForwardPort)))
 	}
 	if cwdErr == nil && st != nil && st.KBRoot != "" && cwd != st.KBRoot {
 		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, "cwd KB: "+cwd+" — not the running stack's root"))
@@ -773,8 +773,8 @@ func printSessions(u *UI, ss *StackSet) {
 			if st := ss.Stacks["local"]; st != nil {
 				base = GatewayBase(st)
 			}
-		} else if st := ss.Stacks[k]; st != nil && st.ForwardPort != 0 {
-			base = fmt.Sprintf("http://localhost:%d", st.ForwardPort)
+		} else if st := ss.Stacks[k]; st != nil && st.Codespace != nil && st.Codespace.ForwardPort != 0 {
+			base = fmt.Sprintf("http://localhost:%d", st.Codespace.ForwardPort)
 		}
 		state := "unverified (stack not reachable)"
 		if base != "" {
@@ -810,7 +810,7 @@ func printLauncherPaths(u *UI) {
 	row := func(label, path, note string) {
 		fmt.Printf("  %-10s %s %s\n", label, path, u.Dim("("+note+")"))
 	}
-	presence := func(path string) string {
+	exists := func(path string) string {
 		if _, err := os.Stat(path); err == nil {
 			return "present"
 		}
@@ -818,17 +818,17 @@ func printLauncherPaths(u *UI) {
 	}
 	if cfg, err := os.UserConfigDir(); err == nil {
 		p := filepath.Join(cfg, "semiont")
-		row("config", p, presence(p))
+		row("config", p, exists(p))
 	}
 	if cache, err := os.UserCacheDir(); err == nil {
 		p := filepath.Join(cache, "semiont")
-		row("cache", p, presence(p))
+		row("cache", p, exists(p))
 	}
 	if p := logDir(); p != "" {
-		row("logs", p, presence(p))
+		row("logs", p, exists(p))
 	}
 	if p := statePath(); p != "" {
-		row("state", p, presence(p))
+		row("state", p, exists(p))
 	}
 	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	note := "none"
@@ -838,7 +838,7 @@ func printLauncherPaths(u *UI) {
 	row("staging", "/tmp/semiont-config.*", note)
 	if home, err := os.UserHomeDir(); err == nil {
 		p := filepath.Join(home, ".ollama")
-		row("inference", p, presence(p))
+		row("inference", p, exists(p))
 	}
 
 	// Persistent per-root stack state (LAUNCHER-STATE.md requirement 5):

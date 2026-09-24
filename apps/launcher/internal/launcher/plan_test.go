@@ -115,8 +115,8 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	if !ok {
 		t.Fatalf("role %s missing from plan", role)
 	}
-	if got.Obligation != want.Obligation {
-		t.Errorf("%s obligation: got %v want %v", role, got.Obligation, want.Obligation)
+	if got.Presence != want.Presence {
+		t.Errorf("%s presence: got %v want %v", role, got.Presence, want.Presence)
 	}
 	if got.Driver != want.Driver {
 		t.Errorf("%s driver: got %q want %q", role, got.Driver, want.Driver)
@@ -155,12 +155,12 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				t.Fatalf("derivePlan: %v", err)
 			}
 			checkRole(t, plan, "graph", rolePlan{
-				Obligation: obligationProvided, Driver: "neo4j",
+				Presence: presenceLauncher, Driver: "neo4j",
 				Image: "neo4j:5.26.28-community", Port: 7687,
 				Env: []string{"NEO4J_AUTH=neo4j/localpass", "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"},
 			})
 			checkRole(t, plan, "vectors", rolePlan{
-				Obligation: obligationProvided, Driver: "qdrant",
+				Presence: presenceLauncher, Driver: "qdrant",
 				Image: "qdrant/qdrant:v1.19.1", Port: 6333,
 			})
 			// embedding: with ollama-typed bindings, the inference role runs
@@ -169,19 +169,19 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			// that Ollama exists for it alone.
 			if name == "anthropic.toml" {
 				checkRole(t, plan, "embedding", rolePlan{
-					Obligation: obligationHostProcess, Driver: "ollama",
+					Presence: presenceHostPreferred, Driver: "ollama",
 					Image: "ollama/ollama", Port: 11434,
 					Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
 				})
 			} else {
 				checkRole(t, plan, "embedding", rolePlan{
-					Obligation: obligationExternal, Driver: "ollama",
+					Presence: presenceExternal, Driver: "ollama",
 					Address: "localhost", Port: 11434,
 					Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
 				})
 			}
 			checkRole(t, plan, "database", rolePlan{
-				Obligation: obligationProvided, Driver: "postgres",
+				Presence: presenceLauncher, Driver: "postgres",
 				Image: "postgres:15.18-alpine", Port: 5432,
 				Env: []string{"POSTGRES_PASSWORD=localpass", "POSTGRES_DB=semiont"},
 			})
@@ -196,7 +196,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			// owns it (asserted below).
 			if name == "anthropic.toml" {
 				checkRole(t, plan, "inference", rolePlan{
-					Obligation: obligationExternal, Driver: "anthropic",
+					Presence: presenceExternal, Driver: "anthropic",
 					Address: "api.anthropic.com", Port: 443,
 					Models:       []string{"claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"},
 					OllamaServed: []string{},
@@ -204,7 +204,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			} else {
 				m := []string{"gemma4:26b", "gemma4:e2b"}
 				checkRole(t, plan, "inference", rolePlan{
-					Obligation: obligationHostProcess, Driver: "ollama",
+					Presence: presenceHostPreferred, Driver: "ollama",
 					Image: "ollama/ollama", Port: 11434,
 					Models: m, OllamaServed: m,
 				})
@@ -254,7 +254,7 @@ password = "s3cret"
 `})
 	plan := mustDerive(t, p)
 	checkRole(t, plan, "graph", rolePlan{
-		Obligation: obligationExternal, Driver: "neo4j",
+		Presence: presenceExternal, Driver: "neo4j",
 		Address: "graph.example.com", Port: 9999,
 	})
 }
@@ -268,7 +268,7 @@ user = "postgres"
 password = "localpass"
 `})
 	plan := mustDerive(t, p)
-	if got := plan.Roles["database"]; got.Port != 5433 || got.Obligation != obligationProvided {
+	if got := plan.Roles["database"]; got.Port != 5433 || got.Presence != presenceLauncher {
 		t.Errorf("moved port: got %+v", got)
 	}
 }
@@ -342,7 +342,7 @@ type = "voyage"
 model = "voyage-3"
 `}))
 	checkRole(t, plan, "embedding", rolePlan{
-		Obligation: obligationExternal, Driver: "voyage",
+		Presence: presenceExternal, Driver: "voyage",
 		Address: "api.voyageai.com", Port: 443,
 		Models: []string{"voyage-3"}, // voyage is remote: nothing to install
 	})
@@ -350,7 +350,7 @@ model = "voyage-3"
 	// EXTERNAL role — "absent" would be the old drag-in logic's answer, and a
 	// voyage embedding must not drag Ollama in either.
 	checkRole(t, plan, "inference", rolePlan{
-		Obligation: obligationExternal, Driver: "anthropic",
+		Presence: presenceExternal, Driver: "anthropic",
 		Address: "api.anthropic.com", Port: 443,
 		Models:       []string{"claude-sonnet-4-5-20250929"},
 		OllamaServed: []string{},
@@ -476,7 +476,7 @@ baseURL = "http://${OLLAMA_HOST}:11434"
 image = "ollama/ollama:0.9.5"
 `})
 	plan := mustDerive(t, p)
-	if got := plan.Roles["inference"].Obligation; got != obligationAbsent {
+	if got := plan.Roles["inference"].Presence; got != presenceAbsent {
 		t.Errorf("no bindings: inference should be absent, got %v", got)
 	}
 	if got := plan.Roles["embedding"].Image; got != "ollama/ollama:0.9.5" {

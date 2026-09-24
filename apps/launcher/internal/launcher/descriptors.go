@@ -40,6 +40,32 @@ type dependency struct {
 	because string
 }
 
+// authority: what the launcher may do INSIDE a service it does not run.
+//
+// The one fact in this model that derives from nothing else, and the pair
+// already in the code is the proof. We start neither a host-installed Ollama
+// nor an external PostgreSQL — same presence — yet we pull models INTO the
+// Ollama and refuse to create a database in the PostgreSQL. Same mechanism,
+// opposite permission, because the difference is a POLICY: pulling a model
+// is idempotent, cheap and reversible; creating a database in somebody's
+// shared server is a privileged, persistent change. No fact about where a
+// thing runs can tell you that.
+//
+// Full ownership is NOT a value here: a service the launcher runs is ours
+// entirely, which mayConfigure derives from presence rather than restating
+// per row (O2 — carry the lines the code already draws, subdivide only when
+// something concrete demands it).
+type authority int
+
+const (
+	// authorityObserve: probe it, read it, and change nothing. The default,
+	// and what the external-PostgreSQL and external-issuer refusals are.
+	authorityObserve authority = iota
+	// authorityConfigure: idempotent, cheap, reversible changes inside
+	// somebody else's process — pulling a model into a host Ollama.
+	authorityConfigure
+)
+
 // needs spells the ordering-only edges, which are most of them.
 func needs(roles ...string) []dependency {
 	out := make([]dependency, 0, len(roles))
@@ -94,6 +120,11 @@ type serviceDescriptor struct {
 	// the role's: Keycloak keeps its realm in a database, an external OIDC
 	// issuer needs nothing from us.
 	needs []dependency
+
+	// authority: what the launcher may change inside this service when it is
+	// not the one running it. Zero is observe-only, which is the right
+	// default: a driver earns more by being named below, never by omission.
+	authority authority
 
 	display     string     // product name for banners, status and messages
 	defaultPort int        // config default AND the container-side listen port
@@ -189,8 +220,11 @@ var serviceDescriptors = []serviceDescriptor{
 
 	// inference 24G: a loaded small model (gemma-class) needs 4-5G; the
 	// silent 1G default cannot even load one.
+	// authorityConfigure: the launcher pulls models into an Ollama it did not
+	// start. A pull is idempotent, cheap and reversible, which is the whole
+	// of the argument — and the argument PostgreSQL does not get.
 	{role: "inference", driver: "ollama", container: "semiont-ollama", image: "ollama/ollama", mem: "24G",
-		display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
+		display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure},
 	// Remote SaaS: no image (nothing to launch), port is TLS. The row it
 	// yields is external — participates in status, no start/stop.
 	{role: "inference", driver: "anthropic", display: "Anthropic", defaultPort: 443},
@@ -199,7 +233,7 @@ var serviceDescriptors = []serviceDescriptor{
 	// the Ollama the inference role already runs serves it, or it is remote
 	// SaaS over TLS. Like every external row it participates in status and
 	// supports no start/stop.
-	{role: "embedding", driver: "ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
+	{role: "embedding", driver: "ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure},
 	{role: "embedding", driver: "voyage", display: "Voyage", defaultPort: 443, portLabel: "Voyage"},
 
 	// The collector owns 4318 (the port services target); Jaeger's own OTLP
@@ -459,6 +493,18 @@ func roleTitle(role, driver string) string {
 		return role + " (" + p + ")"
 	}
 	return role
+}
+
+// mayConfigure: may the launcher change anything INSIDE this role's
+// service? A service the launcher runs is ours entirely, so ownership
+// answers for itself; for one it does not run, the driver's declared
+// authority decides. Three refusals used to answer this question separately,
+// each by asking whether the role was "launcher-run".
+func mayConfigure(rp rolePlan) bool {
+	if rp.Presence == presenceLauncher {
+		return true
+	}
+	return descriptorFor(rp.Role, rp.Driver).authority >= authorityConfigure
 }
 
 // restartDriver: which driver a single-service restart is about. A

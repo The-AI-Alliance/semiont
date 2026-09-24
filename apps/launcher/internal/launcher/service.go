@@ -47,7 +47,7 @@ func runStartService(u *UI, rt, version, root, configFile string, opts startOpti
 		return code
 	}
 	if plan != nil {
-		if rp, ok := plan.Roles[opts.service]; ok && (rp.Obligation == obligationExternal || rp.Obligation == obligationAbsent) {
+		if rp, ok := plan.Roles[opts.service]; ok && (rp.Presence == presenceExternal || rp.Presence == presenceAbsent) {
 			return 0
 		}
 	}

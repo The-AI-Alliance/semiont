@@ -28,11 +28,11 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 	switch {
 	case wantLocal:
 	case repo != "":
-		target := ss.Stacks["codespace:"+repo]
+		target := codespaceStack(ss, repo)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repo)
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 			}
 			return nil, false
 		}
@@ -58,7 +58,7 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 			fmt.Fprintf(os.Stderr, "    semiont %s --runtime %s ...   (the local stack)\n", verb, local.Runtime)
 		}
 		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    semiont %s --repo %s ...\n", verb, c.Repo)
+			fmt.Fprintf(os.Stderr, "    semiont %s --repo %s ...\n", verb, c.Codespace.Repo)
 		}
 		return nil, false
 	}

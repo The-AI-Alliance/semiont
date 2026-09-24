@@ -65,13 +65,13 @@ func startCeilingsGB(plan *launchPlan, opts startOptions) float64 {
 		return sum
 	}
 	for _, role := range []string{"graph", "vectors", "database", "messaging", "identity"} {
-		if plan.Roles[role].Obligation == obligationProvided {
+		if plan.Roles[role].Presence == presenceLauncher {
 			sum += memCeilingGB(descriptorFor(role, plan.Roles[role].Driver).mem)
 		}
 	}
 	inf, emb := plan.Roles["inference"], plan.Roles["embedding"]
-	if (inf.Driver == "ollama" && inf.Obligation == obligationProvided) ||
-		(emb.Driver == "ollama" && emb.Obligation == obligationProvided) {
+	if (inf.Driver == "ollama" && inf.Presence == presenceLauncher) ||
+		(emb.Driver == "ollama" && emb.Presence == presenceLauncher) {
 		sum += memCeilingGB(descriptorFor("inference", "ollama").mem)
 	}
 	return sum
