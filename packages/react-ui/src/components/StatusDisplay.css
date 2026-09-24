@@ -433,3 +433,9 @@
   color: var(--semiont-color-amber-300);
 }
 
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* An editable tag carries a remove affordance; the base tag is read-only. */
+.semiont-resource-tag--editable {
+  cursor: pointer;
+}

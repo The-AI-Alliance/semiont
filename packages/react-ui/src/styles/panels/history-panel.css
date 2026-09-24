@@ -259,3 +259,24 @@
 [data-theme="dark"] .semiont-history-event__link:hover {
   color: var(--semiont-color-primary-300);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+.semiont-history-event__tag {
+  display: inline-block;
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--semiont-radius-sm);
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-2xs);
+}
+
+.semiont-history-panel__error {
+  padding: 0.75rem;
+  color: var(--semiont-color-error);
+  font-size: var(--semiont-text-sm);
+}
+
+[data-theme="dark"] .semiont-history-panel__error {
+  color: var(--semiont-color-error-light);
+}

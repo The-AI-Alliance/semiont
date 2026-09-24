@@ -24,3 +24,21 @@
 [data-theme="dark"] .semiont-loading-message {
   color: var(--semiont-color-gray-300);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+.semiont-loading-state-compose,
+.semiont-loading-state-resource {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.5rem;
+}
+
+/* A skeleton drawn as an outline rather than a filled block, for places where
+   a solid bar would read as real content. */
+.semiont-skeleton-outline {
+  border: 1px dashed var(--semiont-border-secondary);
+  border-radius: var(--semiont-radius-sm);
+  background: none;
+}

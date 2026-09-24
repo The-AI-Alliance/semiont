@@ -70,6 +70,7 @@
 @import '../components/settings/SettingsPanel.css';
 @import '../components/navigation/CollapsibleResourceNavigation.css';
 @import '../components/navigation/NavigationMenu.css';
+@import '../components/navigation/SimpleNavigation.css';
 @import '../components/navigation/NavigationTabs.css';
 @import '../components/modals/modals.css';
 @import '../components/modals/SearchModal.css';
@@ -82,6 +83,7 @@
 @import '../components/annotation/annotations.css';
 @import '../components/annotation/annotation-entries.css';
 @import '../components/annotation/references.css';
+@import '../components/SessionExpiryBanner.css';
 @import '../components/Toast.css';
 @import '../components/StatusDisplay.css';
 @import '../components/ProtectedErrorBoundary.css';

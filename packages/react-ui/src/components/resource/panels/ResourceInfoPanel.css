@@ -196,3 +196,25 @@
 [data-theme="dark"] .semiont-resource-button--archive:hover {
   background-color: rgba(251, 146, 60, 0.3);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+.semiont-resource-info-panel__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--semiont-color-primary-600);
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.semiont-resource-info-panel__link:hover {
+  color: var(--semiont-color-primary-700);
+}
+
+.semiont-resource-info-panel__link:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}

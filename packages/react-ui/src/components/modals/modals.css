@@ -674,3 +674,44 @@
   color: var(--semiont-text-secondary);
   word-break: break-all;
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* The quoted passage a popup is about — the reader's anchor for everything
+   else in the popup, so it reads as quoted material, not as body copy. */
+.semiont-selected-text-display {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--semiont-border-secondary);
+  background-color: var(--semiont-bg-secondary);
+  border-radius: var(--semiont-radius-sm);
+}
+
+.semiont-selected-text-display__label {
+  font-size: var(--semiont-text-2xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--semiont-text-tertiary);
+}
+
+.semiont-selected-text-display__content {
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.semiont-entity-type-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.semiont-entity-type-badges__badge {
+  padding: 0.0625rem 0.375rem;
+  border-radius: var(--semiont-radius-full);
+  background-color: var(--semiont-bg-tertiary);
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-2xs);
+}

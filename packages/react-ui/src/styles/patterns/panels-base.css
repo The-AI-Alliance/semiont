@@ -382,3 +382,26 @@
   border-radius: var(--semiont-panel-border-radius);
   animation: semiont-pulse-border 2s ease-in-out infinite;
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* A text-weight action inside panel body copy — "retry", "show more" — which
+   must read as a control without taking a button's visual weight. */
+.semiont-panel__inline-action {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--semiont-color-primary-600);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.semiont-panel__inline-action:hover {
+  color: var(--semiont-color-primary-700);
+}
+
+.semiont-panel__inline-action:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}

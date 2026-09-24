@@ -22,3 +22,15 @@
 [data-theme="dark"] .semiont-error-message {
   color: var(--semiont-color-error-light);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+.semiont-error-state-resource {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}

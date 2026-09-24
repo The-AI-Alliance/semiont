@@ -153,8 +153,17 @@ const RENDERED = /semiont-[a-zA-Z0-9_-]+/g;
  * permissive (it spares a class from being called dead). Here, being loose
  * ACCUSES. So this side has to be strict.
  */
-function classNamesIn(source) {
+function classNamesIn(rawSource) {
   const names = new Set();
+  // Data attributes wear the same prefix — `data-testid="semiont-assist-bar"`
+  // is a TEST HOOK, never a class, and no stylesheet should define it. They sit
+  // inches from a `className`, so the window below would otherwise accuse
+  // every one of them. (CSS does select `[data-visible="true"]`, but that is an
+  // attribute selector, not a class, so dropping the values is safe.)
+  const source = rawSource.replace(
+    /data-[a-z-]+\s*=\s*(?:"[^"]*"|'[^']*'|\{[^}]*\})/g,
+    ' ',
+  );
   // In a className position: `className="a b"`, `className={cn('a', x)}`,
   // `` className={`a ${b}`} ``. A window, because the expression forms vary.
   for (const at of source.matchAll(/className/g)) {
@@ -273,9 +282,10 @@ if (process.argv.includes('--write-baseline')) {
     // Carried forward, not regenerated: the note records WHEN and WHY each
     // tranche was frozen, which a rewrite would silently discard.
     _note: baseline._note,
-    _note_unstyled: baseline._note_unstyled
-      ?? 'Unstyled debt frozen 2026-09-24: markup naming classes no stylesheet defines, '
-         + 'found when /auth/error rendered invisible. Entries may only be REMOVED.',
+    _note_unstyled:
+      'Swept to ZERO 2026-09-24. This list was 64 classes that markup named and no '
+      + 'stylesheet defined — found when /auth/error rendered invisible. Empty means '
+      + 'the check is now absolute: any new unstyled class fails the build.',
     duplicated: duplicated.map(([cls]) => cls),
     unrendered: unrendered.map(([cls]) => cls),
     unstyled: unstyled.map(([cls]) => cls),

@@ -219,3 +219,12 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* Time left in the session, shown before it is urgent — the banner takes
+   over once it is. */
+.semiont-session-timer {
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-xs);
+}

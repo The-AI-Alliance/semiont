@@ -802,3 +802,35 @@
 [data-theme="dark"] .semiont-user-menu-divider {
   border-top-color: var(--semiont-color-gray-600);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* The spinner SVG's two halves: a faint full ring, and the arc that turns.
+   The rotation lives on the svg, so these only carry the contrast. */
+.semiont-spinner-circle {
+  opacity: 0.25;
+}
+
+.semiont-spinner-path {
+  opacity: 0.75;
+}
+
+/* A control that reads as text — used inside body copy where a button's
+   weight would shout. */
+.semiont-text-button {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--semiont-color-primary-600);
+  font-size: var(--semiont-text-sm);
+  cursor: pointer;
+}
+
+.semiont-text-button:hover {
+  text-decoration: underline;
+}
+
+.semiont-text-button:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}

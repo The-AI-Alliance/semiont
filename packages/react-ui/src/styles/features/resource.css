@@ -466,3 +466,33 @@
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* The viewer narrows when a side panel opens; the panel owns its own width. */
+.semiont-document-viewer--panel-open {
+  min-width: 0;
+}
+
+.semiont-jsonld-panel__status {
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-jsonld-panel__status--error {
+  color: var(--semiont-color-error);
+}
+
+[data-theme="dark"] .semiont-jsonld-panel__status--error {
+  color: var(--semiont-color-error-light);
+}
+
+.semiont-unified-panel__error {
+  padding: 0.75rem;
+  color: var(--semiont-color-error);
+  font-size: var(--semiont-text-sm);
+}
+
+[data-theme="dark"] .semiont-unified-panel__error {
+  color: var(--semiont-color-error-light);
+}

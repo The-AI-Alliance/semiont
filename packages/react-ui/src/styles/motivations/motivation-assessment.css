@@ -260,3 +260,17 @@
 [data-theme="dark"] .semiont-assessment-star--filled {
   color: var(--semiont-color-warning-light);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+.semiont-annotation-prompt__title {
+  margin: 0 0 0.25rem;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-primary);
+}
+
+.semiont-annotation-prompt__text {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+  color: var(--semiont-text-secondary);
+}

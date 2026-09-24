@@ -686,3 +686,90 @@
 .semiont-card-grid--fixed-3 {
   grid-template-columns: repeat(3, 1fr);
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Empty, loading and unsupported states
+ *
+ * These class names have been rendered by the views since the move off
+ * Tailwind (#401) with no rules behind them, so each state drew as bare text
+ * on the view background. Swept 2026-09-24 once the css-classes gate learned
+ * to report markup that names no stylesheet.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.semiont-annotate-view__empty,
+.semiont-browse-view__empty,
+.semiont-annotate-view__loading,
+.semiont-browse-view__loading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.semiont-annotate-view__empty-message,
+.semiont-browse-view__empty-message {
+  margin: 0;
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-sm);
+}
+
+/* A renderer exists for the media type but cannot annotate it — the view is
+   still readable, so this says so quietly rather than replacing the content. */
+.semiont-annotate-view--unsupported {
+  opacity: 0.85;
+}
+
+/* SVG children. The stroke and opacity are set inline per hover/selected
+   state; what belongs here is the affordance. */
+.semiont-annotation-overlay__shape {
+  cursor: pointer;
+}
+
+.semiont-annotation-overlay__status-indicator {
+  cursor: pointer;
+}
+
+/* A grid that wants exactly two columns rather than the auto-fill default,
+   collapsing to one when there is no room for two. */
+.semiont-card-grid--two-columns {
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+}
+
+.semiont-delete-confirmation__text {
+  margin: 0 0 1.5rem;
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-sm);
+}
+
+/* Page-level loading: the whole route, before any panel exists. */
+.semiont-page__loading {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem;
+}
+
+.semiont-page__loading-text {
+  margin: 0;
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-sm);
+}
+
+/* An image resource fills its viewport without overflowing it. */
+.semiont-image-viewer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  overflow: auto;
+  background-color: var(--semiont-bg-secondary);
+}
+
+.semiont-image-viewer__image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}

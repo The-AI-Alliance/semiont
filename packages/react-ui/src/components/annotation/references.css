@@ -424,3 +424,12 @@
     outline-width: 3px;
   }
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* An incoming reference points AT this resource; the arrow direction is the
+   only thing distinguishing it from an outgoing one in the same list. */
+.semiont-reference-item--incoming {
+  border-left: 2px solid var(--semiont-border-secondary);
+  padding-left: 0.5rem;
+}

@@ -289,3 +289,19 @@
 .semiont-form__field--inline > .semiont-form__label {
   white-space: nowrap;
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* A form tall enough to need its own scroll rather than growing its dialog. */
+.semiont-form--scrollable {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* A label that sits beside its control instead of above it. */
+.semiont-form__label--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
+}
