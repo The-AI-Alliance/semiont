@@ -26,10 +26,6 @@
   gap: var(--semiont-panel-padding-xs);
 }
 
-.semiont-tags--spaced {
-  gap: var(--semiont-panel-gap-sm);
-}
-
 /* Individual Tag */
 .semiont-tag {
   display: inline-flex;
@@ -60,87 +56,13 @@
   color: var(--semiont-color-gray-300);
 }
 
-.semiont-tag--success {
-  background: var(--semiont-color-success-light);
-  color: var(--semiont-color-success-dark);
-}
-
-[data-theme="dark"] .semiont-tag--success {
-  background: rgba(34, 197, 94, 0.2);
-  color: var(--semiont-color-success-light);
-}
-
-.semiont-tag--warning {
-  background: var(--semiont-color-warning-light);
-  color: var(--semiont-color-warning-dark);
-}
-
-[data-theme="dark"] .semiont-tag--warning {
-  background: rgba(251, 146, 60, 0.2);
-  color: var(--semiont-color-warning-light);
-}
-
-.semiont-tag--error {
-  background: var(--semiont-color-error-light);
-  color: var(--semiont-color-error-dark);
-}
-
-[data-theme="dark"] .semiont-tag--error {
-  background: rgba(239, 68, 68, 0.2);
-  color: var(--semiont-color-error-light);
-}
-
 /* Clickable Tag */
-.semiont-tag--clickable {
-  cursor: pointer;
-}
-
-.semiont-tag--clickable:hover {
-  background: var(--semiont-color-primary-200);
-}
-
-[data-theme="dark"] .semiont-tag--clickable:hover {
-  background: rgba(59, 130, 246, 0.3);
-}
-
-.semiont-tag--clickable:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-}
 
 /* Tag with Remove Button */
-.semiont-tag__remove {
-  cursor: pointer;
-  color: var(--semiont-color-primary-500);
-  font-weight: bold;
-  margin-left: var(--semiont-panel-padding-xs);
-  line-height: 1;
-  transition: color 0.2s ease;
-}
-
-[data-theme="dark"] .semiont-tag__remove {
-  color: var(--semiont-color-primary-400);
-}
-
-.semiont-tag__remove:hover {
-  color: var(--semiont-color-primary-700);
-}
-
-[data-theme="dark"] .semiont-tag__remove:hover {
-  color: var(--semiont-color-primary-200);
-}
 
 /* Tag Icon */
-.semiont-tag__icon {
-  font-size: var(--semiont-text-sm);
-  line-height: 1;
-}
 
 /* Large Tag Variant */
-.semiont-tag--large {
-  padding: calc(var(--semiont-panel-padding-xs) * 1.5) var(--semiont-panel-padding-md);
-  font-size: var(--semiont-text-sm);
-}
 
 /* Small Tag Variant */
 .semiont-tag--small {
@@ -163,10 +85,6 @@
   border-radius: var(--semiont-radius-md);
 }
 
-.semiont-tag--rounded-lg {
-  border-radius: var(--semiont-radius-lg);
-}
-
 /* Info Tag Variant (subtle blue background) */
 .semiont-tag--info {
   background: rgba(59, 130, 246, 0.05);
@@ -181,23 +99,3 @@
 }
 
 /* Outlined Tag Variant */
-.semiont-tag--outlined {
-  background: transparent;
-  border: 1px solid var(--semiont-color-primary-500);
-  color: var(--semiont-color-primary-600);
-}
-
-[data-theme="dark"] .semiont-tag--outlined {
-  border-color: var(--semiont-color-primary-400);
-  color: var(--semiont-color-primary-300);
-}
-
-.semiont-tag--outlined.semiont-tag--secondary {
-  border-color: var(--semiont-color-gray-400);
-  color: var(--semiont-color-gray-700);
-}
-
-[data-theme="dark"] .semiont-tag--outlined.semiont-tag--secondary {
-  border-color: var(--semiont-color-gray-500);
-  color: var(--semiont-color-gray-300);
-}

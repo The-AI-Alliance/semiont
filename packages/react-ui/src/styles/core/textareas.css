@@ -97,30 +97,8 @@
 }
 
 /* Size Variants */
-.semiont-textarea--small {
-  padding: 0.375rem 0.5rem;
-  font-size: var(--semiont-text-xs);
-  min-height: 3rem;
-}
-
-.semiont-textarea--large {
-  padding: 0.75rem 1rem;
-  font-size: var(--semiont-text-base);
-  min-height: 6rem;
-}
 
 /* Resize Options */
-.semiont-textarea--no-resize {
-  resize: none;
-}
-
-.semiont-textarea--horizontal {
-  resize: horizontal;
-}
-
-.semiont-textarea--both {
-  resize: both;
-}
 
 /* Placeholder */
 .semiont-textarea::placeholder {

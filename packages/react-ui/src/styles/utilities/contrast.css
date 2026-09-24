@@ -52,15 +52,11 @@
 }
 
 /* Fix light backgrounds with light text */
-.semiont-bg-gray-100,
-.semiont-bg-gray-200,
 [class*="bg-gray-100"],
 [class*="bg-gray-200"] {
   color: var(--semiont-color-gray-800) !important; /* Ensure dark text on light bg */
 }
 
-[data-theme="dark"] .semiont-bg-gray-100,
-[data-theme="dark"] .semiont-bg-gray-200,
 [data-theme="dark"] [class*="bg-gray-100"],
 [data-theme="dark"] [class*="bg-gray-200"] {
   background-color: var(--semiont-color-gray-800) !important;
@@ -111,47 +107,6 @@ textarea:disabled,
 }
 
 /* Status indicators - ensure sufficient contrast */
-.semiont-status--success {
-  color: var(--semiont-color-green-700) !important;
-  background-color: var(--semiont-color-green-50) !important;
-}
-
-[data-theme="dark"] .semiont-status--success {
-  color: var(--semiont-color-green-300) !important;
-  background-color: rgba(34, 197, 94, 0.1) !important;
-}
-
-.semiont-status--warning {
-  color: var(--semiont-color-amber-700) !important;
-  background-color: var(--semiont-color-amber-50) !important;
-}
-
-[data-theme="dark"] .semiont-status--warning {
-  color: var(--semiont-color-amber-300) !important;
-  background-color: rgba(251, 191, 36, 0.1) !important;
-}
-
-.semiont-status--error,
-.semiont-status--danger {
-  color: var(--semiont-color-red-700) !important;
-  background-color: var(--semiont-color-red-50) !important;
-}
-
-[data-theme="dark"] .semiont-status--error,
-[data-theme="dark"] .semiont-status--danger {
-  color: var(--semiont-color-red-300) !important;
-  background-color: rgba(239, 68, 68, 0.1) !important;
-}
-
-.semiont-status--info {
-  color: var(--semiont-color-blue-700) !important;
-  background-color: var(--semiont-color-blue-50) !important;
-}
-
-[data-theme="dark"] .semiont-status--info {
-  color: var(--semiont-color-blue-300) !important;
-  background-color: rgba(59, 130, 246, 0.1) !important;
-}
 
 /* Links - ensure sufficient contrast */
 a,
@@ -173,17 +128,11 @@ a:visited,
 }
 
 /* Light colored badges need dark text */
-.semiont-badge--light,
-.semiont-chip--light,
-.semiont-tag--light,
 [data-variant="light"] {
   color: var(--semiont-color-gray-900) !important;
   background-color: var(--semiont-color-gray-100) !important;
 }
 
-[data-theme="dark"] .semiont-badge--light,
-[data-theme="dark"] .semiont-chip--light,
-[data-theme="dark"] .semiont-tag--light,
 [data-theme="dark"] [data-variant="light"] {
   color: var(--semiont-color-gray-100) !important;
   background-color: var(--semiont-color-gray-700) !important;
@@ -196,14 +145,12 @@ a:visited,
 @media (prefers-contrast: more) {
   /* Increase all text contrast in high contrast mode */
   body,
-  .semiont-text,
-  .semiont-content {
+  .semiont-text {
     color: var(--semiont-color-gray-900) !important;
   }
 
   [data-theme="dark"] body,
-  [data-theme="dark"] .semiont-text,
-  [data-theme="dark"] .semiont-content {
+  [data-theme="dark"] .semiont-text {
     color: var(--semiont-color-gray-50) !important;
   }
 
@@ -245,15 +192,6 @@ a:visited,
   /* Stronger focus indicators (already handled in focus.css) */
 
   /* Pure black/white for maximum contrast */
-  .semiont-high-contrast {
-    background: var(--semiont-color-white) !important;
-    color: var(--semiont-color-black) !important;
-  }
-
-  [data-theme="dark"] .semiont-high-contrast {
-    background: var(--semiont-color-black) !important;
-    color: var(--semiont-color-white) !important;
-  }
 }
 
 /* ========================================
@@ -308,42 +246,34 @@ a:visited,
 
 /* Forms - improve label contrast */
 .semiont-form__label,
-.semiont-label,
 label {
   color: var(--semiont-color-gray-700) !important;
   font-weight: 500 !important;
 }
 
 [data-theme="dark"] .semiont-form__label,
-[data-theme="dark"] .semiont-label,
 [data-theme="dark"] label {
   color: var(--semiont-color-gray-200) !important;
 }
 
 /* Helper text - ensure readability */
-.semiont-form__helper,
-.semiont-helper-text,
-.semiont-description {
+.semiont-form__helper {
   color: var(--semiont-color-gray-600) !important;
   font-size: 0.875rem !important;
 }
 
-[data-theme="dark"] .semiont-form__helper,
-[data-theme="dark"] .semiont-helper-text,
-[data-theme="dark"] .semiont-description {
+[data-theme="dark"] .semiont-form__helper {
   color: var(--semiont-color-gray-400) !important;
 }
 
 /* Error messages - high contrast for importance */
 .semiont-form__error,
-.semiont-error-text,
 .semiont-error {
   color: var(--semiont-color-red-700) !important;
   font-weight: 500 !important;
 }
 
 [data-theme="dark"] .semiont-form__error,
-[data-theme="dark"] .semiont-error-text,
 [data-theme="dark"] .semiont-error {
   color: var(--semiont-color-red-400) !important;
 }
@@ -364,15 +294,6 @@ pre,
 }
 
 /* Tooltips - high contrast for readability */
-.semiont-tooltip {
-  background-color: var(--semiont-color-gray-900) !important;
-  color: var(--semiont-color-white) !important;
-}
-
-[data-theme="dark"] .semiont-tooltip {
-  background-color: var(--semiont-color-gray-100) !important;
-  color: var(--semiont-color-gray-900) !important;
-}
 
 /* ========================================
    Utility Classes for Manual Overrides

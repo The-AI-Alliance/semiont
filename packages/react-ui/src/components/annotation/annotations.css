@@ -89,3 +89,7 @@
 .semiont-annotation-entity-type {
   color: var(--semiont-text-tertiary);
 }
+
+[data-theme="dark"] .semiont-annotation-check {
+  color: var(--semiont-color-success-light);
+}

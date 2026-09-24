@@ -121,3 +121,10 @@
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
 }
+
+[data-theme="dark"] .semiont-auth-error-display__link {
+  /* `--semiont-text-inverse` FLIPS between themes, so on a dark ground the
+     label would turn dark on a blue button. The fill stays blue in both
+     themes, so the label must be pinned, not inherited. */
+  color: var(--semiont-color-white);
+}

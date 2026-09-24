@@ -46,34 +46,6 @@
   font-style: italic;
 }
 
-.semiont-resource-info-panel__metric {
-  display: flex;
-  align-items: center;
-  gap: var(--semiont-panel-gap-sm);
-  margin-bottom: var(--semiont-panel-gap-sm);
-}
-
-.semiont-resource-info-panel__metric:last-child {
-  margin-bottom: 0;
-}
-
-.semiont-resource-info-panel__metric-label {
-  color: var(--semiont-text-tertiary);
-  font-size: var(--semiont-text-sm);
-}
-
-.semiont-resource-info-panel__metric-value {
-  color: var(--semiont-text-primary);
-  font-size: var(--semiont-text-sm);
-  font-weight: var(--semiont-font-medium);
-}
-
-.semiont-resource-info-panel__tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--semiont-panel-gap-sm);
-}
-
 .semiont-resource-info-panel__tag {
   /* Use global tag styles from tags.css */
   padding: var(--semiont-panel-padding-xs) var(--semiont-panel-padding-sm);
@@ -87,17 +59,6 @@
 [data-theme="dark"] .semiont-resource-info-panel__tag {
   background-color: rgba(59, 130, 246, 0.2);
   color: var(--semiont-color-primary-300);
-}
-
-.semiont-resource-info-panel__actions {
-  display: flex;
-  gap: var(--semiont-panel-gap-sm);
-  padding-top: var(--semiont-panel-padding);
-  border-top: 1px solid var(--semiont-color-gray-200);
-}
-
-[data-theme="dark"] .semiont-resource-info-panel__actions {
-  border-top-color: var(--semiont-color-gray-700);
 }
 
 .semiont-resource-info-panel__field-group {
@@ -217,4 +178,8 @@
 .semiont-resource-info-panel__link:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-resource-info-panel__link {
+  color: var(--semiont-color-primary-400);
 }

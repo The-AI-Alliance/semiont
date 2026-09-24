@@ -3,52 +3,6 @@
    Reference management panel styles
    ============================================ */
 
-.semiont-references-panel {
-  display: flex;
-  flex-direction: column;
-}
-
-.semiont-references-panel__list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--semiont-panel-gap-sm);
-}
-
-.semiont-references-panel__item {
-  padding: var(--semiont-panel-padding-md);
-  background: var(--semiont-bg-secondary);
-  border-radius: var(--semiont-radius-md);
-  border: 1px solid transparent;
-  transition: all 0.2s ease;
-}
-
-[data-theme="dark"] .semiont-references-panel__item {
-  background: var(--semiont-bg-tertiary);
-}
-
-.semiont-references-panel__item:hover {
-  border-color: var(--semiont-color-primary-300);
-}
-
-.semiont-references-panel__title {
-  font-size: var(--semiont-panel-title-size);
-  font-weight: var(--semiont-panel-title-weight);
-  color: var(--semiont-text-primary);
-  margin-bottom: var(--semiont-panel-header-margin-bottom);
-}
-
-.semiont-references-panel__path {
-  font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-tertiary);
-  margin-top: var(--semiont-panel-padding-xs);
-}
-
-.semiont-references-panel__count {
-  font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-tertiary);
-  margin-top: var(--semiont-panel-padding-xs);
-}
-
 /* Reference Icon Group — status icon + hover-reveal unlink */
 .semiont-reference-icon-group {
   position: relative;

@@ -200,31 +200,7 @@
   background: linear-gradient(to bottom right, rgba(180, 83, 9, 0.3), rgba(146, 64, 14, 0.3));
 }
 
-.semiont-modal__icon-emoji {
-  font-size: 1.5rem;
-}
-
 /* Modal Selection */
-.semiont-modal__selection {
-  margin-bottom: 1rem;
-}
-
-.semiont-modal__selection-label {
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--semiont-color-gray-700);
-  margin-bottom: 0.5rem;
-}
-
-[data-theme="dark"] .semiont-modal__selection-label {
-  color: var(--semiont-color-gray-300);
-}
-
-.semiont-modal__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
 
 .semiont-modal__empty-state {
   font-size: 0.875rem;
@@ -232,17 +208,6 @@
 }
 
 [data-theme="dark"] .semiont-modal__empty-state {
-  color: var(--semiont-color-gray-400);
-}
-
-.semiont-modal__count {
-  font-size: 0.75rem;
-  color: var(--semiont-color-gray-500);
-  text-align: center;
-  margin-bottom: 1rem;
-}
-
-[data-theme="dark"] .semiont-modal__count {
   color: var(--semiont-color-gray-400);
 }
 
@@ -309,24 +274,20 @@
   }
 }
 
-.semiont-chip--selected,
 .semiont-chip[data-selected="true"] {
   background-color: var(--semiont-color-blue-600);
   color: var(--semiont-color-white);
 }
 
-[data-theme="dark"] .semiont-chip--selected,
 [data-theme="dark"] .semiont-chip[data-selected="true"] {
   background-color: var(--semiont-color-blue-700);
   color: var(--semiont-color-white);
 }
 
-.semiont-chip--selected:hover,
 .semiont-chip[data-selected="true"]:hover {
   background-color: var(--semiont-color-blue-700);
 }
 
-[data-theme="dark"] .semiont-chip--selected:hover,
 [data-theme="dark"] .semiont-chip[data-selected="true"]:hover {
   background-color: var(--semiont-color-blue-600);
 }
@@ -334,26 +295,6 @@
 /* Button Extensions for Modals */
 .semiont-button--flex {
   flex: 1;
-}
-
-.semiont-button--gradient {
-  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-[data-theme="dark"] .semiont-button--gradient {
-  background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-}
-
-.semiont-button--gradient:hover {
-  background: linear-gradient(to right, var(--semiont-color-blue-700), var(--semiont-color-cyan-700));
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-}
-
-[data-theme="dark"] .semiont-button--gradient:hover {
-  background: linear-gradient(to right, var(--semiont-color-blue-600), var(--semiont-color-cyan-600));
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
 }
 
 .semiont-button--disabled,
@@ -643,7 +584,6 @@
 [data-theme="dark"] .semiont-popup-header__close-button:focus-visible {
   outline-color: var(--semiont-color-primary-400);
 }
-
 
 /* KB identity conflict (KB-IDENTITY-CHECKED-ON-ACTIVATION P2): two facts,
    rendered apart — the registered entry and the identity that answered. */

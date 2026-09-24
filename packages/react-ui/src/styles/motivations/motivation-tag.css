@@ -43,7 +43,6 @@
 /* ============================================
    Inline Text Annotations
    ============================================ */
-.semiont-motivation-tag,
 .annotation-tag {
   border-radius: 0.25rem;
   padding: 0 0.125rem;
@@ -53,12 +52,10 @@
   color: var(--semiont-motivation-tag-text);
 }
 
-.semiont-motivation-tag:hover,
 .annotation-tag:hover {
   background: var(--semiont-motivation-tag-bg-hover);
 }
 
-[data-theme="dark"] .semiont-motivation-tag,
 [data-theme="dark"] .annotation-tag {
   background: var(--semiont-motivation-tag-dark-bg);
   color: var(--semiont-color-white) !important;
@@ -66,7 +63,6 @@
   outline-offset: 1px;
 }
 
-[data-theme="dark"] .semiont-motivation-tag:hover,
 [data-theme="dark"] .annotation-tag:hover {
   background: var(--semiont-motivation-tag-dark-bg-hover);
 }
@@ -74,23 +70,19 @@
 /* ============================================
    Panel Entry Styling
    ============================================ */
-.semiont-motivation-tag-entry,
 .semiont-annotation-entry[data-type="tag"] {
   border-color: var(--semiont-motivation-tag-border);
 }
 
-.semiont-motivation-tag-entry:hover,
 .semiont-annotation-entry[data-type="tag"]:hover {
   background: var(--semiont-motivation-tag-panel-bg);
   border-color: var(--semiont-motivation-tag-border-hover);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-entry,
 [data-theme="dark"] .semiont-annotation-entry[data-type="tag"] {
   border-color: var(--semiont-motivation-tag-border);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-entry:hover,
 [data-theme="dark"] .semiont-annotation-entry[data-type="tag"]:hover {
   background: var(--semiont-motivation-tag-panel-bg-dark);
 }
@@ -98,7 +90,6 @@
 /* ============================================
    Quote/Excerpt Styling in Panels
    ============================================ */
-.semiont-motivation-tag-quote,
 .semiont-annotation-entry__quote[data-type="tag"] {
   background: var(--semiont-motivation-tag-quote-bg);
   color: var(--semiont-motivation-tag-text);
@@ -106,7 +97,6 @@
   border-radius: var(--semiont-radius-sm);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-quote,
 [data-theme="dark"] .semiont-annotation-entry__quote[data-type="tag"] {
   background: var(--semiont-motivation-tag-quote-bg-dark);
   color: var(--semiont-motivation-tag-dark-text);
@@ -115,20 +105,10 @@
 /* ============================================
    Assist Section in Unified Panel
    ============================================ */
-.semiont-motivation-tag-section,
-.semiont-assist-section[data-type="tag"] {
-  border-color: var(--semiont-motivation-tag-primary);
-}
-
-[data-theme="dark"] .semiont-motivation-tag-section,
-[data-theme="dark"] .semiont-assist-section[data-type="tag"] {
-  border-color: var(--semiont-motivation-tag-dark-primary);
-}
 
 /* ============================================
    Button Styling
    ============================================ */
-.semiont-motivation-tag-button,
 .semiont-button[data-variant="assist"][data-type="tag"] {
   background: linear-gradient(to right, var(--semiont-color-orange-500), var(--semiont-color-amber-500)) !important;
   color: var(--semiont-color-white) !important;
@@ -137,29 +117,24 @@
   transition: all 0.3s ease;
 }
 
-.semiont-motivation-tag-button:hover,
 .semiont-button[data-variant="assist"][data-type="tag"]:hover:not(:disabled) {
   background: var(--semiont-motivation-tag-button-bg-hover);
   border-color: var(--semiont-motivation-tag-primary);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-button,
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="tag"] {
   border-color: var(--semiont-motivation-tag-dark-outline);
 }
 
-[data-theme="dark"] .semiont-motivation-tag-button:hover,
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="tag"]:hover:not(:disabled) {
   border-color: var(--semiont-motivation-tag-dark-primary);
 }
 
-.semiont-motivation-tag-button:focus-visible,
 .semiont-button[data-variant="assist"][data-type="tag"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-tag-primary);
   outline-offset: 2px;
 }
 
-[data-theme="dark"] .semiont-motivation-tag-button:focus-visible,
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="tag"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-tag-dark-primary);
   outline-offset: 2px;
@@ -184,60 +159,14 @@
    Individual Tag Chips
    ============================================ */
 /* Tag chip when related to tag motivation */
-.semiont-motivation-tag-chip {
-  background: var(--semiont-motivation-tag-primary);
-  color: var(--semiont-color-white) !important;
-  border-radius: var(--semiont-radius-full);
-  padding: 0.125rem 0.5rem;
-  font-size: var(--semiont-text-xs);
-  font-weight: var(--semiont-font-medium);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-}
-
-[data-theme="dark"] .semiont-motivation-tag-chip {
-  background: var(--semiont-motivation-tag-dark-primary);
-}
-
-.semiont-motivation-tag-chip:hover {
-  background: var(--semiont-motivation-tag-secondary);
-}
-
-[data-theme="dark"] .semiont-motivation-tag-chip:hover {
-  background: var(--semiont-color-orange-500);
-}
 
 /* ============================================
    Image Annotation Overlays
    ============================================ */
-.semiont-image-annotation-tag {
-  stroke: var(--semiont-motivation-tag-primary);
-  stroke-width: 2px;
-  fill: var(--semiont-motivation-tag-border);
-}
-
-.semiont-image-annotation-tag:hover {
-  stroke-width: 3px;
-  fill: var(--semiont-motivation-tag-border-hover);
-}
-
-[data-theme="dark"] .semiont-image-annotation-tag {
-  stroke: var(--semiont-motivation-tag-dark-primary);
-  fill: rgba(251, 146, 60, 0.2);
-}
 
 /* ============================================
    Tag-specific Visual Elements
    ============================================ */
-.semiont-tag-icon {
-  color: var(--semiont-motivation-tag-primary);
-  font-size: 1.125rem;
-}
-
-[data-theme="dark"] .semiont-tag-icon {
-  color: var(--semiont-motivation-tag-dark-primary);
-}
 
 .semiont-tag-badge {
   background: var(--semiont-motivation-tag-primary);

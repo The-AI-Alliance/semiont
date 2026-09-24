@@ -309,9 +309,6 @@
 }
 
 /* DEPRECATED: Keep temporarily for safety, can be removed in future cleanup */
-.semiont-document-viewer__body {
-  padding: 0;
-}
 
 .semiont-document-viewer__error {
   display: flex;

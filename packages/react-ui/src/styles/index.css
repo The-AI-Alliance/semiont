@@ -50,21 +50,16 @@
 
 /* Patterns - Reusable Design System Patterns */
 @import './patterns/panels-base.css';
-@import './patterns/panel-sections.css';
 @import './patterns/panel-helpers.css';
 @import './patterns/cards.css';
 
 /* Component-Level CSS */
 @import '../components/pdf-annotation/PdfAnnotationCanvas.css';
-@import '../components/resource/panels/AssessmentPanel.css';
 @import '../components/resource/panels/CollaborationPanel.css';
-@import '../components/resource/panels/CommentsPanel.css';
-@import '../components/resource/panels/HighlightPanel.css';
 @import '../components/resource/panels/JsonLdPanel.css';
 @import '../components/resource/panels/ReferencesPanel.css';
 @import '../components/resource/panels/ResourceInfoPanel.css';
 @import '../components/resource/panels/StatisticsPanel.css';
-@import '../components/resource/panels/TaggingPanel.css';
 @import '../components/resource/panels/UnifiedAnnotationsPanel.css';
 @import '../components/resource/panels/AssistSection.css';
 @import '../components/settings/SettingsPanel.css';

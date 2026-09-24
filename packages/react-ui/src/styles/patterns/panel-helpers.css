@@ -7,8 +7,9 @@
 
    Most panel-specific styles have been moved to:
    - panels-base.css (base panel structure)
-   - panel-sections.css (common section patterns)
    - panels/*.css (individual panel styles)
+   (panel-sections.css was deleted 2026-09-24: every rule in it targeted a
+   class no markup rendered.)
    ============================================ */
 
 /* ============================================
@@ -34,21 +35,4 @@
 }
 
 /* Panel Button Layouts (kept for backward compatibility) */
-.semiont-panel-button-full {
-  width: 100%;
-  justify-content: center;
-}
-
-.semiont-panel-button-flex {
-  flex: 1;
-}
-
-.semiont-panel-button-icon {
-  padding: 0.5rem !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.125rem;
-  line-height: 1;
-}
 

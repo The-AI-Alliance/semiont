@@ -32,13 +32,17 @@ const INTERACTIVE_PATTERNS = [
   /\.semiont-[a-z-]*btn/,
   /\.semiont-[a-z-]*button/,
   /\.semiont-[a-z-]*link/,
-  /\.semiont-[a-z-]*tab/,
+  // `tab` must END a name segment, or the `tab` inside `edi-tab-le` makes
+  // `.semiont-resource-tag--editable` an interactive element.
+  /\.semiont-[a-z-]*tabs?(?![a-z])/,
   /\.semiont-chip/,
   /\.semiont-[a-z-]*clickable/,
   /\.semiont-[a-z-]*interactive/,
-  /input/,
-  /select/,
-  /textarea/,
+  // Element selectors, so they must not match as substrings: `select` inside
+  // `.semiont-selected-text-display` is a past participle, not a form control.
+  /\binput\b/,
+  /\bselect\b/,
+  /\btextarea\b/,
   /\[role="button"\]/,
   /\[role="link"\]/,
   /\[role="tab"\]/,
@@ -55,7 +59,17 @@ function isInteractiveElement(selector) {
       selector.includes(':visited') ||
       selector.includes('[data-loading=') ||
       selector.includes('[data-disabled=') ||
-      selector.includes('[data-active=')) {
+      selector.includes('[data-active=') ||
+      // A themed restatement of a rule, not a second interactive element: the
+      // base selector is where focus styles belong, and it is checked.
+      selector.includes('[data-theme=')) {
+    return false;
+  }
+
+  // Pseudo-elements are painted INSIDE their host and cannot take focus or a
+  // tap of their own — the host is the target. Without this, a decorative
+  // `::after` on a button is reported as an undersized touch target.
+  if (selector.includes('::after') || selector.includes('::before')) {
     return false;
   }
 

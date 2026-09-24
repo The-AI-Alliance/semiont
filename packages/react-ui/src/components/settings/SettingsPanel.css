@@ -87,3 +87,7 @@
   cursor: pointer;
   text-decoration: underline;
 }
+
+[data-theme="dark"] .semiont-settings-panel__about-link {
+  color: var(--semiont-color-primary-400);
+}

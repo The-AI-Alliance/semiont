@@ -741,68 +741,6 @@
    User Menu Dropdown
    ============================================ */
 
-.semiont-user-menu-dropdown {
-  background-color: var(--semiont-bg-primary);
-  border: 1px solid var(--semiont-color-gray-200);
-  border-radius: var(--semiont-radius-lg);
-  box-shadow: var(--semiont-shadow-lg);
-  padding: 0.75rem;
-  width: 16rem;
-  position: absolute;
-  right: 0;
-  margin-top: 0.5rem;
-  z-index: 50;
-}
-
-[data-theme="dark"] .semiont-user-menu-dropdown {
-  background-color: var(--semiont-color-gray-800);
-  border-color: var(--semiont-color-gray-700);
-}
-
-.semiont-user-menu-link {
-  display: block;
-  width: 100%;
-  text-align: left;
-  font-size: var(--semiont-text-sm);
-  color: var(--semiont-text-secondary);
-  padding: 0.25rem;
-  transition: all var(--semiont-duration-base);
-  text-decoration: none;
-  border-radius: var(--semiont-radius-base);
-}
-
-.semiont-user-menu-link:hover {
-  color: var(--semiont-text-primary);
-  background-color: var(--semiont-bg-secondary);
-}
-
-.semiont-user-menu-link:focus-visible {
-  outline: none;
-  background-color: var(--semiont-bg-secondary);
-}
-
-[data-theme="dark"] .semiont-user-menu-link {
-  color: var(--semiont-color-gray-300);
-}
-
-[data-theme="dark"] .semiont-user-menu-link:hover {
-  color: var(--semiont-color-gray-100);
-  background-color: var(--semiont-color-gray-700);
-}
-
-[data-theme="dark"] .semiont-user-menu-link:focus-visible {
-  background-color: var(--semiont-color-gray-700);
-}
-
-.semiont-user-menu-divider {
-  margin: 0.5rem 0;
-  border-top: 1px solid var(--semiont-color-gray-200);
-}
-
-[data-theme="dark"] .semiont-user-menu-divider {
-  border-top-color: var(--semiont-color-gray-600);
-}
-
 /* Swept 2026-09-24: rendered since #401 with no rules behind them. */
 
 /* The spinner SVG's two halves: a faint full ring, and the arc that turns.
@@ -833,4 +771,8 @@
 .semiont-text-button:focus-visible {
   outline: 2px solid var(--semiont-color-primary-500);
   outline-offset: 2px;
+}
+
+[data-theme="dark"] .semiont-text-button {
+  color: var(--semiont-color-primary-400);
 }

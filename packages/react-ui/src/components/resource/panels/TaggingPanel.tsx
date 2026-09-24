@@ -12,7 +12,6 @@ import type { components, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { TagEntry } from './TagEntry';
 import { PanelHeader } from './PanelHeader';
-import './TaggingPanel.css';
 
 import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];

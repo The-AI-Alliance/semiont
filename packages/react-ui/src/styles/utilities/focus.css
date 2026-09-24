@@ -2,50 +2,16 @@
 /* Provides consistent focus indicators for keyboard navigation */
 
 /* Base focus visible styles for all interactive elements */
-.semiont-focus-visible:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-  position: relative;
-  z-index: 1;
-}
 
 /* Inset variant for contained elements */
-.semiont-focus-visible--inset:focus-visible {
-  outline-offset: -2px;
-}
 
 /* Subtle variant for less prominent elements */
-.semiont-focus-visible--subtle:focus-visible {
-  outline: 1px solid var(--semiont-color-primary-400);
-  outline-offset: 1px;
-}
 
 /* Dark theme adjustments */
-[data-theme="dark"] .semiont-focus-visible:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-}
-
-[data-theme="dark"] .semiont-focus-visible--subtle:focus-visible {
-  outline-color: var(--semiont-color-primary-300);
-}
 
 /* High contrast mode support */
-@media (prefers-contrast: more) {
-  .semiont-focus-visible:focus-visible {
-    outline-width: 3px;
-    outline-color: currentColor;
-  }
-
-  .semiont-focus-visible--subtle:focus-visible {
-    outline-width: 2px;
-    outline-color: currentColor;
-  }
-}
 
 /* Remove default focus for mouse users, keep for keyboard */
-.semiont-focus-visible:focus:not(:focus-visible) {
-  outline: none;
-}
 
 /* Global interactive element focus styles */
 /* These apply to all standard interactive elements */
