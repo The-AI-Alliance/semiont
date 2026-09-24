@@ -150,7 +150,7 @@ func Identity(args []string) int {
 	u.log("Reconciling realm %s at %s", u.bold(realm), base)
 
 	rep, err := syncRealm(base, realm, keycloakAdminUser, adminPass,
-		committedResource(root), rp.AccessTokenLifespan,
+		committedResource(root), rp.AccessTokenLifespan, runningBrowserPort(),
 		func(svc string) string { return secrets[svc] })
 	if err != nil {
 		u.fail("%v", err)

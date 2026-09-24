@@ -6,6 +6,7 @@ package launcher
 // verified, never launched; every incomplete section refuses, naming the key.
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -131,7 +132,7 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 }
 
 func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", keycloakAccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan, nil))
 	// This assertion was the other way round for one commit, on the reasoning
 	// that the gateway verifies tokens and never presents one. True of the agent
 	// exchange, false in general: the gateway dials the Archivist for content,
@@ -142,7 +143,7 @@ func TestKeycloakRealmJSONRegistersTheGateway(t *testing.T) {
 }
 
 func TestKeycloakRealmJSON(t *testing.T) {
-	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", keycloakAccessTokenLifespan,
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan,
 		map[string]string{"archivist": "archivist-secret", "weaver": "weaver-secret"}))
 	for _, want := range []string{
 		`"realm": "semiont"`,
@@ -204,7 +205,7 @@ accessTokenLifespan = 60
 	if got := plan.Roles["identity"].AccessTokenLifespan; got != 60 {
 		t.Errorf("configured lifespan not carried on the plan: got %d, want 60", got)
 	}
-	doc := string(keycloakRealmJSON("semiont", "aud", "1.2.3.4", plan.Roles["identity"].AccessTokenLifespan, nil))
+	doc := string(keycloakRealmJSON("semiont", "aud", "1.2.3.4", 3000, plan.Roles["identity"].AccessTokenLifespan, nil))
 	if !strings.Contains(doc, `"accessTokenLifespan": 60`) {
 		t.Error("the realm document did not take the configured lifespan")
 	}
@@ -254,5 +255,62 @@ accessTokenLifespan = -5
 				t.Errorf("error %q missing %q", err, c.want)
 			}
 		})
+	}
+}
+
+// BROWSER-SIGNIN-ORIGIN P1. Keycloak derives a client's CORS origins from
+// `webOrigins`, and matches them EXACTLY — unlike redirect URIs, where RFC 8252
+// §7.3 makes a portless loopback entry match any port. `"+"` means "derive them
+// from the redirect URIs", so the portless entries that make `--port` work
+// yielded `http://localhost` (port 80) and the Browser's real origin,
+// `http://localhost:3000`, was in no set at all. The token POST is cross-origin,
+// so Keycloak answered 403 `Invalid origin` with no CORS header and sign-in died
+// as an opaque `error=Verification`.
+func TestBrowserWebOriginsCarryThePort(t *testing.T) {
+	origins := browserWebOrigins("192.168.64.1", 3000)
+	for _, want := range []string{
+		"http://localhost:3000",
+		"http://127.0.0.1:3000",
+		"http://192.168.64.1:3000",
+	} {
+		if !slices.Contains(origins, want) {
+			t.Errorf("web origins %v missing %s", origins, want)
+		}
+	}
+	// `+` is the defect: it couples origins to the redirect URIs, which are
+	// deliberately portless.
+	if slices.Contains(origins, "+") {
+		t.Error(`web origins still delegate to the redirect URIs with "+"`)
+	}
+}
+
+// `--port` moves the Browser, so the origin moves with it.
+func TestBrowserWebOriginsFollowTheBrowserPort(t *testing.T) {
+	origins := browserWebOrigins("192.168.64.1", 3001)
+	if !slices.Contains(origins, "http://localhost:3001") {
+		t.Errorf("web origins %v do not follow the Browser port", origins)
+	}
+	if slices.Contains(origins, "http://localhost:3000") {
+		t.Errorf("web origins %v kept the default port after a move", origins)
+	}
+}
+
+// The realm document is what actually reaches Keycloak, so the origin has to
+// survive the render — and the redirect URIs must stay portless beside it.
+func TestKeycloakRealmJSONAllowsTheBrowsersOrigin(t *testing.T) {
+	doc := string(keycloakRealmJSON("semiont", "https://example.github.io/my-kb", "192.168.64.1", 3000, keycloakAccessTokenLifespan, nil))
+	for _, want := range []string{
+		`"http://localhost:3000"`,
+		`"http://127.0.0.1:3000"`,
+		`"http://192.168.64.1:3000"`,
+		// Unchanged: the redirect leg keeps RFC 8252's portless loopback.
+		`"http://localhost/*"`,
+	} {
+		if !strings.Contains(doc, want) {
+			t.Errorf("realm document missing %s", want)
+		}
+	}
+	if strings.Contains(doc, `"webOrigins": [`+"\n"+`      "+"`) || strings.Contains(doc, `"webOrigins": ["+"]`) {
+		t.Error(`realm document still carries webOrigins "+"`)
 	}
 }

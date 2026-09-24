@@ -64,7 +64,7 @@ type executor interface {
 	dumpLogs(container, svc string)                                                                                // failed health gate: show the crash where it is
 	verifyRemoteModels(role, base, key string, models []string)                                                    // record /v1/models metadata; warn on unlisted
 	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
-	preflightBrowserRedirect(issuerBase string, port int) bool                                                     // the realm will redirect to the port the Browser is being moved to
+	preflightBrowserMove(issuerBase string, port int) bool                                                         // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
 	ensureModels(base string, models []modelNeed)                                                                  // pull configured ollama models that are absent
 	stateMounts(role, image, root string) ([]string, bool)                                                         // persistent-state run args; !ok = refuse (data written by another image)
 	stateMountsShared(role, root string) ([]string, bool)                                                          // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
@@ -719,21 +719,31 @@ func (x *liveExec) verifyRemoteModels(role, base, key string, models []string) {
 	saveStack(x.st)
 }
 
-// preflightBrowserRedirect refuses a port move the realm cannot follow.
+// preflightBrowserMove checks both legs of a sign-in against the port the
+// Browser is moving to: the realm must redirect there, and it must accept the
+// token exchange that follows.
 //
-// Refuses rather than warning, unlike the same condition inside
-// preflightIdentity: there the stack is on :3000 and works, so a pinned realm
-// is something to know about later. Here the operator has ASKED for the port
-// the realm will not redirect to, and proceeding produces a healthy Browser
-// nobody can sign in to — the failure this whole preflight exists to prevent.
-func (x *liveExec) preflightBrowserRedirect(issuerBase string, port int) bool {
-	f, bad := verifyBrowserRedirect(issuerBase, port)
-	if !bad {
-		return true
+// The REDIRECT leg refuses, unlike the same condition inside preflightIdentity:
+// there the stack is on the default port and works, so a pinned realm is
+// something to know about later. Here the operator has ASKED for the port the
+// realm will not redirect to, and proceeding produces a healthy Browser nobody
+// can sign in to — the failure this whole preflight exists to prevent.
+//
+// The ORIGIN leg only warns, and the difference is not squeamishness: the
+// repair needs this move to have happened first. `semiont identity sync` writes
+// the origin for the port the Browser is RECORDED on, so refusing here would
+// leave the operator unable to run the very command the message names. Move,
+// sync, reload — which is the order the message asks for.
+func (x *liveExec) preflightBrowserMove(issuerBase string, port int) bool {
+	if f, bad := verifyBrowserRedirect(issuerBase, port); bad {
+		x.u.fail("The realm will not redirect to the port this Browser is being moved to.")
+		fmt.Fprintln(os.Stderr, "  "+f.String())
+		return false
 	}
-	x.u.fail("The realm will not redirect to the port this Browser is being moved to.")
-	fmt.Fprintln(os.Stderr, "  "+f.String())
-	return false
+	if _, bad := verifyBrowserOrigin(issuerBase, port); bad {
+		x.say(sayWarn, "The realm does not yet allow a token exchange from http://localhost:%d — run `semiont identity sync` once this move completes, then reload the Browser.", port)
+	}
+	return true
 }
 
 // preflightIdentity refuses the start when the realm will not honour the
@@ -1312,7 +1322,7 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 	return true
 }
 
-func (x *planExec) preflightBrowserRedirect(issuerBase string, port int) bool {
+func (x *planExec) preflightBrowserMove(issuerBase string, port int) bool {
 	x.c("authorization request at %s as %s — require a redirect to http://localhost:%d/en/auth/callback, the port this move puts the Browser on",
 		issuerBase, browserClientID, port)
 	return true

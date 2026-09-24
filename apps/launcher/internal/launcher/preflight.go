@@ -245,6 +245,80 @@ func verifyBrowserRedirect(issuerBase string, port int) (publicClientFinding, bo
 	}, true
 }
 
+// verifyBrowserOrigin: will this realm let the Browser COMPLETE a sign-in?
+//
+// verifyBrowserRedirect asks the other half — whether the realm will send a
+// person back to the Browser — and a realm can pass that and still refuse this.
+// They are different matches against different lists. A redirect URI is matched
+// under RFC 8252 §7.3, where a portless loopback entry takes any port; a web
+// origin is matched EXACTLY. So registering the loopback redirects portlessly
+// (correct, and what makes `--port` work) reduced a `webOrigins: ["+"]` client's
+// CORS set to `http://localhost` on port 80, and the Browser's real origin was
+// in no set at all.
+//
+// That matters because the Browser is a static SPA doing its PKCE exchange
+// CLIENT-side: the POST to the token endpoint is cross-origin, so the realm has
+// to answer it with `Access-Control-Allow-Origin`. When it does not, the
+// exchange dies in the browser as an opaque `error=Verification` page, after a
+// redirect that worked perfectly.
+//
+// Credential-free, like its sibling: the code and verifier are throwaway, and
+// the realm's own rejection of them is NOT the subject. Only the CORS header
+// is read. A 403 `Invalid origin` carries none, which is the finding.
+//
+// Reports a finding ONLY on a positive answer — a realm that was asked and
+// declined. An unreachable issuer, a discovery document naming no token
+// endpoint, a transport error: all "cannot tell", and cannot tell must not
+// block a start.
+func verifyBrowserOrigin(issuerBase string, port int) (publicClientFinding, bool) {
+	eps, err := discoverEndpoints(issuerBase)
+	if err != nil || eps.token == "" {
+		return publicClientFinding{}, false
+	}
+	origin := fmt.Sprintf("http://localhost:%d", port)
+	allowed, err := tokenOriginProbe(eps.token, browserClientID, origin)
+	if err != nil || allowed == origin {
+		return publicClientFinding{}, false // unreachable, or the origin is allowed
+	}
+	return publicClientFinding{
+		clientID: browserClientID,
+		reason:   fmt.Sprintf("the realm will not accept a token exchange from %s (no Access-Control-Allow-Origin)", origin),
+		fix:      fmt.Sprintf("its web origins do not name the Browser's origin — a realm imported before this was fixed derives them from the portless loopback redirects, which drops the port. Run `semiont identity sync`; sign-in at %s would fail after a redirect that worked", origin),
+	}, true
+}
+
+// tokenOriginProbe POSTs an authorization-code exchange to the token endpoint
+// as `clientID`, carrying `origin` in the Origin header, and returns whatever
+// `Access-Control-Allow-Origin` comes back.
+//
+// The code and verifier are invented, and that is what makes this both safe and
+// sufficient: CORS is decided from the Origin header before the grant's
+// contents are ever considered, so the realm answers the origin question
+// whether or not it goes on to reject the code. Nothing is redeemed and nothing
+// is left pending at the issuer.
+func tokenOriginProbe(tokenEndpoint, clientID, origin string) (string, error) {
+	form := url.Values{
+		"grant_type":    {"authorization_code"},
+		"client_id":     {clientID},
+		"code":          {"semiont-preflight-probe"},
+		"code_verifier": {"semiont-preflight-probe-verifier"},
+		"redirect_uri":  {origin + "/en/auth/callback"},
+	}
+	req, err := http.NewRequest(http.MethodPost, tokenEndpoint, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", fmt.Errorf("origin probe could not be built: %v", err)
+	}
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+	req.Header.Set("Origin", origin)
+	resp, err := preflightHTTP.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("origin probe failed: %v", err)
+	}
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 1<<20))
+	return resp.Header.Get("Access-Control-Allow-Origin"), nil
+}
+
 // verifyPublicClients proves the two clients PEOPLE authenticate through.
 //
 // verifyServiceAccounts covers the six machine identities and says nothing about
@@ -356,6 +430,14 @@ func verifyPublicClients(issuerBase string) []publicClientFinding {
 					reason:   "the realm allows the IMPLICIT flow — an authorization request with response_type=token is accepted",
 					fix:      "set `implicitFlowEnabled` to false on this client; the access token would come back in a redirect fragment rather than through the code exchange",
 				})
+			}
+			// The TOKEN leg, after the redirect leg above passed. A realm can
+			// redirect a person back to the Browser and still refuse the
+			// exchange that follows, because CORS origins are matched exactly
+			// where redirect URIs are not — and the realm that does both is the
+			// only one anybody can actually sign in to.
+			if f, bad := verifyBrowserOrigin(issuerBase, defaultBrowserPort); bad {
+				findings = append(findings, f)
 			}
 			if code, err := authorizationProbe(eps.authorization, browserClientID, probeRedirect, responseCode, withoutPKCE); err == nil && code == http.StatusOK {
 				findings = append(findings, publicClientFinding{

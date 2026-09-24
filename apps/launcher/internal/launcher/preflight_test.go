@@ -255,6 +255,12 @@ type publicStub struct {
 	pkceOptional  bool   // authorization endpoint serves the login page with no code challenge
 	implicitOn    bool   // authorization endpoint accepts response_type=token
 	passwordGrant string // token endpoint allows the resource-owner grant for this client
+	// derivedOrigins: the realm's browser client carries webOrigins "+", so
+	// its CORS origins are derived from the PORTLESS loopback redirects and
+	// name no port at all. Every cross-origin token POST is then refused 403
+	// with no CORS header. The zero value is a HEALTHY realm — one that allows
+	// the Browser's real origin — like every other field here.
+	derivedOrigins bool
 }
 
 func stubPublicIssuer(t *testing.T, s publicStub) *httptest.Server {
@@ -315,6 +321,17 @@ func stubPublicIssuer(t *testing.T, s publicStub) *httptest.Server {
 	})
 	mux.HandleFunc("/token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
+		// Keycloak matches Origin against the client's webOrigins EXACTLY, and
+		// answers 403 `Invalid origin` with no CORS header when it misses.
+		if origin := r.Header.Get("Origin"); origin != "" {
+			if s.derivedOrigins || origin != fmt.Sprintf("http://localhost:%d", defaultBrowserPort) {
+				w.Header().Set("content-type", "application/json")
+				w.WriteHeader(403)
+				fmt.Fprint(w, `{"error":"Invalid origin"}`)
+				return
+			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("content-type", "application/json")
 		if r.PostFormValue("grant_type") != "password" {
 			fmt.Fprint(w, `{"error":"unsupported_grant_type"}`)
@@ -723,7 +740,7 @@ func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
 
 	// The repair renders its own operator-facing lines from the same secrets.
 	admin := newStubAdmin(t, "semiont", nil)
-	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300,
+	rep, err := syncRealm(admin.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort,
 		func(svc string) string { return secrets[svc] })
 	if err != nil {
 		t.Fatalf("sync: %v", err)
@@ -732,5 +749,51 @@ func TestNoServiceAccountSecretIsEverPrinted(t *testing.T) {
 		if strings.Contains(line, marker) {
 			t.Errorf("the sync report echoed a client secret: %q", line)
 		}
+	}
+}
+
+// BROWSER-SIGNIN-ORIGIN P2. The redirect probe asks whether the realm will send
+// a person BACK to the Browser; it never asks whether the realm will let the
+// Browser complete the exchange. Those are different matches against different
+// lists, and #1416 broke the second while fixing the first — a realm passes the
+// redirect probe and still cannot finish a sign-in, which is exactly what a
+// person hits at localhost:3000.
+func TestBrowserOriginRefusedWhenTheRealmDerivesItsOrigins(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{derivedOrigins: true})
+	f, bad := verifyBrowserOrigin(srv.URL, 3000)
+	if !bad {
+		t.Fatal("a realm refusing the Browser's origin was not reported")
+	}
+	if f.clientID != browserClientID {
+		t.Errorf("finding names %q, want the Browser client", f.clientID)
+	}
+	if !strings.Contains(f.fix, "identity sync") {
+		t.Errorf("the fix does not name the repair: %q", f.fix)
+	}
+}
+
+// The control. A realm carrying the port-ful origin completes the exchange, and
+// the bogus code's own 400 is not the subject — only the CORS header is.
+func TestBrowserOriginAcceptedWhenTheOriginIsRegistered(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{})
+	if f, bad := verifyBrowserOrigin(srv.URL, defaultBrowserPort); bad {
+		t.Fatalf("a realm allowing http://localhost:3000 was reported: %q", f.reason)
+	}
+}
+
+// The origin follows `--port`, so a realm pinned to :3000 refuses the move —
+// and that IS the finding, because sync is what repairs it.
+func TestBrowserOriginFollowsThePort(t *testing.T) {
+	srv := stubPublicIssuer(t, publicStub{})
+	if _, bad := verifyBrowserOrigin(srv.URL, 3001); !bad {
+		t.Error("a realm allowing only :3000 accepted a Browser moved to :3001")
+	}
+}
+
+// A probe that never got an answer is not evidence of a refusal — the same rule
+// verifyBrowserRedirect follows.
+func TestBrowserOriginDoesNotBlockOnAnUnreachableIssuer(t *testing.T) {
+	if f, bad := verifyBrowserOrigin("http://127.0.0.1:1/unreachable", defaultBrowserPort); bad {
+		t.Fatalf("an unreachable issuer produced a finding: %q", f.reason)
 	}
 }

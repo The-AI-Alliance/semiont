@@ -1472,6 +1472,20 @@ func serve(ports []string) {
 				}
 				if r.URL.Path == "/realms/semiont/protocol/openid-connect/token" {
 					_ = r.ParseForm()
+					// A realm whose browser client names the Browser's real
+					// origin echoes it back; Keycloak matches web origins
+					// EXACTLY, and one that derives them from the portless
+					// loopback redirects answers 403 with no header at all.
+					// The preflight's origin probe reads this and nothing else,
+					// so a fake realm that omitted it would refuse every start.
+					// FAKERT_ORIGIN_DENY models the realm that has the defect.
+					if origin := r.Header.Get("Origin"); origin != "" {
+						if os.Getenv("FAKERT_ORIGIN_DENY") != "" {
+							jsonOut(403, map[string]any{"error": "Invalid origin"})
+							return
+						}
+						w.Header().Set("Access-Control-Allow-Origin", origin)
+					}
 					switch r.PostForm.Get("grant_type") {
 					case "urn:ietf:params:oauth:grant-type:device_code":
 						if os.Getenv("FAKERT_DEVICE_DENY") != "" {

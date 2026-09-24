@@ -38,3 +38,86 @@
   white-space: nowrap;
   border-width: 0;
 }
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Auth error display
+ *
+ * `AuthErrorDisplay` has rendered these class names since #401 moved
+ * @semiont/react-ui off Tailwind, but the CSS was never written — so every
+ * `/auth/error` page has rendered as unstyled text on the page background,
+ * which in dark mode is very nearly invisible. The `lint:css-classes` gate
+ * could not see it: it looks for CSS nobody renders, not markup with no CSS.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+.semiont-auth-error-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem 1rem;
+}
+
+.semiont-auth-error-display__container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 28rem;
+  padding: 2rem;
+  background-color: var(--semiont-bg-primary);
+  border: 1px solid var(--semiont-border-primary);
+  border-radius: var(--semiont-radius-lg);
+  text-align: center;
+}
+
+.semiont-auth-error-display__title {
+  margin: 0;
+  font-size: var(--semiont-text-2xl);
+  color: var(--semiont-text-primary);
+}
+
+/* The error is the reason the reader is here: tinted, not merely bordered. */
+.semiont-auth-error-display__error-box {
+  padding: 1rem;
+  background-color: var(--semiont-color-error-light);
+  border: 1px solid var(--semiont-color-error);
+  border-radius: var(--semiont-radius-base);
+}
+
+.semiont-auth-error-display__error-message {
+  color: var(--semiont-color-error-dark);
+  font-size: var(--semiont-text-base);
+}
+
+[data-theme="dark"] .semiont-auth-error-display__error-box {
+  /* The light tint is unreadable on a dark ground; carry the hue in the
+     border and the text instead of the fill. */
+  background-color: transparent;
+}
+
+[data-theme="dark"] .semiont-auth-error-display__error-message {
+  color: var(--semiont-color-error-light);
+}
+
+.semiont-auth-error-display__actions {
+  display: flex;
+  justify-content: center;
+}
+
+.semiont-auth-error-display__link {
+  display: inline-block;
+  padding: 0.625rem 1.25rem;
+  background-color: var(--semiont-color-primary-600);
+  color: var(--semiont-text-inverse);
+  border-radius: var(--semiont-radius-base);
+  font-size: var(--semiont-text-sm);
+  text-decoration: none;
+}
+
+.semiont-auth-error-display__link:hover {
+  background-color: var(--semiont-color-primary-700);
+}
+
+.semiont-auth-error-display__link:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}
