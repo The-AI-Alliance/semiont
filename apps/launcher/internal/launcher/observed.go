@@ -24,19 +24,18 @@ import (
 	"strings"
 )
 
-// promGauge finds one sample in a Prometheus text readout: the metric NAME
-// carrying every label in want. Reports false when that series is absent —
-// which is never the same fact as a zero reading, and no caller may render it
-// as one. A service that has not exported yet (the interval is 30s) and a
-// service reporting zero look identical only if someone substitutes a value
-// here, so nothing is substituted.
-func promGauge(readout, name string, want map[string]string) (float64, bool) {
+// forEachSample walks one metric's samples in a Prometheus text readout —
+// those named `name` whose labels carry every pair in `want` — and hands each
+// value to visit. Stops early when visit returns false.
+//
+// Requiring labels also settles the prefix collision a readout is full of:
+// for `semiont_job_queue_size_estimate` the remainder after the name opens
+// with "_", not "{", so it is skipped rather than read as the metric asked for.
+func forEachSample(readout, name string, want map[string]string, visit func(v float64) bool) {
 	for _, line := range strings.Split(readout, "\n") {
 		if !strings.HasPrefix(line, name) {
 			continue
 		}
-		// Labels are required, which also settles the prefix collision: for
-		// `semiont_job_queue_size_extra` the remainder opens with "_", not "{".
 		rest := line[len(name):]
 		if !strings.HasPrefix(rest, "{") {
 			continue
@@ -60,15 +59,63 @@ func promGauge(readout, name string, want map[string]string) (float64, bool) {
 		if err != nil {
 			continue
 		}
-		return f, true
+		if !visit(f) {
+			return
+		}
 	}
-	return 0, false
 }
 
-// promGaugeInt is promGauge for the counts these gauges actually carry.
+// promGaugeInt reads one gauge sample. Reports false when the series is
+// absent — which is never the same fact as a zero reading, and no caller may
+// render it as one. A service that has not exported yet (the interval is 30s)
+// and a service reporting zero look identical only if someone substitutes a
+// value here, so nothing is substituted.
 func promGaugeInt(readout, name string, want map[string]string) (int, bool) {
-	f, ok := promGauge(readout, name, want)
-	return int(f), ok
+	value, found := 0.0, false
+	forEachSample(readout, name, want, func(v float64) bool {
+		value, found = v, true
+		return false
+	})
+	return int(value), found
+}
+
+// promSumInt adds every matching sample rather than taking the first.
+// Counters arrive split across the labels they are recorded with — job
+// outcomes by `job_type`, and one series per process reporting them — so a
+// total is a sum over all of them, and a reader that took the first would
+// silently report one job type's work as the whole.
+func promSumInt(readout, name string, want map[string]string) (int, bool) {
+	total, found := 0.0, false
+	forEachSample(readout, name, want, func(v float64) bool {
+		total += v
+		found = true
+		return true
+	})
+	return int(total), found
+}
+
+// jobsConcluded: how many jobs have actually finished, from the monotonic
+// outcome counter rather than the queue's own five counts.
+//
+// The queue's terminal counts describe its STORE, which now forgets a job a
+// day after it concludes — useful, but a rolling window rather than a total.
+// This counter is only ever added to, so it answers the different question:
+// how much work has been done.
+//
+// Two honest limits, both of which the rendering names rather than hides.
+// It counts what a WORKER concluded, and `recordJobOutcome` is called with
+// `completed` or `failed` only — a cancelled job never reaches it, so this is
+// work attempted, not every job that left the queue. And a counter lives with
+// its process: it starts at zero when the worker does, which is why the line
+// says since when rather than implying all time.
+func jobsConcluded(readout string) (completed, failed int, ok bool) {
+	const c = "semiont_job_outcome_total"
+	comp, cok := promSumInt(readout, c, map[string]string{"job_outcome": "completed"})
+	fail, fok := promSumInt(readout, c, map[string]string{"job_outcome": "failed"})
+	// Either may legitimately be absent — nothing has failed yet on most
+	// stacks — so the pair reports present when either does, with the missing
+	// one a true zero rather than an unknown.
+	return comp, fail, cok || fok
 }
 
 // queueDepth: what the dispatcher is working on right now.
@@ -135,8 +182,14 @@ func printInFlight(u *ui, role, readout string) {
 	switch role {
 	case "dispatcher":
 		if pending, running, ok := queueDepth(readout); ok {
-			fmt.Printf("      %-10s %s\n", "queue",
-				u.dim(fmt.Sprintf("%d pending · %d running", pending, running)))
+			line := fmt.Sprintf("%d pending · %d running", pending, running)
+			// The counter is the worker's, so it is absent on a stack whose
+			// worker has never run one — and absent stays unsaid.
+			if completed, failed, done := jobsConcluded(readout); done {
+				line += fmt.Sprintf(" · %d completed · %d failed since worker start",
+					completed, failed)
+			}
+			fmt.Printf("      %-10s %s\n", "queue", u.dim(line))
 		}
 	case "gateway":
 		if claims, claimsMax, retained, retainedMax, ok := ledgerOccupancy(readout); ok {

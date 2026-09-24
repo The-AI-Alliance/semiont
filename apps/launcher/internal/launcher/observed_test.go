@@ -18,6 +18,11 @@ semiont_bus_correlation_size{correlation_kind="claims",job="semiont-gateway",ote
 semiont_bus_correlation_size{correlation_kind="claims_max",job="semiont-gateway",otel_scope_name="semiont"} 4096
 semiont_bus_correlation_size{correlation_kind="retained_replies",job="semiont-gateway",otel_scope_name="semiont"} 2
 semiont_bus_correlation_size{correlation_kind="retained_replies_max",job="semiont-gateway",otel_scope_name="semiont"} 1024
+# HELP semiont_job_outcome_total Job outcomes
+# TYPE semiont_job_outcome_total counter
+semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="generation",otel_scope_name="semiont"} 4
+semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="detection",otel_scope_name="semiont"} 6
+semiont_job_outcome_total{job="semiont-worker",job_outcome="failed",job_type="generation",otel_scope_name="semiont"} 2
 `
 
 func TestQueueDepthReadsTheDispatchersLiveCounts(t *testing.T) {
@@ -95,5 +100,33 @@ func TestQueueDriverDisplayPassesUnknownDriversThrough(t *testing.T) {
 		if got := queueDriverDisplay(driver); got != want {
 			t.Errorf("queueDriverDisplay(%q) = %q, want %q", driver, got, want)
 		}
+	}
+}
+
+// The counter arrives split by job type and by reporting process, so a total
+// is a sum. Taking the first sample would report one job type's work as all
+// of it — 4 instead of 10 — and nothing about the number would look wrong.
+func TestJobsConcludedSumsAcrossJobTypes(t *testing.T) {
+	completed, failed, ok := jobsConcluded(sampleReadout)
+	if !ok {
+		t.Fatal("outcome counter present in the readout but not found")
+	}
+	if completed != 10 || failed != 2 {
+		t.Errorf("completed/failed = %d/%d, want 10/2 (summed across job types)", completed, failed)
+	}
+}
+
+// Nothing has failed on most stacks, and that is a real zero rather than an
+// unknown — the figure must still render.
+func TestJobsConcludedReportsWhenOnlyOneOutcomeExists(t *testing.T) {
+	const onlyCompleted = `semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="generation"} 3
+`
+	completed, failed, ok := jobsConcluded(onlyCompleted)
+	if !ok || completed != 3 || failed != 0 {
+		t.Errorf("got %d completed, %d failed (ok=%v); want 3/0", completed, failed, ok)
+	}
+	// A worker that has concluded nothing has no counter at all.
+	if _, _, ok := jobsConcluded(""); ok {
+		t.Error("reported concluded jobs from an empty readout")
 	}
 }
