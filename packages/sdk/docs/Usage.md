@@ -474,7 +474,7 @@ const metadata = await semiont.auth!.protectedResourceMetadata();  // which issu
 const { token } = await semiont.auth!.mediaToken(resourceId);
 ```
 
-Signing in is not an `auth` op: it happens at the issuer, through `SemiontSession.signInDevice(...)` or `SemiontBrowser.beginSignIn` / `completeSignIn`, which wire the tokens into `token$` AND own the refresh that keeps them alive past ten minutes.
+Signing in is not an `auth` op: it happens at the issuer, through `SemiontSession.signInDevice(...)` or `SemiontBrowser.beginSignIn` / `completeSignIn`, which wire the tokens into `token$` AND own the refresh that keeps them alive past the issuer's access-token lifetime — minutes, and the issuer's number to choose.
 
 ## System
 
@@ -571,7 +571,7 @@ contract.
 
 ### Worker / actor adapters
 
-Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is a small contract (`on$(channel)`, `emit(channel, payload)`, optional `addChannels(...)`). The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
+Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is `BusRequestPrimitive` plus one method: `stream(channel)`, `emit(channel, payload)`, `state$`, and an optional `addChannels(...)` — the only thing an SSE connection needs that an in-process bus does not. Both are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. (`stream` was `on$` until 0.5.x; renaming it is what let the adapter that existed only to rename it be deleted.) The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
 
 ```typescript no-check
 import type { HttpTransport } from '@semiont/sdk';
@@ -650,8 +650,21 @@ Bus-layer and session-layer errors keep their own code namespaces:
 | Class | Codes | Thrown by |
 |---|---|---|
 | `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
-| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.bad-payload`, `bus.unauthorized`, `bus.forbidden`, `bus.not-found` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
+| `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.unauthorized`, `bus.not-found`, `bus.unsubscribed`, `bus.peer-unavailable`, `bus.none-pending` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
+
+**What actually ends a session (0.6.0).** Only the issuer refusing the credential. A refresh that
+fails because the network dropped, the gateway restarted, or the issuer answered `5xx` is retried
+under a bounded budget and the session survives; a refusal — `400 invalid_grant` for a revoked,
+expired or already-rotated refresh token — is terminal on the first answer, because retrying
+cannot change it. When the budget does run out the session ends the same way a refusal ends it,
+and `session.refresh-exhausted` names both the last cause and how many attempts it took, so
+"tried once and refused" reads differently from "tried four times and never got an answer".
+
+This matters for what your handler should do: `session.refresh-exhausted` is not a prompt to
+retry. By the time you see it, retrying already happened.
+
+`bus.bad-payload` and `bus.forbidden` were removed from the bus vocabulary: nothing constructed them and nothing branched on them, so they promised a distinction the system never made.
 
 Catch broadly on `SemiontError` and route on `code`; reach for `APIError` (imported from `@semiont/http-transport`) only when a handler genuinely needs HTTP-specific fields like `status`.
 
