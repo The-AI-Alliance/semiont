@@ -62,12 +62,12 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 ENV SEMIONT_ENV=local
 ENV GATEWAY_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/gateway
-ENV PATH="/home/semiont/.local/share/semiont/node_modules/.bin:${PATH}"
 
+# The image publishes ONE binary and nothing execs it by name: CMD is `node` on
+# an absolute path. No `.bin` on PATH, and nothing to assert but the file CMD
+# runs.
 RUN test -f "$GATEWAY_DIR/dist/index.js" \
-      || { echo "GATEWAY_DIR does not contain dist/index.js: $GATEWAY_DIR"; exit 1; }; \
-    command -v semiont-useradd >/dev/null \
-      || { echo "semiont-useradd is not on PATH — \`semiont useradd\` execs it by name; check the package's bin entry and the PATH above"; exit 1; }
+      || { echo "GATEWAY_DIR does not contain dist/index.js: $GATEWAY_DIR"; exit 1; }
 
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health
