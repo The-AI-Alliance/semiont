@@ -238,7 +238,7 @@ func TestUserCallsReportARefusedPut(t *testing.T) {
 
 func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) int {
 	t.Helper()
-	return applyUseradd(newUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token"}, o, password)
+	return applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token"}, o, password)
 }
 
 func TestUseraddCreatesWhenTheRealmHoldsNothing(t *testing.T) {

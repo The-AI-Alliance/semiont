@@ -1,8 +1,10 @@
-package launcher
+package verbs
 
 import (
 	"strings"
 	"testing"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
@@ -13,7 +15,7 @@ import (
 // participant's half of the conversation.
 
 func TestListenRendersResourceNamesWithIdFallback(t *testing.T) {
-	u := newUI(true)
+	u := launcher.NewUI(true)
 	r := newListenRenderer(map[string]string{"res-42": "The Iliad"})
 
 	known := r.line(u, bus.Event{Channel: "browse:resource-viewed", Payload: []byte(`{"resourceId":"res-42"}`)})
@@ -33,7 +35,7 @@ func TestListenRendersResourceNamesWithIdFallback(t *testing.T) {
 // count follows connectionId — a renderer keyed on the DID would report one
 // viewer for two, and zero for one when the duplicate tab closed.
 func TestListenRendersPresenceAsState(t *testing.T) {
-	u := newUI(true)
+	u := launcher.NewUI(true)
 	r := newListenRenderer(nil)
 	did := "did:web:example.github.io:users:alice%40example.com"
 

@@ -360,7 +360,7 @@ func TestIdentitySyncReconcilesTheWorkersRolesMapper(t *testing.T) {
 func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": browserClientID, "redirectUris": []any{"http://localhost:3000/*"}},
-		map[string]any{"clientId": cliClientID})
+		map[string]any{"clientId": CliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
@@ -392,7 +392,7 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": browserClientID, "implicitFlowEnabled": true,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
-		map[string]any{"clientId": cliClientID})
+		map[string]any{"clientId": CliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
@@ -412,7 +412,7 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": browserClientID, "redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
-		map[string]any{"clientId": cliClientID})
+		map[string]any{"clientId": CliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(1800)}
 
@@ -445,7 +445,7 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 		map[string]any{"clientId": browserClientID, "implicitFlowEnabled": false,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*", "http://10.0.0.5:3000/*"},
 			"webOrigins":   []any{"http://localhost:3000", "http://127.0.0.1:3000", "http://10.0.0.5:3000"}},
-		map[string]any{"clientId": cliClientID, "implicitFlowEnabled": false})
+		map[string]any{"clientId": CliClientID, "implicitFlowEnabled": false})
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 
@@ -512,7 +512,7 @@ func TestIdentityVerbRejectsAnUnknownFlag(t *testing.T) {
 func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": browserClientID, "webOrigins": []any{"+"}},
-		map[string]any{"clientId": cliClientID})
+		map[string]any{"clientId": CliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
@@ -544,7 +544,7 @@ func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
 func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": browserClientID, "webOrigins": []any{"+"}},
-		map[string]any{"clientId": cliClientID})
+		map[string]any{"clientId": CliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, 3001, secretForTest); err != nil {
@@ -565,7 +565,7 @@ func TestIdentitySyncLeavesCorrectWebOriginsAlone(t *testing.T) {
 	reps := append(allServiceClientReps(),
 		map[string]any{"clientId": browserClientID, "webOrigins": origins,
 			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
-		map[string]any{"clientId": cliClientID})
+		map[string]any{"clientId": CliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
 	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {

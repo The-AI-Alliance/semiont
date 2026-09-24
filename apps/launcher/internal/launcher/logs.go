@@ -36,7 +36,7 @@ var logServices = []string{"gateway", "worker", "smelter", "weaver", "archivist"
 
 // Logs implements `semiont logs` — the port of the fleet's logs.sh.
 func Logs(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	runtime := ""
 	service := ""
 	repoFlag := ""
@@ -44,21 +44,21 @@ func Logs(args []string) int {
 		switch args[i] {
 		case "--runtime":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+				u.Fail("Missing value for --runtime")
 				return 1
 			}
 			runtime = args[i+1]
 			i++
 		case "--repo":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+				u.Fail("Missing value for --repo")
 				return 1
 			}
 			repoFlag = args[i+1]
 			i++
 		case "--service":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --service")
+				u.Fail("Missing value for --service")
 				return 1
 			}
 			service = args[i+1]
@@ -67,13 +67,13 @@ func Logs(args []string) int {
 			fmt.Print(logsUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", args[i])
+			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
 	}
 	if service != "" {
 		if _, known := roles[service]; !known {
-			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
+			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
 	}
@@ -81,7 +81,7 @@ func Logs(args []string) int {
 	// The record supplies the runtime and container identities; --runtime
 	// overrides, and a record about a different runtime doesn't apply. No
 	// record: the historical name-scan discovery.
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
 	rt := ""
@@ -89,7 +89,7 @@ func Logs(args []string) int {
 	if repoFlag != "" {
 		target := ss.Stacks["codespace:"+repoFlag]
 		if target == nil {
-			u.fail("No codespace stack recorded for %s.", repoFlag)
+			u.Fail("No codespace stack recorded for %s.", repoFlag)
 			return 1
 		}
 		if !onPath("gh") {
@@ -116,10 +116,10 @@ func Logs(args []string) int {
 			return 1
 		}
 		csName = fwd[0].Codespace
-		u.log("Using the forwarded codespace stack %s", u.dim("("+csName+" per "+statePath()+")"))
+		u.Log("Using the forwarded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		rt = st.Runtime
-		u.log("Using recorded stack state %s", u.dim("("+rt+" per "+statePath()+")"))
+		u.Log("Using recorded stack state %s", u.Dim("("+rt+" per "+statePath()+")"))
 	} else if len(cs) == 1 {
 		if !onPath("gh") {
 			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
@@ -127,7 +127,7 @@ func Logs(args []string) int {
 		}
 		csName = cs[0].Codespace
 		st = nil
-		u.log("Using recorded codespace stack %s", u.dim("("+csName+" per "+statePath()+")"))
+		u.Log("Using recorded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if len(cs) > 1 {
 		fmt.Fprintln(os.Stderr, "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
 		for _, c := range cs {
@@ -151,13 +151,13 @@ func Logs(args []string) int {
 			if e, ok := st.Services[svc]; ok {
 				switch e.Provided {
 				case providedHost:
-					u.fail("%s is provided by a host process — no container logs (check the host service's own logs).", svc)
+					u.Fail("%s is provided by a host process — no container logs (check the host service's own logs).", svc)
 					return "", false
 				case providedExternal:
-					u.fail("%s is externally provided (%s) — no local container logs.", svc, e.Endpoint)
+					u.Fail("%s is externally provided (%s) — no local container logs.", svc, e.Endpoint)
 					return "", false
 				case providedNone:
-					u.fail("%s is not referenced by the running stack's config — nothing to follow.", svc)
+					u.Fail("%s is not referenced by the running stack's config — nothing to follow.", svc)
 					return "", false
 				}
 				if e.ID != "" {

@@ -72,7 +72,7 @@ type exportMarker struct {
 }
 
 func Export(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	var rootFlag, repo, output string
 	force, withGit := false, false
 
@@ -80,7 +80,7 @@ func Export(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -108,12 +108,12 @@ func Export(args []string) int {
 			fmt.Print(exportUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", a)
+			u.Fail("Unknown argument: %s", a)
 			return 1
 		}
 	}
 	if repo != "" && rootFlag != "" {
-		u.fail("--repo names a remote KB; --root names a local one.")
+		u.Fail("--repo names a remote KB; --root names a local one.")
 		return 1
 	}
 
@@ -123,24 +123,24 @@ func Export(args []string) int {
 	return exportLocal(u, rootFlag, output, force, withGit)
 }
 
-func exportLocal(u *ui, rootFlag, output string, force, withGit bool) int {
+func exportLocal(u *UI, rootFlag, output string, force, withGit bool) int {
 	var root string
 	if rootFlag != "" {
 		r, err := resolveRootArg(rootFlag)
 		if err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			return 1
 		}
 		root = r
 	} else {
 		r, src, err := resolveKBRoot()
 		if err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  Name one:  semiont export --root <path|name>")
 			return 1
 		}
 		root = r
-		u.log("KB root %s %s", root, u.dim("("+src+")"))
+		u.Log("KB root %s %s", root, u.Dim("("+src+")"))
 	}
 
 	id := readKBIdentity(root)
@@ -149,36 +149,36 @@ func exportLocal(u *ui, rootFlag, output string, force, withGit bool) int {
 	}
 	if !force {
 		if _, err := os.Stat(output); err == nil {
-			u.fail("%s already exists — pass --force to overwrite.", output)
+			u.Fail("%s already exists — pass --force to overwrite.", output)
 			return 1
 		}
 	}
 
 	n, bytes, changed, err := writeArchive(root, output, id, withGit)
 	if err != nil {
-		u.fail("export failed: %v", err)
+		u.Fail("export failed: %v", err)
 		// A half-written archive is worse than none: it looks restorable.
 		os.Remove(output)
 		return 1
 	}
-	u.ok("Exported %s %s", output, u.dim(fmt.Sprintf("(%d entries, %s)", n, humanBytes(bytes))))
+	u.Ok("Exported %s %s", output, u.Dim(fmt.Sprintf("(%d entries, %s)", n, humanBytes(bytes))))
 	// Files a running stack changed mid-walk are named, so a surprising
 	// restore has a recorded cause.
 	if len(changed) > 0 {
-		u.warn("%d file(s) changed while being archived — the snapshot holds them as of the moment they were read:", len(changed))
+		u.Warn("%d file(s) changed while being archived — the snapshot holds them as of the moment they were read:", len(changed))
 		show := changed
 		if len(show) > 5 {
 			show = show[:5]
 		}
 		for _, c := range show {
-			fmt.Printf("    %s\n", u.dim(c))
+			fmt.Printf("    %s\n", u.Dim(c))
 		}
 		if len(changed) > len(show) {
-			fmt.Printf("    %s\n", u.dim(fmt.Sprintf("… and %d more", len(changed)-len(show))))
+			fmt.Printf("    %s\n", u.Dim(fmt.Sprintf("… and %d more", len(changed)-len(show))))
 		}
-		fmt.Printf("  %s\n", u.dim("`semiont stop` before exporting for a quiescent archive."))
+		fmt.Printf("  %s\n", u.Dim("`semiont stop` before exporting for a quiescent archive."))
 	}
-	fmt.Printf("  %s\n", u.dim("tar -xzf "+filepath.Base(output)+"  → a working KB directory"))
+	fmt.Printf("  %s\n", u.Dim("tar -xzf "+filepath.Base(output)+"  → a working KB directory"))
 	return 0
 }
 
@@ -186,14 +186,14 @@ func exportLocal(u *ui, rootFlag, output string, force, withGit bool) int {
 // is already how this launcher reads a remote KB's identity, and tar is present
 // on the remote by default — the two facts that make this a single command
 // rather than a remote toolchain (D4).
-func exportRemote(u *ui, repo, output string, force, withGit bool) int {
+func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 	if !requireGh(u, "semiont export --repo") {
 		return 1
 	}
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	st := ss.Stacks["codespace:"+repo]
 	if st == nil || st.Codespace == "" {
-		u.fail("No codespace stack recorded for %s.", repo)
+		u.Fail("No codespace stack recorded for %s.", repo)
 		fmt.Fprintln(os.Stderr, "  Start it first:  semiont start --runtime codespace --repo "+repo)
 		return 1
 	}
@@ -202,7 +202,7 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 	}
 	if !force {
 		if _, err := os.Stat(output); err == nil {
-			u.fail("%s already exists — pass --force to overwrite.", output)
+			u.Fail("%s already exists — pass --force to overwrite.", output)
 			return 1
 		}
 	}
@@ -213,11 +213,11 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 	if withGit {
 		remote = "tar czf - -C /workspaces/*/ ."
 	}
-	u.log("Streaming %s %s", repo, u.dim("(gh codespace ssh -c "+st.Codespace+" -- "+remote+")"))
+	u.Log("Streaming %s %s", repo, u.Dim("(gh codespace ssh -c "+st.Codespace+" -- "+remote+")"))
 
 	f, err := os.Create(output)
 	if err != nil {
-		u.fail("could not create %s: %v", output, err)
+		u.Fail("could not create %s: %v", output, err)
 		return 1
 	}
 	cmd := exec.Command("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
@@ -232,9 +232,9 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 	if runErr != nil || closeErr != nil {
 		os.Remove(output)
 		if runErr != nil {
-			u.fail("export over ssh failed: %v", runErr)
+			u.Fail("export over ssh failed: %v", runErr)
 		} else {
-			u.fail("could not finish writing %s: %v", output, closeErr)
+			u.Fail("could not finish writing %s: %v", output, closeErr)
 		}
 		return 1
 	}
@@ -243,7 +243,7 @@ func exportRemote(u *ui, repo, output string, force, withGit bool) int {
 	if fi != nil {
 		size = fi.Size()
 	}
-	u.ok("Exported %s %s", output, u.dim("("+humanBytes(size)+")"))
+	u.Ok("Exported %s %s", output, u.Dim("("+humanBytes(size)+")"))
 	return 0
 }
 

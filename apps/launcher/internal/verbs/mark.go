@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // mark.go — `semiont mark`: create and delete annotations over the bus.
 // Selectors and bodies follow the W3C Web Annotation shapes the OpenAPI
@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
@@ -43,7 +45,7 @@ Requires a session:  semiont login
 `
 
 func Mark(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var resourceID, quote, prefix, suffix, bodyText, link, motivation, deleteID, resourceFlag, repo string
 	var entityTypes []string
 	start, end := -1, -1
@@ -53,7 +55,7 @@ func Mark(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -66,7 +68,7 @@ func Mark(args []string) int {
 			}
 			n, err := strconv.Atoi(v)
 			if err != nil || n < 0 {
-				u.fail("%s wants a non-negative number, got %q", a, v)
+				u.Fail("%s wants a non-negative number, got %q", a, v)
 				return 0, false
 			}
 			return n, true
@@ -111,11 +113,11 @@ func Mark(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			if resourceID != "" {
-				u.fail("Only one resourceId may be given (got %q and %q).", resourceID, a)
+				u.Fail("Only one resourceId may be given (got %q and %q).", resourceID, a)
 				return 1
 			}
 			resourceID, ok = a, true
@@ -127,7 +129,7 @@ func Mark(args []string) int {
 
 	if deleteID != "" {
 		if resourceFlag == "" {
-			u.fail("--delete needs --resource <resourceId> (an annotation is addressed within its resource).")
+			u.Fail("--delete needs --resource <resourceId> (an annotation is addressed within its resource).")
 			return 1
 		}
 	} else if resourceID == "" {
@@ -135,19 +137,19 @@ func Mark(args []string) int {
 		return 1
 	}
 	if (start >= 0) != (end >= 0) {
-		u.fail("--start and --end go together.")
+		u.Fail("--start and --end go together.")
 		return 1
 	}
 	if quote != "" && start >= 0 {
-		u.fail("--quote and --start/--end are two ways to say the same thing; pick one.")
+		u.Fail("--quote and --start/--end are two ways to say the same thing; pick one.")
 		return 1
 	}
 
-	t, ok := verbSession(u, "mark", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "mark", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	if deleteID != "" {
 		_, err := cli.Request(context.Background(), "mark:delete",
@@ -155,7 +157,7 @@ func Mark(args []string) int {
 		if err != nil {
 			return busFail(u, "mark --delete", err)
 		}
-		u.ok("Deleted annotation %s", deleteID)
+		u.Ok("Deleted annotation %s", deleteID)
 		return 0
 	}
 
@@ -269,15 +271,15 @@ func Mark(args []string) int {
 	}
 	var ok2 semiont.MarkCreateOk
 	if json.Unmarshal(reply, &ok2) != nil {
-		u.ok("Marked %s %s", resourceID, u.dim("("+motivation+")"))
+		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
 		return 0
 	}
 	id := ok2.Response.AnnotationId
 	if id == "" {
-		u.ok("Marked %s %s", resourceID, u.dim("("+motivation+")"))
+		u.Ok("Marked %s %s", resourceID, u.Dim("("+motivation+")"))
 		return 0
 	}
-	u.ok("Marked %s → %s %s", resourceID, id, u.dim("("+motivation+")"))
+	u.Ok("Marked %s → %s %s", resourceID, id, u.Dim("("+motivation+")"))
 	return 0
 }
 
@@ -285,6 +287,6 @@ func Mark(args []string) int {
 // (the value cannot be encoded), so say so plainly rather than dressing it
 // as a gateway problem.
 func markBuildFail(err error) int {
-	newUI(false).fail("could not build the annotation: %v", err)
+	launcher.NewUI(false).Fail("could not build the annotation: %v", err)
 	return 1
 }

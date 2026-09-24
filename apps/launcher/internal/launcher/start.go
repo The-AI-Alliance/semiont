@@ -152,205 +152,23 @@ Examples:
 
 // Start implements `semiont start` — the port of the fleet's start.sh.
 func Start(args []string) int {
-	opts := startOptions{configName: "ollama-gemma", observe: true}
-	u := newUI(false)
-
-	needVal := func(i int) (string, bool) {
-		if i+1 >= len(args) {
-			u.fail("Missing value for %s", args[i])
-			return "", false
-		}
-		return args[i+1], true
+	opts, usage, errMsg := parseStart(args)
+	u := NewUI(false)
+	if usage {
+		fmt.Print(startUsage)
+		return 0
 	}
-	for i := 0; i < len(args); i++ {
-		a := args[i]
-		if v, ok := strings.CutPrefix(a, "--ollama-cache="); ok {
-			opts.ollamaCache = v
-			continue
-		}
-		switch a {
-		case "--config":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.configName = v
-			opts.configSet = true
-			i++
-		case "--service":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.service = v
-			i++
-		case "--root":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.root = v
-			i++
-		case "--port":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			n, err := strconv.Atoi(v)
-			if err != nil || n < 1 || n > 65535 {
-				u.fail("Invalid --port '%s' (expected 1-65535).", v)
-				return 1
-			}
-			opts.port = n
-			i++
-		case "--repo":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.repo = v
-			i++
-		case "--codespace":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.csName = v
-			i++
-		case "--machine":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.machine = v
-			i++
-		case "--idle-timeout":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.idleTimeout = v
-			i++
-		case "--retention-period":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.retention = v
-			i++
-		case "--list-configs":
-			opts.listConfigs = true
-		case "--clean-ollama":
-			opts.cleanOllama = true
-		case "--runtime":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.runtime = v
-			i++
-		case "--no-observe":
-			opts.observe = false
-			opts.noObserveSet = true
-		case "--ollama-cache":
-			v, ok := needVal(i)
-			if !ok {
-				return 1
-			}
-			opts.ollamaCache = v
-			i++
-		case "--dry-run":
-			opts.dryRun = true
-		case "--quiet", "-q":
-			opts.quiet = true
-		case "--help", "-h":
-			fmt.Print(startUsage)
-			return 0
-		default:
-			u.fail("Unknown argument: %s", a)
-			return 1
-		}
-	}
-	switch opts.ollamaCache {
-	case "", "host", "volume":
-	default:
-		u.fail("Unknown --ollama-cache '%s' (expected: host or volume)", opts.ollamaCache)
+	if errMsg != "" {
+		u.Fail("%s", errMsg)
 		return 1
 	}
-
-	// Codespace placement: the codespace-only flags are rejected elsewhere,
-	// and the local-only knobs are rejected on a codespace start — nothing
-	// is silently ignored, per the flag-scoping pattern.
-	if opts.runtime == "codespace" {
-		switch {
-		case opts.service != "":
-			u.fail("--service does not apply to --runtime codespace (compose owns the services inside).")
-			return 1
-		case opts.configSet:
-			u.fail("--config does not apply to --runtime codespace (the codespace runs its committed config).")
-			return 1
-		case opts.noObserveSet:
-			u.fail("--no-observe does not apply to --runtime codespace (the observe profile is composed inside).")
-			return 1
-		case opts.ollamaCache != "":
-			u.fail("--ollama-cache does not apply to --runtime codespace.")
-			return 1
-		case opts.cleanOllama:
-			u.fail("--clean-ollama does not apply to --runtime codespace.")
-			return 1
-		case opts.listConfigs:
-			u.fail("--list-configs does not apply to --runtime codespace.")
-			return 1
-		case opts.root != "" && opts.repo != "":
-			u.fail("--root and --repo are contradictory (one derives the repo from a clone, the other bypasses clones).")
-			return 1
-		}
-	} else if opts.repo != "" || opts.csName != "" || opts.machine != "" || opts.idleTimeout != "" || opts.retention != "" {
-		u.fail("--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace.")
-		return 1
-	}
-	if opts.port != 0 && (opts.service != "browser" || opts.runtime == "codespace") {
-		u.fail("--port only applies to --service browser — every other port belongs to the KB's config (and a codespace forwards only its KB, on an allocated port).")
-		return 1
-	}
-
-	// --service compatibility: flags that don't apply to the named service are
-	// rejected rather than silently ignored.
-	if opts.service != "" {
-		if _, known := roles[opts.service]; !known {
-			u.fail("Unknown --service '%s' (expected: %s)", opts.service, roleList)
-			return 1
-		}
-		switch {
-		case opts.listConfigs:
-			u.fail("--list-configs cannot be combined with --service.")
-			return 1
-		case opts.cleanOllama:
-			u.fail("--clean-ollama cannot be combined with --service.")
-			return 1
-		case opts.noObserveSet:
-			u.fail("--no-observe does not apply to --service: OTel export is enabled iff the collector is already running.")
-			return 1
-		case opts.ollamaCache != "" && opts.service != "inference":
-			u.fail("--ollama-cache only applies to --service inference.")
-			return 1
-		case opts.configSet && configFreeService(opts.service):
-			u.fail("--config does not apply to --service %s (it reads no config).", opts.service)
-			return 1
-		case opts.root != "" && configFreeService(opts.service):
-			u.fail("--root only applies to services that read the KB config (--service %s does not).", opts.service)
-			return 1
-		}
-	}
-
-	// Dry-run output is a machine-consumable plan; keep the narration off it.
-	u = newUI(opts.quiet || opts.dryRun)
+	u = NewUI(opts.quiet || opts.dryRun)
 	if !opts.dryRun {
-		u.stamp("semiont start")
+		u.Stamp("semiont start")
 		// Materialize the Browser discovery view before anything mounts it:
 		// a --service browser on a fresh machine would otherwise mount a
 		// directory nothing has created yet.
-		writeDiscovery(loadStackSet())
+		writeDiscovery(LoadStackSet())
 	}
 
 	// Codespace placement dispatches before anything local: no root
@@ -361,7 +179,7 @@ func Start(args []string) int {
 		return startCodespace(u, opts)
 	}
 	if opts.runtime == "" {
-		ss := loadStackSet()
+		ss := LoadStackSet()
 		// STANDING IN A KB CLONE IS AN EXPLICIT LOCAL CONTEXT — never flip a
 		// bare start to the cloud from inside one.
 		//
@@ -376,21 +194,21 @@ func Start(args []string) int {
 		_, _, rootErr := resolveKBRoot()
 		if cs := codespaceStacks(ss); rootErr != nil && ss.Stacks["local"] == nil && len(cs) > 0 {
 			if len(cs) > 1 {
-				u.fail("%d codespace stacks are recorded — say which:", len(cs))
+				u.Fail("%d codespace stacks are recorded — say which:", len(cs))
 				for _, c := range cs {
 					fmt.Fprintf(os.Stderr, "    semiont start --runtime codespace --repo %s\n", c.Repo)
 				}
 				return 1
 			}
 			if !onPath("gh") {
-				u.fail("A codespace stack is recorded (per %s) but 'gh' is not on PATH.", statePath())
+				u.Fail("A codespace stack is recorded (per %s) but 'gh' is not on PATH.", statePath())
 				fmt.Fprintln(os.Stderr, "  Install the GitHub CLI, or forget the stack:  semiont stop --delete")
 				return 1
 			}
 			// Name the stack being resumed: the repo IS the identity, and the
 			// resolution itself lives in startCodespace's ladder.
-			u.log("Using recorded stack's runtime: %s %s", u.bold("codespace"),
-				u.dim("(per "+statePath()+" — "+cs[0].Repo+")"))
+			u.Log("Using recorded stack's runtime: %s %s", u.Bold("codespace"),
+				u.Dim("(per "+statePath()+" — "+cs[0].Repo+")"))
 			return startCodespace(u, opts)
 		}
 	}
@@ -419,7 +237,7 @@ func Start(args []string) int {
 			root, _, err = resolveKBRoot()
 		}
 		if err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT / pass --root.")
 			return 1
 		}
@@ -433,7 +251,7 @@ func Start(args []string) int {
 			}
 		}
 		if err := os.Chdir(root); err != nil {
-			u.fail("Cannot enter KB root %s: %v", root, err)
+			u.Fail("Cannot enter KB root %s: %v", root, err)
 			return 1
 		}
 		// The registry remembers every root a real run used (dry-run is a
@@ -468,7 +286,7 @@ func Start(args []string) int {
 	var envSite *siteCfg
 	if configNeeded {
 		if _, err := os.Stat(configFile); err != nil {
-			u.fail("Config not found: %s", configFile)
+			u.Fail("Config not found: %s", configFile)
 			if configFrom != "" {
 				fmt.Fprintf(os.Stderr, "  ('%s' is this KB's recorded preference; pass --config to pick another — a successful start re-records it.)\n", opts.configName)
 			}
@@ -479,13 +297,13 @@ func Start(args []string) int {
 		var uv []string
 		envCfg, envName, uv, err := loadConfig(configFile)
 		if err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			return 1
 		}
 		userVars = uv
 		envSite = envCfg.Site
 		if plan, err = derivePlan(envCfg, envName, configFile); err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			return 1
 		}
 	}
@@ -503,11 +321,11 @@ func Start(args []string) int {
 			if onPath(rec) {
 				requested, rtSticky = rec, true
 			} else if !opts.dryRun { // keep the dry-run seam machine-clean
-				u.warn("Recorded runtime preference '%s' (per %s) is not on PATH — auto-detecting.", rec, rootsPath())
+				u.Warn("Recorded runtime preference '%s' (per %s) is not on PATH — auto-detecting.", rec, rootsPath())
 			}
 		}
 	}
-	rt, ok := selectRuntime(u, requested)
+	rt, ok := SelectRuntime(u, requested)
 	if !ok {
 		return 1
 	}
@@ -539,21 +357,21 @@ func Start(args []string) int {
 		if opts.runtime == "" {
 			rt = recSt.Runtime
 			rtFrom = ""
-			u.log("Using recorded stack's runtime: %s %s", u.bold(rt), u.dim("(per "+statePath()+")"))
+			u.Log("Using recorded stack's runtime: %s %s", u.Bold(rt), u.Dim("(per "+statePath()+")"))
 		} else if !opts.dryRun {
-			u.fail("A recorded stack is running under %s (per %s).", recSt.Runtime, statePath())
+			u.Fail("A recorded stack is running under %s (per %s).", recSt.Runtime, statePath())
 			fmt.Fprintln(os.Stderr, "  Stop it first (semiont stop), or start with --runtime "+recSt.Runtime+".")
 			return 1
 		}
 	}
 
 	if opts.cleanOllama {
-		u.log("Removing Ollama model cache volume...")
-		u.echoCmd(rt, "volume", "rm", "semiont-ollama-models")
+		u.Log("Removing Ollama model cache volume...")
+		u.EchoCmd(rt, "volume", "rm", "semiont-ollama-models")
 		if err := runSilent(rt, "volume", "rm", "semiont-ollama-models"); err == nil {
-			u.ok("Removed.")
+			u.Ok("Removed.")
 		} else {
-			u.warn("Volume not found.")
+			u.Warn("Volume not found.")
 		}
 		return 0
 	}
@@ -568,7 +386,7 @@ func Start(args []string) int {
 		version = "latest"
 	}
 
-	u.banner("Semiont Local Gateway")
+	u.Banner("Semiont Local Gateway")
 	if rootNeeded {
 		ident := loadKBIdentity(root)
 		// A KB must declare its identity to run. The launcher publishes a
@@ -579,7 +397,7 @@ func Start(args []string) int {
 		// domain-less KB on the machine one fabricated, colliding identity.
 		// An address wearing a name is precisely the confusion this rule ends.
 		if ident == nil || ident.didWeb() == "" {
-			u.fail("This knowledge base declares no did:web identity, so it cannot be started.")
+			u.Fail("This knowledge base declares no did:web identity, so it cannot be started.")
 			fmt.Fprintf(os.Stderr, "  Declare it in %s:\n", filepath.Join(root, ".semiont", "config"))
 			fmt.Fprintln(os.Stderr, "    [site]")
 			fmt.Fprintln(os.Stderr, "    domain = \"owner.github.io:repo\"")
@@ -588,7 +406,7 @@ func Start(args []string) int {
 			return 1
 		}
 		if ident.SiteName != "" {
-			u.log("KB: %s %s", u.bold(ident.SiteName), u.dim(ident.didWeb()))
+			u.Log("KB: %s %s", u.Bold(ident.SiteName), u.Dim(ident.didWeb()))
 		}
 		// Reached only past the refusal above, so a KB with no committed
 		// identity never collects this warning on top of that error.
@@ -598,18 +416,18 @@ func Start(args []string) int {
 		}
 	}
 	if rtFrom != "" {
-		u.log("Container runtime: %s %s", u.bold(rt), u.dim("("+rtFrom+")"))
+		u.Log("Container runtime: %s %s", u.Bold(rt), u.Dim("("+rtFrom+")"))
 	} else {
-		u.log("Container runtime: %s", u.bold(rt))
+		u.Log("Container runtime: %s", u.Bold(rt))
 	}
 	if configNeeded {
 		if configFrom != "" {
-			u.log("Config: %s %s", u.bold(opts.configName), u.dim("("+configFrom+")"))
+			u.Log("Config: %s %s", u.Bold(opts.configName), u.Dim("("+configFrom+")"))
 		} else {
-			u.log("Config: %s", u.bold(opts.configName))
+			u.Log("Config: %s", u.Bold(opts.configName))
 		}
 	}
-	u.log("Image version: %s", u.bold(version))
+	u.Log("Image version: %s", u.Bold(version))
 
 	// User env vars (API keys the config references, extracted by
 	// loadConfig's single parse) are demanded only where a Semiont service
@@ -631,19 +449,19 @@ func Start(args []string) int {
 					if !requireProviderBin(u, ref) {
 						return 1
 					}
-					u.log("%s: reading from %s (%s) %s", u.bold(v),
+					u.Log("%s: reading from %s (%s) %s", u.Bold(v),
 						secretProviders[ref.Provider].display, refCommand(ref),
-						u.dim("— expect an authorization prompt"))
+						u.Dim("— expect an authorization prompt"))
 					var err error
 					if val, err = resolveSecret(ref); err != nil {
-						u.fail("%s: %v.", v, err)
+						u.Fail("%s: %v.", v, err)
 						fmt.Fprintf(os.Stderr, "  Fix the source (semiont secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
 						return 1
 					}
 				}
 			}
 			if val == "" {
-				u.fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+				u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
 				fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
 				return 1
 			}
@@ -984,7 +802,7 @@ func browserArgs(version string, port int) []string {
 	// read-only DIRECTORY mount (Apple container cannot single-file mount).
 	// Inert until the Browser image serves /discovery — a dormant feature
 	// whose activation record is the plan.
-	if dir := stateDir(); dir != "" {
+	if dir := StateDir(); dir != "" {
 		a = append(a, "-v", filepath.Join(dir, "discovery")+":/discovery:ro")
 	}
 	a = append(a, superviseEnv()...)
@@ -1038,7 +856,7 @@ var sidecarSpecs = []sidecarSpec{
 
 // runStart: the live full start — flowFullStart with liveExec, plus the
 // live-only bookends (timing stamp, summary table).
-func runStart(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
+func runStart(u *UI, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
 	// The memory preflight is a LIVE-ONLY bookend, like the timing stamp:
 	// dry-run output must stay machine-independent (host RAM in a golden
@@ -1046,7 +864,7 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// visible in every dry-run argv line.
 	if rt == "container" {
 		if w := memoryBudgetWarning(startCeilingsGB(plan, opts), hostMemGB()); w != "" {
-			u.warn("%s", w)
+			u.Warn("%s", w)
 		}
 	}
 	x := &liveExec{u: u, rt: rt, plan: plan}
@@ -1060,13 +878,13 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	// and, with no --rm, stays VISIBLE: status shows it exited and its logs
 	// survive for diagnosis until the next start or stop sweeps it
 	// (fail-fast is the design; the compose path adds restart: on-failure).
-	u.stamp("semiont start: containers ready")
+	u.Stamp("semiont start: containers ready")
 	fmt.Println()
-	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 Semiont stack is up"), u.dim("("+took(time.Since(t0))+")"))
+	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 Semiont stack is up"), u.Dim("("+took(time.Since(t0))+")"))
 	fmt.Println()
-	fmt.Printf("  Semiont Browser    %s\n", u.bold("http://localhost:3000"))
+	fmt.Printf("  Semiont Browser    %s\n", u.Bold("http://localhost:3000"))
 	fmt.Println("  Semiont KB         http://localhost:4000")
-	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", u.dim("(neo4j / localpass)"))
+	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", u.Dim("(neo4j / localpass)"))
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
@@ -1074,35 +892,35 @@ func runStart(u *ui, rt, version, root, configFile string, opts startOptions, us
 	}
 	fmt.Println("  Metrics readout    http://localhost:24110/metrics")
 	fmt.Println()
-	fmt.Printf("  Add a user:    %s\n", u.bold(useraddHint("")))
-	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
-	fmt.Printf("  Follow logs:   %s\n", u.bold("semiont logs"))
-	fmt.Printf("  Stop stack:    %s\n", u.bold("semiont stop"))
+	fmt.Printf("  Add a user:    %s\n", u.Bold(useraddHint("")))
+	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))
+	fmt.Printf("  Follow logs:   %s\n", u.Bold("semiont logs"))
+	fmt.Printf("  Stop stack:    %s\n", u.Bold("semiont stop"))
 	fmt.Println()
 	return 0
 }
 
 // chooseOllamaVolume: --ollama-cache override, else the ~/.ollama share
 // prompt (auto-yes in 10s), else the named volume.
-func chooseOllamaVolume(u *ui, opts startOptions) string {
+func chooseOllamaVolume(u *UI, opts startOptions) string {
 	home, _ := os.UserHomeDir()
 	switch opts.ollamaCache {
 	case "host":
-		u.log("Using host model cache.")
+		u.Log("Using host model cache.")
 		return filepath.Join(home, ".ollama")
 	case "volume":
-		u.log("Using named volume semiont-ollama-models for model cache.")
+		u.Log("Using named volume semiont-ollama-models for model cache.")
 		return "semiont-ollama-models"
 	}
 	if home != "" {
 		if _, err := os.Stat(filepath.Join(home, ".ollama")); err == nil {
 			if promptShareCache(home) {
-				u.log("Using host model cache.")
+				u.Log("Using host model cache.")
 				return filepath.Join(home, ".ollama")
 			}
 		}
 	}
-	u.log("Using named volume semiont-ollama-models for model cache.")
+	u.Log("Using named volume semiont-ollama-models for model cache.")
 	return "semiont-ollama-models"
 }
 
@@ -1218,12 +1036,12 @@ func settlePorts(ports ...int) {
 // process(es). By this point every semiont-* container has been swept under
 // every installed runtime, so a holder is provably foreign — the launcher never
 // signals it; killing it is the user's call, per incident.
-func requirePortFree(u *ui, port int, service string) bool {
+func requirePortFree(u *UI, port int, service string) bool {
 	pids := listenersOn(port)
 	if len(pids) == 0 {
 		return true
 	}
-	u.fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
+	u.Fail("Port %d (needed for %s) is held by %s.", port, service, describeProcs(pids))
 	fmt.Fprintln(os.Stderr, "  This is not a Semiont container. Stop it and re-run (e.g. kill "+strings.Join(pids, " ")+").")
 	return false
 }
@@ -1261,7 +1079,7 @@ func describeProcs(pids []string) string {
 //
 // Silent for every launcher-generated config: confgen.go writes no `site`
 // section, so this fires only where a human hand-edited one.
-func warnIdentityOverride(u *ui, site *siteCfg, committed string) {
+func warnIdentityOverride(u *UI, site *siteCfg, committed string) {
 	if site == nil || committed == "" {
 		return
 	}
@@ -1282,7 +1100,7 @@ func warnIdentityOverride(u *ui, site *siteCfg, committed string) {
 	// message across stdout and stderr severs the headline from its detail the
 	// moment either is piped — the u.fail pattern pairs with stderr details
 	// only because fail itself writes there.
-	u.warn("This config's [site] section overrides the KB's declared identity for agent identities.")
+	u.Warn("This config's [site] section overrides the KB's declared identity for agent identities.")
 	fmt.Printf("  KB identity (committed .semiont/config): %s\n", didWebOf(committed))
 	fmt.Printf("  Agent identities (this config's [site]):  %s\n", didWebOf(effective)+":agents:…")
 	fmt.Println("  The KB's own identity is unchanged; only the agents' domain moves.")

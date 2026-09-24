@@ -47,7 +47,7 @@ Options:
 `
 
 func Clean(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	store := ""
 	rootArg := ""
 	dryRun := false
@@ -55,14 +55,14 @@ func Clean(args []string) int {
 		switch args[i] {
 		case "--store":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --store")
+				u.Fail("Missing value for --store")
 				return 1
 			}
 			store = args[i+1]
 			i++
 		case "--root":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --root")
+				u.Fail("Missing value for --root")
 				return 1
 			}
 			rootArg = args[i+1]
@@ -73,13 +73,13 @@ func Clean(args []string) int {
 			fmt.Print(cleanUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", args[i])
+			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
 	}
 	if store != "" {
 		if _, ok := stateStores[store]; !ok {
-			u.fail("Unknown store %q (stores with persistent state: %s)", store, strings.Join(slices.Sorted(maps.Keys(stateStores)), ", "))
+			u.Fail("Unknown store %q (stores with persistent state: %s)", store, strings.Join(slices.Sorted(maps.Keys(stateStores)), ", "))
 			return 1
 		}
 	}
@@ -93,7 +93,7 @@ func Clean(args []string) int {
 	// stack.json is belief, but the asymmetry decides: a stale "running"
 	// costs the user one `semiont stop`; removing mounted dirs corrupts.
 	if st := loadLocalState(); st != nil && stateKeyFor(st.KBDid, st.KBRoot) == key {
-		u.fail("A recorded local stack is using this state (per %s).", statePath())
+		u.Fail("A recorded local stack is using this state (per %s).", statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
 		return 1
 	}
@@ -118,14 +118,14 @@ func Clean(args []string) int {
 		tg.size = sz
 		kept = append(kept, tg)
 		if dryRun {
-			u.log("would remove %s — %s (%s)", tg.path, humanBytes(sz), tg.label)
+			u.Log("would remove %s — %s (%s)", tg.path, humanBytes(sz), tg.label)
 		}
 	}
 	if len(kept) == 0 {
 		if store != "" {
-			u.log("Nothing to remove: no %s state under %s", store, dir)
+			u.Log("Nothing to remove: no %s state under %s", store, dir)
 		} else {
-			u.log("Nothing to remove: no state at %s", dir)
+			u.Log("Nothing to remove: no state at %s", dir)
 		}
 		return 0
 	}
@@ -134,17 +134,17 @@ func Clean(args []string) int {
 		for _, tg := range kept {
 			total += tg.size
 		}
-		u.log("Total: %s %s", humanBytes(total), u.dim("(dry-run; nothing removed)"))
+		u.Log("Total: %s %s", humanBytes(total), u.Dim("(dry-run; nothing removed)"))
 		return 0
 	}
 	for _, tg := range kept {
 		if err := os.RemoveAll(tg.path); err != nil {
-			u.fail("cannot remove %s: %v", tg.path, err)
+			u.Fail("cannot remove %s: %v", tg.path, err)
 			return 1
 		}
 		// Name what was actually removed — a scoped clean removes ONE
 		// store's dir, never the root's.
-		u.ok("Removed %s — %s freed.", tg.path, humanBytes(tg.size))
+		u.Ok("Removed %s — %s freed.", tg.path, humanBytes(tg.size))
 	}
 	// A scoped clean drops that store's stamp too, so the next start sees
 	// first-use, not a mismatch against thin air. A full clean removed
@@ -161,17 +161,17 @@ func Clean(args []string) int {
 // cwd ladder start uses. --root: a path or registered basename first
 // (resolveRootArg), else a literal key with a dir under roots/ — the form
 // status prints for orphans, whose KB no longer resolves any other way.
-func cleanTarget(u *ui, rootArg string) (key, dir string, code int) {
+func cleanTarget(u *UI, rootArg string) (key, dir string, code int) {
 	d := dataDir()
 	if d == "" {
-		u.fail("No home directory resolvable; nowhere for state to live.")
+		u.Fail("No home directory resolvable; nowhere for state to live.")
 		return "", "", 1
 	}
 	switch {
 	case rootArg == "":
 		root, _, err := resolveKBRoot()
 		if err != nil {
-			u.fail("%v", err)
+			u.Fail("%v", err)
 			fmt.Fprintln(os.Stderr, "  Run inside a KB, or name one: semiont clean --root <path|name|key>")
 			return "", "", 1
 		}
@@ -190,7 +190,7 @@ func cleanTarget(u *ui, rootArg string) (key, dir string, code int) {
 				break
 			}
 		}
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		fmt.Fprintf(os.Stderr, "  (and no state key %q under %s)\n", rootArg, filepath.Join(d, "roots"))
 		return "", "", 1
 	}

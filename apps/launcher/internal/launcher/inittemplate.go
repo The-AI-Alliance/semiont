@@ -24,22 +24,22 @@ const defaultTemplateRepo = "https://github.com/The-AI-Alliance/semiont-template
 // materializeTemplate returns a local directory holding the template tree:
 // the source itself when it is a directory, else a shallow clone in a temp
 // dir (caller cleans up via the returned func).
-func materializeTemplate(u *ui, src, ref string) (dir string, cleanup func(), ok bool) {
+func materializeTemplate(u *UI, src, ref string) (dir string, cleanup func(), ok bool) {
 	if fi, err := os.Stat(src); err == nil && fi.IsDir() {
 		return src, func() {}, true
 	}
 	tmp, err := os.MkdirTemp("", "semiont-template-*")
 	if err != nil {
-		u.fail("Creating a temp dir for the template clone: %v", err)
+		u.Fail("Creating a temp dir for the template clone: %v", err)
 		return "", nil, false
 	}
 	// `--` before positionals: a src beginning with "-" would otherwise be
 	// read as a git option (option injection) — Copilot review, PR #1065.
 	args := []string{"clone", "--depth", "1", "--branch", ref, "--", src, tmp}
-	u.log("Fetching template %s", u.dim("(git "+strings.Join(args, " ")+")"))
+	u.Log("Fetching template %s", u.Dim("(git "+strings.Join(args, " ")+")"))
 	if out, err := captureBoth("git", args...); err != nil {
 		_ = os.RemoveAll(tmp)
-		u.fail("Template clone failed: %s", strings.TrimSpace(out))
+		u.Fail("Template clone failed: %s", strings.TrimSpace(out))
 		return "", nil, false
 	}
 	return tmp, func() { _ = os.RemoveAll(tmp) }, true
@@ -47,11 +47,11 @@ func materializeTemplate(u *ui, src, ref string) (dir string, cleanup func(), ok
 
 // copyTemplateConfigs vets and copies every semiontconfig toml. All-or-
 // nothing: the first vet failure removes everything this call wrote.
-func copyTemplateConfigs(u *ui, root, tplDir string) bool {
+func copyTemplateConfigs(u *UI, root, tplDir string) bool {
 	src := filepath.Join(tplDir, ".semiont", "semiontconfig")
 	entries, err := os.ReadDir(src)
 	if err != nil {
-		u.fail("The template has no .semiont/semiontconfig: %v", err)
+		u.Fail("The template has no .semiont/semiontconfig: %v", err)
 		return false
 	}
 	written := []string{}
@@ -70,13 +70,13 @@ func copyTemplateConfigs(u *ui, root, tplDir string) bool {
 		// (Copilot review, PR #1065).
 		if e.Type()&os.ModeSymlink != 0 {
 			rollback()
-			u.fail("Template config %s is a symlink — refusing (a symlinked config could read arbitrary local files).", e.Name())
+			u.Fail("Template config %s is a symlink — refusing (a symlinked config could read arbitrary local files).", e.Name())
 			return false
 		}
 		b, err := os.ReadFile(filepath.Join(src, e.Name()))
 		if err != nil {
 			rollback()
-			u.fail("Reading template config %s: %v", e.Name(), err)
+			u.Fail("Reading template config %s: %v", e.Name(), err)
 			return false
 		}
 		name := strings.TrimSuffix(e.Name(), ".toml")
@@ -87,7 +87,7 @@ func copyTemplateConfigs(u *ui, root, tplDir string) bool {
 		written = append(written, filepath.Join(root, ".semiont", "semiontconfig", name+".toml"))
 	}
 	if len(written) == 0 {
-		u.fail("The template carried no semiontconfig tomls.")
+		u.Fail("The template carried no semiontconfig tomls.")
 		return false
 	}
 	return true
@@ -97,10 +97,10 @@ func copyTemplateConfigs(u *ui, root, tplDir string) bool {
 // the display name in devcontainer.json, which becomes the newborn's — each
 // KB's codespace must self-identify (template-init.yml step 5). This is
 // what makes a locally-born KB eligible for --runtime codespace.
-func copyDevcontainer(u *ui, root, tplDir, kbName string) bool {
+func copyDevcontainer(u *UI, root, tplDir, kbName string) bool {
 	src := filepath.Join(tplDir, ".devcontainer")
 	if _, err := os.Stat(src); err != nil {
-		u.fail("The template has no .devcontainer: %v", err)
+		u.Fail("The template has no .devcontainer: %v", err)
 		return false
 	}
 	dst := filepath.Join(root, ".devcontainer")
@@ -131,10 +131,10 @@ func copyDevcontainer(u *ui, root, tplDir, kbName string) bool {
 		return os.WriteFile(target, b, mode)
 	})
 	if err != nil {
-		u.fail("Copying .devcontainer: %v", err)
+		u.Fail("Copying .devcontainer: %v", err)
 		return false
 	}
-	u.ok(".devcontainer copied %s", u.dim("(display name → "+kbName+"; this KB is codespace-capable)"))
+	u.Ok(".devcontainer copied %s", u.Dim("(display name → "+kbName+"; this KB is codespace-capable)"))
 	return true
 }
 

@@ -49,7 +49,7 @@ afterwards — it is the one irreversible mistake available here.
 `
 
 func Import(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	var archive, root string
 	force := false
 
@@ -57,7 +57,7 @@ func Import(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -76,22 +76,22 @@ func Import(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			if archive != "" {
-				u.fail("Only one archive may be given (got %q and %q).", archive, a)
+				u.Fail("Only one archive may be given (got %q and %q).", archive, a)
 				return 1
 			}
 			archive = a
 		}
 	}
 	if archive == "" {
-		u.fail("import needs an archive: semiont import <archive.tar.gz>")
+		u.Fail("import needs an archive: semiont import <archive.tar.gz>")
 		return 1
 	}
 	if _, err := os.Stat(archive); err != nil {
-		u.fail("no such archive: %s", archive)
+		u.Fail("no such archive: %s", archive)
 		return 1
 	}
 	if root == "" {
@@ -103,7 +103,7 @@ func Import(args []string) int {
 	// --force is the operator saying they meant it.
 	if !force {
 		if entries, err := os.ReadDir(root); err == nil && len(entries) > 0 {
-			u.fail("%s is not empty — restoring into it would merge two KBs.", root)
+			u.Fail("%s is not empty — restoring into it would merge two KBs.", root)
 			fmt.Fprintln(os.Stderr, "  Pick an empty directory, or pass --force if you mean to overlay.")
 			return 1
 		}
@@ -111,13 +111,13 @@ func Import(args []string) int {
 
 	n, err := extractArchive(archive, root)
 	if err != nil {
-		u.fail("import failed: %v", err)
+		u.Fail("import failed: %v", err)
 		return 1
 	}
 	// A directory with no .semiont/ is not a KB. Say so rather than leaving
 	// the operator to discover it at the next start.
 	if fi, statErr := os.Stat(filepath.Join(root, ".semiont")); statErr != nil || !fi.IsDir() {
-		u.fail("%s has no .semiont/ — that archive is not a Semiont KB.", root)
+		u.Fail("%s has no .semiont/ — that archive is not a Semiont KB.", root)
 		return 1
 	}
 
@@ -132,9 +132,9 @@ func Import(args []string) int {
 	if id != nil && id.Name != "" {
 		label = id.Name
 	}
-	u.ok("Imported %s into %s %s", label, abs, u.dim(fmt.Sprintf("(%d entries)", n)))
-	fmt.Printf("  %s\n", u.dim("Start it:  semiont start --root "+abs))
-	fmt.Printf("  %s\n", u.dim("Projections rebuild from the event log on that first start."))
+	u.Ok("Imported %s into %s %s", label, abs, u.Dim(fmt.Sprintf("(%d entries)", n)))
+	fmt.Printf("  %s\n", u.Dim("Start it:  semiont start --root "+abs))
+	fmt.Printf("  %s\n", u.Dim("Projections rebuild from the event log on that first start."))
 	return 0
 }
 

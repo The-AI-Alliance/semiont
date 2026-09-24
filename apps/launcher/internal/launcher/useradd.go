@@ -92,7 +92,7 @@ Examples:
 // terminal, else from stdin) and pipes it to `--password-stdin`, so it exists
 // only in two process memories and the pipe between them.
 func Useradd(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	for _, a := range args {
 		if a == "--help" || a == "-h" {
 			fmt.Print(useraddUsage)
@@ -116,7 +116,7 @@ func Useradd(args []string) int {
 		switch args[i] {
 		case "--email":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --email")
+				u.Fail("Missing value for --email")
 				return 1
 			}
 			o.email = args[i+1]
@@ -128,7 +128,7 @@ func Useradd(args []string) int {
 			o.inactive = true
 		case "--repo":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+				u.Fail("Missing value for --repo")
 				return 1
 			}
 			repo = args[i+1]
@@ -136,7 +136,7 @@ func Useradd(args []string) int {
 			continue
 		case "--runtime": // selector only, mirroring stop: "the local stack"
 			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+				u.Fail("Missing value for --runtime")
 				return 1
 			}
 			wantLocal = true
@@ -146,7 +146,7 @@ func Useradd(args []string) int {
 			// Removed, not deprecated. It put the secret in argv — visible in
 			// `ps` on the host and in the container, kept by the runtime's
 			// container record, and written to the caller's shell history.
-			u.fail("--password is no longer accepted: a password in argv is visible to every process on the host.")
+			u.Fail("--password is no longer accepted: a password in argv is visible to every process on the host.")
 			fmt.Fprintln(os.Stderr, "  Let it prompt:   semiont useradd --email <email>")
 			fmt.Fprintln(os.Stderr, "  Or pipe it:      cat pw | semiont useradd --email <email>")
 			fmt.Fprintln(os.Stderr, "  Or generate it:  semiont useradd --email <email> --generate-password")
@@ -168,7 +168,7 @@ func Useradd(args []string) int {
 			// documents still advertise and which grants nothing — look like
 			// it worked.
 			if strings.HasPrefix(args[i], "--") {
-				u.fail("Unknown flag: %s", args[i])
+				u.Fail("Unknown flag: %s", args[i])
 				fmt.Fprintln(os.Stderr, "  See:  semiont useradd --help")
 				return 1
 			}
@@ -182,7 +182,7 @@ func Useradd(args []string) int {
 	// gateway's own mutual-exclusion check never see the pair — the user would
 	// silently get a generated password they did not ask to keep.
 	if generate && wantStdin {
-		u.fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
+		u.Fail("--password-stdin and --generate-password are contradictory: one supplies a password, the other invents one.")
 		return 1
 	}
 	if !useraddValidate(u, o) {
@@ -190,7 +190,7 @@ func Useradd(args []string) int {
 	}
 
 	// Which stack? The shared knowledge-verb ladder (stackselect.go).
-	target, ok := selectVerbStack(u, "useradd", loadStackSet(), repo, wantLocal)
+	target, ok := SelectVerbStack(u, "useradd", LoadStackSet(), repo, wantLocal)
 	if !ok {
 		return 1
 	}
@@ -223,22 +223,22 @@ func Useradd(args []string) int {
 // here rather than at the far end because a refusal the caller can make is one
 // the caller should make — and on the codespace path the far end is an ssh hop
 // away.
-func useraddValidate(u *ui, o useraddOpts) bool {
+func useraddValidate(u *UI, o useraddOpts) bool {
 	if o.email == "" {
-		u.fail("--email is required")
+		u.Fail("--email is required")
 		return false
 	}
 	if !strings.Contains(o.email, "@") || strings.ContainsAny(o.email, " \t") ||
 		!strings.Contains(o.email[strings.Index(o.email, "@"):], ".") {
-		u.fail("invalid email format: %s", o.email)
+		u.Fail("invalid email format: %s", o.email)
 		return false
 	}
 	if o.update && o.upsert {
-		u.fail("--update and --upsert are contradictory: one demands the account exist, the other tolerates it.")
+		u.Fail("--update and --upsert are contradictory: one demands the account exist, the other tolerates it.")
 		return false
 	}
 	if o.inactive && o.active {
-		u.fail("--inactive and --active are contradictory.")
+		u.Fail("--inactive and --active are contradictory.")
 		return false
 	}
 	return true
@@ -257,7 +257,7 @@ func useraddValidate(u *ui, o useraddOpts) bool {
 // root is reached). So every argument is single-quote escaped before it
 // crosses. The password is exempt by never being an argument: it goes down
 // ssh's stdin to `--password-stdin`.
-func useraddCodespace(u *ui, st *stackState, args []string, password string) int {
+func useraddCodespace(u *UI, st *StackState, args []string, password string) int {
 	if !requireGh(u, "useradd against a codespace stack") {
 		return 1
 	}
@@ -268,10 +268,10 @@ func useraddCodespace(u *ui, st *stackState, args []string, password string) int
 	// expand and values with spaces would split.
 	remote := remoteUseraddCmd(args, password != "")
 	sshArgs := []string{"codespace", "ssh", "-c", st.Codespace, "--", remote}
-	u.log("useradd on %s %s", u.bold(st.Repo), u.dim("(codespace "+st.Codespace+")"))
-	u.echoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
+	u.Log("useradd on %s %s", u.Bold(st.Repo), u.Dim("(codespace "+st.Codespace+")"))
+	u.EchoCmd("gh", "codespace", "ssh", "-c", st.Codespace, "--", remote)
 	if err := runVisibleWithStdin(password, "gh", sshArgs...); err != nil {
-		u.fail("useradd failed inside the codespace (see output above).")
+		u.Fail("useradd failed inside the codespace (see output above).")
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status --repo "+st.Repo)
 		return 1
 	}

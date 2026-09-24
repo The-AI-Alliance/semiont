@@ -17,73 +17,73 @@ import (
 // output and the --dry-run seam stay machine-clean.
 
 const (
-	ansiBold    = "\033[1m"
-	ansiDim     = "\033[2m"
-	ansiGreen   = "\033[0;32m"
-	ansiCyan    = "\033[0;36m"
-	ansiYellow  = "\033[0;33m"
-	ansiRed     = "\033[0;31m"
-	ansiMagenta = "\033[0;35m"
-	ansiReset   = "\033[0m"
+	AnsiBold    = "\033[1m"
+	AnsiDim     = "\033[2m"
+	AnsiGreen   = "\033[0;32m"
+	AnsiCyan    = "\033[0;36m"
+	AnsiYellow  = "\033[0;33m"
+	AnsiRed     = "\033[0;31m"
+	AnsiMagenta = "\033[0;35m"
+	AnsiReset   = "\033[0m"
 )
 
-type ui struct {
+type UI struct {
 	quiet bool
 	color bool
 }
 
-func newUI(quiet bool) *ui {
+func NewUI(quiet bool) *UI {
 	fi, err := os.Stdout.Stat()
-	return &ui{quiet: quiet, color: err == nil && fi.Mode()&os.ModeCharDevice != 0}
+	return &UI{quiet: quiet, color: err == nil && fi.Mode()&os.ModeCharDevice != 0}
 }
 
-func (u *ui) wrap(code, s string) string {
+func (u *UI) Wrap(code, s string) string {
 	if !u.color {
 		return s
 	}
-	return code + s + ansiReset
+	return code + s + AnsiReset
 }
 
-func (u *ui) bold(s string) string { return u.wrap(ansiBold, s) }
-func (u *ui) dim(s string) string  { return u.wrap(ansiDim, s) }
+func (u *UI) Bold(s string) string { return u.Wrap(AnsiBold, s) }
+func (u *UI) Dim(s string) string  { return u.Wrap(AnsiDim, s) }
 
-func (u *ui) log(format string, a ...any) {
+func (u *UI) Log(format string, a ...any) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("%s %s\n", u.wrap(ansiCyan, "▸"), fmt.Sprintf(format, a...))
+	fmt.Printf("%s %s\n", u.Wrap(AnsiCyan, "▸"), fmt.Sprintf(format, a...))
 }
 
 // note is log's stderr twin: narration a verb owes the user that must not
 // land in what the verb PRINTS — a `--json` reply piped to jq stays one JSON
 // document.
-func (u *ui) note(format string, a ...any) {
+func (u *UI) Note(format string, a ...any) {
 	if u.quiet {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "%s %s\n", u.wrap(ansiCyan, "▸"), fmt.Sprintf(format, a...))
+	fmt.Fprintf(os.Stderr, "%s %s\n", u.Wrap(AnsiCyan, "▸"), fmt.Sprintf(format, a...))
 }
 
-func (u *ui) ok(format string, a ...any) {
+func (u *UI) Ok(format string, a ...any) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("%s %s\n", u.wrap(ansiGreen, "✓"), fmt.Sprintf(format, a...))
+	fmt.Printf("%s %s\n", u.Wrap(AnsiGreen, "✓"), fmt.Sprintf(format, a...))
 }
 
-func (u *ui) warn(format string, a ...any) {
-	fmt.Printf("%s  %s\n", u.wrap(ansiYellow, "⚠️"), fmt.Sprintf(format, a...))
+func (u *UI) Warn(format string, a ...any) {
+	fmt.Printf("%s  %s\n", u.Wrap(AnsiYellow, "⚠️"), fmt.Sprintf(format, a...))
 }
 
-func (u *ui) fail(format string, a ...any) {
-	fmt.Fprintf(os.Stderr, "%s %s\n", u.wrap(ansiRed, "✗"), fmt.Sprintf(format, a...))
+func (u *UI) Fail(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "%s %s\n", u.Wrap(AnsiRed, "✗"), fmt.Sprintf(format, a...))
 }
 
-func (u *ui) banner(s string) {
+func (u *UI) Banner(s string) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("\n%s\n", u.bold(s))
+	fmt.Printf("\n%s\n", u.Bold(s))
 }
 
 // treeItem carries a name through treePrint: full is what the caller keys its
@@ -132,7 +132,7 @@ func firstSegment(s string) string {
 //
 // Order is by first appearance, of both branches and leaves, so callers whose
 // order carries meaning (the cwd root leads) keep it.
-func treePrint(u *ui, items []treeItem, depth int, leaf func(treeItem, int)) {
+func treePrint(u *UI, items []treeItem, depth int, leaf func(treeItem, int)) {
 	if len(items) == 1 {
 		leaf(items[0], depth)
 		return
@@ -142,7 +142,7 @@ func treePrint(u *ui, items []treeItem, depth int, leaf func(treeItem, int)) {
 		rests[i] = it.rest
 	}
 	if lcp := commonSlashPrefix(rests); lcp != "" {
-		fmt.Printf("%s%s\n", strings.Repeat("  ", depth+1), u.dim(lcp))
+		fmt.Printf("%s%s\n", strings.Repeat("  ", depth+1), u.Dim(lcp))
 		depth++
 		for i := range items {
 			items[i].rest = strings.TrimPrefix(items[i].rest, lcp)
@@ -175,12 +175,12 @@ func treePrint(u *ui, items []treeItem, depth int, leaf func(treeItem, int)) {
 // the top-level groupings (LOCAL STACK / KNOWLEDGE BASES, plus LAUNCHER PATHS
 // under --verbose) must be findable at a glance in a report whose content
 // lines are all indented and dense.
-func (u *ui) section(title string) {
-	fmt.Printf("\n%s\n%s\n", u.bold(title), u.dim(strings.Repeat("─", 60)))
+func (u *UI) Section(title string) {
+	fmt.Printf("\n%s\n%s\n", u.Bold(title), u.Dim(strings.Repeat("─", 60)))
 }
 
-func (u *ui) stamp(event string) {
-	fmt.Println(u.dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
+func (u *UI) Stamp(event string) {
+	fmt.Println(u.Dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }
 
 // echoEnvAllowlist: the --env values safe to show in echoed commands. Names
@@ -219,11 +219,11 @@ func redactEnvArgs(args []string) []string {
 // echoCmd mirrors the scripts' run_cmd prefix: show the exact command before
 // running it (the in-terminal legibility half of the --dry-run story) —
 // minus secret env values.
-func (u *ui) echoCmd(name string, args ...string) {
+func (u *UI) EchoCmd(name string, args ...string) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("  %s\n", u.dim("$ "+name+" "+strings.Join(redactEnvArgs(args), " ")))
+	fmt.Printf("  %s\n", u.Dim("$ "+name+" "+strings.Join(redactEnvArgs(args), " ")))
 }
 
 // --- Subprocess helpers ---
@@ -349,17 +349,17 @@ func installedRuntimes() []string {
 	return found
 }
 
-// selectRuntime validates an explicit --runtime, or auto-detects first-found.
-func selectRuntime(u *ui, requested string) (string, bool) {
+// SelectRuntime validates an explicit --runtime, or auto-detects first-found.
+func SelectRuntime(u *UI, requested string) (string, bool) {
 	if requested != "" {
 		switch requested {
 		case "container", "docker", "podman":
 		default:
-			u.fail("Unknown --runtime '%s' (expected: container, docker, or podman)", requested)
+			u.Fail("Unknown --runtime '%s' (expected: container, docker, or podman)", requested)
 			return "", false
 		}
 		if !onPath(requested) {
-			u.fail("--runtime %s requested, but '%s' is not on PATH.", requested, requested)
+			u.Fail("--runtime %s requested, but '%s' is not on PATH.", requested, requested)
 			return "", false
 		}
 		return requested, true
@@ -367,7 +367,7 @@ func selectRuntime(u *ui, requested string) (string, bool) {
 	if found := installedRuntimes(); len(found) > 0 {
 		return found[0], true
 	}
-	u.fail("No container runtime found. Install Apple Container, Docker, or Podman.")
+	u.Fail("No container runtime found. Install Apple Container, Docker, or Podman.")
 	return "", false
 }
 
@@ -456,7 +456,7 @@ func pollDelay(elapsed time.Duration) time.Duration {
 // 1800s; one was observed in the launcher's own log taking 1346s while
 // claiming 600. A deadline makes the number honest, and the message reports
 // the time actually spent so it can never drift from reality again.
-func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
+func waitForHTTP(u *UI, name, url string, seconds int) (time.Duration, bool) {
 	return waitForHTTPTick(u, name, url, seconds, nil)
 }
 
@@ -466,7 +466,7 @@ func waitForHTTP(u *ui, name, url string, seconds int) (time.Duration, bool) {
 // this one's deadline discipline. A tick returning false ABORTS the wait:
 // the tick has diagnosed and printed the real failure (a dead forward),
 // so the generic did-not-become-ready message must not overwrite it.
-func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed time.Duration) bool) (time.Duration, bool) {
+func waitForHTTPTick(u *UI, name, url string, seconds int, tick func(elapsed time.Duration) bool) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	// The tick is a DISPLAY concern (the codespace log window), so it stays on
@@ -489,7 +489,7 @@ func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed tim
 		}
 		time.Sleep(pollDelay(elapsed))
 	}
-	u.fail("%s did not become ready at %s within %ds (waited %s).", name, url, seconds, took(time.Since(t0)))
+	u.Fail("%s did not become ready at %s within %ds (waited %s).", name, url, seconds, took(time.Since(t0)))
 	return time.Since(t0), false
 }
 
@@ -506,7 +506,7 @@ func waitForHTTPTick(u *ui, name, url string, seconds int, tick func(elapsed tim
 // Measured on Apple container with an empty data dir: the host port answered
 // at 20ms and the real server accepted at 1579ms. Anything that must talk to
 // the database follows this with waitPGAccepting.
-func waitForTCP(u *ui, rt, label, host string, port, seconds int) (time.Duration, bool) {
+func waitForTCP(u *UI, rt, label, host string, port, seconds int) (time.Duration, bool) {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	up := false
@@ -525,11 +525,11 @@ func waitForTCP(u *ui, rt, label, host string, port, seconds int) (time.Duration
 		time.Sleep(pollDelay(time.Since(t0)))
 	}
 	if !up {
-		u.fail("%s did not open port %d within %ds (waited %s).", label, port, seconds, took(time.Since(t0)))
+		u.Fail("%s did not open port %d within %ds (waited %s).", label, port, seconds, took(time.Since(t0)))
 		return time.Since(t0), false
 	}
 	if runSilent(rt, "run", "--rm", "busybox:1.38.0", "nc", "-z", "-w", "2", host, fmt.Sprintf("%d", port)) != nil {
-		u.fail("%s is up on localhost:%d but not reachable from containers at %s:%d.", label, port, host, port)
+		u.Fail("%s is up on localhost:%d but not reachable from containers at %s:%d.", label, port, host, port)
 		return time.Since(t0), false
 	}
 	return time.Since(t0), true
@@ -545,7 +545,7 @@ func waitForTCP(u *ui, rt, label, host string, port, seconds int) (time.Duration
 //
 // `exec` into the running container, not `run` — the VM already exists, which
 // is what made the old per-attempt `run` loop expensive.
-func waitPGAccepting(u *ui, rt, container string, seconds int) bool {
+func waitPGAccepting(u *UI, rt, container string, seconds int) bool {
 	t0 := time.Now()
 	deadline := t0.Add(time.Duration(seconds) * time.Second)
 	for {
@@ -553,7 +553,7 @@ func waitPGAccepting(u *ui, rt, container string, seconds int) bool {
 			return true
 		}
 		if !time.Now().Before(deadline) {
-			u.fail("PostgreSQL opened its port but was not accepting sessions within %ds (waited %s).", seconds, took(time.Since(t0)))
+			u.Fail("PostgreSQL opened its port but was not accepting sessions within %ds (waited %s).", seconds, took(time.Since(t0)))
 			return false
 		}
 		time.Sleep(pollDelay(time.Since(t0)))

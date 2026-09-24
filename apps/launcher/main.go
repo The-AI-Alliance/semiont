@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/verbs"
 )
 
 func usage(w *os.File) {
@@ -80,23 +81,23 @@ func main() {
 	case "logout":
 		code = launcher.Logout(rest)
 	case "yield":
-		code = launcher.Yield(rest)
+		code = verbs.Yield(rest)
 	case "browse":
-		code = launcher.Browse(rest)
+		code = verbs.Browse(rest)
 	case "gather":
-		code = launcher.Gather(rest)
+		code = verbs.Gather(rest)
 	case "mark":
-		code = launcher.Mark(rest)
+		code = verbs.Mark(rest)
 	case "bind":
-		code = launcher.Bind(rest)
+		code = verbs.Bind(rest)
 	case "match":
-		code = launcher.Match(rest)
+		code = verbs.Match(rest)
 	case "beckon":
-		code = launcher.Beckon(rest)
+		code = verbs.Beckon(rest)
 	case "frame":
-		code = launcher.Frame(rest)
+		code = verbs.Frame(rest)
 	case "listen":
-		code = launcher.Listen(rest)
+		code = verbs.Listen(rest)
 	case "secret":
 		code = launcher.Secret(rest)
 	case "identity":

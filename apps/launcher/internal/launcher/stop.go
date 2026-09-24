@@ -53,7 +53,7 @@ var stopNames = []string{
 
 // Stop implements `semiont stop` — the port of the fleet's stop.sh.
 func Stop(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	runtime := ""
 	service := ""
 	repo := ""
@@ -63,21 +63,21 @@ func Stop(args []string) int {
 		switch args[i] {
 		case "--runtime":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+				u.Fail("Missing value for --runtime")
 				return 1
 			}
 			runtime = args[i+1]
 			i++
 		case "--service":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --service")
+				u.Fail("Missing value for --service")
 				return 1
 			}
 			service = args[i+1]
 			i++
 		case "--repo":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+				u.Fail("Missing value for --repo")
 				return 1
 			}
 			repo = args[i+1]
@@ -90,7 +90,7 @@ func Stop(args []string) int {
 			fmt.Print(stopUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", args[i])
+			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
 	}
@@ -99,10 +99,10 @@ func Stop(args []string) int {
 	// member: stop its container (record ID preferred), clear its record,
 	// and never touch stack state.
 	if service == "browser" && repo == "" {
-		ssPre := loadStackSet()
+		ssPre := LoadStackSet()
 		b := ssPre.Browser
 		if b == nil {
-			u.log("No Browser is recorded — sweeping the container name to be sure.")
+			u.Log("No Browser is recorded — sweeping the container name to be sure.")
 		}
 		// Sweep BOTH the recorded ID and the stable name: a stale ID
 		// (container recreated outside this record) would no-op while the
@@ -130,9 +130,9 @@ func Stop(args []string) int {
 		}
 		clearBrowser()
 		if stopped {
-			u.ok("Browser stopped %s", u.dim("(stacks untouched; any start brings it back)"))
+			u.Ok("Browser stopped %s", u.Dim("(stacks untouched; any start brings it back)"))
 		} else {
-			u.log("Browser was not running.")
+			u.Log("Browser was not running.")
 		}
 		return 0
 	}
@@ -144,7 +144,7 @@ func Stop(args []string) int {
 	serviceContainer := ""
 	if service != "" {
 		if _, known := roles[service]; !known {
-			u.fail("Unknown --service '%s' (expected: %s)", service, roleList)
+			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
 		serviceContainer = roles[service].container
@@ -156,8 +156,8 @@ func Stop(args []string) int {
 			}
 		}
 		if serviceContainer == "" {
-			u.log("%s is externally provided — nothing to stop.", service)
-			fmt.Fprintf(os.Stdout, "  %s\n", u.dim("(external roles participate in status; start and stop belong to whatever provides them)"))
+			u.Log("%s is externally provided — nothing to stop.", service)
+			fmt.Fprintf(os.Stdout, "  %s\n", u.Dim("(external roles participate in status; start and stop belong to whatever provides them)"))
 			return 0
 		}
 	}
@@ -172,7 +172,7 @@ func Stop(args []string) int {
 	// those instead of a blind every-runtime name sweep. An explicit
 	// --runtime overrides; no record (older launcher, other machine) falls
 	// back to the historical sweep.
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
 
@@ -183,7 +183,7 @@ func Stop(args []string) int {
 	if repo != "" {
 		target := ss.Stacks["codespace:"+repo]
 		if target == nil {
-			u.fail("No codespace stack recorded for %s.", repo)
+			u.Fail("No codespace stack recorded for %s.", repo)
 			for _, c := range cs {
 				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
 			}
@@ -199,7 +199,7 @@ func Stop(args []string) int {
 		// Anything less certain still refuses: stop doesn't guess, but it
 		// also must not demand --runtime container from a user standing in
 		// the exact clone whose stack is up (observed 2026-07-20).
-		root := cwdKBRoot()
+		root := CwdKBRoot()
 		localHere := st != nil && st.KBRoot != "" && st.KBRoot == root
 		if !localHere {
 			if st == nil {
@@ -207,11 +207,11 @@ func Stop(args []string) int {
 					return stopCodespace(u, cs[0], service, del, dryRun)
 				}
 				if c := originCodespace(cs, root); c != nil {
-					u.log("Stopping %s %s", u.bold(c.Repo), u.dim("(this clone's origin; per "+statePath()+")"))
+					u.Log("Stopping %s %s", u.Bold(c.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
 					return stopCodespace(u, c, service, del, dryRun)
 				}
 			}
-			u.fail("Multiple stacks are recorded — say which:")
+			u.Fail("Multiple stacks are recorded — say which:")
 			if st != nil {
 				fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
 			}
@@ -222,7 +222,7 @@ func Stop(args []string) int {
 		}
 	}
 	if del {
-		u.fail("--delete only applies to a codespace stack (a local stop already removes the containers).")
+		u.Fail("--delete only applies to a codespace stack (a local stop already removes the containers).")
 		return 1
 	}
 
@@ -241,16 +241,16 @@ func Stop(args []string) int {
 		runtimes = []string{runtime}
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		runtimes = []string{st.Runtime}
-		u.log("Using recorded stack state %s", u.dim("("+st.Runtime+" per "+statePath()+")"))
+		u.Log("Using recorded stack state %s", u.Dim("("+st.Runtime+" per "+statePath()+")"))
 	} else {
 		if st == nil && runtime == "" && !dryRun {
-			u.log("No recorded stack %s — sweeping all installed runtimes by name.", u.dim("(stack.json absent)"))
+			u.Log("No recorded stack %s — sweeping all installed runtimes by name.", u.Dim("(stack.json absent)"))
 		}
 		st = nil // ignore an unusable record; sweep by name
 		runtimes = installedRuntimes()
 	}
 	if len(runtimes) == 0 {
-		u.fail("No container runtime found. Install Apple Container, Docker, or Podman.")
+		u.Fail("No container runtime found. Install Apple Container, Docker, or Podman.")
 		return 1
 	}
 	// Identifiers come from the record only when sweeping exactly the
@@ -321,7 +321,7 @@ func Stop(args []string) int {
 	snapRoot := ""
 	if useState && st != nil && st.KBRoot != "" {
 		snapRoot = st.KBRoot
-	} else if r := cwdKBRoot(); r != "" {
+	} else if r := CwdKBRoot(); r != "" {
 		snapRoot = r
 	}
 
@@ -361,8 +361,8 @@ func Stop(args []string) int {
 	// stop-then-rm: under Apple Container a stopped --rm container persists
 	// (the next `run --name` would fail with "already exists"), so rm makes
 	// this idempotent across all three states: running, stopped, absent.
-	u.log("Sweeping %d container(s) across %s %s", len(targets),
-		strings.Join(runtimes, ", "), u.dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
+	u.Log("Sweeping %d container(s) across %s %s", len(targets),
+		strings.Join(runtimes, ", "), u.Dim("(stop+rm each; exact commands: semiont stop --dry-run)"))
 	totalRemoved := 0
 	for _, rt := range runtimes {
 		t0 := time.Now()
@@ -375,7 +375,7 @@ func Stop(args []string) int {
 		}
 		if snapRoot != "" {
 			if dir, n := writeLogSnapshot(rt, snapRoot, targets); n > 0 {
-				u.log("Snapshotted %d container log(s) %s", n, u.dim("("+dir+")"))
+				u.Log("Snapshotted %d container log(s) %s", n, u.Dim("("+dir+")"))
 			}
 		}
 		removed := 0
@@ -386,11 +386,11 @@ func Stop(args []string) int {
 			}
 		}
 		totalRemoved += removed
-		elapsed := u.dim("(" + took(time.Since(t0)) + ")")
+		elapsed := u.Dim("(" + took(time.Since(t0)) + ")")
 		if removed == 0 {
-			u.ok("%s: none found %s", rt, elapsed)
+			u.Ok("%s: none found %s", rt, elapsed)
 		} else {
-			u.ok("%s: %d removed %s", rt, removed, elapsed)
+			u.Ok("%s: %d removed %s", rt, removed, elapsed)
 		}
 	}
 	for _, rt := range strayRuntimes {
@@ -404,7 +404,7 @@ func Stop(args []string) int {
 		}
 		totalRemoved += removed
 		if removed > 0 {
-			u.warn("%s: %d stray container(s) removed (not in the record).", rt, removed)
+			u.Warn("%s: %d stray container(s) removed (not in the record).", rt, removed)
 		}
 	}
 
@@ -425,7 +425,7 @@ func Stop(args []string) int {
 	// is the measured Apple-container failure this staging exists to
 	// prevent), and its record still describes reality.
 	if st != nil && !useState {
-		u.warn("Recorded stack (under %s) left untouched — staged configs and stack.json kept.", st.Runtime)
+		u.Warn("Recorded stack (under %s) left untouched — staged configs and stack.json kept.", st.Runtime)
 		fmt.Printf("Swept %s only. Run semiont stop (without --runtime) to tear down the recorded stack.\n", strings.Join(runtimes, ", "))
 		return 0
 	}
@@ -434,7 +434,7 @@ func Stop(args []string) int {
 	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	removeStagedConfigs()
 	if len(staged) > 0 {
-		u.ok("Removed %d staged config dir(s)", len(staged))
+		u.Ok("Removed %d staged config dir(s)", len(staged))
 	}
 	forgetStack("local")
 
@@ -453,8 +453,8 @@ func Stop(args []string) int {
 	// The Browser deliberately survives a stack stop — it is the machine's
 	// viewer, not a stack member. Say so, with the off-switch: silence here
 	// would read as a leak.
-	if b := loadStackSet().Browser; b != nil && b.Endpoint != "" && httpOK(b.Endpoint) {
-		fmt.Printf("Browser still running on %s %s\n", b.Endpoint, u.dim("(not a stack member; stop it with: semiont stop --service browser)"))
+	if b := LoadStackSet().Browser; b != nil && b.Endpoint != "" && httpOK(b.Endpoint) {
+		fmt.Printf("Browser still running on %s %s\n", b.Endpoint, u.Dim("(not a stack member; stop it with: semiont stop --service browser)"))
 	}
 	return 0
 }
@@ -472,7 +472,7 @@ var fiatPorts = []int{24100, 24101, 24102, 24103, 24104, 4318, 24110, 16686, 143
 // them. Poll briefly to absorb lazy teardown, then REPORT any survivor with
 // its holder. Never kills: after the sweeps above, a holder is provably not
 // a Semiont container.
-func verifyPortsReleased(u *ui, ports []int) {
+func verifyPortsReleased(u *UI, ports []int) {
 	deadline := time.Now().Add(3 * time.Second)
 	var held []int
 	for {
@@ -488,11 +488,11 @@ func verifyPortsReleased(u *ui, ports []int) {
 		time.Sleep(200 * time.Millisecond)
 	}
 	if len(held) == 0 {
-		u.ok("All stack ports released")
+		u.Ok("All stack ports released")
 		return
 	}
 	for _, p := range held {
-		u.warn("Port %d is still held by %s — not a Semiont container; the next start will fail on it.",
+		u.Warn("Port %d is still held by %s — not a Semiont container; the next start will fail on it.",
 			p, describeProcs(listenersOn(p)))
 	}
 }

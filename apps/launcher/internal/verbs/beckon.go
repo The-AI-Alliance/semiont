@@ -1,8 +1,8 @@
-package launcher
+package verbs
 
 // beckon.go — `semiont beckon`: draw a collaborator's attention to a
 // resource or annotation. Fire-and-forget by design: beckon:focus is a
-// broadcast UI signal with no reply channel, so this verb reports what it
+// broadcast launcher.UI signal with no reply channel, so this verb reports what it
 // SENT, never that anyone saw it. Claiming delivery would be a lie the
 // protocol cannot back up.
 
@@ -10,6 +10,8 @@ import (
 	"context"
 	"fmt"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
@@ -50,21 +52,21 @@ that the signal was sent — not that a participant is watching.
 //
 // The exit code is 0 in all three: beckon is fire-and-forget by contract, and
 // an empty room is a fact, not a failure.
-func audienceNote(u *ui, subscribers int, channel string) string {
+func audienceNote(u *launcher.UI, subscribers int, channel string) string {
 	switch {
 	case subscribers == 0:
-		return u.wrap(ansiYellow, "— nothing is subscribed to "+channel+", so no one received it")
+		return u.Wrap(launcher.AnsiYellow, "— nothing is subscribed to "+channel+", so no one received it")
 	case subscribers < 0:
-		return u.dim("(broadcast — no delivery confirmation)")
+		return u.Dim("(broadcast — no delivery confirmation)")
 	case subscribers == 1:
-		return u.dim("(1 subscriber — broadcast, so still no confirmation anyone looked)")
+		return u.Dim("(1 subscriber — broadcast, so still no confirmation anyone looked)")
 	default:
-		return u.dim(fmt.Sprintf("(%d subscribers — broadcast, so still no confirmation anyone looked)", subscribers))
+		return u.Dim(fmt.Sprintf("(%d subscribers — broadcast, so still no confirmation anyone looked)", subscribers))
 	}
 }
 
 func Beckon(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var resource, annotation, repo string
 	wantLocal := false
 	sparkle := false
@@ -73,7 +75,7 @@ func Beckon(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -97,12 +99,12 @@ func Beckon(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			// A bare id is the resource, matching how people type it.
 			if resource != "" {
-				u.fail("Unexpected argument: %s", a)
+				u.Fail("Unexpected argument: %s", a)
 				return 1
 			}
 			resource, ok = a, true
@@ -118,15 +120,15 @@ func Beckon(args []string) int {
 	// BeckonSparkleEvent requires an annotationId — there is no resource-wide
 	// sparkle to fall back to, so this refuses rather than inventing one.
 	if sparkle && annotation == "" {
-		u.fail("--sparkle marks one annotation, so it needs --annotation <id>")
+		u.Fail("--sparkle marks one annotation, so it needs --annotation <id>")
 		return 1
 	}
 
-	t, ok := verbSession(u, "beckon", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "beckon", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	// Two signals, one act (GUIDED-TOUR P6). Focus SCROLLS, so beckoning three
 	// references in a row scroll-fights and only the last survives; sparkle is
@@ -162,6 +164,6 @@ func Beckon(args []string) int {
 	if sparkle {
 		verb = "Sparkled"
 	}
-	u.ok("%s %s %s", verb, target, audienceNote(u, subscribers, string(channel)))
+	u.Ok("%s %s %s", verb, target, audienceNote(u, subscribers, string(channel)))
 	return 0
 }

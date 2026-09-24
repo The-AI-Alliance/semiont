@@ -14,7 +14,7 @@ package launcher
 // regenerate both sides. version is the compatibility gate: consumers must
 // ignore documents they do not understand.
 
-//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json" <stateDir>/discovery/kbs.json is an
+//go:generate sh -c "cd ../../../.. && container run --rm -v $(pwd):/w -w /w golang:1.25 go run github.com/atombender/go-jsonschema@v0.23.1 -p launcher --tags json --struct-name-from-title --capitalization KB -o apps/launcher/internal/launcher/discovery_types_gen.go specs/src/discovery/DiscoveryDocument.json" <StateDir>/discovery/kbs.json is an
 // EXPORT VIEW regenerated on every stack mutation (saveStackSet is the single
 // writer), and the Browser container mounts the directory read-only at
 // /discovery. Never stack.json itself — that file is launcher-private (PIDs,
@@ -31,8 +31,8 @@ import (
 // writeDiscovery renders the view. An EMPTY stack set writes an empty list —
 // an absent file is ambiguous ("no launcher?" vs "nothing running"), an
 // empty list says plainly that the launcher manages nothing right now.
-func writeDiscovery(ss *stackSet) {
-	dir := stateDir()
+func writeDiscovery(ss *StackSet) {
+	dir := StateDir()
 	if dir == "" {
 		return
 	}

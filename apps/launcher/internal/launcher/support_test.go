@@ -29,7 +29,7 @@ func TestWaitForHTTPHonorsWallClockBudget(t *testing.T) {
 		}
 	}()
 
-	u := newUI(true)
+	u := NewUI(true)
 	t0 := time.Now()
 	_, ok := waitForHTTP(u, "black hole", "http://"+ln.Addr().String()+"/health", 3)
 	elapsed := time.Since(t0)

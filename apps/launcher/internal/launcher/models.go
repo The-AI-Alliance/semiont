@@ -91,7 +91,7 @@ func humanSize(n int64) string {
 // printModels renders one role's configured models beneath its row. Remote
 // providers (Anthropic, Voyage) have nothing to install, so they get the name
 // and an honest "remote" rather than a fabricated install state.
-func printModels(u *ui, models, ollamaServed []string, driver string, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings) {
+func printModels(u *UI, models, ollamaServed []string, driver string, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings) {
 	// Which models have an install state at all is PER MODEL, not per row: a
 	// config can point its workers at Anthropic while its embedding runs on
 	// Ollama, and the inference row then lists Claude models under a driver
@@ -137,7 +137,7 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 		c := ceiling(m)
 		tail := ""
 		if c != "" {
-			tail = "  " + u.dim(c)
+			tail = "  " + u.Dim(c)
 		}
 		if !isOllama(m) {
 			// With recorded /v1/models metadata: identity, release, context
@@ -146,28 +146,28 @@ func printModels(u *ui, models, ollamaServed []string, driver string, facts mode
 			// failed): a plain "remote", never a fabricated verdict.
 			if meta, ok := remote[m]; ok {
 				if !meta.Available {
-					fmt.Printf("      %-*s %s\n", w, m, u.wrap(ansiRed, "NOT AVAILABLE")+u.dim(" — not listed for this API key (withdrawn, or a typo'd id?)"))
+					fmt.Printf("      %-*s %s\n", w, m, u.Wrap(AnsiRed, "NOT AVAILABLE")+u.Dim(" — not listed for this API key (withdrawn, or a typo'd id?)"))
 					continue
 				}
-				fmt.Printf("      %-*s %s  %s%s\n", w, m, u.dim(remoteMetaLine(meta, c != "")), u.dim("remote"), tail)
+				fmt.Printf("      %-*s %s  %s%s\n", w, m, u.Dim(remoteMetaLine(meta, c != "")), u.Dim("remote"), tail)
 				continue
 			}
-			fmt.Printf("      %-*s %-43s %s%s\n", w, m, "", u.dim("remote"), tail)
+			fmt.Printf("      %-*s %-43s %s%s\n", w, m, "", u.Dim("remote"), tail)
 			continue
 		}
 		key := normalizeModel(m)
 		switch {
 		case !facts.found:
-			fmt.Printf("      %-*s %s\n", w, m, u.dim("unknown — Ollama unreachable"))
+			fmt.Printf("      %-*s %s\n", w, m, u.Dim("unknown — Ollama unreachable"))
 		case facts.loaded[key]:
-			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.dim(modelMeta(facts.installed[key])), u.wrap(ansiGreen, "loaded"), tail)
+			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.Dim(modelMeta(facts.installed[key])), u.Wrap(AnsiGreen, "loaded"), tail)
 		default:
 			im, ok := facts.installed[key]
 			if !ok {
-				fmt.Printf("      %-*s %s\n", w, m, u.wrap(ansiRed, "MISSING")+u.dim(" — ollama pull "+m))
+				fmt.Printf("      %-*s %s\n", w, m, u.Wrap(AnsiRed, "MISSING")+u.Dim(" — ollama pull "+m))
 				continue
 			}
-			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.dim(modelMeta(im)), u.dim("installed"), tail)
+			fmt.Printf("      %-*s %s  %s%s\n", w, m, u.Dim(modelMeta(im)), u.Dim("installed"), tail)
 		}
 	}
 }
@@ -204,14 +204,14 @@ func ollamaBase(endpoint string) string {
 // the embedding model, so attributing a failure to "Ollama" or to the enclosing
 // section would point the user at the wrong thing. Ollama appears in the output
 // only as the literal remediation command, where it is the truth.
-func ensureOllamaModels(u *ui, base string, models []modelNeed) bool {
+func ensureOllamaModels(u *UI, base string, models []modelNeed) bool {
 	if len(models) == 0 {
 		return true
 	}
 	roles := strings.Join(modelRoles(models), ", ")
 	facts := fetchModelFacts(base)
 	if !facts.found {
-		u.warn("Could not list the models served at %s — skipping %s model checks.", base, roles)
+		u.Warn("Could not list the models served at %s — skipping %s model checks.", base, roles)
 		return true // not fatal: the stack runs, status will report what it finds
 	}
 	var missing []modelNeed
@@ -221,17 +221,17 @@ func ensureOllamaModels(u *ui, base string, models []modelNeed) bool {
 		}
 	}
 	if len(missing) == 0 {
-		u.ok("Models present for %s %s", roles, u.dim("("+strings.Join(modelNames(models), ", ")+")"))
+		u.Ok("Models present for %s %s", roles, u.Dim("("+strings.Join(modelNames(models), ", ")+")"))
 		return true
 	}
-	u.log("Pulling %d missing model(s): %s", len(missing), u.bold(strings.Join(modelNames(missing), ", ")))
+	u.Log("Pulling %d missing model(s): %s", len(missing), u.Bold(strings.Join(modelNames(missing), ", ")))
 	for _, m := range missing {
 		if !pullOllamaModel(u, base, m.Name) {
 			// A failed pull is NOT fatal to the stack: the other services are
 			// fine and the user may prefer to pull by hand. Name the ROLE that
 			// stops working — that is what tells the user whether they care —
 			// and let status keep reporting the model MISSING.
-			u.warn("Could not pull %s — %s will fail until it is present (ollama pull %s).",
+			u.Warn("Could not pull %s — %s will fail until it is present (ollama pull %s).",
 				m.Name, strings.Join(m.Roles, " and "), m.Name)
 		}
 	}
@@ -241,7 +241,7 @@ func ensureOllamaModels(u *ui, base string, models []modelNeed) bool {
 // pullOllamaModel streams POST /api/pull, reporting progress at intervals
 // rather than per line: a multi-gigabyte pull emits thousands of updates, and
 // the launcher's output is a log, not a TTY canvas.
-func pullOllamaModel(u *ui, base, model string) bool {
+func pullOllamaModel(u *UI, base, model string) bool {
 	body, _ := json.Marshal(map[string]any{"model": model, "stream": true})
 	req, err := http.NewRequest("POST", base+"/api/pull", strings.NewReader(string(body)))
 	if err != nil {
@@ -252,12 +252,12 @@ func pullOllamaModel(u *ui, base, model string) bool {
 	// many minutes. The stream itself is the liveness signal.
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		u.warn("pull %s: %v", model, err)
+		u.Warn("pull %s: %v", model, err)
 		return false
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		u.warn("pull %s: Ollama answered %s", model, resp.Status)
+		u.Warn("pull %s: Ollama answered %s", model, resp.Status)
 		return false
 	}
 	t0 := time.Now()
@@ -275,7 +275,7 @@ func pullOllamaModel(u *ui, base, model string) bool {
 			break
 		}
 		if ev.Error != "" {
-			u.warn("pull %s: %s", model, ev.Error)
+			u.Warn("pull %s: %s", model, ev.Error)
 			return false
 		}
 		if ev.Status == "success" {
@@ -283,11 +283,11 @@ func pullOllamaModel(u *ui, base, model string) bool {
 		}
 		if ev.Total > 0 && time.Since(lastReport) > 5*time.Second {
 			lastReport = time.Now()
-			u.log("  %s %s", model, u.dim(fmt.Sprintf("%d%% of %s", ev.Completed*100/ev.Total, humanSize(ev.Total))))
+			u.Log("  %s %s", model, u.Dim(fmt.Sprintf("%d%% of %s", ev.Completed*100/ev.Total, humanSize(ev.Total))))
 		}
 	}
 	if ok {
-		u.ok("Pulled %s %s", model, u.dim("("+took(time.Since(t0))+")"))
+		u.Ok("Pulled %s %s", model, u.Dim("("+took(time.Since(t0))+")"))
 	}
 	return ok
 }

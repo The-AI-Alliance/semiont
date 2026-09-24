@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-type tokenEntry struct {
+type TokenEntry struct {
 	Token string `json:"token"` // short-lived access token (Bearer)
 	// RefreshToken: long-lived; renews the access token at the issuer without
 	// another sign-in.
@@ -33,7 +33,7 @@ type tokenEntry struct {
 
 // deleteToken forgets one stack's session (logout).
 func deleteToken(key string) error {
-	m := loadTokens()
+	m := LoadTokens()
 	if _, ok := m[key]; !ok {
 		return nil
 	}
@@ -58,15 +58,15 @@ func deleteToken(key string) error {
 }
 
 func tokensPath() string {
-	dir := stateDir()
+	dir := StateDir()
 	if dir == "" {
 		return ""
 	}
 	return filepath.Join(dir, "tokens.json")
 }
 
-func loadTokens() map[string]tokenEntry {
-	m := map[string]tokenEntry{}
+func LoadTokens() map[string]TokenEntry {
+	m := map[string]TokenEntry{}
 	p := tokensPath()
 	if p == "" {
 		return m
@@ -79,14 +79,14 @@ func loadTokens() map[string]tokenEntry {
 	return m
 }
 
-// saveToken upserts one stack's session. Not best-effort: a login whose
+// SaveToken upserts one stack's session. Not best-effort: a login whose
 // token cannot be stored has not logged you in — say so.
-func saveToken(key string, e tokenEntry) error {
+func SaveToken(key string, e TokenEntry) error {
 	p := tokensPath()
 	if p == "" {
 		return os.ErrNotExist
 	}
-	m := loadTokens()
+	m := LoadTokens()
 	m[key] = e
 	b, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {

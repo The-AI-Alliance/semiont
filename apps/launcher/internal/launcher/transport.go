@@ -19,13 +19,13 @@ import (
 )
 
 // newTransport builds the transport a verb talks to. Tests replace it via
-// useTransport.
+// UseTransport.
 var newTransport = func(base, token string) bus.Transport { return bus.NewClient(base, token) }
 
-// useTransport swaps the constructor and returns a restore func. Test-only by
+// UseTransport swaps the constructor and returns a restore func. Test-only by
 // intent; it lives in the non-test file because the variable it closes over
 // does, and Go has no narrower visibility that keeps them together.
-func useTransport(f func(base, token string) bus.Transport) (restore func()) {
+func UseTransport(f func(base, token string) bus.Transport) (restore func()) {
 	prev := newTransport
 	newTransport = f
 	return func() { newTransport = prev }
@@ -39,7 +39,7 @@ func useTransport(f func(base, token string) bus.Transport) (restore func()) {
 // exactly which token each client was built for, in order.
 type sessionTransport struct {
 	base  string
-	sess  *session
+	sess  *Session
 	token string
 	inner bus.Transport
 }
@@ -59,7 +59,7 @@ func (t *sessionTransport) under(token string) bus.Transport {
 
 func (t *sessionTransport) Emit(ctx context.Context, ch bus.Channel, payload any, scope string) (int, error) {
 	var n int
-	err := t.sess.authorized(func(token string) (err error) {
+	err := t.sess.Authorized(func(token string) (err error) {
 		n, err = t.under(token).Emit(ctx, ch, payload, scope)
 		return err
 	})
@@ -68,7 +68,7 @@ func (t *sessionTransport) Emit(ctx context.Context, ch bus.Channel, payload any
 
 func (t *sessionTransport) Subscribe(ctx context.Context, channels, scoped []bus.Channel, scope string) (*bus.Subscription, error) {
 	var sub *bus.Subscription
-	err := t.sess.authorized(func(token string) (err error) {
+	err := t.sess.Authorized(func(token string) (err error) {
 		sub, err = t.under(token).Subscribe(ctx, channels, scoped, scope)
 		return err
 	})
@@ -77,7 +77,7 @@ func (t *sessionTransport) Subscribe(ctx context.Context, channels, scoped []bus
 
 func (t *sessionTransport) Request(ctx context.Context, op bus.Channel, payload any, opts *bus.RequestOptions) (json.RawMessage, error) {
 	var reply json.RawMessage
-	err := t.sess.authorized(func(token string) (err error) {
+	err := t.sess.Authorized(func(token string) (err error) {
 		reply, err = t.under(token).Request(ctx, op, payload, opts)
 		return err
 	})

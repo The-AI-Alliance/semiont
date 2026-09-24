@@ -390,8 +390,8 @@ func TestPublicClientsRefuseWhenTheBrowserClientIsMissing(t *testing.T) {
 }
 
 func TestPublicClientsRefuseWhenTheCliClientIsMissing(t *testing.T) {
-	srv := stubPublicIssuer(t, publicStub{missingClient: cliClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), cliClientID)
+	srv := stubPublicIssuer(t, publicStub{missingClient: CliClientID})
+	f, ok := findingFor(verifyPublicClients(srv.URL), CliClientID)
 	if !ok {
 		t.Fatal("a realm with no semiont-cli client passed")
 	}
@@ -403,8 +403,8 @@ func TestPublicClientsRefuseWhenTheCliClientIsMissing(t *testing.T) {
 // The client exists but may not use the grant — a different fix from a missing
 // client, so a different message.
 func TestPublicClientsRefuseWhenTheDeviceGrantIsDisabled(t *testing.T) {
-	srv := stubPublicIssuer(t, publicStub{noDeviceGrant: cliClientID})
-	f, ok := findingFor(verifyPublicClients(srv.URL), cliClientID)
+	srv := stubPublicIssuer(t, publicStub{noDeviceGrant: CliClientID})
+	f, ok := findingFor(verifyPublicClients(srv.URL), CliClientID)
 	if !ok {
 		t.Fatal("a client that cannot use the device grant passed")
 	}
@@ -436,7 +436,7 @@ func TestPublicClientsWarnButDoNotRefuseOnAPinnedPort(t *testing.T) {
 
 func TestPublicClientsRefuseWhenTheIssuerServesNoDeviceEndpoint(t *testing.T) {
 	srv := stubPublicIssuer(t, publicStub{omitDevice: true})
-	f, ok := findingFor(verifyPublicClients(srv.URL), cliClientID)
+	f, ok := findingFor(verifyPublicClients(srv.URL), CliClientID)
 	if !ok {
 		t.Fatal("an issuer with no device endpoint passed")
 	}
@@ -516,7 +516,7 @@ func TestPublicClientsDoNotReportPKCEWhenItIsRequired(t *testing.T) {
 // the browser entirely, so it also skips every required action the realm
 // has — including the first-sign-in profile form.
 func TestPublicClientsWarnOnTheResourceOwnerPasswordGrant(t *testing.T) {
-	for _, id := range []string{browserClientID, cliClientID} {
+	for _, id := range []string{browserClientID, CliClientID} {
 		srv := stubPublicIssuer(t, publicStub{passwordGrant: id})
 		f, ok := findingFor(verifyPublicClients(srv.URL), id)
 		if !ok {

@@ -296,7 +296,7 @@ func browserWebOrigins(addr string, browserPort int) []string {
 // means no Browser has been started here, and the default is what the next one
 // will use.
 func runningBrowserPort() int {
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	if ss == nil || ss.Browser == nil || ss.Browser.Endpoint == "" {
 		return defaultBrowserPort
 	}
@@ -325,7 +325,7 @@ func loopbackRedirectUris() []string {
 }
 
 func cliClient(audience string) map[string]any {
-	c := publicClient(cliClientID, "Semiont launcher", audience)
+	c := publicClient(CliClientID, "Semiont launcher", audience)
 	c["standardFlowEnabled"] = false
 	c["attributes"] = map[string]string{
 		"oauth2.device.authorization.grant.enabled": "true",

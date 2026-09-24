@@ -138,7 +138,7 @@ func digString(m map[string]any, path ...string) (string, bool) {
 // runStartService: the live `start --service` — flowOneService with
 // liveExec, plus the live-only rocket summary (skipped for the external/
 // absent no-ops, which launch nothing).
-func runStartService(u *ui, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
+func runStartService(u *UI, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
 	x := &liveExec{u: u, rt: rt, version: version, root: root, plan: plan}
 	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
@@ -150,8 +150,8 @@ func runStartService(u *ui, rt, version, root, configFile string, opts startOpti
 		}
 	}
 	fmt.Println()
-	fmt.Printf("%s  %s\n", u.wrap(ansiBold+ansiGreen, "🚀 "+opts.service+" is up"), u.dim("("+took(time.Since(t0))+")"))
-	fmt.Printf("  Check health:  %s\n", u.bold("semiont status"))
+	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 "+opts.service+" is up"), u.Dim("("+took(time.Since(t0))+")"))
+	fmt.Printf("  Check health:  %s\n", u.Bold("semiont status"))
 	return 0
 }
 

@@ -30,7 +30,7 @@ const (
 	providedNone     = "none"     // not referenced by the config
 )
 
-type serviceState struct {
+type ServiceState struct {
 	Container string   `json:"container,omitempty"` // container name (launcher-provided only)
 	ID        string   `json:"id,omitempty"`        // identifier the runtime printed at run -d
 	Image     string   `json:"image,omitempty"`     // full image ref
@@ -54,7 +54,7 @@ type serviceState struct {
 	StartedAt    time.Time                  `json:"startedAt"`
 }
 
-type stackState struct {
+type StackState struct {
 	Schema      int                     `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
 	UpdatedAt   time.Time               `json:"updatedAt"`
 	Runtime     string                  `json:"runtime"`
@@ -69,13 +69,13 @@ type stackState struct {
 	Repo        string                  `json:"repo,omitempty"`        // runtime "codespace": owner/name slug (the user-facing identity)
 	ForwardPID  int                     `json:"forwardPid,omitempty"`  // runtime "codespace": the detached `gh codespace ports forward`
 	ForwardPort int                     `json:"forwardPort,omitempty"` // runtime "codespace": this stack's local KB port (4000, or allocated above)
-	Services    map[string]serviceState `json:"services"`
+	Services    map[string]ServiceState `json:"services"`
 }
 
-// stateDir is the launcher's XDG state home: ~/Library/Application Support/
+// StateDir is the launcher's XDG state home: ~/Library/Application Support/
 // semiont on macOS (Apple's state-and-config home), $XDG_STATE_HOME/semiont
 // (default ~/.local/state/semiont) elsewhere. "" when no home is resolvable.
-func stateDir() string {
+func StateDir() string {
 	if runtime.GOOS == "darwin" {
 		dir, err := os.UserConfigDir()
 		if err != nil {
@@ -94,39 +94,39 @@ func stateDir() string {
 }
 
 func statePath() string {
-	dir := stateDir()
+	dir := StateDir()
 	if dir == "" {
 		return ""
 	}
 	return filepath.Join(dir, "stack.json")
 }
 
-// stackSet is the on-disk shape (schema 3): every recorded stack, keyed.
-type stackSet struct {
+// StackSet is the on-disk shape (schema 3): every recorded stack, keyed.
+type StackSet struct {
 	Schema    int                    `json:"schema"`
 	UpdatedAt time.Time              `json:"updatedAt"`
 	Launcher  string                 `json:"launcherVersion"`
-	Stacks    map[string]*stackState `json:"stacks"`
+	Stacks    map[string]*StackState `json:"stacks"`
 	// Browser: the machine-level viewer, deliberately OUTSIDE every stack
 	// (BROWSER-LIFECYCLE.md): it serves any number of KBs, any start ensures
 	// it, and stopping a stack leaves it running.
-	Browser *serviceState `json:"browser,omitempty"`
+	Browser *ServiceState `json:"browser,omitempty"`
 }
 
 // stackKey: "local" for the machine's one local stack, "codespace:<repo>"
 // per codespace stack (the repo is the user-facing identity there).
-func stackKey(st *stackState) string {
+func stackKey(st *StackState) string {
 	if st.Runtime == "codespace" {
 		return "codespace:" + st.Repo
 	}
 	return "local"
 }
 
-// loadStackSet returns every recorded stack (never nil; empty when no file).
+// LoadStackSet returns every recorded stack (never nil; empty when no file).
 // Schema 2 single-stack files migrate in memory — the next save writes
 // schema 3. Schema 1 is no longer read (see below).
-func loadStackSet() *stackSet {
-	ss := &stackSet{Schema: 3, Stacks: map[string]*stackState{}}
+func LoadStackSet() *StackSet {
+	ss := &StackSet{Schema: 3, Stacks: map[string]*StackState{}}
 	p := statePath()
 	if p == "" {
 		return ss
@@ -143,7 +143,7 @@ func loadStackSet() *stackSet {
 		return ss
 	}
 	if probe.Stacks != nil {
-		var full stackSet
+		var full StackSet
 		if json.Unmarshal(b, &full) == nil && full.Stacks != nil {
 			full.Schema = 3
 			return &full
@@ -161,7 +161,7 @@ func loadStackSet() *stackSet {
 	if probe.Schema < 2 {
 		return ss
 	}
-	var st stackState
+	var st StackState
 	if json.Unmarshal(b, &st) != nil || st.Services == nil {
 		return ss
 	}
@@ -170,13 +170,13 @@ func loadStackSet() *stackSet {
 }
 
 // loadLocalState: the machine's one local stack record, or nil.
-func loadLocalState() *stackState {
-	return loadStackSet().Stacks["local"]
+func loadLocalState() *StackState {
+	return LoadStackSet().Stacks["local"]
 }
 
 // codespaceStacks: every recorded codespace stack, sorted by repo.
-func codespaceStacks(ss *stackSet) []*stackState {
-	var out []*stackState
+func codespaceStacks(ss *StackSet) []*StackState {
+	var out []*StackState
 	for k, st := range ss.Stacks {
 		if strings.HasPrefix(k, "codespace:") {
 			out = append(out, st)
@@ -189,7 +189,7 @@ func codespaceStacks(ss *stackSet) []*stackState {
 // saveStackSet writes the collection atomically (temp + rename); an empty
 // set removes the file — "no record" stays a clean, observable state.
 // Best-effort: a failure to record belief never fails the command.
-func saveStackSet(ss *stackSet) {
+func saveStackSet(ss *StackSet) {
 	p := statePath()
 	if p == "" {
 		return
@@ -220,10 +220,10 @@ func saveStackSet(ss *stackSet) {
 }
 
 // saveStack upserts one stack into the collection.
-func saveStack(st *stackState) {
+func saveStack(st *StackState) {
 	st.UpdatedAt = time.Now().UTC()
 	st.Schema = 0 // schema lives on the set now
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	ss.Stacks[stackKey(st)] = st
 	saveStackSet(ss)
 }
@@ -231,21 +231,21 @@ func saveStack(st *stackState) {
 // forgetStack removes one stack from the collection (full local stop,
 // codespace delete). Other stacks' records survive.
 func forgetStack(key string) {
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	delete(ss.Stacks, key)
 	saveStackSet(ss)
 }
 
 // saveBrowser upserts the machine-level browser record.
-func saveBrowser(e *serviceState) {
-	ss := loadStackSet()
+func saveBrowser(e *ServiceState) {
+	ss := LoadStackSet()
 	ss.Browser = e
 	saveStackSet(ss)
 }
 
 // clearBrowser forgets it (the targeted `stop --service browser`).
 func clearBrowser() {
-	ss := loadStackSet()
+	ss := LoadStackSet()
 	if ss.Browser == nil {
 		return
 	}
@@ -255,8 +255,8 @@ func clearBrowser() {
 
 // recordService updates one service's entry and saves. provided says who
 // provides the role; endpoint is the health probe status should use.
-func (st *stackState) recordService(role, id, image, provided, endpoint, driver string, models, ollamaServed []string) {
-	e := serviceState{
+func (st *StackState) recordService(role, id, image, provided, endpoint, driver string, models, ollamaServed []string) {
+	e := ServiceState{
 		ID:           id,
 		Image:        image,
 		Provided:     provided,

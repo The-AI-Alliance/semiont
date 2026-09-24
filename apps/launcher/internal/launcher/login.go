@@ -37,20 +37,20 @@ Options:
 `
 
 func Login(args []string) int {
-	u := newUI(false)
+	u := NewUI(false)
 	repo, wantLocal := "", false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--repo":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --repo")
+				u.Fail("Missing value for --repo")
 				return 1
 			}
 			repo = args[i+1]
 			i++
 		case "--runtime":
 			if i+1 >= len(args) {
-				u.fail("Missing value for --runtime")
+				u.Fail("Missing value for --runtime")
 				return 1
 			}
 			wantLocal = true
@@ -59,13 +59,13 @@ func Login(args []string) int {
 			fmt.Print(loginUsage)
 			return 0
 		default:
-			u.fail("Unknown argument: %s", args[i])
+			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
 	}
 
-	ss := loadStackSet()
-	target, ok := selectVerbStack(u, "login", ss, repo, wantLocal)
+	ss := LoadStackSet()
+	target, ok := SelectVerbStack(u, "login", ss, repo, wantLocal)
 	if !ok {
 		return 1
 	}
@@ -76,17 +76,17 @@ func Login(args []string) int {
 	} else {
 		local := ss.Stacks["local"]
 		if local == nil {
-			u.fail("login needs a running stack, and none is recorded.")
+			u.Fail("login needs a running stack, and none is recorded.")
 			fmt.Fprintln(os.Stderr, "  Start one first:  semiont start")
 			return 1
 		}
-		base = gatewayBase(local)
+		base = GatewayBase(local)
 		key = "local"
 	}
 
 	cli, err := semiont.NewClientWithResponses(base)
 	if err != nil {
-		u.fail("client: %v", err)
+		u.Fail("client: %v", err)
 		return 1
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -94,7 +94,7 @@ func Login(args []string) int {
 	cancel()
 	if err != nil {
 		if errors.Is(err, errNoIssuer) {
-			u.fail("The knowledge base at %s trusts no external issuer, so there is nothing to sign in to.", base)
+			u.Fail("The knowledge base at %s trusts no external issuer, so there is nothing to sign in to.", base)
 			fmt.Fprintln(os.Stderr, "  Add an [identity] section to its config — the launcher runs Keycloak by default:")
 			fmt.Fprintln(os.Stderr, "    [environments.<env>.identity]")
 			fmt.Fprintln(os.Stderr, "    type = \"keycloak\"")
@@ -102,15 +102,15 @@ func Login(args []string) int {
 			fmt.Fprintln(os.Stderr, "    subjectClaim = \"sub\"")
 			return 1
 		}
-		u.fail("%v", err)
+		u.Fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 		return 1
 	}
-	u.log("Issuer: %s %s", ep.Issuer, u.dim("(named by the knowledge base's resource metadata)"))
+	u.Log("Issuer: %s %s", ep.Issuer, u.Dim("(named by the knowledge base's resource metadata)"))
 
 	tr, err := deviceLogin(context.Background(), u, ep)
 	if err != nil {
-		u.fail("Sign-in failed: %v", err)
+		u.Fail("Sign-in failed: %v", err)
 		return 1
 	}
 
@@ -119,19 +119,19 @@ func Login(args []string) int {
 	// identifier disagree, and storing the token would only defer that error
 	// to the first verb.
 	ctx, cancel = context.WithTimeout(context.Background(), 15*time.Second)
-	me, err := cli.GetApiUsersMeWithResponse(ctx, bearer(tr.AccessToken))
+	me, err := cli.GetApiUsersMeWithResponse(ctx, Bearer(tr.AccessToken))
 	cancel()
 	if err != nil {
-		u.fail("Gateway unreachable at %s: %v", base, err)
+		u.Fail("Gateway unreachable at %s: %v", base, err)
 		return 1
 	}
 	if me.JSON200 == nil {
-		u.fail("The issuer signed you in, but the gateway rejected the token (HTTP %d) — the realm's audience mapper and this knowledge base's resource identifier disagree.", me.HTTPResponse.StatusCode)
+		u.Fail("The issuer signed you in, but the gateway rejected the token (HTTP %d) — the realm's audience mapper and this knowledge base's resource identifier disagree.", me.HTTPResponse.StatusCode)
 		return 1
 	}
 	email := string(me.JSON200.Email)
 	now := time.Now().UTC()
-	if err := saveToken(key, tokenEntry{
+	if err := SaveToken(key, TokenEntry{
 		Token:              tr.AccessToken,
 		RefreshToken:       tr.RefreshToken,
 		Email:              email,
@@ -141,17 +141,17 @@ func Login(args []string) int {
 		TokenEndpoint:      ep.Token,
 		RevocationEndpoint: ep.Revocation,
 	}); err != nil {
-		u.fail("Token could not be stored (%v) — NOT logged in.", err)
+		u.Fail("Token could not be stored (%v) — NOT logged in.", err)
 		return 1
 	}
-	u.ok("Logged in to %s as %s %s", key, email, u.dim("(token in "+tokensPath()+")"))
+	u.Ok("Logged in to %s as %s %s", key, email, u.Dim("(token in "+tokensPath()+")"))
 	return 0
 }
 
-// gatewayBase derives the API base URL from the local stack's recorded
+// GatewayBase derives the API base URL from the local stack's recorded
 // gateway health endpoint — the record knows the real port even when the
 // config moved it.
-func gatewayBase(st *stackState) string {
+func GatewayBase(st *StackState) string {
 	if e, ok := st.Services["gateway"]; ok {
 		if b, found := strings.CutSuffix(e.Endpoint, "/api/health"); found && b != "" {
 			return b
@@ -163,7 +163,7 @@ func gatewayBase(st *stackState) string {
 // readPassword reads one line from stdin. On a terminal the prompt goes to
 // stderr and echo is disabled via stty (best-effort — no extra dependency);
 // piped input is read as-is, which is the scripting path.
-func readPassword(u *ui) (string, bool) {
+func readPassword(u *UI) (string, bool) {
 	fi, err := os.Stdin.Stat()
 	tty := err == nil && fi.Mode()&os.ModeCharDevice != 0
 	if tty {
@@ -182,9 +182,9 @@ func readPassword(u *ui) (string, bool) {
 	pw := strings.TrimRight(line, "\r\n")
 	if pw == "" {
 		if err != nil {
-			u.fail("No password on stdin.")
+			u.Fail("No password on stdin.")
 		} else {
-			u.fail("Empty password.")
+			u.Fail("Empty password.")
 		}
 		return "", false
 	}

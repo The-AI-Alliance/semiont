@@ -333,7 +333,7 @@ func jwtSecretPath(root string) string {
 // outlived it. Tokens DO outlive the stack, which is why this one is persisted —
 // and why the per-service issuer credentials are too, since the realm that
 // honours them is written once, on first boot.
-func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
+func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 	if s := os.Getenv("JWT_SECRET"); s != "" {
 		// The gateway reads this as an ordered RING: the first value signs,
 		// every value verifies, so `<new>,<old>` keeps outstanding tokens
@@ -348,7 +348,7 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 		keys := strings.Split(s, ",")
 		for i, k := range keys {
 			if len(strings.TrimSpace(k)) < 32 {
-				u.fail("JWT_SECRET key %d of %d is %d characters; the gateway requires at least 32 and will refuse to start.",
+				u.Fail("JWT_SECRET key %d of %d is %d characters; the gateway requires at least 32 and will refuse to start.",
 					i+1, len(keys), len(strings.TrimSpace(k)))
 				fmt.Fprintln(os.Stderr, "  JWT_SECRET is an ordered list: the first key signs, every key verifies.")
 				fmt.Fprintln(os.Stderr, "  Generate one:  openssl rand -hex 32")
@@ -356,19 +356,19 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 				return "", false
 			}
 		}
-		u.log("Token-signing key: %s", u.dim(jwtProvenance("from JWT_SECRET in the environment", len(keys))))
+		u.Log("Token-signing key: %s", u.Dim(jwtProvenance("from JWT_SECRET in the environment", len(keys))))
 		return s, true
 	}
 
 	p := jwtSecretPath(root)
 	if p == "" {
-		u.fail("No home directory resolvable, so the gateway's JWT secret cannot be persisted.")
+		u.Fail("No home directory resolvable, so the gateway's JWT secret cannot be persisted.")
 		fmt.Fprintln(os.Stderr, "  Export one yourself:  export JWT_SECRET=$(openssl rand -hex 32)")
 		return "", false
 	}
 
 	if s := readPersistedSecret(p); s != "" {
-		u.log("Token-signing key: %s", u.dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
+		u.Log("Token-signing key: %s", u.Dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
 		return s, true
 	}
 
@@ -384,7 +384,7 @@ func loadOrCreateJWTSecret(u *ui, root string) (string, bool) {
 	// issued, and the incident that produced this whole plan looked exactly
 	// like an ordinary start — jobs wedged in Yielding, no line anywhere saying
 	// the key had changed underneath them.
-	u.log("Token-signing key: %s", u.dim(jwtProvenance("generated and persisted at "+p, 1)))
+	u.Log("Token-signing key: %s", u.Dim(jwtProvenance("generated and persisted at "+p, 1)))
 	return secret, true
 }
 
@@ -443,7 +443,7 @@ func serviceClientSecretEnv(svc string) string {
 // use. The same value reaches two places — the realm document Keycloak imports
 // and the container that has to present it — so both read it from here rather
 // than passing it between them.
-func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
+func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
 	// An explicit value wins, the same precedence $KC_BOOTSTRAP_ADMIN_PASSWORD
 	// has. Per service rather than one for all:
 	// separate credentials are the point of this, and an override that collapsed
@@ -453,7 +453,7 @@ func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
 	}
 	p := serviceClientSecretPath(root, svc)
 	if p == "" {
-		u.fail("No home directory resolvable, so the %s service-account secret cannot be persisted.", svc)
+		u.Fail("No home directory resolvable, so the %s service-account secret cannot be persisted.", svc)
 		return "", false
 	}
 	if s := readPersistedSecret(p); s != "" {
@@ -466,7 +466,7 @@ func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
 	if !persistSecret(u, p, secret) {
 		return "", false
 	}
-	u.log("%s service account: %s", svc, u.dim("generated and persisted at "+p))
+	u.Log("%s service account: %s", svc, u.Dim("generated and persisted at "+p))
 	return secret, true
 }
 
@@ -478,14 +478,14 @@ func loadOrCreateServiceClientSecret(u *ui, root, svc string) (string, bool) {
 // admin on its FIRST boot against an empty database and never reads the
 // variable again, so the value must outlive the stack with the database that
 // holds the admin it created — a regenerated one locks the console out.
-func loadOrCreateKeycloakAdminPassword(u *ui, root string) (string, bool) {
+func loadOrCreateKeycloakAdminPassword(u *UI, root string) (string, bool) {
 	if s, source := keycloakAdminPassword(root); s != "" {
-		u.log("Keycloak admin password: %s", u.dim(source+" (console user: "+keycloakAdminUser+")"))
+		u.Log("Keycloak admin password: %s", u.Dim(source+" (console user: "+keycloakAdminUser+")"))
 		return s, true
 	}
 	p := keycloakAdminPasswordPath(root)
 	if p == "" {
-		u.fail("No home directory resolvable, so Keycloak's admin password cannot be persisted.")
+		u.Fail("No home directory resolvable, so Keycloak's admin password cannot be persisted.")
 		fmt.Fprintln(os.Stderr, "  Export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
 		return "", false
 	}
@@ -496,7 +496,7 @@ func loadOrCreateKeycloakAdminPassword(u *ui, root string) (string, bool) {
 	if !persistSecret(u, p, secret) {
 		return "", false
 	}
-	u.log("Keycloak admin password: %s", u.dim("generated and persisted at "+p+" (console user: "+keycloakAdminUser+")"))
+	u.Log("Keycloak admin password: %s", u.Dim("generated and persisted at "+p+" (console user: "+keycloakAdminUser+")"))
 	return secret, true
 }
 
@@ -510,10 +510,10 @@ func readPersistedSecret(p string) string {
 	return strings.TrimSpace(string(b))
 }
 
-func generateHexSecret(u *ui, bytes int, what string) (string, bool) {
+func generateHexSecret(u *UI, bytes int, what string) (string, bool) {
 	b := make([]byte, bytes)
 	if _, err := rand.Read(b); err != nil {
-		u.fail("Generating %s: %v", what, err)
+		u.Fail("Generating %s: %v", what, err)
 		return "", false
 	}
 	return hex.EncodeToString(b), true
@@ -523,19 +523,19 @@ func generateHexSecret(u *ui, bytes int, what string) (string, bool) {
 // Not best-effort, unlike saveRootMeta: a secret we failed to persist would be
 // a DIFFERENT secret next start, and the resulting failures are far harder to
 // diagnose than this error.
-func persistSecret(u *ui, p, secret string) bool {
+func persistSecret(u *UI, p, secret string) bool {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		u.fail("Creating %s: %v", filepath.Dir(p), err)
+		u.Fail("Creating %s: %v", filepath.Dir(p), err)
 		return false
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
-		u.fail("Writing %s: %v", p, err)
+		u.Fail("Writing %s: %v", p, err)
 		return false
 	}
 	if err := os.Rename(tmp, p); err != nil {
 		_ = os.Remove(tmp)
-		u.fail("Writing %s: %v", p, err)
+		u.Fail("Writing %s: %v", p, err)
 		return false
 	}
 	return true

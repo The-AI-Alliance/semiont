@@ -82,7 +82,7 @@ func reconcilePublicClients(base, realm, token string, browserPort int, rep *syn
 	if err != nil {
 		return err
 	}
-	for _, id := range []string{browserClientID, cliClientID} {
+	for _, id := range []string{browserClientID, CliClientID} {
 		c, ok := clients[id]
 		if !ok {
 			continue // absent is a preflight refusal, not something to invent here

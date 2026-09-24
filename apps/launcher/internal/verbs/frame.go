@@ -1,4 +1,4 @@
-package launcher
+package verbs
 
 // frame.go — `semiont frame`: writes to the KB's SCHEMA layer. Where every
 // other verb acts on content (resources, annotations, references, attention),
@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	launcher "github.com/The-AI-Alliance/semiont/apps/launcher/internal/launcher"
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 )
@@ -36,7 +38,7 @@ Requires a session:  semiont login
 `
 
 func Frame(args []string) int {
-	u := newUI(false)
+	u := launcher.NewUI(false)
 	var entityTypes []string
 	var repo string
 	wantLocal := false
@@ -45,7 +47,7 @@ func Frame(args []string) int {
 		a := args[i]
 		val := func() (string, bool) {
 			if i+1 >= len(args) {
-				u.fail("Missing value for %s", a)
+				u.Fail("Missing value for %s", a)
 				return "", false
 			}
 			i++
@@ -59,7 +61,7 @@ func Frame(args []string) int {
 			}
 			v = strings.TrimSpace(v)
 			if v == "" {
-				u.fail("--entity-type needs a name.")
+				u.Fail("--entity-type needs a name.")
 				return 1
 			}
 			entityTypes = append(entityTypes, v)
@@ -79,14 +81,14 @@ func Frame(args []string) int {
 			return 0
 		default:
 			if strings.HasPrefix(a, "-") {
-				u.fail("Unknown argument: %s", a)
+				u.Fail("Unknown argument: %s", a)
 				return 1
 			}
 			// Frame owns more than one schema primitive in the protocol
 			// (entity types today, tag schemas next), so a bare operand has
 			// no unambiguous meaning. Refusing keeps the door open; guessing
 			// would nail it shut.
-			u.fail("frame takes no bare arguments; say what %q is:  --entity-type %s", a, a)
+			u.Fail("frame takes no bare arguments; say what %q is:  --entity-type %s", a, a)
 			return 1
 		}
 	}
@@ -95,11 +97,11 @@ func Frame(args []string) int {
 		return 1
 	}
 
-	t, ok := verbSession(u, "frame", repo, wantLocal)
+	t, ok := launcher.VerbSession(u, "frame", repo, wantLocal)
 	if !ok {
 		return 1
 	}
-	cli := t.transport()
+	cli := t.Transport()
 
 	// One command per type: the protocol has no batch add (the SDK's
 	// addEntityTypes is the same loop). A rejection STOPS the run rather
@@ -122,7 +124,7 @@ func Frame(args []string) int {
 
 	// "Accepted", not "created": the ack carries no payload, so the gateway
 	// never says whether a type was new or already there.
-	u.ok("Entity types accepted: %s %s", strings.Join(added, ", "),
-		u.dim("(semiont browse --entity-types shows the vocabulary)"))
+	u.Ok("Entity types accepted: %s %s", strings.Join(added, ", "),
+		u.Dim("(semiont browse --entity-types shows the vocabulary)"))
 	return 0
 }
