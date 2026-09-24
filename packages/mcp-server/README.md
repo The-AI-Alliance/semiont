@@ -1,6 +1,10 @@
 # Semiont MCP Server
 
 [![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+mcp-server%22)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=mcp-server)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=mcp-server)
+[![npm version](https://img.shields.io/npm/v/@semiont/mcp-server.svg)](https://www.npmjs.com/package/@semiont/mcp-server)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/mcp-server.svg)](https://www.npmjs.com/package/@semiont/mcp-server)
+[![License](https://img.shields.io/npm/l/@semiont/mcp-server.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
 This Model Context Protocol (MCP) server provides AI applications with access to the Semiont API using the common `@semiont/http-transport`.
 

@@ -1,5 +1,11 @@
 # @semiont/vectors
 
+[![Tests](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml/badge.svg)](https://github.com/The-AI-Alliance/semiont/actions/workflows/package-tests.yml?query=branch%3Amain+is%3Asuccess+job%3A%22Test+vectors%22)
+[![codecov](https://codecov.io/gh/The-AI-Alliance/semiont/graph/badge.svg?flag=vectors)](https://codecov.io/gh/The-AI-Alliance/semiont?flag=vectors)
+[![npm version](https://img.shields.io/npm/v/@semiont/vectors.svg)](https://www.npmjs.com/package/@semiont/vectors)
+[![npm downloads](https://img.shields.io/npm/dm/@semiont/vectors.svg)](https://www.npmjs.com/package/@semiont/vectors)
+[![License](https://img.shields.io/npm/l/@semiont/vectors.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
+
 Vector storage, embedding, and semantic search for Semiont.
 
 Provides a pluggable abstraction over vector databases and embedding providers, with text chunking utilities. Used by the Smelter actor to index content and by Gatherer/Matcher to retrieve semantically similar resources and annotations.
