@@ -164,3 +164,79 @@ describe('attachServicePumps — a reply the transport refuses is reported, not 
     }
   });
 });
+
+/**
+ * What `attachServicePumps` adds over `relayFrames` — which core already tests
+ * in two files — is the COMPOSITION: both directions wired in one call, each
+ * with its own error message, returned as one flat handle.
+ *
+ * That handle is the part with no coverage, and it is what a service's shutdown
+ * holds. The round-trip cases above unsubscribe in their `finally` but never
+ * assert the effect, so a pump that ignored `unsubscribe` — or a refactor that
+ * returned only one direction's subscriptions — would leave every one of them
+ * green while a stopped service went on relaying frames.
+ */
+describe('attachServicePumps — the returned handle is the whole attachment', () => {
+  const spec = () => {
+    const localBus = new EventBus();
+    const { transport, dispatch, fromService } = loopback();
+    const pumps = attachServicePumps({
+      transport,
+      localBus,
+      inbound: DISPATCHER_INBOUND_CHANNELS,
+      outbound: DISPATCHER_OUTBOUND_CHANNELS,
+      logger: { error: vi.fn() },
+    });
+    return { localBus, transport, dispatch, fromService, pumps };
+  };
+
+  it('returns one subscription per channel per direction', () => {
+    const { localBus, pumps } = spec();
+    try {
+      // The count is the claim a caller's cleanup depends on: fewer handles
+      // than channels means something stays attached after shutdown, and
+      // nothing else in this file would notice.
+      expect(pumps).toHaveLength(
+        DISPATCHER_INBOUND_CHANNELS.length + DISPATCHER_OUTBOUND_CHANNELS.length,
+      );
+    } finally {
+      for (const p of pumps) p.unsubscribe();
+      localBus.destroy();
+    }
+  });
+
+  it('unsubscribing stops BOTH directions, not just the one that is easy to see', () => {
+    const { localBus, dispatch, fromService, pumps } = spec();
+    // Taken FROM the roster, not named here: a literal would be a second
+    // answer to what the dispatcher consumes, and it would rot on a rename.
+    const probe = DISPATCHER_INBOUND_CHANNELS[0]!;
+    const inboundSeen: string[] = [];
+    const watch = localBus.frames(probe).subscribe((f) => {
+      inboundSeen.push(String(f.correlationId));
+    });
+
+    try {
+      // Attached: a frame crosses inbound, a reply crosses outbound.
+      dispatch(probe, {}, 'cid-attached');
+      localBus.emit('job:created', { response: { jobId: 'j-attached' } } as never, { correlationId: 'cid-attached' });
+      expect(inboundSeen, 'inbound did not deliver while attached').toEqual(['cid-attached']);
+      expect(fromService.map((f) => f.correlationId)).toEqual(['cid-attached']);
+
+      for (const p of pumps) p.unsubscribe();
+
+      // Detached: neither direction moves. A leak here is invisible in
+      // production until a stopped service answers a request it should not.
+      dispatch(probe, {}, 'cid-after');
+      localBus.emit('job:created', { response: { jobId: 'j-after' } } as never, { correlationId: 'cid-after' });
+      expect(inboundSeen, 'the INBOUND pump outlived its unsubscribe').toEqual(['cid-attached']);
+      expect(
+        fromService.map((f) => f.correlationId),
+        'the OUTBOUND pump outlived its unsubscribe',
+      ).toEqual(['cid-attached']);
+    } finally {
+      watch.unsubscribe();
+      for (const p of pumps) p.unsubscribe();
+      localBus.destroy();
+    }
+  });
+});

@@ -1,18 +1,11 @@
-import { defineConfig } from 'vitest/config';
+import { mergeConfig, defineConfig } from 'vitest/config';
+import baseConfig from '../../vitest.shared.config.js';
 
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'node',
-    setupFiles: ['./src/__tests__/setup.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        '**/__tests__/**',
-        '**/*.test.ts',
-        '**/node_modules/**'
-      ]
-    }
-  }
-});
+export default mergeConfig(
+  baseConfig,
+  defineConfig({
+    test: {
+      setupFiles: ['./src/__tests__/setup.ts'],
+    },
+  }),
+);

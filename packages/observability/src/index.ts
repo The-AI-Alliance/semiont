@@ -672,7 +672,11 @@ export function recordAbnormalTermination(reason: string, detail?: string): void
   _abnormalExitCounter.add(1, { reason });
   const active = trace.getActiveSpan();
   if (active) {
-    active.setStatus({ code: SpanStatusCode.ERROR, message: `${reason}: ${detail ?? ''}`.trim() });
+    const detailText = detail?.trim();
+    active.setStatus({
+      code: SpanStatusCode.ERROR,
+      message: detailText ? `${reason}: ${detailText}` : reason,
+    });
     active.setAttribute('semiont.process.abnormal_exit', reason);
     active.end();
   }
