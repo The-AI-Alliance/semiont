@@ -25,6 +25,7 @@ import * as os from 'os';
 import * as net from 'net';
 import { connect } from 'nats';
 import { JetStreamJobQueue } from '../jetstream-job-queue';
+import { TERMINAL_JOB_RETENTION_MS } from '../job-queue-interface';
 import type { JobId, Logger } from '@semiont/core';
 import { createPendingDetectionJob, runJobQueueConformance } from './job-queue-conformance';
 
@@ -360,6 +361,68 @@ describe('broker outage and return — the queue connection', () => {
       await fs.rm(dataDir, { recursive: true, force: true });
     }
   }, 40_000);
+});
+
+describe('terminal-job retention — the janitor the fs driver never lost (driver-specific)', () => {
+  test('a concluded job past the window leaves the bucket, record and all; everything else stays', async () => {
+    const dataDir = await fs.mkdtemp(path.join(os.tmpdir(), 'jetstream-retention-'));
+    const port = await freePort();
+    const server = await spawnServer(port, dataDir);
+    const servers = `127.0.0.1:${port}`;
+
+    const { jobId } = await import('@semiont/core');
+    const { createCompleteDetectionJob, createFailedDetectionJob, createRunningDetectionJob } =
+      await import('./job-queue-conformance');
+    const raw = await connect({ servers, reconnect: false });
+    const q = new JetStreamJobQueue({ servers, reconnect: false }, mockLogger);
+    try {
+      await q.initialize();
+
+      const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
+
+      const staleComplete = createCompleteDetectionJob('job-ret-complete');
+      staleComplete.completedAt = daysAgo(2);
+      const staleFailed = createFailedDetectionJob('job-ret-failed');
+      staleFailed.completedAt = daysAgo(2);
+      const freshComplete = createCompleteDetectionJob('job-ret-fresh');
+
+      await q.createJob(staleComplete);
+      await q.createJob(staleFailed);
+      await q.createJob(freshComplete);
+      // A job still in flight is older than the window and must not be touched
+      // by it: retention reads STATUS, which is the whole reason this is a
+      // sweep and not a bucket TTL.
+      await q.createJob(createRunningDetectionJob('job-ret-running'));
+      await q.createJob(createPendingDetectionJob('job-ret-pending'));
+
+      const pruned = await q.pruneTerminalJobs(TERMINAL_JOB_RETENTION_MS);
+
+      expect(pruned).toBe(2);
+      expect(await q.getJob(jobId('job-ret-complete'))).toBeNull();
+      expect(await q.getJob(jobId('job-ret-failed'))).toBeNull();
+      expect(await q.getJob(jobId('job-ret-fresh'))).not.toBeNull();
+      expect(await q.getJob(jobId('job-ret-running'))).not.toBeNull();
+      expect(await q.getJob(jobId('job-ret-pending'))).not.toBeNull();
+
+      // getStats stops counting what retention dropped — the gauge behind
+      // `semiont status` is a window, not a running total.
+      expect(await q.getStats()).toMatchObject({ complete: 1, failed: 0, running: 1, pending: 1 });
+
+      // …and the bucket keeps NOTHING for a pruned job. This is the gate on
+      // the KV wire names the sweep purges through: a delete or purge through
+      // the KV API would leave a tombstone message per job forever, so three
+      // surviving keys must mean exactly three messages.
+      const jsm = await raw.jetstreamManager();
+      const info = await jsm.streams.info('KV_jobs');
+      expect(info.state.messages, 'a pruned job left a marker behind').toBe(3);
+    } finally {
+      q.destroy();
+      await raw.close();
+      await new Promise((r) => setTimeout(r, 100));
+      server.kill('SIGKILL');
+      await fs.rm(dataDir, { recursive: true, force: true });
+    }
+  }, 30_000);
 });
 
 runJobQueueConformance('JetStreamJobQueue', {

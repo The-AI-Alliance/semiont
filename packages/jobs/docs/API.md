@@ -158,15 +158,15 @@ Cancels a pending or running job by moving it to `cancelled` status. Returns `fa
 const cancelled = await queue.cancelJob(jobId('job-abc123'));
 ```
 
-### `cleanupOldJobs(retentionHours?: number): Promise<number>`
+### `cleanupOldJobs(retentionMs: number): Promise<number>`
 
-> `FsJobQueue`-specific — not part of the `JobQueue` interface.
+> `FsJobQueue`-specific — not part of the `JobQueue` interface. `JetStreamJobQueue` holds the same contract through `pruneTerminalJobs(retentionMs)`.
 
-Removes completed, failed, and cancelled jobs older than the retention period. Returns count of deleted jobs. Runs automatically every hour with the default 24-hour retention; call it directly only for ad-hoc pruning.
+Removes completed, failed, and cancelled jobs whose `completedAt` is older than `retentionMs`. Returns count of deleted jobs. Runs automatically on `TERMINAL_JOB_SWEEP_INTERVAL_MS` with `TERMINAL_JOB_RETENTION_MS` — the one window both drivers share, exported from `job-queue-interface.ts`. The parameter has no default: a second copy of that number is a second number.
 
 ```typescript
 // Remove jobs older than 1 week
-const removed = await queue.cleanupOldJobs(168);
+const removed = await queue.cleanupOldJobs(7 * 24 * 60 * 60 * 1000);
 ```
 
 ### `recoverStaleRunningJobs(): Promise<number>`

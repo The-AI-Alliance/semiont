@@ -9,7 +9,10 @@
  *  - **KV bucket `jobs`** is the AUTHORITATIVE operational state: one entry
  *    per job (`{ job, lastProgressAt }`), every transition a revision-CAS —
  *    which is what makes `claimJob` atomic: simultaneous claims race on one
- *    revision and exactly one update wins.
+ *    revision and exactly one update wins. It holds LIVE jobs plus a day of
+ *    concluded ones, not a history: `pruneTerminalJobs` is the retention the
+ *    fs driver's janitor holds, and without it every scan over the bucket
+ *    — `getStats` is one, on the metrics interval — grows forever.
  *  - **Stream `JOBS`** (subjects `jobs.<category>.<type>`, work-queue
  *    retention) is the DELIVERY vehicle and redelivery timer. A delivered
  *    message is the lease this process holds for a job; `working()`
@@ -37,7 +40,7 @@ import { connect, NatsError, RetentionPolicy, AckPolicy, DeliverPolicy, nanos } 
 import type { NatsConnection, JetStreamClient, JetStreamManager, JsMsg, KV, ConsumerMessages } from 'nats';
 import type { AnyJob, PendingJob, RunningJob, FailedJob, CompleteJob, CancelledJob } from './types';
 import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
-import type { JobQueue } from './job-queue-interface';
+import { TERMINAL_JOB_RETENTION_MS, TERMINAL_JOB_SWEEP_INTERVAL_MS, type JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
 
@@ -47,6 +50,22 @@ const STREAM = 'JOBS';
 // The process that holds it is the dispatcher.
 const CONSUMER = 'gateway-claims';
 const BUCKET = 'jobs';
+/**
+ * The bucket's own backing stream and per-key subject (the NATS KV layout
+ * every client shares). The retention sweep purges a concluded job at the
+ * STREAM rather than through `KV.purge`, because a KV delete or purge is a
+ * TOMBSTONE: it strips the value and leaves a marker message on the key's
+ * subject forever. That is the same unbounded growth the sweep exists to
+ * end, a thousand times cheaper — and nothing watches this bucket, so the
+ * marker has no reader to notify. A stream purge by subject leaves nothing.
+ *
+ * Restating two wire strings is what this file is FOR (no NATS subject
+ * escapes it), and they are gated rather than trusted: the retention test
+ * asserts the bucket's message count, so a name that stops matching fails
+ * there instead of silently purging nothing.
+ */
+const BUCKET_STREAM = `KV_${BUCKET}`;
+const bucketSubject = (key: string) => `$KV.${BUCKET}.${key}`;
 
 /** Minimum spacing between progress writes per job — workers can be chatty. */
 const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
@@ -114,6 +133,7 @@ export class JetStreamJobQueue implements JobQueue {
   private reconciling = false;
   private tick: ReturnType<typeof setInterval> | null = null;
   private ticking = false;
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null;
   private readonly lastProgressWrite = new Map<string, number>();
   private readonly staleRunningMs: number;
   private readonly ackWaitMs: number;
@@ -236,6 +256,21 @@ export class JetStreamJobQueue implements JobQueue {
         });
     }, this.tickMs);
     this.tick.unref?.();
+
+    // Retention, on its own slower clock — the fs driver's second janitor,
+    // restored (`cleanupTimer` there, hourly, the same window). It is not
+    // folded into the tick above because the two answer to different costs:
+    // the tick must run at claim latency, a retention sweep purging a day-old
+    // record is indifferent to a minute either way, and running it 120 times
+    // an hour would spend a full bucket scan to find nothing 119 times.
+    this.cleanupTimer = setInterval(() => {
+      this.pruneTerminalJobs(TERMINAL_JOB_RETENTION_MS).catch((error) => {
+        this.logger.warn('Job retention cleanup failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    }, TERMINAL_JOB_SWEEP_INTERVAL_MS);
+    this.cleanupTimer.unref?.();
   }
 
   /** An outage is never silent: one line down, one line back, one line if the client gives up. */
@@ -270,6 +305,8 @@ export class JetStreamJobQueue implements JobQueue {
     this.heartbeat = null;
     if (this.tick) clearInterval(this.tick);
     this.tick = null;
+    if (this.cleanupTimer) clearInterval(this.cleanupTimer);
+    this.cleanupTimer = null;
     this.held.clear();
     void this.nc?.close();
   }
@@ -595,6 +632,11 @@ export class JetStreamJobQueue implements JobQueue {
     return done;
   }
 
+  /**
+   * Counts by status. The three terminal counts are the RETENTION WINDOW, not
+   * lifetime totals — `pruneTerminalJobs` drops a record a day after it
+   * concluded — so they answer "recently finished", never "finished ever".
+   */
   async getStats(): Promise<{ pending: number; running: number; complete: number; failed: number; cancelled: number }> {
     const stats = { pending: 0, running: 0, complete: 0, failed: 0, cancelled: 0 };
     for (const key of await this.allKeys()) {
@@ -627,6 +669,53 @@ export class JetStreamJobQueue implements JobQueue {
       }
     }
     return recovered;
+  }
+
+  /**
+   * Terminal-job retention: the fs driver's hourly janitor, in this driver's
+   * terms. Without it the bucket keeps every job it has ever seen, and
+   * `getStats` — an OTel observable gauge, so a full bucket scan every metric
+   * interval — pays for all of them forever. Measured on a live stack
+   * 2026-09-24: 139 concluded records re-read every 30 seconds by a knowledge
+   * base that had done very little work.
+   *
+   * A SWEEP AND NOT A BUCKET TTL, deliberately. `ttl` on `views.kv()` is a
+   * BUCKET limit — the backing stream's `max_age` — so it expires every key
+   * by age, not the terminal ones by status: a pending job nobody claimed for
+   * a day, a running job whose worker went quiet, both evaporate alongside
+   * the finished ones. That is not a slower version of this bug, it is a
+   * worse one. This bucket is the AUTHORITATIVE record: with the entry gone
+   * `read` returns null, every CAS falls through to its `onMissing`, and the
+   * next delivery for that job is `term()`ed as unknown — the job disappears
+   * with no failure and no trace. The rule retention needs to express is
+   * about STATUS, and status is exactly what a bucket-wide clock cannot see.
+   * (A per-message TTL set at the terminal write would express it, but that
+   * is nats-server 2.11 plus a client that exposes it; nats.js 2.x does not.)
+   *
+   * Terminal is absorbing — no transition leaves `complete`/`failed`/
+   * `cancelled` — so a record this sweep reads as expired cannot come back to
+   * life under it, and the lease was settled at the transition that made it
+   * terminal.
+   */
+  async pruneTerminalJobs(retentionMs: number): Promise<number> {
+    const cutoff = Date.now() - retentionMs;
+    let pruned = 0;
+    for (const key of await this.allKeys()) {
+      const envelope = await this.read(toJobId(key));
+      if (!envelope) continue;
+      const { job } = envelope;
+      if (job.status !== 'complete' && job.status !== 'failed' && job.status !== 'cancelled') continue;
+      if (Date.parse(job.completedAt) >= cutoff) continue;
+      await this.jsm.streams.purge(BUCKET_STREAM, { filter: bucketSubject(key) });
+      // The progress throttle outlives nothing: its entry is keyed by a job
+      // that no longer exists.
+      this.lastProgressWrite.delete(key);
+      pruned++;
+    }
+    if (pruned > 0) {
+      this.logger.info('Jobs cleaned up', { deletedCount: pruned });
+    }
+    return pruned;
   }
 
   /** The heartbeat body — extend live leases, settle concluded ones. */

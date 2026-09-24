@@ -74,11 +74,14 @@ func promGaugeInt(readout, name string, want map[string]string) (int, bool) {
 // queueDepth: what the dispatcher is working on right now.
 //
 // PENDING AND RUNNING ONLY, and that is a correctness choice rather than
-// brevity. The same gauge carries complete/failed/cancelled, but the queue
-// deletes no record when a job concludes — the JetStream driver's KV bucket
-// keeps every job it has ever seen — so those three are lifetime totals for
-// the store. Printed beside a live depth they would read as a snapshot and
-// silently be a mixture of two different questions.
+// brevity. The same gauge carries complete/failed/cancelled, and those three
+// answer a different question: not what the dispatcher is working on, but
+// what it recently finished. Both queue drivers now drop a job's record a day
+// after it concludes, so the counts are a rolling window rather than the
+// lifetime totals they were — bounded, but still throughput and not depth.
+// Printed beside a live depth they would read as one snapshot and silently be
+// a mixture of two questions; if throughput is worth showing it earns its own
+// line, with the window named.
 func queueDepth(readout string) (pending, running int, ok bool) {
 	const g = "semiont_job_queue_size"
 	svc := map[string]string{"job": "semiont-dispatcher"}

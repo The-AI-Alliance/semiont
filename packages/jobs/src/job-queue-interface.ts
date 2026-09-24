@@ -79,3 +79,22 @@ export interface JobQueue {
  * starvation, 2026-09-15).
  */
 export const JOB_QUEUE_EMITS = ['job:queued'] as const satisfies readonly (keyof EventMap)[];
+
+/**
+ * How long a job's record survives after it reaches a terminal state
+ * (complete/failed/cancelled), and how often a driver enforces that.
+ *
+ * ONE pair for every driver. The window is a CONTRACT fact — a caller that
+ * reads a finished job's result gets the same day whichever backing store the
+ * stack runs — and the cadence is what turns the window from an aspiration
+ * into a promise. Restated per driver the two numbers drift, and the drift is
+ * invisible until someone compares two deployments.
+ *
+ * The METHOD that enforces retention is not on the interface and cannot be:
+ * it is an unlink in one driver and a stream purge in another. The NUMBER is
+ * here because it is the same number.
+ */
+export const TERMINAL_JOB_RETENTION_MS = 24 * 60 * 60 * 1000;
+
+/** How often a driver sweeps for records past `TERMINAL_JOB_RETENTION_MS`. */
+export const TERMINAL_JOB_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
