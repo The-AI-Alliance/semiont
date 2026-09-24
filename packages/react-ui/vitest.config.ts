@@ -1,31 +1,26 @@
-import { defineConfig } from 'vitest/config';
+import { mergeConfig, defineConfig } from 'vitest/config';
 import path from 'path';
+import baseConfig from '../../vitest.shared.config.js';
 
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.ts'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
-      exclude: [
-        'node_modules/',
-        '**/*.d.ts',
-        '**/*.config.*',
-        '**/__tests__/**',
-        'vitest.setup.ts',
-        'src/index.ts', // Export file
-        'src/types/**', // Type definitions
-        'src/examples/**', // Example files, not production code
-      ],
-      // Include all source files
-      include: ['src/**/*.{ts,tsx}'],
+export default mergeConfig(
+  baseConfig,
+  defineConfig({
+    test: {
+      environment: 'jsdom',
+      setupFiles: ['./vitest.setup.ts'],
+      coverage: {
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: [
+          'vitest.setup.ts',
+          'src/types/**', // Type definitions
+          'src/examples/**', // Example files, not production code
+        ],
+      },
     },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, './src'),
+      },
     },
-  },
-});
+  }),
+);

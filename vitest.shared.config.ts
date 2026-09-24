@@ -28,16 +28,18 @@ export default defineConfig({
         '**/demo/**',
         '**/index.ts', // Export files
         '**/types.ts', // Generated types
+        // D3: every sidecar's `*-main.ts` is process wiring — config, credential,
+        // a health server, the pumps. No suite imports one; they are proven by the
+        // launcher's `--dry-run` goldens and by the live round trip. If anyone
+        // later wants them covered, the honest form is a boot-refusal test per
+        // main (see `sidecar-boot-refusal.test.ts`), not a coverage number.
+        'src/*-main.ts',
       ],
-      // Thresholds for coverage - can be overridden per package
-      thresholds: {
-        global: {
-          statements: 70,
-          branches: 70,
-          functions: 70,
-          lines: 70,
-        },
-      },
+      // No blanket `thresholds` here. One bound exactly one package while
+      // fourteen others did not import this file, so it read as a repo-wide
+      // floor and enforced nothing — a comment pretending to be a gate. A
+      // threshold belongs in the package that measured it, at the value it
+      // measured, with the date (see apps/gateway for one that is real).
     },
   },
 });
