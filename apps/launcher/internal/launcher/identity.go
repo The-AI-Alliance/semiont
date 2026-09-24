@@ -226,11 +226,11 @@ authorization {
 `)
 }
 
-func browserClient(audience, addr string) map[string]any {
+func browserClient(audience, addr string, browserPort int) map[string]any {
 	c := publicClient(browserClientID, "Semiont Browser", audience)
 	c["standardFlowEnabled"] = true
 	c["redirectUris"] = browserRedirectUris(addr)
-	c["webOrigins"] = []string{"+"}
+	c["webOrigins"] = browserWebOrigins(addr, browserPort)
 	c["attributes"] = map[string]string{
 		"pkce.code.challenge.method": "S256",
 		"post.logout.redirect.uris":  "+",
@@ -250,11 +250,69 @@ func browserClient(audience, addr string) map[string]any {
 //
 // The LAN address stays pinned. It is not loopback, so the rule does not
 // apply and a wildcard port there would be a real widening.
+//
+// This rule governs the REDIRECT leg only. Its companion, browserWebOrigins,
+// states the opposite for CORS origins and says why: Keycloak matches those
+// exactly, so they carry the port.
 func browserRedirectUris(addr string) []string {
 	return []string{
 		"http://localhost/*",
 		"http://127.0.0.1/*",
 		"http://" + addr + ":3000/*",
+	}
+}
+
+// browserWebOrigins: CORS origins carry the PORT, which is the opposite of
+// what the redirect URIs above do — and deliberately so.
+//
+// The two are matched by different rules. A redirect URI is matched under RFC
+// 8252 §7.3, where a portless loopback entry accepts any port. A web origin is
+// matched EXACTLY: Keycloak compares the request's `Origin` header against this
+// list verbatim, and an origin that is not in it gets 403 `Invalid origin` with
+// no `Access-Control-Allow-Origin` header at all.
+//
+// That is why `webOrigins: ["+"]` — "derive these from the redirect URIs" — is
+// wrong here. It coupled the two, so making the loopback redirects portless
+// (which the redirect leg needs) silently reduced the CORS set to
+// `http://localhost` on port 80, and the Browser's real origin was in no set at
+// all. The SPA does its PKCE token exchange client-side, cross-origin to the
+// issuer, so that POST was rejected and sign-in died as `error=Verification`.
+//
+// The port is the Browser's configured one, so `--port` moves the origin with
+// it. A realm imports once and pins the port it was created with; `semiont
+// identity sync` reconciles this list afterwards, which is what makes the move
+// repairable.
+func browserWebOrigins(addr string, browserPort int) []string {
+	return append(loopbackWebOrigins(browserPort), fmt.Sprintf("http://%s:%d", addr, browserPort))
+}
+
+// runningBrowserPort: the port the Browser is actually on, for `identity sync`
+// to write an origin the realm will match.
+//
+// Read from the recorded Browser state rather than asked for as a flag: the
+// Browser is machine-level and its port is already written down when it starts,
+// so a flag would be a second statement of the same fact and an operator who
+// forgot it would get an origin for a port nothing is listening on. No record
+// means no Browser has been started here, and the default is what the next one
+// will use.
+func runningBrowserPort() int {
+	ss := loadStackSet()
+	if ss == nil || ss.Browser == nil || ss.Browser.Endpoint == "" {
+		return defaultBrowserPort
+	}
+	if _, port := parseHostPort(ss.Browser.Endpoint); port != 0 {
+		return port
+	}
+	return defaultBrowserPort
+}
+
+// loopbackWebOrigins: the subset sync guarantees, for the same reason
+// loopbackRedirectUris is — the LAN address is deployment truth `identity sync`
+// cannot re-derive, so it adds the two it CAN derive and removes nothing.
+func loopbackWebOrigins(browserPort int) []string {
+	return []string{
+		fmt.Sprintf("http://localhost:%d", browserPort),
+		fmt.Sprintf("http://127.0.0.1:%d", browserPort),
 	}
 }
 
@@ -275,8 +333,8 @@ func cliClient(audience string) map[string]any {
 	return c
 }
 
-func keycloakRealmJSON(realm, audience, addr string, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
-	browser := browserClient(audience, addr)
+func keycloakRealmJSON(realm, audience, addr string, browserPort, accessTokenLifespan int, sidecarSecrets map[string]string) []byte {
+	browser := browserClient(audience, addr, browserPort)
 	cli := cliClient(audience)
 	clients := []map[string]any{browser, cli}
 	// Ordered by `serviceClients`, not by map iteration: the rendered document
@@ -438,7 +496,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	if !ok {
 		return nil, nil, false
 	}
-	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, rp.AccessTokenLifespan, secrets))
+	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
 	if !ok {
 		return nil, nil, false
 	}

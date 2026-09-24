@@ -1034,7 +1034,7 @@ func flowOneService(x executor, fc flowCtx) int {
 				if rp.Obligation == obligationProvided {
 					base = identityEndpoint(rp)
 				}
-				if !x.preflightBrowserRedirect(base, bp) {
+				if !x.preflightBrowserMove(base, bp) {
 					return 1
 				}
 			}

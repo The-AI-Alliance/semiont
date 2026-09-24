@@ -363,7 +363,7 @@ func TestIdentitySyncAddsMissingLoopbackRedirects(t *testing.T) {
 		map[string]any{"clientId": cliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestIdentitySyncDisablesTheImplicitFlow(t *testing.T) {
 		map[string]any{"clientId": cliClientID})
 	s := newStubAdmin(t, "semiont", reps)
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	patch, ok := s.updated[browserClientID]
@@ -416,7 +416,7 @@ func TestIdentitySyncCorrectsTheAccessTokenLifespan(t *testing.T) {
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(1800)}
 
-	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, secretForTest); err != nil {
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
 		t.Fatalf("sync: %v", err)
 	}
 	patch, ok := s.updated["<realm>"]
@@ -439,13 +439,17 @@ func TestIdentitySyncLeavesACorrectRealmAlone(t *testing.T) {
 		reps = append(reps, serviceClientRep(svc, serviceRolesClaim(svc)))
 	}
 	reps = append(reps,
+		// A correct realm carries the port-ful web origins too: CORS origins
+		// are matched exactly, so the portless redirect URIs beside them
+		// cannot stand in for the Browser's real origin.
 		map[string]any{"clientId": browserClientID, "implicitFlowEnabled": false,
-			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*", "http://10.0.0.5:3000/*"}},
+			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*", "http://10.0.0.5:3000/*"},
+			"webOrigins":   []any{"http://localhost:3000", "http://127.0.0.1:3000", "http://10.0.0.5:3000"}},
 		map[string]any{"clientId": cliClientID, "implicitFlowEnabled": false})
 	s := newStubAdmin(t, "semiont", reps)
 	s.realmCfg = map[string]any{"accessTokenLifespan": float64(300)}
 
-	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, secretForTest)
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
 	if err != nil {
 		t.Fatalf("sync: %v", err)
 	}
@@ -497,5 +501,79 @@ func TestIdentityVerbRejectsAFlagWithNoValue(t *testing.T) {
 func TestIdentityVerbRejectsAnUnknownFlag(t *testing.T) {
 	if code := Identity([]string{"sync", "--realm", "semiont"}); code != 1 {
 		t.Fatalf("exit %d for an unknown flag, want 1 — a typo must not be read as a default run", code)
+	}
+}
+
+// BROWSER-SIGNIN-ORIGIN P3. A realm imported before P1 carries
+// `webOrigins: ["+"]`, so Keycloak derives its CORS origins from the PORTLESS
+// loopback redirects and the Browser's real origin is in no set at all. The
+// realm imports once, so sync is the only way an existing knowledge base gets
+// the repair — and the preflight's finding names this command by name.
+func TestIdentitySyncAddsMissingBrowserWebOrigins(t *testing.T) {
+	reps := append(allServiceClientReps(),
+		map[string]any{"clientId": browserClientID, "webOrigins": []any{"+"}},
+		map[string]any{"clientId": cliClientID})
+	s := newStubAdmin(t, "semiont", reps)
+
+	rep, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest)
+	if err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	patch, ok := s.updated[browserClientID]
+	if !ok {
+		t.Fatal("a realm deriving its origins was left deriving them")
+	}
+	origins, _ := json.Marshal(patch["webOrigins"])
+	for _, want := range loopbackWebOrigins(defaultBrowserPort) {
+		if !strings.Contains(string(origins), want) {
+			t.Errorf("patch does not add %s: %s", want, origins)
+		}
+	}
+	// Removing nothing is what makes sync safe against a customised realm —
+	// including the LAN origin this command cannot re-derive.
+	if !strings.Contains(string(origins), `"+"`) {
+		t.Errorf("the existing entry was dropped: %s", origins)
+	}
+	if len(rep.updated) == 0 {
+		t.Error("the repair was not reported")
+	}
+}
+
+// `--port` moves the Browser, so sync writes the origin for the port it is
+// told about — that is what makes D3's "move then sync" actually work.
+func TestIdentitySyncWritesTheBrowsersActualPort(t *testing.T) {
+	reps := append(allServiceClientReps(),
+		map[string]any{"clientId": browserClientID, "webOrigins": []any{"+"}},
+		map[string]any{"clientId": cliClientID})
+	s := newStubAdmin(t, "semiont", reps)
+
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, 3001, secretForTest); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	origins, _ := json.Marshal(s.updated[browserClientID]["webOrigins"])
+	if !strings.Contains(string(origins), "http://localhost:3001") {
+		t.Errorf("sync did not write the moved port: %s", origins)
+	}
+}
+
+// Idempotent: a realm already carrying the origins is not patched again.
+func TestIdentitySyncLeavesCorrectWebOriginsAlone(t *testing.T) {
+	origins := []any{}
+	for _, o := range loopbackWebOrigins(defaultBrowserPort) {
+		origins = append(origins, o)
+	}
+	reps := append(allServiceClientReps(),
+		map[string]any{"clientId": browserClientID, "webOrigins": origins,
+			"redirectUris": []any{"http://localhost/*", "http://127.0.0.1/*"}},
+		map[string]any{"clientId": cliClientID})
+	s := newStubAdmin(t, "semiont", reps)
+
+	if _, err := syncRealm(s.srv.URL, "semiont", "admin", "pw", "semiont-gateway", 300, defaultBrowserPort, secretForTest); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if patch, ok := s.updated[browserClientID]; ok {
+		if _, touched := patch["webOrigins"]; touched {
+			t.Errorf("a realm already carrying the origins was patched: %v", patch["webOrigins"])
+		}
 	}
 }

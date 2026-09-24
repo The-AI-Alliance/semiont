@@ -52,7 +52,7 @@ type syncReport struct {
 // Still additive. It creates absent clients, ADDS absent redirect URIs, and
 // turns off a flow that should be off. It deletes no client, drops no redirect
 // URI a deployment added, and never reads or writes an account.
-func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan int, secretFor func(svc string) string) (syncReport, error) {
+func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan, browserPort int, secretFor func(svc string) string) (syncReport, error) {
 	base := strings.TrimSuffix(adminBase, "/")
 	token, err := adminToken(base, adminUser, adminPass)
 	if err != nil {
@@ -62,7 +62,7 @@ func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan
 	if err != nil {
 		return rep, err
 	}
-	if err := reconcilePublicClients(base, realm, token, &rep); err != nil {
+	if err := reconcilePublicClients(base, realm, token, browserPort, &rep); err != nil {
 		return rep, err
 	}
 	if err := reconcileRealmSettings(base, realm, token, lifespan, &rep); err != nil {
@@ -77,7 +77,7 @@ func syncRealm(adminBase, realm, adminUser, adminPass, audience string, lifespan
 // redirect URIs that make `--port` work at all (RFC 8252 §7.3), and the
 // implicit flow, which would handballs the access token back in a redirect
 // fragment.
-func reconcilePublicClients(base, realm, token string, rep *syncReport) error {
+func reconcilePublicClients(base, realm, token string, browserPort int, rep *syncReport) error {
 	clients, err := existingClients(base, realm, token)
 	if err != nil {
 		return err
@@ -107,6 +107,26 @@ func reconcilePublicClients(base, realm, token string, rep *syncReport) error {
 				// this command cannot re-derive.
 				patch["redirectUris"] = append(append([]string{}, have...), missing...)
 				changes = append(changes, "loopback redirect URIs added ("+strings.Join(missing, ", ")+")")
+			}
+
+			// Web origins are a SEPARATE list matched by a separate rule: CORS
+			// origins are compared exactly, so the port belongs here even
+			// though the redirect URIs above deliberately omit it. A realm
+			// carrying `"+"` derives its origins from those portless redirects
+			// and so allows the Browser's origin nowhere — the token exchange
+			// is refused and sign-in dies after a redirect that worked.
+			haveOrigins := stringsOf(c.rep["webOrigins"])
+			missingOrigins := []string{}
+			for _, want := range loopbackWebOrigins(browserPort) {
+				if !slices.Contains(haveOrigins, want) {
+					missingOrigins = append(missingOrigins, want)
+				}
+			}
+			if len(missingOrigins) > 0 {
+				// Appended for the same reason, and `"+"` is left in place:
+				// removing it would drop the LAN origin it still derives.
+				patch["webOrigins"] = append(append([]string{}, haveOrigins...), missingOrigins...)
+				changes = append(changes, "browser web origins added ("+strings.Join(missingOrigins, ", ")+")")
 			}
 		}
 		if len(patch) == 0 {

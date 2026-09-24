@@ -992,11 +992,17 @@ func browserArgs(version string, port int) []string {
 }
 
 // browserPort: the Browser's host port — --port, else 3000.
+// defaultBrowserPort: where the launcher starts the Browser unless `--port`
+// says otherwise. Named because the realm registers an origin for it and the
+// preflight probes that origin — three places agreeing on one number, rather
+// than three places each spelling it out.
+const defaultBrowserPort = 3000
+
 func browserPort(opts startOptions) int {
 	if opts.port != 0 {
 		return opts.port
 	}
-	return 3000
+	return defaultBrowserPort
 }
 
 func otelArgs(addr string) []string {

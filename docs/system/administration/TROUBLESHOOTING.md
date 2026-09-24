@@ -71,9 +71,11 @@ See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 The realm is imported on first boot and never again, so one an older `semiont` created lacks the clients or roles a newer one needs. The preflight refuses rather than start services that cannot authenticate, and names the fix:
 
 ```bash
-semiont identity sync   # adds missing clients, reconciles roles, redirects, lifetime; touches no secret or account
+semiont identity sync   # adds missing clients, reconciles roles, redirects, web origins, lifetime; touches no secret or account
 semiont start
 ```
+
+A realm predating the web-origin fix refuses the token exchange from `http://localhost:3000` — sign-in fails as `error=Verification` *after* a redirect that worked, because the Browser completes its PKCE exchange from its own origin and the realm returns no `Access-Control-Allow-Origin`. The same `sync` repairs it, and the preflight now names it before the stack starts. Moving the Browser with `--port` needs a `sync` too: web origins carry the port, unlike the redirect URIs beside them.
 
 Needs the bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one persisted for this root). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
 
