@@ -59,9 +59,11 @@ import {
   recordSubscriberConnect,
   recordSubscriberDisconnect,
   recordUnanswerableRequest,
+  materializeObservableGauges,
   registerCorrelationRegistryProvider,
   registerFactPumpDepthProvider,
   registerJobQueueProvider,
+  registerProcessLifetimeMetrics,
   registerRestartCountProvider,
   registerVectorIndexSizeProvider,
   withActorSpan,
@@ -670,6 +672,43 @@ describe('registerCorrelationRegistryProvider', () => {
 
     const gauge = collectMetrics().get('semiont.bus.correlation.size')!;
     expect(gauge.find((d) => d.attributes['correlation.kind'] === 'claims')?.value).toBe(42);
+  });
+});
+
+describe('observable gauges registered before the SDK', () => {
+  // The regression this exists for: the gateway registered its correlation
+  // gauge at module scope, before initObservability*() installed a meter. The
+  // metrics API hands out a no-op meter until then and never upgrades it, so
+  // the gauge accepted its callback, reported success, and exported nothing
+  // for the life of every gateway process. Order must not decide this.
+  //
+  // `semiont.process.start_time` is the one gauge no earlier test in this file
+  // registers, so the parking path it exercises here is the real one rather
+  // than a second registration against a gauge that already exists.
+  it('park, survive the no-op meter, and export once the SDK comes up', async () => {
+    metrics.disable(); // stand where a process boots: no meter provider at all
+
+    // Registering here must be QUIET. A process with no exporter configured
+    // has a no-op meter legitimately and forever — that is this package's
+    // contract, and throwing would take down every deployment without an
+    // OTLP endpoint.
+    let threw: unknown;
+    try {
+      registerProcessLifetimeMetrics();
+    } catch (err) {
+      threw = err;
+    }
+
+    // Restore before asserting, so a failure here cannot strand the global
+    // provider and take the rest of the file down with it.
+    metrics.setGlobalMeterProvider(meterProvider);
+    materializeObservableGauges();
+
+    expect(threw, 'registering before init must not throw').toBeUndefined();
+
+    await flushMetrics();
+    const gauge = collectMetrics().get('semiont.process.start_time');
+    expect(gauge?.[0]?.value, 'a gauge registered before init never exported').toBeGreaterThan(0);
   });
 });
 

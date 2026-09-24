@@ -232,10 +232,10 @@ const METER_NAME = 'semiont';
 const meter = () => metrics.getMeter(METER_NAME);
 
 /**
- * Refuse to build an observable gauge before `initObservability*()` has run.
+ * Build an observable gauge now, or as soon as a real meter exists.
  *
  * Counters and histograms are created lazily at their first use, which is
- * always after boot, so they never meet this. An OBSERVABLE gauge is the
+ * always well after boot, so they never meet this. An OBSERVABLE gauge is the
  * exception: it is created when its provider registers, and it binds the
  * meter that exists at that moment. The metrics API — unlike the trace API,
  * which proxies — hands out a no-op meter until a provider is registered
@@ -244,15 +244,35 @@ const meter = () => metrics.getMeter(METER_NAME);
  *
  * That silence is indistinguishable from a healthy idle metric, which is how
  * the gateway's `semiont.bus.correlation.size` went missing from the
- * collector's readout while its code read as correct. Registering after init
- * is the contract; this is the contract enforced rather than described.
+ * collector's readout while its code read as correct.
+ *
+ * Registration order is the wrong thing to police, because a process with no
+ * exporter configured has a no-op meter legitimately and forever — that is
+ * this package's documented contract, not a mistake to refuse. So order is
+ * made not to matter: an early registration parks its builder here and
+ * `materializeObservableGauges()` runs it once init installs the real meter.
+ * Keyed by instrument name, so registering twice before init builds once.
  */
-function requireLiveMeter(instrument: string): void {
-  if (meter() !== createNoopMeter()) return;
-  throw new Error(
-    `${instrument}: registered before initObservability*() — an observable gauge built now ` +
-      `binds the no-op meter and would never export. Register it from the service's boot, after init.`,
-  );
+const pendingGauges = new Map<string, () => void>();
+
+function buildGauge(instrument: string, build: () => void): void {
+  if (meter() === createNoopMeter()) {
+    pendingGauges.set(instrument, build);
+    return;
+  }
+  pendingGauges.delete(instrument);
+  build();
+}
+
+/**
+ * Create the gauges whose providers registered before the SDK came up.
+ * Called by `initObservability*` once the global MeterProvider is installed —
+ * nothing else should need it.
+ */
+export function materializeObservableGauges(): void {
+  const waiting = [...pendingGauges.values()];
+  pendingGauges.clear();
+  for (const build of waiting) build();
 }
 
 let _busEmitCounter: Counter | undefined;
@@ -446,17 +466,18 @@ export function registerCorrelationRegistryProvider(
 ): void {
   _correlationRegistryProvider = provider;
   if (!_correlationRegistryGauge) {
-    requireLiveMeter('semiont.bus.correlation.size');
-    _correlationRegistryGauge = meter().createObservableGauge('semiont.bus.correlation.size', {
-      description: 'Correlation registry occupancy: live claims and retained reply payloads',
-    });
-    _correlationRegistryGauge.addCallback((observer) => {
-      if (!_correlationRegistryProvider) return;
-      const snap = _correlationRegistryProvider();
-      observer.observe(snap.claims, { 'correlation.kind': 'claims' });
-      observer.observe(snap.retainedReplies, { 'correlation.kind': 'retained_replies' });
-      observer.observe(snap.claimsMax, { 'correlation.kind': 'claims_max' });
-      observer.observe(snap.retainedRepliesMax, { 'correlation.kind': 'retained_replies_max' });
+    buildGauge('semiont.bus.correlation.size', () => {
+      _correlationRegistryGauge = meter().createObservableGauge('semiont.bus.correlation.size', {
+        description: 'Correlation registry occupancy: live claims and retained reply payloads',
+      });
+      _correlationRegistryGauge.addCallback((observer) => {
+        if (!_correlationRegistryProvider) return;
+        const snap = _correlationRegistryProvider();
+        observer.observe(snap.claims, { 'correlation.kind': 'claims' });
+        observer.observe(snap.retainedReplies, { 'correlation.kind': 'retained_replies' });
+        observer.observe(snap.claimsMax, { 'correlation.kind': 'claims_max' });
+        observer.observe(snap.retainedRepliesMax, { 'correlation.kind': 'retained_replies_max' });
+      });
     });
   }
 }
@@ -574,18 +595,19 @@ export function registerJobQueueProvider(
 ): void {
   _jobQueueProvider = provider;
   if (!_jobQueueGauge) {
-    requireLiveMeter('semiont.job.queue.size');
-    _jobQueueGauge = meter().createObservableGauge('semiont.job.queue.size', {
-      description: 'Job queue size by status',
-    });
-    _jobQueueGauge.addCallback(async (observer) => {
-      if (!_jobQueueProvider) return;
-      const snap = await _jobQueueProvider();
-      observer.observe(snap.pending, { 'job.status': 'pending' });
-      observer.observe(snap.running, { 'job.status': 'running' });
-      observer.observe(snap.complete, { 'job.status': 'complete' });
-      observer.observe(snap.failed, { 'job.status': 'failed' });
-      observer.observe(snap.cancelled, { 'job.status': 'cancelled' });
+    buildGauge('semiont.job.queue.size', () => {
+      _jobQueueGauge = meter().createObservableGauge('semiont.job.queue.size', {
+        description: 'Job queue size by status',
+      });
+      _jobQueueGauge.addCallback(async (observer) => {
+        if (!_jobQueueProvider) return;
+        const snap = await _jobQueueProvider();
+        observer.observe(snap.pending, { 'job.status': 'pending' });
+        observer.observe(snap.running, { 'job.status': 'running' });
+        observer.observe(snap.complete, { 'job.status': 'complete' });
+        observer.observe(snap.failed, { 'job.status': 'failed' });
+        observer.observe(snap.cancelled, { 'job.status': 'cancelled' });
+      });
     });
   }
 }
@@ -609,12 +631,13 @@ export function registerJobQueueProvider(
 export function registerFactPumpDepthProvider(provider: () => number): void {
   _factPumpDepthProvider = provider;
   if (!_factPumpDepthGauge) {
-    requireLiveMeter('semiont.archivist.fact_pump.depth');
-    _factPumpDepthGauge = meter().createObservableGauge('semiont.archivist.fact_pump.depth', {
-      description: 'Facts appended to the record but not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport.',
-    });
-    _factPumpDepthGauge.addCallback((observer) => {
-      if (_factPumpDepthProvider) observer.observe(_factPumpDepthProvider());
+    buildGauge('semiont.archivist.fact_pump.depth', () => {
+      _factPumpDepthGauge = meter().createObservableGauge('semiont.archivist.fact_pump.depth', {
+        description: 'Facts appended to the record but not yet published to the bus. Zero at rest; a rising floor means the pump is behind its transport.',
+      });
+      _factPumpDepthGauge.addCallback((observer) => {
+        if (_factPumpDepthProvider) observer.observe(_factPumpDepthProvider());
+      });
     });
   }
 }
@@ -657,12 +680,13 @@ let _abnormalExitCounter: Counter | undefined;
 /** Register `semiont.process.start_time`. Called by `initObservability*`. */
 export function registerProcessLifetimeMetrics(): void {
   if (_processStartTimeGauge) return;
-  requireLiveMeter('semiont.process.start_time');
-  _processStartTimeGauge = meter().createObservableGauge('semiont.process.start_time', {
-    description: 'Unix seconds at which this process started; a change means it restarted',
-    unit: 's',
+  buildGauge('semiont.process.start_time', () => {
+    _processStartTimeGauge = meter().createObservableGauge('semiont.process.start_time', {
+      description: 'Unix seconds at which this process started; a change means it restarted',
+      unit: 's',
+    });
+    _processStartTimeGauge.addCallback((observer) => observer.observe(PROCESS_START_TIME_SECONDS));
   });
-  _processStartTimeGauge.addCallback((observer) => observer.observe(PROCESS_START_TIME_SECONDS));
 }
 
 /**
@@ -683,15 +707,16 @@ export function registerRestartCountProvider(
 ): void {
   _restartCountProvider = provider;
   if (!_restartCountGauge) {
-    requireLiveMeter('semiont.process.restarts');
-    _restartCountGauge = meter().createObservableGauge('semiont.process.restarts', {
-      description: 'Times the supervisor has restarted this service',
-    });
-    _restartCountGauge.addCallback(async (observer) => {
-      if (!_restartCountProvider) return;
-      const count = await _restartCountProvider();
-      // Not `if (count)` — 0 is a real, meaningful reading.
-      if (count !== undefined) observer.observe(count);
+    buildGauge('semiont.process.restarts', () => {
+      _restartCountGauge = meter().createObservableGauge('semiont.process.restarts', {
+        description: 'Times the supervisor has restarted this service',
+      });
+      _restartCountGauge.addCallback(async (observer) => {
+        if (!_restartCountProvider) return;
+        const count = await _restartCountProvider();
+        // Not `if (count)` — 0 is a real, meaningful reading.
+        if (count !== undefined) observer.observe(count);
+      });
     });
   }
 }
@@ -725,15 +750,16 @@ export function registerVectorIndexSizeProvider(
 ): void {
   _vectorIndexSizeProvider = provider;
   if (!_vectorIndexSizeGauge) {
-    requireLiveMeter('semiont.vector.index.size');
-    _vectorIndexSizeGauge = meter().createObservableGauge('semiont.vector.index.size', {
-      description: 'Vector store point count',
-    });
-    _vectorIndexSizeGauge.addCallback(async (observer) => {
-      if (_vectorIndexSizeProvider) {
-        const value = await _vectorIndexSizeProvider();
-        observer.observe(value);
-      }
+    buildGauge('semiont.vector.index.size', () => {
+      _vectorIndexSizeGauge = meter().createObservableGauge('semiont.vector.index.size', {
+        description: 'Vector store point count',
+      });
+      _vectorIndexSizeGauge.addCallback(async (observer) => {
+        if (_vectorIndexSizeProvider) {
+          const value = await _vectorIndexSizeProvider();
+          observer.observe(value);
+        }
+      });
     });
   }
 }

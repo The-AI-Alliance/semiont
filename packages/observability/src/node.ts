@@ -25,7 +25,7 @@
  * blowing up bundles for every consumer.
  */
 
-import { recordAbnormalTermination, registerProcessLifetimeMetrics, registerRestartCountProvider } from './index.js';
+import { materializeObservableGauges, recordAbnormalTermination, registerProcessLifetimeMetrics, registerRestartCountProvider } from './index.js';
 import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { heapStats } from './runtime-stats';
 import { context, metrics, propagation, trace } from '@opentelemetry/api';
@@ -150,6 +150,11 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
     ],
   });
   metrics.setGlobalMeterProvider(meterProviderInstance);
+
+  // Any observable gauge whose provider registered before this point parked
+  // its builder rather than binding the no-op meter. The real meter exists
+  // now, so build them — this is what makes registration order irrelevant.
+  materializeObservableGauges();
 
   // The cause-AGNOSTIC detector for a blocked process: it rises whether the
   // cause is a large JSON parse, GC, or a sync subprocess. Cheap — libuv keeps
