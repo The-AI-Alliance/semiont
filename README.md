@@ -46,6 +46,8 @@ semiont start
 
 One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service browser` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
 
+**Started this KB with an older `semiont` before?** The identity provider's realm is imported on the stack's first boot and never again, so a newer launcher can need service clients or roles that realm predates. `semiont start` checks before starting anything and refuses rather than bring up services that cannot authenticate; its message names the repair in order — `semiont identity sync` (adds and reconciles configuration, touches no accounts), then `semiont start` again.
+
 ### 4. Connect
 
 Create your first user. A fresh stack has none — the account is created at the knowledge base's identity provider, which is what Semiont trusts to authenticate people:
@@ -56,7 +58,7 @@ semiont useradd --email admin@example.com   # prompts for the password
 
 Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. Sign-in happens at the identity provider, not at Semiont, so you'll be handed to its page and back. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
 
-**First sign-in asks for your first and last name.** That's deliberate: the identity provider composes your display name from them, and that name is what every annotation and resource you create is attributed to. Semiont never guesses it from your email.
+**First sign-in asks for your first and last name.** The identity provider composes your display name from them, and that is the name the Semiont browser shows for your account. What the record attributes your annotations and resources to is your *identity*: a DID the knowledge base builds from the identity provider's stable subject under its own domain — never from your email, so changing your address changes nothing about what you authored.
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 

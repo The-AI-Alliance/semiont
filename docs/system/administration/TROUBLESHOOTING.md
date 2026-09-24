@@ -66,6 +66,40 @@ Its startup contract is strict, and each unmet requirement throws:
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
+### `semiont start` refuses at the identity preflight
+
+```
+✗ The issuer does not honour the service-account credentials this start would inject.
+  ...
+  A realm is imported on its FIRST boot and never again, so a realm created
+  before these clients existed does not have them.
+
+  Fix it:  semiont identity sync
+  Then:    semiont start
+```
+
+Keycloak's realm is imported the first time a knowledge base's stack boots and never
+again, so a realm created by an older `semiont` lacks whatever a newer one renders — a
+service client that did not exist yet, or a role a client's token must now carry (a
+worker whose client predates the `semiont-worker` role authenticates but can never claim
+a job). The preflight proves every service account against the realm before starting
+anything, and refuses rather than bring up six services that cannot authenticate.
+
+`semiont identity sync` adds the missing clients and reconciles an existing client's
+roles mapper, the public clients' redirect URIs, the implicit flow and the access-token
+lifetime. It touches configuration only — no secret, no account — and is idempotent, so
+run it again to confirm. It needs Keycloak's bootstrap admin password: `$KC_BOOTSTRAP_ADMIN_PASSWORD`,
+else the value persisted for this root. Then `semiont start` again.
+
+**The one case sync cannot repair:** if it reports a client the preflight named as
+*already correct* rather than *created*, that client exists with a different secret from
+the one this root holds — sync never changes secrets. Delete the client in the Keycloak
+admin console and run sync again.
+
+This applies only to a realm the launcher runs (`[identity] type = "keycloak"`). For an
+issuer you run yourself, the refusal names each client to create there, and sync is not
+offered — it has no admin password for a realm it did not create.
+
 ### Workers, smelter, or weaver never pick up work
 
 These three authenticate at the knowledge base's issuer as their own service accounts (client credentials), then exchange that issuer token at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. Either leg can fail and leave them idle: the issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, or a realm that never imported the client), or the gateway may refuse the exchange because the token carries no `semiont-service` role in its flat `roles` claim.
@@ -74,7 +108,7 @@ These three authenticate at the knowledge base's issuer as their own service acc
 semiont logs --service worker | grep -iE "token|auth|oidc|client"
 ```
 
-`semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client up front rather than leaving you to find it here.
+`semiont start` runs an identity preflight that proves every service account against the realm before starting anything, so a fresh start names the failing client up front rather than leaving you to find it here — and names the repair (see [the preflight refusal](#semiont-start-refuses-at-the-identity-preflight) above).
 
 A service restarted with `semiont start --service worker` reads the same per-root credential the full start wrote, so it rejoins with nothing to recover. One started by hand must be given its own `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 
