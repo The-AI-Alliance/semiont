@@ -678,10 +678,13 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			if keycloakRealm(path) == "" {
 				return nil, secErr("identity", "issuer %q must end in /realms/<realm> for type \"keycloak\"", id.Issuer)
 			}
-			d := env.Database
-			if d == nil {
-				return nil, secErr("identity", "type = \"keycloak\" needs a [database] section — Keycloak keeps its realm in its own database on that PostgreSQL")
+			// O1: the driver REQUIRES the role, the config DECLARES it, and
+			// the refusal is rendered from the edge — so the requirement has
+			// one home and this branch cannot disagree with the descriptor.
+			if dep, unmet := unmetRequirement(env.declaresRole, "identity", id.Type); unmet {
+				return nil, secErr("identity", "type = %q needs a [%s] section — %s", id.Type, dep.role, dep.because)
 			}
+			d := env.Database
 			if d.Password == "" {
 				return nil, secErr("identity", "[database] names no password — Keycloak dials PostgreSQL with it")
 			}

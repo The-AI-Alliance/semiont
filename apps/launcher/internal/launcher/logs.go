@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-const logsUsage = `Usage: semiont logs [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
+var logsUsage = fmt.Sprintf(`Usage: semiont logs [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
 
 A bare invocation follows the lone forwarded codespace stack (when no local
 stack exists), else the local stack, else the lone recorded codespace; with
@@ -21,18 +21,27 @@ explicitly; --runtime targets a local runtime.
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
 
-By default follows the seven Semiont services (gateway, worker, smelter,
-weaver, archivist, librarian, browser). With --service <name>, follow any ONE
-service including the infrastructure roles: gateway, worker, smelter, weaver,
-archivist, librarian, browser,
-database, graph, vectors, inference, collector, metrics, or traces.
+By default follows Semiont's own services (%s). With
+--service <name>, follow any ONE service including the infrastructure roles:
+%s.
 
 The runtime and container identities come from the recorded stack state when
 present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
-`
+`, strings.Join(logServices, ", "), roleListWrapped(78, ""))
 
-var logServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser"}
+// logServices: the default follow set — Semiont's own services, the ones
+// whose logs are ours to read. Derived, so a new Semiont service is followed
+// the day it exists rather than the day somebody remembers this list.
+var logServices = func() []string {
+	var out []string
+	for _, d := range serviceDescriptors {
+		if d.driver == driverSemiont {
+			out = append(out, d.role)
+		}
+	}
+	return out
+}()
 
 // Logs implements `semiont logs` — the port of the fleet's logs.sh.
 func Logs(args []string) int {

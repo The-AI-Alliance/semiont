@@ -1,20 +1,20 @@
 git -C <kb-root> rev-parse --show-toplevel
 container run --rm busybox:1.38.0 sh -c ip route | awk '/default/{print $3}'
+container logs semiont-weaver
+container logs semiont-smelter
+container logs semiont-worker
+container logs semiont-dispatcher
+container logs semiont-librarian
+container logs semiont-archivist
+container logs semiont-qdrant
+container logs semiont-neo4j
+container logs semiont-gateway
+container logs semiont-keycloak
+container logs semiont-nats
+container logs semiont-postgres
 container logs semiont-otel-collector
 container logs semiont-prometheus
 container logs semiont-jaeger
-container logs semiont-neo4j
-container logs semiont-qdrant
-container logs semiont-nats
-container logs semiont-postgres
-container logs semiont-keycloak
-container logs semiont-gateway
-container logs semiont-worker
-container logs semiont-smelter
-container logs semiont-weaver
-container logs semiont-archivist
-container logs semiont-librarian
-container logs semiont-dispatcher
 container list -a
 lsof -nP -iTCP:7474 -sTCP:LISTEN
 ps -p 12345 -o comm=

@@ -1,144 +1,144 @@
-container stop semiont-archivist
 container stop semiont-weaver
 container stop semiont-smelter
 container stop semiont-worker
-container stop semiont-librarian
 container stop semiont-dispatcher
+container stop semiont-librarian
+container stop semiont-archivist
+container stop semiont-ollama
+container stop semiont-qdrant
+container stop semiont-neo4j
 container stop semiont-gateway
 container stop semiont-keycloak
 container stop semiont-nats
 container stop semiont-postgres
-container stop semiont-ollama
-container stop semiont-qdrant
-container stop semiont-neo4j
 container stop semiont-otel-collector
 container stop semiont-prometheus
 container stop semiont-jaeger
-container logs semiont-archivist
 container logs semiont-weaver
 container logs semiont-smelter
 container logs semiont-worker
-container logs semiont-librarian
 container logs semiont-dispatcher
+container logs semiont-librarian
+container logs semiont-archivist
+container logs semiont-ollama
+container logs semiont-qdrant
+container logs semiont-neo4j
 container logs semiont-gateway
 container logs semiont-keycloak
 container logs semiont-nats
 container logs semiont-postgres
-container logs semiont-ollama
-container logs semiont-qdrant
-container logs semiont-neo4j
 container logs semiont-otel-collector
 container logs semiont-prometheus
 container logs semiont-jaeger
-container rm semiont-archivist
 container rm semiont-weaver
 container rm semiont-smelter
 container rm semiont-worker
-container rm semiont-librarian
 container rm semiont-dispatcher
+container rm semiont-librarian
+container rm semiont-archivist
+container rm semiont-ollama
+container rm semiont-qdrant
+container rm semiont-neo4j
 container rm semiont-gateway
 container rm semiont-keycloak
 container rm semiont-nats
 container rm semiont-postgres
-container rm semiont-ollama
-container rm semiont-qdrant
-container rm semiont-neo4j
 container rm semiont-otel-collector
 container rm semiont-prometheus
 container rm semiont-jaeger
-docker stop semiont-archivist
 docker stop semiont-weaver
 docker stop semiont-smelter
 docker stop semiont-worker
-docker stop semiont-librarian
 docker stop semiont-dispatcher
+docker stop semiont-librarian
+docker stop semiont-archivist
+docker stop semiont-ollama
+docker stop semiont-qdrant
+docker stop semiont-neo4j
 docker stop semiont-gateway
 docker stop semiont-keycloak
 docker stop semiont-nats
 docker stop semiont-postgres
-docker stop semiont-ollama
-docker stop semiont-qdrant
-docker stop semiont-neo4j
 docker stop semiont-otel-collector
 docker stop semiont-prometheus
 docker stop semiont-jaeger
-docker logs --tail 5000 semiont-archivist
 docker logs --tail 5000 semiont-weaver
 docker logs --tail 5000 semiont-smelter
 docker logs --tail 5000 semiont-worker
-docker logs --tail 5000 semiont-librarian
 docker logs --tail 5000 semiont-dispatcher
+docker logs --tail 5000 semiont-librarian
+docker logs --tail 5000 semiont-archivist
+docker logs --tail 5000 semiont-ollama
+docker logs --tail 5000 semiont-qdrant
+docker logs --tail 5000 semiont-neo4j
 docker logs --tail 5000 semiont-gateway
 docker logs --tail 5000 semiont-keycloak
 docker logs --tail 5000 semiont-nats
 docker logs --tail 5000 semiont-postgres
-docker logs --tail 5000 semiont-ollama
-docker logs --tail 5000 semiont-qdrant
-docker logs --tail 5000 semiont-neo4j
 docker logs --tail 5000 semiont-otel-collector
 docker logs --tail 5000 semiont-prometheus
 docker logs --tail 5000 semiont-jaeger
-docker rm semiont-archivist
 docker rm semiont-weaver
 docker rm semiont-smelter
 docker rm semiont-worker
-docker rm semiont-librarian
 docker rm semiont-dispatcher
+docker rm semiont-librarian
+docker rm semiont-archivist
+docker rm semiont-ollama
+docker rm semiont-qdrant
+docker rm semiont-neo4j
 docker rm semiont-gateway
 docker rm semiont-keycloak
 docker rm semiont-nats
 docker rm semiont-postgres
-docker rm semiont-ollama
-docker rm semiont-qdrant
-docker rm semiont-neo4j
 docker rm semiont-otel-collector
 docker rm semiont-prometheus
 docker rm semiont-jaeger
-podman stop semiont-archivist
 podman stop semiont-weaver
 podman stop semiont-smelter
 podman stop semiont-worker
-podman stop semiont-librarian
 podman stop semiont-dispatcher
+podman stop semiont-librarian
+podman stop semiont-archivist
+podman stop semiont-ollama
+podman stop semiont-qdrant
+podman stop semiont-neo4j
 podman stop semiont-gateway
 podman stop semiont-keycloak
 podman stop semiont-nats
 podman stop semiont-postgres
-podman stop semiont-ollama
-podman stop semiont-qdrant
-podman stop semiont-neo4j
 podman stop semiont-otel-collector
 podman stop semiont-prometheus
 podman stop semiont-jaeger
-podman logs --tail 5000 semiont-archivist
 podman logs --tail 5000 semiont-weaver
 podman logs --tail 5000 semiont-smelter
 podman logs --tail 5000 semiont-worker
-podman logs --tail 5000 semiont-librarian
 podman logs --tail 5000 semiont-dispatcher
+podman logs --tail 5000 semiont-librarian
+podman logs --tail 5000 semiont-archivist
+podman logs --tail 5000 semiont-ollama
+podman logs --tail 5000 semiont-qdrant
+podman logs --tail 5000 semiont-neo4j
 podman logs --tail 5000 semiont-gateway
 podman logs --tail 5000 semiont-keycloak
 podman logs --tail 5000 semiont-nats
 podman logs --tail 5000 semiont-postgres
-podman logs --tail 5000 semiont-ollama
-podman logs --tail 5000 semiont-qdrant
-podman logs --tail 5000 semiont-neo4j
 podman logs --tail 5000 semiont-otel-collector
 podman logs --tail 5000 semiont-prometheus
 podman logs --tail 5000 semiont-jaeger
-podman rm semiont-archivist
 podman rm semiont-weaver
 podman rm semiont-smelter
 podman rm semiont-worker
-podman rm semiont-librarian
 podman rm semiont-dispatcher
+podman rm semiont-librarian
+podman rm semiont-archivist
+podman rm semiont-ollama
+podman rm semiont-qdrant
+podman rm semiont-neo4j
 podman rm semiont-gateway
 podman rm semiont-keycloak
 podman rm semiont-nats
 podman rm semiont-postgres
-podman rm semiont-ollama
-podman rm semiont-qdrant
-podman rm semiont-neo4j
 podman rm semiont-otel-collector
 podman rm semiont-prometheus
 podman rm semiont-jaeger

@@ -27,6 +27,28 @@ import (
 
 const driverSemiont = "semiont"
 
+// dependency: an edge from a (role, driver) to a role it cannot come up
+// after — or, when `because` is set, cannot come up WITHOUT.
+type dependency struct {
+	role string
+	// because, when set, makes the edge a REQUIREMENT: the config must
+	// declare that role's section, and derivePlan refuses naming this reason
+	// when it does not (O1 — drivers require roles, configs declare them,
+	// and the conditionality lives in plan derivation so the graph stays
+	// static). Empty means the edge only ORDERS the walk: the role is
+	// brought up first when the config has it, and its absence is no error.
+	because string
+}
+
+// needs spells the ordering-only edges, which are most of them.
+func needs(roles ...string) []dependency {
+	out := make([]dependency, 0, len(roles))
+	for _, r := range roles {
+		out = append(out, dependency{role: r})
+	}
+	return out
+}
+
 // portNeed: a port that must be free, and its name in a conflict message.
 type portNeed struct {
 	port  int
@@ -66,6 +88,13 @@ type serviceDescriptor struct {
 	// flowBrowser, so neither enters a stack-wide sweep.
 	ports []portNeed
 
+	// needs: the roles that must be up before this one. The edges the start
+	// walk is ordered by and the teardown walk is ordered against — declared
+	// per (role, driver), because a requirement can be the DRIVER's and not
+	// the role's: Keycloak keeps its realm in a database, an external OIDC
+	// issuer needs nothing from us.
+	needs []dependency
+
 	display     string     // product name for banners, status and messages
 	defaultPort int        // config default AND the container-side listen port
 	portLabel   string     // the primary port's name in conflict errors
@@ -86,13 +115,33 @@ type serviceDescriptor struct {
 // It is what `roleList` and every role enumeration inherit; the two sweep
 // orders below are separate and stay that way until dependencies are data.
 var serviceDescriptors = []serviceDescriptor{
-	{role: "gateway", driver: driverSemiont, container: "semiont-gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}}},
-	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}}},
-	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}}},
-	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}}},
-	{role: "archivist", driver: driverSemiont, container: "semiont-archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}}},
-	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}}},
-	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}}},
+	// The gateway waits for the issuer whose keys it verifies tokens against
+	// and the broker its signal plane dials; it dials no graph, vector,
+	// embedding or database client of its own. The collector precedes it
+	// because the gateway is the first process to export to it.
+	{role: "gateway", driver: driverSemiont, container: "semiont-gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}},
+		needs: needs("collector", "identity", "messaging")},
+	// The three make-meaning sidecars open with boot-time bus requests the
+	// Archivist answers (the smelter's reconcile opens with browse:resources),
+	// and its /health only turns on after its bus pumps attach — so this edge
+	// is what closes the startup race a 3.5-second head start once lost a
+	// smelter to.
+	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
+		needs: needs("gateway", "archivist")},
+	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
+		needs: needs("gateway", "archivist")},
+	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
+		needs: needs("gateway", "archivist")},
+	// The Archivist is where the stores the actors dial become preconditions:
+	// each of them gates it, and none of them gates the gateway above.
+	{role: "archivist", driver: driverSemiont, container: "semiont-archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}},
+		needs: needs("gateway", "graph", "vectors", "inference", "embedding")},
+	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
+		needs: needs("gateway")},
+	// The dispatcher's JetStream queue dials the same broker the signal plane
+	// does.
+	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},
+		needs: needs("gateway", "messaging")},
 	// browser: the Browser owns its port inside flowBrowser — an empty ports
 	// list keeps 3000 out of every stack-level claim and sweep.
 	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G"},
@@ -134,7 +183,8 @@ var serviceDescriptors = []serviceDescriptor{
 	// verifies it and launches nothing, which is why it carries no container.
 	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
-		cmd: []string{"start-dev", "--import-realm"}},
+		cmd:   []string{"start-dev", "--import-realm"},
+		needs: []dependency{{role: "database", because: "Keycloak keeps its realm in its own database on that PostgreSQL"}}},
 	{role: "identity", driver: "oidc", display: "OIDC issuer", defaultPort: 443},
 
 	// inference 24G: a loaded small model (gemma-class) needs 4-5G; the
@@ -164,7 +214,7 @@ var serviceDescriptors = []serviceDescriptor{
 		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI"},
 	{role: "collector", driver: "otel", container: "semiont-otel-collector", image: "otel/opentelemetry-collector:0.137.0", mem: "1G",
 		ports:   []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}},
-		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP"},
+		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: needs("traces")},
 }
 
 // descriptorIndex: (role, driver) → descriptor. Built once; the slice above
@@ -180,18 +230,90 @@ var descriptorIndex = func() map[string]map[string]serviceDescriptor {
 	return m
 }()
 
-// roleOrder: every role the launcher knows, in the table's reading order.
-var roleOrder = func() []string {
-	var out []string
-	seen := map[string]bool{}
-	for _, d := range serviceDescriptors {
-		if !seen[d.role] {
-			seen[d.role] = true
-			out = append(out, d.role)
-		}
+// startOrder is the ONE order in the launcher: the sequence a full start
+// brings the roles up in. Teardown is this walk reversed (D4 — a stop order
+// is never written down), and both sweeps derive from that, so there is no
+// second or third list to drift from this one.
+//
+// It is a chosen total order, not a computed one: the `needs` edges admit
+// many valid sequences and this is the one the start flow walks, with the
+// judgement the edges do not carry — the observability tier first so a first
+// export lands, the gateway ahead of the stores because it has the most ways
+// to fail. TestStartOrderRespectsEveryDependency proves the choice is legal;
+// TestDryRunLaunchOrderFollowsTheDeclaredStartOrder proves the flow walks it.
+//
+// The Browser is last and belongs to no stack (BROWSER-LIFECYCLE.md): it is
+// in this order only so `--service browser` and the role census can find it.
+var startOrder = []string{
+	"traces", "metrics", "collector",
+	"database", "messaging", "identity",
+	"gateway",
+	"graph", "vectors", "inference", "embedding",
+	"archivist", "librarian", "dispatcher",
+	"worker", "smelter", "weaver",
+	"browser",
+}
+
+// roleOrder: every role the launcher knows. The start order IS the reading
+// order — a reader meeting them in the sequence they come up meets them in
+// the order they depend on each other.
+var roleOrder = startOrder
+
+// teardownOrder: the start walk reversed. Dependents go down before the
+// things they depend on, because reversing a legal start order is what that
+// means — it is not a list anyone maintains.
+var teardownOrder = func() []string {
+	out := make([]string, 0, len(startOrder))
+	for i := len(startOrder) - 1; i >= 0; i-- {
+		out = append(out, startOrder[i])
 	}
 	return out
 }()
+
+// startRank: a role's position in the start walk, for the tests and refusals
+// that need to compare two roles. -1 for a name that is not a role.
+func startRank(role string) int {
+	for i, r := range startOrder {
+		if r == role {
+			return i
+		}
+	}
+	return -1
+}
+
+// dependenciesOf: every edge out of a role, across all its drivers. The
+// order walks are static — they run before any config is read — so they see
+// the union: an edge one driver declares orders the role.
+func dependenciesOf(role string) []dependency {
+	var out []dependency
+	for _, d := range descriptorsForRole(role) {
+		for _, dep := range d.needs {
+			dup := false
+			for _, have := range out {
+				if have.role == dep.role {
+					dup = true
+					break
+				}
+			}
+			if !dup {
+				out = append(out, dep)
+			}
+		}
+	}
+	return out
+}
+
+// unmetRequirement: the first role this driver cannot run WITHOUT that the
+// config never declares (O1). Ordering-only edges are not requirements —
+// their absence is a stack without that role, not a broken config.
+func unmetRequirement(declared func(role string) bool, role, driver string) (dependency, bool) {
+	for _, dep := range descriptorFor(role, driver).needs {
+		if dep.because != "" && !declared(dep.role) {
+			return dep, true
+		}
+	}
+	return dependency{}, false
+}
 
 // roleList: the roles a `--service` flag accepts, for usage and refusals.
 var roleList = func() string {
@@ -200,6 +322,28 @@ var roleList = func() string {
 	}
 	return strings.Join(roleOrder[:len(roleOrder)-1], ", ") + ", or " + roleOrder[len(roleOrder)-1]
 }()
+
+// roleListWrapped renders roleList across lines no wider than width,
+// continuing each with indent. Help text is read in a terminal: one
+// 200-column line is not help.
+func roleListWrapped(width int, indent string) string {
+	var b strings.Builder
+	col := len(indent)
+	for i, word := range strings.Split(roleList, " ") {
+		switch {
+		case i == 0:
+		case col+1+len(word) > width:
+			b.WriteString("\n" + indent)
+			col = len(indent)
+		default:
+			b.WriteString(" ")
+			col++
+		}
+		b.WriteString(word)
+		col += len(word)
+	}
+	return b.String()
+}
 
 func knownRole(role string) bool { return descriptorIndex[role] != nil }
 
@@ -335,10 +479,16 @@ func restartDriver(role string, plan *launchPlan) string {
 	return ""
 }
 
-// containersFor maps a sweep's role order to the container names it removes.
-func containersFor(roles []string) []string {
+// sweepNames: the containers a teardown sweep removes, in teardown order,
+// skipping the roles the caller names as exempt. Both sweeps are this
+// function; they differ only in what they exempt, which is the whole of the
+// difference between them.
+func sweepNames(exempt ...string) []string {
 	var out []string
-	for _, r := range roles {
+	for _, r := range teardownOrder {
+		if contains(exempt, r) {
+			continue
+		}
 		for _, c := range containersForRole(r) {
 			if !contains(out, c) {
 				out = append(out, c)

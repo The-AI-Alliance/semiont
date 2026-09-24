@@ -21,23 +21,16 @@ func configFreeService(svc string) bool {
 	return svc == "browser" || svc == "traces" || svc == "metrics" || svc == "collector"
 }
 
-// preflightRoles is the stop-then-rm sweep at start, in sweep order; the
-// container names come from the descriptor set, so a role whose driver
-// changes its container cannot be missed.
+// preflightNames: the containers start's stop-then-rm sweep removes. A
+// sweep is a teardown, so it runs in teardown order — dependents first.
 //
-// `inference` is deliberately absent — it is handled in the Ollama section,
-// where a host instance may make a container unnecessary. `browser` is
-// deliberately absent: the Browser is not a stack member
-// (BROWSER-LIFECYCLE.md) — its keep-or-refresh lifecycle lives in
-// flowBrowser, and the preflight must not sweep a viewer the user keeps open
-// across stacks. Both absences are gated by descriptor_census_test.go.
-var preflightRoles = []string{
-	"collector", "metrics", "traces", "graph", "vectors", "messaging", "database",
-	"identity", "gateway", "worker", "smelter", "weaver",
-	"archivist", "librarian", "dispatcher",
-}
-
-var preflightNames = containersFor(preflightRoles)
+// `inference` is exempt: it is handled in the Ollama section, where a host
+// instance may make a container unnecessary. `browser` is exempt because the
+// Browser is not a stack member (BROWSER-LIFECYCLE.md) — its keep-or-refresh
+// lifecycle lives in flowBrowser, and the preflight must not sweep a viewer
+// the user keeps open across stacks. Both exemptions are gated by
+// descriptor_census_test.go.
+var preflightNames = sweepNames("browser", "inference")
 
 type startOptions struct {
 	configName   string
@@ -60,7 +53,7 @@ type startOptions struct {
 	retention    string // --retention-period: create-time only (codespace placement)
 }
 
-const startUsage = `Usage: semiont start [options]
+var startUsage = fmt.Sprintf(`Usage: semiont start [options]
 
 Start a local Semiont stack — graph (Neo4j), vectors (Qdrant), inference
 (Ollama), database (PostgreSQL), the Semiont gateway, worker, smelter, weaver, and
@@ -76,9 +69,8 @@ Options:
                         every real start; see semiont status). Wins over
                         SEMIONT_ROOT and cwd discovery.
   --service <name>      Start (restart) just this one service, leaving the rest
-                        of the stack untouched: gateway, worker, smelter, weaver,
-                        archivist, librarian, browser, database, graph, vectors,
-                        inference, traces, metrics, or collector.
+                        of the stack untouched:
+                        %s.
                         Reads its own credential from this root's state;
                         OTel export is enabled iff the collector is up.
   --port <n>            Browser port (--service browser only; default 3000).
@@ -153,7 +145,7 @@ Examples:
 
   # See available configs
   semiont start --list-configs
-`
+`, roleListWrapped(78, "                        "))
 
 // Start implements `semiont start` — the port of the fleet's start.sh.
 func Start(args []string) int {

@@ -1,48 +1,48 @@
-docker stop semiont-archivist
 docker stop semiont-weaver
 docker stop semiont-smelter
 docker stop semiont-worker
-docker stop semiont-librarian
 docker stop semiont-dispatcher
+docker stop semiont-librarian
+docker stop semiont-archivist
+docker stop semiont-ollama
+docker stop semiont-qdrant
+docker stop semiont-neo4j
 docker stop semiont-gateway
 docker stop semiont-keycloak
 docker stop semiont-nats
 docker stop semiont-postgres
-docker stop semiont-ollama
-docker stop semiont-qdrant
-docker stop semiont-neo4j
 docker stop semiont-otel-collector
 docker stop semiont-prometheus
 docker stop semiont-jaeger
-docker logs --tail 5000 semiont-archivist
 docker logs --tail 5000 semiont-weaver
 docker logs --tail 5000 semiont-smelter
 docker logs --tail 5000 semiont-worker
-docker logs --tail 5000 semiont-librarian
 docker logs --tail 5000 semiont-dispatcher
+docker logs --tail 5000 semiont-librarian
+docker logs --tail 5000 semiont-archivist
+docker logs --tail 5000 semiont-ollama
+docker logs --tail 5000 semiont-qdrant
+docker logs --tail 5000 semiont-neo4j
 docker logs --tail 5000 semiont-gateway
 docker logs --tail 5000 semiont-keycloak
 docker logs --tail 5000 semiont-nats
 docker logs --tail 5000 semiont-postgres
-docker logs --tail 5000 semiont-ollama
-docker logs --tail 5000 semiont-qdrant
-docker logs --tail 5000 semiont-neo4j
 docker logs --tail 5000 semiont-otel-collector
 docker logs --tail 5000 semiont-prometheus
 docker logs --tail 5000 semiont-jaeger
-docker rm semiont-archivist
 docker rm semiont-weaver
 docker rm semiont-smelter
 docker rm semiont-worker
-docker rm semiont-librarian
 docker rm semiont-dispatcher
+docker rm semiont-librarian
+docker rm semiont-archivist
+docker rm semiont-ollama
+docker rm semiont-qdrant
+docker rm semiont-neo4j
 docker rm semiont-gateway
 docker rm semiont-keycloak
 docker rm semiont-nats
 docker rm semiont-postgres
-docker rm semiont-ollama
-docker rm semiont-qdrant
-docker rm semiont-neo4j
 docker rm semiont-otel-collector
 docker rm semiont-prometheus
 docker rm semiont-jaeger

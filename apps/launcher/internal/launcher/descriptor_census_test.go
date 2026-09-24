@@ -17,25 +17,6 @@ import (
 // what shipped, name for name and position for position. Delete a literal
 // only together with the behaviour it pins.
 
-func TestPreflightSweepDerivesTodaysNames(t *testing.T) {
-	want := []string{
-		"semiont-otel-collector", "semiont-prometheus", "semiont-jaeger", "semiont-neo4j", "semiont-qdrant", "semiont-nats", "semiont-postgres",
-		"semiont-keycloak", "semiont-gateway", "semiont-worker", "semiont-smelter", "semiont-weaver",
-		"semiont-archivist", "semiont-librarian", "semiont-dispatcher",
-	}
-	assertNames(t, "preflightNames", preflightNames, want)
-}
-
-func TestStopSweepDerivesTodaysNames(t *testing.T) {
-	want := []string{
-		"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
-		"semiont-librarian", "semiont-dispatcher",
-		"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
-		"semiont-neo4j", "semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
-	}
-	assertNames(t, "stopNames", stopNames, want)
-}
-
 // The deliberate difference between the two sweeps, asserted as a PREDICATE
 // rather than left to a reader diffing two lists: the stop sweep is the
 // preflight sweep plus semiont-ollama. Start handles Ollama in its own
@@ -94,8 +75,11 @@ func TestBothSweepsCoverEveryContainerDescriptor(t *testing.T) {
 	}
 }
 
-func TestRoleListDerivesTodaysUsageString(t *testing.T) {
-	want := "gateway, worker, smelter, weaver, archivist, librarian, dispatcher, browser, database, graph, vectors, messaging, identity, inference, embedding, traces, metrics, or collector"
+// The `--service` vocabulary, derived from the start walk: a reader meets
+// the roles in the order they come up. P2 moved it off the old reading order
+// — one list of roles now, not two.
+func TestRoleListDerivesTheStartWalk(t *testing.T) {
+	want := "traces, metrics, collector, database, messaging, identity, gateway, graph, vectors, inference, embedding, archivist, librarian, dispatcher, worker, smelter, weaver, or browser"
 	if roleList != want {
 		t.Errorf("roleList =\n  %s\nwant\n  %s", roleList, want)
 	}

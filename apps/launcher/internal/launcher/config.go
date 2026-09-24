@@ -103,6 +103,37 @@ type envConfig struct {
 	Site *siteCfg `toml:"site"`
 }
 
+// declaresRole answers whether this config declares a role — the section
+// that would make it part of the stack. It is the DECLARE half of O1
+// (drivers require roles, configs declare them), read by unmetRequirement
+// when a driver names a role it cannot run without.
+//
+// Only the roles a `needs` edge can name appear here, and
+// TestEveryRequiredRoleIsDeclarable fails when a new requirement names one
+// this cannot answer for — a silent "yes" would turn a refusal into a
+// missing-section panic three steps later.
+func (e *envConfig) declaresRole(role string) bool {
+	switch role {
+	case "database":
+		return e.Database != nil
+	case "graph":
+		return e.Graph != nil
+	case "vectors":
+		return e.Vectors != nil
+	case "embedding":
+		return e.Embedding != nil
+	case "identity":
+		return e.Identity != nil
+	case "messaging":
+		return e.Jobs != nil || e.Signal != nil
+	case "inference":
+		return len(e.Inference) > 0
+	case "gateway":
+		return e.Gateway != nil || e.GatewayOld != nil
+	}
+	return false
+}
+
 // siteCfg mirrors only what the identity check needs. Domain is a pointer so
 // "section present, domain absent" — the case that silently becomes
 // 'localhost' — is distinguishable from "no section at all".
