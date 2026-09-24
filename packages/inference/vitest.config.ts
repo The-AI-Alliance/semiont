@@ -1,6 +1,6 @@
 import { mergeConfig, defineConfig } from 'vitest/config';
 import baseConfig from '../../vitest.shared.config.js';
 
-// Nothing local. Previously spread the shared config by object literal, which
-// worked but copied it rather than merging it.
+// Nothing local. The shared config decides what a coverage run emits and which
+// files it runs; this file is the declaration point vitest requires.
 export default mergeConfig(baseConfig, defineConfig({}));

@@ -8,6 +8,15 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    // The layout every package in this repo uses. Restated in three configs
+    // before this moved here; a package with a different layout overrides it,
+    // and one with this layout says nothing.
+    // `.tsx` is not optional here: react-ui has 138 `.test.tsx` and the browser
+    // 20, so a `.ts`-only glob silently runs none of them — a far worse failure
+    // than the missing reporters this file exists to fix. One glob, because
+    // `src/**` already reaches into `__tests__` directories at any depth.
+    include: ['src/**/*.test.{ts,tsx}'],
+    exclude: ['node_modules', 'dist'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html', 'lcov', 'cobertura'],
