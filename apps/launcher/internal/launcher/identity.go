@@ -462,7 +462,7 @@ func publicClient(clientID, name, audience string) map[string]any {
 // serviceClientSecrets: the per-root credential for every service client.
 // Resolved once per start — the realm import needs them, and so does the
 // preflight that checks the realm honoured them.
-func serviceClientSecrets(x executor, root string) (map[string]string, bool) {
+func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
 	secrets := map[string]string{}
 	for _, svc := range serviceClients {
 		secret, ok := x.serviceClientSecret(root, svc)

@@ -22,62 +22,125 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 )
 
-type executor interface {
-	// --- effects ---
-	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
-	stopRm(name string) bool                  // teardown; reports whether anything existed
-	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
-	settle(ports ...int)                      // wait for torn-down ports to be released
-	sweepStaging()                            // /tmp/semiont-config.* removal (+ state forget)
-	portChecks(ports []portNeed) bool
-	portCheck(p portNeed) bool    // singular wording in plan mode
-	recordPorts(ports []portNeed) // note claimed host ports in the belief record
-	hostOllamaReachable(addr string, port int) bool
+// stager: writes what a container will read: per-service config copies, the launcher-owned
+// collector and Prometheus configs, the realm document, the broker's authorization block.
+type stager interface {
 	stageAll(configFile, envName, addr string, traces bool) (string, bool) // per-service config copies + the collector's own; returns stage dir
 	stageOne(svc, configFile, envName, addr string) (string, bool)         // one service's fresh private copy
 	stageCollector(addr string) (string, bool)                             // the collector's own config: launcher-owned, no KB config involved
 	stageMetrics(addr string) (string, bool)                               // Prometheus's scrape config: same launcher-owned pattern
-	initStack(root, config, version, addr, stage string)                   // begin the belief record
+	stageRealm(realm string, doc []byte) (string, bool)                    // the realm file Keycloak imports; returns its staged path
+	stageNatsConf(doc []byte) (string, bool)                               // the broker's authorization block (no secret in it); returns its staged path
+	sweepStaging()                                                         // /tmp/semiont-config.* removal (+ state forget)
+}
+
+// runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
+// happened when a gate fails.
+type runner interface {
 	pull(img string) bool
-	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
+	runDetached(args []string) (string, bool) // echo + run -d; returns runtime-reported id
+	stopRm(name string) bool                  // teardown; reports whether anything existed
+	sweepStray(names []string) bool           // stop+rm the names under every OTHER installed runtime; reports whether anything existed
+	settle(ports ...int)                      // wait for torn-down ports to be released
+	snapshotLogs(root string, names []string) // crash evidence: capture container logs into the root's state area before a teardown deletes them
+	dumpLogs(container, svc string)           // failed health gate: show the crash where it is
+}
+
+// prober: asks whether something is up, and waits on a WALL-CLOCK budget rather than a count
+// of attempts.
+type prober interface {
+	portChecks(ports []portNeed) bool
+	portCheck(p portNeed) bool // singular wording in plan mode
+	hostOllamaReachable(addr string, port int) bool
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
 	waitTCP(label, addr string, port, seconds int) (time.Duration, bool)
 	waitPGAccepting(seconds int) bool       // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
 	gatewayReachable(addr string, port int) bool
-	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
-	either(cond func() bool, then, els func() int) int
-	otelDetect(addr string) []string                     // --service: OTel iff the collector is up
-	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
-	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
-	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
-	stageRealm(realm string, doc []byte) (string, bool)  // the realm file Keycloak imports; returns its staged path
-	stageNatsConf(doc []byte) (string, bool)             // the broker's authorization block (no secret in it); returns its staged path
-	createDatabase(user, name string) bool               // a database on the launcher-run PostgreSQL, if absent
-	ollamaVolume(opts startOptions) string               // model-cache choice (prompt is live-only)
+	resolveAddr() (string, bool)     // container→host address ("<host-addr>" in plan mode)
+	otelDetect(addr string) []string // --service: OTel iff the collector is up
+}
+
+// recorder: the belief record: what this machine thinks is running, and how each role was
+// provided. Written as the stack comes up, read by status and by the next start.
+type recorder interface {
+	initStack(root, config, version, addr, stage string) // begin the belief record
+	recordPorts(ports []portNeed)                        // note claimed host ports in the belief record
 	record(role, id, image, provided, endpoint, driver string)
 	providerOf(role string) string        // how an already-recorded role was provided
 	noteContainer(role, container string) // stamp a launched container on a container-less role
 	browserCurrent(desired string) bool   // running AND image identity matches
 	browserRecord() *ServiceState         // the machine-level browser record
 	recordBrowser(id, image, version string, port int)
-	dumpLogs(container, svc string)                                                                                // failed health gate: show the crash where it is
-	verifyRemoteModels(role, base, key string, models []string)                                                    // record /v1/models metadata; warn on unlisted
+}
+
+// keeper: credentials that must OUTLIVE the stack — generated once per root and persisted,
+// because a regenerated one invalidates every token already issued.
+type keeper interface {
+	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
+	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
+	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
+}
+
+// admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
+// credential or a person is sent to sign in.
+type admitter interface {
 	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
 	preflightBrowserMove(issuerBase string, port int) bool                                                         // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
-	ensureModels(base string, models []modelNeed)                                                                  // pull configured ollama models that are absent
-	stateMounts(role, image, root string) ([]string, bool)                                                         // persistent-state run args; !ok = refuse (data written by another image)
-	stateMountsShared(role, root string) ([]string, bool)                                                          // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
-	resolveStoreStamps(fc flowCtx) bool                                                                            // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
-	val(live, plan string) string                                                                                  // mode-scoped value (kb root, admin password)
-	rtName() string
+}
 
-	// --- decoration ---
+// storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
+// database a launcher-run PostgreSQL must already carry.
+type storer interface {
+	stateMounts(role, image, root string) ([]string, bool) // persistent-state run args; !ok = refuse (data written by another image)
+	stateMountsShared(role, root string) ([]string, bool)  // the same mounts WITHOUT claiming the image stamp (a reader beside the stamp's owner)
+	resolveStoreStamps(fc flowCtx) bool                    // preflight: every store's mismatch refuse/clear, before the first container run (SHARED-STORE-CLEAR-PREFLIGHT)
+	createDatabase(user, name string) bool                 // a database on the launcher-run PostgreSQL, if absent
+	ollamaVolume(opts startOptions) string                 // model-cache choice (prompt is live-only)
+}
+
+// modeler: the models a role serves — pulled when absent locally, verified when remote.
+type modeler interface {
+	verifyRemoteModels(role, base, key string, models []string) // record /v1/models metadata; warn on unlisted
+	ensureModels(base string, models []modelNeed)               // pull configured ollama models that are absent
+}
+
+// narrator: what the operator sees. `say` narrates a live run and is silent in plan mode;
+// `note` is the reverse, so one flow text serves both walks.
+type narrator interface {
 	banner(s string)
 	dim(s string) string
 	bold(s string) string
 	say(kind sayKind, format string, a ...any) // live narration; nothing in plan mode
 	note(format string, a ...any)              // plan comment; nothing in live mode
+}
+
+// modeScope: the few places a flow must ask which walk it is on, rather than being written once
+// for both.
+type modeScope interface {
+	val(live, plan string) string // mode-scoped value (kb root, admin password)
+	rtName() string
+	either(cond func() bool, then, els func() int) int
+}
+
+// executor: the seam that lets each launch flow be written ONCE and walked
+// twice — live by liveExec, as a plan by planExec.
+//
+// A composition of roles rather than a list, since a list of 52 is something
+// you append to without deciding anything. A new effect belongs to one of these
+// roles; if it belongs to none, that is worth noticing before it is written,
+// and executor_roles_test.go is what notices.
+type executor interface {
+	stager
+	runner
+	prober
+	recorder
+	keeper
+	admitter
+	storer
+	modeler
+	narrator
+	modeScope
 }
 
 type sayKind int
