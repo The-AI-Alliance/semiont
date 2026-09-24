@@ -395,6 +395,27 @@ func httpOK(url string) bool {
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 
+// httpBody fetches one body for a host-side read — same client and budget as
+// httpOK, so a status report cannot stall longer on a readout than on any
+// probe. Capped: the collector's readout grows with the stack, and a status
+// command must not be the thing that runs a machine out of memory.
+func httpBody(url string) (string, bool) {
+	resp, err := healthClient.Get(url)
+	if err != nil {
+		return "", false
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		return "", false
+	}
+	b, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
+	if err != nil {
+		return "", false
+	}
+	return string(b), true
+}
+
 // took renders a wait duration for the ✓ lines.
 func took(d time.Duration) string {
 	if d < time.Second {

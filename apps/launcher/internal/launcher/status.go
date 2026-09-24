@@ -412,6 +412,11 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 	// stack with none.
 	var ceilings modelCeilings
 	ceilingsFetched := false
+	// Same laziness for the collector's readout: fetched by the first row
+	// that has something to read out of it, and not at all for a stack whose
+	// dispatcher and gateway are both down.
+	var readout string
+	readoutFetched := false
 	lastGroup := 0
 	for _, svc := range statusServices {
 		if service != "" && svc.name != service {
@@ -443,6 +448,15 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 		tech := roles[svc.name].product
 		if rec != nil && rec.Driver != "" {
 			tech = driverDisplay(svc.name, rec.Driver)
+		}
+		// The dispatcher's product is its JOB QUEUE driver, which no state
+		// record carries — the queue is a config section, not a launched
+		// role. The dispatcher reports the one it connected to, so the row
+		// names the live driver rather than the configured intent.
+		if svc.name == "dispatcher" {
+			if q, found := dispatcherQueueDriver(endpoint); found {
+				tech = q
+			}
 		}
 		if tech != "" {
 			label += " (" + tech + ")"
@@ -512,6 +526,18 @@ func printLocalStack(u *ui, st *stackState, runtime, service string) (healthy bo
 			mark = u.wrap(ansiGreen, "✓")
 		}
 		fmt.Printf("  %-22s %-10s %s %-12s %s\n", label, rt, mark, word, u.dim(probe))
+
+		// What this role has in flight, indented beneath it — read from the
+		// collector's readout, which every start runs and which the collector
+		// row above already fetched. Only for a row that is actually up: a
+		// dead service's last exported numbers are worse than no numbers.
+		if isHealthy && (svc.name == "dispatcher" || svc.name == "gateway") {
+			if !readoutFetched {
+				readout, _ = httpBody("http://localhost:24110/metrics")
+				readoutFetched = true
+			}
+			printInFlight(u, svc.name, readout)
+		}
 
 		// The models this role was started with, indented beneath it.
 		if rec != nil && len(rec.Models) > 0 {

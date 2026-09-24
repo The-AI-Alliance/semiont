@@ -638,20 +638,34 @@ describe('recordUnanswerableRequest', () => {
 
 describe('registerCorrelationRegistryProvider', () => {
   it('observes claims and retained replies as separate series', async () => {
-    registerCorrelationRegistryProvider(() => ({ claims: 7, retainedReplies: 3 }));
+    registerCorrelationRegistryProvider(() => ({
+      claims: 7,
+      retainedReplies: 3,
+      claimsMax: 4096,
+      retainedRepliesMax: 1024,
+    }));
     await flushMetrics();
 
     const gauge = collectMetrics().get('semiont.bus.correlation.size');
     expect(gauge).toBeDefined();
-    expect(gauge!.find((d) => d.attributes['correlation.kind'] === 'claims')?.value).toBe(7);
-    expect(
-      gauge!.find((d) => d.attributes['correlation.kind'] === 'retained_replies')?.value,
-    ).toBe(3);
+    const kind = (k: string) =>
+      gauge!.find((d) => d.attributes['correlation.kind'] === k)?.value;
+    expect(kind('claims')).toBe(7);
+    expect(kind('retained_replies')).toBe(3);
+    // The ceilings are series of their own so a reader never hard-codes them.
+    expect(kind('claims_max')).toBe(4096);
+    expect(kind('retained_replies_max')).toBe(1024);
   });
 
   it('last registered provider wins', async () => {
-    registerCorrelationRegistryProvider(() => ({ claims: 1, retainedReplies: 1 }));
-    registerCorrelationRegistryProvider(() => ({ claims: 42, retainedReplies: 9 }));
+    const snap = (claims: number, retainedReplies: number) => ({
+      claims,
+      retainedReplies,
+      claimsMax: 4096,
+      retainedRepliesMax: 1024,
+    });
+    registerCorrelationRegistryProvider(() => snap(1, 1));
+    registerCorrelationRegistryProvider(() => snap(42, 9));
     await flushMetrics();
 
     const gauge = collectMetrics().get('semiont.bus.correlation.size')!;
