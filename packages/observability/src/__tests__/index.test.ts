@@ -43,12 +43,24 @@ import {
   getActiveTraceparent,
   getLogTraceContext,
   injectTraceparent,
+  recordAbnormalTermination,
+  recordAnchorOutcome,
+  recordAppendStage,
   recordBusEmit,
+  recordDetectionCall,
+  recordGatherDegrade,
+  recordGitCommand,
+  recordGitStagingFailure,
   recordHandlerDuration,
   recordInferenceUsage,
   recordJobOutcome,
+  recordReplySuppressed,
+  recordResumeGap,
   recordSubscriberConnect,
   recordSubscriberDisconnect,
+  recordUnanswerableRequest,
+  registerCorrelationRegistryProvider,
+  registerFactPumpDepthProvider,
   registerJobQueueProvider,
   registerRestartCountProvider,
   registerVectorIndexSizeProvider,
@@ -583,5 +595,268 @@ describe('recordInferenceUsage', () => {
         d.attributes['inference.outcome'] === 'error',
     );
     expect(dp?.value).toBe(1);
+  });
+});
+
+describe('recordReplySuppressed', () => {
+  it('counts a suppressed reply per channel', async () => {
+    recordReplySuppressed('browse:resources');
+    recordReplySuppressed('browse:resources');
+    recordReplySuppressed('match:search');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.bus.reply.suppressed');
+    expect(counter).toBeDefined();
+    expect(counter!.find((d) => d.attributes['bus.channel'] === 'browse:resources')?.value).toBe(2);
+    expect(counter!.find((d) => d.attributes['bus.channel'] === 'match:search')?.value).toBe(1);
+  });
+});
+
+describe('recordResumeGap', () => {
+  it('counts a resume gap tagged by reason', async () => {
+    recordResumeGap('cursor-expired');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.bus.resume_gap');
+    expect(counter).toBeDefined();
+    expect(
+      counter!.find((d) => d.attributes['bus.resume_gap.reason'] === 'cursor-expired')?.value,
+    ).toBe(1);
+  });
+});
+
+describe('recordUnanswerableRequest', () => {
+  it('counts an unanswerable request per channel', async () => {
+    recordUnanswerableRequest('gather:summary');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.bus.unanswerable');
+    expect(counter).toBeDefined();
+    expect(counter!.find((d) => d.attributes['bus.channel'] === 'gather:summary')?.value).toBe(1);
+  });
+});
+
+describe('registerCorrelationRegistryProvider', () => {
+  it('observes claims and retained replies as separate series', async () => {
+    registerCorrelationRegistryProvider(() => ({ claims: 7, retainedReplies: 3 }));
+    await flushMetrics();
+
+    const gauge = collectMetrics().get('semiont.bus.correlation.size');
+    expect(gauge).toBeDefined();
+    expect(gauge!.find((d) => d.attributes['correlation.kind'] === 'claims')?.value).toBe(7);
+    expect(
+      gauge!.find((d) => d.attributes['correlation.kind'] === 'retained_replies')?.value,
+    ).toBe(3);
+  });
+
+  it('last registered provider wins', async () => {
+    registerCorrelationRegistryProvider(() => ({ claims: 1, retainedReplies: 1 }));
+    registerCorrelationRegistryProvider(() => ({ claims: 42, retainedReplies: 9 }));
+    await flushMetrics();
+
+    const gauge = collectMetrics().get('semiont.bus.correlation.size')!;
+    expect(gauge.find((d) => d.attributes['correlation.kind'] === 'claims')?.value).toBe(42);
+  });
+});
+
+describe('recordAppendStage', () => {
+  it('records a duration histogram per append stage', async () => {
+    recordAppendStage('persist', 12);
+    recordAppendStage('publish', 4);
+    await flushMetrics();
+
+    const hist = collectMetrics().get('semiont.record.append.duration');
+    expect(hist).toBeDefined();
+    const persist = hist!.find((d) => d.attributes['record.stage'] === 'persist');
+    expect(persist?.count).toBe(1);
+    expect(persist?.sum).toBe(12);
+    expect(hist!.find((d) => d.attributes['record.stage'] === 'publish')?.sum).toBe(4);
+  });
+});
+
+describe('recordGitCommand', () => {
+  it('records a duration histogram per git command', async () => {
+    recordGitCommand('commit', 30);
+    recordGitCommand('commit', 10);
+    await flushMetrics();
+
+    const hist = collectMetrics().get('semiont.git.duration');
+    expect(hist).toBeDefined();
+    const commit = hist!.find((d) => d.attributes['git.command'] === 'commit');
+    expect(commit?.count).toBe(2);
+    expect(commit?.sum).toBe(40);
+  });
+});
+
+describe('recordGatherDegrade', () => {
+  it('counts a degraded gather per projection', async () => {
+    recordGatherDegrade('graph');
+    recordGatherDegrade('vectors');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.gather.degraded');
+    expect(counter).toBeDefined();
+    expect(counter!.find((d) => d.attributes['projection'] === 'graph')?.value).toBe(1);
+    expect(counter!.find((d) => d.attributes['projection'] === 'vectors')?.value).toBe(1);
+  });
+});
+
+describe('recordGitStagingFailure', () => {
+  it('counts an abandoned staging command by reason', async () => {
+    recordGitStagingFailure('index-lock');
+    recordGitStagingFailure('other');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.git.staging.failures');
+    expect(counter).toBeDefined();
+    expect(counter!.find((d) => d.attributes['reason'] === 'index-lock')?.value).toBe(1);
+    expect(counter!.find((d) => d.attributes['reason'] === 'other')?.value).toBe(1);
+  });
+});
+
+describe('recordAnchorOutcome', () => {
+  it('counts every anchoring, so degraded methods have a denominator', async () => {
+    recordAnchorOutcome('Person', 'unique-match');
+    recordAnchorOutcome('Person', 'unique-match');
+    recordAnchorOutcome('Person', 'fuzzy-match');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.detection.anchors');
+    expect(counter).toBeDefined();
+    const unique = counter!.find(
+      (d) => d.attributes['detection.label'] === 'Person' && d.attributes['anchor.method'] === 'unique-match',
+    );
+    const fuzzy = counter!.find(
+      (d) => d.attributes['detection.label'] === 'Person' && d.attributes['anchor.method'] === 'fuzzy-match',
+    );
+    expect(unique?.value).toBe(2);
+    expect(fuzzy?.value).toBe(1);
+  });
+});
+
+describe('recordDetectionCall', () => {
+  const base = {
+    label: 'Person',
+    pieceChars: 4000,
+    durationMs: 250,
+    items: 3,
+    depth: 0,
+    reroll: false,
+    outcome: 'success' as const,
+  };
+
+  it('records call count, duration, and item count under shared attributes', async () => {
+    recordDetectionCall(base);
+    await flushMetrics();
+
+    const m = collectMetrics();
+    const matches = (d: MetricDataPoint) =>
+      d.attributes['detection.label'] === 'Person' &&
+      d.attributes['detection.outcome'] === 'success' &&
+      d.attributes['detection.depth'] === 0 &&
+      d.attributes['detection.reroll'] === false;
+
+    expect(m.get('semiont.detection.calls')!.find(matches)?.value).toBe(1);
+    expect(m.get('semiont.detection.call.duration')!.find(matches)?.sum).toBe(250);
+    expect(m.get('semiont.detection.call.items')!.find(matches)?.sum).toBe(3);
+  });
+
+  it('omits the token histogram when token counts are absent', async () => {
+    recordDetectionCall(base);
+    await flushMetrics();
+
+    expect(collectMetrics().get('semiont.detection.call.tokens')).toBeUndefined();
+  });
+
+  it('splits token counts by direction when present', async () => {
+    recordDetectionCall({ ...base, inputTokens: 900, outputTokens: 120 });
+    await flushMetrics();
+
+    const tokens = collectMetrics().get('semiont.detection.call.tokens');
+    expect(tokens).toBeDefined();
+    expect(tokens!.find((d) => d.attributes['detection.direction'] === 'input')?.sum).toBe(900);
+    expect(tokens!.find((d) => d.attributes['detection.direction'] === 'output')?.sum).toBe(120);
+  });
+
+  it('carries reroll and non-success outcomes onto every instrument', async () => {
+    recordDetectionCall({ ...base, reroll: true, depth: 2, outcome: 'truncated', items: 0 });
+    await flushMetrics();
+
+    const m = collectMetrics();
+    const matches = (d: MetricDataPoint) =>
+      d.attributes['detection.outcome'] === 'truncated' &&
+      d.attributes['detection.reroll'] === true &&
+      d.attributes['detection.depth'] === 2;
+
+    expect(m.get('semiont.detection.calls')!.find(matches)?.value).toBe(1);
+    expect(m.get('semiont.detection.call.items')!.find(matches)?.sum).toBe(0);
+  });
+});
+
+describe('registerFactPumpDepthProvider', () => {
+  it('observes the pump depth at collection time', async () => {
+    let depth = 4;
+    registerFactPumpDepthProvider(() => depth);
+    await flushMetrics();
+
+    expect(collectMetrics().get('semiont.archivist.fact_pump.depth')![0]?.value).toBe(4);
+
+    // The gauge is pull-based: a later collection must see the new depth
+    // without re-registering, which is the whole point of a provider.
+    depth = 11;
+    metricExporter.reset();
+    await flushMetrics();
+    expect(collectMetrics().get('semiont.archivist.fact_pump.depth')![0]?.value).toBe(11);
+  });
+
+  it('observes zero rather than skipping — zero at rest is the healthy reading', async () => {
+    registerFactPumpDepthProvider(() => 0);
+    await flushMetrics();
+
+    expect(collectMetrics().get('semiont.archivist.fact_pump.depth')![0]?.value).toBe(0);
+  });
+});
+
+describe('recordAbnormalTermination', () => {
+  it('counts the termination by reason', async () => {
+    recordAbnormalTermination('uncaughtException', 'boom');
+    await flushMetrics();
+
+    const counter = collectMetrics().get('semiont.process.abnormal_exit');
+    expect(counter).toBeDefined();
+    expect(counter!.find((d) => d.attributes['reason'] === 'uncaughtException')?.value).toBe(1);
+  });
+
+  it('marks the active span as ended-in-death rather than leaving it unended', async () => {
+    await withSpan('unit.dying', async () => {
+      recordAbnormalTermination('unhandledRejection', 'promise blew up');
+    });
+
+    const span = findSpan('unit.dying');
+    expect(span).toBeDefined();
+    expect(span!.status.code).toBe(SpanStatusCode.ERROR);
+    expect(span!.status.message).toBe('unhandledRejection: promise blew up');
+    expect(span!.attributes['semiont.process.abnormal_exit']).toBe('unhandledRejection');
+    expect(span!.ended).toBe(true);
+  });
+
+  it('omits the separator entirely when no detail is given', async () => {
+    await withSpan('unit.dying-bare', async () => {
+      recordAbnormalTermination('uncaughtException');
+    });
+
+    expect(findSpan('unit.dying-bare')!.status.message).toBe('uncaughtException');
+  });
+
+  it('treats a blank detail as no detail', async () => {
+    await withSpan('unit.dying-blank', async () => {
+      recordAbnormalTermination('uncaughtException', '   ');
+    });
+
+    expect(findSpan('unit.dying-blank')!.status.message).toBe('uncaughtException');
+  });
+
+  it('is safe with no active span', async () => {
+    expect(() => recordAbnormalTermination('uncaughtException', 'no span here')).not.toThrow();
   });
 });

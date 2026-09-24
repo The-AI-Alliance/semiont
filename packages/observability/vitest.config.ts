@@ -20,12 +20,23 @@ export default defineConfig({
         '**/*.config.*',
         '**/__tests__/**',
         '**/*.test.ts',
-        '**/index.ts',
+        // No `**/index.ts` exclusion: that pattern is for barrel files, and
+        // this package's `src/index.ts` is not one — it is the entire
+        // universal API (spans, traceparent, every metric recorder), 854 of
+        // the package's 1313 source lines, with `__tests__/index.test.ts`
+        // written against it. Excluding it measured 6% of the package.
       ],
       include: ['src/**/*.ts'],
-      // No `thresholds` here deliberately: the shared config's blanket 70 is
-      // unenforced everywhere it is not imported, and a floor nobody measured
-      // is a number, not a gate. Set one when this package has a baseline.
+      // Floors, not aspirations: each is the measured figure rounded down, so
+      // an honest refactor has room to move but a real regression fails the
+      // run. Raise them when the measurement rises; never lower one to make a
+      // red run go green.
+      thresholds: {
+        statements: 95,
+        branches: 90,
+        functions: 90,
+        lines: 95,
+      },
     },
   },
 });
