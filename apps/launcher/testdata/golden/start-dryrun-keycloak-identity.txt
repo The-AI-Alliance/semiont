@@ -59,6 +59,7 @@ container run -d --name semiont-otel-collector --memory 1G -p 4318:4318 -p 24110
 container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/postgres:/var/lib/postgresql/data -e PGDATA=/var/lib/postgresql/data/pgdata -e POSTGRES_PASSWORD=localpass -e POSTGRES_DB=semiont postgres:15.18-alpine
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
+# wait: container exec semiont-postgres pg_isready -h 127.0.0.1 (30s) — the REAL server; initdb's temporary one answers the socket only
 # messaging: nothing to launch (jobs: fs driver; signal: in-process)
 # create database keycloak on PostgreSQL if absent: container exec -i semiont-postgres psql -U postgres (SQL on stdin)
 # write <config-stage>/keycloak-semiont-realm.json (launcher-owned; realm "semiont", clients: semiont-browser, semiont-cli, semiont-archivist, semiont-dispatcher, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker)

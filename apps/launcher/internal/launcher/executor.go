@@ -42,6 +42,7 @@ type executor interface {
 	runDetached(args []string) (string, bool)                      // echo + run -d; returns runtime-reported id
 	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
 	waitTCP(label, addr string, port, seconds int) (time.Duration, bool)
+	waitPGAccepting(seconds int) bool       // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
 	gatewayReachable(addr string, port int) bool
 	resolveAddr() (string, bool) // container→host address ("<host-addr>" in plan mode)
@@ -477,6 +478,10 @@ func (x *liveExec) waitTCP(label, addr string, port, seconds int) (time.Duration
 	return waitForTCP(x.u, x.rt, label, addr, port, seconds)
 }
 
+func (x *liveExec) waitPGAccepting(seconds int) bool {
+	return waitPGAccepting(x.u, x.rt, roles["database"].container, seconds)
+}
+
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
 	return verifyExternal(x.u, role, rp)
 }
@@ -604,21 +609,33 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 
 // createDatabase creates a database on the launcher-run PostgreSQL if it is
 // absent — idempotent by construction (psql's \gexec runs the CREATE only when
-// the WHERE finds nothing), so a second start is a no-op. Retried: the TCP
-// gate proves the server is listening, not yet that it accepts sessions.
+// the WHERE finds nothing), so a second start is a no-op.
+//
+// Still retried, though waitPGAccepting now gates it: a session can be cut off
+// mid-statement by the end of initdb ("terminating connection due to
+// administrator command"), and a retry costs a second. The attempt's output is
+// CAPTURED — printing the stderr of a failure the loop expects to absorb is
+// how a recovered start came to look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
 	args := []string{"exec", "-i", roles["database"].container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
 	x.u.echoCmd(x.rt, args...)
 	var err error
+	var out string
 	for i := 0; i < 5; i++ {
-		if err = runWithStdin(x.rt, sql, args...); err == nil {
+		if out, err = runWithStdinCaptured(x.rt, sql, args...); err == nil {
 			x.u.ok("PostgreSQL has database %q", name)
 			return true
+		}
+		if i == 0 {
+			x.u.log("PostgreSQL is still settling — retrying %s", x.u.dim("(a first start finishes initdb after the port opens)"))
 		}
 		time.Sleep(time.Second)
 	}
 	x.u.fail("Creating database %q on PostgreSQL: %v", name, err)
+	if s := strings.TrimSpace(out); s != "" {
+		fmt.Fprintln(os.Stderr, indentLines(s, "    "))
+	}
 	return false
 }
 
@@ -1144,6 +1161,12 @@ func (x *planExec) runDetached(args []string) (string, bool) {
 func (x *planExec) waitHTTP(_, url string, seconds int) (time.Duration, bool) {
 	x.c("wait: %s (%ds)", url, seconds)
 	return 0, true
+}
+
+func (x *planExec) waitPGAccepting(seconds int) bool {
+	x.c("wait: %s exec %s pg_isready -h 127.0.0.1 (%ds) — the REAL server; initdb's temporary one answers the socket only",
+		x.rt, roles["database"].container, seconds)
+	return true
 }
 
 func (x *planExec) waitTCP(_, addr string, port, seconds int) (time.Duration, bool) {
