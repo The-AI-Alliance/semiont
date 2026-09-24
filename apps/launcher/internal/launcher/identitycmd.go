@@ -92,15 +92,16 @@ func Identity(args []string) int {
 		return 1
 	}
 
-	// The sticky config, exactly as start resolves it: reconciling against a
+	// The RUNNING stack's config, else the sticky one: reconciling against a
 	// config the operator does not actually start with would repair the wrong
-	// realm.
+	// realm — and asking only the sticky preference blocks the ordinary case,
+	// since a bare `semiont start` records no preference at all.
 	if configName == "" {
-		if rec := recordedConfig(root); rec != "" {
+		if rec := configForRealm(root); rec != "" {
 			configName = rec
-			u.log("Config: %s", u.dim(configName+" (recorded from last start; override with --config)"))
+			u.log("Config: %s", u.dim(configName+" (the running stack's; override with --config)"))
 		} else {
-			u.fail("No config recorded for this root, and none given — pass --config <name>.")
+			u.fail("Cannot tell which config this knowledge base runs, and none given — pass --config <name>.")
 			return 1
 		}
 	}

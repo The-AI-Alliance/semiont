@@ -210,6 +210,25 @@ func recordRuntimePref(rt string) {
 	saveRoots(reg)
 }
 
+// configForRealm names the config a realm-administering command must read:
+// the RUNNING stack's, else this root's sticky preference.
+//
+// The running stack is the authority, and asking the preference alone was a
+// hard block: `start` records the RESOLVED config in stack.json on every
+// start, while roots.json holds only the sticky preference, which a bare
+// `semiont start` deliberately never writes (an unlaunchable --config must not
+// become the default). So the documented first run — start, then useradd —
+// refused on a healthy stack and advised a start that would change nothing.
+func configForRealm(root string) string {
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	if st := loadLocalState(); st != nil && st.KBRoot == root && st.Config != "" {
+		return st.Config
+	}
+	return recordedConfig(root)
+}
+
 // recordedConfig returns the KB's sticky config preference — the name a
 // successful start last passed as --config for this root ("" when none).
 func recordedConfig(path string) string {

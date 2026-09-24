@@ -44,9 +44,9 @@ func resolveRealmAdmin(u *ui) (realmAdmin, bool) {
 		fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT.")
 		return realmAdmin{}, false
 	}
-	configName := recordedConfig(root)
+	configName := configForRealm(root)
 	if configName == "" {
-		u.fail("No config recorded for this root, so there is no realm to administer.")
+		u.fail("Cannot tell which config this knowledge base runs, so there is no realm to administer.")
 		fmt.Fprintln(os.Stderr, "  Start the stack first:  semiont start")
 		return realmAdmin{}, false
 	}
