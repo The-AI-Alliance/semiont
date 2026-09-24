@@ -54,8 +54,7 @@
 }
 
 /* Checkbox and radio - wrapper fields */
-.semiont-form__checkbox-field,
-.semiont-form__radio-field {
+.semiont-form__checkbox-field {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -64,8 +63,7 @@
 /* Inline-flex with a gap so the control never touches its text — the gap on
    the FIELD wrapper only helps when the input is a sibling; several forms
    nest the input inside the label, where only this reaches. */
-.semiont-form__checkbox-label,
-.semiont-form__radio-label {
+.semiont-form__checkbox-label {
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -78,18 +76,6 @@
   display: flex;
   gap: 1rem;
   margin-top: 1.5rem;
-}
-
-.semiont-form__actions--right {
-  justify-content: flex-end;
-}
-
-.semiont-form__actions--center {
-  justify-content: center;
-}
-
-.semiont-form__actions--between {
-  justify-content: space-between;
 }
 
 /* Help text */
@@ -113,23 +99,6 @@
 }
 
 /* Fieldset and legend */
-.semiont-form__fieldset {
-  border: 1px solid var(--semiont-color-gray-200);
-  border-radius: 0.375rem;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-[data-theme="dark"] .semiont-form__fieldset {
-  border-color: var(--semiont-color-gray-700);
-}
-
-.semiont-form__legend {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--semiont-text-primary);
-  padding: 0 0.5rem;
-}
 
 /* Note: Disabled states for form controls are defined in their respective core files */
 
@@ -166,39 +135,6 @@
 }
 
 /* Language selector dropdown */
-.semiont-language-select {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--semiont-radius-lg);
-  font-size: var(--semiont-text-sm);
-  border: 1px solid var(--semiont-color-gray-300);
-  background-color: var(--semiont-bg-primary);
-  color: var(--semiont-text-primary);
-  transition: all var(--semiont-duration-base);
-  cursor: pointer;
-}
-
-.semiont-language-select:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--semiont-color-primary-500);
-  border-color: transparent;
-}
-
-.semiont-language-select:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-[data-theme="dark"] .semiont-language-select {
-  border-color: var(--semiont-color-gray-600);
-  background-color: var(--semiont-color-gray-700);
-  color: var(--semiont-color-gray-100);
-}
-
-[data-theme="dark"] .semiont-language-select option {
-  background-color: var(--semiont-color-gray-700);
-  color: var(--semiont-color-gray-100);
-}
 /* ============================================
    Assist Section Form Fields (single-dash BEM variant)
    Used in AssistSection component
@@ -288,4 +224,20 @@
 
 .semiont-form__field--inline > .semiont-form__label {
   white-space: nowrap;
+}
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* A form tall enough to need its own scroll rather than growing its dialog. */
+.semiont-form--scrollable {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+/* A label that sits beside its control instead of above it. */
+.semiont-form__label--inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0;
 }

@@ -1,0 +1,70 @@
+/**
+ * SessionExpiryBanner
+ *
+ * A warning that the session is about to end, shown above the app. Swept
+ * 2026-09-24: every class here has been rendered since #401 moved this package
+ * off Tailwind, with no rules behind them — so the banner drew as unstyled
+ * text and its dismiss button as a bare glyph.
+ */
+
+.semiont-session-expiry-banner {
+  padding: 0.5rem 1rem;
+  background-color: var(--semiont-color-warning-light);
+  border-bottom: 1px solid var(--semiont-color-warning);
+  color: var(--semiont-color-warning-dark);
+}
+
+[data-theme="dark"] .semiont-session-expiry-banner {
+  /* The light fill is unreadable on a dark ground; the border and text carry
+     the warning instead. */
+  background-color: transparent;
+  color: var(--semiont-color-warning-light);
+}
+
+.semiont-session-expiry-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.semiont-session-expiry-message {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.semiont-session-expiry-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.semiont-session-expiry-text {
+  margin: 0;
+  font-size: var(--semiont-text-sm);
+}
+
+.semiont-session-expiry-label {
+  font-weight: 600;
+}
+
+.semiont-session-expiry-dismiss {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 0.25rem;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--semiont-radius-sm);
+}
+
+.semiont-session-expiry-dismiss:hover {
+  background-color: var(--semiont-bg-hover);
+}
+
+.semiont-session-expiry-dismiss:focus-visible {
+  outline: 2px solid var(--semiont-color-primary-500);
+  outline-offset: 2px;
+}

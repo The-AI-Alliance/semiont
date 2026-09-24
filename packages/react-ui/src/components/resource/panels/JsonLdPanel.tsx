@@ -91,7 +91,7 @@ export function JsonLdPanel({ resourceId }: Props) {
         </h3>
         <button
           onClick={handleCopyToClipboard}
-          className="semiont-button semiont-button--icon"
+          className="semiont-button semiont-button-icon"
           title="Copy to clipboard"
           disabled={!graph}
         >

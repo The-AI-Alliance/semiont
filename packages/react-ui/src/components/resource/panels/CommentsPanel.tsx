@@ -9,7 +9,6 @@ import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { CommentEntry } from './CommentEntry';
 import { AssistSection } from './AssistSection';
 import { PanelHeader } from './PanelHeader';
-import './CommentsPanel.css';
 
 import type { Annotation } from '@semiont/core';
 type Motivation = components['schemas']['Motivation'];

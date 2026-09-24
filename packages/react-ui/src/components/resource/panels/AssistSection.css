@@ -324,3 +324,18 @@
 [data-theme="dark"] .semiont-progress-bar__fill {
   background-color: var(--semiont-color-primary-400);
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* One parameter row inside the params list. */
+.semiont-assist-progress__param {
+  display: flex;
+  gap: 0.375rem;
+  align-items: baseline;
+}
+
+.semiont-assist-widget__log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}

@@ -82,15 +82,6 @@
 }
 
 /* Size Variants */
-.semiont-checkbox--small {
-  width: 0.875rem;
-  height: 0.875rem;
-}
-
-.semiont-checkbox--large {
-  width: 1.5rem;
-  height: 1.5rem;
-}
 
 /* Accessibility - Reduced Motion */
 @media (prefers-reduced-motion: reduce) {

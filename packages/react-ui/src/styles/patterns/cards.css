@@ -19,3 +19,10 @@
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3), 0 1px 2px 0 rgba(0, 0, 0, 0.2);
 }
 
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* A live region on the card reporting that a search is running. */
+.semiont-card__search-status {
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-xs);
+}

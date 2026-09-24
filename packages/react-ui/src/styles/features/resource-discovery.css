@@ -52,58 +52,7 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-.semiont-card__search-button {
-  padding: 0.5rem 1.5rem;
-  background: var(--semiont-gradient-primary);
-  color: var(--semiont-color-primary-700);
-  border: 1px solid var(--semiont-color-primary-300);
-  border-radius: 0.5rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 300ms;
-  backdrop-filter: blur(4px);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-}
-
-.semiont-card__search-button:hover {
-  background: var(--semiont-gradient-primary-hover);
-  color: var(--semiont-color-neutral-0);
-  border-color: var(--semiont-color-primary-600);
-}
-
-[data-theme="dark"] .semiont-card__search-button {
-  background: var(--semiont-gradient-primary-dark);
-  color: var(--semiont-color-primary-400);
-  border-color: var(--semiont-color-primary-500);
-}
-
-[data-theme="dark"] .semiont-card__search-button:hover {
-  background: var(--semiont-gradient-primary-hover-dark);
-  color: var(--semiont-color-neutral-0);
-  border-color: var(--semiont-color-primary-400);
-}
-
 /* Focus styles for search button */
-.semiont-card__search-button:focus-visible {
-  outline: 2px solid var(--semiont-color-primary-500);
-  outline-offset: 2px;
-}
-
-[data-theme="dark"] .semiont-card__search-button:focus-visible {
-  outline-color: var(--semiont-color-primary-400);
-}
-
-.semiont-card__search-button:focus:not(:focus-visible) {
-  outline: none;
-}
-
-.semiont-card__search-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 .semiont-card__filters {
   margin-bottom: 1.5rem;

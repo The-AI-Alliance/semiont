@@ -18,15 +18,11 @@
 /* Error indicators */
 .semiont-error-message::before,
 .semiont-form__error::before,
-.semiont-panel-error::before,
-.semiont-view-error::before,
 .semiont-entity-tags__error::before,
 .semiont-document-viewer__error-title::before,
 .semiont-document-viewer__error-message::before,
 .semiont-document-viewer__error-button::before,
 .semiont-pdf-annotation-canvas__error::before,
-.semiont-pdf-viewer__error::before,
-.semiont-stat-card__icon--error::before,
 [data-state="error"]::before,
 [data-status="error"]::before {
   content: "⚠ " !important; /* Warning triangle */
@@ -37,7 +33,6 @@
 
 /* Warning indicators */
 .semiont-button[data-variant="warning"]::before,
-.semiont-status--warning::before,
 [data-state="warning"]::before,
 [data-status="warning"]::before {
   content: "⚡ " !important; /* Lightning bolt for warnings */
@@ -47,9 +42,6 @@
 
 /* Success indicators */
 .semiont-button[data-variant="success"]::before,
-.semiont-stat-card__icon--success::before,
-.semiont-status--success::before,
-.semiont-success-message::before,
 [data-state="success"]::before,
 [data-status="success"]::before {
   content: "✓ " !important; /* Checkmark */
@@ -59,9 +51,6 @@
 
 /* Info indicators */
 .semiont-button[data-variant="info"]::before,
-.semiont-stat-card__icon--info::before,
-.semiont-status--info::before,
-.semiont-info-message::before,
 [data-state="info"]::before,
 [data-status="info"]::before {
   content: "ℹ " !important; /* Info symbol */
@@ -71,7 +60,6 @@
 
 /* Danger indicators */
 .semiont-button[data-variant="danger"]::before,
-.semiont-status--danger::before,
 [data-state="danger"]::before,
 [data-status="danger"]::before {
   content: "✕ " !important; /* X mark */
@@ -90,9 +78,7 @@
 
 /* Add visually hidden but screen-reader accessible text */
 .semiont-error-message::after,
-.semiont-form__error::after,
-.semiont-panel-error::after,
-.semiont-view-error::after {
+.semiont-form__error::after {
   content: " (Error)" !important;
   position: absolute !important;
   width: 1px !important;
@@ -105,8 +91,7 @@
   border: 0 !important;
 }
 
-.semiont-button[data-variant="warning"]::after,
-.semiont-status--warning::after {
+.semiont-button[data-variant="warning"]::after {
   content: " (Warning)" !important;
   position: absolute !important;
   width: 1px !important;
@@ -119,9 +104,7 @@
   border: 0 !important;
 }
 
-.semiont-button[data-variant="success"]::after,
-.semiont-stat-card__icon--success::after,
-.semiont-status--success::after {
+.semiont-button[data-variant="success"]::after {
   content: " (Success)" !important;
   position: absolute !important;
   width: 1px !important;
@@ -144,9 +127,7 @@
  */
 
 /* Error pattern - diagonal stripes */
-.semiont-error-message,
-.semiont-panel-error,
-.semiont-view-error {
+.semiont-error-message {
   background-image: repeating-linear-gradient(
     -45deg,
     transparent,
@@ -157,8 +138,7 @@
 }
 
 /* Warning pattern - dots, with the border that distinguishes it */
-.semiont-button[data-variant="warning"],
-.semiont-status--warning {
+.semiont-button[data-variant="warning"] {
   background-image: radial-gradient(
     circle,
     rgba(251, 191, 36, 0.05) 1px,
@@ -174,14 +154,12 @@
 
 /* Add distinct border styles to status elements */
 .semiont-error-message,
-.semiont-form__error,
-.semiont-panel-error {
+.semiont-form__error {
   border-left: 4px solid var(--semiont-color-red-600) !important;
   padding-left: 0.75rem !important;
 }
 
-.semiont-button[data-variant="success"],
-.semiont-status--success {
+.semiont-button[data-variant="success"] {
   border: 2px solid var(--semiont-color-green-600) !important;
 }
 
@@ -251,13 +229,6 @@
    ======================================== */
 
 /* Make stat card icons more distinguishable */
-.semiont-stat-card__icon--error,
-.semiont-stat-card__icon--success,
-.semiont-stat-card__icon--info {
-  position: relative !important;
-  display: inline-flex !important;
-  align-items: center !important;
-}
 
 /* ========================================
    Dark Theme Support
@@ -266,8 +237,6 @@
 /* Ensure patterns work in dark theme */
 [data-theme="dark"] .semiont-error-message,
 [data-theme="dark"] .semiont-form__error,
-[data-theme="dark"] .semiont-panel-error,
-[data-theme="dark"] .semiont-view-error,
 [data-theme="dark"] .semiont-entity-tags__error,
 [data-theme="dark"] .semiont-document-viewer__error-title,
 [data-theme="dark"] .semiont-document-viewer__error-message,
@@ -284,13 +253,6 @@
   filter: none !important;
 }
 
-[data-theme="dark"] .semiont-stat-card__icon--error,
-[data-theme="dark"] .semiont-stat-card__icon--success,
-[data-theme="dark"] .semiont-stat-card__icon--info {
-  /* Icons remain visible */
-  opacity: 1 !important;
-}
-
 /* ========================================
    Print Styles
    ======================================== */
@@ -298,8 +260,7 @@
 @media print {
   /* Ensure status is clear when printed */
   .semiont-error-message::before,
-  .semiont-button[data-variant="warning"]::before,
-  .semiont-status--success::before {
+  .semiont-button[data-variant="warning"]::before {
     content: attr(data-status-text, "•") " " !important;
     font-weight: bold !important;
   }

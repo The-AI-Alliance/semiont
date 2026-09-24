@@ -27,13 +27,10 @@
   .semiont-button,
   .semiont-button[data-variant],
   .semiont-button[data-size],
-  .semiont-button--gradient,
   .semiont-panel-button,
   .semiont-toolbar-button,
   .semiont-signout-button,
-  .semiont-detect-button,
-  .semiont-resource-button,
-  .semiont-reference-button {
+  .semiont-resource-button {
     transition: none !important;
     animation: none !important;
   }
@@ -42,30 +39,18 @@
      Loading & Spinner Components
      ======================================== */
 
-  .semiont-loading__spinner,
-  .semiont-spinner,
-  .semiont-sparkles,
-  .semiont-sparkles-row,
-  .semiont-spinner__circle,
-  .semiont-loading-spinner,
-  .semiont-loading-skeleton {
+  .semiont-spinner {
     animation: none !important;
     opacity: 0.6; /* Keep visible but static */
   }
 
   /* Skeleton loading effects */
-  .semiont-skeleton,
-  .semiont-skeleton-text,
-  .semiont-skeleton-button,
-  .semiont-skeleton-avatar {
+  .semiont-skeleton {
     animation: none !important;
     background: var(--semiont-color-gray-200) !important;
   }
 
-  [data-theme="dark"] .semiont-skeleton,
-  [data-theme="dark"] .semiont-skeleton-text,
-  [data-theme="dark"] .semiont-skeleton-button,
-  [data-theme="dark"] .semiont-skeleton-avatar {
+  [data-theme="dark"] .semiont-skeleton {
     background: var(--semiont-color-gray-700) !important;
   }
 
@@ -73,11 +58,7 @@
      Toast & Notification Components
      ======================================== */
 
-  .semiont-toast,
-  .semiont-toast__container,
-  .semiont-toast-enter,
-  .semiont-toast-exit,
-  .semiont-notification {
+  .semiont-toast {
     animation: none !important;
     transition: opacity 0.01ms !important;
     transform: none !important;
@@ -90,11 +71,7 @@
 
   .semiont-modal,
   .semiont-modal__backdrop,
-  .semiont-modal__content,
-  .semiont-modal-enter,
-  .semiont-modal-exit,
-  .semiont-dialog,
-  .semiont-dialog__overlay {
+  .semiont-modal__content {
     animation: none !important;
     transition: opacity 0.01ms !important;
     transform: none !important;
@@ -105,10 +82,7 @@
      ======================================== */
 
   .semiont-panel,
-  .semiont-panel__content,
-  .semiont-sidebar,
-  .semiont-sidebar__content,
-  .semiont-drawer {
+  .semiont-panel__content {
     transition: none !important;
     animation: none !important;
     transform: none !important;
@@ -118,10 +92,7 @@
      Dropdown & Select Components
      ======================================== */
 
-  .semiont-dropdown,
-  .semiont-dropdown__menu,
-  .semiont-select__menu,
-  .semiont-autocomplete__dropdown {
+  .semiont-dropdown {
     transition: none !important;
     animation: none !important;
     transform: none !important;
@@ -131,10 +102,7 @@
      Tab & Accordion Components
      ======================================== */
 
-  .semiont-tabs__panel,
-  .semiont-accordion__content,
-  .semiont-collapsible,
-  .semiont-expandable {
+  .semiont-collapsible {
     transition: none !important;
     animation: none !important;
   }
@@ -143,23 +111,11 @@
      Tooltip & Popover Components
      ======================================== */
 
-  .semiont-tooltip,
-  .semiont-tooltip__content,
-  .semiont-popover,
-  .semiont-popover__content {
-    transition: none !important;
-    animation: none !important;
-    opacity: 1 !important;
-  }
-
   /* ========================================
      Progress & Status Components
      ======================================== */
 
-  .semiont-progress__bar,
-  .semiont-progress__fill,
-  .semiont-status-indicator,
-  .semiont-status-badge {
+  .semiont-progress__fill {
     transition: none !important;
     animation: none !important;
   }
@@ -168,10 +124,7 @@
      Card & List Components
      ======================================== */
 
-  .semiont-card,
-  .semiont-card__hover,
-  .semiont-list-item,
-  .semiont-grid-item {
+  .semiont-card {
     transition: none !important;
     transform: none !important;
   }
@@ -184,8 +137,6 @@
   .semiont-input,
   .semiont-textarea,
   .semiont-checkbox,
-  .semiont-radio,
-  .semiont-switch,
   .semiont-toggle {
     transition: none !important;
   }
@@ -195,9 +146,7 @@
      ======================================== */
 
   .semiont-annotation,
-  .semiont-annotation-entry,
-  .semiont-highlight,
-  .semiont-selection-highlight {
+  .semiont-annotation-entry {
     transition: none !important;
     animation: none !important;
   }
@@ -206,10 +155,7 @@
      Branding & Logo Components
      ======================================== */
 
-  .semiont-logo,
-  .semiont-brand,
-  .semiont-sparkles-text,
-  .semiont-brand__tagline {
+  .semiont-brand {
     animation: none !important;
     transform: none !important;
     opacity: 1 !important;
@@ -219,26 +165,16 @@
      Table Components
      ======================================== */
 
-  .semiont-table__sort-icon {
-    transition: none !important;
-  }
-
   /* ========================================
      Navigation Components
      ======================================== */
   /* NOTE: .semiont-nav-link was removed in commit 1b5f262e */
-
-  .semiont-breadcrumb__link,
-  .semiont-pagination__button {
-    transition: none !important;
-  }
 
   /* ========================================
      Resource Discovery Components
      ======================================== */
 
   .semiont-resource-card,
-  .semiont-discovery-item,
   .semiont-search-result {
     transition: none !important;
     animation: none !important;
@@ -248,7 +184,6 @@
      Toolbar Components
      ======================================== */
 
-  .semiont-toolbar__item,
   .semiont-toolbar-menu,
   .semiont-toolbar-panel {
     transition: none !important;
@@ -258,12 +193,6 @@
   /* ========================================
      Layout Components
      ======================================== */
-
-  .semiont-layout__sidebar,
-  .semiont-layout__main,
-  .semiont-layout__header {
-    transition: none !important;
-  }
 
   /* ========================================
      Specific Animation Overrides

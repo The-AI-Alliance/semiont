@@ -63,3 +63,33 @@
     color: inherit !important;
   }
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* The running log of what an assist found, one line per item. */
+.semiont-annotation-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.semiont-annotation-log-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.375rem;
+  font-size: var(--semiont-text-xs);
+  color: var(--semiont-text-secondary);
+}
+
+.semiont-annotation-check {
+  color: var(--semiont-color-success);
+  flex-shrink: 0;
+}
+
+.semiont-annotation-entity-type {
+  color: var(--semiont-text-tertiary);
+}
+
+[data-theme="dark"] .semiont-annotation-check {
+  color: var(--semiont-color-success-light);
+}

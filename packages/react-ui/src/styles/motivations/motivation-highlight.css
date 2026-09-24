@@ -38,7 +38,6 @@
 /* ============================================
    Inline Text Annotations
    ============================================ */
-.semiont-motivation-highlight,
 .annotation-highlight {
   border-radius: 0.25rem;
   padding: 0 0.125rem;
@@ -48,12 +47,10 @@
   color: var(--semiont-motivation-highlight-text);
 }
 
-.semiont-motivation-highlight:hover,
 .annotation-highlight:hover {
   background: var(--semiont-motivation-highlight-bg-hover);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight,
 [data-theme="dark"] .annotation-highlight {
   background: var(--semiont-motivation-highlight-dark-bg);
   color: var(--semiont-motivation-highlight-dark-text);
@@ -61,7 +58,6 @@
   outline-offset: 1px;
 }
 
-[data-theme="dark"] .semiont-motivation-highlight:hover,
 [data-theme="dark"] .annotation-highlight:hover {
   background: var(--semiont-motivation-highlight-dark-bg-hover);
 }
@@ -69,23 +65,19 @@
 /* ============================================
    Panel Entry Styling
    ============================================ */
-.semiont-motivation-highlight-entry,
 .semiont-annotation-entry[data-type="highlight"] {
   border-color: var(--semiont-motivation-highlight-border);
 }
 
-.semiont-motivation-highlight-entry:hover,
 .semiont-annotation-entry[data-type="highlight"]:hover {
   background: var(--semiont-motivation-highlight-panel-bg);
   border-color: var(--semiont-motivation-highlight-border-hover);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-entry,
 [data-theme="dark"] .semiont-annotation-entry[data-type="highlight"] {
   border-color: var(--semiont-motivation-highlight-border);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-entry:hover,
 [data-theme="dark"] .semiont-annotation-entry[data-type="highlight"]:hover {
   background: var(--semiont-motivation-highlight-panel-bg-dark);
 }
@@ -93,7 +85,6 @@
 /* ============================================
    Quote/Excerpt Styling in Panels
    ============================================ */
-.semiont-motivation-highlight-quote,
 .semiont-annotation-entry__quote[data-type="highlight"] {
   background: var(--semiont-motivation-highlight-bg);
   color: var(--semiont-motivation-highlight-text);
@@ -101,7 +92,6 @@
   border-radius: var(--semiont-radius-sm);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-quote,
 [data-theme="dark"] .semiont-annotation-entry__quote[data-type="highlight"] {
   background: var(--semiont-motivation-highlight-dark-bg);
   color: var(--semiont-motivation-highlight-dark-primary);
@@ -110,20 +100,10 @@
 /* ============================================
    Assist Section in Unified Panel
    ============================================ */
-.semiont-motivation-highlight-section,
-.semiont-assist-section[data-type="highlight"] {
-  border-color: var(--semiont-motivation-highlight-button-bg);
-}
-
-[data-theme="dark"] .semiont-motivation-highlight-section,
-[data-theme="dark"] .semiont-assist-section[data-type="highlight"] {
-  border-color: var(--semiont-motivation-highlight-button-bg-hover);
-}
 
 /* ============================================
    Button Styling
    ============================================ */
-.semiont-motivation-highlight-button,
 .semiont-button[data-variant="assist"][data-type="highlight"] {
   background: linear-gradient(to right, var(--semiont-motivation-highlight-button-bg), var(--semiont-motivation-highlight-button-bg-hover));
   color: var(--semiont-color-white) !important;
@@ -132,29 +112,24 @@
   transition: all 0.3s ease;
 }
 
-.semiont-motivation-highlight-button:hover,
 .semiont-button[data-variant="assist"][data-type="highlight"]:hover {
   background: var(--semiont-motivation-highlight-button-bg-hover);
   border-color: var(--semiont-motivation-highlight-primary);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-button,
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="highlight"] {
   border-color: var(--semiont-motivation-highlight-dark-outline);
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-button:hover,
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="highlight"]:hover {
   border-color: var(--semiont-motivation-highlight-dark-primary);
 }
 
-.semiont-motivation-highlight-button:focus-visible,
 .semiont-button[data-variant="assist"][data-type="highlight"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-highlight-primary);
   outline-offset: 2px;
 }
 
-[data-theme="dark"] .semiont-motivation-highlight-button:focus-visible,
 [data-theme="dark"] .semiont-button[data-variant="assist"][data-type="highlight"]:focus-visible {
   outline: 2px solid var(--semiont-motivation-highlight-dark-primary);
   outline-offset: 2px;
@@ -163,33 +138,7 @@
 /* ============================================
    Image Annotation Overlays
    ============================================ */
-.semiont-image-annotation-highlight {
-  stroke: var(--semiont-motivation-highlight-primary);
-  stroke-width: 2px;
-  fill: var(--semiont-motivation-highlight-border);
-}
-
-.semiont-image-annotation-highlight:hover {
-  stroke-width: 3px;
-  fill: var(--semiont-motivation-highlight-border-hover);
-}
-
-[data-theme="dark"] .semiont-image-annotation-highlight {
-  stroke: var(--semiont-motivation-highlight-dark-primary);
-  fill: rgba(251, 191, 36, 0.2);
-}
 
 /* ============================================
    Highlight-specific Visual Elements
    ============================================ */
-.semiont-highlight-marker {
-  background: var(--semiont-motivation-highlight-bg);
-  display: inline-block;
-  padding: 0 0.125rem;
-  border-radius: 0.125rem;
-}
-
-[data-theme="dark"] .semiont-highlight-marker {
-  background: var(--semiont-motivation-highlight-dark-bg);
-  outline: 1px dashed var(--semiont-motivation-highlight-dark-outline);
-}

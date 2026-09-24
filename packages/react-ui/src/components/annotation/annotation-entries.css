@@ -104,12 +104,6 @@
   gap: 0.25rem;
 }
 
-.semiont-annotation-entry__action-row {
-  display: flex;
-  gap: 0.25rem;
-  width: 100%;
-}
-
 /* Button group for edit mode */
 .semiont-annotation-entry__button-group {
   display: flex;

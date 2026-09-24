@@ -162,48 +162,8 @@
 }
 
 /* Size Variants */
-.semiont-slider--small::-webkit-slider-track {
-  height: 0.25rem;
-}
-
-.semiont-slider--small::-moz-range-track {
-  height: 0.25rem;
-}
-
-.semiont-slider--small::-webkit-slider-thumb {
-  width: 1rem;
-  height: 1rem;
-}
-
-.semiont-slider--small::-moz-range-thumb {
-  width: 1rem;
-  height: 1rem;
-}
-
-.semiont-slider--large::-webkit-slider-track {
-  height: 0.75rem;
-}
-
-.semiont-slider--large::-moz-range-track {
-  height: 0.75rem;
-}
-
-.semiont-slider--large::-webkit-slider-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
-}
-
-.semiont-slider--large::-moz-range-thumb {
-  width: 1.5rem;
-  height: 1.5rem;
-}
 
 /* Slider Container with Labels */
-.semiont-slider-container {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-}
 
 .semiont-slider__labels {
   display: flex;
@@ -215,17 +175,6 @@
 /* Small labels variant — reduced font size for compact inline contexts */
 .semiont-slider__labels--small {
   font-size: 0.6875rem;
-}
-
-.semiont-slider__value {
-  text-align: center;
-  font-size: var(--semiont-text-sm);
-  font-weight: var(--semiont-font-medium);
-  color: var(--semiont-color-primary-600);
-}
-
-[data-theme="dark"] .semiont-slider__value {
-  color: var(--semiont-color-primary-400);
 }
 
 /* Accessibility - Reduced Motion */

@@ -969,3 +969,49 @@
     max-width: 100%;
   }
 }
+
+/* Swept 2026-09-24: rendered since #401 with no rules behind them. */
+
+/* The two gather panes differ only in what they hold; both fill their column. */
+.semiont-gather-pane--corpus,
+.semiont-gather-pane--graph {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* A line in the graph pane that a citation refers to. */
+.semiont-graph__cited-line {
+  color: var(--semiont-text-secondary);
+  font-size: var(--semiont-text-xs);
+}
+
+/* The results list, and its two-pane arrangement when a preview is shown. */
+.semiont-search-results {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.semiont-search-results__two-pane {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 1rem;
+  min-height: 0;
+}
+
+/* How far the corpus pane's answer can be trusted — a qualifier on the
+   result, so it must not compete with the result itself. */
+.semiont-corpus__trust {
+  color: var(--semiont-text-tertiary);
+  font-size: var(--semiont-text-2xs);
+}
+
+/* One bar of the gather skeleton; the shimmer belongs to the skeleton block. */
+.semiont-gather__skeleton-bar {
+  height: 0.5rem;
+  border-radius: var(--semiont-radius-sm);
+  background-color: var(--semiont-bg-tertiary);
+}
