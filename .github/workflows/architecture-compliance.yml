@@ -58,7 +58,7 @@ jobs:
       - name: Run Lint Gates
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         run: |
-          echo "::group::Lint Gates (stylelint + every var() resolves + no utility frameworks + core subpath isolation)"
+          echo "::group::Lint Gates (stylelint + every var() resolves + no utility frameworks + core subpath isolation + coverage roster)"
           fail=0
           npm run lint:css || fail=1
           npm run lint:css-variables || fail=1
@@ -68,6 +68,7 @@ jobs:
           npm run lint:core-subpaths || fail=1
           npm run lint:service-role || fail=1
           npm run lint:attribution || fail=1
+          npm run lint:coverage-roster || fail=1
           echo "::endgroup::"
           exit $fail
 

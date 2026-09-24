@@ -50,11 +50,13 @@
     "watch": "tsup --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "author": "Semiont Team",
   "license": "Apache-2.0",
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.1.11",
     "rollup": "^4.63.3",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",

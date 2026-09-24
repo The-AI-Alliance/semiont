@@ -95,6 +95,18 @@ component_management:
       name: "@semiont/vectors"
       paths:
         - packages/vectors/**
+    - component_id: observability
+      name: "@semiont/observability"
+      paths:
+        - packages/observability/**
+    - component_id: browser
+      name: "Browser (app)"
+      paths:
+        - apps/browser/**
+    - component_id: gateway
+      name: "Gateway (app)"
+      paths:
+        - apps/gateway/**
 
 # Ignore certain files from coverage
 ignore:
@@ -183,6 +195,11 @@ flags:
   mcp-server:
     paths:
       - packages/mcp-server/**
+    carryforward: true
+
+  observability:
+    paths:
+      - packages/observability/**
     carryforward: true
 
   ontology:

@@ -60,7 +60,8 @@
     "lint:translations": "node scripts/lint/check-translations-complete.js",
     "lint:core-subpaths": "node scripts/lint/check-core-subpath-isolation.mjs",
     "lint:service-role": "node scripts/lint/check-service-role-agreement.mjs",
-    "lint:attribution": "node scripts/lint/check-attribution-one-copy.mjs"
+    "lint:attribution": "node scripts/lint/check-attribution-one-copy.mjs",
+    "lint:coverage-roster": "node scripts/lint/check-coverage-roster-agreement.mjs"
   },
   "engines": {
     "node": ">=24.15.0",
