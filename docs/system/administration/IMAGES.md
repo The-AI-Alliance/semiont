@@ -69,9 +69,10 @@ session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
 The seven service images are published as runtime images that
 **bundle the published `@semiont/*` npm packages** at the requested version —
-the publish workflow refuses to build until the matching packages exist on
-npm (`npm view` gate), so an image version always equals the npm version it
-carries. All seven run `node:24-alpine` (the Browser runs `node:26-alpine`).
+the publish workflow refuses to build until every published `@semiont/*`
+package at that version is installable — its tarball fetchable, not merely
+listed in the registry metadata — so an image version always equals the npm
+version it carries. All seven run `node:24-alpine` (the Browser runs `node:26-alpine`).
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
