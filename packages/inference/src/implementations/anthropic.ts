@@ -33,16 +33,28 @@ const NONSTREAMING_MAX_OUTPUT_TOKENS = Math.floor(OUTPUT_TOKENS_PER_HOUR / 6);
 // now the same parse-and-verify shape as Ollama's.
 
 /**
- * Everything one Models API call teaches us about the configured model. The
- * capability stays PRIVATE to this client: its only consumer is the gate in
- * `generateStructured`, so it does not cross the `InferenceClient` interface
- * (no speculative surface — widen `InferenceLimits` only when an external
- * consumer exists).
+ * Everything discovery teaches us about the configured model: one Models API
+ * call for ceilings and structured-output capability, plus one ~10-token
+ * ACTIVE PROBE for sampling-parameter acceptance (SONNET-5-MIGRATION D2 —
+ * the Models API publishes no sampling capability, measured 2026-09-25, so
+ * acceptance is measured rather than tabled). `structuredOutputsSupported`
+ * stays private to the `generateStructured` gate; `temperatureAccepted` is
+ * ALSO exposed as `limits().acceptsTemperature`, because D3 gave it an
+ * external consumer: the UI hides the Creativity slider on rejecting models,
+ * which is what makes the client-side omission honest.
  */
 interface ModelDiscovery {
   limits: InferenceLimits;
   structuredOutputsSupported: boolean;
+  temperatureAccepted: boolean;
 }
+
+/**
+ * The probe request's output budget. Also how tests (and log readers)
+ * distinguish the probe from real traffic: no production call asks for a
+ * single token.
+ */
+const TEMPERATURE_PROBE_MAX_TOKENS = 1;
 
 /**
  * Call-level retries, CHOSEN (RETRY-CLASSIFICATION P4) rather than inherited.
@@ -140,14 +152,58 @@ export class AnthropicInferenceClient implements InferenceClient {
       isObject(raw['capabilities']) &&
       isObject(raw['capabilities']['structured_outputs']) &&
       raw['capabilities']['structured_outputs']['supported'] === true;
+    const temperatureAccepted = await this.probeTemperatureAcceptance();
     return {
       limits: {
         contextTokens: info.max_input_tokens,
         maxOutputTokens: info.max_tokens,
         outputTokensPerHour: OUTPUT_TOKENS_PER_HOUR,
+        acceptsTemperature: temperatureAccepted,
       },
       structuredOutputsSupported,
+      temperatureAccepted,
     };
+  }
+
+  /**
+   * One tiny request carrying a non-default `temperature` answers whether
+   * this model accepts the parameter at all (spike 2026-09-25,
+   * `.plans/spikes/sonnet-5-temperature.md`: sonnet-5 refuses every
+   * non-default value on both request shapes — including the generation
+   * wizard's own 0.7 default — while the Models API says nothing). Runs once
+   * per model per process, cached on the same discovery record as limits.
+   * The 400-shape match lives HERE, on the cold path, so no production
+   * request ever string-matches an error message.
+   */
+  private async probeTemperatureAcceptance(): Promise<boolean> {
+    try {
+      await this.client.messages.create({
+        model: this.modelId,
+        max_tokens: TEMPERATURE_PROBE_MAX_TOKENS,
+        temperature: 0.7,
+        messages: [{ role: 'user', content: 'ok' }],
+      });
+      return true;
+    } catch (err: unknown) {
+      const isTemperatureRejection =
+        isObject(err) &&
+        err['status'] === 400 &&
+        err instanceof Error &&
+        /temperature/i.test(err.message);
+      if (isTemperatureRejection) {
+        this.logger?.warn(
+          'Model rejects `temperature`; caller-supplied values will be omitted from its requests',
+          { model: this.modelId },
+        );
+        return false;
+      }
+      // Anything else is a discovery failure, not a verdict — thrown so the
+      // uncached-failure rule (discover()) lets the next call retry.
+      throw new Error(
+        `Sampling-parameter probe failed for '${this.modelId}'`,
+        { cause: err },
+      );
+    }
   }
 
   private requestMessage(params: Anthropic.MessageCreateParamsNonStreaming, signal?: AbortSignal): Promise<Anthropic.Message> {
@@ -177,10 +233,16 @@ export class AnthropicInferenceClient implements InferenceClient {
       temperature,
     });
 
+    // Discovery decides whether `temperature` may ride: a rejecting model
+    // 400s on ANY non-default value (SONNET-5-MIGRATION P2), and the callers
+    // keep passing one — internal constants and the wire field alike — so
+    // the omission happens here, once, and is visible on
+    // `limits().acceptsTemperature` rather than silent.
+    const { temperatureAccepted } = await this.discover();
     const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.modelId,
       max_tokens: maxTokens,
-      temperature,
+      ...(temperatureAccepted ? { temperature } : {}),
       messages: [{ role: 'user', content: prompt }],
     };
 
@@ -255,7 +317,10 @@ export class AnthropicInferenceClient implements InferenceClient {
     const params: Anthropic.MessageCreateParamsNonStreaming = {
       model: this.modelId,
       max_tokens: maxTokens,
-      temperature,
+      // Same suppression as the text path: a rejecting model 400s on the
+      // structured shape identically (spike 2026-09-25). `discovery` is the
+      // record already fetched for the gate above.
+      ...(discovery.temperatureAccepted ? { temperature } : {}),
       messages: [{ role: 'user', content: prompt }],
       // Response-level structured output with an ARRAY root: the response
       // text IS the schema-conforming JSON. No tools, no prefill.

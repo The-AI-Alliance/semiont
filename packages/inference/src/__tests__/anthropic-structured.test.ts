@@ -135,8 +135,10 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
       client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT),
     ).rejects.toThrow(/structured outputs.*inference\.model|inference\.model.*structured outputs/is);
 
-    // The refusal happens at the gate — the model is never asked.
-    expect(createMock).not.toHaveBeenCalled();
+    // The refusal happens at the gate — no GENERATION request is issued.
+    // (Discovery's ~1-token sampling probe is the one permitted create call:
+    // it carries TEMPERATURE_PROBE_MAX_TOKENS, never the caller's budget.)
+    expect(createMock.mock.calls.every(c => (c[0] as { max_tokens: number }).max_tokens === 1)).toBe(true);
     expect(streamMock).not.toHaveBeenCalled();
   });
 
@@ -147,7 +149,8 @@ describe('AnthropicInferenceClient.generateStructured — output_config + capabi
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     await client.generateStructured('p', 1000, 0.3, PERSON_ELEMENT);
 
-    const req = createMock.mock.calls[0][0];
+    // Last call: discovery's sampling probe precedes the real request.
+    const req = createMock.mock.calls.at(-1)![0];
     // The constraint is response-level: no tool scaffolding at all.
     expect(req.tools).toBeUndefined();
     expect(req.tool_choice).toBeUndefined();

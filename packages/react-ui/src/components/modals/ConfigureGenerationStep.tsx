@@ -42,7 +42,6 @@ type FormFilled =
   | 'title'
   | 'storageUri'
   | 'language'
-  | 'temperature'
   | 'maxTokens'
   | 'outputMediaType';
 
@@ -69,7 +68,10 @@ type FormFilled =
  */
 export type GenerationConfig =
   & Required<Pick<GenerationOptions, FormFilled>>
-  & Pick<GenerationOptions, 'prompt'>
+  // `temperature` left Required with SONNET-5-MIGRATION D3: a model that
+  // rejects the parameter gets neither the slider nor the field, so the
+  // submission carries it only when the serving model accepts it.
+  & Pick<GenerationOptions, 'prompt' | 'temperature'>
   & { context: GatheredContext };
 
 /** The one place a format's required extension is read (D7). */
@@ -190,6 +192,13 @@ export function ConfigureGenerationStep({
 
   const ceiling = generationAgent?.limits?.maxOutputTokens ?? DEFAULT_MAX_TOKENS_CEILING;
 
+  // D3 shape 1 (SONNET-5-MIGRATION, measured 2026-09-25): claude-sonnet-5
+  // refuses EVERY non-default temperature — the untouched 0.7 default
+  // included — so a rejecting model gets neither the control nor the field.
+  // Only an explicit false hides it: absent discovery means no claim, and
+  // the inference client suppresses as the second line of defense either way.
+  const temperatureAccepted = generationAgent?.limits?.acceptsTemperature !== false;
+
   /**
    * The value that will actually be submitted: always finite, always inside
    * the bounds, whatever the field currently shows.
@@ -221,7 +230,7 @@ export function ConfigureGenerationStep({
       storageUri: `file://${effectivePath}`,
       ...(trimmedPrompt ? { prompt: trimmedPrompt } : {}),
       language,
-      temperature,
+      ...(temperatureAccepted ? { temperature } : {}),
       maxTokens: submittedMaxTokens,
       outputMediaType,
       context,
@@ -339,6 +348,7 @@ export function ConfigureGenerationStep({
           </select>
         </div>
 
+        {temperatureAccepted && (
         <div className="semiont-form__field semiont-form__field--inline semiont-form__field--slider">
           <label htmlFor="wizard-temperature" className="semiont-form__label">
             {t.creativity} ({temperature.toFixed(1)})
@@ -358,6 +368,7 @@ export function ConfigureGenerationStep({
             <span>{t.creativityCreative}</span>
           </div>
         </div>
+        )}
 
         <div className="semiont-form__field semiont-form__field--inline semiont-form__field--narrow semiont-form__field--end">
           <label htmlFor="wizard-maxTokens" className="semiont-form__label">

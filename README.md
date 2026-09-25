@@ -18,35 +18,58 @@ brew install the-ai-alliance/semiont/semiont
 
 ### 2. Get a knowledge base
 
-Not this repo — every command below runs from a KB.
+You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected.
 
-**Try a demo** — [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
+Clone an existing knowledge base, or start your own — not this repo. Steps 3
+and 4 run from inside it.
+
+#### Clone a demo
+
+[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
 
 ```bash
 git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
 cd semiont-gutenberg-kb
 ```
 
-**Or start a new project** — `semiont init` births one in place, stamping its identity from your git origin and synthesizing a config it validates before writing:
-
-```bash
-semiont init --yes --inference anthropic --embedding ollama:nomic-embed-text
-```
-
 The full catalog — seven demo KBs across different domains, plus community
 knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
 
+#### Start your own
+
+Register your API key once, so `init` can use it to pick a current model:
+
+```bash
+semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
+```
+
+Only the pointer is stored, never the value. It is verified once when you
+register it, then read fresh on every start and passed to the containers as an
+environment variable — Semiont writes it nowhere.
+
+`semiont init` then births a KB in place: it stamps a permanent identity, and
+synthesizes a config it validates before writing.
+
+```bash
+mkdir my-kb && cd my-kb
+semiont init --yes --domain example.com:test --inference anthropic
+```
+
+The domain is the KB's permanent `did:web` identity, stamped into the committed
+event log, so it has no safe default. `--inference anthropic` reaches
+[Anthropic](https://www.anthropic.com/) for inference; `--inference ollama`
+runs a small model locally through [Ollama](https://ollama.com/) instead, and
+needs no key.
+
 ### 3. Start it
 
-You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected — and an inference provider: [Ollama](https://ollama.com/) for fully local inference (it downloads several GB of models on first run), or an [Anthropic](https://www.anthropic.com/) API key for cloud. Then, from inside the KB — **not this repo**:
+From inside the knowledge base:
 
 ```bash
 semiont start
 ```
 
-One command starts the whole stack: the launcher pulls the published Semiont images and the infrastructure containers, bind-mounts the KB's config, and brings everything up — **and ensures the Semiont browser is running at http://localhost:3000**. `semiont logs` follows the stack and `semiont stop` tears it down — the browser stays up (it's the machine-level viewer of every KB, not a stack member; `semiont stop --service browser` closes it). `semiont start --help` lists the options (inference configs via `--config`, `--list-configs`, …).
-
-**Started this KB with an older `semiont`?** The realm is imported once, on first boot. If `semiont start` refuses at the identity preflight, run `semiont identity sync`, then `semiont start` again.
+One command starts the whole stack and ensures the Semiont browser is running at **http://localhost:3000**. `semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
 
 ### 4. Connect
 
@@ -56,24 +79,21 @@ Create your first user. A fresh stack has none — the account is created at the
 semiont useradd --email admin@example.com   # prompts for the password
 ```
 
-Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. Sign-in happens at the identity provider, not at Semiont, so you'll be handed to its page and back. (Connecting to a KB the launcher doesn't know about? Enter its host and port by hand, e.g. `localhost` / `4000`.)
-
-**First sign-in asks for your first and last name.** The identity provider composes your display name from them; the browser shows it for your account. Your work is attributed to your identity — a DID built from the provider's stable subject, never from your email.
+Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel discovers launcher-managed stacks automatically — pick yours and sign in with the email and password you just created. Sign-in happens at the identity provider, not at Semiont, so you'll be handed to its page and back, and it asks for your name on first use.
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
-
-**Just the browser?** To point a Semiont browser at an already-running or remote knowledge base, run the Browser on its own — no clone needed, from any directory (the launcher auto-detects your container runtime and pulls the published image):
-
-```bash
-semiont start --service browser            # http://localhost:3000
-semiont start --service browser --port 3001   # 3000 busy? move the browser
-```
 
 For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
 
 ## Automate
 
-Your shell is the shortest way in — the launcher speaks the same verbs:
+Everything the Semiont browser does travels over one event bus, spoken as
+**[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark,
+frame, gather, match, beckon. Two ways in — your shell, or your code.
+
+### CLI
+
+The launcher speaks those verbs itself, and it is the shortest way in:
 
 ```bash
 semiont login          # approve in a browser; only tokens come back
@@ -82,7 +102,16 @@ semiont browse --help  # then any of the eight verbs
 
 No password reaches the launcher, and the session renews itself; `semiont logout` ends it. It is the CLI's own session — an SDK app signs in separately.
 
-Everything the browser does travels over one event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it — a type-safe TypeScript client whose namespaces are the **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark, frame, gather, match, beckon. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
+Ingest a document with the same session — the file must live under the KB root,
+since its storage URI is repo-relative:
+
+```bash
+semiont yield --upload papers/attention-is-all-you-need.pdf
+```
+
+### SDK
+
+The **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how your code speaks the same bus — a type-safe TypeScript client whose namespaces are those eight verbs. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
 
 Here is a grounded answer — gather context by traversing the graph, then generate from it, with each claim cited back to its source:
 

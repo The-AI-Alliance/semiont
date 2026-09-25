@@ -63,7 +63,8 @@ describe('AnthropicInferenceClient - structured generation is output_config, not
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     const res = await client.generateStructured('Extract locations', 1000, 0, TEST_ELEMENT);
 
-    const req = createMock.mock.calls[0][0];
+    // Last call: discovery's sampling probe precedes the real request.
+    const req = createMock.mock.calls.at(-1)![0];
 
     // The constraint is response-level — no tool scaffolding (Phase 5
     // deleted the emit_json_array workaround), and the schema root is the
@@ -116,6 +117,9 @@ describe('AnthropicInferenceClient - plain text mode unchanged', () => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    // The text path awaits discovery now (temperature suppression), so the
+    // Models API answer is part of this describe's fixture.
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
   });
 
   it('returns the text block and offers no tools when format is unset', async () => {
@@ -129,7 +133,7 @@ describe('AnthropicInferenceClient - plain text mode unchanged', () => {
     const text = await client.generateText('p', 100, 0);
 
     expect(text).toBe('hello world');
-    const req = createMock.mock.calls[0][0];
+    const req = createMock.mock.calls.at(-1)![0];
     expect(req.tools).toBeUndefined();
     expect(req.tool_choice).toBeUndefined();
   });
@@ -157,7 +161,7 @@ describe('AnthropicInferenceClient - cancellation threads to the SDK (ABANDONED-
     // The SDK aborts the live attempt AND checks the signal between its own
     // internal retries — forwarding it is what turns our timeout from an
     // abandonment into a cancellation.
-    const opts = createMock.mock.calls[0][1] as { signal?: AbortSignal } | undefined;
+    const opts = createMock.mock.calls.at(-1)![1] as { signal?: AbortSignal } | undefined;
     expect(opts?.signal).toBe(controller.signal);
   });
 
@@ -172,7 +176,7 @@ describe('AnthropicInferenceClient - cancellation threads to the SDK (ABANDONED-
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     await client.generateStructured('p', 100, 0, TEST_ELEMENT, controller.signal);
 
-    const opts = createMock.mock.calls[0][1] as { signal?: AbortSignal } | undefined;
+    const opts = createMock.mock.calls.at(-1)![1] as { signal?: AbortSignal } | undefined;
     expect(opts?.signal).toBe(controller.signal);
   });
 
@@ -199,14 +203,16 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
     createMock.mockReset();
     retrieveMock.mockReset();
     streamMock.mockReset();
+    // Discovery's sampling probe lands here; a resolving create = accepted.
+    createMock.mockResolvedValue({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: {} });
   });
 
   it('discovers context/output ceilings from the Models API and caches the result', async () => {
     retrieveMock.mockResolvedValue({ max_input_tokens: 200_000, max_tokens: 64_000 });
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
-    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 });
-    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000 });
+    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000, acceptsTemperature: true });
+    expect(await client.limits()).toEqual({ contextTokens: 200_000, maxOutputTokens: 64_000, outputTokensPerHour: 128_000, acceptsTemperature: true });
 
     // Discovered once, cached across calls.
     expect(retrieveMock).toHaveBeenCalledTimes(1);
@@ -221,7 +227,7 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
 
     // A later call retries instead of replaying the cached rejection.
     retrieveMock.mockResolvedValueOnce({ max_input_tokens: 1000, max_tokens: 100 });
-    expect(await client.limits()).toEqual({ contextTokens: 1000, maxOutputTokens: 100, outputTokensPerHour: 128_000 });
+    expect(await client.limits()).toEqual({ contextTokens: 1000, maxOutputTokens: 100, outputTokensPerHour: 128_000, acceptsTemperature: true });
     expect(retrieveMock).toHaveBeenCalledTimes(2);
   });
 
@@ -230,6 +236,133 @@ describe('AnthropicInferenceClient - limits() discovery', () => {
 
     const client = new AnthropicInferenceClient('test-key', 'claude-x');
     await expect(client.limits()).rejects.toThrow(/ceiling/i);
+  });
+});
+
+describe('AnthropicInferenceClient - temperature suppression (SONNET-5-MIGRATION P1/P2, D2 active probe, D3 shape 1)', () => {
+  // Measured 2026-09-25 (spikes/sonnet-5-temperature.md): claude-sonnet-5
+  // refuses any non-default `temperature` with a 400 on BOTH the plain and
+  // output_config shapes, and the Models API exposes no sampling capability.
+  // Discovery therefore probes acceptance actively (D2), the client omits
+  // the parameter for rejecting models, and the verdict is exposed on
+  // limits() so the UI can hide the Creativity slider (D3 shape 1 — the
+  // omission is only honest because the capability is visible).
+  const TEMPERATURE_400 = () =>
+    Object.assign(new Error('400 {"type":"error","error":{"type":"invalid_request_error","message":"`temperature` is deprecated for this model."}}'), { status: 400 });
+
+  /** Reject any request carrying `temperature` (the sonnet-5 behavior); answer otherwise. */
+  function stubRejectingModel() {
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+    createMock.mockImplementation(async (req: { temperature?: number }) => {
+      if ('temperature' in req) throw TEMPERATURE_400();
+      return { content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', usage: {} };
+    });
+  }
+
+  /** Accept everything (the sonnet-4.5 behavior). */
+  function stubAcceptingModel() {
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+    createMock.mockImplementation(async () => (
+      { content: [{ type: 'text', text: '[]' }], stop_reason: 'end_turn', usage: {} }
+    ));
+  }
+
+  beforeEach(() => {
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    streamMock.mockReset();
+  });
+
+  it('omits temperature on the FREE-TEXT path when the discovered model rejects it', async () => {
+    // The free-text path is the one most likely to be forgotten — its
+    // callers live in make-meaning, not jobs.
+    stubRejectingModel();
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-sonnet-5');
+    const text = await client.generateText('p', 100, 0.3);
+
+    expect(text).toBe('ok');
+    const real = createMock.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect('temperature' in real).toBe(false);
+  });
+
+  it('omits temperature on the STRUCTURED path when the discovered model rejects it', async () => {
+    stubRejectingModel();
+    createMock.mockImplementation(async (req: { temperature?: number }) => {
+      if ('temperature' in req) throw TEMPERATURE_400();
+      return { content: [{ type: 'text', text: '[]' }], stop_reason: 'end_turn', usage: {} };
+    });
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-sonnet-5');
+    const res = await client.generateStructured('p', 100, 0, TEST_ELEMENT);
+
+    expect(res.items).toEqual([]);
+    const real = createMock.mock.calls.at(-1)![0] as Record<string, unknown>;
+    expect('temperature' in real).toBe(false);
+    expect((real as { output_config?: unknown }).output_config).toBeDefined();
+  });
+
+  it('still forwards the caller temperature when the discovered model accepts it', async () => {
+    stubAcceptingModel();
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-sonnet-4-5');
+    await client.generateText('p', 100, 0.3);
+
+    const real = createMock.mock.calls.at(-1)![0] as { temperature?: number };
+    expect(real.temperature).toBe(0.3);
+  });
+
+  it('exposes the verdict on limits() so the capability can reach the UI (D3 shape 1)', async () => {
+    stubRejectingModel();
+    const rejecting = new AnthropicInferenceClient('test-key', 'claude-sonnet-5');
+    expect((await rejecting.limits()).acceptsTemperature).toBe(false);
+
+    createMock.mockReset();
+    retrieveMock.mockReset();
+    stubAcceptingModel();
+    const accepting = new AnthropicInferenceClient('test-key', 'claude-sonnet-4-5');
+    expect((await accepting.limits()).acceptsTemperature).toBe(true);
+  });
+
+  it('probes acceptance ONCE per model — discovery is cached, not re-probed per call', async () => {
+    stubRejectingModel();
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-sonnet-5');
+    await client.generateText('a', 100, 0.3);
+    await client.generateText('b', 100, 0.5);
+
+    // One probe (carrying temperature) + two real calls (without).
+    const probeCalls = createMock.mock.calls.filter(c => 'temperature' in (c[0] as object));
+    expect(probeCalls).toHaveLength(1);
+    expect(createMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('a probe failure that is NOT the temperature 400 fails discovery loudly and is not cached', async () => {
+    retrieveMock.mockResolvedValue(CAPABLE_MODEL);
+    createMock.mockRejectedValueOnce(Object.assign(new Error('500 overloaded'), { status: 500 }));
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-x');
+    await expect(client.generateText('p', 100, 0)).rejects.toThrow(/sampling|probe|discover/i);
+
+    // Recovery: the next call re-runs discovery instead of replaying the failure.
+    stubAcceptingModel();
+    await expect(client.generateText('p', 100, 0)).resolves.toBeDefined();
+  });
+
+  it('warns once at discovery when a model rejects temperature — the omission is logged, never silent', async () => {
+    stubRejectingModel();
+    const warn = vi.fn();
+    const logger: import('@semiont/core').Logger = {
+      debug: vi.fn(), info: vi.fn(), warn, error: vi.fn(),
+      child: () => logger,
+    };
+
+    const client = new AnthropicInferenceClient('test-key', 'claude-sonnet-5', undefined, logger);
+    await client.generateText('a', 100, 0.3);
+    await client.generateText('b', 100, 0.5);
+
+    const suppressionWarns = warn.mock.calls.filter(c => /temperature/i.test(String(c[0])));
+    expect(suppressionWarns).toHaveLength(1);
   });
 });
 
@@ -258,7 +391,9 @@ describe('AnthropicInferenceClient - large output budgets stream internally', ()
     const res = await client.generateStructured('p', 64_000, 0, TEST_ELEMENT);
 
     expect(streamMock).toHaveBeenCalledTimes(1);
-    expect(createMock).not.toHaveBeenCalled();
+    // The only create call is discovery's ~1-token sampling probe — the
+    // generation itself streamed.
+    expect(createMock.mock.calls.every(c => (c[0] as { max_tokens: number }).max_tokens === 1)).toBe(true);
 
     // output_config rides the streamed request unchanged (the SDK's stream
     // examples carry it natively).

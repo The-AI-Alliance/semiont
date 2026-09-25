@@ -102,7 +102,9 @@ export class OllamaInferenceClient implements InferenceClient {
     // Shared window: input and output draw from the same context — there is
     // no separate output ceiling, so the window is published as both (the
     // `maxOutputTokens === contextTokens` shape consumers key the split on).
-    return { contextTokens, maxOutputTokens: contextTokens };
+    // `acceptsTemperature` is unconditionally true here: Ollama's options
+    // block takes a temperature for every model it serves.
+    return { contextTokens, maxOutputTokens: contextTokens, acceptsTemperature: true };
   }
 
   async generateText(prompt: string, maxTokens: number, temperature: number, signal?: AbortSignal): Promise<string> {

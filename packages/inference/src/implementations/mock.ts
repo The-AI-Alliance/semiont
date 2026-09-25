@@ -12,6 +12,10 @@ const GENEROUS_LIMITS: InferenceLimits = {
   // floor and the count-verifier. Tests exercise those by injecting
   // rate-silent limits deliberately, never by the default.
   outputTokensPerHour: 3_600_000_000,
+  // Accepting by default, mirroring the field's wire semantics (only an
+  // explicit false hides the UI control); a test exercising suppression
+  // injects false deliberately.
+  acceptsTemperature: true,
 };
 
 export class MockInferenceClient implements InferenceClient {
