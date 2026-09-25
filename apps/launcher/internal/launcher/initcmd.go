@@ -479,7 +479,12 @@ siteName = %q
 		}
 	}
 
-	registerRootUse(dir, false, "")
+	// The config this KB was BORN with is its preference — otherwise the very
+	// next command init prints, `semiont start`, falls through to the
+	// hardcoded `ollama-gemma` default, which a born KB has no file for
+	// (it writes <provider>.toml). A copied template carries several configs
+	// and names none of them, so it keeps the empty preference it always had.
+	registerRootUse(dir, false, genName)
 	warnICloudRoot(u, dir)
 	success = true
 

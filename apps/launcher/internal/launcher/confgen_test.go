@@ -1,0 +1,76 @@
+package launcher
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
+
+// A KB born from `semiont init` must be one `semiont start` can bring up.
+//
+// It was not. The generated config declared no [jobs] section, so the job
+// queue fell to the fs driver — which needs the KB's name to locate its
+// jobsDir, and the launcher stages that name for the gateway and the
+// librarian only (kbIdentityStaged). The dispatcher therefore started,
+// authenticated, and died:
+//
+//	the fs job driver needs the KB name ([kb] name) to locate its jobsDir,
+//	but the config carries none
+//
+// Five times, then the supervisor gave up and the start failed. Found by the
+// first real boot on a runner (FAKE-RUNTIME-FIDELITY P5); invisible to the
+// launcher's own vet, which checks what the LAUNCHER consumes and cannot
+// speak for what a service needs.
+func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
+	for _, inference := range []string{"anthropic", "ollama"} {
+		cfg := generateSemiontconfig(genParams{
+			Inference: inference, Model: "a-model", EmbeddingModel: "an-embedding",
+		})
+		if !strings.Contains(cfg, "[environments.local.jobs]") {
+			t.Errorf("--inference %s: the generated config declares no [jobs] section, so the dispatcher takes the fs driver and refuses for want of a KB name the launcher never stages it", inference)
+		}
+		if !strings.Contains(cfg, `type = "jetstream"`) {
+			t.Errorf("--inference %s: the generated config names no jetstream jobs driver", inference)
+		}
+		// SIGNAL-PLANE D9: one daemon, two shapes, chosen by the jobs vote.
+		// A jetstream jobs driver with an in-process signal plane runs the
+		// broker anyway, so declaring the signal driver costs nothing and
+		// keeps a born KB identical to a forked one.
+		if !strings.Contains(cfg, "[environments.local.signal]") {
+			t.Errorf("--inference %s: the generated config declares no [signal] section, unlike the template every forked KB starts from", inference)
+		}
+	}
+}
+
+// A born KB must be startable by the command `init` itself prints next.
+//
+// `init` writes <provider>.toml — anthropic.toml, ollama.toml — and `start`
+// defaults to `ollama-gemma`, which no born KB has. So the first thing a new
+// user is told to run refused with "Config not found" whichever provider they
+// chose. `start` already consults the root's sticky config preference; init
+// registered the root with an empty one.
+func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	root := filepath.Join(home, "born")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	if code := Init([]string{"--yes", "--name", "born", "--domain", "example.github.io:born",
+		"--inference", "ollama", "--model", "gemma3:270m", "--embedding", "ollama:nomic-embed-text"}); code != 0 {
+		t.Fatalf("init exited %d", code)
+	}
+
+	pref := recordedConfig(root)
+	if pref == "" {
+		t.Fatal("init recorded no config preference, so `semiont start` falls through to its hardcoded default — which no born KB has a file for")
+	}
+	if _, err := os.Stat(filepath.Join(root, configDir, pref+".toml")); err != nil {
+		t.Errorf("init recorded %q as this root's config, but wrote no such file: %v", pref, err)
+	}
+}
