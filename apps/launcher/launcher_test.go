@@ -222,12 +222,26 @@ func (s *scenario) killServes() {
 	}
 }
 
+// repoRoot: the monorepo root, from this package's own location. Tests run
+// with the package directory as cwd, which is apps/launcher.
+func repoRoot() string {
+	abs, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		panic(err)
+	}
+	return abs
+}
+
 func (s *scenario) env() []string {
 	env := []string{
 		"PATH=" + s.shim,
 		"HOME=" + s.home,
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
+		// The repo, so a fake service can read what its own image declares
+		// it serves (FAKE-RUNTIME-FIDELITY P1). A PATH, not a belief: the
+		// fake reads the Dockerfile, it is not told the answer.
+		"FAKERT_REPO=" + repoRoot(),
 	}
 	{
 		// Pinned so the boot goldens are deterministic: an unpinned run
@@ -3858,7 +3872,7 @@ func TestConfigStickiness(t *testing.T) {
 		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "sticky start stdout", stdout,
-		"Config: anthropic", "recorded from last start; override with --config")
+		"Config: anthropic", "this KB's recorded config; override with --config")
 
 	// --dry-run reads the preference (only the anthropic config references
 	// ${ANTHROPIC_API_KEY}, so its placeholder appearing proves which config
@@ -3881,7 +3895,7 @@ func TestConfigStickiness(t *testing.T) {
 		t.Fatalf("override start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "override stdout", stdout, "Config: ollama-gemma")
-	if strings.Contains(stdout, "recorded from last start") {
+	if strings.Contains(stdout, "recorded config") {
 		t.Errorf("explicit --config must not claim registry provenance:\n%s", stdout)
 	}
 	b, _ = os.ReadFile(rootsPathFor(s.home))

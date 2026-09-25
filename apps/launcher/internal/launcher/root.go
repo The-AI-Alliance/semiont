@@ -69,7 +69,7 @@ type rootEntry struct {
 	Path        string    `json:"path"`
 	Did         string    `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
 	SiteName    string    `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
-	Config      string    `json:"config,omitempty"`   // sticky --config: what a successful start last used explicitly
+	Config      string    `json:"config,omitempty"`   // sticky --config: the config `init` wrote, then whatever a successful start last used explicitly
 	LastUsed    time.Time `json:"lastUsed"`
 	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
 }

@@ -1,0 +1,137 @@
+# Stack smoke: build the launcher from THIS branch, boot a real stack from a
+# published image set, and assert the things the hermetic suite cannot.
+#
+# TWO AXES, named separately, which is the whole point:
+#
+#   - the LAUNCHER comes from the ref this workflow runs on, built here;
+#   - the IMAGES come from the `images` tag, already on ghcr.
+#
+# That is what keeps a launcher change testable without publishing anything.
+# A job that booted published images with a published launcher could only run
+# at release time, and a per-PR version of it would deadlock any change that
+# must move the launcher and an image together — the image cannot publish
+# until CI is green, and CI cannot be green without the image. Here the
+# launcher is built, never pulled, so only a change that genuinely needs a NEW
+# image has to wait for one, and then it names that tag.
+#
+# WHAT IT ASSERTS, and nothing more: that a stack comes up on real services at
+# real routes, that the realm the launcher stages actually imports and
+# answers, and that the realm allows the Browser's origin — the exact check
+# that was green in the fake runtime and false in life
+# (.plans/BROWSER-SIGNIN-ORIGIN.md). It does NOT assert that inference works:
+# the model credentials here are placeholders, and what a model does is the
+# e2e tier's question.
+name: Stack Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: "ghcr tag to boot (e.g. latest, or 0.6.5)"
+        required: true
+        default: latest
+        type: string
+  # Self-testing: a change to this workflow proves it still boots a stack.
+  # Deliberately NOT a gate on other work — the fake covers per-PR regression,
+  # and this lane answers "does the model match reality", which periodic
+  # verification suffices for. It is also the only way to exercise a
+  # dispatch-only workflow before it reaches the default branch, which GitHub
+  # requires before `gh workflow run` will find it.
+  pull_request:
+    paths:
+      - .github/workflows/stack-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Selects the image tag the launcher pulls. Without it the launcher
+      # takes `latest`, which is the right default and the wrong thing to
+      # assume when the point is to name a set.
+      SEMIONT_VERSION: ${{ inputs.images || 'latest' }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - uses: actions/setup-go@v7.0.0
+        with:
+          go-version-file: apps/launcher/go.mod
+
+      - name: Build the launcher from this branch
+        run: |
+          set -euo pipefail
+          cd apps/launcher && go build -o /usr/local/bin/semiont .
+          semiont --version
+
+      - name: Create a knowledge base
+        # Exactly what a new user runs. The did:web domain is the one thing
+        # with no safe default, so it is the one flag; everything else must
+        # come from init's own defaults, because those defaults are what this
+        # step exists to test. A born KB that cannot start is the defect this
+        # workflow found on its first run.
+        run: |
+          set -euo pipefail
+          mkdir -p ~/kb && cd ~/kb
+          git init -q && git config user.email smoke@example.com && git config user.name smoke
+          semiont init --yes --domain example.github.io:stack-smoke
+
+      - name: Start the stack
+        # No --config: a born KB records the config it was born with, and
+        # `start` reads that. Passing one here would hide the defect where it
+        # does not.
+        #
+        # There is no Ollama on a runner, so inference and embedding start one
+        # as a container and pull their models — about 1.8 GB of image plus
+        # two small models. That is the supported path rather than a fixture,
+        # and it exercises the host-probe → container-fallback branch and
+        # ensureModels along with everything else.
+        run: cd ~/kb && semiont start --runtime docker
+
+      - name: Every row healthy
+        # `status --root` is the health-coded form: it exits non-zero when a
+        # core row is unhealthy, so the exit status IS the assertion.
+        run: cd ~/kb && semiont status --root ~/kb
+
+      - name: The staged realm imported and answers
+        run: |
+          set -euo pipefail
+          # The realm the LAUNCHER wrote, not one this job invented: if the
+          # import silently produced a different realm, this 404s.
+          curl -fsS http://localhost:8080/realms/semiont > /dev/null
+          curl -fsS http://localhost:8080/realms/semiont/.well-known/openid-configuration > /dev/null
+
+      - name: The realm allows the Browser's origin
+        run: |
+          set -euo pipefail
+          # BROWSER-SIGNIN-ORIGIN, live. The Browser exchanges its code from
+          # http://localhost:3000, so Keycloak must echo that origin back. A
+          # bogus code is fine — the CORS header is decided before the code
+          # is, which is what makes this a one-variable test.
+          hdr=$(curl -s -D- -o /dev/null -X POST \
+            -H "Origin: http://localhost:3000" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            --data "grant_type=authorization_code&client_id=semiont-browser&code=bogus&redirect_uri=http://localhost:3000/en/auth/callback" \
+            http://localhost:8080/realms/semiont/protocol/openid-connect/token \
+            | tr -d '\r' | grep -i '^access-control-allow-origin:' || true)
+          echo "$hdr"
+          case "$hdr" in
+            *"http://localhost:3000"*) echo "origin allowed" ;;
+            *) echo "::error::the realm did not allow http://localhost:3000 — a freshly imported realm cannot complete sign-in"; exit 1 ;;
+          esac
+
+      - name: Stop releases every claimed port
+        run: |
+          set -euo pipefail
+          cd ~/kb && semiont stop --runtime docker
+          for p in 4000 5432 7474 6333 8080 4222 24100 24101 24102 24103 24104 24105; do
+            if nc -z localhost "$p" 2>/dev/null; then
+              echo "::error::port $p still held after stop"; exit 1
+            fi
+          done
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker ps -a --format '{{.Names}}' | xargs -I{} sh -c 'echo "--- {}"; docker logs --tail 50 {} 2>&1 || true'

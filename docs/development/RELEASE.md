@@ -37,7 +37,23 @@ Semiont publishes a release in these steps:
    gh workflow run launcher-release.yml --ref v<version>
    ```
    See [Step 1c](#step-1c-publish-the-launcher-homebrew--binaries).
-5. **release:bump** — bumps the version for the next development cycle.
+5. **Stack Smoke** — an optional gate
+   ([`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml)) that boots a
+   real stack from a published image set and asserts what the launcher's
+   hermetic suite cannot: that every health gate opens against a real service
+   at a real route, that the realm the launcher stages actually imports and
+   answers, and that the realm allows the Browser's origin. Run it after the
+   images exist at `:<version>` and **before** `latest` is moved to them —
+   both publish workflows default `tag_latest` to false, so that ordering is
+   the natural one, and this is the gate that decides whether `latest` should
+   move:
+   ```bash
+   gh workflow run stack-smoke.yml --field images=<version>
+   ```
+   It builds the launcher from the ref it runs on, so it is equally the way to
+   test a LAUNCHER change against the current images, from any branch, without
+   publishing anything.
+6. **release:bump** — bumps the version for the next development cycle.
 
 ## Step 1: Publish a Stable Release
 
@@ -376,6 +392,9 @@ gh workflow run publish-service-images.yml --field version=<version> --field tag
 # 5b. Publish the launcher — dispatched FROM THE TAG (no version input);
 #     independent of npm, so it can run in parallel with the image workflows
 gh workflow run launcher-release.yml --ref v<version>
+
+# 5c. Boot the published images for real, before moving `latest` to them
+gh workflow run stack-smoke.yml --field images=<version>
 
 # 6. Bump version for next development cycle
 ./scripts/release/version-bump.sh patch

@@ -203,3 +203,46 @@ func TestSecretSetRefusesACustodyOwnedName(t *testing.T) {
 		t.Error("a refused registration was written to the registry anyway")
 	}
 }
+
+// A command that needs a credential outside `start` must resolve it the way
+// start does: environment first, then the source `semiont secret set`
+// registered. `semiont init` read the environment alone, so a key registered
+// moments earlier was invisible — it warned that the model list could not be
+// fetched, then told the user to register the source they already had.
+func TestResolvedSecretValueReadsTheRegisteredSource(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("SOME_API_KEY", "")
+	u := NewUI(false)
+
+	if got := resolvedSecretValue(u, "SOME_API_KEY"); got != "" {
+		t.Errorf("unregistered and unexported, got %q", got)
+	}
+
+	vault := filepath.Join(t.TempDir(), "value")
+	if err := os.WriteFile(vault, []byte("from-the-vault\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	secretProviders["testvault"] = secretProvider{
+		display: "Test vault", bin: "cat", pathHint: "<file>",
+		argv: func(p string) []string { return []string{p} },
+	}
+	t.Cleanup(func() { delete(secretProviders, "testvault") })
+	reg := loadRoots()
+	if reg.Secrets == nil {
+		reg.Secrets = map[string]secretRef{}
+	}
+	reg.Secrets["SOME_API_KEY"] = secretRef{Provider: "testvault", Path: vault}
+	saveRoots(reg)
+
+	if got := resolvedSecretValue(u, "SOME_API_KEY"); got != "from-the-vault" {
+		t.Errorf("registered source not consulted: got %q", got)
+	}
+	// The environment still wins, which is the standing escape hatch.
+	t.Setenv("SOME_API_KEY", "from-the-environment")
+	if got := resolvedSecretValue(u, "SOME_API_KEY"); got != "from-the-environment" {
+		t.Errorf("the environment did not win: got %q", got)
+	}
+}

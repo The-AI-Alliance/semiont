@@ -45,6 +45,21 @@ func generateSemiontconfig(p genParams) string {
 	w(`port = 4000`)
 	w(`publicURL = "http://${GATEWAY_HOST:-localhost}:4000"`)
 	w(``)
+	// SIGNAL-PLANE D9: ONE daemon, TWO shapes, chosen by the jobs vote. A
+	// born KB gets the same pair a forked one has — and it must get SOME
+	// jobs driver, because the alternative is the fs driver by omission,
+	// which needs a `[kb] name` the launcher stages for the gateway and the
+	// librarian only. A dispatcher started without it authenticates, refuses,
+	// and is given up on after five restarts (found by the first real boot,
+	// FAKE-RUNTIME-FIDELITY P5).
+	w(`[environments.local.jobs]`)
+	w(`type = "jetstream"`)
+	w(`servers = "${NATS_HOST}:4222"`)
+	w(``)
+	w(`[environments.local.signal]`)
+	w(`type = "nats"`)
+	w(`servers = "${NATS_HOST}:4222"`)
+	w(``)
 	w(`[environments.local.graph]`)
 	w(`platform = "external"`)
 	w(`type = "neo4j"`)

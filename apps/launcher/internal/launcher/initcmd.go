@@ -55,6 +55,12 @@ With --yes and neither source, init refuses rather than guessing.
 `
 
 // Init implements `semiont init`.
+// defaultOllamaModel: the model a prompt-free `semiont init` binds when the
+// caller names none. A CHOICE, not a derivation — no list-all registry API
+// exists to pick from — and deliberately the smallest thing that can serve a
+// first KB, so the pull a first start does is minutes rather than an evening.
+const defaultOllamaModel = "gemma3:270m"
+
 func Init(args []string) int {
 	u := NewUI(false)
 	var name, domain, siteName string
@@ -186,6 +192,8 @@ func Init(args []string) int {
 		}
 	}
 
+	// defaultOllamaModel: what a bare init binds. Small on purpose — see the
+	// choice below.
 	// Config-builder inputs validate BEFORE anything touches disk.
 	if fromTemplate != "" && inference != "" {
 		u.Fail("--from-template and --inference are two sources for the same configs — pick one.")
@@ -218,10 +226,20 @@ func Init(args []string) int {
 			return 1
 		}
 	}
-	if inference == "ollama" && model == "" && yes {
-		// No registry listing exists to derive an ollama default from.
-		u.Fail("--inference ollama needs --model <id> (no list-all registry API exists to pick a default from).")
-		return 1
+	// A prompt-free init must produce a KB that STARTS. Ollama is the
+	// provider that needs no credential, so it is what a bare `init --yes`
+	// gets — the alternative was writing no config at all and telling the
+	// user to add one, which left the next line init itself prints
+	// (`semiont start`) unable to run.
+	if inference == "" && yes && fromTemplate == "" {
+		inference = "ollama"
+	}
+	if inference == "ollama" && model == "" {
+		// No registry listing exists to derive a default from, so this is a
+		// CHOICE and named as one: the smallest model that can serve a first
+		// KB, so the pull a start does is minutes rather than an evening.
+		// Anything larger is the user's `--model`.
+		model = defaultOllamaModel
 	}
 
 	dir, err := os.Getwd()
@@ -377,7 +395,7 @@ siteName = %q
 		}
 		switch inference {
 		case "anthropic":
-			m, ok := resolveAnthropicModel(u, anthropicEndpoint, os.Getenv("ANTHROPIC_API_KEY"), model)
+			m, ok := resolveAnthropicModel(u, anthropicEndpoint, resolvedSecretValue(u, "ANTHROPIC_API_KEY"), model)
 			if !ok {
 				return 1
 			}
@@ -479,7 +497,12 @@ siteName = %q
 		}
 	}
 
-	registerRootUse(dir, false, "")
+	// The config this KB was BORN with is its preference — otherwise the very
+	// next command init prints, `semiont start`, falls through to the
+	// hardcoded `ollama-gemma` default, which a born KB has no file for
+	// (it writes <provider>.toml). A copied template carries several configs
+	// and names none of them, so it keeps the empty preference it always had.
+	registerRootUse(dir, false, genName)
 	warnICloudRoot(u, dir)
 	success = true
 
@@ -492,9 +515,14 @@ siteName = %q
 		fmt.Printf("    %d. %s %s\n", step, u.Bold("add a config"), u.Dim("(rerun with --inference, or write .semiont/semiontconfig/<name>.toml)"))
 		step++
 	}
-	if inference == "anthropic" {
-		fmt.Printf("    %d. %s\n", step, u.Bold("semiont secret set ANTHROPIC_API_KEY"))
-		step++
+	// Only when the key is neither exported nor registered: telling someone
+	// to do what they have already done is how a next-steps list stops being
+	// read.
+	if inference == "anthropic" && os.Getenv("ANTHROPIC_API_KEY") == "" {
+		if _, registered := loadRoots().Secrets["ANTHROPIC_API_KEY"]; !registered {
+			fmt.Printf("    %d. %s\n", step, u.Bold("semiont secret set ANTHROPIC_API_KEY"))
+			step++
+		}
 	}
 	fmt.Printf("    %d. %s\n", step, u.Bold("semiont start"))
 	return 0
