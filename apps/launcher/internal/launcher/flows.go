@@ -305,13 +305,13 @@ func flowTraces(x executor, fc flowCtx) int {
 		x.say(sayFail, "traces (Jaeger) failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("traces (Jaeger)", serviceEndpoint("traces", fc.plan), 30)
+	d, ok := x.waitHTTP("traces (Jaeger)", healthEndpoint("traces", "jaeger", fc.plan), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("traces"), "traces")
 		return 1
 	}
-	x.say(sayOK, "traces — Jaeger UI on %s %s", serviceEndpoint("traces", fc.plan), x.dim("("+took(d)+")"))
-	x.record("traces", id, args[len(args)-1], providedLauncher, serviceEndpoint("traces", fc.plan), "jaeger")
+	x.say(sayOK, "traces — Jaeger UI on %s %s", healthEndpoint("traces", "jaeger", fc.plan), x.dim("("+took(d)+")"))
+	x.record("traces", id, args[len(args)-1], providedLauncher, healthEndpoint("traces", "jaeger", fc.plan), "jaeger")
 	return 0
 }
 
@@ -323,13 +323,13 @@ func flowMetrics(x executor, fc flowCtx, stage string) int {
 		x.say(sayFail, "metrics (Prometheus) failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("metrics (Prometheus)", serviceEndpoint("metrics", fc.plan), 30)
+	d, ok := x.waitHTTP("metrics (Prometheus)", healthEndpoint("metrics", "prometheus", fc.plan), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("metrics"), "metrics")
 		return 1
 	}
 	x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(d)+")"))
-	x.record("metrics", id, args[len(args)-1], providedLauncher, serviceEndpoint("metrics", fc.plan), "prometheus")
+	x.record("metrics", id, args[len(args)-1], providedLauncher, healthEndpoint("metrics", "prometheus", fc.plan), "prometheus")
 	return 0
 }
 
@@ -341,13 +341,13 @@ func flowCollector(x executor, fc flowCtx, addr, stage string) int {
 		x.say(sayFail, "collector failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("collector", serviceEndpoint("collector", fc.plan), 30)
+	d, ok := x.waitHTTP("collector", healthEndpoint("collector", "otel", fc.plan), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("collector"), "collector")
 		return 1
 	}
-	x.say(sayOK, "collector — OTLP on %s:4318, metrics on %s %s", addr, serviceEndpoint("collector", fc.plan), x.dim("("+took(d)+")"))
-	x.record("collector", id, args[len(args)-1], providedLauncher, serviceEndpoint("collector", fc.plan), "otel")
+	x.say(sayOK, "collector — OTLP on %s:4318, metrics on %s %s", addr, healthEndpoint("collector", "otel", fc.plan), x.dim("("+took(d)+")"))
+	x.record("collector", id, args[len(args)-1], providedLauncher, healthEndpoint("collector", "otel", fc.plan), "otel")
 	return 0
 }
 
@@ -426,7 +426,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "identity":
 			// Keycloak answers on the realm only once the import is done —
 			// the wait is the realm gate as well as the liveness gate.
-			d, ok := x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90)
+			d, ok := x.waitHTTP("identity ("+disp+")", healthEndpoint(role, rp.Driver, fc.plan), 90)
 			if !ok {
 				x.dumpLogs(roleContainer("identity"), "identity")
 				return 1
@@ -440,24 +440,24 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan, true) {
 				return 1
 			}
-			x.record(role, id, rp.Image, providedLauncher, identityEndpoint(rp), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
-			d, ok := x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", aux), 30)
+			d, ok := x.waitHTTP("graph ("+disp+")", healthEndpoint(role, rp.Driver, fc.plan), 30)
 			if !ok {
 				x.dumpLogs(roleContainer("graph"), "graph")
 				return 1
 			}
 			x.say(sayOK, "graph — bolt://localhost:%d (browser: http://localhost:%d) %s", rp.Port, aux, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d", aux), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		case "vectors":
-			d, ok := x.waitHTTP("vectors ("+disp+")", fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15)
+			d, ok := x.waitHTTP("vectors ("+disp+")", healthEndpoint(role, rp.Driver, fc.plan), 15)
 			if !ok {
 				x.dumpLogs(roleContainer("vectors"), "vectors")
 				return 1
 			}
 			x.say(sayOK, "vectors — http://localhost:%d %s", rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/readyz", rp.Port), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		case "database":
 			d, ok := x.waitTCP("PostgreSQL", addr, rp.Port, 20)
 			if !ok {
@@ -470,7 +470,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "database — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		case "messaging":
 			// Same two-phase wait as Postgres: TCP up, then reachable on
 			// the container path the gateway will dial.
@@ -480,7 +480,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "messaging — %s on port %d %s", disp, rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("tcp:localhost:%d", rp.Port), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		}
 	case presenceAbsent:
 		x.say(sayLog, "%s — not configured; skipping", role)
@@ -547,28 +547,26 @@ func envValue(env []string, name string) string {
 	return ""
 }
 
-// externalEndpoint: the status probe for an externally-provided role.
+// externalEndpoint: the status probe for a role somebody else runs. The
+// PATH is the driver's and comes from the descriptor; what stays here is the
+// policy about the remote SERVICE — a SaaS API answers nothing a
+// credential-free probe may read, so reachability is all this can honestly
+// assert, and that is a TCP dial.
 func externalEndpoint(role string, rp rolePlan) string {
+	dial := fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
+	probe := fmt.Sprintf("http://%s:%d%s", rp.Address, rp.Port, descriptorFor(role, rp.Driver).health.path)
 	switch role {
-	case "embedding":
-		// An ollama-served embedding answers Ollama's own version endpoint;
-		// Voyage is HTTPS SaaS whose API needs a key, so reachability is all
-		// a credential-free probe can honestly assert — a TCP dial.
+	case "embedding", "inference":
+		// Only an Ollama answers Ollama's version endpoint; Voyage and
+		// Anthropic are HTTPS SaaS whose APIs need a key.
 		if rp.Driver == "ollama" {
-			return fmt.Sprintf("http://%s:%d/api/version", rp.Address, rp.Port)
+			return probe
 		}
-		return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
+		return dial
 	case "vectors":
-		return fmt.Sprintf("http://%s:%d/readyz", rp.Address, rp.Port)
-	case "inference":
-		// Only an Ollama answers Ollama's version endpoint; a remote SaaS
-		// provider (anthropic) gets a bare reachability dial.
-		if rp.Driver != "ollama" {
-			return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
-		}
-		return fmt.Sprintf("http://%s:%d/api/version", rp.Address, rp.Port)
-	default: // graph, database: not HTTP — TCP dial
-		return fmt.Sprintf("tcp:%s:%d", rp.Address, rp.Port)
+		return probe
+	default: // graph, database, identity: not an unauthenticated HTTP route
+		return dial
 	}
 }
 
@@ -629,7 +627,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 				return 1
 			}
 			x.say(sayOK, "%s — using host Ollama at http://localhost:%d", role, rp.Port)
-			x.record(role, "", "", providedHost, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.record(role, "", "", providedHost, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 			x.ensureModels(fmt.Sprintf("http://localhost:%d", rp.Port), fc.plan.OllamaModels)
 			return 0
 		},
@@ -654,13 +652,13 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 				x.say(sayFail, "Ollama container failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP(role+" (Ollama)", fmt.Sprintf("http://localhost:%d/api/version", rp.Port), 30)
+			d, ok := x.waitHTTP(role+" (Ollama)", healthEndpoint(role, rp.Driver, fc.plan), 30)
 			if !ok {
 				x.dumpLogs("semiont-ollama", role)
 				return 1
 			}
 			x.say(sayOK, "%s — Ollama container on http://localhost:%d (24 GB memory) %s", role, rp.Port, x.dim("("+took(d)+")"))
-			x.record(role, id, rp.Image, providedLauncher, fmt.Sprintf("http://localhost:%d/api/version", rp.Port), rp.Driver)
+			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 			if descriptorFor(role, "ollama").container == "" {
 				// embedding owns this launch: record the container it ran,
 				// or stop could never find it.
@@ -704,7 +702,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 		return 1
 	}
 	x.say(sayLog, "Waiting for gateway health...")
-	d, ok := x.waitHTTP("Gateway", fmt.Sprintf("http://localhost:%d/api/health", port), 120)
+	d, ok := x.waitHTTP("Gateway", healthEndpoint("gateway", driverSemiont, fc.plan), 120)
 	if !ok {
 		x.dumpLogs("semiont-gateway", "gateway")
 		return 1
@@ -713,7 +711,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !x.gatewayReachable(addr, port) {
 		return 1
 	}
-	x.record("gateway", id, image("gateway", fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/api/health", port), driverSemiont)
+	x.record("gateway", id, image("gateway", fc.version), providedLauncher, healthEndpoint("gateway", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -747,13 +745,13 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		x.say(sayFail, "%s failed to start.", sc.label)
 		return 1
 	}
-	d, ok := x.waitHTTP(sc.label, fmt.Sprintf("http://localhost:%d/health", sc.port), 30)
+	d, ok := x.waitHTTP(sc.label, healthEndpoint(sc.svc, driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs(semiontDescriptor(sc.svc).container, sc.svc)
 		return 1
 	}
 	x.say(sayOK, "%s healthy (http://localhost:%d) %s", sc.label, sc.port, x.dim("("+took(d)+")"))
-	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, fmt.Sprintf("http://localhost:%d/health", sc.port), driverSemiont)
+	x.record(sc.svc, id, image(sc.svc, fc.version), providedLauncher, healthEndpoint(sc.svc, driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -786,13 +784,13 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 		x.say(sayFail, "Archivist failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Archivist", "http://localhost:24103/health", 30)
+	d, ok := x.waitHTTP("Archivist", healthEndpoint("archivist", driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs("semiont-archivist", "archivist")
 		return 1
 	}
 	x.say(sayOK, "Archivist healthy (http://localhost:24103) %s", x.dim("("+took(d)+")"))
-	x.record("archivist", id, image("archivist", fc.version), providedLauncher, "http://localhost:24103/health", driverSemiont)
+	x.record("archivist", id, image("archivist", fc.version), providedLauncher, healthEndpoint("archivist", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -818,13 +816,13 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 		x.say(sayFail, "Librarian failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Librarian", "http://localhost:24104/health", 30)
+	d, ok := x.waitHTTP("Librarian", healthEndpoint("librarian", driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs("semiont-librarian", "librarian")
 		return 1
 	}
 	x.say(sayOK, "Librarian healthy (http://localhost:24104) %s", x.dim("("+took(d)+")"))
-	x.record("librarian", id, image("librarian", fc.version), providedLauncher, "http://localhost:24104/health", driverSemiont)
+	x.record("librarian", id, image("librarian", fc.version), providedLauncher, healthEndpoint("librarian", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 
@@ -849,13 +847,13 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 		x.say(sayFail, "Dispatcher failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Dispatcher", "http://localhost:24105/health", 30)
+	d, ok := x.waitHTTP("Dispatcher", healthEndpoint("dispatcher", driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs("semiont-dispatcher", "dispatcher")
 		return 1
 	}
 	x.say(sayOK, "Dispatcher healthy (http://localhost:24105) %s", x.dim("("+took(d)+")"))
-	x.record("dispatcher", id, image("dispatcher", fc.version), providedLauncher, "http://localhost:24105/health", driverSemiont)
+	x.record("dispatcher", id, image("dispatcher", fc.version), providedLauncher, healthEndpoint("dispatcher", driverSemiont, fc.plan), driverSemiont)
 	return 0
 }
 

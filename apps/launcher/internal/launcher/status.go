@@ -65,34 +65,37 @@ with a note, unless the codespace is already running.
 // (the collector included — it runs on every start); the model providers;
 // and the optional observability backends, which --no-observe omits. A
 // chosen reading order, unrelated to start order and enforced by nothing;
-// place new rows where they belong. Names key the roles table; probes are
-// host-side, the same endpoints start gates on.
+// place new rows where they belong.
+//
+// The rows carry no endpoint: the probe is the DRIVER's, and it comes from
+// the descriptor (healthEndpoint) or from the record a start wrote. Seventeen
+// literals here used to be a third copy of it, and they were the copy with
+// the hardcoded ports.
 var statusServices = []struct {
-	name     string // abstract role (keys the roles table)
-	endpoint string // http(s) URL, or "tcp:<port>"
-	core     bool   // counted toward the exit status
-	group    int    // rendering group; a change inserts a blank line
+	name  string // abstract role (keys the descriptor set)
+	core  bool   // counted toward the exit status
+	group int    // rendering group; a change inserts a blank line
 }{
-	{"worker", "http://localhost:24100/health", true, 1},
-	{"gateway", "http://localhost:4000/api/health", true, 1},
-	{"archivist", "http://localhost:24103/health", true, 1},
-	{"librarian", "http://localhost:24104/health", true, 1},
-	{"dispatcher", "http://localhost:24105/health", true, 1},
-	{"weaver", "http://localhost:24102/health", true, 1},
-	{"smelter", "http://localhost:24101/health", true, 1},
+	{"worker", true, 1},
+	{"gateway", true, 1},
+	{"archivist", true, 1},
+	{"librarian", true, 1},
+	{"dispatcher", true, 1},
+	{"weaver", true, 1},
+	{"smelter", true, 1},
 
-	{"database", "tcp:5432", true, 2},
-	{"messaging", "tcp:4222", true, 2},
-	{"identity", "http://localhost:8080/realms/master", true, 2},
-	{"graph", "http://localhost:7474", true, 2},
-	{"vectors", "http://localhost:6333/readyz", true, 2},
-	{"collector", "http://localhost:24110/metrics", true, 2},
+	{"database", true, 2},
+	{"messaging", true, 2},
+	{"identity", true, 2},
+	{"graph", true, 2},
+	{"vectors", true, 2},
+	{"collector", true, 2},
 
-	{"inference", "http://localhost:11434/api/version", true, 3},
-	{"embedding", "http://localhost:11434/api/version", true, 3},
+	{"inference", true, 3},
+	{"embedding", true, 3},
 
-	{"traces", "http://localhost:16686", false, 4},
-	{"metrics", "http://localhost:9090/-/healthy", false, 4},
+	{"traces", false, 4},
+	{"metrics", false, 4},
 }
 
 // Status implements `semiont status`.
@@ -434,7 +437,10 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		}
 		lastGroup = svc.group
 		handle := roleContainer(svc.name)
-		endpoint := svc.endpoint
+		// No record: the descriptor's static probe, for the driver a stack
+		// that has not recorded itself would be running. A record's endpoint
+		// is sharper — it names the port that start actually used.
+		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil)
 		var rec *ServiceState
 		if st != nil {
 			if e, ok := st.Services[svc.name]; ok {

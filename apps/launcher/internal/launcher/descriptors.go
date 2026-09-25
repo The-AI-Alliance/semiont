@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"sort"
 	"strings"
 )
@@ -66,6 +67,22 @@ const (
 	authorityConfigure
 )
 
+// healthProbe: how a driver answers "are you up?" — the one fact that used
+// to have three homes (a status roster of 17 literals, a serviceEndpoint
+// switch of 15 cases missing three roles, and literals inside the sidecar
+// flows), which disagreed: status probed NATS on 4222 whatever the config
+// said.
+type healthProbe struct {
+	// tcp: a TCP connect rather than an HTTP GET. A server with no health
+	// route answers the only question we can ask it.
+	tcp bool
+	// port pins a health port that is NOT the one the config names — the
+	// collector answers on its metrics port, Neo4j on HTTP rather than bolt.
+	// Zero means "whatever port this role is running on".
+	port int
+	path string
+}
+
 // needs spells the ordering-only edges, which are most of them.
 func needs(roles ...string) []dependency {
 	out := make([]dependency, 0, len(roles))
@@ -126,6 +143,9 @@ type serviceDescriptor struct {
 	// default: a driver earns more by being named below, never by omission.
 	authority authority
 
+	// health: the probe a start gates on and status reports. One home.
+	health healthProbe
+
 	display     string     // product name for banners, status and messages
 	defaultPort int        // config default AND the container-side listen port
 	portLabel   string     // the primary port's name in conflict errors
@@ -151,43 +171,52 @@ var serviceDescriptors = []serviceDescriptor{
 	// embedding or database client of its own. The collector precedes it
 	// because the gateway is the first process to export to it.
 	{role: "gateway", driver: driverSemiont, container: "semiont-gateway", mem: "2G", ports: []portNeed{{4000, "Gateway"}},
-		needs: needs("collector", "identity", "messaging")},
+		needs:  needs("collector", "identity", "messaging"),
+		health: healthProbe{path: "/api/health"}},
 	// The three make-meaning sidecars open with boot-time bus requests the
 	// Archivist answers (the smelter's reconcile opens with browse:resources),
 	// and its /health only turns on after its bus pumps attach — so this edge
 	// is what closes the startup race a 3.5-second head start once lost a
 	// smelter to.
 	{role: "worker", driver: driverSemiont, container: "semiont-worker", mem: "2G", ports: []portNeed{{24100, "Worker"}},
-		needs: needs("gateway", "archivist")},
+		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
 	{role: "smelter", driver: driverSemiont, container: "semiont-smelter", mem: "2G", ports: []portNeed{{24101, "Smelter"}},
-		needs: needs("gateway", "archivist")},
+		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
 	{role: "weaver", driver: driverSemiont, container: "semiont-weaver", mem: "2G", ports: []portNeed{{24102, "Weaver"}},
-		needs: needs("gateway", "archivist")},
+		needs: needs("gateway", "archivist"), health: healthProbe{path: "/health"}},
 	// The Archivist is where the stores the actors dial become preconditions:
 	// each of them gates it, and none of them gates the gateway above.
 	{role: "archivist", driver: driverSemiont, container: "semiont-archivist", mem: "2G", ports: []portNeed{{24103, "Archivist"}},
-		needs: needs("gateway", "graph", "vectors", "inference", "embedding")},
+		needs:  needs("gateway", "graph", "vectors", "inference", "embedding"),
+		health: healthProbe{path: "/health"}},
 	{role: "librarian", driver: driverSemiont, container: "semiont-librarian", mem: "2G", ports: []portNeed{{24104, "Librarian"}},
-		needs: needs("gateway")},
+		needs: needs("gateway"), health: healthProbe{path: "/health"}},
 	// The dispatcher's JetStream queue dials the same broker the signal plane
 	// does.
 	{role: "dispatcher", driver: driverSemiont, container: "semiont-dispatcher", mem: "2G", ports: []portNeed{{24105, "Dispatcher"}},
-		needs: needs("gateway", "messaging")},
+		needs:  needs("gateway", "messaging"),
+		health: healthProbe{path: "/health"}},
 	// browser: the Browser owns its port inside flowBrowser — an empty ports
 	// list keeps 3000 out of every stack-level claim and sweep.
-	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G"},
+	// The Browser's port is the one a flag may move, so the probe pins the
+	// default; a running Browser is reported from its record instead.
+	{role: "browser", driver: driverSemiont, container: "semiont-browser", mem: "1G", health: healthProbe{port: 3000}},
 
 	{role: "database", driver: "postgres", container: "semiont-postgres", image: "postgres:15.18-alpine", mem: "1G",
-		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL"},
+		ports: []portNeed{{5432, "PostgreSQL"}}, display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL",
+		health: healthProbe{tcp: true}},
 
 	// graph 2G: a JVM auto-sizing its heap from visible memory — the silent
 	// 1G VM default was the known-tight spot on Apple container.
 	{role: "graph", driver: "neo4j", container: "semiont-neo4j", image: "neo4j:5.26.28-community", mem: "2G",
 		ports:   []portNeed{{7474, "Neo4j HTTP"}, {7687, "Neo4j Bolt"}},
-		display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}}},
+		display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}},
+		// Neo4j answers HTTP on its browser port; bolt is not a health route.
+		health: healthProbe{port: 7474}},
 
 	{role: "vectors", driver: "qdrant", container: "semiont-qdrant", image: "qdrant/qdrant:v1.19.1", mem: "2G",
-		ports: []portNeed{{6333, "Qdrant"}}, display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant"},
+		ports: []portNeed{{6333, "Qdrant"}}, display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant",
+		health: healthProbe{path: "/readyz"}},
 
 	// NATS keeps its product port (tier 2). 512M ceiling: measured 26 MiB
 	// idle with JetStream on (2026-09-15); the headroom is for stream replay
@@ -201,9 +230,10 @@ var serviceDescriptors = []serviceDescriptor{
 	// — it runs inside the gateway and launches nothing.
 	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
-		cmd: []string{"-js", "-sd", "/data"}},
+		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
 	{role: "messaging", driver: "nats", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
-		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS"},
+		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
+		health: healthProbe{tcp: true}},
 
 	// EXTERNAL-IDENTITY D5: the OIDC issuer the gateway trusts. "keycloak" is
 	// an upstream pin like postgres — the dev-mode server, importing the
@@ -215,8 +245,13 @@ var serviceDescriptors = []serviceDescriptor{
 	{role: "identity", driver: "keycloak", container: "semiont-keycloak", image: "quay.io/keycloak/keycloak:26.7.4", mem: "1G",
 		ports: []portNeed{{8080, "Keycloak"}}, display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
 		cmd:   []string{"start-dev", "--import-realm"},
-		needs: []dependency{{role: "database", because: "Keycloak keeps its realm in its own database on that PostgreSQL"}}},
-	{role: "identity", driver: "oidc", display: "OIDC issuer", defaultPort: 443},
+		needs: []dependency{{role: "database", because: "Keycloak keeps its realm in its own database on that PostgreSQL"}},
+		// The master realm always exists, so it answers for a server whose
+		// own realm this launcher has not been told about. A configured
+		// stack is probed at its issuer instead (healthEndpoint).
+		health: healthProbe{path: "/realms/master"}},
+	{role: "identity", driver: "oidc", display: "OIDC issuer", defaultPort: 443,
+		health: healthProbe{path: "/.well-known/openid-configuration"}},
 
 	// inference 24G: a loaded small model (gemma-class) needs 4-5G; the
 	// silent 1G default cannot even load one.
@@ -224,7 +259,8 @@ var serviceDescriptors = []serviceDescriptor{
 	// start. A pull is idempotent, cheap and reversible, which is the whole
 	// of the argument — and the argument PostgreSQL does not get.
 	{role: "inference", driver: "ollama", container: "semiont-ollama", image: "ollama/ollama", mem: "24G",
-		display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure},
+		display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure,
+		health: healthProbe{path: "/api/version"}},
 	// Remote SaaS: no image (nothing to launch), port is TLS. The row it
 	// yields is external — participates in status, no start/stop.
 	{role: "inference", driver: "anthropic", display: "Anthropic", defaultPort: 443},
@@ -233,7 +269,8 @@ var serviceDescriptors = []serviceDescriptor{
 	// the Ollama the inference role already runs serves it, or it is remote
 	// SaaS over TLS. Like every external row it participates in status and
 	// supports no start/stop.
-	{role: "embedding", driver: "ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure},
+	{role: "embedding", driver: "ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama", authority: authorityConfigure,
+		health: healthProbe{path: "/api/version"}},
 	{role: "embedding", driver: "voyage", display: "Voyage", defaultPort: 443, portLabel: "Voyage"},
 
 	// The collector owns 4318 (the port services target); Jaeger's own OTLP
@@ -241,14 +278,17 @@ var serviceDescriptors = []serviceDescriptor{
 	// is disposable in a dev stack.
 	{role: "traces", driver: "jaeger", container: "semiont-jaeger", image: "jaegertracing/all-in-one:1.76.0", mem: "1G",
 		ports:   []portNeed{{16686, "Jaeger UI"}, {14318, "Jaeger OTLP"}},
-		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI"},
+		display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI", health: healthProbe{}},
 	// Prometheus keeps its product port (tier 2) — free since the worker
 	// moved to 24100.
 	{role: "metrics", driver: "prometheus", container: "semiont-prometheus", image: "prom/prometheus:v3.9.1", mem: "1G",
-		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI"},
+		ports: []portNeed{{9090, "Prometheus UI"}}, display: "Prometheus", defaultPort: 9090, portLabel: "Prometheus UI",
+		health: healthProbe{path: "/-/healthy"}},
 	{role: "collector", driver: "otel", container: "semiont-otel-collector", image: "otel/opentelemetry-collector:0.137.0", mem: "1G",
 		ports:   []portNeed{{4318, "Collector OTLP"}, {24110, "Collector metrics"}},
-		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: needs("traces")},
+		display: "OTel", defaultPort: 4318, portLabel: "Collector OTLP", needs: needs("traces"),
+		// The collector's readout port, not the OTLP port services target.
+		health: healthProbe{port: 24110, path: "/metrics"}},
 }
 
 // descriptorIndex: (role, driver) → descriptor. Built once; the slice above
@@ -494,6 +534,72 @@ func mayConfigure(rp rolePlan) bool {
 		return true
 	}
 	return descriptorFor(rp.Role, rp.Driver).authority >= authorityConfigure
+}
+
+// healthEndpoint: the URL a start gates on and status reports, for one
+// (role, driver). THE home for that fact.
+//
+// The port follows the plan when the config owns it, and the descriptor
+// otherwise — which is what makes status honest about a config that moved a
+// port, and what the three separate copies of this could not do.
+func healthEndpoint(role, driver string, plan *launchPlan) string {
+	d := descriptorFor(role, driver)
+	// identity is the one driver-specific shape: a configured issuer names
+	// its own realm path, and that realm — not master — is what a start
+	// waits for, because the import is what makes it answer.
+	if role == "identity" && plan != nil {
+		if rp, ok := plan.Roles[role]; ok && rp.Issuer != "" {
+			return identityEndpoint(rp)
+		}
+	}
+	port := d.health.port
+	if port == 0 {
+		port = healthPort(role, d, plan)
+	}
+	if port == 0 {
+		return ""
+	}
+	if d.health.tcp {
+		return fmt.Sprintf("tcp:localhost:%d", port)
+	}
+	return fmt.Sprintf("http://localhost:%d%s", port, d.health.path)
+}
+
+// healthPort: the port this role is actually running on — the gateway's from
+// the plan (the one port a config moves that no role row carries), a
+// dependency role's from the plan, and a launcher-fiat one from the
+// descriptor.
+func healthPort(role string, d serviceDescriptor, plan *launchPlan) int {
+	if plan != nil {
+		if role == "gateway" {
+			return plan.GatewayPort
+		}
+		if rp, ok := plan.Roles[role]; ok && rp.Port != 0 {
+			return rp.Port
+		}
+	}
+	if len(d.ports) > 0 {
+		return d.ports[0].port
+	}
+	return d.defaultPort
+}
+
+// probeDriver: the driver status assumes when no record names one. A role
+// with a single driver has no assumption to make; a role with several
+// answers with the first that runs a container — the one a stack that has
+// not recorded itself would be running. A recorded stack never reaches here:
+// its endpoint comes from the record its start wrote.
+func probeDriver(role string) string {
+	ds := descriptorsForRole(role)
+	for _, d := range ds {
+		if d.container != "" {
+			return d.driver
+		}
+	}
+	if len(ds) > 0 {
+		return ds[0].driver
+	}
+	return ""
 }
 
 // stackServices: Semiont's own services, in start order, minus the Browser.

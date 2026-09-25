@@ -73,39 +73,3 @@ func renderServicePlan(rt, version, root string, opts startOptions, userEnv []st
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
 	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: opts.configName, userEnv: userEnv, restart: true})
 }
-
-// serviceEndpoint: the health endpoint status should probe for a service the
-// launcher just (re)started. plan is nil only for browser/traces (config-free).
-func serviceEndpoint(svc string, plan *launchPlan) string {
-	switch svc {
-	case "traces":
-		return "http://localhost:16686"
-	case "collector":
-		return "http://localhost:24110/metrics"
-	case "messaging":
-		return "tcp:localhost:4222"
-	case "identity":
-		return identityEndpoint(plan.Roles[svc])
-	case "metrics":
-		return "http://localhost:9090/-/healthy"
-	case "browser":
-		return "http://localhost:3000"
-	case "gateway":
-		return fmt.Sprintf("http://localhost:%d/api/health", plan.GatewayPort)
-	case "worker":
-		return "http://localhost:24100/health"
-	case "smelter":
-		return "http://localhost:24101/health"
-	case "weaver":
-		return "http://localhost:24102/health"
-	case "graph":
-		return fmt.Sprintf("http://localhost:%d", plan.AuxPorts("graph")[0].port)
-	case "vectors":
-		return fmt.Sprintf("http://localhost:%d/readyz", plan.Roles[svc].Port)
-	case "inference":
-		return fmt.Sprintf("http://localhost:%d/api/version", plan.Roles[svc].Port)
-	case "database":
-		return fmt.Sprintf("tcp:localhost:%d", plan.Roles[svc].Port)
-	}
-	return ""
-}
