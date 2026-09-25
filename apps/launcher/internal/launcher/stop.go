@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const stopUsage = `Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
+var stopUsage = fmt.Sprintf(`Usage: semiont stop [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>] [--delete] [--dry-run]
 
 Stop the whole Semiont stack — services, dependencies, and observability —
 and clean up the staged config copies. Safe to run when nothing is up:
@@ -19,11 +19,12 @@ its own explicit command: semiont clean.
 With no --runtime, EVERY installed runtime is swept — stopping via the wrong
 runtime is a silent no-op that leaves the real stack running.
 
-With --service <name>, stop just that one service (gateway, worker, smelter,
-weaver, archivist, librarian, browser, database, graph, vectors, inference, or
-traces). The staged
-config copies are left in place — the rest of the stack is still mounting
-them.
+With --service <name>, stop just that one service:
+
+%s.
+
+The staged config copies are left in place — the rest of the stack is still
+mounting them.
 
 A CODESPACE stack (started with --runtime codespace) stops with
 'gh codespace stop': billing halts, state and credentials persist, and the
@@ -35,21 +36,19 @@ stop means that stack; from a clone whose git origin names a recorded
 codespace stack (and no local stack exists), it means that one. Anywhere
 less certain, stop refuses and lists the choices: --repo <owner/name>
 targets a codespace stack, --runtime targets the local one.
-`
+`, roleListWrapped(78, ""))
 
-// stopNames sweeps every stack container in REVERSE start order —
-// dependents before their dependencies, so nothing spends teardown alive
-// with its upstream already gone (start brings up jaeger → neo4j → qdrant →
-// ollama → postgres → gateway → worker → smelter → weaver → browser).
-// semiont-browser is deliberately ABSENT: the Browser is not a stack
-// member (BROWSER-LIFECYCLE.md) — a bare stop leaves the viewer running
-// (announced), and `stop --service browser` is its explicit off-switch.
-var stopNames = []string{
-	"semiont-archivist", "semiont-weaver", "semiont-smelter", "semiont-worker",
-	"semiont-librarian", "semiont-dispatcher",
-	"semiont-gateway", "semiont-keycloak", "semiont-nats", "semiont-postgres", "semiont-ollama", "semiont-qdrant",
-	"semiont-neo4j", "semiont-otel-collector", "semiont-prometheus", "semiont-jaeger",
-}
+// stopNames: every stack container `semiont stop` tears down, in teardown
+// order — the start walk reversed, so nothing spends teardown alive with its
+// upstream already gone.
+//
+// `browser` is the one exemption: the Browser is not a stack member
+// (BROWSER-LIFECYCLE.md), so a bare stop leaves the viewer running
+// (announced) and `stop --service browser` is its explicit off-switch. That
+// exemption, and the one name this sweep has beyond the start preflight
+// (semiont-ollama, which start handles in its own section), are gated by
+// descriptor_census_test.go.
+var stopNames = sweepNames("browser")
 
 // Stop implements `semiont stop` — the port of the fleet's stop.sh.
 func Stop(args []string) int {
@@ -93,6 +92,13 @@ func Stop(args []string) int {
 			u.Fail("Unknown argument: %s", args[i])
 			return 1
 		}
+	}
+
+	// Every branch below either reads the record or rewrites it, and the
+	// no-record fallbacks (the all-runtimes name sweep, "nothing to stop")
+	// are only honest when there genuinely is no record.
+	if LoadStackSet().refuseUnreadable(u) {
+		return 1
 	}
 
 	// --service browser targets the machine-level Browser, not a stack
@@ -143,11 +149,11 @@ func Stop(args []string) int {
 	// bindings), in which case the record names the container it ran.
 	serviceContainer := ""
 	if service != "" {
-		if _, known := roles[service]; !known {
+		if !knownRole(service) {
 			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
-		serviceContainer = roles[service].container
+		serviceContainer = roleContainer(service)
 		if serviceContainer == "" {
 			if st := loadLocalState(); st != nil {
 				if e, ok := st.Services[service]; ok && e.Provided == providedLauncher && e.Container != "" {
@@ -181,11 +187,11 @@ func Stop(args []string) int {
 	// explicit --runtime keeps its narrow local meaning. --delete means
 	// nothing for local stacks (stop+rm already destroys them).
 	if repo != "" {
-		target := ss.Stacks["codespace:"+repo]
+		target := codespaceStack(ss, repo)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repo)
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 			}
 			return 1
 		}
@@ -207,7 +213,7 @@ func Stop(args []string) int {
 					return stopCodespace(u, cs[0], service, del, dryRun)
 				}
 				if c := originCodespace(cs, root); c != nil {
-					u.Log("Stopping %s %s", u.Bold(c.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
+					u.Log("Stopping %s %s", u.Bold(c.Codespace.Repo), u.Dim("(this clone's origin; per "+statePath()+")"))
 					return stopCodespace(u, c, service, del, dryRun)
 				}
 			}
@@ -216,7 +222,7 @@ func Stop(args []string) int {
 				fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
 			}
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Codespace.Repo)
 			}
 			return 1
 		}

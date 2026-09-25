@@ -1687,8 +1687,7 @@ func TestStatusMixed(t *testing.T) {
 	}
 	mustContain(t, "stdout", stdout,
 		"SERVICE", "RUNTIME", "STATUS",
-		"LOCAL STACK", "database (PostgreSQL)", // tech rides in the SERVICE cell now
-		"PostgreSQL", "Neo4j", "Qdrant", "Ollama", "Jaeger",
+		"LOCAL STACK",
 		"KNOWLEDGE BASES",
 		"semiont roots",
 		// The merged STATUS cell: mark + word, probe dimmed after. The
@@ -1699,6 +1698,13 @@ func TestStatusMixed(t *testing.T) {
 		"http://localhost:24100/health",
 		"tcp://localhost:5432",
 	)
+	// No stack is recorded here, so the rows are discovered BY NAME and no
+	// config has selected a driver. The report says so by naming no product:
+	// "database (PostgreSQL)" would be a guess that is only right while the
+	// database role has one driver, and guessing it is exactly what the
+	// descriptor set removed (LAUNCHER-SERVICE-MODEL P1). A recorded stack
+	// still names its products — every record carries its driver.
+	mustNotContain(t, "stdout", stdout, "PostgreSQL", "Neo4j", "Qdrant", "Jaeger")
 	// LAUNCHER PATHS describes the launcher, not any KB — asked for, not shown.
 	if strings.Contains(stdout, "LAUNCHER PATHS") {
 		t.Errorf("default status printed LAUNCHER PATHS without --verbose:\n%s", stdout)
@@ -2304,7 +2310,7 @@ func TestCodespaceStartCreates(t *testing.T) {
 		"Halt compute:")
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
-		`"runtime": "codespace"`, `"codespace": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
+		`"name": "fake-cs-1"`, `"repo": "pingel-org/foo-kb"`,
 		`"forwardPid"`, `"forwardPort": 4000`)
 	// No credentials exist to leak any more — the launcher neither reads nor
 	// prints them. Assert the record stays free of any password-shaped field so
@@ -2472,7 +2478,7 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 		t.Fatalf("bare resume: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Using recorded stack's runtime: codespace",
+		"Using recorded stack's platform: codespace",
 		"Resuming recorded codespace fake-cs-1",
 		// The wait narrates a RESUME, not a fresh create — the VM wakes
 		// with the stack already provisioned.
@@ -2544,7 +2550,7 @@ func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
 		t.Fatalf("disambiguated: exit %d\nstderr:\n%s", code, stderr)
 	}
 	b, _ := os.ReadFile(statePathFor(s2.home))
-	mustContain(t, "stack.json", string(b), `"codespace": "cs-b"`)
+	mustContain(t, "stack.json", string(b), `"name": "cs-b"`)
 }
 
 func TestCodespaceCreate503Retry(t *testing.T) {
@@ -2815,7 +2821,7 @@ func TestUseraddAmbiguousStacks(t *testing.T) {
 	}
 	both := `{"schema":3,"stacks":{` +
 		`"local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},` +
-		`"codespace:` + csRepo + `":{"runtime":"codespace","codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"services":{}}}}`
+		`"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"services":{}}}}`
 	if err := os.WriteFile(p, []byte(both), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -2899,8 +2905,10 @@ func writeCodespaceState(t *testing.T, s *scenario) {
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"runtime":"codespace",` +
-		`"codespace":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001,"ports":[4001],"services":{}}}}`
+	// The placement IS the platform (LAUNCHER-SERVICE-MODEL P3): no runtime
+	// key, and the four codespace facts travel together inside it.
+	body := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{` +
+		`"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"ports":[4001],"services":{}}}}`
 	if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -3066,7 +3074,7 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	if err != nil {
 		t.Fatal("stop forgot a codespace record that still mirrors an existing codespace")
 	}
-	mustContain(t, "stack.json after stop", string(b), `"codespace": "fake-cs-1"`)
+	mustContain(t, "stack.json after stop", string(b), `"name": "fake-cs-1"`)
 	if strings.Contains(string(b), `"forwardPid"`) {
 		t.Errorf("stop left a dead forward pid recorded:\n%s", b)
 	}
@@ -3299,7 +3307,7 @@ func TestMultiStackCodespaces(t *testing.T) {
 	}
 	b, _ := os.ReadFile(statePathFor(s.home))
 	mustContain(t, "stack.json", string(b),
-		"codespace:"+csRepo, "codespace:other/bar", `"codespace": "bar-cs-1"`,
+		"codespace:"+csRepo, "codespace:other/bar", `"name": "bar-cs-1"`,
 		`"forwardPort": 4000`, `"forwardPort": 4001`)
 	// BOTH KBs are reachable at once — the point of all of this.
 	for _, url := range []string{"http://localhost:4000/api/health", "http://localhost:4001/api/health"} {
@@ -3451,7 +3459,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 	s := newCodespaceScenario(t)
 	set := `{"schema":3,"stacks":{
 	  "local":{"runtime":"container","services":{"gateway":{"container":"semiont-gateway","id":"fid-semiont-gateway","provided":"launcher","startedAt":"2026-07-19T00:00:00Z"}}},
-	  "codespace:pingel-org/foo-kb":{"runtime":"codespace","codespace":"fake-cs-1","repo":"pingel-org/foo-kb","ports":[3000,4000,24100,24101,24102],"services":{}}}}`
+	  "codespace:pingel-org/foo-kb":{"codespace":{"name":"fake-cs-1","repo":"pingel-org/foo-kb"},"ports":[3000,4000,24100,24101,24102],"services":{}}}}`
 	p := statePathFor(s.home)
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 		t.Fatal(err)
@@ -4156,6 +4164,71 @@ func TestStopTwiceIsHonest(t *testing.T) {
 	}
 }
 
+// TestUnreadableStackRecordRefuses: a stack.json the launcher cannot read is
+// a REFUSAL at every command that consults it, not an empty stack set.
+//
+// The record planted here is the realistic corruption rather than random
+// bytes: a codespace stack recorded before its placement facts moved into a
+// nested object still carries the instance name as a plain string, so the
+// whole set fails to unmarshal. Read as "no stacks recorded", stop would
+// report nothing to stop and status no local stack while the codespace kept
+// running and billing — the silent no-op the --runtime mismatch refusal
+// already exists to prevent.
+func TestUnreadableStackRecordRefuses(t *testing.T) {
+	s := newScenario(t, "container", "docker", "gh")
+	rec := `{"schema":3,"stacks":{"codespace:owner/kb":{` +
+		`"runtime":"codespace","codespace":"cs-1","repo":"owner/kb",` +
+		`"forwardPort":4000,"services":{}}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(rec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Every command that draws a conclusion from the record. A new one that
+	// reads stack.json belongs in this list.
+	for _, args := range [][]string{
+		{"stop"},
+		{"stop", "--service", "browser"},
+		{"start"},
+		{"start", "--dry-run"},
+		{"status"},
+		{"status", "--service", "browser"},
+		{"logs"},
+		{"clean", "--dry-run"},
+		{"roots"},
+		{"identity", "sync"},
+		{"export", "--repo", "owner/kb"},
+		{"logout"},
+	} {
+		stdout, stderr, code := s.run(t, args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1 on an unreadable record, got %d\nstdout:\n%s\nstderr:\n%s",
+				args, code, stdout, stderr)
+			continue
+		}
+		mustContain(t, strings.Join(args, " ")+" stderr", stderr,
+			"Cannot read the stack record",
+			"treating that as \"no stacks recorded\" would report",
+			"stack.json.unreadable")
+	}
+
+	// Nothing claimed to have stopped anything, and nothing overwrote the one
+	// piece of evidence about what may still be running.
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("unreadable record removed: %v", err)
+	}
+	if string(b) != rec {
+		t.Errorf("unreadable record rewritten:\n%s", b)
+	}
+	if argv := s.argv(t); strings.Contains(argv, " stop ") || strings.Contains(argv, " rm ") {
+		t.Errorf("a refused command still swept containers:\n%s", argv)
+	}
+}
+
 // writeStackState plants a schema-2 stack.json for the scenario.
 func writeStackState(t *testing.T, s *scenario, runtime string) {
 	t.Helper()
@@ -4670,7 +4743,7 @@ func TestStartServiceWorker(t *testing.T) {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Restarting worker",
+		"Restarting Worker Pool",
 		"OTel collector detected — export enabled",
 		"SEMIONT_OIDC_CLIENT_SECRET=<redacted>",
 		"🚀 worker is up",
@@ -4719,7 +4792,7 @@ func TestStartServiceGraph(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting graph (Neo4j)", "🚀 graph is up")
+	mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
 	argv := s.argv(t)
 	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
 	for _, absent := range []string{"image pull", "busybox", "inspect"} {
@@ -4738,7 +4811,7 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting browser", "🚀 browser is up")
+	mustContain(t, "stdout", stdout, "Restarting Browser", "🚀 browser is up")
 	// The git-clone invariant is scoped to /kb-mount flows: gateway still
 	// requires a clone; a sidecar needs only the .semiont/ tree.
 	if _, stderr, code := s.run(t, "start", "--service", "gateway"); code != 1 {
@@ -4771,7 +4844,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting librarian", "Librarian healthy (http://localhost:24104)")
+	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://localhost:24104)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
@@ -4810,7 +4883,7 @@ func TestStartServiceArchivist(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting archivist", "Archivist healthy (http://localhost:24103)")
+	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://localhost:24103)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-archivist",
@@ -5013,7 +5086,7 @@ func TestBareResumeUsesRecordedRepoNotCwd(t *testing.T) {
 	if strings.Contains(stdout+stderr, "someone/unrelated") {
 		t.Errorf("bare resume targeted the cwd's repo, not the recorded stack:\n%s\n%s", stdout, stderr)
 	}
-	mustContain(t, "the codespace branch actually fired", stdout+stderr, "Using recorded stack's runtime")
+	mustContain(t, "the codespace branch actually fired", stdout+stderr, "Using recorded stack's platform")
 	mustContain(t, "resume names the recorded repo", stdout+stderr, csRepo)
 	fresh := strings.TrimPrefix(string(s.mustLog(t)), string(before))
 	if strings.Contains(fresh, "someone/unrelated") {
@@ -7409,4 +7482,103 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 	if strings.Contains(stdout, "--name semiont-keycloak") {
 		t.Error("an external issuer was launched")
 	}
+}
+
+// LAUNCHER-SERVICE-MODEL P4. `start --service <role>` used to reach a SECOND
+// implementation of the per-role launch — flowOneService carried its own
+// copy of the dependency-role branch that flowFullStart reaches through
+// flowDepRole. Two implementations of one launch drift, and a drift here is
+// a container that runs with different arguments depending on which verb
+// started it.
+//
+// The full start's dry-run is the argv every role's launch is already pinned
+// to. This requires the single-service dry-run to produce the SAME line.
+func TestSingleServiceStartIssuesTheSameArgvAsAFullStart(t *testing.T) {
+	runLine := func(t *testing.T, transcript, container string) string {
+		t.Helper()
+		for _, line := range strings.Split(transcript, "\n") {
+			if _, rest, ok := strings.Cut(line, " run -d --name "); ok {
+				if name, _, _ := strings.Cut(rest, " "); name == container {
+					return line
+				}
+			}
+		}
+		return ""
+	}
+
+	s := newScenario(t, "container")
+	full, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("full dry run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	full = s.norm(full)
+
+	for _, role := range []string{"traces", "metrics", "collector", "database", "identity", "graph", "vectors", "gateway", "archivist", "librarian", "dispatcher", "worker", "smelter", "weaver"} {
+		t.Run(role, func(t *testing.T) {
+			one, stderr, code := s.run(t, "start", "--service", role, "--dry-run")
+			if code != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+			}
+			one = s.norm(one)
+			// The container this role runs, read out of the full start so
+			// the test needs no second copy of the names.
+			var container string
+			for _, line := range strings.Split(full, "\n") {
+				if _, rest, ok := strings.Cut(line, " run -d --name "); ok {
+					if name, _, _ := strings.Cut(rest, " "); strings.Contains(name, roleContainerHint(role)) {
+						container = name
+						break
+					}
+				}
+			}
+			if container == "" {
+				t.Skipf("the full start launches no container for %s in this config", role)
+			}
+			// The ONE documented difference, stripped before comparing: a
+			// single-service start enables OTel export iff the collector is
+			// already up (`start --help`), and in a dry run it is not. Every
+			// other argument must be identical.
+			stripOtel := func(line string) string {
+				out := []string{}
+				for _, f := range strings.Fields(line) {
+					if strings.HasPrefix(f, "OTEL_EXPORTER_OTLP_ENDPOINT=") {
+						out = out[:len(out)-1] // drop the --env that introduced it
+						continue
+					}
+					out = append(out, f)
+				}
+				return strings.Join(out, " ")
+			}
+			want, got := stripOtel(runLine(t, full, container)), stripOtel(runLine(t, one, container))
+			if got == "" {
+				t.Fatalf("--service %s launched no %s; the full start runs\n  %s", role, container, want)
+			}
+			if got != want {
+				t.Errorf("--service %s issues different argv than the full start:\n  full    %s\n  service %s", role, want, got)
+			}
+		})
+	}
+}
+
+// roleContainerHint: the wire-level name fragment a role's container carries.
+// Read from the launcher's own vocabulary would be better, but the black-box
+// suite deliberately cannot see inside the package.
+func roleContainerHint(role string) string {
+	switch role {
+	case "traces":
+		return "jaeger"
+	case "metrics":
+		return "prometheus"
+	case "collector":
+		return "otel-collector"
+	case "database":
+		return "postgres"
+	case "identity":
+		return "keycloak"
+	case "graph":
+		return "neo4j"
+	case "vectors":
+		return "qdrant"
+	}
+	return role
 }

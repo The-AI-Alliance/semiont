@@ -77,7 +77,7 @@ func writeDiscovery(ss *StackSet) {
 		kbs = append(kbs, e)
 	}
 	for _, c := range codespaceStacks(ss) {
-		if c.ForwardPort == 0 {
+		if c.Codespace.ForwardPort == 0 {
 			continue // no local endpoint to offer
 		}
 		if c.KBDid == "" {
@@ -93,16 +93,16 @@ func writeDiscovery(ss *StackSet) {
 		// forwardProcAlive, not forwardAlive: the question is whether OUR
 		// forward still exists, and dialing the port would answer "yes" for
 		// whoever else took it — the confusion this whole rule exists to end.
-		if !forwardProcAlive(c.ForwardPID) {
+		if !forwardProcAlive(c.Codespace.ForwardPID) {
 			continue
 		}
-		if claimed[c.ForwardPort] {
+		if claimed[c.Codespace.ForwardPort] {
 			continue // someone with a better claim already published it
 		}
-		claimed[c.ForwardPort] = true
+		claimed[c.Codespace.ForwardPort] = true
 		kbs = append(kbs, DiscoveredKB{
-			Host: "localhost", Port: c.ForwardPort, Placement: DiscoveredKBPlacementCodespace,
-			Repo: opt(c.Repo), Did: c.KBDid, ManagedBy: "semiont-launcher",
+			Host: "localhost", Port: c.Codespace.ForwardPort, Placement: DiscoveredKBPlacementCodespace,
+			Repo: opt(c.Codespace.Repo), Did: c.KBDid, ManagedBy: "semiont-launcher",
 		})
 	}
 	b, err := json.MarshalIndent(DiscoveryDocument{Version: 1, Kbs: kbs}, "", "  ")

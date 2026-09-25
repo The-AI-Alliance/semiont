@@ -15,6 +15,13 @@ import (
 // (non-nil, true) = that codespace stack; ok=false = refused, message
 // printed with verb-specific fix-it lines.
 func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bool) (*StackState, bool) {
+	// Nine verbs resolve their target through here, so this is also where
+	// they all learn that the record could not be read — without it every
+	// one of them would say "needs a running stack, and none is recorded"
+	// about a stack that is up.
+	if ss.refuseUnreadable(u) {
+		return nil, false
+	}
 	// The contradiction check lives HERE, once — a verb that forgot it
 	// would silently resolve --repo+--runtime to the local stack (the
 	// wantLocal arm wins the switch), targeting the wrong KB.
@@ -28,11 +35,11 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 	switch {
 	case wantLocal:
 	case repo != "":
-		target := ss.Stacks["codespace:"+repo]
+		target := codespaceStack(ss, repo)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repo)
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 			}
 			return nil, false
 		}
@@ -58,7 +65,7 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 			fmt.Fprintf(os.Stderr, "    semiont %s --runtime %s ...   (the local stack)\n", verb, local.Runtime)
 		}
 		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    semiont %s --repo %s ...\n", verb, c.Repo)
+			fmt.Fprintf(os.Stderr, "    semiont %s --repo %s ...\n", verb, c.Codespace.Repo)
 		}
 		return nil, false
 	}

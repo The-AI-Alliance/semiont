@@ -55,7 +55,7 @@ func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
 func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 	plan := mustDerive(t, variantConfig(t, map[string]string{"identity": keycloakIdentity}))
 	checkRole(t, plan, "identity", rolePlan{
-		Obligation: obligationProvided, Driver: "keycloak",
+		Presence: presenceLauncher, Driver: "keycloak",
 		Image: "quay.io/keycloak/keycloak:26.7.4", Port: 8080,
 		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_DB_PASSWORD=localpass", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
 	})
@@ -75,7 +75,7 @@ issuer = "https://login.example.com/realms/acme"
 subjectClaim = "sub"
 `}))
 	checkRole(t, plan, "identity", rolePlan{
-		Obligation: obligationExternal, Driver: "oidc", Address: "login.example.com", Port: 443,
+		Presence: presenceExternal, Driver: "oidc", Address: "login.example.com", Port: 443,
 	})
 }
 

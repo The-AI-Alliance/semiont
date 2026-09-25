@@ -2,11 +2,12 @@ package launcher
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strings"
 	"time"
 )
 
@@ -20,7 +21,8 @@ import (
 // work from these identifiers (falling back to the historical all-runtimes
 // name sweep only when no record exists). The record is belief, not ground
 // truth: status still verifies every claim against the runtime, gh, and
-// the health endpoints. Schema 1/2 single-stack files are migrated on read.
+// the health endpoints. Schema 2 single-stack files are migrated on read;
+// schema 1 is refused rather than read (LoadStackSet says why).
 
 // Provided values (schema 2): who provides this role.
 const (
@@ -55,21 +57,41 @@ type ServiceState struct {
 }
 
 type StackState struct {
-	Schema      int                     `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
-	UpdatedAt   time.Time               `json:"updatedAt"`
-	Runtime     string                  `json:"runtime"`
-	KBRoot      string                  `json:"kbRoot,omitempty"`
-	KBDid       string                  `json:"kbDid,omitempty"` // did:web from .semiont/config
-	Config      string                  `json:"config,omitempty"`
-	Version     string                  `json:"imageVersion,omitempty"`
-	HostAddr    string                  `json:"hostAddr,omitempty"`
-	Stage       string                  `json:"configStage,omitempty"`
-	Ports       []int                   `json:"ports,omitempty"`       // host ports this stack claimed — stop verifies their release
-	Codespace   string                  `json:"codespace,omitempty"`   // runtime "codespace": the instance name (a PID — never user input)
-	Repo        string                  `json:"repo,omitempty"`        // runtime "codespace": owner/name slug (the user-facing identity)
-	ForwardPID  int                     `json:"forwardPid,omitempty"`  // runtime "codespace": the detached `gh codespace ports forward`
-	ForwardPort int                     `json:"forwardPort,omitempty"` // runtime "codespace": this stack's local KB port (4000, or allocated above)
-	Services    map[string]ServiceState `json:"services"`
+	Schema    int       `json:"schema,omitempty"` // legacy single-stack files only (read-compat)
+	UpdatedAt time.Time `json:"updatedAt"`
+	Runtime   string    `json:"runtime"`
+	KBRoot    string    `json:"kbRoot,omitempty"`
+	KBDid     string    `json:"kbDid,omitempty"` // did:web from .semiont/config
+	Config    string    `json:"config,omitempty"`
+	Version   string    `json:"imageVersion,omitempty"`
+	HostAddr  string    `json:"hostAddr,omitempty"`
+	Stage     string    `json:"configStage,omitempty"`
+	Ports     []int     `json:"ports,omitempty"` // host ports this stack claimed — stop verifies their release
+	// Codespace: the placement facts a stack on a codespace has and a local
+	// one cannot. Its PRESENCE is the platform (D5) — there is no separate
+	// platform field to keep in sync with it, and no local stack carrying
+	// four zeroed codespace fields for every reader to test one at a time.
+	Codespace *codespacePlacement     `json:"codespace,omitempty"`
+	Services  map[string]ServiceState `json:"services"`
+}
+
+// codespacePlacement: where a codespace stack is and how this machine
+// reaches it. Runtime stays empty on one of these — compose owns the
+// services inside, so there is no container runtime of ours to name.
+type codespacePlacement struct {
+	Name        string `json:"name"`                  // the instance name (a PID — never user input)
+	Repo        string `json:"repo"`                  // owner/name slug (the user-facing identity)
+	ForwardPID  int    `json:"forwardPid,omitempty"`  // the detached `gh codespace ports forward`
+	ForwardPort int    `json:"forwardPort,omitempty"` // this stack's local KB port (4000, or allocated above)
+}
+
+// platform: derived from the record's shape, never stored beside it. A stack
+// lives on a codespace exactly when it has a placement.
+func (st *StackState) platform() platform {
+	if st.Codespace != nil {
+		return platformCodespace
+	}
+	return platformLocal
 }
 
 // StateDir is the launcher's XDG state home: ~/Library/Application Support/
@@ -111,20 +133,36 @@ type StackSet struct {
 	// (BROWSER-LIFECYCLE.md): it serves any number of KBs, any start ensures
 	// it, and stopping a stack leaves it running.
 	Browser *ServiceState `json:"browser,omitempty"`
+	// unreadable: why the file on disk could not be understood, nil when it
+	// was (an ABSENT file included — no record is a clean, expected state).
+	//
+	// It rides the set, unexported, because the only other thing a reader
+	// could be handed is an EMPTY set — and empty is not the absence of an
+	// answer, it is the answer "this machine has no stacks", which is the one
+	// wrong answer that costs the user a running stack: stop finds nothing to
+	// stop, status shows nothing, the containers and the codespace keep
+	// running (and billing). Every command that draws a conclusion from the
+	// set calls refuseUnreadable first, for the same reason stop refuses a
+	// --runtime that mismatches the record.
+	unreadable error
 }
 
 // stackKey: "local" for the machine's one local stack, "codespace:<repo>"
 // per codespace stack (the repo is the user-facing identity there).
 func stackKey(st *StackState) string {
-	if st.Runtime == "codespace" {
-		return "codespace:" + st.Repo
+	if st.Codespace != nil {
+		return "codespace:" + st.Codespace.Repo
 	}
 	return "local"
 }
 
 // LoadStackSet returns every recorded stack (never nil; empty when no file).
 // Schema 2 single-stack files migrate in memory — the next save writes
-// schema 3. Schema 1 is no longer read (see below).
+// schema 3. Schema 1 is not read (see below).
+//
+// A file this launcher cannot turn into stacks does NOT come back as an empty
+// set: the set carries why, and refuseUnreadable turns that into a refusal at
+// the verb that asked. Absence is the only clean way to have no stacks.
 func LoadStackSet() *StackSet {
 	ss := &StackSet{Schema: 3, Stacks: map[string]*StackState{}}
 	p := statePath()
@@ -133,22 +171,31 @@ func LoadStackSet() *StackSet {
 	}
 	b, err := os.ReadFile(p)
 	if err != nil {
+		if !os.IsNotExist(err) {
+			ss.unreadable = err
+		}
 		return ss
 	}
 	var probe struct {
 		Schema int             `json:"schema"`
 		Stacks json.RawMessage `json:"stacks"`
 	}
-	if json.Unmarshal(b, &probe) != nil {
+	if err := json.Unmarshal(b, &probe); err != nil {
+		ss.unreadable = err
 		return ss
 	}
 	if probe.Stacks != nil {
 		var full StackSet
-		if json.Unmarshal(b, &full) == nil && full.Stacks != nil {
-			full.Schema = 3
-			return &full
+		if err := json.Unmarshal(b, &full); err != nil {
+			ss.unreadable = err
+			return ss
 		}
-		return ss
+		if full.Stacks == nil {
+			ss.unreadable = errors.New(`"stacks" is present but holds no stacks`)
+			return ss
+		}
+		full.Schema = 3
+		return &full
 	}
 	// Legacy single-stack file (schema 2).
 	//
@@ -156,33 +203,75 @@ func LoadStackSet() *StackSet {
 	// `hostReuse` bool that no longer exists on the struct, so a schema-1
 	// record would load with every service unclassified — and an unclassified
 	// entry is worse than no record at all: teardown would treat a host
-	// process as launcher-owned. No record falls back to the name sweep, which
-	// is correct for a machine this old.
+	// process as launcher-owned. Refusing to read it is therefore right;
+	// refusing SILENTLY is not, so it lands here rather than as no record.
 	if probe.Schema < 2 {
+		ss.unreadable = errors.New("schema 1 predates the `provided` field, so its services cannot be told apart from host processes")
 		return ss
 	}
 	var st StackState
-	if json.Unmarshal(b, &st) != nil || st.Services == nil {
+	if err := json.Unmarshal(b, &st); err != nil {
+		ss.unreadable = err
+		return ss
+	}
+	if st.Services == nil {
+		ss.unreadable = errors.New(`schema 2 record with no "services" object`)
 		return ss
 	}
 	ss.Stacks[stackKey(&st)] = &st
 	return ss
 }
 
-// loadLocalState: the machine's one local stack record, or nil.
+// refuseUnreadable prints the refusal for a record this launcher could not
+// read and reports whether the caller must stop. Every command that consults
+// the recorded set calls it before acting: an unreadable record leaves the
+// launcher unable to tell a running stack from none, and the fix is the
+// user's to make — nothing here can guess what the file was meant to say.
+func (ss *StackSet) refuseUnreadable(u *UI) bool {
+	if ss.unreadable == nil {
+		return false
+	}
+	p := statePath()
+	u.Fail("Cannot read the stack record: %v", ss.unreadable)
+	fmt.Fprintf(os.Stderr, "  %s exists, so a stack was started here — but this launcher\n", p)
+	fmt.Fprintln(os.Stderr, "  cannot read it, and treating that as \"no stacks recorded\" would report")
+	fmt.Fprintln(os.Stderr, "  nothing to stop while the real stack keeps running.")
+	fmt.Fprintln(os.Stderr, "  Set the record aside, then stop what is running by name:")
+	fmt.Fprintf(os.Stderr, "    mv %s %s.unreadable\n", p, p)
+	fmt.Fprintln(os.Stderr, "    semiont stop          (sweeps this machine's containers by name)")
+	fmt.Fprintln(os.Stderr, "    gh codespace list     (a codespace stack stops there)")
+	return true
+}
+
+// loadLocalState: the machine's one local stack record, or nil. Every caller
+// sits inside a flow that already refused an unreadable record at its entry —
+// this shorthand cannot refuse, because nil here reads as "no local stack".
 func loadLocalState() *StackState {
 	return LoadStackSet().Stacks["local"]
+}
+
+// codespaceStack: the recorded stack for one repo, or nil. The key can only
+// exist for a stack that HAS a placement — stackKey builds the key out of
+// the placement — so a non-nil result always has one, and every caller that
+// goes through here may read it without asking again. This function is where
+// that invariant is stated, instead of at six lookups that each assumed it.
+func codespaceStack(ss *StackSet, repo string) *StackState {
+	st := ss.Stacks["codespace:"+repo]
+	if st == nil || st.Codespace == nil {
+		return nil
+	}
+	return st
 }
 
 // codespaceStacks: every recorded codespace stack, sorted by repo.
 func codespaceStacks(ss *StackSet) []*StackState {
 	var out []*StackState
-	for k, st := range ss.Stacks {
-		if strings.HasPrefix(k, "codespace:") {
+	for _, st := range ss.Stacks {
+		if st.platform() == platformCodespace {
 			out = append(out, st)
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Repo < out[j].Repo })
+	sort.Slice(out, func(i, j int) bool { return out[i].Codespace.Repo < out[j].Codespace.Repo })
 	return out
 }
 
@@ -192,6 +281,14 @@ func codespaceStacks(ss *StackSet) []*StackState {
 func saveStackSet(ss *StackSet) {
 	p := statePath()
 	if p == "" {
+		return
+	}
+	// A record this launcher could not read is the only evidence of what may
+	// still be running, and every command that gets here has already refused
+	// on it — so nothing should be overwriting it. Belt and braces: writing
+	// would destroy that evidence and silently replace it with a set built
+	// from the one stack this call happens to know about.
+	if ss.unreadable != nil {
 		return
 	}
 	if len(ss.Stacks) == 0 && ss.Browser == nil {
@@ -267,7 +364,7 @@ func (st *StackState) recordService(role, id, image, provided, endpoint, driver 
 		StartedAt:    time.Now().UTC(),
 	}
 	if provided == providedLauncher {
-		e.Container = roles[role].container
+		e.Container = descriptorFor(role, driver).container
 		// A container-less role (embedding) gets NO container here even when
 		// provided reads "launcher" — that value may be INHERITED from the
 		// role that runs its Ollama (SharesOllamaWith), and stamping a

@@ -179,7 +179,7 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 	healthURL := regexp.MustCompile(`localhost:(\d+)/health`)
 	probeURL := regexp.MustCompile(`SUPERVISE_PROBE=http://localhost:(\d+)/health`)
 	for svc, mainPath := range mains {
-		want := roles[svc].ports[0].port
+		want := semiontDescriptor(svc).ports[0].port
 
 		ts, err := os.ReadFile(mainPath)
 		if err != nil {

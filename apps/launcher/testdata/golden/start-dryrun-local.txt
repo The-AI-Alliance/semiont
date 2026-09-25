@@ -2,39 +2,39 @@
 # execute, in order. Values known only at runtime appear as <placeholders>.
 # probe: container run --rm busybox:1.38.0 sh -c "ip route | awk '/default/{print $3}'" → <host-addr>
 # snapshot container logs into <state-root>/logs/<timestamp>/ before removal
+container stop semiont-weaver
+container rm semiont-weaver
+container stop semiont-smelter
+container rm semiont-smelter
+container stop semiont-worker
+container rm semiont-worker
+container stop semiont-dispatcher
+container rm semiont-dispatcher
+container stop semiont-librarian
+container rm semiont-librarian
+container stop semiont-archivist
+container rm semiont-archivist
+container stop semiont-qdrant
+container rm semiont-qdrant
+container stop semiont-neo4j
+container rm semiont-neo4j
+container stop semiont-gateway
+container rm semiont-gateway
+container stop semiont-keycloak
+container rm semiont-keycloak
+container stop semiont-nats
+container rm semiont-nats
+container stop semiont-postgres
+container rm semiont-postgres
 container stop semiont-otel-collector
 container rm semiont-otel-collector
 container stop semiont-prometheus
 container rm semiont-prometheus
 container stop semiont-jaeger
 container rm semiont-jaeger
-container stop semiont-neo4j
-container rm semiont-neo4j
-container stop semiont-qdrant
-container rm semiont-qdrant
-container stop semiont-nats
-container rm semiont-nats
-container stop semiont-postgres
-container rm semiont-postgres
-container stop semiont-keycloak
-container rm semiont-keycloak
-container stop semiont-gateway
-container rm semiont-gateway
-container stop semiont-worker
-container rm semiont-worker
-container stop semiont-smelter
-container rm semiont-smelter
-container stop semiont-weaver
-container rm semiont-weaver
-container stop semiont-archivist
-container rm semiont-archivist
-container stop semiont-librarian
-container rm semiont-librarian
-container stop semiont-dispatcher
-container rm semiont-dispatcher
 # remove staged config copies: /tmp/semiont-config.*
 # require free ports: 7474 7687 6333 5432 8080 4000 24100 24101 24102 24103 24104 4318 24110 16686 14318 9090
-# stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
+# stage per-service config copies under <config-stage>: gateway.toml archivist.toml librarian.toml dispatcher.toml worker.toml smelter.toml weaver.toml
 # write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # append [environments.local.archivist] host/port (launcher-staged topology) to gateway.toml

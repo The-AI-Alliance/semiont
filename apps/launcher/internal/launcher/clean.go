@@ -91,8 +91,14 @@ func Clean(args []string) int {
 
 	// Never sweep state out from under a stack that may be mounting it.
 	// stack.json is belief, but the asymmetry decides: a stale "running"
-	// costs the user one `semiont stop`; removing mounted dirs corrupts.
-	if st := loadLocalState(); st != nil && stateKeyFor(st.KBDid, st.KBRoot) == key {
+	// costs the user one `semiont stop`; removing mounted dirs corrupts. The
+	// same asymmetry is why an UNREADABLE record refuses outright instead of
+	// reading as "no stack is using this".
+	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
+	if st := ss.Stacks["local"]; st != nil && stateKeyFor(st.KBDid, st.KBRoot) == key {
 		u.Fail("A recorded local stack is using this state (per %s).", statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
 		return 1

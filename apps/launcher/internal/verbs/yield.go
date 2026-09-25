@@ -184,13 +184,13 @@ func Yield(args []string) int {
 	}
 	base, key, root := "", "", ""
 	if target != nil {
-		base = fmt.Sprintf("http://localhost:%d", target.ForwardPort)
-		key = "codespace:" + target.Repo
+		base = fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort)
+		key = "codespace:" + target.Codespace.Repo
 		// Storage URIs are repo-relative; for a codespace target the cwd's
 		// clone is the only tree that can anchor them.
 		root = launcher.CwdKBRoot()
 		if root == "" {
-			u.Fail("yield --upload against a codespace needs a local clone of %s to anchor repo-relative paths.", target.Repo)
+			u.Fail("yield --upload against a codespace needs a local clone of %s to anchor repo-relative paths.", target.Codespace.Repo)
 			fmt.Fprintln(os.Stderr, "  Run it from inside the clone.")
 			return 1
 		}

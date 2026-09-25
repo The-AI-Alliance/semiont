@@ -11,7 +11,7 @@ import (
 	"syscall"
 )
 
-const logsUsage = `Usage: semiont logs [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
+var logsUsage = fmt.Sprintf(`Usage: semiont logs [--service <name>] [--runtime container|docker|podman] [--repo <owner/name>]
 
 A bare invocation follows the lone forwarded codespace stack (when no local
 stack exists), else the local stack, else the lone recorded codespace; with
@@ -21,18 +21,27 @@ explicitly; --runtime targets a local runtime.
 Follow the Semiont service logs, one [svc]-prefixed stream per service.
 Ctrl+C stops *following* — it does not stop the stack (that's semiont stop).
 
-By default follows the seven Semiont services (gateway, worker, smelter,
-weaver, archivist, librarian, browser). With --service <name>, follow any ONE
-service including the infrastructure roles: gateway, worker, smelter, weaver,
-archivist, librarian, browser,
-database, graph, vectors, inference, collector, metrics, or traces.
+By default follows Semiont's own services (%s). With
+--service <name>, follow any ONE service including the infrastructure roles:
+%s.
 
 The runtime and container identities come from the recorded stack state when
 present (--runtime overrides); otherwise the stack is discovered by
 name-scan.
-`
+`, strings.Join(logServices, ", "), roleListWrapped(78, ""))
 
-var logServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher", "browser"}
+// logServices: the default follow set — Semiont's own services, the ones
+// whose logs are ours to read. Derived, so a new Semiont service is followed
+// the day it exists rather than the day somebody remembers this list.
+var logServices = func() []string {
+	var out []string
+	for _, d := range serviceDescriptors {
+		if d.driver == driverSemiont {
+			out = append(out, d.role)
+		}
+	}
+	return out
+}()
 
 // Logs implements `semiont logs` — the port of the fleet's logs.sh.
 func Logs(args []string) int {
@@ -72,7 +81,7 @@ func Logs(args []string) int {
 		}
 	}
 	if service != "" {
-		if _, known := roles[service]; !known {
+		if !knownRole(service) {
 			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
@@ -82,12 +91,15 @@ func Logs(args []string) int {
 	// overrides, and a record about a different runtime doesn't apply. No
 	// record: the historical name-scan discovery.
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
 	rt := ""
 	csName := ""
 	if repoFlag != "" {
-		target := ss.Stacks["codespace:"+repoFlag]
+		target := codespaceStack(ss, repoFlag)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repoFlag)
 			return 1
@@ -96,7 +108,7 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "'gh' is not on PATH.")
 			return 1
 		}
-		csName = target.Codespace
+		csName = target.Codespace.Name
 		st = nil
 	} else if runtime != "" {
 		if !onPath(runtime) {
@@ -115,7 +127,7 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "A codespace stack is forwarded but 'gh' is not on PATH.")
 			return 1
 		}
-		csName = fwd[0].Codespace
+		csName = fwd[0].Codespace.Name
 		u.Log("Using the forwarded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if st != nil && st.Runtime != "" && onPath(st.Runtime) {
 		rt = st.Runtime
@@ -125,13 +137,13 @@ func Logs(args []string) int {
 			fmt.Fprintln(os.Stderr, "A codespace stack is recorded but 'gh' is not on PATH.")
 			return 1
 		}
-		csName = cs[0].Codespace
+		csName = cs[0].Codespace.Name
 		st = nil
 		u.Log("Using recorded codespace stack %s", u.Dim("("+csName+" per "+statePath()+")"))
 	} else if len(cs) > 1 {
 		fmt.Fprintln(os.Stderr, "Multiple codespace stacks are recorded — say which:  semiont logs --repo <owner/name>")
 		for _, c := range cs {
-			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 		}
 		return 1
 	} else {
@@ -165,7 +177,7 @@ func Logs(args []string) int {
 				}
 			}
 		}
-		return roles[svc].container, true
+		return roleContainer(svc), true
 	}
 
 	follow := logServices
@@ -175,7 +187,7 @@ func Logs(args []string) int {
 	targets := make(map[string]string, len(follow)) // svc → handle
 	for _, svc := range follow {
 		if csName != "" { // codespace: wire-level names, no per-service record
-			targets[svc] = roles[svc].container
+			targets[svc] = roleContainer(svc)
 			continue
 		}
 		h, ok := handleFor(svc)

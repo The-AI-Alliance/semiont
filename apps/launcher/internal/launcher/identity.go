@@ -7,6 +7,7 @@ package launcher
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -100,7 +101,19 @@ func identityEndpoint(rp rolePlan) string {
 // the agent exchange and false in general: the gateway dials the Archivist for
 // content, events and the working tree's branch, and has to prove who it is
 // like anyone else.
-var serviceClients = []string{"archivist", "dispatcher", "gateway", "librarian", "smelter", "weaver", "worker"}
+// serviceClients: the realm's view of `stackServices` — every process that
+// presents a token to another Semiont service, and so needs an account. The
+// Browser presents none: it is a viewer, and the only one of ours without an
+// account.
+//
+// Sorted, which is the only thing that differs from stackServices: the
+// rendered realm document is compared against a golden, and alphabetical is
+// the stable presentation for a list a human reads in a JSON file.
+var serviceClients = func() []string {
+	out := append([]string(nil), stackServices...)
+	sort.Strings(out)
+	return out
+}()
 
 // serviceClientID: the realm client id for one service's account.
 func serviceClientID(svc string) string { return "semiont-" + svc }
@@ -478,7 +491,10 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
 	dbHost := db.Address
-	if db.Obligation == obligationProvided {
+	// Authority, not presence: an external PostgreSQL is somebody's shared
+	// server, and creating a database in it is a privileged persistent
+	// change the launcher is not entitled to make (D6).
+	if mayConfigure(db) {
 		dbHost = addr
 		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {
 			return nil, nil, false

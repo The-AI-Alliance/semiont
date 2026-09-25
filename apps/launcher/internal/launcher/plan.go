@@ -16,22 +16,34 @@ import (
 	"strings"
 )
 
-type obligation int
+// presence: whether a role is part of this stack, and WHO runs it — one of
+// the three questions `obligation` used to answer at once (D6). The other
+// two have left: what the launcher may change inside a service is
+// `authority`, declared on the descriptor, and the memory preflight reads
+// presence because "do we run it" is genuinely its question.
+//
+// `absent` is not a way to run. It is a presence — the role is not here —
+// and naming it so is what stops it being treated as a fourth mechanism.
+//
+// Distinct from ServiceState.Provided, which shares this vocabulary and is
+// NOT a restatement of it: presence is plan-time INTENT (host preferred, a
+// container if there is none), Provided is the OUTCOME a start recorded.
+type presence int
 
 const (
-	obligationAbsent      obligation = iota // no section / not referenced: not needed
-	obligationProvided                      // launcher launches a container (driver by type)
-	obligationExternal                      // provided elsewhere: verify, never launch
-	obligationHostProcess                   // host process preferred (container fallback per driver)
+	presenceAbsent        presence = iota // no section / not referenced: not needed
+	presenceLauncher                      // the launcher runs it here (driver by type)
+	presenceExternal                      // somebody else runs it: verify, never launch
+	presenceHostPreferred                 // a host process is preferred; a container is the fallback
 )
 
-func (o obligation) String() string {
-	return [...]string{"absent", "provided", "external", "host-process"}[o]
+func (p presence) String() string {
+	return [...]string{"absent", "provided", "external", "host-process"}[p]
 }
 
 type rolePlan struct {
 	Role             string
-	Obligation       obligation
+	Presence         presence
 	Driver           string   // config `type` (catalog key)
 	Image            string   // catalog, for provided/host-fallback launches
 	Address          string   // external host, for reachability probes
@@ -84,74 +96,6 @@ const (
 type modelNeed struct {
 	Name  string
 	Roles []string // roleInference and/or roleEmbedding
-}
-
-// driverSpec: what the config does NOT declare about a driver — the
-// launcher-side analogue of the containers' driver selection. defaultPort is
-// both the config default AND the container-side listen port: a config that
-// moves a port moves the HOST side only (publish host:containerDefault).
-type driverSpec struct {
-	image       string
-	display     string // product name for banners/messages
-	defaultPort int
-	portLabel   string // primary port's name in conflict errors
-	auxPorts    []portNeed
-	cmd         []string // trailing container args (NATS needs "-js -sd <dir>")
-}
-
-var driverCatalog = map[string]map[string]driverSpec{
-	"graph": {
-		"neo4j": {image: "neo4j:5.26.28-community", display: "Neo4j", defaultPort: 7687, portLabel: "Neo4j Bolt", auxPorts: []portNeed{{7474, "Neo4j HTTP"}}},
-	},
-	"vectors": {
-		"qdrant": {image: "qdrant/qdrant:v1.19.1", display: "Qdrant", defaultPort: 6333, portLabel: "Qdrant"},
-	},
-	"database": {
-		"postgres": {image: "postgres:15.18-alpine", display: "PostgreSQL", defaultPort: 5432, portLabel: "PostgreSQL"},
-	},
-	// JOB-QUEUE-DRIVER P2: an upstream pin like postgres — no publish row,
-	// no NOTICE. "fs" is a valid config type but not a catalog driver: it
-	// runs inside the gateway and launches nothing. JetStream state rides
-	// the stamped store; the DRIVER provisions stream + KV bucket
-	// idempotently at initialize() — the launcher provides daemon + dir.
-	// SIGNAL-PLANE D9: ONE daemon, TWO shapes, chosen by the jobs vote.
-	// "jetstream" (jobs want the broker): -js plus the stamped /data store.
-	// "nats" (signal-only): the LEAN daemon — core subjects, no -js, no
-	// store (DRIVER-SCOPED-MOUNTS: no space a selected driver won't use),
-	// and JetStream disabled server-side makes D3 structural on that root.
-	"messaging": {
-		"jetstream": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS",
-			cmd: []string{"-js", "-sd", "/data"}},
-		"nats": {image: "nats:2.14.0-alpine", display: "NATS", defaultPort: 4222, portLabel: "NATS"},
-	},
-	// EXTERNAL-IDENTITY D5: the OIDC issuer the gateway trusts. "keycloak" is
-	// an upstream pin like postgres — the dev-mode server, importing the
-	// realm the launcher stages, on its own database of the [database]
-	// PostgreSQL (D6). "oidc" carries no image: an external issuer the
-	// launcher verifies and never launches.
-	"identity": {
-		"keycloak": {image: "quay.io/keycloak/keycloak:26.7.4", display: "Keycloak", defaultPort: 8080, portLabel: "Keycloak",
-			cmd: []string{"start-dev", "--import-realm"}},
-		"oidc": {display: "OIDC issuer", defaultPort: 443},
-	},
-	"inference": {
-		"ollama": {image: "ollama/ollama", display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
-		// Remote SaaS: no image (nothing to launch), port is TLS. The row it
-		// yields is external — participates in status, no start/stop.
-		"anthropic": {display: "Anthropic", defaultPort: 443},
-	},
-	// embedding drivers carry no image: the launcher never provides this
-	// role. ollama means the inference role's Ollama also serves embeddings;
-	// voyage is remote SaaS reached over TLS.
-	"embedding": {
-		"ollama": {display: "Ollama", defaultPort: 11434, portLabel: "Ollama"},
-		"voyage": {display: "Voyage", defaultPort: 443, portLabel: "Voyage"},
-	},
-	// traces is launcher-owned (no config section yet) — catalog entry
-	// carries the display name for status's TECH column.
-	"traces": {
-		"jaeger": {image: "jaegertracing/all-in-one:1.76.0", display: "Jaeger", defaultPort: 16686, portLabel: "Jaeger UI"},
-	},
 }
 
 // ollamaModels: the models this config asks Ollama to serve — bindings whose
@@ -288,7 +232,7 @@ func bindingModels(env *envConfig) []string {
 
 // driverDisplay: the product name behind a role's selected driver.
 func driverDisplay(role, driver string) string {
-	if s, ok := driverCatalog[role][driver]; ok {
+	if s, ok := lookupDescriptor(role, driver); ok {
 		return s.display
 	}
 	return driver
@@ -300,13 +244,13 @@ func driverDisplay(role, driver string) string {
 // default), driver extras (inference's memory/volume), config-derived env,
 // image.
 func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
-	spec := driverCatalog[role][rp.Driver]
+	spec := descriptorFor(role, rp.Driver)
 	// NO --rm: a crashed container must remain inspectable — its logs are
 	// the diagnosis (a friction log lost most of a day to --rm destroying
 	// them; the runtime's `logs` answered "No such container"). Cleanup is
 	// already explicit at both ends: start's preflight and stop both
 	// stop+rm by name.
-	a := []string{"run", "-d", "--name", roles[role].container, "--memory", roles[role].mem}
+	a := []string{"run", "-d", "--name", spec.container, "--memory", spec.mem}
 	for _, ap := range spec.auxPorts {
 		a = append(a, "-p", fmt.Sprintf("%d:%d", ap.port, ap.port))
 	}
@@ -323,14 +267,15 @@ func providedRunArgs(role string, rp rolePlan, extra ...string) []string {
 // ollamaRunArgs: the semiont-ollama `run -d` argv. Separate from
 // providedRunArgs because the OWNING role varies (inference, or embedding
 // when the bindings are all-remote) while the container, image and port
-// shape do not — roles[owner].container would be wrong for embedding.
+// shape do not — the OWNER's descriptor would be wrong for embedding, whose
+// row carries no container precisely because it never runs one.
 func ollamaRunArgs(rp rolePlan, extra ...string) []string {
-	spec := driverCatalog["inference"]["ollama"]
-	// The ceiling is the INFERENCE role's whichever role owns the container
+	spec := descriptorFor("inference", "ollama")
+	// The ceiling is the INFERENCE row's whichever role owns the container
 	// (an all-remote embedding config still runs one Ollama), and it comes
-	// from the roles table ALONE — a second -m from a caller wins by flag
+	// from the descriptor ALONE — a second -m from a caller wins by flag
 	// order and desyncs the memory preflight.
-	a := []string{"run", "-d", "--name", "semiont-ollama", "--memory", roles["inference"].mem} // no --rm: see providedRunArgs
+	a := []string{"run", "-d", "--name", spec.container, "--memory", spec.mem} // no --rm: see providedRunArgs
 	a = append(a, "-p", fmt.Sprintf("%d:%d", rp.Port, spec.defaultPort))
 	a = append(a, extra...)
 	return append(a, rp.Image)
@@ -344,10 +289,10 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	var checks []portNeed
 	addRole := func(role string) {
 		rp := plan.Roles[role]
-		if rp.Obligation != obligationProvided {
+		if rp.Presence != presenceLauncher {
 			return
 		}
-		spec := driverCatalog[role][rp.Driver]
+		spec := descriptorFor(role, rp.Driver)
 		checks = append(checks, spec.auxPorts...)
 		checks = append(checks, portNeed{rp.Port, spec.portLabel})
 	}
@@ -356,39 +301,34 @@ func planPortChecks(plan *launchPlan, observe bool) []portNeed {
 	addRole("database")
 	addRole("messaging")
 	addRole("identity")
-	checks = append(checks,
-		portNeed{plan.GatewayPort, "Gateway"},
-		portNeed{24100, "Worker"},
-		portNeed{24101, "Smelter"},
-		portNeed{24102, "Weaver"},
-		portNeed{24103, "Archivist"},
-		portNeed{24104, "Librarian"},
-		// The collector runs on every start, observed or not.
-		portNeed{4318, "Collector OTLP"}, portNeed{24110, "Collector metrics"},
-		// No browser port here: the Browser is not a stack member — its
-		// port is checked inside flowBrowser, and only when (re)starting.
-	)
+	// The gateway's port is config-owned; every other Semiont port is
+	// launcher fiat and comes from the descriptor set. No browser here: the
+	// Browser is not a stack member — its port is checked inside flowBrowser,
+	// and only when (re)starting. No dispatcher either, which this
+	// derivation makes visible rather than fixes: adding it is a behaviour
+	// change, and this phase makes none.
+	checks = append(checks, portNeed{plan.GatewayPort, "Gateway"})
+	for _, role := range []string{"worker", "smelter", "weaver", "archivist", "librarian"} {
+		checks = append(checks, stackPortNeeds(role)...)
+	}
+	// The collector runs on every start, observed or not.
+	checks = append(checks, stackPortNeeds("collector")...)
 	if observe {
 		// --no-observe declines the observability BACKENDS (Jaeger, Prometheus).
-		checks = append(checks, portNeed{16686, "Jaeger UI"}, portNeed{14318, "Jaeger OTLP"},
-			portNeed{9090, "Prometheus UI"})
+		checks = append(checks, stackPortNeeds("traces")...)
+		checks = append(checks, stackPortNeeds("metrics")...)
 	}
 	return checks
 }
 
 func knownDrivers(role string) string {
-	names := make([]string, 0, len(driverCatalog[role]))
-	for n := range driverCatalog[role] {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	return strings.Join(names, ", ")
+	return strings.Join(driversFor(role), ", ")
 }
 
 // AuxPorts: catalog-owned secondary ports for a role's selected driver
 // (Neo4j's 7474 browser — the config only declares bolt).
 func (p *launchPlan) AuxPorts(role string) []portNeed {
-	return driverCatalog[role][p.Roles[role].Driver].auxPorts
+	return descriptorFor(role, p.Roles[role].Driver).auxPorts
 }
 
 // parseHostPort splits "scheme://host:port", "host:port", or bare "host" —
@@ -405,7 +345,7 @@ func parseHostPort(s string) (host string, port int) {
 	return s, 0
 }
 
-// derivePlan maps the selected environment to per-role launch obligations.
+// derivePlan maps the selected environment to each role's presence.
 func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	plan := &launchPlan{Roles: map[string]rolePlan{}, GatewayPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
 	if env.Gateway != nil && env.Gateway.Port != 0 {
@@ -445,21 +385,21 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	// means external to the gateway PROCESS, not "someone else runs it".
 	// Until that word means one thing in both places, the address shape is
 	// the authority. See GO-LAUNCHER.md follow-ups.
-	classify := func(host, injectedVar string) obligation {
+	classify := func(host, injectedVar string) presence {
 		if host == "${"+injectedVar+"}" {
-			return obligationProvided
+			return presenceLauncher
 		}
-		return obligationExternal
+		return presenceExternal
 	}
 
 	// graph
 	if g := env.Graph; g == nil {
-		plan.Roles["graph"] = rolePlan{Role: "graph", Obligation: obligationAbsent}
+		plan.Roles["graph"] = rolePlan{Role: "graph", Presence: presenceAbsent}
 	} else {
 		if g.Type == "" {
 			return nil, secErr("graph", "missing required key %q", "type")
 		}
-		spec, ok := driverCatalog["graph"][g.Type]
+		spec, ok := lookupDescriptor("graph", g.Type)
 		if !ok {
 			return nil, secErr("graph", "unknown type %q (known drivers: %s)", g.Type, knownDrivers("graph"))
 		}
@@ -477,17 +417,17 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		rp := rolePlan{Role: "graph", Driver: g.Type, Port: port}
 		switch {
 		case g.Platform == "posix":
-			rp.Obligation = obligationHostProcess
+			rp.Presence = presenceHostPreferred
 			rp.Image = img
-		case classify(host, "NEO4J_HOST") == obligationProvided:
+		case classify(host, "NEO4J_HOST") == presenceLauncher:
 			if g.Username == "" || g.Password == "" {
 				return nil, secErr("graph", "missing required key %q (needed to provision the container)", "username/password")
 			}
-			rp.Obligation = obligationProvided
+			rp.Presence = presenceLauncher
 			rp.Image = img
 			rp.Env = []string{"NEO4J_AUTH=" + g.Username + "/" + g.Password, "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
 		default:
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 		}
 		plan.Roles["graph"] = rp
@@ -514,7 +454,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	if v.Type == "memory" {
 		return nil, secErr("vectors", `type "memory" keeps the index inside one process, and a launcher-managed stack runs the gateway and the Smelter as separate containers — they cannot share it. Use type = "qdrant" here.`)
 	}
-	vspec, knownVectors := driverCatalog["vectors"][v.Type]
+	vspec, knownVectors := lookupDescriptor("vectors", v.Type)
 	if !knownVectors {
 		return nil, secErr("vectors", "unknown type %q (known drivers: %s)", v.Type, knownDrivers("vectors"))
 	}
@@ -526,27 +466,27 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		vectorsPort = vspec.defaultPort
 	}
 	vectorsPlan := rolePlan{Role: "vectors", Driver: v.Type, Port: vectorsPort}
-	if classify(v.Host, "QDRANT_HOST") == obligationProvided {
-		vectorsPlan.Obligation = obligationProvided
+	if classify(v.Host, "QDRANT_HOST") == presenceLauncher {
+		vectorsPlan.Presence = presenceLauncher
 		vectorsPlan.Image = vspec.image
 		if v.Image != "" {
 			vectorsPlan.Image = v.Image
 		}
 	} else {
-		vectorsPlan.Obligation = obligationExternal
+		vectorsPlan.Presence = presenceExternal
 		vectorsPlan.Address = v.Host
 	}
 	plan.Roles["vectors"] = vectorsPlan
 
 	// database — type defaults to "postgres" (the template omits it).
 	if d := env.Database; d == nil {
-		plan.Roles["database"] = rolePlan{Role: "database", Obligation: obligationAbsent}
+		plan.Roles["database"] = rolePlan{Role: "database", Presence: presenceAbsent}
 	} else {
 		typ := d.Type
 		if typ == "" {
 			typ = "postgres"
 		}
-		spec, ok := driverCatalog["database"][typ]
+		spec, ok := lookupDescriptor("database", typ)
 		if !ok {
 			return nil, secErr("database", "unknown type %q (known drivers: %s)", typ, knownDrivers("database"))
 		}
@@ -558,14 +498,14 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			port = spec.defaultPort
 		}
 		rp := rolePlan{Role: "database", Driver: typ, Port: port}
-		if classify(d.Host, "POSTGRES_HOST") == obligationProvided {
+		if classify(d.Host, "POSTGRES_HOST") == presenceLauncher {
 			if d.Password == "" {
 				return nil, secErr("database", "missing required key %q (needed to provision the container)", "password")
 			}
 			if d.Name == "" {
 				return nil, secErr("database", "missing required key %q (needed to provision the container)", "name")
 			}
-			rp.Obligation = obligationProvided
+			rp.Presence = presenceLauncher
 			rp.Image = spec.image
 			if d.Image != "" {
 				rp.Image = d.Image
@@ -577,7 +517,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 				rp.Env = append(rp.Env, "POSTGRES_USER="+d.User)
 			}
 		} else {
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = d.Host
 		}
 		plan.Roles["database"] = rp
@@ -623,7 +563,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if j != nil && j.Type == "fs" {
 			fsDriver = "fs"
 		}
-		plan.Roles["messaging"] = rolePlan{Role: "messaging", Driver: fsDriver, Obligation: obligationAbsent}
+		plan.Roles["messaging"] = rolePlan{Role: "messaging", Driver: fsDriver, Presence: presenceAbsent}
 	} else {
 		servers := ""
 		if jobsWantBroker {
@@ -666,14 +606,14 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if jobsWantBroker {
 			daemonShape = "jetstream"
 		}
-		spec := driverCatalog["messaging"][daemonShape]
+		spec := descriptorFor("messaging", daemonShape)
 		host, port := parseHostPort(servers)
 		if port == 0 {
 			port = spec.defaultPort
 		}
 		rp := rolePlan{Role: "messaging", Driver: daemonShape, Port: port}
-		if classify(host, "NATS_HOST") == obligationProvided {
-			rp.Obligation = obligationProvided
+		if classify(host, "NATS_HOST") == presenceLauncher {
+			rp.Presence = presenceLauncher
 			rp.Image = spec.image
 			// Delivered as the daemon's own environment, the way the graph role
 			// hands neo4j NEO4J_AUTH and the database role hands postgres
@@ -686,7 +626,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 				rp.CmdExtra = []string{"-c", natsConfPath}
 			}
 		} else {
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 		}
 		plan.Roles["messaging"] = rp
@@ -721,7 +661,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if id.SubjectClaim == "" {
 			return nil, secErr("identity", "missing required key %q (e.g. \"sub\" — the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>)", "subjectClaim")
 		}
-		spec := driverCatalog["identity"][id.Type]
+		spec := descriptorFor("identity", id.Type)
 		host, port, path, err := splitIssuer(id.Issuer)
 		if err != nil {
 			return nil, secErr("identity", "issuer %q %v", id.Issuer, err)
@@ -746,14 +686,17 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		}
 		rp := rolePlan{Role: "identity", Driver: id.Type, Port: port, Issuer: id.Issuer, AccessTokenLifespan: lifespan}
 		switch {
-		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == obligationProvided:
+		case id.Type == "keycloak" && classify(host, "KEYCLOAK_HOST") == presenceLauncher:
 			if keycloakRealm(path) == "" {
 				return nil, secErr("identity", "issuer %q must end in /realms/<realm> for type \"keycloak\"", id.Issuer)
 			}
-			d := env.Database
-			if d == nil {
-				return nil, secErr("identity", "type = \"keycloak\" needs a [database] section — Keycloak keeps its realm in its own database on that PostgreSQL")
+			// O1: the driver REQUIRES the role, the config DECLARES it, and
+			// the refusal is rendered from the edge — so the requirement has
+			// one home and this branch cannot disagree with the descriptor.
+			if dep, unmet := unmetRequirement(env.declaresRole, "identity", id.Type); unmet {
+				return nil, secErr("identity", "type = %q needs a [%s] section — %s", id.Type, dep.role, dep.because)
 			}
+			d := env.Database
 			if d.Password == "" {
 				return nil, secErr("identity", "[database] names no password — Keycloak dials PostgreSQL with it")
 			}
@@ -761,7 +704,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			if user == "" {
 				user = "postgres"
 			}
-			rp.Obligation = obligationProvided
+			rp.Presence = presenceLauncher
 			rp.Image = spec.image
 			if id.Image != "" {
 				rp.Image = id.Image
@@ -771,7 +714,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		case strings.HasPrefix(host, "${"):
 			return nil, secErr("identity", "issuer %q names a launcher-injected host, which only type = \"keycloak\" on ${KEYCLOAK_HOST} can be", id.Issuer)
 		default:
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 		}
 		plan.Roles["identity"] = rp
@@ -793,7 +736,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		if e.Model == "" {
 			return nil, secErr("embedding", "missing required key %q", "model")
 		}
-		spec, ok := driverCatalog["embedding"][e.Type]
+		spec, ok := lookupDescriptor("embedding", e.Type)
 		if !ok {
 			return nil, secErr("embedding", "unknown type %q (known drivers: %s)", e.Type, knownDrivers("embedding"))
 		}
@@ -814,7 +757,7 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			return nil, secErr("embedding", "missing required key %q", "baseURL")
 		}
 		rp := rolePlan{
-			Role: "embedding", Obligation: obligationExternal,
+			Role: "embedding", Presence: presenceExternal,
 			Driver: e.Type, Address: host, Port: port,
 		}
 		rp.Models = []string{e.Model}
@@ -833,11 +776,11 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			if bindingsUseOllama {
 				rp.SharesOllamaWith = "inference"
 			} else {
-				rp.Obligation = obligationHostProcess
+				rp.Presence = presenceHostPreferred
 				rp.Address = ""
 				rp.Image = spec.image
 				if rp.Image == "" {
-					rp.Image = driverCatalog["inference"]["ollama"].image
+					rp.Image = descriptorFor("inference", "ollama").image
 				}
 				if p, ok := env.Inference["ollama"]; ok && p.Image != "" {
 					rp.Image = p.Image
@@ -868,20 +811,20 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			host = "api.anthropic.com"
 		}
 		if port == 0 {
-			port = driverCatalog["inference"][driver].defaultPort
+			port = descriptorFor("inference", driver).defaultPort
 		}
 		if port == 0 {
 			port = 443 // an unknown remote provider is still TLS SaaS
 		}
 		plan.Roles["inference"] = rolePlan{
-			Role: "inference", Obligation: obligationExternal,
+			Role: "inference", Presence: presenceExternal,
 			Driver: driver, Address: host, Port: port,
 			Models: bindingModels(env), OllamaServed: []string{},
 		}
 	case !bindingsUseOllama:
-		plan.Roles["inference"] = rolePlan{Role: "inference", Obligation: obligationAbsent}
+		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}
 	default:
-		spec := driverCatalog["inference"]["ollama"]
+		spec := descriptorFor("inference", "ollama")
 		baseURL := ""
 		if env.Embedding != nil && env.Embedding.Type == "ollama" {
 			baseURL = env.Embedding.BaseURL
@@ -907,9 +850,9 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 		// — let alone "pulled" into — Ollama.
 		rp.OllamaServed = ollamaBindingModels(env)
 		if host == "${OLLAMA_HOST}" {
-			rp.Obligation = obligationHostProcess
+			rp.Presence = presenceHostPreferred
 		} else {
-			rp.Obligation = obligationExternal
+			rp.Presence = presenceExternal
 			rp.Address = host
 			rp.Image = ""
 		}

@@ -65,34 +65,37 @@ with a note, unless the codespace is already running.
 // (the collector included — it runs on every start); the model providers;
 // and the optional observability backends, which --no-observe omits. A
 // chosen reading order, unrelated to start order and enforced by nothing;
-// place new rows where they belong. Names key the roles table; probes are
-// host-side, the same endpoints start gates on.
+// place new rows where they belong.
+//
+// The rows carry no endpoint: the probe is the DRIVER's, and it comes from
+// the descriptor (healthEndpoint) or from the record a start wrote. Seventeen
+// literals here used to be a third copy of it, and they were the copy with
+// the hardcoded ports.
 var statusServices = []struct {
-	name     string // abstract role (keys the roles table)
-	endpoint string // http(s) URL, or "tcp:<port>"
-	core     bool   // counted toward the exit status
-	group    int    // rendering group; a change inserts a blank line
+	name  string // abstract role (keys the descriptor set)
+	core  bool   // counted toward the exit status
+	group int    // rendering group; a change inserts a blank line
 }{
-	{"worker", "http://localhost:24100/health", true, 1},
-	{"gateway", "http://localhost:4000/api/health", true, 1},
-	{"archivist", "http://localhost:24103/health", true, 1},
-	{"librarian", "http://localhost:24104/health", true, 1},
-	{"dispatcher", "http://localhost:24105/health", true, 1},
-	{"weaver", "http://localhost:24102/health", true, 1},
-	{"smelter", "http://localhost:24101/health", true, 1},
+	{"worker", true, 1},
+	{"gateway", true, 1},
+	{"archivist", true, 1},
+	{"librarian", true, 1},
+	{"dispatcher", true, 1},
+	{"weaver", true, 1},
+	{"smelter", true, 1},
 
-	{"database", "tcp:5432", true, 2},
-	{"messaging", "tcp:4222", true, 2},
-	{"identity", "http://localhost:8080/realms/master", true, 2},
-	{"graph", "http://localhost:7474", true, 2},
-	{"vectors", "http://localhost:6333/readyz", true, 2},
-	{"collector", "http://localhost:24110/metrics", true, 2},
+	{"database", true, 2},
+	{"messaging", true, 2},
+	{"identity", true, 2},
+	{"graph", true, 2},
+	{"vectors", true, 2},
+	{"collector", true, 2},
 
-	{"inference", "http://localhost:11434/api/version", true, 3},
-	{"embedding", "http://localhost:11434/api/version", true, 3},
+	{"inference", true, 3},
+	{"embedding", true, 3},
 
-	{"traces", "http://localhost:16686", false, 4},
-	{"metrics", "http://localhost:9090/-/healthy", false, 4},
+	{"traces", false, 4},
+	{"metrics", false, 4},
 }
 
 // Status implements `semiont status`.
@@ -161,7 +164,7 @@ func Status(args []string) int {
 		}
 	}
 	if service != "" {
-		if _, known := roles[service]; !known {
+		if !knownRole(service) {
 			u.Fail("Unknown --service '%s' (expected: %s)", service, roleList)
 			return 1
 		}
@@ -169,7 +172,11 @@ func Status(args []string) int {
 	// --service browser asks about the Browser — machine-level, outside
 	// every stack, so it bypasses the stack table entirely.
 	if service == "browser" && repoFlag == "" {
-		healthy := printBrowser(u, LoadStackSet())
+		ss := LoadStackSet()
+		if ss.refuseUnreadable(u) {
+			return 1
+		}
+		healthy := printBrowser(u, ss)
 		if healthy {
 			return 0
 		}
@@ -192,16 +199,19 @@ func Status(args []string) int {
 	}
 
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
 
 	// --repo: one remote stack, health-coded for scripting.
 	if repoFlag != "" {
-		target := ss.Stacks["codespace:"+repoFlag]
+		target := codespaceStack(ss, repoFlag)
 		if target == nil {
 			u.Fail("No codespace stack recorded for %s.", repoFlag)
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Repo)
+				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
 			}
 			return 1
 		}
@@ -426,8 +436,11 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			fmt.Println()
 		}
 		lastGroup = svc.group
-		handle := roles[svc.name].container
-		endpoint := svc.endpoint
+		handle := roleContainer(svc.name)
+		// No record: the descriptor's static probe, for the driver a stack
+		// that has not recorded itself would be running. A record's endpoint
+		// is sharper — it names the port that start actually used.
+		endpoint := healthEndpoint(svc.name, probeDriver(svc.name), nil)
 		var rec *ServiceState
 		if st != nil {
 			if e, ok := st.Services[svc.name]; ok {
@@ -445,7 +458,10 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		// (PostgreSQL)" — rather than a column that is an em-dash for every
 		// Semiont service.
 		label := svc.name
-		tech := roles[svc.name].product
+		// No record, no driver, no product: the launcher does not name a
+		// technology for a role nothing has selected one for. Every record a
+		// start writes carries its driver.
+		tech := ""
 		if rec != nil && rec.Driver != "" {
 			tech = driverDisplay(svc.name, rec.Driver)
 		}
@@ -601,6 +617,9 @@ func Roots(args []string) int {
 		}
 	}
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	u.Section("KNOWLEDGE BASES")
 	found := printRoots(u, ss.Stacks["local"])
 	found += printRemoteKBs(u, codespaceStacks(ss))
@@ -649,11 +668,11 @@ func printRootsPointer(u *UI, st *StackState, cs []*StackState) {
 		fmt.Printf("  active: file://%s %s\n", st.KBRoot, u.Dim("(the running local stack)"))
 	}
 	for _, c := range cs {
-		if !forwardAlive(c.ForwardPID, c.ForwardPort) {
+		if !forwardAlive(c.Codespace.ForwardPID, c.Codespace.ForwardPort) {
 			continue
 		}
-		fmt.Printf("  active: https://github.com/%s %s\n", c.Repo,
-			u.Dim(fmt.Sprintf("(codespace %s → http://localhost:%d)", c.Codespace, c.ForwardPort)))
+		fmt.Printf("  active: https://github.com/%s %s\n", c.Codespace.Repo,
+			u.Dim(fmt.Sprintf("(codespace %s → http://localhost:%d)", c.Codespace.Name, c.Codespace.ForwardPort)))
 	}
 	if cwdErr == nil && st != nil && st.KBRoot != "" && cwd != st.KBRoot {
 		fmt.Printf("  %s\n", u.Wrap(AnsiYellow, "cwd KB: "+cwd+" — not the running stack's root"))
@@ -770,8 +789,8 @@ func printSessions(u *UI, ss *StackSet) {
 			if st := ss.Stacks["local"]; st != nil {
 				base = GatewayBase(st)
 			}
-		} else if st := ss.Stacks[k]; st != nil && st.ForwardPort != 0 {
-			base = fmt.Sprintf("http://localhost:%d", st.ForwardPort)
+		} else if st := ss.Stacks[k]; st != nil && st.Codespace != nil && st.Codespace.ForwardPort != 0 {
+			base = fmt.Sprintf("http://localhost:%d", st.Codespace.ForwardPort)
 		}
 		state := "unverified (stack not reachable)"
 		if base != "" {
@@ -807,7 +826,7 @@ func printLauncherPaths(u *UI) {
 	row := func(label, path, note string) {
 		fmt.Printf("  %-10s %s %s\n", label, path, u.Dim("("+note+")"))
 	}
-	presence := func(path string) string {
+	exists := func(path string) string {
 		if _, err := os.Stat(path); err == nil {
 			return "present"
 		}
@@ -815,17 +834,17 @@ func printLauncherPaths(u *UI) {
 	}
 	if cfg, err := os.UserConfigDir(); err == nil {
 		p := filepath.Join(cfg, "semiont")
-		row("config", p, presence(p))
+		row("config", p, exists(p))
 	}
 	if cache, err := os.UserCacheDir(); err == nil {
 		p := filepath.Join(cache, "semiont")
-		row("cache", p, presence(p))
+		row("cache", p, exists(p))
 	}
 	if p := logDir(); p != "" {
-		row("logs", p, presence(p))
+		row("logs", p, exists(p))
 	}
 	if p := statePath(); p != "" {
-		row("state", p, presence(p))
+		row("state", p, exists(p))
 	}
 	staged, _ := filepath.Glob("/tmp/semiont-config.*")
 	note := "none"
@@ -835,7 +854,7 @@ func printLauncherPaths(u *UI) {
 	row("staging", "/tmp/semiont-config.*", note)
 	if home, err := os.UserHomeDir(); err == nil {
 		p := filepath.Join(home, ".ollama")
-		row("inference", p, presence(p))
+		row("inference", p, exists(p))
 	}
 
 	// Persistent per-root stack state (LAUNCHER-STATE.md requirement 5):

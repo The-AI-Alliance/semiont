@@ -71,8 +71,8 @@ func Login(args []string) int {
 	}
 	base, key := "", ""
 	if target != nil {
-		base = fmt.Sprintf("http://localhost:%d", target.ForwardPort)
-		key = "codespace:" + target.Repo
+		base = fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort)
+		key = "codespace:" + target.Codespace.Repo
 	} else {
 		local := ss.Stacks["local"]
 		if local == nil {

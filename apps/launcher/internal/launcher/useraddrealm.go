@@ -73,7 +73,7 @@ func resolveRealmAdmin(u *UI) (realmAdmin, bool) {
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
-	if rp.Obligation != obligationProvided {
+	if !mayConfigure(rp) {
 		u.Fail("The identity role is not launcher-run, so its accounts are not ours to administer.")
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false

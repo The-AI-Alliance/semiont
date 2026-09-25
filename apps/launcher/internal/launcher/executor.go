@@ -393,7 +393,7 @@ func patchArchivistTopology(cfg []byte, envName, addr string) []byte {
 		}
 	}
 	stanza := fmt.Sprintf("\n# Staged by the launcher: where THIS stack's archivist listens.\n[environments.%s.archivist]\nhost = %q\nport = %d\n",
-		envName, addr, roles["archivist"].ports[0].port)
+		envName, addr, semiontDescriptor("archivist").ports[0].port)
 	return append(cfg, []byte(stanza)...)
 }
 
@@ -441,7 +441,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (stri
 		x.u.Fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"} {
+	for _, svc := range stackServices {
 		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.Fail("Staging config for %s: %v", svc, err)
@@ -542,7 +542,7 @@ func (x *liveExec) waitTCP(label, addr string, port, seconds int) (time.Duration
 }
 
 func (x *liveExec) waitPGAccepting(seconds int) bool {
-	return waitPGAccepting(x.u, x.rt, roles["database"].container, seconds)
+	return waitPGAccepting(x.u, x.rt, descriptorFor("database", "postgres").container, seconds)
 }
 
 func (x *liveExec) probeTCP(role string, rp rolePlan) bool {
@@ -681,7 +681,7 @@ func (x *liveExec) stageRealm(realm string, doc []byte) (string, bool) {
 // how a recovered start came to look like a broken one.
 func (x *liveExec) createDatabase(user, name string) bool {
 	sql := fmt.Sprintf("SELECT 'CREATE DATABASE %s' WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '%s')\\gexec\n", name, name)
-	args := []string{"exec", "-i", roles["database"].container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
+	args := []string{"exec", "-i", descriptorFor("database", "postgres").container, "psql", "-U", user, "-v", "ON_ERROR_STOP=1", "-q"}
 	x.u.EchoCmd(x.rt, args...)
 	var err error
 	var out string
@@ -1029,7 +1029,7 @@ func (x *liveExec) resolveStoreStamps(fc flowCtx) bool {
 		spec := stateStores[role]
 		var img string
 		if rp, ok := fc.plan.Roles[spec.owner]; ok {
-			if rp.Obligation != obligationProvided {
+			if rp.Presence != presenceLauncher {
 				continue // remote or absent: this boot mounts no such store
 			}
 			img = rp.Image
@@ -1202,7 +1202,11 @@ func (x *planExec) stageCollector(string) (string, bool) {
 }
 
 func (x *planExec) stageAll(_, envName, _ string, _ bool) (string, bool) {
-	x.c("stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
+	staged := make([]string, 0, len(stackServices))
+	for _, svc := range stackServices {
+		staged = append(staged, svc+".toml")
+	}
+	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
 	for _, svc := range []string{"gateway", "worker", "smelter", "librarian"} {
@@ -1238,7 +1242,7 @@ func (x *planExec) waitHTTP(_, url string, seconds int) (time.Duration, bool) {
 
 func (x *planExec) waitPGAccepting(seconds int) bool {
 	x.c("wait: %s exec %s pg_isready -h 127.0.0.1 (%ds) — the REAL server; initdb's temporary one answers the socket only",
-		x.rt, roles["database"].container, seconds)
+		x.rt, descriptorFor("database", "postgres").container, seconds)
 	return true
 }
 

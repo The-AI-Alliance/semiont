@@ -199,9 +199,6 @@ func saveRoots(reg rootsRegistry) {
 // preference it needs no root: `--service browser --runtime docker` is a
 // legitimate rootless start and still expresses the choice.
 func recordRuntimePref(rt string) {
-	if rt == "codespace" { // placement, not preference: never sticky (billable VMs)
-		return
-	}
 	reg := loadRoots()
 	if reg.Runtime == rt {
 		return
@@ -416,7 +413,11 @@ func Forget(args []string) int {
 		return 1
 	}
 	e := reg.Roots[matches[0]]
-	if st := loadLocalState(); st != nil && st.KBRoot == e.Path {
+	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
+	if st := ss.Stacks["local"]; st != nil && st.KBRoot == e.Path {
 		u.Fail("%s is the running stack's root (per %s).", e.Path, statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
 		return 1
