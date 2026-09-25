@@ -18,8 +18,10 @@ brew install the-ai-alliance/semiont/semiont
 
 ### 2. Get a knowledge base
 
-Not this repo — every command below runs from a KB. Clone an existing one, or
-start your own.
+You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected.
+
+Clone an existing knowledge base, or start your own — not this repo. Steps 3
+and 4 run from inside it.
 
 #### Clone a demo
 
@@ -54,12 +56,14 @@ semiont init --yes --domain example.com:test --inference anthropic
 ```
 
 The domain is the KB's permanent `did:web` identity, stamped into the committed
-event log, so it has no safe default. Without an API key, `--inference ollama`
-runs models locally instead.
+event log, so it has no safe default. `--inference anthropic` reaches
+[Anthropic](https://www.anthropic.com/) for inference; `--inference ollama`
+runs a small model locally through [Ollama](https://ollama.com/) instead, and
+needs no key.
 
 ### 3. Start it
 
-You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected — and an inference provider: [Ollama](https://ollama.com/) for fully local inference (it downloads several GB of models on first run), or an [Anthropic](https://www.anthropic.com/) API key for cloud. Then, from inside the KB — **not this repo**:
+From inside the knowledge base:
 
 ```bash
 semiont start
@@ -83,7 +87,13 @@ For local-network access notes, supply-chain verification, and the native [deskt
 
 ## Automate
 
-Your shell is the shortest way in — the launcher speaks the same verbs:
+Everything the Semiont browser does travels over one event bus, spoken as
+**[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark,
+frame, gather, match, beckon. Two ways in — your shell, or your code.
+
+### CLI
+
+The launcher speaks those verbs itself, and it is the shortest way in:
 
 ```bash
 semiont login          # approve in a browser; only tokens come back
@@ -99,7 +109,9 @@ since its storage URI is repo-relative:
 semiont yield --upload papers/attention-is-all-you-need.pdf
 ```
 
-Everything the browser does travels over one event bus, and the **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how you speak it — a type-safe TypeScript client whose namespaces are the **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark, frame, gather, match, beckon. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
+### SDK
+
+The **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how your code speaks the same bus — a type-safe TypeScript client whose namespaces are those eight verbs. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
 
 Here is a grounded answer — gather context by traversing the graph, then generate from it, with each claim cited back to its source:
 
