@@ -17,7 +17,9 @@ Semiont publishes a release in these steps:
    that pushes the seven service images (`semiont-gateway`, `-worker`,
    `-smelter`, `-weaver`, `-archivist`, `-librarian`, `-dispatcher`) to GHCR. Also run *after* the npm packages exist —
    the images bundle the published `@semiont/*` packages at the release
-   version, gated by `npm view` per service. Same knobs as the Browser
+   version, gated on every published `@semiont/*` package being *installable*
+   at that version — tarball fetchable, not merely listed in the registry
+   metadata. Same knobs as the Browser
    image (Trivy vuln + license gates, `dry_run`, `tag_latest`, provenance +
    SBOM attestations):
    ```bash

@@ -112,13 +112,27 @@ npm_names=$(jq -r '.packages | to_entries[] | select(.value.publish) | "\(.key)\
       else echo "$key"; fi
     done)
 
+# "Indexed" and "installable" are different claims. The packument lists a
+# version minutes before the CDN will serve its tarball, and on 0.6.2 that gap
+# passed the publish gate and then killed all seven image builds on
+# `404 .../inference-0.6.2.tgz`. Checking only `.versions[$v]` here would report
+# a release verified while `npm install` still fails. One fetch answers both:
+# the tarball URL comes out of the same document, and a HEAD settles it.
 for pkg in $npm_names; do
   enc=${pkg//\//%2f}
-  if curl -sf "https://registry.npmjs.org/$enc" | jq -e --arg v "$VERSION" '.versions[$v]' >/dev/null 2>&1; then
+  doc=$(curl -sf "https://registry.npmjs.org/$enc")
+  if [ -z "$doc" ]; then
+    bad "$pkg — registry unreachable or package does not exist"
+    continue
+  fi
+  tarball=$(printf '%s' "$doc" | jq -r --arg v "$VERSION" '.versions[$v].dist.tarball // empty')
+  if [ -z "$tarball" ]; then
+    latest=$(printf '%s' "$doc" | jq -r '."dist-tags".latest // "unreachable"')
+    bad "$pkg@$VERSION not in registry (latest=$latest)"
+  elif curl -sfI "$tarball" >/dev/null; then
     ok "$pkg@$VERSION"
   else
-    latest=$(curl -sf "https://registry.npmjs.org/$enc" | jq -r '."dist-tags".latest // "unreachable"')
-    bad "$pkg@$VERSION not in registry (latest=$latest)"
+    bad "$pkg@$VERSION is indexed but its tarball does not serve — not installable"
   fi
 done
 

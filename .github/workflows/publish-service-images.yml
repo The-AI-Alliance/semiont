@@ -68,18 +68,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
-      - name: Verify packages exist on npm
-        # A just-published version takes minutes to reach the registry packument
-        # even though npmjs.com shows it instantly, so a single `npm view` right
+      - name: Verify packages are installable from npm
+        # A just-published version is not installable for minutes afterwards,
+        # even though npmjs.com shows it instantly, so a single probe right
         # after publish fails on a package that is genuinely there. Poll.
         #
-        # Waiting only for this service's own entry point is not enough: the
-        # install resolves that package's whole @semiont/* closure at the same
-        # version, and on 0.5.34 make-meaning had indexed while @semiont/jobs and
-        # @semiont/inference had not, so the gate passed and the build died in
-        # `npm install`. version.json owns which packages publish, so wait for
-        # all of them rather than restating a per-service dependency list that
-        # would drift the first time an import changed.
+        # Probe the TARBALL, not the packument. `npm view <pkg>@<ver> version`
+        # reads the registry's JSON metadata document; `npm install` reads that
+        # document to resolve a version and then downloads the file named in
+        # `dist.tarball`. Those are different artifacts served by different
+        # infrastructure, and they do not become available at the same instant.
+        # On 0.6.2 this step reported every published package present and all
+        # seven service images then died on
+        # `404 .../@semiont/inference/-/inference-0.6.2.tgz` -- both statements
+        # were true at the same moment. A gate in front of a build has to
+        # perform the operation the build performs, not a cheaper one that
+        # correlates with it.
+        #
+        # Waiting only for this service's own entry point is not enough either:
+        # the install resolves that package's whole @semiont/* closure at the
+        # same version, and on 0.5.34 make-meaning had indexed while
+        # @semiont/jobs and @semiont/inference had not, so the gate passed and
+        # the build died in `npm install`. version.json owns which packages
+        # publish, so wait for all of them rather than restating a per-service
+        # dependency list that would drift the first time an import changed.
         run: |
           PKGS=$(node -e "
             const v = JSON.parse(require('fs').readFileSync('version.json','utf-8'));
@@ -92,21 +104,31 @@ jobs:
             console.log(names.join(' '));
           ")
           echo "Waiting on: $PKGS"
+          ERR=$(mktemp)
           for pkg in $PKGS; do
             found=""
             for attempt in $(seq 1 20); do
-              if npm view "${pkg}@${{ inputs.version }}" version >/dev/null 2>&1; then
+              # Both conditions sit in one loop because they clear in sequence:
+              # the packument lands first, the tarball second. `-f` is what makes
+              # curl exit non-zero on 4xx/5xx -- without it a 404 body counts as
+              # success. `-I` asks only whether the CDN will serve the object,
+              # which is the entire question; downloading it would re-learn at
+              # full network cost what the HEAD already said.
+              url=$(npm view "${pkg}@${{ inputs.version }}" dist.tarball 2>"$ERR") || true
+              if [ -n "$url" ] && curl -sfI "$url" >/dev/null; then
                 found=yes; break
               fi
-              echo "waiting for ${pkg}@${{ inputs.version }} to index (attempt $attempt/20)"
+              echo "waiting for ${pkg}@${{ inputs.version }} tarball (attempt $attempt/20)"
               sleep 30
             done
             if [ -z "$found" ]; then
-              echo "❌ ${pkg}@${{ inputs.version }} not on npm after 10 minutes"
+              echo "❌ ${pkg}@${{ inputs.version }} not installable from npm after 10 minutes"
+              echo "--- last npm view stderr ---"
+              cat "$ERR"
               exit 1
             fi
           done
-          echo "✅ every published @semiont package exists at ${{ inputs.version }}"
+          echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.4.1
