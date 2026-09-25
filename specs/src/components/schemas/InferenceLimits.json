@@ -9,6 +9,10 @@
     "maxOutputTokens": {
       "type": "number",
       "description": "Maximum output tokens per generation. Equal to contextTokens when the provider has a single shared window."
+    },
+    "acceptsTemperature": {
+      "type": "boolean",
+      "description": "Whether this agent's model accepts a caller-supplied sampling temperature, measured against the provider (Anthropic: an active probe at discovery, because some models reject the parameter outright and the Models API does not say; Ollama: always true). Consumers treat only an explicit false as 'hide temperature controls' — absence means no claim."
     }
   },
   "required": ["contextTokens", "maxOutputTokens"]

@@ -451,3 +451,47 @@ describe('the Save location proposes a path and stops following once touched (D1
     );
   });
 });
+
+describe('temperature gating — the Creativity slider follows the model (SONNET-5-MIGRATION D3 shape 1)', () => {
+  // Measured 2026-09-25: claude-sonnet-5 refuses every non-default temperature
+  // with a 400 — including the wizard's own 0.7 default — so a rejecting model
+  // must neither show the control nor receive the field. Only an EXPLICIT
+  // false hides it: absence of discovery means no claim, and the control stays.
+  const rejectingAgent = (): CollaboratorEntry =>
+    ({
+      agent: {
+        '@type': 'Software',
+        name: 'Claude Sonnet 5',
+        provider: 'anthropic',
+        model: 'claude-sonnet-5',
+      },
+      servesJobTypes: ['generation'],
+      limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
+    }) as unknown as CollaboratorEntry;
+
+  it('hides the slider and OMITS temperature from the submission when the model rejects it', () => {
+    const { props } = renderStep(rejectingAgent(), 'research');
+
+    expect(screen.queryByLabelText(/Creativity/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(props.onGenerate).toHaveBeenCalledTimes(1);
+    expect('temperature' in (props.onGenerate.mock.calls[0]![0] as object)).toBe(false);
+  });
+
+  it('keeps the slider and sends temperature when discovery makes no claim about acceptance', () => {
+    const { props } = renderStep(agentWithCeiling(64_000), 'research');
+
+    expect(screen.getByLabelText(/Creativity/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate' }));
+    expect(props.onGenerate).toHaveBeenCalledWith(
+      expect.objectContaining({ temperature: 0.7 }),
+    );
+  });
+
+  it('keeps the slider with no discovery at all — only an explicit false hides it', () => {
+    renderStep(undefined, 'research');
+    expect(screen.getByLabelText(/Creativity/)).toBeInTheDocument();
+  });
+});

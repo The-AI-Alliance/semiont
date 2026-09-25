@@ -67,7 +67,7 @@ describe('OllamaInferenceClient - limits() discovery', () => {
     const limits = await client.limits();
 
     // Shared window: no separate output ceiling — the window is the ceiling.
-    expect(limits).toEqual({ contextTokens: 8192, maxOutputTokens: 8192 });
+    expect(limits).toEqual({ contextTokens: 8192, maxOutputTokens: 8192, acceptsTemperature: true });
 
     await client.limits();
     const showCalls = callsTo(fetchMock, '/api/show');
@@ -84,7 +84,7 @@ describe('OllamaInferenceClient - limits() discovery', () => {
     });
 
     const client = new OllamaInferenceClient('qwen2', 'http://localhost:11434');
-    expect(await client.limits()).toEqual({ contextTokens: 32768, maxOutputTokens: 32768 });
+    expect(await client.limits()).toEqual({ contextTokens: 32768, maxOutputTokens: 32768, acceptsTemperature: true });
   });
 
   it('throws when discovery fails, and does not cache the failure', async () => {
@@ -100,7 +100,7 @@ describe('OllamaInferenceClient - limits() discovery', () => {
       text: async () => '',
       json: async () => SHOW_BODY,
     }));
-    expect(await client.limits()).toEqual({ contextTokens: 8192, maxOutputTokens: 8192 });
+    expect(await client.limits()).toEqual({ contextTokens: 8192, maxOutputTokens: 8192, acceptsTemperature: true });
   });
 
   it('throws when /api/show carries no context length', async () => {
@@ -122,6 +122,22 @@ describe('OllamaInferenceClient - cancellation threads to the transport (ABANDON
     const generateCall = callsTo(fetchMock, '/api/generate')[0];
     const init = generateCall[1] as { signal?: AbortSignal };
     expect(init.signal).toBe(controller.signal);
+  });
+});
+
+describe('OllamaInferenceClient - temperature is unconditional (SONNET-5-MIGRATION P1, Ollama pin)', () => {
+  // Ollama's mechanism is unchanged by the Anthropic suppression work: it
+  // always forwards temperature, and it declares acceptance on limits() so
+  // the same UI channel reads true here.
+  it('always forwards temperature and declares acceptsTemperature: true', async () => {
+    const fetchMock = stubRoutedFetch();
+
+    const client = new OllamaInferenceClient('llama3', 'http://localhost:11434');
+    expect((await client.limits()).acceptsTemperature).toBe(true);
+
+    await client.generateText('p', 100, 0.3);
+    const body = requestBody(callsTo(fetchMock, '/api/generate')[0]);
+    expect(body.options.temperature).toBe(0.3);
   });
 });
 

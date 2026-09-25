@@ -82,6 +82,19 @@ export interface InferenceLimits {
    * budget turned model repetition loops into hour-long transient burns.
    */
   outputTokensPerHour?: number;
+  /**
+   * Whether the model accepts a caller-supplied `temperature`
+   * (SONNET-5-MIGRATION D2/D3). Measured 2026-09-25: `claude-sonnet-5`
+   * refuses any non-default value with a 400 on both request shapes, and the
+   * Models API publishes no sampling capability — so the Anthropic client
+   * PROBES acceptance at discovery and records the verdict here; Ollama and
+   * the mock always accept. Rides `CollaboratorEntry.limits` so the UI can
+   * hide the Creativity slider on rejecting models — the client-side
+   * omission is only honest because this field makes it visible. Optional
+   * for wire compatibility: absent means no claim, and consumers must treat
+   * only an explicit `false` as "hide the control".
+   */
+  acceptsTemperature?: boolean;
 }
 
 /**
