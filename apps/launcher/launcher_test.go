@@ -222,12 +222,26 @@ func (s *scenario) killServes() {
 	}
 }
 
+// repoRoot: the monorepo root, from this package's own location. Tests run
+// with the package directory as cwd, which is apps/launcher.
+func repoRoot() string {
+	abs, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		panic(err)
+	}
+	return abs
+}
+
 func (s *scenario) env() []string {
 	env := []string{
 		"PATH=" + s.shim,
 		"HOME=" + s.home,
 		"FAKERT_LOG=" + s.log,
 		"FAKERT_DIR=" + s.fakertDir,
+		// The repo, so a fake service can read what its own image declares
+		// it serves (FAKE-RUNTIME-FIDELITY P1). A PATH, not a belief: the
+		// fake reads the Dockerfile, it is not told the answer.
+		"FAKERT_REPO=" + repoRoot(),
 	}
 	{
 		// Pinned so the boot goldens are deterministic: an unpinned run

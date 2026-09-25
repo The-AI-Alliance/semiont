@@ -45,12 +45,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/images"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
 )
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "__serve" {
-		serve(os.Args[2:])
+		serve(os.Args[2], os.Args[3:])
 		return
 	}
 	base := filepath.Base(os.Args[0])
@@ -453,7 +454,9 @@ func ghCodespace(args []string, joined string) {
 			_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward-"+ports[0]+".pid"),
 				[]byte(strconv.Itoa(os.Getpid())), 0o644)
 		}
-		serve(ports)
+		// A codespace forward carries the KB's GATEWAY, so it serves the
+		// gateway's routes — the forward is a tunnel, not a service.
+		serve("semiont-gateway", ports)
 	case "logs":
 		// The creation-log follower the health wait tails. A few plausible
 		// lines, then exit — a tailer that ends early is legal (the launcher
@@ -897,7 +900,10 @@ func run(args []string) {
 		if err != nil {
 			os.Exit(64)
 		}
-		cmd := exec.Command(self, append([]string{"__serve"}, ports...)...)
+		// The container NAME rides along: a fake service answers the route
+		// its image declares and 404s the rest (FAKE-RUNTIME-FIDELITY P1),
+		// and the name is how it knows which image it is.
+		cmd := exec.Command(self, append([]string{"__serve", name}, ports...)...)
 		cmd.Stdout, cmd.Stderr = nil, nil
 		if err := cmd.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "fakert run: serve spawn: %v\n", err)
@@ -1347,7 +1353,82 @@ func unsignedJWT(claims map[string]any) string {
 	return enc([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + enc(b) + ".fake"
 }
 
-func serve(ports []string) {
+// servedRoutes: does this container answer that path? Everything else 404s.
+//
+// TWO SOURCES, and neither of them is the launcher (FAKE-RUNTIME-FIDELITY
+// D2). A fake taught by the code under test agrees with it about a wrong
+// route as happily as a right one.
+//
+//   - Semiont's own services: read from the IMAGE, which declares its health
+//     route as its HEALTHCHECK and its entrypoint's probe. That is the thing
+//     that actually runs.
+//   - Third-party servers: their own facts, which no file in this repo owns.
+//     Each is DATED (D4) — a belief about an upstream, to be re-checked when
+//     the pinned version moves, not a convention we may change.
+//
+// Paths the handler already models explicitly (the issuer's realm endpoints,
+// the gateway's bus and token routes, Ollama's API) are reached before this
+// and are not repeated here.
+//
+// KNOWN GAP, measured and not closed here: this predicate is per-CONTAINER,
+// but the handler above it is not — the issuer's realm routes still answer
+// on every port, so a request to the gateway's port for a Keycloak path
+// succeeds. Real stacks put those on different origins, which is the whole
+// subject of BROWSER-SIGNIN-ORIGIN. Closing it belongs with the realm
+// round-trip (P3).
+func servedRoutes(container string) func(string) bool {
+	// Third-party health routes, captured 2026-09-24 against the versions
+	// pinned in the launcher's descriptor set.
+	exact := func(paths ...string) func(string) bool {
+		set := map[string]bool{}
+		for _, p := range paths {
+			set[p] = true
+		}
+		return func(p string) bool { return set[p] }
+	}
+	switch container {
+	case "semiont-otel-collector": // otel/opentelemetry-collector 0.137.0, prometheus exporter
+		return exact("/metrics")
+	case "semiont-prometheus": // prom/prometheus v3.9.1
+		return exact("/-/healthy")
+	case "semiont-jaeger": // jaegertracing/all-in-one 1.76.0, the UI root
+		return exact("/")
+	case "semiont-qdrant": // qdrant v1.19.1
+		return exact("/readyz", "/")
+	case "semiont-neo4j": // neo4j 5.26.28-community, the browser on 7474
+		return exact("/")
+	case "semiont-ollama": // the rest of Ollama's API is modelled above
+		return exact("/api/version")
+	case "semiont-keycloak":
+		// Keycloak serves a root document for EVERY realm it holds, which is
+		// what the launcher's readiness wait reads — it does not know which
+		// realm a config named, and must not ask the launcher. Whether the
+		// realm the launcher staged is the one that exists is P3's question,
+		// and needs the staged document.
+		return func(p string) bool {
+			rest, ok := strings.CutPrefix(p, "/realms/")
+			return ok && rest != "" && !strings.Contains(rest, "/")
+		}
+	case "semiont-postgres", "semiont-nats": // TCP only: a dial, no HTTP
+		return exact()
+	}
+	// One of ours: ask the image.
+	svc := strings.TrimPrefix(container, "semiont-")
+	root := os.Getenv("FAKERT_REPO")
+	if root == "" {
+		fmt.Fprintf(os.Stderr, "fakert serve: FAKERT_REPO is unset, so %s cannot read what its image serves\n", container)
+		os.Exit(64)
+	}
+	p, err := images.HealthPath(root, svc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fakert serve: %v\n", err)
+		os.Exit(64)
+	}
+	return exact(p)
+}
+
+func serve(container string, ports []string) {
+	routes := servedRoutes(container)
 	done := make(chan struct{})
 	for _, p := range ports {
 		ln, err := net.Listen("tcp", "127.0.0.1:"+p)
@@ -1814,6 +1895,14 @@ func serve(ports []string) {
 					}
 					_ = json.NewEncoder(w).Encode(map[string]any{"status": "success"})
 				default:
+					// P1: no catch-all. A path this service does not serve
+					// is a 404, which is what a wrong probe deserves and
+					// what makes it indistinguishable from a service that is
+					// down — because that is what it is.
+					if !routes(r.URL.Path) {
+						http.Error(w, "no such route on "+container, http.StatusNotFound)
+						return
+					}
 					fmt.Fprintln(w, "ok")
 				}
 			}))
