@@ -26,7 +26,6 @@ import {
   toReplyAddress,
   type PlaneSubscription,
 } from '../signal';
-import { LEDGER_ADDRESS } from '../signal/ledger';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
 import type { ServiceAccountCredential } from '@semiont/core';
 import { validators, formatErrors } from '@semiont/core/openapi';
@@ -186,12 +185,6 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
   if (typeof clientId !== 'string' || clientId === '') {
     return { error: '`clientId` is required (BusSubscribeRequest)' };
   }
-  // The shared ledger address (SIGNAL-PLANE P3): every replica's claim
-  // announcements fan out to subscriptions holding it, so a client wearing
-  // the name would receive the cluster's claim metadata. Reserved.
-  if (clientId === LEDGER_ADDRESS) {
-    return { error: `\`clientId\` "${clientId}" is reserved` };
-  }
   const global = rawGlobal === undefined ? [] : rawGlobal;
   if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
 
@@ -307,6 +300,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // cancel path did not run), or the pending-write bound in
       // `boundedWrite` (the socket never closed at all).
       let planeSub: PlaneSubscription | undefined;
+      const gate = composition.gate(clientId, subscriberDid);
       let pendingBytes = 0;
       let tornDown = false;
       const { outgoing } = (c.env ?? {}) as Partial<HttpBindings>;
@@ -314,6 +308,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         if (tornDown) return;
         tornDown = true;
         planeSub?.close();
+        gate.close();
         recordSubscriberDisconnect();
         plane.ingest('session:left', presence);
         getBusLogger().info('SSE disconnect', { connectionId, reason, pendingBytes });
@@ -501,23 +496,22 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // One client-mode subscription over the whole matrix (SIGNAL-PLANE D2
       // group 2). The driver delivers every frame — it cannot refuse — and
       // ENTITLEMENT stays above the seam: an unscoped frame on a correlated
-      // channel passes the ledger's owner gate (`mayDeliver`, ONE copy in
-      // signal/ledger.ts since P3) before it costs anything. The whole
-      // amplification win: a non-owner returns after one Map lookup — no
-      // stringify, no pending-write bytes, no buffer slot.
+      // channel passes this subscriber's gate (ONE copy, in signal/ledger.ts)
+      // before it costs anything. The whole amplification win: a non-owner
+      // returns after one Map lookup — no stringify, no pending-write bytes,
+      // no buffer slot. A cid this replica does not hold yet is read from the
+      // claims table first, not refused.
       planeSub = plane.subscribeClient({
         address: toReplyAddress(clientId),
         global: channels,
         scoped,
         onFrame: (channel, payload, envelope) => {
-          if (
-            envelope.scope === undefined &&
-            isCorrelatedChannel(channel) &&
-            !composition.mayDeliver(channel, envelope.meta?.correlationId, clientId, subscriberDid)
-          ) {
+          const correlationId = envelope.meta?.correlationId;
+          if (envelope.scope === undefined && isCorrelatedChannel(channel)) {
+            gate.offer(channel, correlationId, () => emitOrBuffer(channel, payload, undefined, correlationId));
             return;
           }
-          emitOrBuffer(channel, payload, envelope.scope, envelope.meta?.correlationId);
+          emitOrBuffer(channel, payload, envelope.scope, correlationId);
         },
       });
 
@@ -582,7 +576,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // Entries are not consumed: a repeat replay is idempotent by id.
       for (const cid of pendingReplies) {
         if (tornDown) break;
-        const retained = composition.lookupReply(cid, clientId, subscriberDid);
+        const retained = await composition.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
           await writeBusEvent(retained.channel, retained.payload, undefined, retained.correlationId);
         }
@@ -701,7 +695,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           message: `clientId is required to emit ${channel} with a correlationId`,
         });
       }
-      const outcome = composition.claim(claimCid, clientId, principal?.did);
+      const outcome = await composition.claim(claimCid, clientId, principal?.did);
       if (outcome === 'conflict') {
         // A live cid claimed twice is a client bug — UUID collision is not a
         // real event — so it is refused rather than silently re-pointed.

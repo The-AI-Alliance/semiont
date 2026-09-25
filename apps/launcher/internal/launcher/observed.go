@@ -144,9 +144,9 @@ func queueDepth(readout string) (pending, running int, ok bool) {
 	return p, r, pok && rok
 }
 
-// ledgerOccupancy: the gateway's correlation ledger — live claims, and how
-// many of them still hold a reply payload — each against the ceiling it is
-// measured against.
+// ledgerOccupancy: the gateway's correlation ledger — live claims, against the
+// ceiling they are measured against. Retained replies are not reported: they
+// live in the broker's KV table, bounded by its TTL, not in the gateway.
 //
 // The ceilings are READ, not restated. They belong to the gateway
 // (signal/options.ts) and ride the same gauge as extra series precisely so
@@ -154,10 +154,10 @@ func queueDepth(readout string) (pending, running int, ok bool) {
 // it. A count with no ceiling cannot answer the question worth asking, which
 // is whether the ledger is idle or one request from refusing.
 //
-// Per gateway process: replicas converge on claims through the shared ledger
-// address, but the gauge is whatever the exporting process holds. On a local
-// stack there is one gateway, so this is the whole truth.
-func ledgerOccupancy(readout string) (claims, claimsMax, retained, retainedMax int, ok bool) {
+// Per gateway process: every replica projects the same shared claims table, so
+// the gauge is that table as the exporting process holds it — the same on every
+// replica, give or take the watch's lag. On a local stack there is one gateway.
+func ledgerOccupancy(readout string) (claims, claimsMax int, ok bool) {
 	const g = "semiont_bus_correlation_size"
 	// The collector renders OTel's dotted attribute keys with underscores, so
 	// `correlation.kind` arrives as `correlation_kind` (as `job.status` does).
@@ -166,9 +166,7 @@ func ledgerOccupancy(readout string) (claims, claimsMax, retained, retainedMax i
 	}
 	c, cok := get("claims")
 	cm, cmok := get("claims_max")
-	r, rok := get("retained_replies")
-	rm, rmok := get("retained_replies_max")
-	return c, cm, r, rm, cok && cmok && rok && rmok
+	return c, cm, cok && cmok
 }
 
 // printInFlight renders one role's in-flight line beneath its status row, or
@@ -192,10 +190,8 @@ func printInFlight(u *UI, role, readout string) {
 			fmt.Printf("      %-10s %s\n", "queue", u.Dim(line))
 		}
 	case "gateway":
-		if claims, claimsMax, retained, retainedMax, ok := ledgerOccupancy(readout); ok {
-			fmt.Printf("      %-10s %s\n", "ledger",
-				u.Dim(fmt.Sprintf("%d/%d claims · %d/%d retained replies",
-					claims, claimsMax, retained, retainedMax)))
+		if claims, claimsMax, ok := ledgerOccupancy(readout); ok {
+			fmt.Printf("      %-10s %s\n", "ledger", u.Dim(fmt.Sprintf("%d/%d claims", claims, claimsMax)))
 		}
 	}
 }

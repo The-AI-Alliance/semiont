@@ -35,8 +35,8 @@ A --store clean keeps the secret.
 Options:
   --store <role>   Remove one store only: database, vectors, graph,
                    anchored-text, messaging (the NATS daemon's JetStream
-                   store — pending work is dropped; jobs are re-submittable;
-                   a lean signal-only root has no such store), or state
+                   store: the job queue and the gateway's ledger claims —
+                   pending work is dropped; jobs are re-submittable), or state
                    (views + the gateway's fs jobs queue; views rebuild from
                    the event log on next start, queued jobs are lost)
   --root <value>   Another root: a path, a registered basename, or a state

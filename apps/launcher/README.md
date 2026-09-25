@@ -633,13 +633,14 @@ of the two ask for it:
 - `[jobs] type = "jetstream"` backs the job queue with JetStream (streams plus
   KV), so the daemon runs `-js -sd /data` with a durable state mount.
 - `[signal] type = "nats"` moves the gateway's real-time fan-out onto core NATS
-  subjects — never JetStream (signals are not a record) — on the *same* server.
+  subjects on the *same* server. Signal frames are never captured — signals are
+  not a record — but the gateway's correlation ledger keeps its claims in a
+  JetStream KV bucket there, so this driver needs JetStream too.
 
 Both sections must name the same `servers`; a start that finds them pointing at
 different addresses refuses, naming both, rather than run two brokers. When
-**only** `[signal]` selects it, the daemon runs *lean* — plain `nats`, no `-js`,
-no `-sd`, and no state mount provisioned — because a driver that wants no store
-gets no store (DRIVER-SCOPED-MOUNTS). `semiont status` lists it as
+**either** section selects it, the daemon runs the same way — `-js -sd /data` with
+the state mount — because both drivers use the store. `semiont status` lists it as
 `messaging (NATS)`.
 
 Unlike the Semiont service processes, this is a stock third-party image, so it

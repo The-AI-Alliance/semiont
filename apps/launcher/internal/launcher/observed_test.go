@@ -16,8 +16,6 @@ semiont_job_queue_size{job="semiont-dispatcher",job_status="running",otel_scope_
 # TYPE semiont_bus_correlation_size gauge
 semiont_bus_correlation_size{correlation_kind="claims",job="semiont-gateway",otel_scope_name="semiont"} 7
 semiont_bus_correlation_size{correlation_kind="claims_max",job="semiont-gateway",otel_scope_name="semiont"} 4096
-semiont_bus_correlation_size{correlation_kind="retained_replies",job="semiont-gateway",otel_scope_name="semiont"} 2
-semiont_bus_correlation_size{correlation_kind="retained_replies_max",job="semiont-gateway",otel_scope_name="semiont"} 1024
 # HELP semiont_job_outcome_total Job outcomes
 # TYPE semiont_job_outcome_total counter
 semiont_job_outcome_total{job="semiont-worker",job_outcome="completed",job_type="generation",otel_scope_name="semiont"} 4
@@ -36,13 +34,12 @@ func TestQueueDepthReadsTheDispatchersLiveCounts(t *testing.T) {
 }
 
 func TestLedgerOccupancyReadsCountsAndCeilings(t *testing.T) {
-	claims, claimsMax, retained, retainedMax, ok := ledgerOccupancy(sampleReadout)
+	claims, claimsMax, ok := ledgerOccupancy(sampleReadout)
 	if !ok {
 		t.Fatal("gateway ledger series present in the readout but not found")
 	}
-	if claims != 7 || claimsMax != 4096 || retained != 2 || retainedMax != 1024 {
-		t.Errorf("occupancy = %d/%d claims, %d/%d retained; want 7/4096, 2/1024",
-			claims, claimsMax, retained, retainedMax)
+	if claims != 7 || claimsMax != 4096 {
+		t.Errorf("occupancy = %d/%d claims; want 7/4096", claims, claimsMax)
 	}
 }
 
@@ -59,7 +56,7 @@ semiont_bus_correlation_size{correlation_kind="claims",job="semiont-gateway"} 1
 	}
 	// The gateway is present but its ceilings are not: a partial series must
 	// not render as a count against a ceiling of zero.
-	if _, _, _, _, ok := ledgerOccupancy(noDispatcher); ok {
+	if _, _, ok := ledgerOccupancy(noDispatcher); ok {
 		t.Error("ledgerOccupancy reported a reading without its ceilings")
 	}
 	if _, _, ok := queueDepth(""); ok {

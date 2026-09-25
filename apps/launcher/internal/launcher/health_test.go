@@ -89,14 +89,14 @@ func TestHealthEndpointFollowsAConfigThatMovesAPort(t *testing.T) {
 		GatewayPort: 4400,
 		Roles: map[string]rolePlan{
 			"database":  {Role: "database", Driver: "postgres", Port: 5433},
-			"messaging": {Role: "messaging", Driver: "nats", Port: 4333},
+			"messaging": {Role: "messaging", Driver: "jetstream", Port: 4333},
 			"vectors":   {Role: "vectors", Driver: "qdrant", Port: 6444},
 			"inference": {Role: "inference", Driver: "ollama", Port: 11555},
 		},
 	}
 	for _, c := range []struct{ role, driver, want string }{
 		{"database", "postgres", "tcp:localhost:5433"},
-		{"messaging", "nats", "tcp:localhost:4333"},
+		{"messaging", "jetstream", "tcp:localhost:4333"},
 		{"vectors", "qdrant", "http://localhost:6444/readyz"},
 		{"inference", "ollama", "http://localhost:11555/api/version"},
 		{"gateway", driverSemiont, "http://localhost:4400/api/health"},

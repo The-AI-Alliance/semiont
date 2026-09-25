@@ -98,7 +98,7 @@ solve:
 - **Service discovery.** Services address each other by URL from the config
   (`services.gateway.publicURL`, …), not by any platform-specific mechanism.
 - **Persistence.** PostgreSQL, Neo4j, and Qdrant need durable volumes, and so does NATS's
-  `/data` when the `jetstream` jobs driver is selected. The KB's `.semiont/events/`
+  `/data` whenever NATS runs: the job queue and the gateway's ledger claims both live there. The KB's `.semiont/events/`
   directory is the **system of record** and must survive container replacement.
 - **The KB working tree.** The Archivist bind-mounts the KB repo at `/kb`. On a multi-node scheduler
   that means a shared filesystem or a different content strategy.
@@ -122,7 +122,9 @@ solve:
   whatever the gateway count. `${NATS_HOST}` resolves from each container's environment; a
   literal address works too. The platform supplies: **one NATS server with JetStream enabled**
   (`-js -sd /data`, durable volume for `/data`; the launcher pins `nats:2.14.0-alpine`) — core
-  subjects carry the gateway's signal plane, JetStream carries the dispatcher's queue; and
+  subjects carry the gateway's signal plane, JetStream carries the dispatcher's queue and the
+  KV buckets where every replica's ledger keeps its claims and retained replies, which the
+  gateway refuses to start without; and
   **an identical `JWT_SECRET` on every replica** — an agent or media token minted by one replica
   must verify on another. The gateway holds no database: a caller's identity is verified
   against the issuer's published keys, and the PostgreSQL in a stack is Keycloak's.

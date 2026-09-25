@@ -25,12 +25,8 @@
  *     declared sibling of `payload`, not a field inside it;
  *   - `correlationId` as a parameter, variable, or object key.
  *
- * There are no exemptions, deliberately. The last candidate was the ledger's
- * `observeClaim`, which reached its OWN announcement's fields through
- * `payload as { correlationId?: unknown; ... }`; it now narrows with
- * `isObject`/`isString` against a declared `ClaimAnnouncement`, which is both
- * honest and outside this ban. An exemption list is how a census rots, and
- * this one has nowhere to start.
+ * There are no exemptions, deliberately: an exemption list is how a census
+ * rots, and this one has nowhere to start.
  *
  * What it still cannot see: a read reached through a value that is `any` (the
  * `require()`-inside-`vi.hoisted()` shape `bus-compiler-visibility.test.ts`

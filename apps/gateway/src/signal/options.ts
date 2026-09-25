@@ -28,7 +28,6 @@ export const SCOPE_WARN_THRESHOLD = 128;
 
 /** Retained reply payloads: older than the caller's 30 s deadline is useless — 2× headroom. */
 export const REPLY_RETENTION_TTL_MS = 60_000;
-export const REPLY_RETENTION_MAX = 1024;
 /** Per-client claim capacity, and the cap on a subscribe body's `pendingReplies`. */
 export const PENDING_REPLIES_MAX = 256;
 /**
@@ -48,12 +47,11 @@ export const CLAIM_MAX_GLOBAL = 4096;
  */
 export const SIGNAL_FLUSH_TIMEOUT_MS = 10_000;
 
-/** The seven, as one construction-options shape. */
+/** The six, as one construction-options shape. */
 export interface SignalPlaneOptions {
   maxScopes?: number;
   scopeWarnThreshold?: number;
   replyRetentionTtlMs?: number;
-  replyRetentionMax?: number;
   pendingRepliesMax?: number;
   claimTtlMs?: number;
   claimMaxGlobal?: number;
@@ -63,7 +61,6 @@ export interface ResolvedSignalPlaneOptions {
   maxScopes: number;
   scopeWarnThreshold: number;
   replyRetentionTtlMs: number;
-  replyRetentionMax: number;
   pendingRepliesMax: number;
   claimTtlMs: number;
   claimMaxGlobal: number;
@@ -84,7 +81,6 @@ export function resolveSignalPlaneOptions(opts: SignalPlaneOptions = {}): Resolv
     maxScopes: opts.maxScopes ?? MAX_SCOPES,
     scopeWarnThreshold: opts.scopeWarnThreshold ?? SCOPE_WARN_THRESHOLD,
     replyRetentionTtlMs: opts.replyRetentionTtlMs ?? REPLY_RETENTION_TTL_MS,
-    replyRetentionMax: opts.replyRetentionMax ?? REPLY_RETENTION_MAX,
     pendingRepliesMax: opts.pendingRepliesMax ?? PENDING_REPLIES_MAX,
     claimTtlMs: opts.claimTtlMs ?? CLAIM_TTL_MS,
     claimMaxGlobal: opts.claimMaxGlobal ?? CLAIM_MAX_GLOBAL,

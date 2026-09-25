@@ -387,10 +387,12 @@ type = "nats"
 servers = "${NATS_HOST}:4222"
 ```
 
-The signal plane uses core NATS subjects only, never JetStream — signals are never a record;
-the event log is. When both this and the `jetstream` jobs driver are selected, they share one
-NATS server (the launcher runs it as the `messaging` service): JetStream streams for jobs,
-core subjects for signals, disjoint subject spaces. Both sections must then name the same
+Signal frames ride core NATS subjects only and are never captured — signals are never a
+record; the event log is. The gateway's correlation ledger keeps its claims, and the replies
+it retains for reconnect recovery, in JetStream KV buckets on the same server, so the server
+must run JetStream; the gateway refuses to start until those tables open. When both this and the `jetstream` jobs driver are selected, they
+share one NATS server (the launcher runs it as the `messaging` service): JetStream streams for
+jobs, KV buckets for the ledger, core subjects for signals — disjoint subject spaces. Both sections must then name the same
 `servers` — the launcher refuses a split. Running gateway replicas requires both broker-backed
 drivers: see [DEPLOYMENT.md](./DEPLOYMENT.md) § Multiple gateway replicas.
 
