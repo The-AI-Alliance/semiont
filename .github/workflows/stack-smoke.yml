@@ -31,6 +31,15 @@ on:
         required: true
         default: latest
         type: string
+  # Self-testing: a change to this workflow proves it still boots a stack.
+  # Deliberately NOT a gate on other work — the fake covers per-PR regression,
+  # and this lane answers "does the model match reality", which periodic
+  # verification suffices for. It is also the only way to exercise a
+  # dispatch-only workflow before it reaches the default branch, which GitHub
+  # requires before `gh workflow run` will find it.
+  pull_request:
+    paths:
+      - .github/workflows/stack-smoke.yml
 
 permissions:
   contents: read
@@ -43,7 +52,7 @@ jobs:
       # Selects the image tag the launcher pulls. Without it the launcher
       # takes `latest`, which is the right default and the wrong thing to
       # assume when the point is to name a set.
-      SEMIONT_VERSION: ${{ inputs.images }}
+      SEMIONT_VERSION: ${{ inputs.images || 'latest' }}
       # The config's ${ANTHROPIC_API_KEY} must be SET or the launcher refuses
       # to start, by design. A placeholder is honest here because nothing
       # below asks a model to do anything; it is not a credential and must
