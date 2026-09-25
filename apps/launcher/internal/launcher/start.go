@@ -277,7 +277,10 @@ func Start(args []string) int {
 	if configNeeded && !opts.configSet {
 		if rec := recordedConfig(root); rec != "" {
 			opts.configName = rec
-			configFrom = "recorded from last start; override with --config"
+			// Not "from last start": `semiont init` records the config it
+			// wrote, so a KB's FIRST start reads this too. The banner says
+			// what is true of every case — this KB has a recorded config.
+			configFrom = "this KB's recorded config; override with --config"
 		}
 	}
 

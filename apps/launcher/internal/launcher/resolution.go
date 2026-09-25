@@ -99,6 +99,39 @@ func resolveSecret(ref secretRef) (string, error) {
 	return val, nil
 }
 
+// resolvedSecretValue: a variable's value from the environment, else from the
+// source `semiont secret set` registered for it, else "".
+//
+// The SAME precedence start uses — the environment always wins — so a command
+// that needs a credential at any other time gets the answer start would get.
+// `semiont init` read the environment alone, so a key the user had just
+// registered was invisible to it: it warned that the model list could not be
+// fetched, and then told them to register the source they already had.
+//
+// Resolution runs the provider's CLI, so this may prompt. It only does so when
+// a source is registered — the caller asked for that by registering it.
+func resolvedSecretValue(u *UI, name string) string {
+	if v := os.Getenv(name); v != "" {
+		return v
+	}
+	ref, ok := loadRoots().Secrets[name]
+	if !ok {
+		return ""
+	}
+	if !requireProviderBin(u, ref) {
+		return ""
+	}
+	u.Log("%s: reading from %s (%s) %s", u.Bold(name),
+		secretProviders[ref.Provider].display, refCommand(ref),
+		u.Dim("— expect an authorization prompt"))
+	v, err := resolveSecret(ref)
+	if err != nil {
+		u.Warn("%s: %v — continuing without it.", name, err)
+		return ""
+	}
+	return v
+}
+
 // secretUsage enumerates the provider registry so nothing here assumes one.
 func secretUsage() string {
 	providers := ""

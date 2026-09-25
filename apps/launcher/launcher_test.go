@@ -3872,7 +3872,7 @@ func TestConfigStickiness(t *testing.T) {
 		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "sticky start stdout", stdout,
-		"Config: anthropic", "recorded from last start; override with --config")
+		"Config: anthropic", "this KB's recorded config; override with --config")
 
 	// --dry-run reads the preference (only the anthropic config references
 	// ${ANTHROPIC_API_KEY}, so its placeholder appearing proves which config
@@ -3895,7 +3895,7 @@ func TestConfigStickiness(t *testing.T) {
 		t.Fatalf("override start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "override stdout", stdout, "Config: ollama-gemma")
-	if strings.Contains(stdout, "recorded from last start") {
+	if strings.Contains(stdout, "recorded config") {
 		t.Errorf("explicit --config must not claim registry provenance:\n%s", stdout)
 	}
 	b, _ = os.ReadFile(rootsPathFor(s.home))

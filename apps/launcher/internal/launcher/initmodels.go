@@ -23,11 +23,22 @@ import (
 // warning (keyless). model=="" with a key picks the ONE editorial default:
 // the newest capable model — the API lists newest first; prefer the first
 // sonnet-class id, else the newest of all (decision 7).
+// defaultAnthropicModel: what init binds when it can neither be told a model
+// nor fetch the list. A CHOICE, not a derivation — the same kind
+// defaultOllamaModel is — and the one the template every forked KB starts
+// from binds, so a born KB and a forked one agree. It is recorded
+// UNVALIDATED: a model can be withdrawn, and the warning says so.
+const defaultAnthropicModel = "claude-sonnet-4-5-20250929"
+
 func resolveAnthropicModel(u *UI, base, key, model string) (string, bool) {
 	if key == "" {
 		if model == "" {
-			u.Fail("No ANTHROPIC_API_KEY in the environment and no --model: with no key the list cannot be fetched, and a permanent default cannot be guessed.")
-			return "", false
+			// A key is needed to START, not to be born. Refusing here left
+			// the caller with no config at all rather than one they could
+			// edit — and the ollama path already warns and proceeds when it
+			// cannot verify a model, which is the same situation.
+			u.Warn("No ANTHROPIC_API_KEY in the environment, so the live list cannot be fetched — binding %s, recorded unvalidated. Pass --model to choose another.", defaultAnthropicModel)
+			return defaultAnthropicModel, true
 		}
 		u.Warn("ANTHROPIC_API_KEY is not set — %s is recorded unvalidated (the live list needs a key; a typo surfaces only when a job runs).", model)
 		return model, true

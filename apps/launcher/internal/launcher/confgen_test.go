@@ -119,3 +119,42 @@ func TestBareInitProducesAStartableKB(t *testing.T) {
 	// It must also survive the launcher's own deriver, which is what
 	// writeVettedConfig already demands — proven by init having exited 0.
 }
+
+// `init --inference anthropic` must write a config without a key in the
+// environment. The key is needed to START, not to be born — and refusing at
+// birth left the user with no config at all rather than one they could fill
+// in. Ollama's path already warned and proceeded when it could not verify a
+// model; anthropic refused. Same situation, opposite answer.
+func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	root := filepath.Join(home, "kb")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	if code := Init([]string{"--yes", "--domain", "pingel.org:kb", "--inference", "anthropic"}); code != 0 {
+		t.Fatalf("init --inference anthropic exited %d with no ANTHROPIC_API_KEY set", code)
+	}
+	pref := recordedConfig(root)
+	cfg, err := os.ReadFile(filepath.Join(root, configDir, pref+".toml"))
+	if err != nil {
+		t.Fatalf("no config written: %v", err)
+	}
+	for _, want := range []string{
+		"[environments.local.inference.anthropic]",
+		`apiKey = "${ANTHROPIC_API_KEY}"`, // needed at start, not at birth
+		"[environments.local.jobs]",
+	} {
+		if !strings.Contains(string(cfg), want) {
+			t.Errorf("the config declares no %s", want)
+		}
+	}
+	if strings.Contains(string(cfg), `model = ""`) {
+		t.Error("a binding was written with an empty model")
+	}
+}

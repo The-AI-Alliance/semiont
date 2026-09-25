@@ -395,7 +395,7 @@ siteName = %q
 		}
 		switch inference {
 		case "anthropic":
-			m, ok := resolveAnthropicModel(u, anthropicEndpoint, os.Getenv("ANTHROPIC_API_KEY"), model)
+			m, ok := resolveAnthropicModel(u, anthropicEndpoint, resolvedSecretValue(u, "ANTHROPIC_API_KEY"), model)
 			if !ok {
 				return 1
 			}
@@ -515,9 +515,14 @@ siteName = %q
 		fmt.Printf("    %d. %s %s\n", step, u.Bold("add a config"), u.Dim("(rerun with --inference, or write .semiont/semiontconfig/<name>.toml)"))
 		step++
 	}
-	if inference == "anthropic" {
-		fmt.Printf("    %d. %s\n", step, u.Bold("semiont secret set ANTHROPIC_API_KEY"))
-		step++
+	// Only when the key is neither exported nor registered: telling someone
+	// to do what they have already done is how a next-steps list stops being
+	// read.
+	if inference == "anthropic" && os.Getenv("ANTHROPIC_API_KEY") == "" {
+		if _, registered := loadRoots().Secrets["ANTHROPIC_API_KEY"]; !registered {
+			fmt.Printf("    %d. %s\n", step, u.Bold("semiont secret set ANTHROPIC_API_KEY"))
+			step++
+		}
 	}
 	fmt.Printf("    %d. %s\n", step, u.Bold("semiont start"))
 	return 0
