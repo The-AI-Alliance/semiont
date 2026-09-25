@@ -40,7 +40,7 @@ synthesizes a config and validates it before writing. Register your API key
 first and `init` will use it to pick a current model:
 
 ```bash
-mkdir my-kb && cd my-kb && git init
+mkdir my-kb && cd my-kb
 semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 semiont init --yes --domain example.com:test --inference anthropic
 ```
