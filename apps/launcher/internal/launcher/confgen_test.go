@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	toml "github.com/pelletier/go-toml/v2"
 )
 
 // A KB born from `semiont init` must be one `semiont start` can bring up.
@@ -27,18 +29,32 @@ func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 		cfg := generateSemiontconfig(genParams{
 			Inference: inference, Model: "a-model", EmbeddingModel: "an-embedding",
 		})
-		if !strings.Contains(cfg, "[environments.local.jobs]") {
-			t.Errorf("--inference %s: the generated config declares no [jobs] section, so the dispatcher takes the fs driver and refuses for want of a KB name the launcher never stages it", inference)
+		// Parsed, not grepped: a section that exists with the wrong type is the
+		// failure worth catching, and a substring search cannot tell which
+		// section a `type` line belongs to.
+		var parsed struct {
+			Environments map[string]struct {
+				Jobs struct {
+					Type string `toml:"type"`
+				} `toml:"jobs"`
+				Signal struct {
+					Type string `toml:"type"`
+				} `toml:"signal"`
+			} `toml:"environments"`
 		}
-		if !strings.Contains(cfg, `type = "jetstream"`) {
-			t.Errorf("--inference %s: the generated config names no jetstream jobs driver", inference)
+		if err := toml.Unmarshal([]byte(cfg), &parsed); err != nil {
+			t.Fatalf("--inference %s: the generated config does not parse: %v", inference, err)
 		}
-		// SIGNAL-PLANE D9: one daemon, two shapes, chosen by the jobs vote.
-		// A jetstream jobs driver with an in-process signal plane runs the
-		// broker anyway, so declaring the signal driver costs nothing and
-		// keeps a born KB identical to a forked one.
-		if !strings.Contains(cfg, "[environments.local.signal]") {
-			t.Errorf("--inference %s: the generated config declares no [signal] section, unlike the template every forked KB starts from", inference)
+		local := parsed.Environments["local"]
+		if local.Jobs.Type != "jetstream" {
+			t.Errorf("--inference %s: jobs driver is %q, want \"jetstream\" — without it the dispatcher takes the fs driver and refuses for want of a KB name the launcher never stages it", inference, local.Jobs.Type)
+		}
+		// The ledger's durability rides on this one: `nats` is what puts the
+		// gateway's claims and retained replies in JetStream KV on the
+		// daemon's /data store. In-process, they would live in one gateway's
+		// memory — lost on restart, shared with no replica.
+		if local.Signal.Type != "nats" {
+			t.Errorf("--inference %s: signal driver is %q, want \"nats\" — the durable, shared ledger a forked KB gets", inference, local.Signal.Type)
 		}
 	}
 }
