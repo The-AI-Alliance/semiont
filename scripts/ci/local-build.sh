@@ -721,13 +721,21 @@ fanout_all() {
 
 # --- Skip unchanged images ---
 # An image is a function of its Dockerfile and the @semiont/* packages it
-# installs. "Unchanged" is decided by package INTEGRITY against the
-# freshly-published Verdaccio — versions and mtimes are useless because every
-# run republishes (check-semiont-drift.mjs reasons the same way) — plus the
-# Dockerfile hash. Third-party deps and the base tag are treated as stable;
-# when upstream moves them, --image <name> forces the rebuild (explicit wins,
-# and it also refreshes the recorded signature). The @semiont/* set is
-# DERIVED from the Dockerfile text, not restated here.
+# installs — DIRECTLY OR TRANSITIVELY. "Unchanged" is decided by package
+# INTEGRITY against the freshly-published Verdaccio — versions and mtimes are
+# useless because every run republishes (check-semiont-drift.mjs reasons the
+# same way) — plus the Dockerfile hash. Third-party deps and the base tag are
+# treated as stable; when upstream moves them, --image <name> forces the
+# rebuild (explicit wins, and it also refreshes the recorded signature). The
+# @semiont/* set is DERIVED from the Dockerfile text, not restated here.
+#
+# The closure is the whole point, and it was missing until 2026-09-25. Each
+# sidecar installs ONE package (`npm install -g @semiont/jobs`) and inherits
+# six more through it, all pinned "*" so they resolve to latest at install
+# time. Signing only the named package meant a fix landing in @semiont/inference
+# left @semiont/jobs byte-identical, the signature matched, and all six sidecars
+# skipped — while a rebuild would have picked the fix up. The build was correct
+# about the package it watched and wrong about the image it produced.
 IMAGE_STATE="${XDG_CACHE_HOME:-$HOME/.cache}/semiont/local-build-images.json"
 mkdir -p "$(dirname "$IMAGE_STATE")"
 
@@ -735,16 +743,46 @@ mkdir -p "$(dirname "$IMAGE_STATE")"
 # integrity lookup fails, and an empty signature never skips and never
 # records — lookup trouble degrades to building, not to false skips.
 image_signature() {
-  local df pkg integ sig
+  local df
   df="$REPO_ROOT/$(image_dockerfile "$1")"
-  sig="dockerfile:$(python3 -c 'import hashlib,sys; print(hashlib.sha256(open(sys.argv[1],"rb").read()).hexdigest())' "$df")"
   # Install lines only — comments mention packages that are not installed.
-  for pkg in $(grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' | sort -u); do
-    integ=$(curl -sf --max-time 10 "$REGISTRY/$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1],safe=""))' "$pkg")"       | python3 -c 'import sys,json; d=json.load(sys.stdin); print(d["versions"][d["dist-tags"]["latest"]]["dist"]["integrity"])' 2>/dev/null) || integ=""
-    [[ -z "$integ" ]] && { echo ""; return; }
-    sig="$sig $pkg:$integ"
-  done
-  echo "$sig"
+  # Those seed a walk over each package's @semiont/* dependencies, because the
+  # install line names the root of a tree, not the tree.
+  grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' | sort -u \
+    | REGISTRY="$REGISTRY" DOCKERFILE="$df" python3 -c '
+import hashlib, json, os, sys, urllib.parse, urllib.request
+
+registry = os.environ["REGISTRY"].rstrip("/")
+
+def packument(name):
+    url = registry + "/" + urllib.parse.quote(name, safe="")
+    with urllib.request.urlopen(url, timeout=10) as response:
+        return json.load(response)
+
+integrity = {}
+pending = [line.strip() for line in sys.stdin if line.strip()]
+try:
+    while pending:
+        name = pending.pop()
+        if name in integrity:
+            continue
+        latest = packument(name)
+        version = latest["versions"][latest["dist-tags"]["latest"]]
+        integrity[name] = version["dist"]["integrity"]
+        for dep in version.get("dependencies", {}):
+            if dep.startswith("@semiont/") and dep not in integrity:
+                pending.append(dep)
+except Exception:
+    # Lookup trouble degrades to building, never to a false skip.
+    print("")
+    sys.exit(0)
+
+digest = hashlib.sha256(open(os.environ["DOCKERFILE"], "rb").read()).hexdigest()
+# Sorted: the walk order is not stable, and an unstable signature would rebuild
+# everything forever while looking like a cache.
+parts = ["dockerfile:" + digest] + [n + ":" + integrity[n] for n in sorted(integrity)]
+print(" ".join(parts))
+'
 }
 
 state_get() { python3 -c 'import json,sys
