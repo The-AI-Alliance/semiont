@@ -13,6 +13,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { EventBus, agentToDid, type Logger, type components } from '@semiont/core';
 import { firstValueFrom, race, timer, map, take } from 'rxjs';
 import { createLimitsDiscovery } from '../limits-discovery';
@@ -59,6 +61,54 @@ function scriptedFactory(behaviors: Record<string, () => Promise<InferenceLimits
 
 const entryFor = (entries: ReturnType<typeof deriveAgentRoster>, model: string) =>
   entries.find((e) => e.agent.model === model);
+
+/**
+ * CENSUS GATE — the projection in `limits-discovery.ts` is a hand-written
+ * mirror of `InferenceLimits.json`, so it drifts silently. It already did
+ * once: `acceptsTemperature` was added to the schema and to the provider
+ * type and dropped in the projection, which left the Creativity slider
+ * showing on a model that rejects `temperature` — the probe measured the
+ * verdict correctly and it never reached the UI.
+ *
+ * This reads the SPEC, not a second list, so a property added to the schema
+ * fails here until the projection carries it.
+ */
+describe('limits projection carries the whole wire schema', () => {
+  it('attaches every property InferenceLimits.json declares', async () => {
+    const schema = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL('../../../../specs/src/components/schemas/InferenceLimits.json', import.meta.url)),
+        'utf8',
+      ),
+    ) as { properties: Record<string, unknown> };
+    const declared = Object.keys(schema.properties);
+
+    // A discovery answer carrying every declared property, plus the
+    // provider-only field the projection is supposed to drop.
+    const full: Record<string, unknown> = {
+      contextTokens: 200_000,
+      maxOutputTokens: 64_000,
+      acceptsTemperature: false,
+      outputTokensPerHour: 1_000_000,
+    };
+    for (const key of declared) {
+      expect(
+        Object.prototype.hasOwnProperty.call(full, key),
+        `InferenceLimits.json declares "${key}" — add it to this fixture and to the projection in limits-discovery.ts`,
+      ).toBe(true);
+    }
+
+    const discovery = createLimitsDiscovery(CONFIG, mockLogger, {
+      clientFactory: () => ({ limits: async () => full as never }),
+    });
+    const [entry] = await discovery.enrich(deriveAgentRoster(CONFIG));
+    const attached = Object.keys(entry?.limits ?? {});
+
+    expect(attached.sort()).toEqual(declared.sort());
+    // ...and nothing the wire schema does not declare.
+    expect(attached).not.toContain('outputTokensPerHour');
+  });
+});
 
 describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
   it('attaches discovered ceilings per (provider, model) — actor-only entries included', async () => {

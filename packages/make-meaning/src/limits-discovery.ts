@@ -84,8 +84,26 @@ export function createLimitsDiscovery(
         logger.debug('Limits discovery: consult exceeded budget — entry enriches as absent', { pair, budgetMs });
         return undefined;
       }
-      // Spec-exact shape: attach only what the wire schema declares.
-      return { contextTokens: raced.contextTokens, maxOutputTokens: raced.maxOutputTokens };
+      // Spec-exact shape: attach what the wire schema declares and nothing
+      // more — the provider type also carries `outputTokensPerHour`, which is
+      // a rate-limiter input with no consumer on the wire.
+      //
+      // This projection is a MIRROR of InferenceLimits.json, so it drifts
+      // silently: `acceptsTemperature` was added to the schema and to the
+      // provider type, and dropped here, which left the Creativity slider
+      // showing on a model that rejects temperature — the probe measured
+      // `false` correctly, the backend omitted the parameter correctly, and
+      // the verdict never reached the UI. `limits-discovery.test.ts` now
+      // fails when the schema grows a property this line does not carry.
+      return {
+        contextTokens: raced.contextTokens,
+        maxOutputTokens: raced.maxOutputTokens,
+        // Optional on the wire: absent means "no claim", so only attach a
+        // measured verdict — never a manufactured `undefined`.
+        ...(raced.acceptsTemperature !== undefined
+          ? { acceptsTemperature: raced.acceptsTemperature }
+          : {}),
+      };
     } catch (error) {
       logger.debug('Limits discovery: consult failed — entry enriches as absent', {
         pair,
