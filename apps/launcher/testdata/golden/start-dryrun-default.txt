@@ -96,7 +96,7 @@ podman stop semiont-jaeger
 podman rm semiont-jaeger
 # remove staged config copies: /tmp/semiont-config.*
 # require free ports: 7474 7687 6333 5432 8080 4000 24100 24101 24102 24103 24104 4318 24110 16686 14318 9090
-# stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml
+# stage per-service config copies under <config-stage>: gateway.toml archivist.toml librarian.toml dispatcher.toml worker.toml smelter.toml weaver.toml
 # write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # append [environments.local.archivist] host/port (launcher-staged topology) to gateway.toml
@@ -105,12 +105,12 @@ podman rm semiont-jaeger
 # append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
 # resolve persistent-store stamps before any container runs: a database mismatch refuses; a projection mismatch clears the store's contents (the dir itself is kept, so attached shares survive)
 container image pull ghcr.io/the-ai-alliance/semiont-gateway:latest
-container image pull ghcr.io/the-ai-alliance/semiont-worker:latest
-container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
-container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 container image pull ghcr.io/the-ai-alliance/semiont-archivist:latest
 container image pull ghcr.io/the-ai-alliance/semiont-librarian:latest
 container image pull ghcr.io/the-ai-alliance/semiont-dispatcher:latest
+container image pull ghcr.io/the-ai-alliance/semiont-worker:latest
+container image pull ghcr.io/the-ai-alliance/semiont-smelter:latest
+container image pull ghcr.io/the-ai-alliance/semiont-weaver:latest
 container run -d --name semiont-jaeger --memory 1G -p 16686:16686 -p 14318:4318 jaegertracing/all-in-one:1.76.0
 # wait: http://localhost:16686 (30s)
 container run -d --name semiont-prometheus --memory 1G -p 9090:9090 --volume <config-stage>/prometheus.yml:/etc/prometheus/prometheus.yml:ro prom/prometheus:v3.9.1

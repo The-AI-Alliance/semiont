@@ -9,7 +9,6 @@ package launcher
 import (
 	"fmt"
 	"strings"
-	"time"
 )
 
 type flowCtx struct {
@@ -19,6 +18,30 @@ type flowCtx struct {
 	root       string
 	configFile string
 	userEnv    []string
+	// restart: this is `start --service <role>`, not a full start. The flows
+	// are the SAME flows either way — it changes only what the banner says,
+	// which is the whole of what a single-service start does differently
+	// (LAUNCHER-SERVICE-MODEL P4). It used to change which implementation ran.
+	restart bool
+}
+
+// roleBanner and startBanner: the heading a role's flow prints, in the voice
+// of the verb that reached it. Every flow announces itself — that is what
+// makes a flow callable from both walks, and what kept `start --service
+// gateway` from losing its banner when the single-service verb stopped
+// carrying a blanket one.
+func roleBanner(fc flowCtx, title string) string {
+	if fc.restart {
+		return "Restarting " + title
+	}
+	return title
+}
+
+func startBanner(fc flowCtx, noun string) string {
+	if fc.restart {
+		return "Restarting " + noun
+	}
+	return "Starting " + noun
 }
 
 var depRoleTitles = map[string]string{
@@ -98,7 +121,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 		x.say(sayLog, "Using locally-built %s images (skipping pull)", x.bold(":local"))
 		x.note("SEMIONT_VERSION=local — using locally-built :local images (no pull)")
 	} else {
-		for _, svc := range semiontServices {
+		for _, svc := range stackServices {
 			if !x.pull(image(svc, fc.version)) {
 				return 1
 			}
@@ -107,54 +130,20 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 
 	if fc.opts.observe {
-		x.banner("Traces (Jaeger)")
-		args := tracesArgs()
-		id, ok := x.runDetached(args)
-		if !ok {
-			x.say(sayFail, "traces (Jaeger) failed to start.")
-			return 1
+		if code := flowTraces(x, fc); code != 0 {
+			return code
 		}
-		d, ok := x.waitHTTP("traces (Jaeger)", "http://localhost:16686", 30)
-		if !ok {
-			x.dumpLogs(roleContainer("traces"), "traces")
-			return 1
+		if code := flowMetrics(x, fc, stage); code != 0 {
+			return code
 		}
-		x.say(sayOK, "traces — Jaeger UI on http://localhost:16686 %s", x.dim("("+took(d)+")"))
-		x.record("traces", id, args[len(args)-1], providedLauncher, "http://localhost:16686", "jaeger")
-
-		x.banner("Metrics (Prometheus)")
-		pargs := prometheusArgs(stage)
-		pid, pok := x.runDetached(pargs)
-		if !pok {
-			x.say(sayFail, "metrics (Prometheus) failed to start.")
-			return 1
-		}
-		pd, pok := x.waitHTTP("metrics (Prometheus)", "http://localhost:9090/-/healthy", 30)
-		if !pok {
-			x.dumpLogs(roleContainer("metrics"), "metrics")
-			return 1
-		}
-		x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(pd)+")"))
-		x.record("metrics", pid, pargs[len(pargs)-1], providedLauncher, "http://localhost:9090/-/healthy", "prometheus")
 	}
 
 	// The collector always runs; --no-observe declines only trace storage
 	// (Jaeger, above), and the staged config then routes traces to `nop`.
 	// After Jaeger, so a first trace export has somewhere to land.
-	x.banner("Telemetry (OTel Collector)")
-	cargs := collectorArgs(stage)
-	cid, cok := x.runDetached(cargs)
-	if !cok {
-		x.say(sayFail, "collector failed to start.")
-		return 1
+	if code := flowCollector(x, fc, addr, stage); code != 0 {
+		return code
 	}
-	cd, cok := x.waitHTTP("collector", "http://localhost:24110/metrics", 30)
-	if !cok {
-		x.dumpLogs(roleContainer("collector"), "collector")
-		return 1
-	}
-	x.say(sayOK, "collector — OTLP on %s:4318, metrics on http://localhost:24110/metrics %s", addr, x.dim("("+took(cd)+")"))
-	x.record("collector", cid, cargs[len(cargs)-1], providedLauncher, "http://localhost:24110/metrics", "otel")
 	otel := otelArgs(addr)
 
 	// Database, messaging and identity — everything the Gateway itself needs —
@@ -186,8 +175,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 		return 1
 	}
 
-	x.banner("Starting Gateway")
-	x.say(sayLog, "http://localhost:%d", fc.plan.GatewayPort)
 	if code := flowGateway(x, fc, addr, stage, otel); code != 0 {
 		return code
 	}
@@ -228,7 +215,6 @@ func flowFullStart(x executor, fc flowCtx) int {
 	// weaver the graph stays empty and every gather 404s at the
 	// buildKnowledgeGraph barrier.
 	for _, sc := range sidecarSpecs {
-		x.banner(sc.banner)
 		if code := flowSidecar(x, fc, sc, addr, stage, otel); code != 0 {
 			return code
 		}
@@ -245,7 +231,13 @@ func flowFullStart(x executor, fc flowCtx) int {
 // like :latest and :local are mutable) or when the restart is explicit
 // (--service browser, the port mover).
 func flowBrowser(x executor, version string, port int, forceRestart bool) int {
-	x.banner("Browser")
+	// forceRestart IS the single-service case (`--service browser`, the port
+	// mover), so it is also what the heading should say.
+	if forceRestart {
+		x.banner("Restarting Browser")
+	} else {
+		x.banner("Browser")
+	}
 	desired := image("browser", version)
 	x.note("browser: keep if running with image identity matching %s; else stop/rm + pull + run", desired)
 	x.note("(the Browser is not a stack member: stop leaves it running; semiont stop --service browser stops it)")
@@ -301,6 +293,64 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 
 // flowDepRole: the uniform dependency-role shape for graph / vectors /
 // database, presence-dispatched.
+// flowTraces, flowMetrics, flowCollector: the observability tier's launches,
+// written once. `start --service traces` used to reach a second copy of each
+// — same argv, separately maintained, and the pair had already drifted on
+// which endpoint they recorded.
+func flowTraces(x executor, fc flowCtx) int {
+	x.banner(roleBanner(fc, "Traces (Jaeger)"))
+	args := tracesArgs()
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "traces (Jaeger) failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("traces (Jaeger)", serviceEndpoint("traces", fc.plan), 30)
+	if !ok {
+		x.dumpLogs(roleContainer("traces"), "traces")
+		return 1
+	}
+	x.say(sayOK, "traces — Jaeger UI on %s %s", serviceEndpoint("traces", fc.plan), x.dim("("+took(d)+")"))
+	x.record("traces", id, args[len(args)-1], providedLauncher, serviceEndpoint("traces", fc.plan), "jaeger")
+	return 0
+}
+
+func flowMetrics(x executor, fc flowCtx, stage string) int {
+	x.banner(roleBanner(fc, "Metrics (Prometheus)"))
+	args := prometheusArgs(stage)
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "metrics (Prometheus) failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("metrics (Prometheus)", serviceEndpoint("metrics", fc.plan), 30)
+	if !ok {
+		x.dumpLogs(roleContainer("metrics"), "metrics")
+		return 1
+	}
+	x.say(sayOK, "metrics — Prometheus on http://localhost:9090 %s", x.dim("("+took(d)+")"))
+	x.record("metrics", id, args[len(args)-1], providedLauncher, serviceEndpoint("metrics", fc.plan), "prometheus")
+	return 0
+}
+
+func flowCollector(x executor, fc flowCtx, addr, stage string) int {
+	x.banner(roleBanner(fc, "Telemetry (OTel Collector)"))
+	args := collectorArgs(stage)
+	id, ok := x.runDetached(args)
+	if !ok {
+		x.say(sayFail, "collector failed to start.")
+		return 1
+	}
+	d, ok := x.waitHTTP("collector", serviceEndpoint("collector", fc.plan), 30)
+	if !ok {
+		x.dumpLogs(roleContainer("collector"), "collector")
+		return 1
+	}
+	x.say(sayOK, "collector — OTLP on %s:4318, metrics on %s %s", addr, serviceEndpoint("collector", fc.plan), x.dim("("+took(d)+")"))
+	x.record("collector", id, args[len(args)-1], providedLauncher, serviceEndpoint("collector", fc.plan), "otel")
+	return 0
+}
+
 func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	rp := fc.plan.Roles[role]
 	// An embedding that OWNS the local Ollama (all-remote bindings — nothing
@@ -328,7 +378,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		return 0
 	}
 	disp := driverDisplay(role, rp.Driver)
-	x.banner(depRoleTitles[role] + " (" + disp + ")")
+	x.banner(roleBanner(fc, depRoleTitles[role]+" ("+disp+")"))
 	switch rp.Presence {
 	case presenceLauncher:
 		// Persistent state rides the run argv (LAUNCHER-STATE.md): roles in
@@ -570,7 +620,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 	if role != "inference" {
 		title = depRoleTitles[role]
 	}
-	x.banner(title + " (" + driverDisplay(role, rp.Driver) + ")")
+	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
 	x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
 	x.note(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), addr, rp.Port)
 	return x.either(probeHostOllama(rp.Port),
@@ -626,6 +676,8 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 // fetch fails — host health alone doesn't prove the path they need).
 func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int {
 	port := fc.plan.GatewayPort
+	x.banner(startBanner(fc, "Gateway"))
+	x.say(sayLog, "http://localhost:%d", port)
 	jwt, ok := x.jwtSecret(fc.root)
 	if !ok {
 		return 1
@@ -666,6 +718,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 }
 
 func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, otel []string) int {
+	x.banner(startBanner(fc, sc.noun))
 	// The Smelter derives the anchored-text artifacts, so it HOLDS the store
 	// (ANCHORED-TEXT-TO-SMELTER P1) rather than reaching it over the content
 	// transport — and since P5 it owns the STAMP too, stamped with its own
@@ -710,7 +763,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 // projection rebuild, and the git index, D4b), so the sidecars' boot-time
 // bus requests are answered here and must find the pumps attached.
 func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) int {
-	x.banner("Starting Archivist")
+	x.banner(startBanner(fc, "Archivist"))
 	// anchored-text is a shared read (the Smelter holds that stamp); the
 	// state tree is the inverse — the Archivist holds it as the projection
 	// writer.
@@ -750,7 +803,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 // Archivist is the cautionary tale). It reads everything and writes nothing
 // durable — see librarianArgs.
 func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) int {
-	x.banner("Starting Librarian")
+	x.banner(startBanner(fc, "Librarian"))
 	state, ok := x.stateMountsShared("state", fc.root)
 	if !ok {
 		return 1
@@ -785,7 +838,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 // the Librarian — health-after-pumps makes ordering against other sidecars moot
 // rather than racy.
 func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) int {
-	x.banner("Starting Dispatcher")
+	x.banner(startBanner(fc, "Dispatcher"))
 	clientSecret, ok := x.serviceClientSecret(fc.root, "dispatcher")
 	if !ok {
 		return 1
@@ -826,7 +879,6 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	}
 
-	x.banner("Restarting " + roleTitle(svc, restartDriver(svc, fc.plan)))
 	// browser is handled entirely by flowBrowser (its own stop/port/pull) —
 	// and its port must NEVER enter the STACK's recorded claims: stop
 	// verifies stack-port release while the Browser deliberately keeps
@@ -872,114 +924,35 @@ func flowOneService(x executor, fc flowCtx) int {
 		}
 	}
 
-	var d time.Duration
 	switch svc {
 	case "collector":
 		cstage, ok := x.stageCollector(addr)
 		if !ok {
 			return 1
 		}
-		args := collectorArgs(cstage)
-		id, ok := x.runDetached(args)
-		if !ok {
-			x.say(sayFail, "collector failed to start.")
-			return 1
+		if code := flowCollector(x, fc, addr, cstage); code != 0 {
+			return code
 		}
-		if d, ok = x.waitHTTP("collector", "http://localhost:24110/metrics", 30); !ok {
-			x.dumpLogs(roleContainer("collector"), "collector")
-			return 1
-		}
-		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "otel")
 	case "metrics":
 		mstage, ok := x.stageMetrics(addr)
 		if !ok {
 			return 1
 		}
-		args := prometheusArgs(mstage)
-		id, ok := x.runDetached(args)
-		if !ok {
-			x.say(sayFail, "metrics (Prometheus) failed to start.")
-			return 1
+		if code := flowMetrics(x, fc, mstage); code != 0 {
+			return code
 		}
-		if d, ok = x.waitHTTP("metrics (Prometheus)", "http://localhost:9090/-/healthy", 30); !ok {
-			x.dumpLogs(roleContainer("metrics"), "metrics")
-			return 1
-		}
-		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "prometheus")
 	case "traces":
-		args := tracesArgs()
-		id, ok := x.runDetached(args)
-		if !ok {
-			x.say(sayFail, "traces (Jaeger) failed to start.")
-			return 1
+		if code := flowTraces(x, fc); code != 0 {
+			return code
 		}
-		if d, ok = x.waitHTTP("traces (Jaeger UI)", "http://localhost:16686", 30); !ok {
-			x.dumpLogs(roleContainer("traces"), "traces")
-			return 1
-		}
-		x.record(svc, id, args[len(args)-1], providedLauncher, serviceEndpoint(svc, fc.plan), "jaeger")
 	case "graph", "vectors", "database", "messaging", "identity":
-		rp := fc.plan.Roles[svc]
-		disp := driverDisplay(svc, rp.Driver)
-		// The same persistence rules as a full start (LAUNCHER-STATE.md): a
-		// lone database restart that skipped its mount would write rows into
-		// a container that dies with it.
-		extra, ok := x.stateMounts(svc, rp.Image, fc.root)
-		if !ok {
-			return 1
+		// The same flow a full start walks. This branch used to be a second
+		// implementation of it, and the copy had drifted: it staged no NATS
+		// authorization file and mounted a state dir the lean signal-only
+		// daemon never uses (DRIVER-SCOPED-MOUNTS).
+		if code := flowDepRole(x, svc, fc, addr); code != 0 {
+			return code
 		}
-		var svcSecrets map[string]string
-		if svc == "identity" {
-			kc, secrets, ok := identityRunExtras(x, fc, addr)
-			if !ok {
-				return 1
-			}
-			extra = append(extra, kc...)
-			svcSecrets = secrets
-		}
-		args := providedRunArgs(svc, rp, extra...)
-		id, ok := x.runDetached(args)
-		if !ok {
-			x.say(sayFail, "%s (%s) failed to start.", svc, disp)
-			return 1
-		}
-		switch svc {
-		case "graph":
-			if d, ok = x.waitHTTP("graph ("+disp+")", fmt.Sprintf("http://localhost:%d", fc.plan.AuxPorts("graph")[0].port), 30); !ok {
-				x.dumpLogs(roleContainer("graph"), "graph")
-				return 1
-			}
-		case "vectors":
-			if d, ok = x.waitHTTP("vectors ("+disp+")", fmt.Sprintf("http://localhost:%d/readyz", rp.Port), 15); !ok {
-				x.dumpLogs(roleContainer("vectors"), "vectors")
-				return 1
-			}
-		case "database":
-			if d, ok = x.waitTCP(disp, addr, rp.Port, 20); !ok {
-				x.dumpLogs(roleContainer("database"), "database")
-				return 1
-			}
-			if !x.waitPGAccepting(30) {
-				x.dumpLogs(roleContainer("database"), "database")
-				return 1
-			}
-		case "messaging":
-			if d, ok = x.waitTCP(disp, addr, rp.Port, 15); !ok {
-				x.dumpLogs(roleContainer("messaging"), "messaging")
-				return 1
-			}
-		case "identity":
-			if d, ok = x.waitHTTP("identity ("+disp+")", identityEndpoint(rp), 90); !ok {
-				x.dumpLogs(roleContainer("identity"), "identity")
-				return 1
-			}
-			// Same gate as a full start: a realm restarted alone must still
-			// honour the credentials every running service already holds.
-			if !x.preflightIdentity(identityEndpoint(rp), committedResource(fc.root), svcSecrets, rp.AccessTokenLifespan, true) {
-				return 1
-			}
-		}
-		x.record(svc, id, rp.Image, providedLauncher, serviceEndpoint(svc, fc.plan), rp.Driver)
 	case "inference":
 		if code := flowInferenceRole(x, fc, addr); code != 0 {
 			return code
@@ -1042,9 +1015,6 @@ func flowOneService(x executor, fc flowCtx) int {
 		if code := flowBrowser(x, fc.version, bp, true); code != 0 {
 			return code
 		}
-	}
-	if d > 0 {
-		x.say(sayOK, "%s healthy %s", svc, x.dim("("+took(d)+")"))
 	}
 	return 0
 }

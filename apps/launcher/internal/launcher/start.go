@@ -844,18 +844,16 @@ func pullArgs(rt, img string) []string {
 
 // browser is absent: the Browser pulls its own image inside flowBrowser,
 // and only when actually (re)starting — a kept Browser costs no pull.
-var semiontServices = []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"}
-
 // sidecarSpecs: the three make-meaning sidecars, in start order.
 type sidecarSpec struct {
-	svc, label, banner string
-	port               int
+	svc, label, noun string
+	port             int
 }
 
 var sidecarSpecs = []sidecarSpec{
-	{"worker", "Worker pool", "Starting Worker Pool", 24100},
-	{"smelter", "Smelter", "Starting Smelter", 24101},
-	{"weaver", "Weaver", "Starting Weaver", 24102},
+	{"worker", "Worker pool", "Worker Pool", 24100},
+	{"smelter", "Smelter", "Smelter", 24101},
+	{"weaver", "Weaver", "Weaver", 24102},
 }
 
 // --- The real run ---

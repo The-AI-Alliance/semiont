@@ -101,17 +101,16 @@ func identityEndpoint(rp rolePlan) string {
 // the agent exchange and false in general: the gateway dials the Archivist for
 // content, events and the working tree's branch, and has to prove who it is
 // like anyone else.
-// Derived from the descriptor set: Semiont's own services, minus the
-// Browser, which presents nothing — it is a viewer, and the only one of ours
-// without a realm account. Sorted, because the realm reconcile reports in
-// this order and a map's order is not an order.
+// serviceClients: the realm's view of `stackServices` — every process that
+// presents a token to another Semiont service, and so needs an account. The
+// Browser presents none: it is a viewer, and the only one of ours without an
+// account.
+//
+// Sorted, which is the only thing that differs from stackServices: the
+// rendered realm document is compared against a golden, and alphabetical is
+// the stable presentation for a list a human reads in a JSON file.
 var serviceClients = func() []string {
-	var out []string
-	for _, d := range serviceDescriptors {
-		if d.driver == driverSemiont && d.role != "browser" {
-			out = append(out, d.role)
-		}
-	}
+	out := append([]string(nil), stackServices...)
 	sort.Strings(out)
 	return out
 }()

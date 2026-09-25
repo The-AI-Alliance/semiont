@@ -441,7 +441,7 @@ func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (stri
 		x.u.Fail("Reading %s: %v", configFile, err)
 		return "", false
 	}
-	for _, svc := range []string{"gateway", "worker", "smelter", "weaver", "archivist", "librarian", "dispatcher"} {
+	for _, svc := range stackServices {
 		out := x.stagedConfig(svc, cfg, envName, addr)
 		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
 			x.u.Fail("Staging config for %s: %v", svc, err)
@@ -1202,7 +1202,11 @@ func (x *planExec) stageCollector(string) (string, bool) {
 }
 
 func (x *planExec) stageAll(_, envName, _ string, _ bool) (string, bool) {
-	x.c("stage per-service config copies under <config-stage>: gateway.toml worker.toml smelter.toml weaver.toml archivist.toml librarian.toml")
+	staged := make([]string, 0, len(stackServices))
+	for _, svc := range stackServices {
+		staged = append(staged, svc+".toml")
+	}
+	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
 	for _, svc := range []string{"gateway", "worker", "smelter", "librarian"} {

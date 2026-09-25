@@ -15,12 +15,19 @@ import (
 // (semiont-postgres, NEO4J_HOST) — they're shared contracts with compose and
 // the running fleet.
 
-func isConfigConsumer(svc string) bool {
-	return svc == "gateway" || svc == "worker" || svc == "smelter" || svc == "weaver" || svc == "archivist" || svc == "librarian"
-}
+// isConfigConsumer: does this role mount a staged copy of the KB config?
+// Exactly Semiont's own stack services — the same list that is pulled and
+// that holds realm accounts.
+func isConfigConsumer(svc string) bool { return contains(stackServices, svc) }
 
+// serviceNeedsAddr: does this role's launch interpolate the host address?
+// Every stack service does (the *_HOST environment they read), and so do the
+// three third-party roles the launcher must reach or configure: the database
+// it waits on, the Ollama it probes, and the identity provider whose
+// KC_DB_URL names the PostgreSQL by address. identity was missing, so
+// `start --service identity` built `jdbc:postgresql://:5432/keycloak`.
 func serviceNeedsAddr(svc string) bool {
-	return isConfigConsumer(svc) || svc == "database" || svc == "inference"
+	return isConfigConsumer(svc) || svc == "database" || svc == "inference" || svc == "identity"
 }
 
 // digString walks a nested inspect entry for a string leaf.
@@ -43,7 +50,7 @@ func digString(m map[string]any, path ...string) (string, bool) {
 func runStartService(u *UI, rt, version, root, configFile string, opts startOptions, userEnv []string, plan *launchPlan) int {
 	t0 := time.Now()
 	x := &liveExec{u: u, rt: rt, version: version, root: root, plan: plan}
-	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv}); code != 0 {
+	if code := flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: configFile, userEnv: userEnv, restart: true}); code != 0 {
 		return code
 	}
 	if plan != nil {
@@ -64,7 +71,7 @@ func renderServicePlan(rt, version, root string, opts startOptions, userEnv []st
 	x := &planExec{rt: rt}
 	x.c("semiont start --service %s --dry-run — the exact runtime commands a real", opts.service)
 	x.c("run would execute, in order. Values known only at runtime appear as <placeholders>.")
-	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: opts.configName, userEnv: userEnv})
+	flowOneService(x, flowCtx{plan: plan, opts: opts, version: version, root: root, configFile: opts.configName, userEnv: userEnv, restart: true})
 }
 
 // serviceEndpoint: the health endpoint status should probe for a service the

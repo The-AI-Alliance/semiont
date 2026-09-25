@@ -4743,7 +4743,7 @@ func TestStartServiceWorker(t *testing.T) {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "stdout", stdout,
-		"Restarting worker",
+		"Restarting Worker Pool",
 		"OTel collector detected — export enabled",
 		"SEMIONT_OIDC_CLIENT_SECRET=<redacted>",
 		"🚀 worker is up",
@@ -4792,7 +4792,7 @@ func TestStartServiceGraph(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting graph (Neo4j)", "🚀 graph is up")
+	mustContain(t, "stdout", stdout, "Restarting Graph (Neo4j)", "🚀 graph is up")
 	argv := s.argv(t)
 	mustContain(t, "argv", argv, "stop semiont-neo4j", "rm semiont-neo4j", "run -d --name semiont-neo4j")
 	for _, absent := range []string{"image pull", "busybox", "inspect"} {
@@ -4811,7 +4811,7 @@ func TestStartServiceBrowserNoClone(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0 outside a clone, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting browser", "🚀 browser is up")
+	mustContain(t, "stdout", stdout, "Restarting Browser", "🚀 browser is up")
 	// The git-clone invariant is scoped to /kb-mount flows: gateway still
 	// requires a clone; a sidecar needs only the .semiont/ tree.
 	if _, stderr, code := s.run(t, "start", "--service", "gateway"); code != 1 {
@@ -4844,7 +4844,7 @@ func TestStartServiceLibrarian(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting librarian", "Librarian healthy (http://localhost:24104)")
+	mustContain(t, "stdout", stdout, "Restarting Librarian", "Librarian healthy (http://localhost:24104)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-librarian",
@@ -4883,7 +4883,7 @@ func TestStartServiceArchivist(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Restarting archivist", "Archivist healthy (http://localhost:24103)")
+	mustContain(t, "stdout", stdout, "Restarting Archivist", "Archivist healthy (http://localhost:24103)")
 	log := string(s.mustLog(t))
 	mustContain(t, "argv", log,
 		"--name semiont-archivist",
@@ -7482,4 +7482,103 @@ func TestStartDryRunExternalIssuerIsPreflighted(t *testing.T) {
 	if strings.Contains(stdout, "--name semiont-keycloak") {
 		t.Error("an external issuer was launched")
 	}
+}
+
+// LAUNCHER-SERVICE-MODEL P4. `start --service <role>` used to reach a SECOND
+// implementation of the per-role launch — flowOneService carried its own
+// copy of the dependency-role branch that flowFullStart reaches through
+// flowDepRole. Two implementations of one launch drift, and a drift here is
+// a container that runs with different arguments depending on which verb
+// started it.
+//
+// The full start's dry-run is the argv every role's launch is already pinned
+// to. This requires the single-service dry-run to produce the SAME line.
+func TestSingleServiceStartIssuesTheSameArgvAsAFullStart(t *testing.T) {
+	runLine := func(t *testing.T, transcript, container string) string {
+		t.Helper()
+		for _, line := range strings.Split(transcript, "\n") {
+			if _, rest, ok := strings.Cut(line, " run -d --name "); ok {
+				if name, _, _ := strings.Cut(rest, " "); name == container {
+					return line
+				}
+			}
+		}
+		return ""
+	}
+
+	s := newScenario(t, "container")
+	full, stderr, code := s.run(t, "start", "--dry-run")
+	if code != 0 {
+		t.Fatalf("full dry run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	full = s.norm(full)
+
+	for _, role := range []string{"traces", "metrics", "collector", "database", "identity", "graph", "vectors", "gateway", "archivist", "librarian", "dispatcher", "worker", "smelter", "weaver"} {
+		t.Run(role, func(t *testing.T) {
+			one, stderr, code := s.run(t, "start", "--service", role, "--dry-run")
+			if code != 0 {
+				t.Fatalf("exit %d\nstderr:\n%s", code, stderr)
+			}
+			one = s.norm(one)
+			// The container this role runs, read out of the full start so
+			// the test needs no second copy of the names.
+			var container string
+			for _, line := range strings.Split(full, "\n") {
+				if _, rest, ok := strings.Cut(line, " run -d --name "); ok {
+					if name, _, _ := strings.Cut(rest, " "); strings.Contains(name, roleContainerHint(role)) {
+						container = name
+						break
+					}
+				}
+			}
+			if container == "" {
+				t.Skipf("the full start launches no container for %s in this config", role)
+			}
+			// The ONE documented difference, stripped before comparing: a
+			// single-service start enables OTel export iff the collector is
+			// already up (`start --help`), and in a dry run it is not. Every
+			// other argument must be identical.
+			stripOtel := func(line string) string {
+				out := []string{}
+				for _, f := range strings.Fields(line) {
+					if strings.HasPrefix(f, "OTEL_EXPORTER_OTLP_ENDPOINT=") {
+						out = out[:len(out)-1] // drop the --env that introduced it
+						continue
+					}
+					out = append(out, f)
+				}
+				return strings.Join(out, " ")
+			}
+			want, got := stripOtel(runLine(t, full, container)), stripOtel(runLine(t, one, container))
+			if got == "" {
+				t.Fatalf("--service %s launched no %s; the full start runs\n  %s", role, container, want)
+			}
+			if got != want {
+				t.Errorf("--service %s issues different argv than the full start:\n  full    %s\n  service %s", role, want, got)
+			}
+		})
+	}
+}
+
+// roleContainerHint: the wire-level name fragment a role's container carries.
+// Read from the launcher's own vocabulary would be better, but the black-box
+// suite deliberately cannot see inside the package.
+func roleContainerHint(role string) string {
+	switch role {
+	case "traces":
+		return "jaeger"
+	case "metrics":
+		return "prometheus"
+	case "collector":
+		return "otel-collector"
+	case "database":
+		return "postgres"
+	case "identity":
+		return "keycloak"
+	case "graph":
+		return "neo4j"
+	case "vectors":
+		return "qdrant"
+	}
+	return role
 }

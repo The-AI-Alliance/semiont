@@ -484,17 +484,6 @@ var roleByContainer = func() map[string]string {
 	return m
 }()
 
-// roleTitle is the detail-bearing display form: the role, with the driver's
-// product in parens when there is one ("graph (Neo4j)"). A role whose driver
-// is not known here reads as the bare role — the launcher does not guess a
-// product for a technology nobody selected.
-func roleTitle(role, driver string) string {
-	if p := descriptorFor(role, driver).display; p != "" {
-		return role + " (" + p + ")"
-	}
-	return role
-}
-
 // mayConfigure: may the launcher change anything INSIDE this role's
 // service? A service the launcher runs is ours entirely, so ownership
 // answers for itself; for one it does not run, the driver's declared
@@ -507,23 +496,26 @@ func mayConfigure(rp rolePlan) bool {
 	return descriptorFor(rp.Role, rp.Driver).authority >= authorityConfigure
 }
 
-// restartDriver: which driver a single-service restart is about. A
-// dependency role's comes from the plan, which is the only thing that knows
-// what the config selected. A role with exactly ONE driver has no choice to
-// make — Semiont's own services and the observability backends — so the
-// table answers directly. A role with several and no plan gets "", and the
-// banner reads as the bare role rather than naming a technology at random.
-func restartDriver(role string, plan *launchPlan) string {
-	if plan != nil {
-		if rp, ok := plan.Roles[role]; ok && rp.Driver != "" {
-			return rp.Driver
+// stackServices: Semiont's own services, in start order, minus the Browser.
+//
+// ONE list for three jobs that coincide on it, and coincide for one reason —
+// the Browser is machine-level, not a stack member (BROWSER-LIFECYCLE): the
+// images a start pulls, the configs it stages and mounts, and the realm
+// accounts those services present. They were three hand-written lists, and
+// one of them had six entries where the others had seven, so
+// `start --service dispatcher` staged no config and passed empty hosts.
+var stackServices = func() []string {
+	var out []string
+	for _, role := range startOrder {
+		if role == "browser" {
+			continue
+		}
+		if _, ours := lookupDescriptor(role, driverSemiont); ours {
+			out = append(out, role)
 		}
 	}
-	if ds := descriptorsForRole(role); len(ds) == 1 {
-		return ds[0].driver
-	}
-	return ""
-}
+	return out
+}()
 
 // sweepNames: the containers a teardown sweep removes, in teardown order,
 // skipping the roles the caller names as exempt. Both sweeps are this
