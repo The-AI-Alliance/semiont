@@ -91,8 +91,7 @@ tsx scripts/your-script.ts
 Content is written to the content store first; `createResource` then registers it and returns the new `ResourceId`:
 
 ```typescript
-import { ResourceOperations } from '@semiont/make-meaning';
-import { deriveStorageUri, userId } from '@semiont/core';
+import { ResourceOperations, deriveStorageUri, userId } from '@semiont/core';
 
 const kb = makeMeaning.knowledgeSystem.kb;
 const uri = deriveStorageUri('my-document', 'text/plain');

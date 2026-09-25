@@ -15,7 +15,7 @@ import { filter, take } from 'rxjs/operators';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { AnnotationOperations } from '../annotation-operations';
-import { ResourceOperations } from '../resource-operations';
+import { ResourceOperations } from '@semiont/core';
 import { resourceId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore, type ViewStorage } from '@semiont/event-sourcing';

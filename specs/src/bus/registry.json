@@ -3845,7 +3845,7 @@
         "lead": [
           "",
           "  // ── YIELD ───────────────────────────────────────────────────────",
-          "  // live in-process (resource-operations.ts emits + awaits via race()); the",
+          "  // ResourceOperations issues it via busRequest, in process or over the plane; the",
           "  // client also .on()-subscribes -ok for cache invalidation"
         ],
         "trailing": ""

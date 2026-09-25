@@ -7,14 +7,7 @@
  * P5) — the same authority its software agents are minted under. Gateway-signed
  * agent tokens still authenticate: dispatch is by `iss`, not by algorithm.
  */
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-
-vi.hoisted(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  g.DOMMatrix ??= class {};
-  g.ImageData ??= class {};
-  g.Path2D ??= class {};
-});
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';

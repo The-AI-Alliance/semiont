@@ -17,7 +17,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { SemiontProject } from '@semiont/core/node';
 import { EventBus, type Logger, type SupportedMediaType, userId, resourceId as makeResourceId, deriveStorageUri } from '@semiont/core';
-import { startMakeMeaning, ResourceOperations, AnnotationOperations, type MakeMeaningConfig } from '../..';
+import { startMakeMeaning, AnnotationOperations, type MakeMeaningConfig } from '../..';
+import { ResourceOperations } from '@semiont/core';
 import { Weaver, type WeaverTiming } from '../../weaver';
 
 const PROD_TIMING: WeaverTiming = {

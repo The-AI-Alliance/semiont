@@ -12,7 +12,7 @@ import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import type { Subscription } from 'rxjs';
 
 const mockLogger: Logger = {
@@ -30,7 +30,7 @@ describe('SSE Event Flow - End-to-End', () => {
   const coreEventBus = new EventBus();
 
   beforeAll(async () => {
-    testDir = path.join(tmpdir(), `semiont-test-e2e-${uuidv4()}`);
+    testDir = path.join(tmpdir(), `semiont-test-e2e-${randomUUID()}`);
     await fsPromises.mkdir(testDir, { recursive: true });
 
     // SEMIONT_ROOT is set by the global test setup

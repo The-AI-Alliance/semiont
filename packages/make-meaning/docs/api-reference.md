@@ -149,44 +149,6 @@ Responds to:
 
 ## Operations
 
-### ResourceOperations
-
-Business logic for resource CRUD. Emits commands on the EventBus — does not access KB stores directly.
-
-**Implementation**: [src/resource-operations.ts](../src/resource-operations.ts)
-
-#### createResource()
-
-```typescript
-static async createResource(
-  input: CreateResourceInput,
-  userId: UserId,
-  eventBus: EventBus,
-): Promise<ResourceId>
-```
-
-Callers write content to the content store first; `CreateResourceInput` carries the resulting `storageUri`, `contentChecksum`, and `byteSize` (plus `name`, `format`, and optional `language`, `entityTypes`, generation provenance). Emits `yield:create` over the correlated `busRequest` path, awaits the `yield:create-ok` / `yield:create-failed` reply from Stower, and returns the new `ResourceId`.
-
-#### createFromCloneToken()
-
-```typescript
-static async createFromCloneToken(
-  input: {
-    token: string;
-    name: string;
-    storageUri: string;
-    contentChecksum: string;
-    byteSize: number;
-    format: ContentFormat;
-    archiveOriginal?: boolean;
-  },
-  userId: UserId,
-  eventBus: EventBus,
-): Promise<ResourceId>
-```
-
-The clone counterpart: the bytes are already stored by the upload path; this emits `yield:clone-create` (handled by the CloneTokenManager) with storage coordinates only.
-
 ### AnnotationOperations
 
 Business logic for annotation CRUD. Emits commands on the EventBus.

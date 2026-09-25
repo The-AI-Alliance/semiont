@@ -17,19 +17,20 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Principal } from '../../identity/principal';
-import { EventBus, userId } from '@semiont/core';
+import { EventBus, ResourceOperations, userId } from '@semiont/core';
 import type { EventBus as EventBusType } from '@semiont/core';
-import { ResourceOperations } from '@semiont/make-meaning';
 import { registerCreateResource } from '../../routes/resources/routes/create';
 import type { ResourcesRouterType } from '../../routes/resources/shared';
 import type { ArchivistAddressConfig } from '@semiont/core/node';
 import { putContent } from '../../lib/archivist';
 
-vi.mock('@semiont/make-meaning', () => ({
-  ResourceOperations: {
-    createResource: vi.fn(async () => 'res-created-1'),
-  },
-}));
+vi.mock('@semiont/core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/core')>();
+  return {
+    ...actual,
+    ResourceOperations: { createResource: vi.fn(async () => 'res-created-1') },
+  };
+});
 
 vi.mock('../../lib/archivist', () => ({
   putContent: vi.fn(async (_config: unknown, storageUri: string) => ({

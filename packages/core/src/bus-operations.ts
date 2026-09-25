@@ -92,7 +92,7 @@ export const BUS_OPERATIONS = {
   'smelt:rebuild-anchors':               { result: 'smelt:rebuild-anchors-ok',       failure: 'smelt:rebuild-anchors-failed' },
 
   // ── YIELD ───────────────────────────────────────────────────────
-  // live in-process (resource-operations.ts emits + awaits via race()); the
+  // ResourceOperations issues it via busRequest, in process or over the plane; the
   // client also .on()-subscribes -ok for cache invalidation
   'yield:create':                        { result: 'yield:create-ok',                failure: 'yield:create-failed' },
   'yield:clone-persist':                 { result: 'yield:clone-persist-ok',         failure: 'yield:clone-persist-failed' },

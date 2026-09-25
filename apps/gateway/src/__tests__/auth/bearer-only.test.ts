@@ -10,17 +10,6 @@
 
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
-// pdfjs (pulled in transitively when the gateway's resources router loads
-// `ResourceOperations` from make-meaning) references DOMMatrix at module load;
-// the node env lacks it. Stub it in the hoist phase so this file runs in
-// isolation.
-vi.hoisted(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  g.DOMMatrix ??= class {};
-  g.ImageData ??= class {};
-  g.Path2D ??= class {};
-});
-
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';
 import type { Principal } from '../../identity/principal';

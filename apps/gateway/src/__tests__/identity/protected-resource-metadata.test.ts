@@ -3,14 +3,7 @@
  * learns which issuer this knowledge base trusts from a public well-known
  * document, and every 401 points at it in its WWW-Authenticate challenge.
  */
-import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
-
-vi.hoisted(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  g.DOMMatrix ??= class {};
-  g.ImageData ??= class {};
-  g.Path2D ??= class {};
-});
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest';
 
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';

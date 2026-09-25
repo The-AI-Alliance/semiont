@@ -31,7 +31,7 @@ import { SemiontProject } from '@semiont/core/node';
 import { SemiontClient } from '@semiont/sdk';
 import { LocalTransport } from '../local-transport';
 import { LocalContentTransport } from '../local-content-transport';
-import { ResourceOperations } from '../resource-operations';
+import { ResourceOperations } from '@semiont/core';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 

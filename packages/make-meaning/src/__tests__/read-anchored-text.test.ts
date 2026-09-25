@@ -26,7 +26,7 @@ import { EventBus, getPrimaryRepresentation, userId as makeUserId, type Extracti
 import { SemiontProject } from '@semiont/core/node';
 import { readAnchoredText } from '../read-anchored-text';
 import { createSmeltProgress } from '../smelt-progress';
-import { ResourceOperations } from '../resource-operations';
+import { ResourceOperations } from '@semiont/core';
 import { startMakeMeaning, type MakeMeaningConfig, type MakeMeaningService } from '../service';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 

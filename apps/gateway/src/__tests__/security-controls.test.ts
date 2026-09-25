@@ -9,18 +9,8 @@
  * This addresses weakness #11 "Missing Security Tests" from AUTH-TESTING.md
  */
 
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setupTestEnvironment, type TestEnvironmentConfig } from './_test-setup';
-
-// pdfjs (pulled in transitively when the gateway's resources router loads
-// `ResourceOperations` from make-meaning) needs DOMMatrix at module load; stub
-// it in the hoist phase so this file runs in isolation.
-vi.hoisted(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  g.DOMMatrix ??= class {};
-  g.ImageData ??= class {};
-  g.Path2D ??= class {};
-});
 
 // Typed from the module under test rather than from a local restatement of its
 // context. The copy that stood here could only ever report that two

@@ -28,11 +28,7 @@
     "@hono/node-server": "^2.1.1",
     "@hono/swagger-ui": "^0.6.1",
     "@semiont/core": "*",
-    "@semiont/jobs": "*",
-    "@semiont/make-meaning": "*",
     "@semiont/observability": "*",
-    "ajv": "^8.20.0",
-    "ajv-formats": "^3.0.1",
     "hono": "^4.13.8",
     "jose": "^6.2.12",
     "jsonwebtoken": "^9.0.2",
@@ -42,17 +38,18 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@faker-js/faker": "^10.6.0",
     "@semiont/content": "*",
     "@semiont/event-sourcing": "*",
+    "@semiont/jobs": "*",
+    "@semiont/make-meaning": "*",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.0.0",
     "@vitest/coverage-v8": "^4.1.11",
     "@vitest/ui": "^4.1.11",
+    "ajv": "^8.20.0",
     "fast-check": "^4.10.0",
     "msw": "^2.15.0",
     "tsup": "^8.5.1",
-    "tsx": "^4.23.13",
     "typescript": "^6.0.2",
     "vitest": "^4.1.11"
   }
