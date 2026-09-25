@@ -20,10 +20,9 @@ brew install the-ai-alliance/semiont/semiont
 
 You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected.
 
-Clone an existing knowledge base, or start your own — not this repo. Steps 3
-and 4 run from inside it.
+**Pick one** — not this repo. Steps 3 and 4 run from inside whichever you choose.
 
-#### Clone a demo
+#### Option A — Clone a demo
 
 [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
 
@@ -35,7 +34,9 @@ cd semiont-gutenberg-kb
 The full catalog — seven demo KBs across different domains, plus community
 knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
 
-#### Start your own
+---
+
+#### Option B — Start your own
 
 Register your API key once, so `init` can use it to pick a current model:
 
