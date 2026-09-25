@@ -45,7 +45,10 @@ semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 semiont init --yes --domain example.com:test --inference anthropic
 ```
 
-Only the pointer is stored, never the value — it is read fresh on every start.
+Only the pointer is stored, never the value. It is verified once when you
+register it, then read fresh on every start and passed to the containers as an
+environment variable — Semiont writes it nowhere.
+
 The domain is the KB's permanent `did:web` identity, stamped into the committed
 event log, so it has no safe default. Without an API key, `--inference ollama`
 runs models locally instead.
