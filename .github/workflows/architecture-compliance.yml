@@ -70,6 +70,7 @@ jobs:
           npm run lint:attribution || fail=1
           npm run lint:coverage-roster || fail=1
           npm run lint:vitest-coverage || fail=1
+          npm run lint:notice || fail=1
           echo "::endgroup::"
           exit $fail
 
