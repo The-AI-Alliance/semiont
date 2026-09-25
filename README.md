@@ -38,29 +38,20 @@ knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semi
 
 #### Option B — Start your own
 
-Register your API key once, so `init` can use it to pick a current model:
+Register your [Anthropic](https://www.anthropic.com/) key once — only the pointer is stored, read fresh on every start and passed to the containers, written nowhere:
 
 ```bash
 semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 ```
 
-Only the pointer is stored, never the value. It is verified once when you
-register it, then read fresh on every start and passed to the containers as an
-environment variable — Semiont writes it nowhere.
-
-`semiont init` then births a KB in place: it stamps a permanent identity, and
-synthesizes a config it validates before writing.
+Then `semiont init` births a KB in place, synthesizing a config it validates before writing:
 
 ```bash
 mkdir my-kb && cd my-kb
-semiont init --yes --domain example.com:test --inference anthropic
+semiont init --yes --domain example.com:my-kb --inference anthropic
 ```
 
-The domain is the KB's permanent `did:web` identity, stamped into the committed
-event log, so it has no safe default. `--inference anthropic` reaches
-[Anthropic](https://www.anthropic.com/) for inference; `--inference ollama`
-runs a small model locally through [Ollama](https://ollama.com/) instead, and
-needs no key.
+**Change `--domain`** — it is the KB's permanent identity, stamped into the committed event log, and has no default. `--inference ollama` runs a small model locally through [Ollama](https://ollama.com/) instead, and needs no key.
 
 ### 3. Start it
 
