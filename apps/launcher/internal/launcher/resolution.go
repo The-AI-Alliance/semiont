@@ -10,13 +10,21 @@ import (
 	"strings"
 )
 
-// Secret sources: the launcher NEVER persists a secret value, anywhere,
-// ever. What it stores (roots.json, machine-wide) is a structured POINTER —
-// {provider, path} — and at start it announces the reach, runs the
-// provider's own CLI with the terminal attached (so its authorization
-// prompt works), and uses the value once, in memory. The environment always
-// wins: exporting the variable yourself is the standing escape hatch for
-// machines without the provider installed.
+// resolution.go — the secrets the launcher NEVER HAS
+// (LAUNCHER-SERVICE-MODEL D8), the opposite half of custody.go.
+//
+// The launcher never persists a resolved value, anywhere, ever — asserted by
+// TestResolutionValueReachesNoDisk rather than promised here. What it stores
+// (roots.json, machine-wide) is a structured POINTER — {provider, path} — and
+// at start it announces the reach, runs the provider's own CLI with the
+// terminal attached (so its authorization prompt works), and uses the value
+// once, in memory. The environment always wins: exporting the variable
+// yourself is the standing escape hatch for machines without the provider
+// installed.
+//
+// A name custody OWNS cannot be resolved (custodyOwned) — the launcher would
+// append its own value after the resolved one and discard it, silently, after
+// the provider's prompt had already been answered.
 
 type secretRef struct {
 	Provider string `json:"provider"` // key into secretProviders ("op")
@@ -284,6 +292,12 @@ func currentSecretRepos(name string) []string {
 }
 
 func secretSet(u *UI, name, uri string) int {
+	if custodyOwned(name) {
+		u.Fail("%s is minted and kept by the launcher, not read from a provider.", name)
+		fmt.Fprintf(os.Stderr, "  Its value lives in this root's state dir and must outlive the stack; a resolved one would be discarded at start.\n")
+		fmt.Fprintf(os.Stderr, "  To supply your own, export %s — the launcher's own process reads the environment first.\n", name)
+		return 1
+	}
 	scheme, path, ok := strings.Cut(uri, "://")
 	if !ok || path == "" {
 		u.Fail("Secret source must be <scheme>://<path> (supported schemes: %s).", strings.Join(providerSchemes(), ", "))

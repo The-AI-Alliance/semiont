@@ -451,7 +451,15 @@ func Start(args []string) int {
 			}
 			val := os.Getenv(v)
 			if val == "" {
-				if ref, ok := secrets[v]; ok {
+				if ref, ok := secrets[v]; ok && custodyOwned(v) {
+					// Registered before the refusal existed, or hand-edited.
+					// Resolving it would answer a provider prompt and then
+					// discard the answer, since custody appends its own value
+					// after this one.
+					u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
+					fmt.Fprintf(os.Stderr, "  Forget the source (semiont secret rm %s), or export %s yourself.\n", v, v)
+					return 1
+				} else if ok {
 					if !requireProviderBin(u, ref) {
 						return 1
 					}
