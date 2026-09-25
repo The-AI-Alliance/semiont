@@ -10,6 +10,7 @@ This container image includes the following third-party components:
 
   Alpine Linux - MIT License
   Node.js - MIT License
+  tini - MIT License
   curl - MIT/X derivate license
 
   npm dependencies (installed at build time from https://registry.npmjs.org):

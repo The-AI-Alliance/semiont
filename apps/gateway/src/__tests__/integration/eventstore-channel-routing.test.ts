@@ -17,7 +17,7 @@ import type { EventStore } from '@semiont/event-sourcing';
 import { promises as fsPromises } from 'fs';
 import { tmpdir } from 'os';
 import * as path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -34,7 +34,7 @@ describe('EventStore Channel Routing Integration', () => {
   let coreEventBus: CoreEventBus;
 
   beforeAll(async () => {
-    testDir = path.join(tmpdir(), `semiont-test-routing-${uuidv4()}`);
+    testDir = path.join(tmpdir(), `semiont-test-routing-${randomUUID()}`);
     await fsPromises.mkdir(testDir, { recursive: true });
 
     // Create CoreEventBus to pass to EventStore

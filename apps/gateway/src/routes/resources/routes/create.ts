@@ -12,7 +12,7 @@ import { HTTPException } from 'hono/http-exception';
 import { busLog, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
 import type { components } from '@semiont/core';
-import { ResourceOperations } from '@semiont/make-meaning';
+import { ResourceOperations } from '@semiont/core';
 import { putContent } from '../../../lib/archivist';
 import { requestPrimitiveFor, compositionFor } from '../../../signal';
 import { profileForWrite } from '../../../identity/person-profile';

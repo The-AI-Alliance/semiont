@@ -134,6 +134,23 @@ import { BRIDGED_CHANNELS } from '@semiont/core';
 
 `@semiont/http-transport` implements these over HTTP + SSE; `LocalTransport` in `@semiont/make-meaning` implements them in-process.
 
+### Resource writes
+
+The one statement of how a resource write maps onto its channel's payload, used by the gateway's upload route and by in-process callers alike:
+
+```typescript
+import { ResourceOperations } from '@semiont/core';
+import type { CreateResourceInput, BusRequestPrimitive } from '@semiont/core';
+```
+
+Each method rides a `BusRequestPrimitive` the caller supplies — the operation names the channel, the caller names the fabric — stamps the caller's `UserId` as `_userId`, and resolves to the new `ResourceId` from the Stower's correlated reply:
+
+- **`createResource(input, userId, bus)`** — `yield:create`. Callers store the bytes first; `CreateResourceInput` carries the resulting `storageUri`, `contentChecksum` and `byteSize`, plus `name`, `format`, and optional `language`, `entityTypes`, generation provenance, `jobId` and `isDraft`.
+- **`persistClone(input, userId, bus)`** — `yield:clone-persist`. A clone names its `parentResourceId`; callers reach this only after a clone token has been validated.
+- **`createFromCloneToken(input, userId, bus)`** — `yield:clone-create`. The bytes are already stored; the command carries the token and storage coordinates only.
+
+A `*-failed` reply rejects with `BusRequestError`.
+
 ### W3C Web Annotation Utilities
 
 Pure functions for building and reading W3C Annotations:

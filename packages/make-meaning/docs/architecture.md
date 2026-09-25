@@ -255,13 +255,13 @@ The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options
 
 ## Operations
 
-`ResourceOperations` and `AnnotationOperations` are thin facades that emit commands on the EventBus. They do not access KB stores directly — the Stower handles persistence.
+`AnnotationOperations` (here) and `ResourceOperations` (in `@semiont/core`) are thin facades over `busRequest`. They do not access KB stores directly — the Stower handles persistence.
 
 ```
-ResourceOperations.createResource()
-  → eventBus.get('yield:create').next(...)
-    → Stower subscribes, persists, emits yield:created
-      → caller awaits yield:created via firstValueFrom
+ResourceOperations.createResource(input, userId, bus)
+  → busRequest(bus, 'yield:create', …)
+    → Stower persists, replies yield:create-ok / yield:create-failed
+      → matched on correlationId; resolves to the new ResourceId
 ```
 
 ## Worker Architecture

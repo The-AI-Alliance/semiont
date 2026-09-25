@@ -254,6 +254,7 @@ export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from 
 
 // Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
 export { busRequest, replyChannelsFor, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
+export { ResourceOperations, type CreateResourceInput } from './resource-operations';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
 export {
   CHANNEL_ATTRS,

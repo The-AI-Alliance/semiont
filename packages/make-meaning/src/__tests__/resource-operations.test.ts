@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
-import { ResourceOperations } from '../resource-operations';
+import { ResourceOperations } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { type SemiontProject } from '@semiont/core/node';
 import { userId, EventBus, type Logger, type GraphServiceConfig, deriveStorageUri } from '@semiont/core';

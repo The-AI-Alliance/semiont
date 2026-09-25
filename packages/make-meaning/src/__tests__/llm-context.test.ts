@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { take } from 'rxjs/operators';
 import { LLMContext, type ResourceGatherReads } from '../llm-context';
-import { ResourceOperations } from '../resource-operations';
+import { ResourceOperations } from '@semiont/core';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { AnnotationOperations } from '../annotation-operations';
 import { resourceId, annotationId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';

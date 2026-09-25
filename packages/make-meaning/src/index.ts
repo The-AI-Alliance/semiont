@@ -76,10 +76,6 @@ export {
   type SmelterEvent,
 } from './smelter-actor-state-unit';
 
-// Resource operations
-export { ResourceOperations } from './resource-operations';
-export type { CreateResourceInput } from './resource-operations';
-
 // Annotation operations
 export { AnnotationOperations } from './annotation-operations';
 export type { CreateAnnotationResult, UpdateAnnotationBodyResult } from './annotation-operations';

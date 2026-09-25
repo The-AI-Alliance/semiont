@@ -11,6 +11,7 @@ components:
 
   Alpine Linux - MIT License
   Node.js - MIT License
+  tini - MIT License
   git - GPL-2.0-only License
 
   npm dependencies (installed at build time from https://registry.npmjs.org):

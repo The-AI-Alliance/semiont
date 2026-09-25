@@ -23,7 +23,7 @@ import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
 import { ResourceContext } from './resource-context';
 import { asBusRequestPrimitive } from './bus-request-local';
-import { ResourceOperations } from './resource-operations';
+import { ResourceOperations } from '@semiont/core';
 
 /**
  * What the clone workflow touches (EXTRACT-ARCHIVIST P1/P3): resource

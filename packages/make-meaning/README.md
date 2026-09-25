@@ -252,7 +252,6 @@ The Weaver is not exported — `createKnowledgeBase()` constructs it internally 
 
 ### Operations
 
-- `ResourceOperations` — Resource CRUD (emits commands to EventBus)
 - `AnnotationOperations` — Annotation CRUD (emits commands to EventBus)
 
 ### Context Assembly

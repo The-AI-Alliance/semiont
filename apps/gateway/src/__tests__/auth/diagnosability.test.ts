@@ -8,17 +8,7 @@
  * unauthenticated). RED on `main` today (no `hint`), GREEN once Phase 6 lands.
  */
 
-import { describe, it, expect, beforeAll, vi } from 'vitest';
-
-// pdfjs (pulled in transitively when the gateway's resources router loads
-// `ResourceOperations` from make-meaning) needs DOMMatrix at module load; stub
-// it in the hoist phase so this file runs in isolation.
-vi.hoisted(() => {
-  const g = globalThis as unknown as Record<string, unknown>;
-  g.DOMMatrix ??= class {};
-  g.ImageData ??= class {};
-  g.Path2D ??= class {};
-});
+import { describe, it, expect, beforeAll } from 'vitest';
 
 import { app } from '../../index';
 import { JWTService } from '../../auth/jwt';

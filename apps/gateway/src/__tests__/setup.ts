@@ -7,11 +7,11 @@ import { vi, beforeAll, afterEach, afterAll } from 'vitest';
 import { setupServer } from 'msw/node';
 import { handlers } from './mocks/server';
 import { promises as fs, mkdirSync, writeFileSync } from 'fs';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 import type { EnvironmentConfig } from '@semiont/core';
 
 // Use a unique directory per worker thread to avoid race conditions
-const testDir = `/tmp/semiont-test-${process.pid}-${uuidv4()}`;
+const testDir = `/tmp/semiont-test-${process.pid}-${randomUUID()}`;
 
 // Mock config LOADING to provide in-memory config (no filesystem needed) —
 // loadEnvironmentConfig moved to its owning package, @semiont/core/node

@@ -1,11 +1,10 @@
-# node:24, not 26: node 26's built-in undici breaks the qdrant client at connect.
 FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
 RUN --mount=type=cache,target=/root/.npm \
     npm config set registry $NPM_REGISTRY && \
     npm install -g npm@12.0.1 && \
-    npm install @semiont/gateway@${SEMIONT_VERSION} neo4j-driver @qdrant/js-client-rest \
+    npm install @semiont/gateway@${SEMIONT_VERSION} \
       --prefix /home/semiont/.local/share/semiont
 
 FROM node:24-alpine

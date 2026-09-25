@@ -7,8 +7,8 @@ Common use cases and patterns for `@semiont/make-meaning`.
 All examples assume the service is started:
 
 ```typescript
-import { startMakeMeaning, ResourceOperations, AnnotationOperations } from '@semiont/make-meaning';
-import { EventBus, userId } from '@semiont/core';
+import { startMakeMeaning, AnnotationOperations } from '@semiont/make-meaning';
+import { EventBus, ResourceOperations, userId } from '@semiont/core';
 import { SemiontProject } from '@semiont/core/node';
 import { firstValueFrom, filter, timeout, race } from 'rxjs';
 

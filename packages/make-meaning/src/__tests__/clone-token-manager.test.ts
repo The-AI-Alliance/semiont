@@ -17,7 +17,8 @@ import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
-import { startMakeMeaning, ResourceOperations, ResourceContext, type MakeMeaningConfig } from '..';
+import { startMakeMeaning, ResourceContext, type MakeMeaningConfig } from '..';
+import { ResourceOperations } from '@semiont/core';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 
 stubEmbeddingProbeFetch();

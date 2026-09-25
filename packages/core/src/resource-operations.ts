@@ -12,13 +12,10 @@
  * For create: emits yield:create, awaits yield:create-ok / yield:create-failed.
  */
 
-import type {
-  UserId,
-  ResourceId,
-} from '@semiont/core';
-import type { components } from '@semiont/core';
-import { resourceId as makeResourceId, busRequest } from '@semiont/core';
-import type { BusRequestPrimitive } from '@semiont/core';
+import type { UserId, ResourceId } from './identifiers';
+import { resourceId as makeResourceId } from './identifiers';
+import type { components } from './types';
+import { busRequest, type BusRequestPrimitive } from './bus-request';
 
 type ContentFormat = components['schemas']['ContentFormat'];
 type Agent = components['schemas']['Agent'];
