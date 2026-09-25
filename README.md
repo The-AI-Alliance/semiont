@@ -35,19 +35,23 @@ knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semi
 
 #### Start your own
 
-`semiont init` births a KB in place: it stamps a permanent identity, then
-synthesizes a config and validates it before writing. Register your API key
-first and `init` will use it to pick a current model:
+Register your API key once, so `init` can use it to pick a current model:
 
 ```bash
-mkdir my-kb && cd my-kb
 semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
-semiont init --yes --domain example.com:test --inference anthropic
 ```
 
 Only the pointer is stored, never the value. It is verified once when you
 register it, then read fresh on every start and passed to the containers as an
 environment variable — Semiont writes it nowhere.
+
+`semiont init` then births a KB in place: it stamps a permanent identity, and
+synthesizes a config it validates before writing.
+
+```bash
+mkdir my-kb && cd my-kb
+semiont init --yes --domain example.com:test --inference anthropic
+```
 
 The domain is the KB's permanent `did:web` identity, stamped into the committed
 event log, so it has no safe default. Without an API key, `--inference ollama`
