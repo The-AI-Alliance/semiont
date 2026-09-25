@@ -11,15 +11,12 @@ components:
 
   Alpine Linux - MIT License
   Node.js - MIT License
-  Git - GPL-2.0-only License
 
-  npm dependencies (installed at build time from https://registry.npmjs.org):
-    @semiont/gateway - Apache-2.0 License (The AI Alliance)
-    neo4j-driver - Apache-2.0 License (Neo4j, Inc.)
-    @qdrant/js-client-rest - Apache-2.0 License (Qdrant)
+  npm packages (installed at build time from https://registry.npmjs.org):
+    @semiont/gateway - Apache-2.0 License (The AI Alliance), with its dependencies
 
 Each npm dependency's full license text is available in its respective
 node_modules/<package>/LICENSE file within the image, under
-/home/semiont/.local/share/semiont/node_modules (the gateway and its peers).
+/home/semiont/.local/share/semiont/node_modules.
 npm is not among them: the base image ships it and the build installs with it,
 but the runtime image strips it.
