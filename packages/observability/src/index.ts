@@ -440,27 +440,17 @@ export function recordUnanswerableRequest(channel: string): void {
   unanswerableCounter().add(1, { 'bus.channel': channel });
 }
 
-/** Claims held and reply payloads retained by a gateway's correlation
- *  registry, each with the ceiling it is measured against. The ceilings are
- *  reported rather than left to the reader: a count alone cannot say whether
- *  the registry is idle or one request from refusing, and a reader that
- *  hard-codes them is restating a number the registry owns. */
+/** Claims held by a gateway's correlation registry, with the ceiling they are
+ *  measured against. The ceiling is reported rather than left to the reader: a
+ *  count alone cannot say whether the registry is idle or one request from
+ *  refusing, and a reader that hard-codes it is restating a number the
+ *  registry owns. Retained replies are not here: they live in the broker. */
 export interface CorrelationRegistrySnapshot {
   claims: number;
-  retainedReplies: number;
   claimsMax: number;
-  retainedRepliesMax: number;
 }
 
-/**
- * Register a callback returning the gateway's correlation-registry occupancy.
- *
- * COUNTS, not bytes: retention is count-budgeted today (byte-budgeting is a
- * known limit in CORRELATED-REPLY-ROUTING), so `retainedReplies` is a proxy for
- * heap, not a measure of it. It is still the closest observable to the question
- * two OOM investigations keep asking — a browse result can be 1-2 MB, and up to
- * REPLY_RETENTION_MAX of them are held at once.
- */
+/** Register a callback returning the gateway's correlation-registry occupancy. */
 export function registerCorrelationRegistryProvider(
   provider: () => CorrelationRegistrySnapshot,
 ): void {
@@ -468,15 +458,13 @@ export function registerCorrelationRegistryProvider(
   if (!_correlationRegistryGauge) {
     buildGauge('semiont.bus.correlation.size', () => {
       _correlationRegistryGauge = meter().createObservableGauge('semiont.bus.correlation.size', {
-        description: 'Correlation registry occupancy: live claims and retained reply payloads',
+        description: 'Correlation registry occupancy: live claims',
       });
       _correlationRegistryGauge.addCallback((observer) => {
         if (!_correlationRegistryProvider) return;
         const snap = _correlationRegistryProvider();
         observer.observe(snap.claims, { 'correlation.kind': 'claims' });
-        observer.observe(snap.retainedReplies, { 'correlation.kind': 'retained_replies' });
         observer.observe(snap.claimsMax, { 'correlation.kind': 'claims_max' });
-        observer.observe(snap.retainedRepliesMax, { 'correlation.kind': 'retained_replies_max' });
       });
     });
   }

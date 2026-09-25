@@ -2,9 +2,11 @@
  * The multi-replica capability PROOF (SIGNAL-PLANE P3 — GREEN 2026-09-15;
  * re-pointed at the dispatcher for EXTRACT-JOBS P2/P3).
  *
- * Two full gateway-side compositions over one core-only broker, each built
- * from the SAME modules production boots: `compositionFor` (plane + ledger +
- * the standing tap + claim announcements). The `job:*` handlers the gateway
+ * Two full gateway-side compositions over one broker, each built from the
+ * SAME modules production boots: `compositionFor` (plane + ledger over the
+ * shared claims table + the standing tap). The broker runs JetStream because
+ * the claims table is a KV bucket; the signal plane's own conformance suite
+ * keeps its JetStream-off server. The `job:*` handlers the gateway
  * used to host — reconnected to a remote plane by `bridgeGatewayHandlers` —
  * moved to the DISPATCHER (EXTRACT-JOBS): a fan-out service that subscribes its
  * roster through /bus/subscribe and answers on its own bus, exactly like the
@@ -17,7 +19,7 @@
  *  - H0  (found at RED): the ledger is plane-fed — answered/retention work
  *        over a broker at N=1;
  *  - H1  (property 1): a request claimed via B delivers to a client on A —
- *        claim announcements converge the ledgers;
+ *        the shared claims table converges the ledgers;
  *  - H2  (property 3, re-pointed): an HTTP-shaped `job:create` claimed at A
  *        reaches the single dispatcher attached at B and its `job:created`
  *        reply crosses the broker back to the requester at A — the
@@ -51,13 +53,13 @@
  * `conformance.test.ts`. Execute-once for job WORK is the JetStream queue's
  * `claimNextJob`, proven in the jobs conformance suite — not a plane property.
  *
- * Ordering note: a claim announcement and its request leave one connection
- * in order, so every subscriber sees claim-before-request (and B-published
- * replies after B-published claims). H6's reply leaves a DIFFERENT
- * connection — the one recorded race — so the harness, like reality, lets
- * the claim land (`awaitClaim`) before the reply is emitted.
+ * Ordering note: nothing here waits for a claim to reach the other replica
+ * before replying. A claim is in the table before its request dispatches, and
+ * a replica whose projection has not caught up reads the table rather than
+ * refusing — so H1 and H6 reply the moment the claim resolves, from a
+ * DIFFERENT connection, which is the race a projection alone would lose.
  */
-import { afterAll, describe, test, expect } from 'vitest';
+import { afterAll, describe, test, expect, vi } from 'vitest';
 import { Subject } from 'rxjs';
 import { EventBus, busRequest, BRIDGED_CHANNELS, BUS_OPERATIONS, type BusFrame, type BusOperationKey, type EventMap } from '@semiont/core';
 import {
@@ -74,7 +76,7 @@ import { createNatsSignalPlane } from '../nats';
 import { compositionFor, type SignalComposition } from '../composition';
 import { isCorrelatedChannel } from '../channels';
 import { requestPrimitiveFor } from '../request-primitive';
-import { natsFixture } from './nats-fixture';
+import { jetStreamNatsFixture } from './nats-fixture';
 
 /** Generous async settling: poll, never assume synchronous delivery. */
 async function settle(check: () => boolean, ms = 3_000): Promise<void> {
@@ -91,11 +93,11 @@ interface Instance {
   name: string;
   composition: SignalComposition;
   /** Emit-as-claim, as the /bus/emit route does it. */
-  emitRequest(channel: string, cid: string, clientId: string, payload?: Record<string, unknown>): void;
+  emitRequest(channel: string, cid: string, clientId: string, payload?: Record<string, unknown>): Promise<void>;
   /** A reply/broadcast ingest, as any responder's emit. */
   ingest(channel: string, payload: unknown, envelope?: PlaneEnvelope): void;
   /** A subscribed client behind the route's entitlement gate (the SHARED
-   *  `mayDeliver`, one copy in the ledger). */
+   *  `gate`, one copy in the ledger). */
   client(clientId: string, channels: string[]): { frames: Array<{ channel: string; payload: unknown }>; close(): void };
   /** Wait until this instance's ledger knows the claim. */
   awaitClaim(cid: string): Promise<void>;
@@ -113,12 +115,13 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
   const bus = new EventBus();
   const plane = await createNatsSignalPlane({ servers, reconnect: false });
   const composition = compositionFor(bus, plane);
+  await composition.ready;
 
   return {
     name,
     composition,
-    emitRequest(channel, cid, clientId, payload = {}) {
-      const outcome = composition.claim(cid, clientId, PRINCIPAL);
+    async emitRequest(channel, cid, clientId, payload = {}) {
+      const outcome = await composition.claim(cid, clientId, PRINCIPAL);
       expect(outcome, `${name}: claim ${cid}`).toBe('ok');
       composition.plane.ingest(channel, { ...payload, _userId: PRINCIPAL }, { meta: { correlationId: cid } });
     },
@@ -127,22 +130,26 @@ async function makeInstance(name: string, servers: string): Promise<Instance> {
     },
     client(clientId, channels) {
       const frames: Array<{ channel: string; payload: unknown }> = [];
+      const gate = composition.gate(clientId, PRINCIPAL);
       const sub = composition.plane.subscribeClient({
         address: toReplyAddress(clientId),
         global: channels,
         scoped: [],
         onFrame: (channel, payload, envelope) => {
-          if (
-            envelope.scope === undefined &&
-            isCorrelatedChannel(channel) &&
-            !composition.mayDeliver(channel, envelope.meta?.correlationId, clientId, PRINCIPAL)
-          ) {
+          if (envelope.scope === undefined && isCorrelatedChannel(channel)) {
+            gate.offer(channel, envelope.meta?.correlationId, () => frames.push({ channel, payload }));
             return;
           }
           frames.push({ channel, payload });
         },
       });
-      return { frames, close: () => sub.close() };
+      return {
+        frames,
+        close: () => {
+          sub.close();
+          gate.close();
+        },
+      };
     },
     async awaitClaim(cid) {
       await settle(() => composition.owner(cid) !== undefined);
@@ -237,14 +244,14 @@ function dispatcherOver(plane: SignalPlane): {
 }
 
 async function twoInstances(): Promise<{ a: Instance; b: Instance; done(): void }> {
-  const { servers } = await natsFixture();
+  const { servers } = await jetStreamNatsFixture();
   const a = await makeInstance('A', servers);
   const b = await makeInstance('B', servers);
   return { a, b, done: () => { a.teardown(); b.teardown(); } };
 }
 
 afterAll(async () => {
-  const fixture = await natsFixture().catch(() => undefined);
+  const fixture = await jetStreamNatsFixture().catch(() => undefined);
   fixture?.stop();
 });
 
@@ -276,13 +283,13 @@ describe('P3 — two gateway-compositions over one broker', () => {
     const { a, done } = await twoInstances();
     try {
       const client = a.client('client-h0', ['gather:summary-result']);
-      a.emitRequest('gather:requested', 'cid-h0', 'client-h0');
+      await a.emitRequest('gather:requested', 'cid-h0', 'client-h0');
       a.ingest('gather:summary-result', { summary: 'answered' }, { meta: { correlationId: 'cid-h0' } });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'delivered').toBeGreaterThanOrEqual(1);
-      await settle(() => a.composition.occupancy().retainedReplies >= 1);
-      expect(a.composition.occupancy().retainedReplies, 'retention').toBe(1);
-      expect(a.composition.lookupReply('cid-h0', 'client-h0', PRINCIPAL), 'pendingReplies recovery').toBeDefined();
+      await vi.waitFor(async () => {
+        expect(await a.composition.lookupReply('cid-h0', 'client-h0', PRINCIPAL), 'pendingReplies recovery').toBeDefined();
+      });
       client.close();
     } finally {
       done();
@@ -302,7 +309,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
       await b.composition.plane.flush();
 
       const client = a.client('client-h2', ['job:created']);
-      a.emitRequest('job:create', 'cid-h2', 'client-h2', { jobType: 'generate', params: {} });
+      await a.emitRequest('job:create', 'cid-h2', 'client-h2', { jobType: 'generate', params: {} });
       await settle(() => client.frames.length >= 1);
       expect(dispatcher.handled.length, 'the dispatcher handled it exactly once').toBe(1);
       expect(dispatcher.handled[0]!.correlationId, "with the requester's correlationId").toBe('cid-h2');
@@ -319,13 +326,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
     const { a, b, done } = await twoInstances();
     try {
       const client = a.client('client-h1', ['gather:summary-result']);
-      b.emitRequest('gather:requested', 'cid-h1', 'client-h1');
-      // A real reply follows a handler round-trip; a reply emitted
-      // MICROSECONDS after its claim can beat the announcement to the other
-      // instance and be refused once, permanently — the recorded race,
-      // observed here when this line was missing. The harness models the
-      // round-trip, not the pathological compression.
-      await a.awaitClaim('cid-h1');
+      await b.emitRequest('gather:requested', 'cid-h1', 'client-h1');
       b.ingest('gather:summary-result', { summary: 'from-b' }, { meta: { correlationId: 'cid-h1' } });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply delivered across instances').toBeGreaterThanOrEqual(1);
@@ -339,11 +340,7 @@ describe('P3 — two gateway-compositions over one broker', () => {
     const { a, b, done } = await twoInstances();
     try {
       const client = a.client('client-h6', ['gather:summary-result']);
-      b.emitRequest('gather:requested', 'cid-h6', 'client-h6');
-      // The reply leaves a DIFFERENT connection than the claim announcement
-      // (the recorded race); like a real handler round-trip, it follows the
-      // claim's arrival.
-      await a.awaitClaim('cid-h6');
+      await b.emitRequest('gather:requested', 'cid-h6', 'client-h6');
       a.ingest('gather:summary-result', { summary: 'from-non-holder' }, { meta: { correlationId: 'cid-h6' } });
       await settle(() => client.frames.length >= 1);
       expect(client.frames.length, 'reply from a non-claim-holder instance').toBeGreaterThanOrEqual(1);
@@ -565,24 +562,117 @@ describe('P3 — two gateway-compositions over one broker', () => {
   test('H5: reply recovery answers from the OTHER instance', async () => {
     const { a, b, done } = await twoInstances();
     try {
-      b.emitRequest('gather:requested', 'cid-h5', 'client-h5');
-      // A's ledger tap must be REGISTERED on the broker before the reply is
-      // published, or core NATS drops that frame for A and never retries it —
-      // `settle` would then poll a condition that can never become true. The
-      // claim becoming visible on A is the proof, and the same barrier H1 and
-      // H6 use. Without it this test failed in CI on 2026-09-17 while passing
-      // 12/12 locally, which is the signature of this race, not of a bug.
-      await a.awaitClaim('cid-h5');
+      await b.emitRequest('gather:requested', 'cid-h5', 'client-h5');
+      // A need not have seen the reply, or even the claim: retention is the
+      // shared replies table, written by B's tap, and A reads the claim
+      // through if its projection has not caught up.
       b.ingest('gather:summary-result', { summary: 'kept' }, { meta: { correlationId: 'cid-h5' } });
-      await settle(
-        () =>
-          a.composition.occupancy().retainedReplies >= 1 &&
-          b.composition.occupancy().retainedReplies >= 1,
-      );
-      expect(b.composition.lookupReply('cid-h5', 'client-h5', PRINCIPAL), 'origin retains').toBeDefined();
-      expect(a.composition.lookupReply('cid-h5', 'client-h5', PRINCIPAL), 'the OTHER instance answers recovery').toBeDefined();
+      await vi.waitFor(async () => {
+        expect(await b.composition.lookupReply('cid-h5', 'client-h5', PRINCIPAL), 'origin retains').toBeDefined();
+      });
+      const recovered = await a.composition.lookupReply('cid-h5', 'client-h5', PRINCIPAL);
+      expect(recovered?.payload, 'the OTHER instance answers recovery').toEqual({ summary: 'kept' });
     } finally {
       done();
+    }
+  });
+});
+
+/**
+ * LEDGER-STATE-TO-THE-BROKER P2: a claim outlives the replica that did not
+ * witness it. A replica that was not running when a claim was made — started
+ * later, or restarted since — holds it anyway, because claims live in the
+ * shared table and a replica reads what the table contains before it serves.
+ * Without that, its entitlement gate would refuse the reply for the claim's
+ * whole TTL, and the client would see nothing and time out with no error.
+ *
+ * Each case first proves the client's stream on the new replica is live with
+ * an uncorrelated broadcast, so a missing reply can only be the ledger's
+ * refusal.
+ */
+describe('a claim survives the replica that did not witness it', () => {
+  async function awaitLiveStream(publisher: Instance, client: { frames: Array<{ channel: string }> }): Promise<void> {
+    await settle(() => {
+      if (client.frames.some((f) => f.channel === 'beckon:focus')) return true;
+      publisher.ingest('beckon:focus', { n: 1 });
+      return false;
+    });
+    expect(client.frames.some((f) => f.channel === 'beckon:focus'), 'the client stream is live').toBe(true);
+  }
+
+  test('a replica that starts after the claim still delivers its reply', async () => {
+    const { servers } = await jetStreamNatsFixture();
+    const a = await makeInstance('A', servers);
+    let c: Instance | undefined;
+    try {
+      await a.emitRequest('gather:requested', 'cid-late-join', 'client-late-join');
+      c = await makeInstance('C', servers);
+      const client = c.client('client-late-join', ['beckon:focus', 'gather:summary-result']);
+      await awaitLiveStream(a, client);
+
+      a.ingest('gather:summary-result', { summary: 'late-join' }, { meta: { correlationId: 'cid-late-join' } });
+      await settle(() => client.frames.some((f) => f.channel === 'gather:summary-result'));
+      expect(
+        client.frames.some((f) => f.channel === 'gather:summary-result'),
+        'the reply reaches its client through a replica that started after the claim',
+      ).toBe(true);
+      client.close();
+    } finally {
+      a.teardown();
+      c?.teardown();
+    }
+  });
+
+  test('a replica restarted with a claim outstanding still delivers the reply that follows', async () => {
+    const { servers } = await jetStreamNatsFixture();
+    // B stays up throughout and knew the claim before the restart, so the
+    // loss below is not "the only copy died": nothing re-sends a claim to a
+    // replica that missed its announcement.
+    const b = await makeInstance('B', servers);
+    const a = await makeInstance('A', servers);
+    let restarted: Instance | undefined;
+    try {
+      await a.emitRequest('gather:requested', 'cid-restart', 'client-restart');
+      await b.awaitClaim('cid-restart');
+      a.teardown();
+      restarted = await makeInstance('A (restarted)', servers);
+      const client = restarted.client('client-restart', ['beckon:focus', 'gather:summary-result']);
+      await awaitLiveStream(b, client);
+
+      b.ingest('gather:summary-result', { summary: 'after-restart' }, { meta: { correlationId: 'cid-restart' } });
+      await settle(() => client.frames.some((f) => f.channel === 'gather:summary-result'));
+      expect(
+        client.frames.some((f) => f.channel === 'gather:summary-result'),
+        'the reply reaches its client through the restarted replica',
+      ).toBe(true);
+      client.close();
+    } finally {
+      (restarted ?? a).teardown();
+      b.teardown();
+    }
+  });
+
+  // P5: retention outlives the process that observed the reply. The client is
+  // between connections when the reply is produced, so nothing delivers it;
+  // `pendingReplies` recovery after a restart is the only way it arrives.
+  test('a reply retained before a restart is replayed after it', async () => {
+    const { servers } = await jetStreamNatsFixture();
+    const a = await makeInstance('A', servers);
+    let restarted: Instance | undefined;
+    try {
+      await a.emitRequest('gather:requested', 'cid-replay', 'client-replay');
+      a.ingest('gather:summary-result', { summary: 'while-away' }, { meta: { correlationId: 'cid-replay' } });
+      await vi.waitFor(async () => {
+        expect(await a.composition.lookupReply('cid-replay', 'client-replay', PRINCIPAL)).toBeDefined();
+      });
+      a.teardown();
+      restarted = await makeInstance('A (restarted)', servers);
+
+      expect(restarted.composition.owner('cid-replay'), 'the claim survived the restart').toBeDefined();
+      const replayed = await restarted.composition.lookupReply('cid-replay', 'client-replay', PRINCIPAL);
+      expect(replayed?.payload, 'the reply survived the restart').toEqual({ summary: 'while-away' });
+    } finally {
+      (restarted ?? a).teardown();
     }
   });
 });

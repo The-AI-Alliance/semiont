@@ -6,43 +6,43 @@
  *
  * What composing does, identically under both drivers:
  *
+ *  - opens the ledger over the plane's shared claims table (`ready` resolves
+ *    once it is open and this replica holds what it already contained);
  *  - installs the ledger's STANDING tap: one client-mode subscription over
  *    every correlated channel, held for the life of the composition — a
  *    reply must be observed (answered + retained) even when its client is
  *    between connections, which is the whole recovery story;
- *  - subscribes the shared `LEDGER_ADDRESS`, where every replica's claim
- *    announcements arrive (`deliver`-published on `claim`), so the cluster's
- *    ledgers converge — the P3 cross-replica-claims resolution;
- *  - fronts the ledger's policy surface (`claim` — announcing on accept —
- *    `owner`, `lookupReply`, `mayDeliver`, `occupancy`) so no caller wires
- *    plane and ledger separately again.
+ *  - fronts the ledger's policy surface (`claim`, `owner`, `lookupReply`,
+ *    `gate`, `occupancy`) so no caller wires plane and ledger separately.
  *
  * One composition per EventBus, cached: the route reaches it per-request,
  * boot pre-seeds it with the configured driver, tests get a lazy in-process
  * one. Passing a DIFFERENT plane for a bus that already composed is refused
  * loudly.
  *
- * This file never learns the correlation vocabulary: announcement shape and
- * parsing live in the ledger (the census-exempt file); frames pass through
- * here opaque.
+ * This file never learns the correlation vocabulary: frames pass through here
+ * opaque, and the ledger (the census-exempt file) reads them.
  */
+import { randomUUID } from 'crypto';
 import type { EventBus } from '@semiont/core';
 import { CORRELATED_CHANNELS } from './channels';
 import { createInProcessSignalPlane } from './in-process';
-import type { SignalPlane } from './interface';
-import { CLAIM_CHANNEL, LEDGER_ADDRESS, createCorrelationRegistry, type CorrelationRegistry, type RetainedReply } from './ledger';
+import { toReplyAddress, type SignalPlane } from './interface';
+import { createCorrelationRegistry, type CorrelationRegistry } from './ledger';
 
 export interface SignalComposition {
   plane: SignalPlane;
-  /** Emit-as-claim: local refusals are synchronous; an accepted claim is
-   *  announced to every replica's ledger via the shared address. */
-  claim(cid: string, clientId: string, principalDid: string | undefined): 'ok' | 'conflict' | 'at-capacity';
-  owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
-  lookupReply(cid: string, clientId: string, principalDid: string | undefined): RetainedReply | undefined;
+  /** Resolves once the ledger's claims table is open and projected. */
+  ready: Promise<void>;
+  /** Emit-as-claim. Resolves once the claim is in the shared table — the
+   *  caller dispatches the payload only after that. */
+  claim: CorrelationRegistry['claim'];
+  owner: CorrelationRegistry['owner'];
+  lookupReply: CorrelationRegistry['lookupReply'];
   /** Derived from the registry rather than restated: one declaration of the
    *  entitlement gate, and this file stays clear of the correlation
    *  vocabulary the P0.5 census bans on the plane side. */
-  mayDeliver: CorrelationRegistry['mayDeliver'];
+  gate: CorrelationRegistry['gate'];
   occupancy: CorrelationRegistry['occupancy'];
   dispose(): void;
 }
@@ -61,30 +61,25 @@ export function compositionFor(eventBus: EventBus, plane?: SignalPlane): SignalC
   }
 
   const composedPlane = plane ?? createInProcessSignalPlane(eventBus);
-  const ledger = createCorrelationRegistry();
+  const ledger = createCorrelationRegistry(composedPlane);
 
+  // The tap holds an address because every client-mode subscription does.
+  // Nothing is ever addressed to it, so it is unique rather than reserved: no
+  // client name can collide with it.
   const tap = composedPlane.subscribeClient({
-    address: LEDGER_ADDRESS,
+    address: toReplyAddress(`ledger-tap-${randomUUID()}`),
     global: CORRELATED_CHANNELS,
     scoped: [],
-    onFrame: (channel, payload, envelope) => {
-      if (channel === CLAIM_CHANNEL) ledger.observeClaim(payload);
-      else ledger.observe(channel, payload, envelope.meta);
-    },
+    onFrame: (channel, payload, envelope) => ledger.observe(channel, payload, envelope.meta),
   });
 
   const composition: SignalComposition = {
     plane: composedPlane,
-    claim(cid, clientId, principalDid) {
-      const outcome = ledger.claim(cid, clientId, principalDid);
-      if (outcome === 'ok') {
-        composedPlane.deliver(LEDGER_ADDRESS, CLAIM_CHANNEL, ledger.announcementFor(cid, clientId, principalDid));
-      }
-      return outcome;
-    },
+    ready: ledger.ready,
+    claim: ledger.claim,
     owner: ledger.owner,
     lookupReply: ledger.lookupReply,
-    mayDeliver: ledger.mayDeliver,
+    gate: ledger.gate,
     occupancy: ledger.occupancy,
     dispose() {
       tap.close();

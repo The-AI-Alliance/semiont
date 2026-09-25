@@ -45,13 +45,19 @@ func generateSemiontconfig(p genParams) string {
 	w(`port = 4000`)
 	w(`publicURL = "http://${GATEWAY_HOST:-localhost}:4000"`)
 	w(``)
-	// SIGNAL-PLANE D9: ONE daemon, TWO shapes, chosen by the jobs vote. A
-	// born KB gets the same pair a forked one has — and it must get SOME
-	// jobs driver, because the alternative is the fs driver by omission,
-	// which needs a `[kb] name` the launcher stages for the gateway and the
-	// librarian only. A dispatcher started without it authenticates, refuses,
-	// and is given up on after five restarts (found by the first real boot,
-	// FAKE-RUNTIME-FIDELITY P5).
+	// A born KB gets the same pair a forked one has, served by ONE messaging
+	// daemon with JetStream and its /data store (SIGNAL-PLANE D9).
+	//
+	// It must get SOME jobs driver, because the alternative is the fs driver
+	// by omission, which needs a `[kb] name` the launcher stages for the
+	// gateway and the librarian only. A dispatcher started without it
+	// authenticates, refuses, and is given up on after five restarts (found by
+	// the first real boot, FAKE-RUNTIME-FIDELITY P5).
+	//
+	// And it gets the nats signal driver because that is what puts the
+	// gateway's ledger — claims and retained replies — in JetStream KV on that
+	// store: durable across restarts and shared by every replica. An
+	// in-process signal plane would hold them in one gateway's memory.
 	w(`[environments.local.jobs]`)
 	w(`type = "jetstream"`)
 	w(`servers = "${NATS_HOST}:4222"`)

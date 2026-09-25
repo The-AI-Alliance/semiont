@@ -1,8 +1,13 @@
 /**
- * The NATS Signal Plane driver (SIGNAL-PLANE P1) — CORE subjects only,
- * NEVER the JetStream API (D3: the plane is never consulted as a record;
- * this driver's abstinence is gated, and the conformance fixture runs its
- * server WITHOUT `-js`, so capture is structurally impossible there).
+ * The NATS Signal Plane driver (SIGNAL-PLANE P1). Every FRAME rides CORE
+ * subjects, and nothing published on the plane is ever captured (D3: the plane
+ * is never consulted as a record). The one use of JetStream is the shared
+ * tables (`table()`), which are KV buckets holding the gateway's own
+ * bookkeeping: a bucket's subjects are `$KV.<name>.>`, disjoint from `sig.` by
+ * construction, and the driver-boundary gate pins JetStream use in this file
+ * to KV alone — no stream, no consumer (LEDGER-STATE-TO-THE-BROKER D1). The
+ * conformance fixture still runs its server WITHOUT `-js`, so the plane is
+ * certified where capture is impossible.
  *
  * THE SUBJECT MAPPING — stated ONCE, here, and gated (a hand-written second
  * statement anywhere is a mirror; the driver-boundary suite censuses the
@@ -24,22 +29,20 @@
  *    only the gateway connects; live if D1a's Archivist exception is taken.
  *
  * Inbox subjects: SUBSCRIBED per `subscribeClient` address, PUBLISHED by
- * `deliver` — the P3 resolution of "which side publishes to an inbox": the
- * CLAIMING side does, announcing each accepted claim to the shared ledger
- * address so every replica's ledger converges (`signal/ledger.ts` owns that
- * policy; this driver moves envelopes). Per-client inboxes remain
- * subscribed-and-unpublished — replies stay channel-broadcast under the
- * gateway's entitlement gate. Frames arriving on an inbox carry an
- * `{ channel, payload }` envelope, since an inbox subject names the address
- * rather than the channel.
+ * `deliver`. Nothing in production publishes to one — replies stay
+ * channel-broadcast under the gateway's entitlement gate, and claims reach
+ * other replicas through the shared claims table. Frames arriving on an inbox
+ * carry an `{ channel, payload }` envelope, since an inbox subject names the
+ * address rather than the channel.
  */
-import { JSONCodec, NatsError, connect, type NatsConnection, type Subscription } from 'nats';
+import { JSONCodec, NatsError, StringCodec, connect, type NatsConnection, type Subscription } from 'nats';
 import { getLogger } from '../logger';
 import type {
   ClientSubscriptionSpec,
   IngestReceipt,
   OnFrame,
   PlaneSubscription,
+  SharedTable,
   SignalPlane,
 } from './interface';
 import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
@@ -49,6 +52,10 @@ const getSignalLogger = () => getLogger().child({ component: 'signal' });
 export const SIGNAL_SUBJECT_PREFIX = 'sig.';
 
 const b64url = (raw: string): string => Buffer.from(raw, 'utf8').toString('base64url');
+const fromB64url = (encoded: string): string => Buffer.from(encoded, 'base64url').toString('utf8');
+
+/** JetStream's "wrong last sequence": a KV create on a key that is present. */
+const JS_WRONG_LAST_SEQUENCE = 10071;
 
 export function channelToken(channel: string): string {
   if (/[.*>\s]/.test(channel)) {
@@ -268,6 +275,44 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
       // already written — subscription registrations included — has been
       // processed. That is precisely the boot gate's question.
       await nc.flush();
+    },
+
+    async table(name, ttlMs): Promise<SharedTable> {
+      if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+        throw new Error(`signal/nats: table "${name}" cannot name a KV bucket`);
+      }
+      const kv = await nc.jetstream().views.kv(name, { ttl: ttlMs, history: 1 });
+      const text = StringCodec();
+      // Keys are encoded WHOLE, like scopes and addresses on subjects: a KV
+      // key allows a narrow alphabet, and whatever a caller keys by must not
+      // have to fit it.
+      return {
+        async create(key, value) {
+          try {
+            await kv.create(b64url(key), text.encode(value));
+            return true;
+          } catch (err) {
+            if (err instanceof NatsError && err.api_error?.err_code === JS_WRONG_LAST_SEQUENCE) return false;
+            throw err;
+          }
+        },
+        async read(key) {
+          const entry = await kv.get(b64url(key));
+          return entry?.operation === 'PUT' ? text.decode(entry.value) : undefined;
+        },
+        async watch(onEntry) {
+          let initialized!: () => void;
+          const ready = new Promise<void>((resolve) => (initialized = resolve));
+          const entries = await kv.watch({ ignoreDeletes: true, initializedFn: () => initialized() });
+          void (async () => {
+            for await (const entry of entries) {
+              if (entry.operation === 'PUT') onEntry(fromB64url(entry.key), text.decode(entry.value));
+            }
+          })();
+          await ready;
+          return { close: () => entries.stop() };
+        },
+      };
     },
 
     dispose() {

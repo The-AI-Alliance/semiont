@@ -221,19 +221,15 @@ var serviceDescriptors = []serviceDescriptor{
 	// NATS keeps its product port (tier 2). 512M ceiling: measured 26 MiB
 	// idle with JetStream on (2026-09-15); the headroom is for stream replay
 	// after restart. Runs when [jobs] selects jetstream or [signal] selects
-	// nats (SIGNAL-PLANE D9): ONE daemon, TWO shapes, chosen by the jobs
-	// vote. "jetstream" (jobs want the broker) adds -js and the stamped
-	// /data store; "nats" (signal-only) is the LEAN daemon — core subjects,
-	// no store (DRIVER-SCOPED-MOUNTS: no space a selected driver won't use),
-	// and JetStream disabled server-side makes D3 structural on that root.
+	// nats (SIGNAL-PLANE D9): ONE daemon, ONE shape — JetStream on, with the
+	// stamped /data store — because both drivers that select it use that
+	// store: the job queue's stream, and the signal driver's KV tables, where
+	// the gateway's ledger keeps its claims (LEDGER-STATE-TO-THE-BROKER P0).
 	// JOB-QUEUE-DRIVER P2: "fs" is a valid config type but not a driver here
 	// — it runs inside the gateway and launches nothing.
 	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},
-	{role: "messaging", driver: "nats", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
-		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
-		health: healthProbe{tcp: true}},
 
 	// EXTERNAL-IDENTITY D5: the OIDC issuer the gateway trusts. "keycloak" is
 	// an upstream pin like postgres — the dev-mode server, importing the

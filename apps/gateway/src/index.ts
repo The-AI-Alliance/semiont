@@ -291,13 +291,13 @@ logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-
 // The composition (P3): plane + ledger, seeded HERE with the configured
 // driver so the ledger's standing tap exists from boot; routes reach the
 // same composition through the bus.
-compositionFor(eventBus, signalPlane);
+const composition = compositionFor(eventBus, signalPlane);
 
 // THE READINESS GATE (SIGNAL-PLANE-FLUSH D4) — for the remote plane. The
 // gateway hosts no `job:*` handler, so there is no handler island to
 // reconnect; what it registers is its OWN plane interest: `compositionFor`
-// above opened the ledger's standing tap (claim announcements, reply
-// retention), and every /bus/subscribe client opens more. Subscribing is
+// above opened the ledger's standing tap (reply retention), and every
+// /bus/subscribe client opens more. Subscribing is
 // synchronous; REGISTERING that interest with the broker is not, and core NATS
 // is at-most-once, so a frame arriving before registration lands is dropped
 // rather than delayed. Awaiting one round trip here — once, after the
@@ -320,6 +320,15 @@ if (signalPlane) {
     'The broker is unreachable; the gateway will not serve until it answers.');
   logger.info('Signal Plane ready', { driver: signalConfig?.type });
 }
+
+// The ledger's claims table, open and projected before the port opens: a
+// replica that served first would claim into a table it could not read, and
+// under NATS the table is a JetStream KV bucket, so a broker without
+// JetStream refuses here — loudly, at boot — rather than at the first
+// request. Bounded for the same reason as the flush above.
+await withDeadline('Ledger claims table', SIGNAL_FLUSH_TIMEOUT_MS,
+  () => composition.ready,
+  'The broker did not open the claims table; it must run with JetStream enabled.');
 
 const busRouter = createBusRouter(authMiddleware);
 app.route('/', busRouter);
@@ -432,9 +441,8 @@ if (config.env?.NODE_ENV !== 'test') {
   const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
   registerSupervisorRestartCount();
 
-  // `semiont.bus.correlation.size` — the closest observable to the heap
-  // question two OOM investigations keep asking: a retained browse result is
-  // 1-2 MB and up to REPLY_RETENTION_MAX of them are held at once.
+  // `semiont.bus.correlation.size` — the claims this replica's ledger holds,
+  // against the cap that bounds them.
   //
   // Registered HERE rather than inside `compositionFor`, which the module
   // scope above already called: an observable gauge binds the meter that

@@ -384,17 +384,9 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		// Persistent state rides the run argv (LAUNCHER-STATE.md): roles in
 		// stateStores mount their per-root dir; a database refusal (data
 		// written by another image) stops the start here.
-		// The LEAN daemon (SIGNAL-PLANE Open question 5 / DRIVER-SCOPED-
-		// MOUNTS): a signal-only messaging root runs core NATS with no
-		// store — provisioning follows the driver selection, and the
-		// launcher mounts no space the selected shape won't use.
-		var extra []string
-		if !(role == "messaging" && rp.Driver == "nats") {
-			var ok bool
-			extra, ok = x.stateMounts(role, rp.Image, fc.root)
-			if !ok {
-				return 1
-			}
+		extra, ok := x.stateMounts(role, rp.Image, fc.root)
+		if !ok {
+			return 1
 		}
 		// An authenticated broker needs its authorization block; the plan already
 		// points `-c` at the fixed path, so all that is left is putting the file
@@ -944,10 +936,9 @@ func flowOneService(x executor, fc flowCtx) int {
 			return code
 		}
 	case "graph", "vectors", "database", "messaging", "identity":
-		// The same flow a full start walks. This branch used to be a second
-		// implementation of it, and the copy had drifted: it staged no NATS
-		// authorization file and mounted a state dir the lean signal-only
-		// daemon never uses (DRIVER-SCOPED-MOUNTS).
+		// The same flow a full start walks — one implementation, so a
+		// dependency started alone cannot differ from one started with the
+		// stack.
 		if code := flowDepRole(x, svc, fc, addr); code != 0 {
 			return code
 		}

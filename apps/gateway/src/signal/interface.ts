@@ -24,14 +24,17 @@
  *     driver interprets). The gateway's ledger (`./ledger.ts` —
  *     gateway POLICY, not driver code) owns claims, entitlement and its
  *     refusals, and mints addresses. `deliver` is this group's publication
- *     half (P3 GREEN): a frame published TO an address, reaching every
- *     subscriber holding it and nobody else. What crosses it today is the
- *     gateway's own claim announcements to the shared ledger address —
- *     P3's cross-replica-claims resolution — carrying labels the registry
- *     never sees; the driver moves the envelope and reads nothing.
- *     Reply delivery itself stays client-mode fan-out under the gateway's
- *     entitlement gate (per-client addressed replies remain an unexercised
- *     optimization, recorded in the plan).
+ *     half: a frame published TO an address, reaching every subscriber
+ *     holding it and nobody else. Nothing in production calls it. Reply
+ *     delivery stays client-mode fan-out under the gateway's entitlement
+ *     gate; per-client addressed replies are the recorded follow-on
+ *     (LEDGER-STATE-TO-THE-BROKER, option A) this verb exists for, and the
+ *     conformance suite keeps both drivers' implementations of it honest.
+ *  4. **Shared tables** — keyed state every replica on the fabric sees, which
+ *     is where the ledger keeps its claims (LEDGER-STATE-TO-THE-BROKER). Keys
+ *     and values are opaque strings: the driver stores what it is handed and
+ *     reads none of it. A table is the gateway's own bookkeeping, never a
+ *     capture of a frame — nothing published on the plane lands in one.
  *
  * Delivery contract (every plausible driver can sign it): at-most-once, best
  * effort, duplicates tolerated — consumers are idempotent. Ordering per
@@ -122,6 +125,27 @@ export interface IngestReceipt {
   observers?: number;
 }
 
+/**
+ * A table every replica on one fabric shares. Entries live for the table's
+ * TTL and are then gone; nothing reports their expiry, so a holder of a
+ * projection keeps its own clock.
+ */
+export interface SharedTable {
+  /**
+   * Insert `key` unless it is present. Resolves `true` once the fabric holds
+   * the entry — a read through any handle after that sees it — and `false`
+   * when the key was already there. Any other failure rejects.
+   */
+  create(key: string, value: string): Promise<boolean>;
+  /** The authoritative value, or `undefined` when the key is absent. */
+  read(key: string): Promise<string | undefined>;
+  /**
+   * Every entry already present, then every one created after. Resolves once
+   * the entries already present have been delivered.
+   */
+  watch(onEntry: (key: string, value: string) => void): Promise<PlaneSubscription>;
+}
+
 export interface SignalPlane {
   ingest(channel: string, payload: unknown, envelope?: PlaneEnvelope): IngestReceipt;
   subscribeClient(spec: ClientSubscriptionSpec): PlaneSubscription;
@@ -167,6 +191,11 @@ export interface SignalPlane {
    * costume of safety.
    */
   flush(): Promise<void>;
+  /**
+   * The table named `name`, shared by every replica on this fabric. Every
+   * handle on one name must be opened with the same `ttlMs`.
+   */
+  table(name: string, ttlMs: number): Promise<SharedTable>;
   dispose(): void;
 }
 

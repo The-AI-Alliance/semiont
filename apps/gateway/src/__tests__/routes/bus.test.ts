@@ -25,8 +25,23 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
 
 import { createBusRouter } from '../../routes/bus';
 import { createCorrelationRegistry } from '../../signal/ledger';
+import { createInProcessSignalPlane } from '../../signal/in-process';
+import type { SharedTable, SignalPlane } from '../../signal/interface';
 import { compositionFor } from '../../signal';
 import { initializeLogger, getLogger } from '../../logger';
+
+/**
+ * Intercept every `getBusLogger()` call. The suite initializes the logger at
+ * `error`, so a real `warn` would be filtered before reaching any transport —
+ * spying on the child is what makes these observable at all.
+ */
+const captureBusWarnings = () => {
+  const warn = vi.fn();
+  vi.spyOn(getLogger(), 'child').mockReturnValue({
+    warn, info: vi.fn(), error: vi.fn(), debug: vi.fn(),
+  } as never);
+  return warn;
+};
 
 const TEST_USER_ID = 'did:web:test:users:test' as UserId;
 
@@ -1100,8 +1115,12 @@ describe('bus routes', () => {
 
     it('replays a retained reply to the client that does own it', async () => {
       await subscribe(app, { clientId: 'client-owner', global: [RES] });
+      // A connected service takes the request, so it is not fast-failed; its
+      // answer is the first, and so the retained, reply.
+      const service = eventBus.on(REQ).subscribe(() => {});
       await emit({ channel: REQ, payload: { resourceId: 'r-1', options: { depth: 1, maxResources: 1, includeContent: false, includeSummary: false } }, clientId: 'client-owner', correlationId: 'c-ours' });
       eventBus.emit(RES, { response: { ok: 2 } } as never, { correlationId: 'c-ours' });
+      service.unsubscribe();
 
       const back = await subscribe(app, {
         clientId: 'client-owner',
@@ -1134,18 +1153,6 @@ describe('bus routes', () => {
     const RES = 'gather:resource-complete';
     const OPTS = { depth: 1, maxResources: 1, includeContent: false, includeSummary: false };
 
-    /**
-     * Intercept every `getBusLogger()` call. The suite initializes the logger
-     * at `error`, so a real `warn` would be filtered before reaching any
-     * transport — spying on the child is what makes these observable at all.
-     */
-    const captureBusWarnings = () => {
-      const warn = vi.fn();
-      vi.spyOn(getLogger(), 'child').mockReturnValue({
-        warn, info: vi.fn(), error: vi.fn(), debug: vi.fn(),
-      } as never);
-      return warn;
-    };
 
     const emit = (body: unknown) =>
       app.request('/bus/emit', {
@@ -1226,26 +1233,26 @@ describe('bus routes', () => {
       expect(warn.mock.calls.some((c) => String(c[0]).includes('REPLY-NO-CID'))).toBe(true);
     });
 
-    it('[bus CLAIM-EXPIRED] fires when a claim is swept with no reply', () => {
+    it('[bus CLAIM-EXPIRED] fires when a claim is swept with no reply', async () => {
       const warn = captureBusWarnings();
       let clock = 1_000;
-      const registry = createCorrelationRegistry({ claimTtlMs: 100, now: () => clock });
-      registry.claim('c-silent', 'client-1', 'did:web:x');
+      const registry = createCorrelationRegistry(createInProcessSignalPlane(new EventBus()), { claimTtlMs: 100, now: () => clock });
+      await registry.claim('c-silent', 'client-1', 'did:web:x');
 
       clock += 101;
-      registry.claim('c-next', 'client-1', 'did:web:x'); // any claim sweeps first
+      await registry.claim('c-next', 'client-1', 'did:web:x'); // any claim sweeps first
 
       expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EXPIRED'))).toBe(true);
       registry.dispose();
     });
 
-    it('[bus CLAIM-EVICTED] fires when the global cap forces an eviction', () => {
+    it('[bus CLAIM-EVICTED] fires when the global cap forces an eviction', async () => {
       const warn = captureBusWarnings();
-      const registry = createCorrelationRegistry({ now: () => 1 });
+      const registry = createCorrelationRegistry(createInProcessSignalPlane(new EventBus()), { now: () => 1 });
       // Fill past the global backstop, spread across clients so the per-client
       // cap refuses nothing — the global cap is what must trip.
       for (let i = 0; i <= 4096; i++) {
-        registry.claim(`g-${i}`, `client-${Math.floor(i / 100)}`, 'did:web:x');
+        await registry.claim(`g-${i}`, `client-${Math.floor(i / 100)}`, 'did:web:x');
       }
       expect(warn.mock.calls.some((c) => String(c[0]).includes('CLAIM-EVICTED'))).toBe(true);
       registry.dispose();
@@ -1430,16 +1437,15 @@ describe('bus routes', () => {
       expect(observed.resumeGap.mock.calls[0]?.[0]).toMatch(/last-event-id|scope|replay/);
     });
 
-    it('reports occupancy — claims, retained replies, and the ceilings they are measured against', async () => {
+    it('reports occupancy — claims, and the ceiling they are measured against', async () => {
       // The composition the ROUTE used, not a hand-built registry: occupancy
       // is what the gateway's boot feeds `semiont.bus.correlation.size`, and
       // a private registry would move without the served one moving.
       await subscribe(app, { clientId: 'client-occ', global: ['gather:resource-complete'] });
       const provider = () => compositionFor(eventBus).occupancy();
-      expect(provider()).toMatchObject({ claims: 0, retainedReplies: 0 });
-      // The ceilings ride the same snapshot so no reader restates them.
+      expect(provider()).toMatchObject({ claims: 0 });
+      // The ceiling rides the same snapshot so no reader restates it.
       expect(provider().claimsMax).toBeGreaterThan(0);
-      expect(provider().retainedRepliesMax).toBeGreaterThan(0);
 
       await app.request('/bus/emit', {
         method: 'POST',
@@ -1451,11 +1457,7 @@ describe('bus routes', () => {
           payload: { resourceId: 'r-1', options: OPTS },
         }),
       });
-      // The claim exists; its reply arrived via the synthesized failure, so
-      // both dimensions move — which is what makes them separate series.
-      const after = provider();
-      expect(after.claims).toBeGreaterThan(0);
-      expect(after.retainedReplies).toBeGreaterThan(0);
+      expect(provider().claims).toBeGreaterThan(0);
     });
   });
 
@@ -1469,9 +1471,11 @@ describe('bus routes', () => {
       expect(res1.status).toBe(200);
       await new Promise((r) => setTimeout(r, 20));
 
-      // The request is claimed first — since P3, retention holds only claimed
-      // cids, because "who may see this reply" is the same question retention
-      // was always answering implicitly.
+      // The request is claimed first: retention holds only claimed cids,
+      // because "who may see this reply" is the question it answers. A
+      // connected service takes it, so it is not fast-failed, and its answer
+      // is the first — and so the retained — reply.
+      const service = eventBus.on('gather:resource-requested').subscribe(() => {});
       await app.request('/bus/emit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1491,6 +1495,7 @@ describe('bus routes', () => {
       eventBus.emit('gather:resource-complete', {
         response: { ok: 1 },
       } as never, { correlationId: 'cid-lost' });
+      service.unsubscribe();
 
       // The requester reconnects, naming its outstanding cid.
       const res2 = await subscribe(app, {
@@ -1524,128 +1529,248 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
   const OWNER = 'client-1';
   const DID = 'did:web:test:users:alice';
 
-  // D4 absorbed createReplyRetention into this registry, so these pin the same
-  // bounds — plus the new rule that only a CLAIMED cid is retained at all.
-  // Since P3 the ledger is fed by the composition's plane tap, not an RxJS
-  // bus subscription — these unit tests feed `observe` directly, which is
-  // exactly what the tap does.
-  const setup = (opts: Parameters<typeof createCorrelationRegistry>[0] = {}) =>
-    createCorrelationRegistry(opts);
+  // These pin the retention and claim bounds, plus the rule that only a
+  // CLAIMED cid is retained at all. The ledger is fed by the composition's
+  // plane tap; these unit tests feed `observe` directly, which is exactly what
+  // the tap does. Each builds its ledger over an in-process plane, whose
+  // table is the process's own.
+  const setup = (opts: Parameters<typeof createCorrelationRegistry>[1] = {}) =>
+    createCorrelationRegistry(createInProcessSignalPlane(new EventBus()), opts);
 
-  it('retains a reply only for a claimed cid', () => {
+  it('retains a reply only for a claimed cid', async () => {
     const registry = setup({ now: () => 1 });
-    registry.claim('claimed', OWNER, DID);
+    await registry.claim('claimed', OWNER, DID);
 
     registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'claimed' });
     registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'unclaimed' });
 
-    expect(registry.lookupReply('claimed', OWNER, DID)).toBeDefined();
+    expect(await registry.lookupReply('claimed', OWNER, DID)).toBeDefined();
     // The in-process case: nobody claimed it, so nothing is held for it. Not a
     // lossy mode — the requester is the gateway and consumed it in-process.
-    expect(registry.lookupReply('unclaimed', OWNER, DID)).toBeUndefined();
+    expect(await registry.lookupReply('unclaimed', OWNER, DID)).toBeUndefined();
     registry.dispose();
   });
 
-  it('refuses a lookup from a client that does not own the cid', () => {
+  it('retains the FIRST reply to a cid — the one a connected client resolved on', async () => {
+    // busRequest settles on the first reply for its cid and stops listening,
+    // so replaying a later one would hand a reconnecting client an answer a
+    // connected client never saw.
     const registry = setup({ now: () => 1 });
-    registry.claim('c1', OWNER, DID);
+    await registry.claim('c1', OWNER, DID);
+    registry.observe('gather:resource-failed', { message: 'first' }, { correlationId: 'c1' });
+    registry.observe('gather:resource-complete', { response: { late: true } }, { correlationId: 'c1' });
+
+    const retained = await registry.lookupReply('c1', OWNER, DID);
+    expect(retained?.channel).toBe('gather:resource-failed');
+    expect(retained?.payload).toEqual({ message: 'first' });
+    registry.dispose();
+  });
+
+  it('refuses a lookup from a client that does not own the cid', async () => {
+    const registry = setup({ now: () => 1 });
+    await registry.claim('c1', OWNER, DID);
     registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
 
-    expect(registry.lookupReply('c1', 'client-2', DID)).toBeUndefined();
-    expect(registry.lookupReply('c1', OWNER, 'did:web:test:users:mallory')).toBeUndefined();
-    expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
+    expect(await registry.lookupReply('c1', 'client-2', DID)).toBeUndefined();
+    expect(await registry.lookupReply('c1', OWNER, 'did:web:test:users:mallory')).toBeUndefined();
+    expect(await registry.lookupReply('c1', OWNER, DID)).toBeDefined();
     registry.dispose();
   });
 
-  it('expires a retained reply past the TTL while the claim survives', () => {
+  it('expires a retained reply past the TTL while the claim survives', async () => {
     let clock = 1_000;
     const registry = setup({ ttlMs: 100, now: () => clock });
-    registry.claim('c1', OWNER, DID);
+    await registry.claim('c1', OWNER, DID);
     registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
-    expect(registry.lookupReply('c1', OWNER, DID)).toBeDefined();
+    expect(await registry.lookupReply('c1', OWNER, DID)).toBeDefined();
 
     clock += 101;
-    expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined();
+    expect(await registry.lookupReply('c1', OWNER, DID)).toBeUndefined();
     // Claims are cheap and long-lived; payloads are expensive and short-lived.
     expect(registry.owner('c1')).toBeDefined();
     registry.dispose();
   });
 
-  // Expiry must run at INSERT, not only on lookup: replies nobody asks about
-  // again (the common case) would otherwise sit until FIFO eviction at `max` —
-  // up to 1024 full payloads pinned indefinitely (co-culprit in the
-  // 2026-09-03 gateway OOM).
-  it('sweeps expired reply payloads on insert, without any lookup', () => {
-    let clock = 1_000;
-    const registry = setup({ ttlMs: 100, now: () => clock });
-    for (const cid of ['c1', 'c2', 'c3']) {
-      registry.claim(cid, OWNER, DID);
-      registry.observe('gather:resource-complete', { response: {} }, { correlationId: cid });
-    }
 
-    clock += 101;
-    registry.claim('c4', OWNER, DID);
-    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c4' });
-
-    for (const cid of ['c1', 'c2', 'c3']) {
-      expect(registry.lookupReply(cid, OWNER, DID)).toBeUndefined();
-    }
-    expect(registry.lookupReply('c4', OWNER, DID)).toBeDefined();
-    registry.dispose();
-  });
-
-  it('drops the oldest reply payloads beyond the cap, keeping their claims', () => {
-    const registry = setup({ max: 2, now: () => 1 });
-    for (const cid of ['c1', 'c2', 'c3']) {
-      registry.claim(cid, OWNER, DID);
-      registry.observe('gather:resource-complete', { response: {} }, { correlationId: cid });
-    }
-    expect(registry.lookupReply('c1', OWNER, DID)).toBeUndefined(); // FIFO
-    expect(registry.lookupReply('c3', OWNER, DID)).toBeDefined();
-    // A claim without its payload still routes a LIVE reply — dropping the
-    // payload is not the same as forgetting who owns the cid.
-    expect(registry.owner('c1')).toBeDefined();
-    registry.dispose();
-  });
-
-  it('refuses a duplicate claim and a per-client flood, without evicting', () => {
+  it('refuses a duplicate claim and a per-client flood, without evicting', async () => {
     const registry = setup({ now: () => 1 });
-    expect(registry.claim('dup', OWNER, DID)).toBe('ok');
-    expect(registry.claim('dup', 'client-2', DID)).toBe('conflict');
+    expect(await registry.claim('dup', OWNER, DID)).toBe('ok');
+    expect(await registry.claim('dup', 'client-2', DID)).toBe('conflict');
 
-    for (let i = 1; i < 256; i++) expect(registry.claim(`f-${i}`, OWNER, DID)).toBe('ok');
-    expect(registry.claim('f-256', OWNER, DID)).toBe('at-capacity');
+    for (let i = 1; i < 256; i++) expect(await registry.claim(`f-${i}`, OWNER, DID)).toBe('ok');
+    expect(await registry.claim('f-256', OWNER, DID)).toBe('at-capacity');
     expect(registry.owner('dup')).toBeDefined(); // nothing evicted to make room
     registry.dispose();
   });
 
-  it('an answered claim frees its per-client capacity while staying retained', () => {
+  it('an answered claim frees its per-client capacity while staying retained', async () => {
     // The weaver's boot heal-storm: hundreds of sequential busRequests, each
     // answered within milliseconds. The cap counts UNANSWERED requests — its
     // own 429 message says so — so a client whose questions are all answered
     // must never be refused, no matter how many it has asked.
     const registry = setup({ now: () => 1 });
     for (let i = 0; i < 256; i++) {
-      registry.claim(`a-${i}`, OWNER, DID);
+      await registry.claim(`a-${i}`, OWNER, DID);
       registry.observe('gather:resource-complete', { response: {} }, { correlationId: `a-${i}` });
     }
-    expect(registry.claim('a-256', OWNER, DID)).toBe('ok');
+    expect(await registry.claim('a-256', OWNER, DID)).toBe('ok');
     // Retention is untouched: answered claims still route and replay.
     expect(registry.owner('a-0')).toBeDefined();
-    expect(registry.lookupReply('a-0', OWNER, DID)).toBeDefined();
+    expect(await registry.lookupReply('a-0', OWNER, DID)).toBeDefined();
     registry.dispose();
   });
 
-  it('sweeping an answered claim does not free its capacity twice', () => {
+  it('sweeping an answered claim does not free its capacity twice', async () => {
     let clock = 1_000;
     const registry = setup({ claimTtlMs: 100, now: () => clock });
-    registry.claim('c1', OWNER, DID);
+    await registry.claim('c1', OWNER, DID);
     registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'c1' });
     clock += 200; // c1's claim expires; the sweep must not decrement again
-    for (let i = 0; i < 256; i++) expect(registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
+    for (let i = 0; i < 256; i++) expect(await registry.claim(`u-${i}`, OWNER, DID)).toBe('ok');
     // A double-free would leave the counter at -1 and admit a 257th.
-    expect(registry.claim('u-256', OWNER, DID)).toBe('at-capacity');
+    expect(await registry.claim('u-256', OWNER, DID)).toBe('at-capacity');
     registry.dispose();
+  });
+
+  /**
+   * Two replicas on one table whose watch has fallen behind: reads are
+   * authoritative, the watch delivers nothing until `catchUp`. The other
+   * replica's claims reach the table through its own `claim`, so no test
+   * restates what a stored claim looks like.
+   */
+  function laggingFabric() {
+    const entries = new Map<string, string>();
+    const watchers: Array<(key: string, value: string) => void> = [];
+    let reads = 0;
+    const table: SharedTable = {
+      async create(key, value) {
+        if (entries.has(key)) return false;
+        entries.set(key, value);
+        return true;
+      },
+      async read(key) {
+        reads++;
+        return entries.get(key);
+      },
+      async watch(onEntry) {
+        watchers.push(onEntry);
+        return { close() {} };
+      },
+    };
+    const replica = (): SignalPlane => ({ ...createInProcessSignalPlane(new EventBus()), table: async () => table });
+    return {
+      replica,
+      reads: () => reads,
+      catchUp: () => {
+        for (const [key, value] of entries) for (const watcher of watchers) watcher(key, value);
+      },
+    };
+  }
+
+  it('a claim this replica has not seen yet is read from the table, not refused', async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    await there.claim('elsewhere', OWNER, DID);
+    expect(here.owner('elsewhere'), 'the watch has not delivered it').toBeUndefined();
+
+    const delivered: string[] = [];
+    here.gate(OWNER, DID).offer('gather:summary-result', 'elsewhere', () => delivered.push('reply'));
+    await vi.waitFor(() => expect(delivered).toEqual(['reply']));
+    expect(here.owner('elsewhere'), 'the read adopted it').toBeDefined();
+    here.dispose();
+    there.dispose();
+  });
+
+  it('every subscriber that missed shares one read, and only the owner is delivered', async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    await there.claim('shared', OWNER, DID);
+    const readsBefore = fabric.reads();
+
+    const delivered: string[] = [];
+    here.gate(OWNER, DID).offer('gather:summary-result', 'shared', () => delivered.push(OWNER));
+    here.gate('client-2', DID).offer('gather:summary-result', 'shared', () => delivered.push('client-2'));
+    here.gate(OWNER, 'did:web:test:users:mallory').offer('gather:summary-result', 'shared', () => delivered.push('mallory'));
+    await vi.waitFor(() => expect(delivered).toEqual([OWNER]));
+    expect(fabric.reads() - readsBefore, 'one read for three subscribers').toBe(1);
+    here.dispose();
+    there.dispose();
+  });
+
+  it("a cid's later frames wait behind its read and arrive in order", async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    await there.claim('ordered', OWNER, DID);
+
+    const delivered: string[] = [];
+    const gate = here.gate(OWNER, DID);
+    gate.offer('gather:summary-result', 'ordered', () => delivered.push('first'));
+    gate.offer('gather:summary-result', 'ordered', () => delivered.push('second'));
+    expect(delivered, 'neither overtakes the read').toEqual([]);
+    await vi.waitFor(() => expect(delivered).toEqual(['first', 'second']));
+    here.dispose();
+    there.dispose();
+  });
+
+  it('a cid nobody claimed is dropped after the read, silently', async () => {
+    const warn = captureBusWarnings();
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const delivered: string[] = [];
+    here.gate(OWNER, DID).offer('gather:summary-result', 'in-process-request', () => delivered.push('reply'));
+    await vi.waitFor(() => expect(fabric.reads()).toBe(1));
+    await new Promise((r) => setTimeout(r, 0));
+    expect(delivered).toEqual([]);
+    // The structural in-process case: a gateway-internal request consumed its
+    // own reply. A warn here would fire on every one of them.
+    expect(warn.mock.calls).toEqual([]);
+    here.dispose();
+  });
+
+  it('a gate closed while its read is pending delivers nothing', async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    await there.claim('gone', OWNER, DID);
+
+    const delivered: string[] = [];
+    const gate = here.gate(OWNER, DID);
+    gate.offer('gather:summary-result', 'gone', () => delivered.push('reply'));
+    gate.close();
+    await vi.waitFor(() => expect(here.owner('gone')).toBeDefined());
+    expect(delivered).toEqual([]);
+    here.dispose();
+    there.dispose();
+  });
+
+  it('a cid claimed on another replica is a conflict here, before this projection knows it', async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    expect(await there.claim('once', OWNER, DID)).toBe('ok');
+    expect(here.owner('once')).toBeUndefined();
+    expect(await here.claim('once', 'client-2', DID), 'the table refuses it, not the projection').toBe('conflict');
+    here.dispose();
+    there.dispose();
+  });
+
+  it('the watch catching up adopts a claim without a read', async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    await there.claim('watched', OWNER, DID);
+    fabric.catchUp();
+    const readsBefore = fabric.reads();
+
+    const delivered: string[] = [];
+    here.gate(OWNER, DID).offer('gather:summary-result', 'watched', () => delivered.push('reply'));
+    expect(delivered, 'decided synchronously, on the projection').toEqual(['reply']);
+    expect(fabric.reads()).toBe(readsBefore);
+    here.dispose();
+    there.dispose();
   });
 
 });

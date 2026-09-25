@@ -528,8 +528,9 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 	// type = "nats" each need it; either alone starts it. When BOTH select
 	// NATS their servers must match — one role is one daemon; two sections
 	// naming two servers is a config error, never silently reconciled. The
-	// daemon SHAPE follows the jobs vote: jetstream → -js + the stamped
-	// store; signal-only → the lean core-subjects daemon.
+	// daemon has ONE shape, -js with the stamped store, because both voters
+	// use that store: the job queue's stream, and the signal driver's KV
+	// tables, where the gateway's ledger keeps its claims.
 	j := env.Jobs
 	sig := env.Signal
 	if j != nil {
@@ -602,16 +603,12 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			return nil, secErr("signal", "broker credentials are incomplete — set both %q and %q, or neither", "user", "password")
 		}
 
-		daemonShape := "nats"
-		if jobsWantBroker {
-			daemonShape = "jetstream"
-		}
-		spec := descriptorFor("messaging", daemonShape)
+		spec := descriptorFor("messaging", "jetstream")
 		host, port := parseHostPort(servers)
 		if port == 0 {
 			port = spec.defaultPort
 		}
-		rp := rolePlan{Role: "messaging", Driver: daemonShape, Port: port}
+		rp := rolePlan{Role: "messaging", Driver: "jetstream", Port: port}
 		if classify(host, "NATS_HOST") == presenceLauncher {
 			rp.Presence = presenceLauncher
 			rp.Image = spec.image

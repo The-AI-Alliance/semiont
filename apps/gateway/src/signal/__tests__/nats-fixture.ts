@@ -11,7 +11,10 @@
  * driver-boundary census can pin the client import to exactly one file.
  */
 import { spawn, type ChildProcess } from 'child_process';
+import { mkdtempSync, rmSync } from 'fs';
 import * as net from 'net';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 export interface NatsFixture {
   servers: string;
@@ -102,4 +105,37 @@ export function natsFixture(): Promise<NatsFixture> {
     })();
   }
   return shared;
+}
+
+let sharedJetStream: Promise<NatsFixture> | undefined;
+
+/**
+ * A server WITH JetStream, for the ledger's shared tables and nothing else.
+ *
+ * The conformance suite must never use it: that suite certifies the signal
+ * plane on a server where capture is impossible, and a JetStream-enabled
+ * server would quietly delete that half of D3 from the test tier. The ledger
+ * keeps its claims in KV buckets (LEDGER-STATE-TO-THE-BROKER D1), so the suites
+ * that compose a ledger over NATS need this one. One per test file.
+ */
+export function jetStreamNatsFixture(): Promise<NatsFixture> {
+  if (!sharedJetStream) {
+    sharedJetStream = (async () => {
+      const port = await freePort();
+      const store = mkdtempSync(join(tmpdir(), 'semiont-js-'));
+      const server = spawn('nats-server', ['-js', '-sd', store, '-p', String(port), '-a', '127.0.0.1'], {
+        stdio: 'ignore',
+      });
+      await waitForServer(port, server);
+      return {
+        servers: `127.0.0.1:${port}`,
+        stop() {
+          server.kill();
+          rmSync(store, { recursive: true, force: true });
+          sharedJetStream = undefined;
+        },
+      };
+    })();
+  }
+  return sharedJetStream;
 }

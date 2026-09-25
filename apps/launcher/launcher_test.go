@@ -7294,12 +7294,14 @@ func TestStartJetStreamJobsBoot(t *testing.T) {
 	checkGolden(t, "start-jetstream-jobs-boot.argv", s.argv(t))
 }
 
-// SIGNAL-PLANE P2 (launcher lane, D9 + Open question 5): a config whose
-// [environments.*.signal] selects nats — with NO jetstream jobs — boots the
-// LEAN messaging daemon: core NATS, no -js, no -sd, no /data mount, no
-// store created. This is the path D9 exists to enable (a NATS signal plane
-// without adopting JetStream jobs), and the golden is the proof the daemon
-// shape follows the driver selection (DRIVER-SCOPED-MOUNTS).
+// A config whose [environments.*.signal] selects nats — with NO jetstream
+// jobs — still runs a NATS signal plane without adopting JetStream JOBS, which
+// is the path D9 exists to enable. Its daemon carries JetStream and its /data
+// store all the same, because the signal driver uses them itself: the
+// gateway's ledger keeps its claims in a KV bucket (LEDGER-STATE-TO-THE-BROKER
+// P0). DRIVER-SCOPED-MOUNTS — provision no space a selected driver won't use —
+// is what requires the store here now, not what forbids it. The golden is the
+// proof, asserted directly on the NATS line as well.
 func TestStartSignalOnlyBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
@@ -7316,9 +7318,8 @@ func TestStartSignalOnlyBoot(t *testing.T) {
 	}
 	argv := s.argv(t)
 	checkGolden(t, "start-signal-only-boot.argv", argv)
-	// The lean shape, asserted directly as well as by golden — on the NATS
-	// line specifically (neo4j legitimately mounts its own /data): a
-	// signal-only daemon carries neither JetStream nor its store.
+	// On the NATS line specifically (neo4j legitimately mounts its own /data):
+	// a signal-only daemon carries JetStream and its store.
 	var natsLine string
 	for _, line := range strings.Split(argv, "\n") {
 		if strings.Contains(line, "semiont-nats") && strings.Contains(line, "run") {
@@ -7329,9 +7330,9 @@ func TestStartSignalOnlyBoot(t *testing.T) {
 	if natsLine == "" {
 		t.Fatalf("no semiont-nats run line in argv")
 	}
-	for _, banned := range []string{"-js", "-sd", "/data"} {
-		if strings.Contains(natsLine, banned) {
-			t.Errorf("signal-only nats line carries %q — the lean daemon must not: %s", banned, natsLine)
+	for _, required := range []string{"-js", "-sd", "/data"} {
+		if !strings.Contains(natsLine, required) {
+			t.Errorf("signal-only nats line lacks %q — the signal driver keeps the ledger's claims in JetStream: %s", required, natsLine)
 		}
 	}
 }

@@ -169,8 +169,8 @@ var stateStores = map[string]stateStoreSpec{
 	// state store.
 	// Renamed jobs → messaging with the role (SIGNAL-PLANE D9); `dir` was
 	// already "nats", so the on-disk tree never moves and nothing is
-	// orphaned. Only the JETSTREAM daemon shape mounts it — the lean
-	// signal-only daemon has no store at all (DRIVER-SCOPED-MOUNTS).
+	// orphaned. The daemon always mounts it: the job queue and the gateway's
+	// ledger claims both live in it.
 	"messaging": {
 		dir:        "nats",
 		mounts:     []stateMount{{"", "/data"}},

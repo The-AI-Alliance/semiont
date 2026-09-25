@@ -43,14 +43,21 @@ describe('signal driver boundary', () => {
     expect(importers.sort()).toEqual(['nats.ts']);
   });
 
-  test('gate 2 — the NATS driver makes no JetStream calls (client-side half of D3)', async () => {
-    // CODE, not prose: the docstring legitimately names JetStream to ban it.
+  test('gate 2 — the NATS driver captures nothing: its only JetStream use is KV tables (client-side half of D3)', async () => {
+    // CODE, not prose: the docstring legitimately names JetStream to bound it.
     const stripComments = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
     const source = stripComments(await fs.readFile(path.join(SIGNAL_DIR, 'nats.ts'), 'utf-8'));
-    // The API surface that would make the plane durable. `jetstream` covers
-    // nc.jetstream()/jsm access; the policy/KV names cover the config route.
-    for (const forbidden of [/jetstream/i, /\bjsm\b/, /AckPolicy/, /RetentionPolicy/, /DeliverPolicy/, /\bKV\b/]) {
+    // D1 (LEDGER-STATE-TO-THE-BROKER, ruled 2026-09-25) re-scoped this gate
+    // from "names no JetStream" to "makes none of the plane's own subjects
+    // durable". A KV bucket's subjects are `$KV.<name>.>`, so a table cannot
+    // capture a frame; a stream or consumer could. What would make the plane
+    // durable is the stream/consumer surface and its policies:
+    for (const forbidden of [/jetstreamManager/, /\bjsm\b/, /\.streams\b/, /\.consumers\b/, /AckPolicy/, /RetentionPolicy/, /DeliverPolicy/]) {
       expect(forbidden.test(source), `nats.ts code matches forbidden ${forbidden}`).toBe(false);
+    }
+    // ...and every way into JetStream goes straight to a KV view.
+    for (const use of source.match(/\.jetstream\(\)[.\w]*/g) ?? []) {
+      expect(use, 'nats.ts reaches JetStream for something other than a KV table').toBe('.jetstream().views.kv');
     }
   });
 

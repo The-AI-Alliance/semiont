@@ -17,6 +17,7 @@ import type {
   OnFrame,
   PlaneEnvelope,
   PlaneSubscription,
+  SharedTable,
   SignalPlane,
 } from './interface';
 import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
@@ -45,6 +46,47 @@ interface HandlerGroup {
   taps: Map<string, Subscription>;
 }
 
+/**
+ * One shared table, in-process: the fabric is the process, so every handle on
+ * a name is this one map. Insertion-ordered, so expired entries are always a
+ * prefix and a sweep is a walk that stops at the first live one — without it
+ * a process with no broker would hold every entry it was ever handed.
+ */
+interface MemoryTable {
+  ttlMs: number;
+  entries: Map<string, { value: string; at: number }>;
+  watchers: Set<(key: string, value: string) => void>;
+}
+
+function handleOn(table: MemoryTable): SharedTable {
+  const sweep = () => {
+    const cutoff = Date.now() - table.ttlMs;
+    for (const [key, entry] of table.entries) {
+      if (entry.at > cutoff) break;
+      table.entries.delete(key);
+    }
+  };
+  return {
+    async create(key, value) {
+      sweep();
+      if (table.entries.has(key)) return false;
+      table.entries.set(key, { value, at: Date.now() });
+      for (const watcher of table.watchers) watcher(key, value);
+      return true;
+    },
+    async read(key) {
+      sweep();
+      return table.entries.get(key)?.value;
+    },
+    async watch(onEntry) {
+      sweep();
+      for (const [key, entry] of table.entries) onEntry(key, entry.value);
+      table.watchers.add(onEntry);
+      return { close: () => table.watchers.delete(onEntry) };
+    },
+  };
+}
+
 export function createInProcessSignalPlane(
   eventBus: EventBus,
   opts?: SignalPlaneOptions,
@@ -55,6 +97,7 @@ export function createInProcessSignalPlane(
   /** Addressed delivery in-process: address → the onFrames subscribed under
    *  it (an inbox subject under NATS; a plain map here). */
   const inboxes = new Map<string, Set<OnFrame>>();
+  const tables = new Map<string, MemoryTable>();
 
   const track = (s: Subscription): Subscription => {
     openSubs.add(s);
@@ -180,11 +223,23 @@ export function createInProcessSignalPlane(
       // another costume.
     },
 
+    async table(name, ttlMs) {
+      let table = tables.get(name);
+      if (!table) {
+        table = { ttlMs, entries: new Map(), watchers: new Set() };
+        tables.set(name, table);
+      } else if (table.ttlMs !== ttlMs) {
+        throw new Error(`signal plane: table "${name}" is already open with a TTL of ${table.ttlMs} ms, not ${ttlMs}`);
+      }
+      return handleOn(table);
+    },
+
     dispose() {
       for (const s of openSubs) s.unsubscribe();
       openSubs.clear();
       groups.clear();
       inboxes.clear();
+      tables.clear();
     },
   };
 }
