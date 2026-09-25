@@ -53,11 +53,6 @@ jobs:
       # takes `latest`, which is the right default and the wrong thing to
       # assume when the point is to name a set.
       SEMIONT_VERSION: ${{ inputs.images || 'latest' }}
-      # The config's ${ANTHROPIC_API_KEY} must be SET or the launcher refuses
-      # to start, by design. A placeholder is honest here because nothing
-      # below asks a model to do anything; it is not a credential and must
-      # never become one.
-      ANTHROPIC_API_KEY: stack-smoke-placeholder-not-a-credential
     steps:
       - uses: actions/checkout@v7.0.1
 
@@ -72,28 +67,28 @@ jobs:
           semiont --version
 
       - name: Create a knowledge base
+        # Exactly what a new user runs. The did:web domain is the one thing
+        # with no safe default, so it is the one flag; everything else must
+        # come from init's own defaults, because those defaults are what this
+        # step exists to test. A born KB that cannot start is the defect this
+        # workflow found on its first run.
         run: |
           set -euo pipefail
           mkdir -p ~/kb && cd ~/kb
           git init -q && git config user.email smoke@example.com && git config user.name smoke
-          semiont init --yes \
-            --name stack-smoke \
-            --domain example.github.io:stack-smoke \
-            --inference anthropic \
-            --model claude-sonnet-4-5-20250929 \
-            --embedding ollama:nomic-embed-text
+          semiont init --yes --domain example.github.io:stack-smoke
 
       - name: Start the stack
-        # --config anthropic, because that is what `init --inference anthropic`
-        # wrote; start's own default names ollama-gemma, which this KB has no
-        # copy of.
+        # No --config: a born KB records the config it was born with, and
+        # `start` reads that. Passing one here would hide the defect where it
+        # does not.
         #
-        # There is no Ollama on a runner, so the embedding role starts one as a
-        # container and pulls its model — about 1.8 GB of image plus 270 MB of
-        # model. That is the supported path rather than a fixture, and it
-        # exercises the host-probe → container-fallback branch and ensureModels
-        # along with everything else.
-        run: cd ~/kb && semiont start --runtime docker --config anthropic
+        # There is no Ollama on a runner, so inference and embedding start one
+        # as a container and pull their models — about 1.8 GB of image plus
+        # two small models. That is the supported path rather than a fixture,
+        # and it exercises the host-probe → container-fallback branch and
+        # ensureModels along with everything else.
+        run: cd ~/kb && semiont start --runtime docker
 
       - name: Every row healthy
         # `status --root` is the health-coded form: it exits non-zero when a

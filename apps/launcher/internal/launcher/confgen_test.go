@@ -74,3 +74,48 @@ func TestInitRecordsTheConfigItWroteAsTheRootsPreference(t *testing.T) {
 		t.Errorf("init recorded %q as this root's config, but wrote no such file: %v", pref, err)
 	}
 }
+
+// `semiont init --yes` must produce a KB that starts. It did not: with no
+// --inference it wrote no config at all and told the user to "add a config",
+// and with --inference ollama it refused without --model. Both leave the very
+// next command it prints — `semiont start` — unable to run.
+//
+// Defaults now: ollama inference on a small model, which is the provider that
+// needs no credential and the size that a first KB can actually pull.
+func TestBareInitProducesAStartableKB(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_DATA_HOME", filepath.Join(home, "data"))
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(home, "config"))
+	root := filepath.Join(home, "bare")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(root)
+
+	// Every flag a caller MUST give: the did:web domain has no safe default
+	// and init refuses to guess one. Nothing else.
+	if code := Init([]string{"--yes", "--domain", "example.github.io:bare"}); code != 0 {
+		t.Fatalf("a bare `init --yes --domain` exited %d", code)
+	}
+
+	pref := recordedConfig(root)
+	if pref == "" {
+		t.Fatal("no config preference recorded — `semiont start` would fall through to its hardcoded default")
+	}
+	cfg, err := os.ReadFile(filepath.Join(root, configDir, pref+".toml"))
+	if err != nil {
+		t.Fatalf("init wrote no config: %v", err)
+	}
+	for _, want := range []string{
+		"[environments.local.inference.ollama]", // no credential needed
+		"[environments.local.jobs]",             // or the dispatcher refuses
+		"[environments.local.embedding]",
+	} {
+		if !strings.Contains(string(cfg), want) {
+			t.Errorf("the bare config declares no %s", want)
+		}
+	}
+	// It must also survive the launcher's own deriver, which is what
+	// writeVettedConfig already demands — proven by init having exited 0.
+}

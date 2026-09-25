@@ -55,6 +55,12 @@ With --yes and neither source, init refuses rather than guessing.
 `
 
 // Init implements `semiont init`.
+// defaultOllamaModel: the model a prompt-free `semiont init` binds when the
+// caller names none. A CHOICE, not a derivation — no list-all registry API
+// exists to pick from — and deliberately the smallest thing that can serve a
+// first KB, so the pull a first start does is minutes rather than an evening.
+const defaultOllamaModel = "gemma3:270m"
+
 func Init(args []string) int {
 	u := NewUI(false)
 	var name, domain, siteName string
@@ -186,6 +192,8 @@ func Init(args []string) int {
 		}
 	}
 
+	// defaultOllamaModel: what a bare init binds. Small on purpose — see the
+	// choice below.
 	// Config-builder inputs validate BEFORE anything touches disk.
 	if fromTemplate != "" && inference != "" {
 		u.Fail("--from-template and --inference are two sources for the same configs — pick one.")
@@ -218,10 +226,20 @@ func Init(args []string) int {
 			return 1
 		}
 	}
-	if inference == "ollama" && model == "" && yes {
-		// No registry listing exists to derive an ollama default from.
-		u.Fail("--inference ollama needs --model <id> (no list-all registry API exists to pick a default from).")
-		return 1
+	// A prompt-free init must produce a KB that STARTS. Ollama is the
+	// provider that needs no credential, so it is what a bare `init --yes`
+	// gets — the alternative was writing no config at all and telling the
+	// user to add one, which left the next line init itself prints
+	// (`semiont start`) unable to run.
+	if inference == "" && yes && fromTemplate == "" {
+		inference = "ollama"
+	}
+	if inference == "ollama" && model == "" {
+		// No registry listing exists to derive a default from, so this is a
+		// CHOICE and named as one: the smallest model that can serve a first
+		// KB, so the pull a start does is minutes rather than an evening.
+		// Anything larger is the user's `--model`.
+		model = defaultOllamaModel
 	}
 
 	dir, err := os.Getwd()
