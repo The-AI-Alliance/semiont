@@ -91,6 +91,9 @@ func Logs(args []string) int {
 	// overrides, and a record about a different runtime doesn't apply. No
 	// record: the historical name-scan discovery.
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
 	rt := ""

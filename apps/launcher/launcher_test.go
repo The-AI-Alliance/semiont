@@ -4164,6 +4164,71 @@ func TestStopTwiceIsHonest(t *testing.T) {
 	}
 }
 
+// TestUnreadableStackRecordRefuses: a stack.json the launcher cannot read is
+// a REFUSAL at every command that consults it, not an empty stack set.
+//
+// The record planted here is the realistic corruption rather than random
+// bytes: a codespace stack recorded before its placement facts moved into a
+// nested object still carries the instance name as a plain string, so the
+// whole set fails to unmarshal. Read as "no stacks recorded", stop would
+// report nothing to stop and status no local stack while the codespace kept
+// running and billing — the silent no-op the --runtime mismatch refusal
+// already exists to prevent.
+func TestUnreadableStackRecordRefuses(t *testing.T) {
+	s := newScenario(t, "container", "docker", "gh")
+	rec := `{"schema":3,"stacks":{"codespace:owner/kb":{` +
+		`"runtime":"codespace","codespace":"cs-1","repo":"owner/kb",` +
+		`"forwardPort":4000,"services":{}}}}`
+	p := statePathFor(s.home)
+	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p, []byte(rec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Every command that draws a conclusion from the record. A new one that
+	// reads stack.json belongs in this list.
+	for _, args := range [][]string{
+		{"stop"},
+		{"stop", "--service", "browser"},
+		{"start"},
+		{"start", "--dry-run"},
+		{"status"},
+		{"status", "--service", "browser"},
+		{"logs"},
+		{"clean", "--dry-run"},
+		{"roots"},
+		{"identity", "sync"},
+		{"export", "--repo", "owner/kb"},
+		{"logout"},
+	} {
+		stdout, stderr, code := s.run(t, args...)
+		if code != 1 {
+			t.Errorf("%v: want exit 1 on an unreadable record, got %d\nstdout:\n%s\nstderr:\n%s",
+				args, code, stdout, stderr)
+			continue
+		}
+		mustContain(t, strings.Join(args, " ")+" stderr", stderr,
+			"Cannot read the stack record",
+			"treating that as \"no stacks recorded\" would report",
+			"stack.json.unreadable")
+	}
+
+	// Nothing claimed to have stopped anything, and nothing overwrote the one
+	// piece of evidence about what may still be running.
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatalf("unreadable record removed: %v", err)
+	}
+	if string(b) != rec {
+		t.Errorf("unreadable record rewritten:\n%s", b)
+	}
+	if argv := s.argv(t); strings.Contains(argv, " stop ") || strings.Contains(argv, " rm ") {
+		t.Errorf("a refused command still swept containers:\n%s", argv)
+	}
+}
+
 // writeStackState plants a schema-2 stack.json for the scenario.
 func writeStackState(t *testing.T, s *scenario, runtime string) {
 	t.Helper()

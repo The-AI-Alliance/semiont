@@ -94,6 +94,13 @@ func Stop(args []string) int {
 		}
 	}
 
+	// Every branch below either reads the record or rewrites it, and the
+	// no-record fallbacks (the all-runtimes name sweep, "nothing to stop")
+	// are only honest when there genuinely is no record.
+	if LoadStackSet().refuseUnreadable(u) {
+		return 1
+	}
+
 	// --service browser targets the machine-level Browser, not a stack
 	// member: stop its container (record ID preferred), clear its record,
 	// and never touch stack state.

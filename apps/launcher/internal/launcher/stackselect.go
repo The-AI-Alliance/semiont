@@ -15,6 +15,13 @@ import (
 // (non-nil, true) = that codespace stack; ok=false = refused, message
 // printed with verb-specific fix-it lines.
 func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bool) (*StackState, bool) {
+	// Nine verbs resolve their target through here, so this is also where
+	// they all learn that the record could not be read — without it every
+	// one of them would say "needs a running stack, and none is recorded"
+	// about a stack that is up.
+	if ss.refuseUnreadable(u) {
+		return nil, false
+	}
 	// The contradiction check lives HERE, once — a verb that forgot it
 	// would silently resolve --repo+--runtime to the local stack (the
 	// wantLocal arm wins the switch), targeting the wrong KB.

@@ -169,7 +169,11 @@ func Status(args []string) int {
 	// --service browser asks about the Browser — machine-level, outside
 	// every stack, so it bypasses the stack table entirely.
 	if service == "browser" && repoFlag == "" {
-		healthy := printBrowser(u, LoadStackSet())
+		ss := LoadStackSet()
+		if ss.refuseUnreadable(u) {
+			return 1
+		}
+		healthy := printBrowser(u, ss)
 		if healthy {
 			return 0
 		}
@@ -192,6 +196,9 @@ func Status(args []string) int {
 	}
 
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	cs := codespaceStacks(ss)
 	st := ss.Stacks["local"]
 
@@ -604,6 +611,9 @@ func Roots(args []string) int {
 		}
 	}
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	u.Section("KNOWLEDGE BASES")
 	found := printRoots(u, ss.Stacks["local"])
 	found += printRemoteKBs(u, codespaceStacks(ss))

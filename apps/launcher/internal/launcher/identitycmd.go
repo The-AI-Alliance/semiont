@@ -53,6 +53,13 @@ func Identity(args []string) int {
 		fmt.Fprint(os.Stderr, identityUsage)
 		return 1
 	}
+	// sync reads the running stack for the config it started with and for the
+	// Browser's actual port; an unreadable record would quietly substitute
+	// this root's sticky preference and the default port, and write realm
+	// origins for a port nothing listens on.
+	if LoadStackSet().refuseUnreadable(u) {
+		return 1
+	}
 
 	rootFlag, configName := "", ""
 	rest := args[1:]

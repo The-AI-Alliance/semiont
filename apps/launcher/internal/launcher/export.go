@@ -191,6 +191,9 @@ func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 		return 1
 	}
 	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
 	st := codespaceStack(ss, repo)
 	if st == nil {
 		u.Fail("No codespace stack recorded for %s.", repo)

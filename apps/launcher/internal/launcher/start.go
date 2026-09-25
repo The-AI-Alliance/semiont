@@ -163,6 +163,13 @@ func Start(args []string) int {
 		u.Fail("%s", errMsg)
 		return 1
 	}
+	// The record decides what a bare start even MEANS (local or a recorded
+	// codespace) and whether preflight is about to tear down a stack that is
+	// already up under another runtime. Read as "this machine has nothing",
+	// an unreadable one answers both questions wrongly.
+	if LoadStackSet().refuseUnreadable(u) {
+		return 1
+	}
 	u = NewUI(opts.quiet || opts.dryRun)
 	if !opts.dryRun {
 		u.Stamp("semiont start")

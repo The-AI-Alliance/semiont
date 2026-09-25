@@ -413,7 +413,11 @@ func Forget(args []string) int {
 		return 1
 	}
 	e := reg.Roots[matches[0]]
-	if st := loadLocalState(); st != nil && st.KBRoot == e.Path {
+	ss := LoadStackSet()
+	if ss.refuseUnreadable(u) {
+		return 1
+	}
+	if st := ss.Stacks["local"]; st != nil && st.KBRoot == e.Path {
 		u.Fail("%s is the running stack's root (per %s).", e.Path, statePath())
 		fmt.Fprintln(os.Stderr, "  Stop it first: semiont stop")
 		return 1
