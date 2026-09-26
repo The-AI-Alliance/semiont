@@ -205,7 +205,8 @@
     "connectToAddress": "{{address}}-এ সংযুক্ত হন",
     "connectedToOther": "{{actual}}-এ সংযুক্ত, {{expected}}-এ নয়।",
     "identityCheckFailed": "সাইন ইন হয়েছে, কিন্তু পরিচয় যাচাই এই জ্ঞান ভাণ্ডারে পৌঁছাতে পারেনি।",
-    "identityNotReported": "সাইন ইন হয়েছে, কিন্তু এই জ্ঞান ভাণ্ডার কোনো পরিচয় জানায়নি।"
+    "identityNotReported": "সাইন ইন হয়েছে, কিন্তু এই জ্ঞান ভাণ্ডার কোনো পরিচয় জানায়নি।",
+    "lastReadAt": "{{time}} অনুযায়ী"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "কোনো জ্ঞান ভাণ্ডার নেই",

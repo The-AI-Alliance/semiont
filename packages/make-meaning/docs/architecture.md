@@ -142,6 +142,7 @@ The read actor for the Knowledge Base. Handles deterministic, fact-based queries
 | `browse:entity-types-requested` | `readEntityTypesProjection()` | `browse:entity-types-result` / `browse:entity-types-failed` |
 | `browse:tag-schemas-requested` | Tag-schema projection read | `browse:tag-schemas-result` / `browse:tag-schemas-failed` |
 | `browse:agents-requested` | `deriveAgentRoster()` — the KB's declared software agents from the workers/actors inference config (COLLABORATOR-DIRECTORY) | `browse:agents-result` / `browse:agents-failed` |
+| `browse:kb-requested` | `SemiontProject` — the committed `[project] name` and `[site] domain`, and the working tree's git branch, read at each request | `browse:kb-result` / `browse:kb-failed` |
 | `browse:directory-requested` | Filesystem directory listing merged with KB metadata | `browse:directory-result` / `browse:directory-failed` |
 
 #### Browse vs Match — when search belongs here vs in the Matcher

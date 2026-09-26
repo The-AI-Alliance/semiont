@@ -64,7 +64,6 @@ way, as ordinary events (once globally, once scoped to their resource). See
 | `PUT /content/:storageUri` | stores an upload's bytes, streamed; a supplied `checksum` is verified before anything is written (409 on mismatch). The resource is not recorded until the gateway's `yield:create` arrives on the bus and the Stower commits the file. | the gateway, for `POST /resources` |
 | `GET /resources/:id/content` | a resource's bytes, streamed, with its stored media type | the gateway, for `GET /resources/:id`; the Librarian, the Smelter and the workers, directly |
 | `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
-| `GET /kb/branch` | the working tree's git branch | the gateway, for `GET /api/status` |
 
 A browser never calls these: its requests go to the gateway, which calls them with its own
 credential.

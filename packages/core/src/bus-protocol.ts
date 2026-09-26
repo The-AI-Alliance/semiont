@@ -362,6 +362,10 @@ export type EventMap = {
   'browse:agents-result': components['schemas']['BrowseAgentsResult'];
   'browse:agents-failed': components['schemas']['CommandError'];
 
+  'browse:kb-requested': components['schemas']['BrowseKbRequest'];
+  'browse:kb-result': components['schemas']['BrowseKbResult'];
+  'browse:kb-failed': components['schemas']['CommandError'];
+
   'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
   'browse:directory-failed': { path: string } & components['schemas']['CommandError'];
@@ -745,6 +749,9 @@ export const CHANNEL_SCHEMAS = {
   'browse:agents-requested':          'BrowseAgentsRequest',
   'browse:agents-result':             'BrowseAgentsResult',
   'browse:agents-failed':             null,
+  'browse:kb-requested':              'BrowseKbRequest',
+  'browse:kb-result':                 'BrowseKbResult',
+  'browse:kb-failed':                 null,
   'browse:directory-requested':       'BrowseDirectoryRequest',
   'browse:directory-result':          'BrowseDirectoryResult',
   'browse:directory-failed':          null, // { correlationId; path } & CommandError

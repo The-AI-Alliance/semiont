@@ -154,6 +154,7 @@ export {
 } from './session/session-storage';
 export {
   type KnowledgeBase,
+  type KbRead,
   type KbTarget,
   type KbEndpoint,
   type HttpEndpoint,

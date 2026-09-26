@@ -271,6 +271,23 @@ describe('BrowseNamespace', () => {
     // bridged result channel like every other bus reply.
   });
 
+  it('kb() asks on every call: a branch changes with no event to invalidate a kept answer', async () => {
+    let gitBranch = 'main';
+    const responses = defaultResponses();
+    responses['browse:kb-requested'] = () => ({
+      resultChannel: 'browse:kb-result',
+      response: { name: 'KB', domain: 'example.github.io:kb', gitBranch },
+    });
+    const mock = createMockTransport(responses);
+    const b = new BrowseNamespace(mock.transport, new EventBus(), makeContent());
+
+    await expect(b.kb()).resolves.toEqual({ name: 'KB', domain: 'example.github.io:kb', gitBranch: 'main' });
+    gitBranch = 'second-line';
+    await expect(b.kb()).resolves.toMatchObject({ gitBranch: 'second-line' });
+
+    expect(mock.emitSpy.mock.calls.filter(([channel]) => channel === 'browse:kb-requested')).toHaveLength(2);
+  });
+
   describe('entityTypes()', () => {
     it('fetches on first subscribe', async () => {
       const val = await firstDefined(browse.entityTypes());

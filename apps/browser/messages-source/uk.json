@@ -205,7 +205,8 @@
     "connectToAddress": "Підключитися до {{address}}",
     "connectedToOther": "Підключено до {{actual}}, а не до {{expected}}.",
     "identityCheckFailed": "Ви увійшли, але перевірка ідентичності не змогла зв'язатися з цією базою знань.",
-    "identityNotReported": "Ви увійшли, але ця база знань не повідомила ідентичність."
+    "identityNotReported": "Ви увійшли, але ця база знань не повідомила ідентичність.",
+    "lastReadAt": "Станом на {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Немає баз знань",

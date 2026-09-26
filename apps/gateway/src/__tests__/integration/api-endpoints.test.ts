@@ -1,4 +1,4 @@
-import { email, userId } from '@semiont/core';
+import { email, isObject, userId } from '@semiont/core';
 /**
  * Integration tests for API endpoints
  * These tests make actual HTTP requests to test API functionality
@@ -52,17 +52,7 @@ interface OpenAPISpec {
   environment: string;
 }
 
-interface StatusResponse {
-  status: string;
-  version: string;
-  features: {
-    semanticContent: string;
-    collaboration: string;
-    rbac: string;
-  };
-  message: string;
-  authenticatedAs?: string;
-}
+type StatusResponse = components['schemas']['StatusResponse'];
 
 
 // Derived, not restated: the spec owns this shape.
@@ -202,6 +192,22 @@ describe('API Endpoints Integration Tests', () => {
       });
       expect(data.message).toBe('Ready to build the future of knowledge management!');
       expect(data.authenticatedAs).toBe(testUser.email);
+    });
+
+    it('GET /api/status reports the gateway and asks the Archivist nothing', async () => {
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('no network here'));
+      try {
+        const res = await app.request('/api/status', {
+          headers: { 'Authorization': `Bearer ${testToken}` },
+        });
+        expect(res.status).toBe(200);
+        // The KB describes itself over the bus; this reports the gateway.
+        const body: unknown = await res.json();
+        expect(isObject(body) && Object.keys(body).sort()).toEqual(['authenticatedAs', 'features', 'message', 'status', 'version']);
+        expect(fetchSpy).not.toHaveBeenCalled();
+      } finally {
+        fetchSpy.mockRestore();
+      }
     });
   });
 

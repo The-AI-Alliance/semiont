@@ -80,7 +80,6 @@ The Archivist holds the knowledge base's files and event log. Requests reach it 
 | `POST /resources` | `PUT /content/:storageUri?checksum=…` writes the bytes; the gateway then emits `yield:create` on the bus |
 | `GET /resources/:id`, `GET /api/resources/:id` | `GET /resources/:id/content`, streamed back unchanged |
 | `POST /bus/subscribe` with `Last-Event-ID` | `GET /events/:resourceId?fromSequence=N` for the events the client missed |
-| `GET /api/status` | `GET /kb/branch` for the working tree's git branch |
 
 The gateway authenticates with its own service account: a token from the knowledge base's identity provider carrying the `semiont-service` role. Browsers never reach the Archivist; their tokens lack that role.
 

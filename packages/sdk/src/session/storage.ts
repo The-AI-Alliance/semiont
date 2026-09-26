@@ -15,7 +15,7 @@
 
 import { isObject, isString, uuidV4 } from '@semiont/core';
 
-import type { HttpEndpoint, KnowledgeBase } from './knowledge-base';
+import type { HttpEndpoint, KbRead, KnowledgeBase } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
 
 // ---------- Storage keys ----------
@@ -235,16 +235,24 @@ export function loadKnowledgeBases(storage: SessionStorage): KnowledgeBase[] {
     // carry the extra straight back out. `email` was such a field — a copy of
     // whoever last signed in, which then surfaced under a KB card as the
     // account someone was about to sign in AS.
-    return entries.filter(isKnowledgeBase).map((e) => ({
-      id: e.id,
-      label: e.label,
-      did: e.did,
-      endpoint: e.endpoint,
-      ...(e.gitBranch !== undefined ? { gitBranch: e.gitBranch } : {}),
-    }));
+    return entries.filter(isKnowledgeBase).map((e) => {
+      const lastRead = kbReadOf(e.lastRead);
+      return {
+        id: e.id,
+        label: e.label,
+        did: e.did,
+        endpoint: e.endpoint,
+        ...(lastRead ? { lastRead } : {}),
+      };
+    });
   } catch {
     return [];
   }
+}
+
+function kbReadOf(value: unknown): KbRead | undefined {
+  if (!isObject(value) || !isString(value['at'])) return undefined;
+  return { at: value['at'], ...(isString(value['gitBranch']) ? { gitBranch: value['gitBranch'] } : {}) };
 }
 
 export function saveKnowledgeBases(storage: SessionStorage, knowledgeBases: KnowledgeBase[]): void {

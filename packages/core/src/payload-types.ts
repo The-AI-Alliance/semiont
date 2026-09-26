@@ -63,6 +63,13 @@ export type JobType = components['schemas']['JobType'];
 export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
 
 /**
+ * What a knowledge base says of itself (`browse:kb-result`): its committed
+ * name and domain, and the working tree's branch. The Archivist answers it;
+ * it is the only source clients use for a KB's name and domain.
+ */
+export type KbDescription = components['schemas']['KbDescription'];
+
+/**
  * The launcher's published KB-discovery view (BROWSER-KB-DISCOVERY): the
  * document at `DISCOVERY_URL_PATH` and its entries. Endpoints and identity
  * only — never credentials.
