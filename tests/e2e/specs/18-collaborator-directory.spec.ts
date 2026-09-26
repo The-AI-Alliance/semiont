@@ -60,7 +60,7 @@ const JOB_TYPES = [
   'tag-annotation',
 ] as const;
 
-// Host may be `host` or `host:port` (site.domain is embedded raw; the
+// Host may be `host` or `host:port` (the KB's domain is embedded raw; the
 // read-side `didToAgent` deliberately scans from the RIGHT so host:port
 // colons don't fool it — did-utils.ts). Anchor on `:agents:` like the
 // parser does; group 1 is the whole host (incl. any port).

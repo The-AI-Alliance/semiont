@@ -13,10 +13,6 @@ export interface JWTPayload {
   exp?: number;
 }
 
-interface SiteConfig {
-  domain?: string;
-}
-
 /**
  * The JWT_SECRET contract, in one place: present, and every member at least 32
  * characters.
@@ -60,7 +56,7 @@ export function requireJwtSecret(): string[] {
 }
 
 export class JWTService {
-  private static siteConfig: SiteConfig | null = null;
+  private static domain: string | null = null;
 
   /**
    * Initialize JWTService with application configuration
@@ -70,19 +66,16 @@ export class JWTService {
    * included. The secret is otherwise read lazily per operation (getSecret), so
    * without a gate an absent one surfaced at the first sign-in — after the
    * container had already reported healthy — rather than refusing to start.
+   *
+   * `domain` is the knowledge base's own: its committed `[site] domain`, as the
+   * launcher stages it (`[kb] domain`).
    */
-  static initialize(config: { site?: SiteConfig }): void {
-    if (!config.site?.domain) {
-      throw new Error('site.domain is required in environment config');
-    }
-
+  static initialize(domain: string): void {
     // Fail here rather than at first use: validating the same rules getSecret
     // enforces, at a point where the process can still decline to start.
     this.requireSecret();
 
-    this.siteConfig = {
-      domain: config.site.domain,
-    };
+    this.domain = domain;
   }
 
   private static requireSecret(): string[] {
@@ -90,26 +83,15 @@ export class JWTService {
   }
 
   /**
-   * Get site configuration (must call initialize() first)
+   * The knowledge base's domain: the authority its agents are named under
+   * (`did:web:<domain>:agents:<provider>:<model>`, minted by
+   * `/api/tokens/agent`) and the issuer of the tokens this process signs.
    */
-  private static getSiteConfig(): SiteConfig {
-    if (!this.siteConfig) {
-      throw new Error('JWTService not initialized. Call JWTService.initialize(config) at application startup.');
+  static kbDomain(): string {
+    if (this.domain === null) {
+      throw new Error('JWTService not initialized. Call JWTService.initialize(domain) at application startup.');
     }
-    return this.siteConfig;
-  }
-
-  /**
-   * Get the deployment domain to use for issuing agent identities.
-   * Used by `/api/tokens/agent` to mint DIDs of the shape
-   * `did:web:<domain>:agents:<provider>:<model>`.
-   */
-  static getDomainForAgent(): string {
-    const config = this.getSiteConfig();
-    if (!config.domain) {
-      throw new Error('site.domain is required to issue agent tokens');
-    }
-    return config.domain;
+    return this.domain;
   }
 
   /**
@@ -117,14 +99,14 @@ export class JWTService {
    * @param config The configuration to use
    */
   static setTestConfig(domain: string): void {
-    this.siteConfig = { domain };
+    this.domain = domain;
   }
 
   /**
    * Reset configuration cache (useful for testing)
    */
   static resetConfig(): void {
-    this.siteConfig = null;
+    this.domain = null;
   }
   
   // Injected by `semiont start` (generated once per knowledge base and kept, so
@@ -172,12 +154,11 @@ export class JWTService {
     payload: Omit<ValidatedJWTPayload, 'iat' | 'exp'>,
     expiresIn: string
   ): string {
-    const config = this.getSiteConfig();
     // Convert payload to plain object for jwt.sign
     const tokenPayload: Record<string, any> = { ...payload };
     return jwt.sign(tokenPayload, this.getSecret(), {
       expiresIn: expiresIn,
-      issuer: config.domain || 'localhost',
+      issuer: this.kbDomain(),
     } as jwt.SignOptions);
   }
 

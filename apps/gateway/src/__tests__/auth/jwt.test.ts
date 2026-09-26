@@ -73,8 +73,8 @@ describe('JWT Service', () => {
   });
 
   // initialize() is the ONE startup gate for everything the service needs to
-  // sign a token. It already validates site.domain;
-  // JWT_SECRET is the third input and belongs in the same place.
+  // sign a token: it takes the KB's domain, and JWT_SECRET belongs in the
+  // same place.
   //
   // Why a gate and not a lazy read: getSecret() runs per token operation, so a
   // missing secret used to surface at the first sign-in — long after the
@@ -82,9 +82,6 @@ describe('JWT Service', () => {
   // always supplies it, which makes absence a real misconfiguration worth
   // failing loudly on.
   describe('initialize — the startup gate', () => {
-    const validConfig = {
-      site: { domain: testDomain },
-    };
     let saved: string | undefined;
 
     beforeEach(() => {
@@ -101,19 +98,19 @@ describe('JWT Service', () => {
 
     it('throws when JWT_SECRET is absent', () => {
       delete process.env.JWT_SECRET;
-      expect(() => JWTService.initialize(validConfig)).toThrow(/JWT_SECRET/);
+      expect(() => JWTService.initialize(testDomain)).toThrow(/JWT_SECRET/);
     });
 
     it('throws when JWT_SECRET is shorter than 32 characters', () => {
       process.env.JWT_SECRET = 'too-short';
-      expect(() => JWTService.initialize(validConfig)).toThrow(/32/);
+      expect(() => JWTService.initialize(testDomain)).toThrow(/32/);
     });
 
     it('names the launcher as the supplier, not AWS Secrets Manager', () => {
       delete process.env.JWT_SECRET;
       let message = '';
       try {
-        JWTService.initialize(validConfig);
+        JWTService.initialize(testDomain);
       } catch (e) {
         message = e instanceof Error ? e.message : String(e);
       }
@@ -123,7 +120,7 @@ describe('JWT Service', () => {
 
     it('accepts a conforming secret', () => {
       process.env.JWT_SECRET = 'a'.repeat(32);
-      expect(() => JWTService.initialize(validConfig)).not.toThrow();
+      expect(() => JWTService.initialize(testDomain)).not.toThrow();
     });
   });
 

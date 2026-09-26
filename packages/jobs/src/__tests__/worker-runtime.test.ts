@@ -39,8 +39,8 @@ vi.mock('../worker-process', () => ({
 const ISSUER = 'https://issuer.test';
 const CREDENTIAL = { issuer: ISSUER, clientId: 'semiont-worker', clientSecret: 'client-secret' };
 const DIAL_URL = 'http://192.168.64.1:4000';
-// …while the exchange mints the canonical identity from the gateway's
-// site.domain — a different host, deliberately.
+// …while the exchange mints the canonical identity from the KB's own domain
+// — a different host, deliberately.
 const CANONICAL_DID = 'did:web:kb.example:agents:anthropic:claude-haiku-4-5';
 
 /** Unsigned JWT with a far-future exp — enough for isJwtExpired to say "fresh". */

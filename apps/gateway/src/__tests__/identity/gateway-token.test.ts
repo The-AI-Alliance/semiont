@@ -27,9 +27,7 @@ function mintToken(overrides: Partial<{ did: string; email: string; name: string
 
 describe('principalFromGatewayToken', () => {
   beforeAll(() => {
-    JWTService.initialize({
-      site: { domain: 'test.local' },
-    });
+    JWTService.initialize('test.local');
   });
 
   it('builds the principal from the claims the token carries', () => {

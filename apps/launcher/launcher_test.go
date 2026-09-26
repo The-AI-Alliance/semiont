@@ -1014,89 +1014,35 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	}
 }
 
-func TestStartWarnsWhenEnvConfigOverridesIdentity(t *testing.T) {
-	// KB-IDENTITY-VS-ADDRESS P4 (decision 10). A KB has ONE committed identity
-	// (.semiont/config [site] domain) but the semiontconfig's environment
-	// section can carry its own [site], and the TOML loader resolves the
-	// agents' domain as `resolved.site ?? projectSite` — so an environment
-	// [site] replaces the KB's committed identity for every agent did, while
-	// the KB's own did (from the committed file) stays put. One logical KB,
-	// two identity roots.
-	//
-	// It WARNS rather than refuses: overriding can be deliberate (decision
-	// 10). What is forbidden is doing it invisibly. The launcher's own
-	// generated configs never contain a [site] section, so a divergence means
-	// a human hand-edited one — a small, deliberate population worth telling.
+func TestStartRefusesAnEnvironmentSite(t *testing.T) {
+	// A knowledge base declares its identity once: [site], at the top level of
+	// its committed .semiont/config. An environment [site] used to replace that
+	// table whole for every service loading the config — renaming the KB's
+	// agents and people, or dropping the domain when it declared only a
+	// siteName. Nothing overrides a KB's identity, so start refuses the section
+	// by name, as every service's loader does.
 	withSite := func(t *testing.T, s *scenario, site string) {
 		t.Helper()
 		writeKBConfig(t, s, "sited", stdGraph+stdVectors+stdEmbedding+stdDatabase+site)
 	}
 
-	// 1. A DIFFERENT domain: legitimate, but the operator should know.
+	for _, site := range []string{
+		"[environments.local.site]\ndomain = \"elsewhere.example:other-kb\"\n",
+		"[environments.local.site]\nsiteName = \"Example\"\n",
+	} {
+		s := newScenario(t, "container")
+		withSite(t, s, site)
+		_, stderr, code := s.run(t, "start", "--config", "sited", "--dry-run")
+		if code != 1 {
+			t.Fatalf("an environment [site] must refuse: exit %d\n%s", code, site)
+		}
+		mustContain(t, "environment [site] refusal", stderr, "[environments.local.site]", "sited.toml")
+	}
+
+	// No environment [site] at all — every launcher-generated config — starts.
 	s := newScenario(t, "container")
-	withSite(t, s, "[environments.local.site]\ndomain = \"elsewhere.example:other-kb\"\n")
-	stdout, stderr, code := s.run(t, "start", "--config", "sited", "--dry-run")
-	if code != 0 {
-		t.Fatalf("divergent site must warn, not refuse: exit %d\nstderr:\n%s", code, stderr)
-	}
-	// Asserted on STDOUT alone, not stdout+stderr: a warning split across two
-	// streams reads fine in a terminal and falls apart the moment either is
-	// piped, and a combined assertion cannot tell the difference.
-	mustContain(t, "divergence warning", stdout,
-		"example.github.io:test-kb", // the KB's committed identity
-		"elsewhere.example:other-kb",
-		"agent identities")
-
-	// 2. A [site] section with NO domain — the shape someone gets by adding the
-	// section for one unrelated key. This USED to be the one nobody
-	// intends: the loader substituted the literal 'localhost' and the agents
-	// collided with every other such KB on the machine. The loader no longer
-	// manufactures a domain, so the gateway falls back to the KB's committed
-	// identity, nothing diverges, and there is nothing to warn about.
-	s2 := newScenario(t, "container")
-	withSite(t, s2, "[environments.local.site]\nsiteName = \"Example\"\n")
-	stdout, stderr, code = s2.run(t, "start", "--config", "sited", "--dry-run")
-	if code != 0 {
-		t.Fatalf("domain-less site must not refuse: exit %d\nstderr:\n%s", code, stderr)
-	}
-	for _, absent := range []string{"did:web:localhost", "declares no domain", "overrides the KB's declared identity"} {
-		if strings.Contains(stdout, absent) {
-			t.Errorf("domain-less [site] no longer diverges, so %q must not appear:\n%s", absent, stdout)
-		}
-	}
-
-	// 3. No environment [site] at all — every launcher-generated config. This
-	// is the case that must stay SILENT; a warning here would be pure noise
-	// on the overwhelmingly common path.
-	s3 := newScenario(t, "container")
-	stdout, stderr, code = s3.run(t, "start", "--dry-run")
-	if code != 0 {
+	if _, stderr, code := s.run(t, "start", "--dry-run"); code != 0 {
 		t.Fatalf("plain start: exit %d\nstderr:\n%s", code, stderr)
-	}
-	// Assert on the warning's OWN phrases, not generic words: the scenario's
-	// tmpdir carries this test's name, so "identity"/"overrid" match the paths
-	// in every plan line and would fail no matter what the code did.
-	for _, noisy := range []string{"agent identities", "did:web:localhost"} {
-		if strings.Contains(stdout+stderr, noisy) {
-			t.Errorf("a config with no [site] section must not warn (%q):\n%s", noisy, stdout+stderr)
-		}
-	}
-
-	// 4. A KB with no committed domain already REFUSES (decision 8); it must
-	// not also collect this warning. Two messages for one condition is worse
-	// than one.
-	s4 := newScenario(t, "container")
-	withSite(t, s4, "[environments.local.site]\ndomain = \"elsewhere.example:other-kb\"\n")
-	if err := os.WriteFile(filepath.Join(s4.kb, ".semiont", "config"),
-		[]byte("[project]\nname = \"No Did KB\"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	stdout, stderr, code = s4.run(t, "start", "--config", "sited", "--dry-run")
-	if code != 1 {
-		t.Fatalf("did-less KB must still refuse: exit %d", code)
-	}
-	if strings.Contains(stdout+stderr, "elsewhere.example:other-kb") {
-		t.Errorf("refusal must not also carry the override warning:\n%s", stdout+stderr)
 	}
 }
 

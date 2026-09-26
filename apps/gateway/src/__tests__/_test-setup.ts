@@ -57,11 +57,6 @@ model = "llama3"
 type = "ollama"
 model = "llama3"
 
-[environments.integration.site]
-domain = "test.local"
-siteName = "Test"
-adminEmail = "admin@test.local"
-
 [environments.unit]
 [environments.unit.gateway]
 platform = "posix"
@@ -86,11 +81,6 @@ model = "llama3"
 [environments.unit.workers.default.inference]
 type = "ollama"
 model = "llama3"
-
-[environments.unit.site]
-domain = "test.local"
-siteName = "Test"
-adminEmail = "admin@test.local"
 `;
 
 export interface TestEnvironmentConfig {
@@ -194,11 +184,6 @@ export async function setupTestEnvironment(envName?: string): Promise<TestEnviro
         type: 'ollama',
         model: 'nomic-embed-text',
       },
-    },
-    site: {
-      domain: 'test.local',
-      siteName: 'Test',
-      adminEmail: 'admin@test.local',
     },
     _metadata: {
       environment,

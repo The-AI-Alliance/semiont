@@ -985,32 +985,6 @@
       ],
       "additionalProperties": true
     },
-    "SiteConfig": {
-      "type": "object",
-      "properties": {
-        "siteName": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Display name for the site"
-        },
-        "domain": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Primary domain for the site"
-        },
-        "adminEmail": {
-          "type": "string",
-          "format": "email",
-          "description": "Administrator email address"
-        },
-        "supportEmail": {
-          "type": "string",
-          "format": "email",
-          "description": "Support email address (optional)"
-        }
-      },
-      "additionalProperties": false
-    },
     "EnvironmentConfig": {
       "type": "object",
       "properties": {
@@ -1112,9 +1086,6 @@
             "additionalProperties": true
           }
         },
-        "site": {
-          "$ref": "#/definitions/SiteConfig"
-        },
         "env": {
           "type": "object",
           "properties": {
@@ -1158,33 +1129,6 @@
         "services"
       ],
       "additionalProperties": true
-    },
-    "SemiontConfig": {
-      "type": "object",
-      "properties": {
-        "version": {
-          "type": "string",
-          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
-          "description": "Config file version (semver)"
-        },
-        "project": {
-          "type": "string",
-          "minLength": 1,
-          "description": "Project name"
-        },
-        "site": {
-          "$ref": "#/definitions/SiteConfig"
-        },
-        "services": {
-          "$ref": "#/definitions/ServicesConfig"
-        }
-      },
-      "required": [
-        "version",
-        "project",
-        "site"
-      ],
-      "additionalProperties": false
     },
     "JobsServiceConfig": {
       "type": "object",

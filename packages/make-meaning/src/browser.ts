@@ -473,7 +473,7 @@ export class Browser {
       // within its budget; every failure shape degrades to an entry
       // without `limits` (D3) — the reply itself never fails or blocks
       // on a provider.
-      const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config));
+      const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config, this.project.siteDomain()));
       this.eventBus.emit('browse:agents-result', {
         response: { agents },
       }, { correlationId });

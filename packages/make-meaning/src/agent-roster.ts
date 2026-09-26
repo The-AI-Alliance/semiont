@@ -10,8 +10,8 @@
  * every job type not explicitly assigned elsewhere, and 'default' itself is
  * config vocabulary, never a JobType in the reply.
  *
- * The DID domain is `site.domain` — the KB's canonical identity, the SAME
- * value `/api/tokens/agent` mints worker DIDs from. One value, one owner:
+ * The DID domain is the KB's committed `[site] domain` — its identity, the
+ * SAME value `/api/tokens/agent` mints worker DIDs from. One value, one owner:
  * the roster consumes it verbatim and derives nothing from topology
  * (deriving from `publicURL`/connection URLs produced one logical agent
  * with two DIDs — .plans/bugs/agent-did-host-skew.md; the P5 attribution
@@ -73,9 +73,9 @@ function eachAdmittedInference(
  * Every distinct `(provider, model)` the roster admits, each with the config
  * section that admitted it (first wins, mirroring the roster dedup) — the
  * LimitsDiscovery pool's construction input (INFERENCE-LIMITS-EXPOSURE P2).
- * Deliberately domain-free: pairs mint no DIDs, so a config without
- * `site.domain` still yields a pool — the roster read fails loudly on its
- * own; discovery construction must not (D3).
+ * Deliberately domain-free: pairs mint no DIDs, so a KB without a domain
+ * still yields a pool — the roster read fails loudly on its own; discovery
+ * construction must not (D3).
  */
 export function deriveInferencePairs(config: MakeMeaningConfig): Map<string, InferenceConfig> {
   const pairs = new Map<string, InferenceConfig>();
@@ -86,11 +86,10 @@ export function deriveInferencePairs(config: MakeMeaningConfig): Map<string, Inf
   return pairs;
 }
 
-export function deriveAgentRoster(config: MakeMeaningConfig): CollaboratorEntry[] {
-  const domain = config.site?.domain;
+export function deriveAgentRoster(config: MakeMeaningConfig, domain: string | undefined): CollaboratorEntry[] {
   if (!domain) {
     throw new Error(
-      'site.domain is required to mint agent DIDs — the directory must use the same canonical domain /api/tokens/agent mints worker DIDs from (no topology fallback)',
+      "The knowledge base's committed .semiont/config declares no [site] domain, and agent DIDs are minted under it — the same domain /api/tokens/agent mints worker DIDs from (no topology fallback)",
     );
   }
 

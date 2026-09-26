@@ -17,7 +17,7 @@ const RESOURCE = kbResource('test.local');
 const METADATA_PATH = '/.well-known/oauth-protected-resource';
 
 beforeAll(() => {
-  JWTService.initialize({ site: { domain: 'test.local' } });
+  JWTService.initialize('test.local');
 });
 
 beforeEach(() => {

@@ -36,9 +36,7 @@ function mintToken(user: Principal) {
 
 describe('SDK-AUTH-CORS Phase 3 — bearer-only (no cookie)', () => {
   beforeAll(() => {
-    JWTService.initialize({
-      site: { domain: 'test.local' },
-    });
+    JWTService.initialize('test.local');
   });
 
   beforeEach(() => {

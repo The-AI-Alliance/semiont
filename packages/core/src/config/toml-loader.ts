@@ -7,7 +7,7 @@
  * File format: see TOML-XDG-CONFIG.md
  *
  * Loading sequence:
- *   1. Read .semiont/config  → projectName, site, environments.<env>.* (project base)
+ *   1. Read .semiont/config  → environments.<env>.* (project base)
  *   2. Read ~/.semiontconfig → defaults, environments.<env>.* (user overrides)
  *   3. Deep-merge: project base ← user overrides (user wins on conflicts)
  *      Any environment name is valid (local, staging, production, custom, ...)
@@ -105,10 +105,10 @@ interface SemiontConfigFile {
     environment?: string;
     platform?: string;
   };
-  // The KB's committed identity, staged by the launcher (SINGLE-KB-MOUNT D4).
-  // Top-level DELIBERATELY: [site] lives inside environment sections, where an
-  // override can report an identity the KB never declared; [kb] sits beside
-  // [defaults] in the file root, out of any environment section's reach.
+  // The KB's committed identity — `[site] domain` and `[project] name` from its
+  // .semiont/config — staged by the launcher (SINGLE-KB-MOUNT D4) for the
+  // services that do not mount the tree. Top-level, beside [defaults], where no
+  // environment section reaches it.
   kb?: {
     name?: string;
     domain?: string;
@@ -172,11 +172,6 @@ interface EnvironmentSection {
     type?: 'keycloak' | 'oidc';
     issuer?: string;
     subjectClaim?: string;
-  };
-  site?: {
-    domain?: string;
-    siteName?: string;
-    adminEmail?: string;
   };
   database?: {
     platform?: string;
@@ -284,14 +279,9 @@ export function loadTomlConfig(
   const projectConfigContent = projectRoot ? reader.readIfExists(`${projectRoot}/.semiont/config`) : null;
   const projectConfig = projectConfigContent
     ? (parseToml(projectConfigContent) as {
-        project?: { name?: string; version?: string };
-        site?: EnvironmentSection['site'];
         environments?: Record<string, EnvironmentSection>;
       })
     : undefined;
-  const projectName = projectConfig?.project?.name ?? 'semiont-project';
-  const projectVersion = projectConfig?.project?.version;
-  const projectSite = projectConfig?.site;
 
   // 2. Read global config (optional — missing config yields empty environments)
   const globalContent = reader.readIfExists(globalConfigPath);
@@ -329,6 +319,22 @@ export function loadTomlConfig(
       `Environment "${resolvedEnvironment}" is selected but no [environments.${resolvedEnvironment}] ` +
         'section exists in the project (.semiont/config) or global (~/.semiontconfig) config. ' +
         'Declare the section, or select an environment that exists.',
+    );
+  }
+
+  // A knowledge base declares its identity once: `[site]`, at the top level of
+  // its committed .semiont/config, read there by SemiontProject and the
+  // launcher and by nothing here. An environment-scoped [site] used to replace
+  // that table whole, domain included; nothing may override a KB's identity.
+  const scopedSites = [
+    ...Object.entries(projectConfig?.environments ?? {}).map(([name, section]) => ({ name, section, file: `${projectRoot}/.semiont/config` })),
+    ...Object.entries(raw.environments ?? {}).map(([name, section]) => ({ name, section, file: globalConfigPath })),
+  ].filter(({ section }) => 'site' in section);
+  if (scopedSites.length > 0) {
+    throw new Error(
+      scopedSites.map(({ name, file }) => `[environments.${name}.site] in ${file}`).join(', ') +
+        ': a knowledge base declares [site] once, at the top level of its committed .semiont/config, ' +
+        'and no environment can override it. Delete the section.',
     );
   }
 
@@ -438,7 +444,6 @@ export function loadTomlConfig(
     );
   }
   const gateway = resolved.gateway ?? resolved.backend;
-  const site = resolved.site ?? projectSite;
   const inferenceSection = resolved.inference;
 
   // Build inference providers config.
@@ -691,24 +696,10 @@ export function loadTomlConfig(
     ...(inferenceProviders ? { inference: inferenceProviders } : {}),
     ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
     ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
-    site: site ? {
-      // NO 'localhost' default. A `[site]` section is routinely added for an
-      // unrelated key — `siteName`, say — and manufacturing a domain for it
-      // silently renamed the KB's agents to `did:web:localhost`, an identity
-      // that collides with every other domain-less KB on the machine. Absent
-      // now means absent, so a consumer either falls back to the committed
-      // `[kb] domain` or refuses; neither can be done on top of a fabricated
-      // value.
-      ...(site.domain ? { domain: site.domain } : {}),
-      siteName: site.siteName,
-      adminEmail: site.adminEmail,
-    } : undefined,
     logLevel: resolved.logLevel,
     _metadata: {
       environment: resolvedEnvironment,
       projectRoot,
-      projectName,
-      projectVersion,
       ...(Object.keys(actors).length > 0 ? { actors } : {}),
       ...(Object.keys(workers).length > 0 ? { workers } : {}),
       // Always set — the loader is the ONE home of this default (D5).
