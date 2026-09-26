@@ -382,7 +382,6 @@ export * from './service-account';
 // Configuration types
 export type {
   EnvironmentConfig,
-  SiteConfig,
 } from './config/config.types';
 
 export {
@@ -421,7 +420,6 @@ export type {
   ServicesConfig,
   VectorsServiceConfig,
   EmbeddingServiceConfig,
-  SemiontConfig,
   GraphDatabaseType,
   ServicePlatformConfig
 } from './config/config.types';

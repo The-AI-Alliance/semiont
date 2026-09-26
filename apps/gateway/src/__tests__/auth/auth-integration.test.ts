@@ -15,9 +15,7 @@ import type { Principal } from '../../identity/principal';
 describe('Authentication Integration', () => {
   beforeAll(() => {
     // Initialize JWTService with test config
-    JWTService.initialize({
-      site: { domain: 'test.local' },
-    });
+    JWTService.initialize('test.local');
   });
 
   beforeEach(() => {

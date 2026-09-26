@@ -94,13 +94,10 @@ type envConfig struct {
 	Identity *identityCfg          `toml:"identity"`
 	Actors   map[string]bindingCfg `toml:"actors"`
 	Workers  map[string]bindingCfg `toml:"workers"`
-	// Site is read ONLY to detect that it exists (KB-IDENTITY-VS-ADDRESS P4).
-	// The launcher never writes one — confgen.go emits no [site] section — so
-	// its presence means a human added it, and the gateway's TOML loader then
-	// resolves the AGENTS' domain from it instead of the KB's committed
-	// .semiont/config. The launcher does not act on the value; it reports the
-	// divergence and lets the operator judge.
-	Site *siteCfg `toml:"site"`
+	// Site is read ONLY to refuse it (loadConfig). A knowledge base declares
+	// [site] once, at the top level of its committed .semiont/config; an
+	// environment cannot override it, here or in any service's loader.
+	Site map[string]any `toml:"site"`
 }
 
 // declaresRole answers whether this config declares a role — the section
@@ -132,13 +129,6 @@ func (e *envConfig) declaresRole(role string) bool {
 		return e.Gateway != nil || e.GatewayOld != nil
 	}
 	return false
-}
-
-// siteCfg mirrors only what the identity check needs. Domain is a pointer so
-// "section present, domain absent" — the case that silently becomes
-// 'localhost' — is distinguishable from "no section at all".
-type siteCfg struct {
-	Domain *string `toml:"domain"`
 }
 
 type gatewayCfg struct {
@@ -264,6 +254,9 @@ func loadConfig(path string) (*envConfig, string, []string, error) {
 	if err := toml.Unmarshal(b, &doc); err != nil {
 		return nil, "", nil, fmt.Errorf("%s is not valid TOML: %v", path, err)
 	}
+	if err := refuseEnvironmentSites(cfg.Environments, path); err != nil {
+		return nil, "", nil, err
+	}
 	envName := cfg.Defaults.Environment
 	if envName == "" {
 		return nil, "", nil, fmt.Errorf("%s: [defaults] environment is not set", path)
@@ -276,6 +269,27 @@ func loadConfig(path string) (*envConfig, string, []string, error) {
 		return nil, "", nil, err
 	}
 	return &env, envName, requiredVars(doc), nil
+}
+
+// refuseEnvironmentSites rejects a [site] section in any environment, selected
+// or not — the whole file is staged into every service, and their loader
+// (toml-loader.ts) refuses the same section by name. A knowledge base declares
+// [site] once, at the top level of its committed .semiont/config.
+func refuseEnvironmentSites(envs map[string]envConfig, path string) error {
+	var sited []string
+	for name, env := range envs {
+		if env.Site != nil {
+			sited = append(sited, fmt.Sprintf("[environments.%s.site]", name))
+		}
+	}
+	if len(sited) == 0 {
+		return nil
+	}
+	sort.Strings(sited)
+	return fmt.Errorf(
+		"%s in %s: a knowledge base declares [site] once, at the top level of its committed .semiont/config, "+
+			"and no environment can override it. Delete the section.",
+		strings.Join(sited, ", "), path)
 }
 
 // resolveGatewaySection collapses the `gateway` / `backend` spellings of one

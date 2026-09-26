@@ -1,0 +1,140 @@
+{
+  "$comment": "The knowledge base's identity as every reader must compute it from <dir>/.semiont/config. Go (apps/launcher/internal/launcher: effectiveKBName, committedDomain, didWeb, kbResource) and TypeScript (packages/core: SemiontProject name and siteDomain, kbDid, kbResource) each run every case and fail on any difference. `config` null means the file is absent; `domain`, `did` and `resource` null mean no identity is declared. Add a case here before changing either implementation.",
+  "cases": [
+    {
+      "why": "the shape semiont init writes",
+      "dir": "arxiv-kb",
+      "config": "[project]\nname = \"ArXiv Research Papers\"\n\n[git]\nsync = true\n\n[site]\ndomain = \"the-ai-alliance.github.io:semiont-arxiv-kb\"\nsiteName = \"ArXiv Research Papers\"\n",
+      "name": "ArXiv Research Papers",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb",
+      "resource": "https://the-ai-alliance.github.io/semiont-arxiv-kb"
+    },
+    {
+      "why": "no config file: the directory name, and no identity",
+      "dir": "bare-kb",
+      "config": null,
+      "name": "bare-kb",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "no [project] name: the directory name",
+      "dir": "nameless-kb",
+      "config": "[site]\ndomain = \"example.github.io:nameless-kb\"\n",
+      "name": "nameless-kb",
+      "domain": "example.github.io:nameless-kb",
+      "did": "did:web:example.github.io:nameless-kb",
+      "resource": "https://example.github.io/nameless-kb"
+    },
+    {
+      "why": "an empty name counts as none",
+      "dir": "empty-name-kb",
+      "config": "[project]\nname = \"\"\n",
+      "name": "empty-name-kb",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a key that merely starts with name, in a section above [project]",
+      "dir": "prefix-kb",
+      "config": "[graph]\nnamespace = \"other\"\n\n[project]\nname = \"The Real Name\"\n",
+      "name": "The Real Name",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "an inline comment is not part of the value",
+      "dir": "comment-kb",
+      "config": "[project]\nname = \"Commented\" # a note\n\n[site]\ndomain = \"example.github.io:comment-kb\" # permanent\n",
+      "name": "Commented",
+      "domain": "example.github.io:comment-kb",
+      "did": "did:web:example.github.io:comment-kb",
+      "resource": "https://example.github.io/comment-kb"
+    },
+    {
+      "why": "a literal string",
+      "dir": "literal-kb",
+      "config": "[project]\nname = 'Literal'\n",
+      "name": "Literal",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "escapes are decoded",
+      "dir": "escape-kb",
+      "config": "[project]\nname = \"A \\\"quoted\\\" KB\"\n",
+      "name": "A \"quoted\" KB",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "an equals sign inside the value",
+      "dir": "equals-kb",
+      "config": "[project]\nname = \"a = b\"\n",
+      "name": "a = b",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a dotted key names the same table",
+      "dir": "dotted-kb",
+      "config": "project.name = \"Dotted\"\nsite.domain = \"example.github.io:dotted-kb\"\n",
+      "name": "Dotted",
+      "domain": "example.github.io:dotted-kb",
+      "did": "did:web:example.github.io:dotted-kb",
+      "resource": "https://example.github.io/dotted-kb"
+    },
+    {
+      "why": "spaces inside a table header",
+      "dir": "spaced-kb",
+      "config": "[ project ]\nname = \"Spaced\"\n\n[ site ]\ndomain = \"example.github.io:spaced-kb\"\n",
+      "name": "Spaced",
+      "domain": "example.github.io:spaced-kb",
+      "did": "did:web:example.github.io:spaced-kb",
+      "resource": "https://example.github.io/spaced-kb"
+    },
+    {
+      "why": "the domain is the top-level [site] only, never an environment's",
+      "dir": "env-kb",
+      "config": "[project]\nname = \"Env Scoped\"\n\n[environments.local.site]\ndomain = \"localhost\"\n",
+      "name": "Env Scoped",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a [site] without a domain declares no identity",
+      "dir": "nodomain-kb",
+      "config": "[project]\nname = \"No Domain\"\n\n[site]\nsiteName = \"No Domain\"\n",
+      "name": "No Domain",
+      "domain": null,
+      "did": null,
+      "resource": null
+    },
+    {
+      "why": "a multi-segment domain becomes a multi-segment path",
+      "dir": "deep-kb",
+      "config": "[project]\nname = \"Deep\"\n\n[site]\ndomain = \"example.org:group:deep-kb\"\n",
+      "name": "Deep",
+      "domain": "example.org:group:deep-kb",
+      "did": "did:web:example.org:group:deep-kb",
+      "resource": "https://example.org/group/deep-kb"
+    },
+    {
+      "why": "malformed TOML counts as no file",
+      "dir": "broken-kb",
+      "config": "[project\nname = \"Broken\"\n",
+      "name": "broken-kb",
+      "domain": null,
+      "did": null,
+      "resource": null
+    }
+  ]
+}

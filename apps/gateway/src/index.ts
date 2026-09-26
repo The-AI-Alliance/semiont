@@ -38,43 +38,19 @@ if (!config.services?.gateway) {
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 
-// ── KB identity (KB-IDENTITY-VS-ADDRESS decisions 8 + 10) ────────────────
+// ── KB identity (KB-IDENTITY-VS-ADDRESS decision 8) ──────────────────────
 //
-// One check over two values, because they are two branches of one question —
-// "is this knowledge base's identity sound?" — asked of the same pair at the
-// same moment. Splitting them into separate passes is how one drifts from
-// the other.
-//
-//   committed  = the launcher-staged `[kb] domain` — the KB's own permanent
-//                identity, read off its `.semiont/config` by the launcher,
-//                turned into did:web and published, and what /api/status
-//                reports.
-//   effective  = config.site.domain — what THIS process will mint AGENT dids
-//                from (JWTService.getDomainForAgent).
-//
-// The committed side is the launcher-staged top-level `[kb] domain`
-// (SINGLE-KB-MOUNT P5) — read there and NOWHERE else. `[site]` is the wrong
-// source for it: an environment section can override the project's, so it can
-// report an identity the KB never declared. `[kb]` sits
-// beside `[defaults]`, out of that reach, and the launcher stages NO domain
-// when the KB declares none — so an undeclared identity still arrives here as
-// absent, and still refuses below.
-//
-// All three resolved values escape the block so JWTService.initialize and the
-// trusted issuer can be handed them, rather than re-deriving them from a config
-// shape this process does not fully hold.
-let effectiveDomain: string;
-let committedKbDomain: string;
-
-{
-  const committedDomain = config.kb?.domain;
-
+// The knowledge base's domain — its committed `[site] domain`, as the launcher
+// stages it (`[kb] domain`, SINGLE-KB-MOUNT P5) — is this process's one source
+// for the KB's identity: the audience it accepts tokens for, the authority its
+// people and agents are named under, the issuer of the tokens it signs. The
+// gateway mounts no KB tree, so the staged copy is the only one it sees.
+const kbDomain: string = (() => {
+  const domain = config.kb?.domain;
   // Decision 8 — a knowledge base declares its identity or does not run.
   // `semiont start` already refuses this; a gateway launched another way
-  // (docker, npm, a script) must refuse too, or /api/status would owe a
-  // required `did` it cannot produce. Refusing is what makes that field
-  // satisfiable by construction rather than conditionally true.
-  if (!committedDomain) {
+  // (docker, npm, a script) must refuse too.
+  if (!domain) {
     throw new Error(
       'This knowledge base declares no identity: [site] domain is missing from its ' +
         '.semiont/config, so the launcher staged no [kb] domain.\n' +
@@ -83,33 +59,8 @@ let committedKbDomain: string;
         'Add:\n\n  [site]\n  domain = "your-org.github.io:your-kb-repo"\n',
     );
   }
-
-  // Decision 10 — the agents' domain MAY legitimately differ (a deployment
-  // can mint agent identities elsewhere), so this warns rather than refuses.
-  // What it must never do is happen silently: the KB would be did:web:A
-  // while everything it generates is attributed to did:web:B:agents:… .
-  // ABSENCE IS NOT DIVERGENCE. An environment `[site] domain` is an override,
-  // and most KBs declare none — so with no `[site]` at all the agents mint
-  // under the KB's own committed identity, which is what they did while this
-  // process still read the committed file directly. Treating absent as a
-  // divergence produced `agents will be minted under "undefined"` and then a
-  // refusal in JWTService, which is how a KB that was perfectly well-formed
-  // could not start.
-  effectiveDomain = config.site?.domain ?? committedDomain;
-  committedKbDomain = committedDomain;
-
-  if (config.site?.domain !== undefined && config.site.domain !== committedDomain) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      `[identity] KB is "${committedDomain}" (committed .semiont/config) but agents will be minted under ` +
-        `"${effectiveDomain}" (environment config). The KB's own did is unaffected; only agent identities move. ` +
-        'If unintended, remove the `site` section for this environment from the KB\'s ' +
-        '`.semiont/semiontconfig/<name>.toml` — that file is the source of truth; inside the container it is ' +
-        'only mounted read-only at ~/.semiontconfig, so editing it there does not persist.',
-    );
-  }
-
-}
+  return domain;
+})();
 
 // The issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY): keys are
 // discovered on first use, so a configured issuer that is unreachable surfaces
@@ -117,16 +68,11 @@ let committedKbDomain: string;
 // gateway-signed tokens authenticate.
 //
 // The AUDIENCE is not configured. It is this knowledge base's own resource
-// identifier, derived from the committed did:web domain resolved above, which
-// is why this runs after that block rather than before it. One declared fact
-// decides both what the KB calls itself and what it requires in `aud`, so the
-// two cannot be configured into disagreement — and a disagreement here refuses
-// every token while looking like a working deployment.
-//
-// The DOMAIN people are named under is `effectiveDomain` — the authority the
-// agents are minted under too (JWTService.initialize below) — so a person and
-// the software working for them are peers beneath one did:web
-// (VERIFIED-PROVENANCE P5).
+// identifier, derived from the domain resolved above, which is why this runs
+// after that block rather than before it. One declared fact decides what the
+// KB calls itself, what it requires in `aud`, and the authority its people and
+// agents are named under — a person and the software working for them are
+// peers beneath one did:web (VERIFIED-PROVENANCE P5).
 const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
 // `[identity]` is mandatory (user, 2026-09-21): the loaders refuse a config
 // without it, so this is an assertion that they did, not a fallback.
@@ -137,7 +83,7 @@ const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => 
   }
   return configured;
 })();
-configureTrustedIssuer(identity, { audience: kbResource(committedKbDomain), domain: effectiveDomain });
+configureTrustedIssuer(identity, { audience: kbResource(kbDomain), domain: kbDomain });
 
 // What it takes to reach the record, asserted with the rest of the startup
 // requirements rather than on the first Archivist read.
@@ -452,20 +398,16 @@ if (config.env?.NODE_ENV !== 'test') {
   const { registerCorrelationRegistryProvider } = await import('@semiont/observability');
   registerCorrelationRegistryProvider(() => compositionFor(eventBus).occupancy());
 
-  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET and
-  // site.domain — without both the process cannot mint or attribute a token,
-  // so it must not accept connections.
+  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET —
+  // without it the process cannot mint or attribute a token, so it must not
+  // accept connections.
   //
   // Inside the serve callback it would be too late: /api/health answers 200
   // unconditionally, so a missing secret would yield a container that listens,
   // reports healthy in `semiont status`, and fails every sign-in. Failing here
   // makes the misconfiguration undeployable.
   const { JWTService } = await import('./auth/jwt');
-  // The RESOLVED domain, not `config`: it may come from the staged `[kb]`
-  // identity rather than a `[site]` section, and the resolution above is its one
-  // home. Passing the raw config made JWTService reach for `config.site`, which
-  // a KB with no environment `[site]` does not have.
-  JWTService.initialize({ site: { domain: effectiveDomain } });
+  JWTService.initialize(kbDomain);
 
   const server = serve({
     fetch: app.fetch,

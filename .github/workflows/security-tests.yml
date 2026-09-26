@@ -172,7 +172,6 @@ jobs:
             '[site]' \
             'domain = "localhost"' \
             'siteName = "Semiont CI"' \
-            'adminEmail = "admin@localhost"' \
             > .semiont/config
           # Write ~/.semiontconfig with ci environment so gateway can start.
           # `[defaults] environment` is how the gateway selects it — the same key a real
@@ -218,11 +217,6 @@ jobs:
             '[environments.ci.archivist]' \
             'host = "localhost"' \
             'port = 24103' \
-            '' \
-            '[environments.ci.site]' \
-            'domain = "localhost"' \
-            'siteName = "Semiont CI"' \
-            'adminEmail = "admin@localhost"' \
             '' \
             '[environments.ci.make-meaning.graph]' \
             'type = "memory"' \

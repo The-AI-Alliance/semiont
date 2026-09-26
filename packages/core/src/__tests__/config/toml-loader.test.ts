@@ -120,12 +120,6 @@ describe('loadTomlConfig', () => {
     expect((config.services?.graph as any)?.type).toBe('memory');
   });
 
-  it('reads project name from .semiont/config', () => {
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML, '[project]\nname = "my-project"\n'), {});
-
-    expect((config._metadata as any)?.projectName).toBe('my-project');
-  });
-
   it('stores actor inference config in _metadata', () => {
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_INFERENCE_TOML_COMPLETE), {});
 
@@ -242,8 +236,6 @@ semanticFloor = 0.75
   it('throws for a named environment with no [environments.X] section', () => {
     // The silent `?? {}` here is exactly what let a mis-declared environment
     // load an empty section, with every downstream default firing behind it.
-    // (The worst of those, site.domain -> 'localhost', is gone — see the
-    // domain-less [site] test below — but throwing here is still the fix.)
     expect(() =>
       loadTomlConfig('/project', 'staging', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {})
     ).toThrow(/staging/);
@@ -534,38 +526,26 @@ ${MINIMAL_NO_IDENTITY}`;
     expect(cfg.services.identity?.issuer).toBe('http://10.0.0.9:8080/realms/semiont');
   });
 
-  // SINGLE-KB-MOUNT D4: the launcher stages the KB's committed identity into
-  // the config it hands a container, under its own TOP-LEVEL key — never
-  // [site], whose domain an environment section can override into an identity
-  // the KB never declared. [kb] lives beside [defaults] in the file root, so
-  // an environment section cannot reach it by construction.
-  // A `[site]` section is routinely added for an unrelated key — `siteName`,
-  // say — and the loader used to fill in the missing `domain`
-  // with the literal 'localhost'. That silently renamed the KB's agents to
-  // did:web:localhost, an identity every other domain-less KB on the machine
-  // also claims. Absent must stay absent so a consumer can fall back to the
-  // committed [kb] domain, or refuse; neither is possible on top of a
-  // fabricated value.
-  it('never manufactures a domain for a [site] section that omits one', () => {
-    const toml = `
-[defaults]
-environment = "local"
+  // A knowledge base declares its identity once: `[site]`, at the top level of
+  // its committed .semiont/config. An environment-scoped [site] used to replace
+  // that table whole — domain included — so an environment could rename the
+  // KB's agents and people, and silently drop the domain by declaring only a
+  // siteName. Nothing overrides a KB's identity; the section is refused.
+  it.each([
+    ['/home/user/.semiontconfig', (section: string) => makeReader(`${MINIMAL_TOML}\n${section}`)],
+    ['/project/.semiont/config', (section: string) => makeReader(MINIMAL_TOML, `[project]\nname = "test-project"\n\n${section}`)],
+  ])('refuses an environment-scoped [site] in %s, naming the section and the file', (file, reader) => {
+    const load = () => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', reader('[environments.local.site]\nsiteName = "Example"\n'), {});
 
-[environments.local.gateway]
-platform = "posix"
-port = 3001
+    expect(load).toThrow('[environments.local.site]');
+    expect(load).toThrow(file);
+  });
 
-[environments.local.site]
-siteName = "Example"
+  it('reads nothing from the committed [site]: the KB\'s identity is read where it is committed', () => {
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig',
+      makeReader(MINIMAL_TOML, '[project]\nname = "test-project"\n\n[site]\ndomain = "example.github.io:kb"\n'), {});
 
-[environments.local.make-meaning.graph]
-type = "memory"
-${SERVICES_LOCAL}`;
-    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
-
-    expect(config.site?.domain).toBeUndefined();
-    // The section still carries what it was actually added for.
-    expect(config.site?.siteName).toBe('Example');
+    expect(Object.keys(config)).not.toContain('site');
   });
 
   it('carries the staged [kb] identity, so a gateway with no [site] still knows which KB it serves', () => {
@@ -591,7 +571,6 @@ ${SERVICES_LOCAL}`;
 
     expect(config.kb?.name).toBe('example-kb');
     expect(config.kb?.domain).toBe('example.github.io:test-kb');
-    expect(config.site).toBeUndefined();
   });
 
   it('maps top-level [kb] to config.kb', () => {

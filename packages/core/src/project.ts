@@ -1,6 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { execFileSync } from 'child_process';
+import { parse as parseToml } from 'smol-toml';
+import { isObject, isString } from './type-guards';
 
 /**
  * Represents a Semiont project rooted at a given directory.
@@ -207,75 +209,47 @@ export class SemiontProject extends SemiontState {
   }
 
   /**
-   * The KB's permanent identity literal — `[site] domain` from the committed
-   * `.semiont/config`, which `kbDid()` renders as `did:web:<domain>`.
-   * `undefined` when the section or key is absent.
-   *
-   * Reads the committed file DIRECTLY, and deliberately not
-   * `EnvironmentConfig.site.domain`, which is the same value only by
-   * accident: the environment section can override the KB's own declaration.
-   * That would report an identity the
-   * launcher never minted — an address wearing a name, which is the whole
-   * category error .plans/KB-IDENTITY-VS-ADDRESS.md exists to end. Identity
-   * is declared or absent; it is never defaulted.
+   * The KB's permanent identity — `[site] domain` from the committed
+   * `.semiont/config`, which `kbDid()` renders as `did:web:<domain>`. The one
+   * source: everything that names this KB derives from it. `undefined` when
+   * none is declared; identity is declared or absent, never defaulted.
    */
   siteDomain(): string | undefined {
-    const configPath = path.join(this.root, '.semiont', 'config');
-    if (!fs.existsSync(configPath)) return undefined;
-    const content = fs.readFileSync(configPath, 'utf-8');
-    let inSiteSection = false;
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('#')) continue;
-      if (trimmed === '[site]') { inSiteSection = true; continue; }
-      if (trimmed.startsWith('[')) { inSiteSection = false; continue; }
-      if (!inSiteSection) continue;
-      const eq = trimmed.indexOf('=');
-      if (eq < 0) continue;
-      if (trimmed.slice(0, eq).trim() !== 'domain') continue;
-      const value = trimmed.slice(eq + 1).trim().replace(/^"(.*)"$/, '$1');
-      return value === '' ? undefined : value;
-    }
-    return undefined;
+    return nonEmptyString(readCommittedConfig(this.root)?.['site'], 'domain');
   }
 
-  /**
-   * Read [git] sync from .semiont/config.
-   * Defaults to false if the section or key is absent.
-   */
+  /** `[git] sync` from .semiont/config: true only when it is declared `true`. */
   private static readGitSync(projectRoot: string): boolean {
-    const configPath = path.join(projectRoot, '.semiont', 'config');
-    if (!fs.existsSync(configPath)) return false;
-    const content = fs.readFileSync(configPath, 'utf-8');
-    let inGitSection = false;
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim();
-      if (trimmed === '[git]') { inGitSection = true; continue; }
-      if (trimmed.startsWith('[')) { inGitSection = false; continue; }
-      if (inGitSection && trimmed.startsWith('sync') && trimmed.includes('=')) {
-        const value = trimmed.split('=')[1]?.trim();
-        return value === 'true';
-      }
-    }
-    return false;
+    const git = readCommittedConfig(projectRoot)?.['git'];
+    return isObject(git) && git['sync'] === true;
   }
 
-  /**
-   * Read the project name from .semiont/config [project] name = "..."
-   * Falls back to the directory basename if the config is absent or has no name.
-   */
+  /** `[project] name` from .semiont/config, else the directory's name. */
   private static readName(projectRoot: string): string {
-    const configPath = path.join(projectRoot, '.semiont', 'config');
-    if (fs.existsSync(configPath)) {
-      const content = fs.readFileSync(configPath, 'utf-8');
-      for (const line of content.split('\n')) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('name') && trimmed.includes('=')) {
-          const [, ...rest] = trimmed.split('=');
-          return rest.join('=').trim().replace(/^"(.*)"$/, '$1');
-        }
-      }
-    }
-    return path.basename(projectRoot);
+    return nonEmptyString(readCommittedConfig(projectRoot)?.['project'], 'name') ?? path.basename(projectRoot);
   }
+}
+
+/**
+ * The committed .semiont/config, decoded as TOML; `null` when the file is
+ * absent or does not parse. This is the launcher's reading too (kbconfig.go
+ * `parseKBIdentity`), and specs/src/kb-identity/cases.json holds the two to
+ * one answer. A file that does not parse never reaches a running service:
+ * `loadEnvironmentConfig` decodes the same file and refuses to start on it.
+ */
+function readCommittedConfig(projectRoot: string): Record<string, unknown> | null {
+  const configPath = path.join(projectRoot, '.semiont', 'config');
+  if (!fs.existsSync(configPath)) return null;
+  try {
+    return parseToml(fs.readFileSync(configPath, 'utf-8'));
+  } catch {
+    return null;
+  }
+}
+
+/** `table[key]` when the table exists and the key holds a non-empty string. */
+function nonEmptyString(table: unknown, key: string): string | undefined {
+  if (!isObject(table)) return undefined;
+  const value = table[key];
+  return isString(value) && value !== '' ? value : undefined;
 }

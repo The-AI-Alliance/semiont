@@ -521,13 +521,16 @@ describe('Browser actor', () => {
     const did = (provider: string, model: string) =>
       agentToDid({ domain: SITE_DOMAIN, provider, model });
 
+    // `domain` is what the KB's committed .semiont/config declares — the
+    // project's `siteDomain()`, the one source the roster mints from.
     async function withBrowser(
+      domain: string | undefined,
       config: MakeMeaningConfig,
       fn: (bus: EventBus) => Promise<void>,
       discovery?: { enrich(entries: CollaboratorEntry[]): Promise<CollaboratorEntry[]> },
     ) {
       const bus = new EventBus();
-      const b = new Browser(mockKb, bus, { root: PROJECT_ROOT } as any, config, discovery ?? passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
+      const b = new Browser(mockKb, bus, { root: PROJECT_ROOT, siteDomain: () => domain } as any, config, discovery ?? passthroughDiscovery, createMockEmbeddingProvider(), mockLogger);
       await b.initialize();
       try {
         await fn(bus);
@@ -555,10 +558,10 @@ describe('Browser actor', () => {
 
     it('answers the deduplicated software roster: worker-derivation DIDs, resolved capabilities', async () => {
       await withBrowser(
+        SITE_DOMAIN,
         {
           services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
           gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-          site: { domain: SITE_DOMAIN },
           workers: {
             default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'secret-key-do-not-leak' },
             generation: { type: 'anthropic', model: 'claude-sonnet-4-5' },
@@ -605,10 +608,10 @@ describe('Browser actor', () => {
 
     it('omits servesJobTypes for an actors-only agent', async () => {
       await withBrowser(
+        SITE_DOMAIN,
         {
           services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
           gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-          site: { domain: SITE_DOMAIN },
           actors: { gatherer: { type: 'ollama', model: 'llama3' } },
         },
         async (bus) => {
@@ -634,10 +637,10 @@ describe('Browser actor', () => {
           entries.map((e) => ({ ...e, limits: LIMITS })),
       };
       await withBrowser(
+        SITE_DOMAIN,
         {
           services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
           gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-          site: { domain: SITE_DOMAIN },
           workers: { default: { type: 'anthropic', model: 'claude-haiku-4-5', apiKey: 'k' } },
         },
         async (bus) => {
@@ -651,19 +654,19 @@ describe('Browser actor', () => {
     });
 
     it('answers an empty roster when no workers or actors are declared', async () => {
-      await withBrowser({ services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 }, site: { domain: SITE_DOMAIN } }, async (bus) => {
+      await withBrowser(SITE_DOMAIN, { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'result') throw new Error(`expected result, got failed: ${r.e.message}`);
         expect(r.e.response.agents).toEqual([]);
       });
     });
 
-    it('fails naming the missing config key when site.domain is absent', async () => {
-      await withBrowser({ services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
+    it('fails naming the missing [site] domain when the committed config declares none', async () => {
+      await withBrowser(undefined, { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } }, async (bus) => {
         const r = await requestAgents(bus);
         if (r.kind !== 'failed') throw new Error('expected failed');
         expect(r.replyTo).toBe('cid-agents');
-        expect(r.e.message).toContain('site.domain');
+        expect(r.e.message).toContain('[site] domain');
       });
     });
   });

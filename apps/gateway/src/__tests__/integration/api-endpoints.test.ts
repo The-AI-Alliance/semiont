@@ -105,15 +105,16 @@ describe('API Endpoints Integration Tests', () => {
     // `null`, not SEMIONT_ROOT: the gateway mounts no knowledge base and reads
     // its whole config from ~/.semiontconfig — index.ts:48 loads exactly this
     // way. The fixture redirects HOME to its temp dir and writes the file
-    // there, and `[environments.integration.site]` carries the `domain`
-    // JWTService.initialize requires, so no project root is involved in reaching it.
+    // there, and its `[kb] domain` — staged as the launcher stages it — is the
+    // domain JWTService.initialize requires, so no project root is involved.
     //
     // The SEMIONT_ROOT read this replaces outlived its requirement: both
     // gateway test setups stopped exporting the variable once nothing in
     // production read it (SINGLE-KB-MOUNT P5/P6), and the test-env hygiene
     // gate exists to stop tests fabricating deployment facts like that one.
-    const config = loadEnvironmentConfig(null, 'integration');
-    JWTService.initialize(config);
+    const kbDomain = loadEnvironmentConfig(null, 'integration').kb?.domain;
+    if (!kbDomain) throw new Error('the integration fixture stages no [kb] domain');
+    JWTService.initialize(kbDomain);
 
     // Import app after test setup has staged the config
     const serverModule = await import('../../index');

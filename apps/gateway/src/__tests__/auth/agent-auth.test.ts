@@ -47,9 +47,7 @@ async function mint(body: Record<string, unknown>, token?: string) {
 
 describe('POST /api/tokens/agent', () => {
   beforeAll(() => {
-    JWTService.initialize({
-      site: { domain: SITE_DOMAIN },
-    });
+    JWTService.initialize(SITE_DOMAIN);
   });
 
   beforeEach(async () => {

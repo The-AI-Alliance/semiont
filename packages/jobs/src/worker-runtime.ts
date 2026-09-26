@@ -303,7 +303,7 @@ export function parseGatewayUrl(url: string): { protocol: 'http' | 'https'; host
 
 /**
  * Exchange this process's issuer token for an agent JWT and its canonical DID.
- * The DID is minted by the gateway (from its `site.domain`) — the caller
+ * The DID is minted by the gateway (under the KB's own domain) — the caller
  * carries it verbatim.
  *
  * Connection-level failures (`TypeError: fetch failed`) are retried with
@@ -374,8 +374,8 @@ export async function startAgentWorker(
     logger,
   });
 
-  // The exchange minted this worker's canonical DID (from the gateway's
-  // site.domain) and we carry it VERBATIM — never re-derive identity from
+  // The exchange minted this worker's canonical DID (under the KB's own
+  // domain) and we carry it VERBATIM — never re-derive identity from
   // the URL we happen to dial (`host` is connection topology only). One
   // logical agent previously got two DIDs this way:
   // .plans/bugs/agent-did-host-skew.md.

@@ -63,16 +63,6 @@ describe('makeMeaningConfigFrom', () => {
     expect(() => makeMeaningConfigFrom({ services: SERVICES } as unknown as EnvironmentConfig))
       .toThrow(/loadEnvironmentConfig/);
   });
-
-  it('passes the site domain through when present, and omits it when not', () => {
-    // The KB's canonical identity — the agent roster mints DIDs from this, and
-    // it must be the same value /api/tokens/agent uses.
-    const withSite = makeMeaningConfigFrom({
-      ...loaded(), site: { domain: 'kb.example.org' },
-    } as unknown as EnvironmentConfig);
-    expect(withSite.site?.domain).toBe('kb.example.org');
-    expect(makeMeaningConfigFrom(loaded()).site).toBeUndefined();
-  });
 });
 
 // SINGLE-KB-MOUNT P1: the Librarian has no /kb mount, so the KB name — the

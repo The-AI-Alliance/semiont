@@ -34,7 +34,6 @@ const mockLogger: Logger = {
 const CONFIG: MakeMeaningConfig = {
   services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } },
   gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 },
-  site: { domain: 'kb.example' },
   workers: { default: { type: 'anthropic', model: 'model-a', apiKey: 'k' } },
   actors: { matcher: { type: 'ollama', model: 'model-b' } },
 };
@@ -101,7 +100,7 @@ describe('limits projection carries the whole wire schema', () => {
     const discovery = createLimitsDiscovery(CONFIG, mockLogger, {
       clientFactory: () => ({ limits: async () => full as never }),
     });
-    const [entry] = await discovery.enrich(deriveAgentRoster(CONFIG));
+    const [entry] = await discovery.enrich(deriveAgentRoster(CONFIG, 'kb.example'));
     const attached = Object.keys(entry?.limits ?? {});
 
     expect(attached.sort()).toEqual(declared.sort());
@@ -118,7 +117,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     });
     const discovery = createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory });
 
-    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG));
+    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG, 'kb.example'));
 
     expect(entryFor(enriched, 'model-a')?.limits).toEqual(LIMITS_A);
     // The actor-only pair (no servesJobTypes) is a software collaborator
@@ -135,7 +134,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     });
     const discovery = createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory });
 
-    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG));
+    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG, 'kb.example'));
 
     expect(entryFor(enriched, 'model-a')?.limits).toEqual(LIMITS_A);
     expect(entryFor(enriched, 'model-b')).not.toHaveProperty('limits');
@@ -149,7 +148,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
       'ollama model-b': () => (down ? Promise.reject(new Error('down')) : Promise.resolve(LIMITS_B)),
     });
     const discovery = createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory });
-    const roster = deriveAgentRoster(CONFIG);
+    const roster = deriveAgentRoster(CONFIG, 'kb.example');
 
     const first = await discovery.enrich(roster);
     expect(entryFor(first, 'model-b')).not.toHaveProperty('limits');
@@ -171,7 +170,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     });
 
     const discovery = createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory });
-    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG));
+    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG, 'kb.example'));
 
     expect(entryFor(enriched, 'model-a')?.limits).toEqual(LIMITS_A);
     expect(entryFor(enriched, 'model-b')).not.toHaveProperty('limits');
@@ -184,7 +183,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     });
     const discovery = createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory, budgetMs: 40 });
 
-    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG));
+    const enriched = await discovery.enrich(deriveAgentRoster(CONFIG, 'kb.example'));
 
     expect(entryFor(enriched, 'model-a')?.limits).toEqual(LIMITS_A);
     expect(entryFor(enriched, 'model-b')).not.toHaveProperty('limits');
@@ -199,7 +198,7 @@ describe('LimitsDiscovery (INFERENCE-LIMITS-EXPOSURE P2)', () => {
     const browser = new Browser(
       { graph: {}, views: { getAll: async () => [] } } as never,
       bus,
-      { root: '/tmp' } as never,
+      { root: '/tmp', siteDomain: () => 'kb.example' } as never,
       CONFIG,
       createLimitsDiscovery(CONFIG, mockLogger, { clientFactory: factory }),
       createMockEmbeddingProvider(),

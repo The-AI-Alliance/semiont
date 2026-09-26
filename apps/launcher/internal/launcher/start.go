@@ -292,9 +292,6 @@ func Start(args []string) int {
 	configFile := filepath.Join(configDir, opts.configName+".toml")
 	var plan *launchPlan
 	var userVars []string
-	// The environment's [site] section, when the config declares one — the
-	// only thing the identity-override check needs out of this parse (P4).
-	var envSite *siteCfg
 	if configNeeded {
 		if _, err := os.Stat(configFile); err != nil {
 			u.Fail("Config not found: %s", configFile)
@@ -312,7 +309,6 @@ func Start(args []string) int {
 			return 1
 		}
 		userVars = uv
-		envSite = envCfg.Site
 		if plan, err = derivePlan(envCfg, envName, configFile); err != nil {
 			u.Fail("%v", err)
 			return 1
@@ -417,9 +413,6 @@ func Start(args []string) int {
 		if ident.SiteName != "" {
 			u.Log("KB: %s %s", u.Bold(ident.SiteName), u.Dim(ident.didWeb()))
 		}
-		// Reached only past the refusal above, so a KB with no committed
-		// identity never collects this warning on top of that error.
-		warnIdentityOverride(u, envSite, ident.Domain)
 		if !opts.dryRun {
 			warnICloudRoot(u, root)
 		}
@@ -1073,54 +1066,3 @@ func describeProcs(pids []string) string {
 	}
 	return strings.Join(procs, ", ")
 }
-
-// warnIdentityOverride reports an environment config that replaces the KB's
-// committed identity for AGENT dids (KB-IDENTITY-VS-ADDRESS P4, decision 10).
-//
-// A KB has one committed identity — `[site] domain` in .semiont/config — but
-// the gateway resolves the domain it mints AGENT dids under as
-// `resolved.site ?? projectSite` (packages/core/src/config/toml-loader.ts is
-// the authority for that precedence; do not reimplement it here). So an
-// environment `[site]` section that DECLARES a domain replaces the KB's
-// declaration wholesale. (One that omits `domain` no longer substitutes
-// anything — the gateway falls back to the committed `[kb]` domain.) The KB's
-// own did is unaffected — only its agents move — which is exactly why this is
-// easy to ship without noticing: one logical KB, two identity roots.
-//
-// It WARNS and proceeds. Overriding can be deliberate (a deployment may mint
-// agent identities under another domain); what is forbidden is doing it
-// invisibly. Contrast the refusal above, where identity is ABSENT: absence is
-// never intentional, divergence can be.
-//
-// Silent for every launcher-generated config: confgen.go writes no `site`
-// section, so this fires only where a human hand-edited one.
-func warnIdentityOverride(u *UI, site *siteCfg, committed string) {
-	if site == nil || committed == "" {
-		return
-	}
-	// The one line borrowed from the loader — see toml-loader.ts. A [site] that
-	// omits `domain` no longer resolves to anything: the loader stopped
-	// manufacturing 'localhost', so the gateway falls back to the committed
-	// [kb] domain and nothing diverges. If that resolution changes there,
-	// change it here.
-	effective := committed
-	if site.Domain != nil && *site.Domain != "" {
-		effective = *site.Domain
-	}
-	if effective == committed {
-		return // declared, but identical: nothing diverges, so nothing to say
-	}
-	// One stream, like every other warning: u.warn writes to stdout (the
-	// launcher's narrative), so the detail lines do too. Splitting a single
-	// message across stdout and stderr severs the headline from its detail the
-	// moment either is piped — the u.fail pattern pairs with stderr details
-	// only because fail itself writes there.
-	u.Warn("This config's [site] section overrides the KB's declared identity for agent identities.")
-	fmt.Printf("  KB identity (committed .semiont/config): %s\n", didWebOf(committed))
-	fmt.Printf("  Agent identities (this config's [site]):  %s\n", didWebOf(effective)+":agents:…")
-	fmt.Println("  The KB's own identity is unchanged; only the agents' domain moves.")
-}
-
-// didWebOf renders a domain the way every other did:web in the system is
-// rendered — verbatim, never encoded (packages/core/src/did-utils.ts).
-func didWebOf(domain string) string { return "did:web:" + domain }

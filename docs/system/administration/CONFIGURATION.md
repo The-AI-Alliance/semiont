@@ -45,7 +45,6 @@ sync = true                # gateway stages event-log writes with git
 # literal, never env-templated, never a machine address.
 domain = "example.github.io:my-kb"    # ⇔ did:web:example.github.io:my-kb
 siteName = "My Knowledge Base"
-adminEmail = ""
 ```
 
 `[site] domain` is identity, not addressing: it names the repository in
@@ -54,6 +53,12 @@ invariant that keeps the gateway-host vars off the gateway container — `public
 derivation). The `semiont` launcher parses this file for display and its
 roots registry (`roots.json` records each root's did:web and siteName);
 environment wiring stays in the KB's `.semiont/semiontconfig/` variants.
+
+`[site]` is declared here and nowhere else. Every service derives the KB's
+identity from it — its did, the audience its tokens carry, the authority its
+people and agents are named under — so no environment can override it:
+`semiont start` and every service refuse an `[environments.<name>.site]`
+section, naming the file.
 
 ### `.semiont/semiontconfig/<name>.toml` (per-KB, committed)
 
@@ -76,11 +81,6 @@ platform = "posix"
 [environments.local.gateway]
 port = 4000
 publicURL = "http://localhost:4000"
-
-[environments.local.site]
-domain = "localhost"
-siteName = "Semiont (local)"
-adminEmail = "admin@example.com"
 
 [environments.local.identity]
 type = "keycloak"

@@ -15,9 +15,7 @@ import { JWTService } from '../../auth/jwt';
 
 describe('SDK-AUTH-CORS Phase 6 — actionable 401 (diagnosability)', () => {
   beforeAll(() => {
-    JWTService.initialize({
-      site: { domain: 'test.local' },
-    });
+    JWTService.initialize('test.local');
   });
 
   it('an unauthenticated bare-IRI GET /resources/:id returns 401 with an actionable Bearer hint', async () => {

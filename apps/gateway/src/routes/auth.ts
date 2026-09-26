@@ -110,22 +110,21 @@ authRouter.post('/api/tokens/agent', async (c) => {
   const inferenceProvider = body.provider;
   const model = body.model;
 
-  // The deployment domain is the issuer of the agent's DID. JWTService
-  // already validates `domain` is set in env config; reuse it here.
-  const siteDomain = JWTService.getDomainForAgent();
+  // The KB's own domain is the authority the agent's DID is named under.
+  const domain = JWTService.kbDomain();
 
   // The agent's synthetic address, derived so that the same (provider, model)
   // always names the same agent. It lives in a dedicated `agents.<host>`
   // namespace so it cannot collide with a real person on the deployment
-  // domain. The site domain may carry a port (e.g. `localhost:8080`) — fine in
+  // domain. The domain may carry a port (e.g. `localhost:8080`) — fine in
   // a DID, but an email has to satisfy RFC-5321 host syntax, so strip it here.
-  const emailHost = siteDomain.split(':')[0]!;
+  const emailHost = domain.split(':')[0]!;
   const providerId = `${inferenceProvider}:${model}`;
   const slug = providerId.replace(/[^a-zA-Z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
   const agentEmail = `${slug}@agents.${emailHost}`;
   const agentName = `${inferenceProvider} ${model}`;
 
-  const did = agentToDid({ domain: siteDomain, provider: inferenceProvider, model });
+  const did = agentToDid({ domain, provider: inferenceProvider, model });
 
   // Which service account asked for which agent identity. Worth a line: the two
   // are deliberately different, so an operator tracing an event back to its
@@ -145,7 +144,7 @@ authRouter.post('/api/tokens/agent', async (c) => {
     did,
     email: makeEmail(agentEmail),
     name: agentName,
-    domain: siteDomain,
+    domain,
     ...(minter.workerCapable ? { roles: [WORKER_ROLE] } : {}),
   }, `${AGENT_TOKEN_TTL_SECONDS}s`);
 

@@ -105,3 +105,18 @@ func TestConfgenEmitsCurrentSpelling(t *testing.T) {
 		t.Error("generated config still mints the deprecated [backend] section")
 	}
 }
+
+func TestLoadConfigRefusesAnEnvironmentSite(t *testing.T) {
+	// In every environment, selected or not: the whole file is staged into each
+	// service, and the services' loader refuses the section wherever it is.
+	path := filepath.Join(t.TempDir(), "sited.toml")
+	body := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nport = 4000\n\n" +
+		"[environments.prod.site]\nsiteName = \"Prod\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, _, _, err := loadConfig(path)
+	if err == nil || !strings.Contains(err.Error(), "[environments.prod.site]") || !strings.Contains(err.Error(), path) {
+		t.Fatalf("want a refusal naming [environments.prod.site] and %s, got %v", path, err)
+	}
+}
