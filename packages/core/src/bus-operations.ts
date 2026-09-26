@@ -50,6 +50,7 @@ export const BUS_OPERATIONS = {
   'browse:entity-types-requested':       { result: 'browse:entity-types-result',     failure: 'browse:entity-types-failed' },
   'browse:tag-schemas-requested':        { result: 'browse:tag-schemas-result',      failure: 'browse:tag-schemas-failed' },
   'browse:agents-requested':             { result: 'browse:agents-result',           failure: 'browse:agents-failed' },
+  'browse:kb-requested':                 { result: 'browse:kb-result',               failure: 'browse:kb-failed' },
   'browse:directory-requested':          { result: 'browse:directory-result',        failure: 'browse:directory-failed' },
   // dormant — gateway handler complete, no client caller yet (annotation-detail capability)
   'browse:annotation-context-requested': { result: 'browse:annotation-context-result', failure: 'browse:annotation-context-failed' },

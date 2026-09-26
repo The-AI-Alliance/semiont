@@ -28,10 +28,6 @@ not an oversight.
 | `GET /events/:resourceId?fromSequence=N` | the `Last-Event-ID` replay behind `/bus/subscribe` | A bulk backlog read at connection setup, not an event. Bounded to one resource from one sequence, one customer. `browse:events-requested` remains the bus-side read for ordinary queries — the duplication is accepted and narrow. |
 | `POST /api/tokens/agent` | a sidecar or worker buying an agent token | Bootstrapping a credential must not depend on the thing the credential is for. |
 
-`GET /kb/branch` is the Archivist's fifth HTTP endpoint and belongs to the first two rows in
-spirit: the git working tree is the KB tree, and the Archivist is its authority. It serves one
-field on `/api/status`.
-
 **Outside this rule by nature**, not exceptions to it: the trusted issuer (token endpoint, admin
 API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.
 

@@ -137,7 +137,7 @@ If you prefer manual setup or need to understand the internals:
 The mock server (`npm run dev:mock`) provides:
 - `/api/health` - Health check endpoint
 - `/api/auth/session` - Mock authentication state
-- `/api/status` - Knowledge-base identity and features
+- `/api/status` - Gateway status and version
 
 ### Tips for Faster Development
 

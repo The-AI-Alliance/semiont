@@ -1865,6 +1865,15 @@ type BrowseFilesResponse struct {
 	Path string `json:"path"`
 }
 
+// BrowseKbRequest Request for the knowledge base's description of itself
+type BrowseKbRequest = map[string]interface{}
+
+// BrowseKbResult Result of browse:kb-requested
+type BrowseKbResult struct {
+	// Response What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.
+	Response KbDescription `json:"response"`
+}
+
 // BrowseLinkClickedEvent Emitted when a link is clicked in the browse panel
 type BrowseLinkClickedEvent struct {
 	Href  string  `json:"href"`
@@ -3289,6 +3298,18 @@ type JobTagAnnotationResultKind string
 // JobType Type of background job
 type JobType string
 
+// KbDescription What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.
+type KbDescription struct {
+	// Domain The committed [site] domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that declares none is refused with browse:kb-failed.
+	Domain string `json:"domain"`
+
+	// GitBranch The working tree's current git branch. Absent when the tree is not a git checkout.
+	GitBranch *string `json:"gitBranch,omitempty"`
+
+	// Name The committed [project] name, or the knowledge base directory's name when none is declared.
+	Name string `json:"name"`
+}
+
 // KnowledgeGraph Knowledge graph gathered for an LLM context — a shared backbone in which resources AND annotations are typed nodes, connected by typed (optionally bidirectional) edges. Flattened views the matcher/generation read (connections, citedBy, siblings) are derived from these nodes/edges.
 type KnowledgeGraph struct {
 	Edges []struct {
@@ -4271,23 +4292,14 @@ type SpecificResourceType string
 // StatusResponse defines model for StatusResponse.
 type StatusResponse struct {
 	AuthenticatedAs *string `json:"authenticatedAs,omitempty"`
-
-	// Did The knowledge base's did:web identity — 'did:web:' + the committed [site] domain, byte-identical to the string the launcher publishes in its discovery document. REQUIRED: a KB that declares no domain does not run (the launcher refuses to start it, and the gateway refuses to boot), so a response without this field means the caller reached something that bypassed both. Identifies WHICH knowledge base this is; it does NOT identify which running copy — one KB reachable at two addresses (a local clone and a codespace of one repo) reports the same did at both. Use it to verify what you connected to, not to select among discovered entries.
-	Did      string `json:"did"`
-	Features struct {
+	Features        struct {
 		Collaboration   string `json:"collaboration"`
 		Rbac            string `json:"rbac"`
 		SemanticContent string `json:"semanticContent"`
 	} `json:"features"`
-
-	// GitBranch Current git branch of the knowledge base repository
-	GitBranch *string `json:"gitBranch,omitempty"`
-	Message   string  `json:"message"`
-
-	// ProjectName Name of the knowledge base project
-	ProjectName *string `json:"projectName,omitempty"`
-	Status      string  `json:"status"`
-	Version     string  `json:"version"`
+	Message string `json:"message"`
+	Status  string `json:"status"`
+	Version string `json:"version"`
 }
 
 // StoredEventResponse A persisted domain event with metadata. Flat shape — event fields and metadata are peers.

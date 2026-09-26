@@ -13,6 +13,7 @@ import type {
   GraphConnection,
   TagSchema,
   CollaboratorEntry,
+  KbDescription,
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
@@ -483,6 +484,10 @@ export class BrowseNamespace implements IBrowseNamespace {
       { path: dirPath ?? '.', sort: sort ?? 'name' },
       this.busTimeoutMs,
     );
+  }
+
+  async kb(): Promise<KbDescription> {
+    return busRequest(this.transport, 'browse:kb-requested', {}, this.busTimeoutMs);
   }
 
   // ── UI signals (local bus fan-out) ────────────────────────────────────

@@ -205,7 +205,8 @@
     "connectToAddress": "התחבר לכתובת {{address}}",
     "connectedToOther": "מחובר אל {{actual}}, לא אל {{expected}}.",
     "identityCheckFailed": "מחובר, אך בדיקת הזהות לא הצליחה להגיע אל בסיס ידע זה.",
-    "identityNotReported": "מחובר, אך בסיס ידע זה לא דיווח על זהות."
+    "identityNotReported": "מחובר, אך בסיס ידע זה לא דיווח על זהות.",
+    "lastReadAt": "נכון ל-{{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "אין בסיסי ידע",

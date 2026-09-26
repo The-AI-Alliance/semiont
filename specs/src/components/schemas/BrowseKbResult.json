@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "description": "Result of browse:kb-requested",
+  "properties": {
+    "response": {
+      "$ref": "./KbDescription.json"
+    }
+  },
+  "required": [
+    "response"
+  ]
+}

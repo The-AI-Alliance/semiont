@@ -177,6 +177,12 @@
       "BrowseFilesResponse": {
         "$ref": "components/schemas/BrowseFilesResponse.json"
       },
+      "BrowseKbRequest": {
+        "$ref": "components/schemas/BrowseKbRequest.json"
+      },
+      "BrowseKbResult": {
+        "$ref": "components/schemas/BrowseKbResult.json"
+      },
       "BrowseLinkClickedEvent": {
         "$ref": "components/schemas/BrowseLinkClickedEvent.json"
       },
@@ -521,6 +527,9 @@
       },
       "JobType": {
         "$ref": "components/schemas/JobType.json"
+      },
+      "KbDescription": {
+        "$ref": "components/schemas/KbDescription.json"
       },
       "KnowledgeGraph": {
         "$ref": "components/schemas/KnowledgeGraph.json"

@@ -345,8 +345,6 @@ async function main() {
       status: 'ok',
       actors: ['stower', 'browser', 'cloneTokenManager'],
     }),
-    // This process holds the tree, so it is the one that can answer (P5).
-    branch: () => project.gitBranch(),
     logger,
   });
   server.listen(healthPort, () => {

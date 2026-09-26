@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { defaultProtocol, isValidHostname, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
+import { defaultProtocol, isValidHostname, type KbRead, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { usePathname } from '@/i18n/routing';
 import type { DiscoveredKB } from '@semiont/core';
 import {
@@ -34,6 +34,23 @@ const endpointKey = (host: string, port: number) => `${host}:${port}`;
  * field.
  */
 const MISSING = '–';
+
+/**
+ * The branch a KB's tree was on when it last described itself. Current only
+ * when the KB answered this panel's own read; otherwise dimmed, with when it
+ * was read — a branch changes with no event, so an older answer may no longer
+ * be true.
+ */
+function LastReadBranch({ lastRead, current, t, locale }: { lastRead: KbRead | undefined; current: boolean; t: T; locale: string }) {
+  if (!lastRead) return <span>{MISSING}</span>;
+  const branch = lastRead.gitBranch ?? MISSING;
+  if (current) return <span>{branch}</span>;
+  return (
+    <span title={t('lastReadAt', { time: new Date(lastRead.at).toLocaleString(locale) })} style={{ opacity: 0.6 }}>
+      {branch}
+    </span>
+  );
+}
 
 /** Placement badge — also the managed marker on an adopted registered row. */
 function PlacementBadge({ placement, t }: { placement: DiscoveredKB['placement']; t: T }) {
@@ -263,6 +280,18 @@ export function KnowledgeBasePanel() {
     if (knowledgeBases.length === 0) setAddForm({});
   }, [knowledgeBases.length]);
 
+  // Opening the panel asks the connected KB to describe itself again. Only a
+  // KB that answers this read shows its branch as current.
+  const [answeredKbId, setAnsweredKbId] = useState<string | null>(null);
+  const activeKbId = activeKnowledgeBase?.id ?? null;
+  useEffect(() => {
+    let open = true;
+    void semiont.readActiveKb().then((answered) => {
+      if (open) setAnsweredKbId(answered ? activeKbId : null);
+    });
+    return () => { open = false; };
+  }, [semiont, activeKbId]);
+
   useEffect(() => {
     const interval = setInterval(() => setTick(t => t + 1), 30_000);
     return () => clearInterval(interval);
@@ -381,7 +410,13 @@ export function KnowledgeBasePanel() {
                   </div>
                   <span className="semiont-panel-text-secondary" style={{ fontSize: '0.7rem', paddingLeft: '1rem' }}>
                     {kb.endpoint.kind === 'http'
-                      ? `${kb.endpoint.host}:${kb.endpoint.port} · ${kb.gitBranch ?? MISSING}`
+                      ? (
+                        <>
+                          <span>{`${kb.endpoint.host}:${kb.endpoint.port}`}</span>
+                          {' · '}
+                          <LastReadBranch lastRead={kb.lastRead} current={isActive && answeredKbId === kb.id} t={t} locale={i18n.language} />
+                        </>
+                      )
                       : `local:${kb.endpoint.kbId}`}
                   </span>
                   {managed && (

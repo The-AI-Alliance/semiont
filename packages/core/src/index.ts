@@ -121,6 +121,7 @@ export type {
   SelectionData,
   JobType,
   CollaboratorEntry,
+  KbDescription,
   DiscoveryDocument,
   DiscoveredKB,
 } from './payload-types';
