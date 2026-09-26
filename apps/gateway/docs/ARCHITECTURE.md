@@ -41,7 +41,7 @@ It was the last non-routing work in this process, and it left with the dispatche
 `src/signal/` is the hub's fan-out behind a driver interface ([interface.ts](../src/signal/interface.ts)) — the plane moves frames and honors reply addresses; it never inspects a payload or decides entitlement. Two drivers implement it, certified by one conformance suite:
 
 - **in-process** ([in-process.ts](../src/signal/in-process.ts)) — the per-process EventBus; the permanent local default.
-- **NATS** ([nats.ts](../src/signal/nats.ts)) — core subjects only, never JetStream (signals are not a record; JetStream on the same server is the dispatcher's queue). This driver is what lets the gateway run as N replicas.
+- **NATS** ([nats.ts](../src/signal/nats.ts)) — frames ride core subjects and are never stored; the ledger's tables are JetStream KV buckets on the same server, which also holds the dispatcher's queue. This driver is what lets the gateway run as N replicas.
 
 Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane. Claims, and the replies retained for reconnect recovery, live in tables every replica shares — JetStream KV buckets under NATS, so the broker must run with JetStream — and each replica keeps a projection of the claims; a replica that has not caught up with a claim reads the table rather than refusing the reply, so a replica that starts, restarts or lags still delivers to the claim's owner, and recovery answers from any replica, across restarts (the driver never learns the correlation vocabulary — that census is enforced). The gateway does not listen until its claims table is open. With the driver remote, startup flushes the plane before listening, so the ledger's standing tap and every early `/bus/subscribe` interest are registered with the broker before the first frame can be missed; shutdown drains it under a deadline for the same reason in reverse. Under a broker outage emits fail and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
 
@@ -69,6 +69,27 @@ The gateway holds no bytes — both directions stream through the archivist's HT
 - **Resource metadata** — `/.well-known/oauth-protected-resource`, naming this KB's issuer for clients that discover it
 - **Health/Status** — infrastructure monitoring
 
+## Calls to the Archivist
+
+The Archivist holds the knowledge base's files and event log. Requests reach it two ways.
+
+**HTTP, for bytes and a few reads of the record.** The gateway calls it on a client's behalf:
+
+| Client calls the gateway | The gateway calls the Archivist |
+|---|---|
+| `POST /resources` | `PUT /content/:storageUri?checksum=…` writes the bytes; the gateway then emits `yield:create` on the bus |
+| `GET /resources/:id`, `GET /api/resources/:id` | `GET /resources/:id/content`, streamed back unchanged |
+| `POST /bus/subscribe` with `Last-Event-ID` | `GET /events/:resourceId?fromSequence=N` for the events the client missed |
+| `GET /api/status` | `GET /kb/branch` for the working tree's git branch |
+
+The gateway authenticates with its own service account: a token from the knowledge base's identity provider carrying the `semiont-service` role. Browsers never reach the Archivist; their tokens lack that role.
+
+The Librarian, the Smelter and the workers call `GET /resources/:id/content` directly, each with its own service account. Only the gateway's own calls pass through the gateway.
+
+**The bus, for everything else.** The Archivist is a client of the gateway's `POST /bus/subscribe` and `POST /bus/emit`, so every command it handles and every `browse:*` read it answers passes through the gateway, under either signal driver. It never connects to NATS.
+
+The Archivist's side of this, including what it means for a worker run outside the stack: [apps/archivist/README.md](../../archivist/README.md#how-requests-reach-it).
+
 ## Related Documentation
 
 - [Dispatcher](../../dispatcher/README.md) - the job queue and the `job:*` handlers this process used to host
@@ -78,4 +99,4 @@ The gateway holds no bytes — both directions stream through the archivist's HT
 
 ---
 
-**Last Updated**: 2026-09-21
+**Last Updated**: 2026-09-25

@@ -47,35 +47,43 @@ tree; every other writer passes `noGit: true`.
 tree (`SEMIONT_ROOT`), and it owns the XDG state tree holding the event log and materialized
 views. Anchored text (`/anchored-text`) it mounts **read-only** — the Smelter writes that.
 
-## Its two surfaces
+## How requests reach it
 
-**The bus** — it subscribes over SSE and emits through `POST /bus/emit`, like every other
-participant. Persisted events ride out as ordinary facts (twice: global and resource-scoped),
-not through a private ingest route. See [EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md).
+**The bus, through the gateway.** The Archivist is a client of the gateway's bus: it subscribes
+with `POST /bus/subscribe` (SSE) and publishes with `POST /bus/emit`. Every command it handles —
+creating resources and annotations — and every `browse:*` read it answers passes through the
+gateway, under either signal driver. It never connects to NATS. Persisted events go out the same
+way, as ordinary events (once globally, once scoped to their resource). See
+[EVENT-BUS.md](../../docs/protocol/EVENT-BUS.md).
 
-**HTTP** — because it holds the bytes and the record, this is how both travel:
+**HTTP, for bytes and a few reads of the record.**
 
-| | |
-| --- | --- |
-| `GET /health` | liveness; the only unauthenticated path |
-| `GET /kb/branch` | which line of work this knowledge base is on |
-| `GET /events/:resourceId?fromSequence=N` | sequence-ranged replay — backs the gateway's SSE resume |
-| `GET /resources/:id/content` | a representation's bytes, streamed, with its stored media type |
-| `PUT /content/:storageUri` | accept bytes, streamed and checksum-verified before they land |
+| Route | What it does | Called by |
+| --- | --- | --- |
+| `GET /health` | liveness; the only unauthenticated path | health checks |
+| `PUT /content/:storageUri` | stores an upload's bytes, streamed; a supplied `checksum` is verified before anything is written (409 on mismatch). The resource is not recorded until the gateway's `yield:create` arrives on the bus and the Stower commits the file. | the gateway, for `POST /resources` |
+| `GET /resources/:id/content` | a resource's bytes, streamed, with its stored media type | the gateway, for `GET /resources/:id`; the Librarian, the Smelter and the workers, directly |
+| `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
+| `GET /kb/branch` | the working tree's git branch | the gateway, for `GET /api/status` |
 
-Everything but `/health` requires a bearer token from the knowledge base's trusted issuer
-carrying the `semiont-service` role — the same credential a sidecar uses to buy an agent token
-from the gateway. Every refusal is **401**, including "no issuer is configured here": that is
-deployment state, and a caller who has not proved who they are has not earned it. With no
-verifier configured those paths refuse rather than serving open — absence fails loudly; it is
-never default-open.
+A browser never calls these: its requests go to the gateway, which calls them with its own
+credential.
+
+Everything but `/health` requires a bearer token from the knowledge base's identity provider
+carrying the `semiont-service` role. Each caller gets one with its own service account. The
+gateway requires the same role to issue a service its agent token.
+
+Every refusal is **401**, including when no identity provider is configured: without a verifier,
+every path but `/health` refuses.
 
 **⚠️ Standing rule: this surface serves the KB tree, and nothing else.** `browse:*`, `match:*`
 and `gather:*` stay on the bus. An endpoint that is not a KB-tree read or write does not belong
 here.
 
-The gateway proxies external content requests through these; internal readers (Smelter,
-Librarian, Worker) dial them directly via `archivistContentReads`.
+**Known limit: a worker outside the stack.** A worker reads resource bytes here directly, so it
+needs this port and a token carrying `semiont-service`. This service accepts the same role for
+reading the event log and for writing bytes into the working tree. A worker run outside the stack
+therefore holds a credential that can write here, and only network access keeps it out.
 
 ## Running it
 
