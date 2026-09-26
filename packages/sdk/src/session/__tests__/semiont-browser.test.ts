@@ -9,7 +9,7 @@ import { firstValueFrom, filter, skip, take } from 'rxjs';
 const mockGetMe = vi.fn();
 const mockDispose = vi.fn();
 const mockResourceFresh = vi.fn();
-let mockSystemStatus: (() => Promise<unknown>) | null = null;
+let mockKb: () => Promise<unknown>;
 
 vi.mock('../../client', async () => {
   const actual = await vi.importActual<typeof import('../../client')>('../../client');
@@ -25,15 +25,14 @@ vi.mock('../../client', async () => {
       const errorsSubject = new Subject();
       return { errorsSubject, errors$: errorsSubject.asObservable() };
     })();
-    // KB-IDENTITY P1: the identity check reads the did the KB reports.
-    // `undefined` models a transport with no system namespace (D3's local case).
-    system = mockSystemStatus === null ? undefined : { status: () => mockSystemStatus!() };
     // TABS-REVALIDATE P3: validation reads descriptors through `browse`.
     // `.fresh()` is the one-shot read (CACHE-CONTRACT D2 deleted the
     // `await`able surface), and it REJECTS on failure — which is how a
     // `not-found` verdict reaches the tab policy at all.
+    // The identity check and sign-in read what the KB says of itself.
     browse = {
       resource: (id: string) => ({ fresh: () => mockResourceFresh(id) }),
+      kb: () => mockKb(),
     };
   }
   return {
@@ -108,11 +107,11 @@ beforeEach(() => {
   mockResourceFresh.mockReset();
   fetchMock = vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400));
   vi.stubGlobal('fetch', fetchMock);
-  // Default: a status with NO did — D3's "no verdict", which leaves state
-  // alone and hands off to the per-resource pass. Deliberately not a matching
-  // did: that would be per-KB, and a fixed one silently trips the identity
-  // check the moment a test activates a different KB.
-  mockSystemStatus = async () => ({ version: '1' });
+  // Default: a read that gets no answer — D3's "no verdict", which leaves
+  // state alone and hands off to the per-resource pass. Deliberately not a
+  // matching answer: that would be per-KB, and a fixed one silently trips the
+  // identity check the moment a test activates a different KB.
+  mockKb = async () => { throw new BusRequestError('no answer in this test', 'bus.timeout'); };
   // Default: every tab validates, so tests that do not care are unaffected.
   mockResourceFresh.mockImplementation(async (id: string) => ({ '@id': id, name: `name-${id}` }));
   mockGetMe.mockResolvedValue({ id: 'u', email: 'x@y.z', name: 'X', isAdmin: false, isModerator: false });
@@ -214,6 +213,17 @@ describe('SemiontBrowser — KB list', () => {
     const ids = browser.kbs$.getValue().map((k) => k.id);
 
     expect(ids).toEqual(['current']);
+    await browser.dispose();
+  });
+
+  it('drops a branch an older release stored on a KB entry', async () => {
+    storage.set(STORAGE_KEY, JSON.stringify([
+      { id: 'kb', label: 'KB A', endpoint: KB_A.endpoint, did: KB_A.did, gitBranch: 'main' },
+    ]));
+
+    const browser = makeBrowser();
+
+    expect(browser.kbs$.getValue()[0]).not.toHaveProperty('gitBranch');
     await browser.dispose();
   });
 
@@ -554,7 +564,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a KB reporting a DIFFERENT did voids that KB\'s tabs and last-viewed (D2)', async () => {
     seedKbScopedState();
-    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -573,7 +583,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('only the active KB is voided — other KBs keep both maps', async () => {
     seedKbScopedState();
-    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -588,7 +598,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a matching did changes nothing — a match is not evidence about contents (D1)', async () => {
     seedKbScopedState();
-    mockSystemStatus = async () => ({ did: KB_A.did });
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a' });
     const browser = await makeConnectedBrowser();
     await settled();
 
@@ -602,9 +612,8 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     // The guard that must never be weakened. Losing a user's tabs because the
     // gateway was briefly down is strictly worse than the phantoms this fixes.
     for (const [label, arrange] of [
-      ['status rejects', () => { mockSystemStatus = async () => { throw new Error('unreachable'); }; }],
-      ['status reports no did', () => { mockSystemStatus = async () => ({ version: '1' }); }],
-      ['no system namespace at all', () => { mockSystemStatus = null; }],
+      ['the read gets no answer', () => { mockKb = async () => { throw new BusRequestError('unreachable', 'bus.timeout'); }; }],
+      ['the KB refuses to describe itself', () => { mockKb = async () => { throw new BusRequestError('no [site] domain', 'bus.rejected'); }; }],
     ] as const) {
       storage = new TestStorage();
       seedKbScopedState();
@@ -615,6 +624,8 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
       expect(browser.openResources$.getValue().map((r) => r.id), label).toEqual(['a1']);
       expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_A.id], label).toBe('a1');
+      // Nothing was read, so nothing is recorded as read.
+      expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id), label).not.toHaveProperty('lastRead');
 
       await browser.dispose();
     }
@@ -625,7 +636,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     // happened, and sign the user in to a KB they never chose under the name
     // of one they did. Re-registering is a deliberate act.
     seedKbScopedState();
-    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -634,14 +645,68 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       .find((k) => k.id === KB_A.id)!;
     expect(entry.did).toBe(KB_A.did);
     expect(entry.label).toBe(KB_A.label);
+    // Nor what the other KB said of itself: its branch is not this KB's.
+    expect(entry).not.toHaveProperty('lastRead');
 
+    await browser.dispose();
+  });
+
+  it('a matching read records the name, the branch and when it was read, and survives a reload', async () => {
+    seedKbScopedState();
+    mockKb = async () => ({ name: 'KB A, renamed', domain: 'example.github.io:kb-a', gitBranch: 'main' });
+
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    const expected = { label: 'KB A, renamed', lastRead: { at: expect.any(String), gitBranch: 'main' } };
+    expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)).toMatchObject(expected);
+    await browser.dispose();
+
+    const reloaded = makeBrowser();
+    expect(reloaded.kbs$.getValue().find((k) => k.id === KB_A.id)).toMatchObject(expected);
+    await reloaded.dispose();
+  });
+
+  it('readActiveKb asks again, so the panel shows the branch the tree is on now', async () => {
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a', gitBranch: 'main' });
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a', gitBranch: 'second-line' });
+
+    expect(await browser.readActiveKb()).toBe(true);
+    expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)?.lastRead?.gitBranch).toBe('second-line');
+    await browser.dispose();
+  });
+
+  it('readActiveKb says so when the KB did not answer, so nothing presents the last read as current', async () => {
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a', gitBranch: 'main' });
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    mockKb = async () => { throw new BusRequestError('archivist down', 'bus.peer-unavailable'); };
+
+    expect(await browser.readActiveKb()).toBe(false);
+    expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)?.lastRead?.gitBranch).toBe('main');
+    await browser.dispose();
+  });
+
+  it('a tree with no branch records a read without one', async () => {
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a', gitBranch: 'main' });
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a' });
+    await browser.readActiveKb();
+
+    expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)?.lastRead).toEqual({ at: expect.any(String) });
     await browser.dispose();
   });
 
   it('raises a conflict signal carrying both dids, and does not decide what to do', async () => {
     seedKbScopedState();
     const observed = 'did:web:someone-else.github.io:other-kb';
-    mockSystemStatus = async () => ({ did: observed });
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -658,7 +723,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
   it('a mismatch stops the per-resource pass — those answers would be about the wrong KB (D5)', async () => {
     seedKbScopedState();
-    mockSystemStatus = async () => ({ did: 'did:web:someone-else.github.io:other-kb' });
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
 
     const browser = await makeConnectedBrowser();
     await settled();
@@ -1065,7 +1130,7 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
       }
       return issuerReply({ access_token: freshJwt(), refresh_token: 'issued-refresh' });
     });
-    mockSystemStatus = async () => ({ did: KB_A.did, projectName: 'KB A', gitBranch: 'main' });
+    mockKb = async () => ({ name: 'KB A', domain: 'example.github.io:kb-a', gitBranch: 'main' });
     mockGetMe.mockResolvedValue({ id: 'u', email: 'alice@example.com', name: 'Alice', isAdmin: false, isModerator: false });
   });
 
@@ -1091,7 +1156,11 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
 
     const outcome = await browser.completeSignIn(callback);
 
-    expect(outcome.kb).toMatchObject({ did: KB_A.did, label: 'KB A', gitBranch: 'main', endpoint: TARGET });
+    expect(outcome.kb).toMatchObject({
+      did: KB_A.did, label: 'KB A', endpoint: TARGET,
+      lastRead: { at: expect.any(String), gitBranch: 'main' },
+    });
+    expect(outcome.kb).not.toHaveProperty('gitBranch');
     // Who signed in is the session's to report, read from the verified token.
     // A copy on the KB record would be a second answer to that question, and
     // the one that goes stale — it is what showed a previous run's address on
@@ -1122,7 +1191,12 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
 
   it('re-authenticates a registered KB by id, taking what the KB and the issuer now say', async () => {
     storage.set(STORAGE_KEY, JSON.stringify([{ ...KB_A, label: 'Old name', email: 'old@example.com' }]));
+    // Signed out, the KB answers nothing, so the row still carries the name
+    // the user last saw — which is what they believe they are clicking.
+    mockKb = async () => { throw new BusRequestError('no credential', 'bus.timeout'); };
     const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+    mockKb = async () => ({ name: 'KB A', domain: 'example.github.io:kb-a', gitBranch: 'main' });
     const { callback } = await begin(browser, { kbId: KB_A.id });
 
     const outcome = await browser.completeSignIn(callback);
@@ -1153,14 +1227,27 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
   });
 
   it('refuses to register a KB that cannot say who it is, and stores nothing', async () => {
-    mockSystemStatus = async () => ({ projectName: 'Nameless' });
+    mockKb = async () => { throw new BusRequestError('no [site] domain', 'bus.rejected'); };
     const browser = makeBrowser();
     const { callback } = await begin(browser);
 
-    await expect(browser.completeSignIn(callback)).rejects.toBeInstanceOf(IdentityUnverifiableError);
+    const refusal = browser.completeSignIn(callback);
+    await expect(refusal).rejects.toBeInstanceOf(IdentityUnverifiableError);
+    await expect(refusal).rejects.toMatchObject({ reason: 'not-reported' });
 
     expect(browser.kbs$.getValue()).toHaveLength(0);
     expect(storage.get(PENDING_AUTHORIZATION_KEY)).toBeNull();
+    await browser.dispose();
+  });
+
+  it('refuses to register a KB it cannot reach, and says it could not reach it', async () => {
+    mockKb = async () => { throw new BusRequestError('no answer', 'bus.timeout'); };
+    const browser = makeBrowser();
+    const { callback } = await begin(browser);
+
+    await expect(browser.completeSignIn(callback)).rejects.toMatchObject({ reason: 'unreachable' });
+
+    expect(browser.kbs$.getValue()).toHaveLength(0);
     await browser.dispose();
   });
 

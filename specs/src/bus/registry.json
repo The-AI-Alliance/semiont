@@ -132,6 +132,9 @@
       "browse:agents-requested",
       "browse:agents-result",
       "browse:agents-failed",
+      "browse:kb-requested",
+      "browse:kb-result",
+      "browse:kb-failed",
       "browse:directory-requested",
       "browse:directory-result",
       "browse:directory-failed",
@@ -324,6 +327,9 @@
       "browse:agents-requested",
       "browse:agents-result",
       "browse:agents-failed",
+      "browse:kb-requested",
+      "browse:kb-result",
+      "browse:kb-failed",
       "browse:directory-requested",
       "browse:directory-result",
       "browse:directory-failed",
@@ -2507,6 +2513,53 @@
       }
     },
     {
+      "channel": "browse:kb-requested",
+      "shape": "schema",
+      "schema": "BrowseKbRequest",
+      "validate": "BrowseKbRequest",
+      "ts": "components['schemas']['BrowseKbRequest']",
+      "docs": {
+        "lead": [
+          ""
+        ],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:kb-result",
+      "shape": "schema",
+      "schema": "BrowseKbResult",
+      "validate": "BrowseKbResult",
+      "ts": "components['schemas']['BrowseKbResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "browse:kb-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "browse:directory-requested",
       "shape": "schema",
       "schema": "BrowseDirectoryRequest",
@@ -3628,6 +3681,15 @@
       }
     },
     {
+      "request": "browse:kb-requested",
+      "result": "browse:kb-result",
+      "failure": "browse:kb-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "request": "browse:directory-requested",
       "result": "browse:directory-result",
       "failure": "browse:directory-failed",
@@ -4096,6 +4158,7 @@
       "browse:directory-requested",
       "browse:entity-types-requested",
       "browse:events-requested",
+      "browse:kb-requested",
       "browse:referenced-by-requested",
       "browse:resource-requested",
       "browse:resources-requested",

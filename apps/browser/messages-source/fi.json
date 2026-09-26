@@ -205,7 +205,8 @@
     "connectToAddress": "Yhdistä osoitteeseen {{address}}",
     "connectedToOther": "Yhdistetty kohteeseen {{actual}}, ei {{expected}}.",
     "identityCheckFailed": "Kirjautunut sisään, mutta identiteetin tarkistus ei tavoittanut tätä tietopankkia.",
-    "identityNotReported": "Kirjautunut sisään, mutta tämä tietopankki ei ilmoittanut identiteettiä."
+    "identityNotReported": "Kirjautunut sisään, mutta tämä tietopankki ei ilmoittanut identiteettiä.",
+    "lastReadAt": "Tilanne {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ei tietopankkeja",

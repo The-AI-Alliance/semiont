@@ -89,7 +89,8 @@
     "connectToAddress": "Connect to {{address}}",
     "connectedToOther": "Connected to {{actual}}, not {{expected}}.",
     "identityCheckFailed": "Signed in, but the identity check could not reach this knowledge base.",
-    "identityNotReported": "Signed in, but this knowledge base did not report an identity."
+    "identityNotReported": "Signed in, but this knowledge base did not report an identity.",
+    "lastReadAt": "As of {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "No knowledge bases",

@@ -205,7 +205,8 @@
     "connectToAddress": "اتصال به {{address}}",
     "connectedToOther": "متصل به {{actual}}، نه {{expected}}.",
     "identityCheckFailed": "وارد شده‌اید، اما بررسی هویت نتوانست به این پایگاه دانش دسترسی پیدا کند.",
-    "identityNotReported": "وارد شده‌اید، اما این پایگاه دانش هویتی گزارش نکرد."
+    "identityNotReported": "وارد شده‌اید، اما این پایگاه دانش هویتی گزارش نکرد.",
+    "lastReadAt": "تا تاریخ {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "هیچ پایگاه دانشی وجود ندارد",

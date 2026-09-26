@@ -54,6 +54,7 @@ Responds to:
 - `browse:entity-types-requested` → emits `browse:entity-types-result` or `browse:entity-types-failed`
 - `browse:tag-schemas-requested` → emits `browse:tag-schemas-result` or `browse:tag-schemas-failed`
 - `browse:agents-requested` → emits `browse:agents-result` or `browse:agents-failed` (the collaborator directory: declared software agents with DIDs and served job types, derived from the workers/actors inference config)
+- `browse:kb-requested` → emits `browse:kb-result` or `browse:kb-failed` (the knowledge base's description of itself: the committed `[project] name` and `[site] domain`, and the working tree's git branch, read at each request; fails when no domain is declared)
 - `browse:directory-requested` → emits `browse:directory-result` or `browse:directory-failed`
 
 ### Gatherer

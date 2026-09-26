@@ -205,7 +205,8 @@
     "connectToAddress": "连接到 {{address}}",
     "connectedToOther": "已连接到 {{actual}}，而非 {{expected}}。",
     "identityCheckFailed": "已登录，但身份检查无法访问此知识库。",
-    "identityNotReported": "已登录，但此知识库未报告任何身份。"
+    "identityNotReported": "已登录，但此知识库未报告任何身份。",
+    "lastReadAt": "截至 {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "没有知识库",

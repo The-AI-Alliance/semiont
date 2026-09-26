@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { KnowledgeBasePanel } from '../KnowledgeBasePanel';
 import { SignInError, type KnowledgeBase } from '@semiont/sdk';
@@ -26,6 +26,7 @@ const translations: Record<string, string> = {
   'KnowledgeBasePanel.managedBadge': 'Managed by launcher',
   'KnowledgeBasePanel.placementLocal': 'local',
   'KnowledgeBasePanel.placementCodespace': 'codespace',
+  'KnowledgeBasePanel.lastReadAt': 'As of {{time}}',
 };
 
 vi.mock('react-i18next', () => ({
@@ -47,7 +48,7 @@ const kb1: KnowledgeBase = {
   id: 'kb-1',
   did: 'did:web:prod.example',
   label: 'Production',
-  gitBranch: 'main',
+  lastRead: { at: '2026-09-20T10:00:00.000Z', gitBranch: 'main' },
   endpoint: { kind: 'http', host: 'prod.example.com', port: 4000, protocol: 'https' },
 };
 const kb2: KnowledgeBase = {
@@ -75,6 +76,7 @@ const {
     updateKb: vi.fn(),
     beginSignIn: vi.fn(),
     signOut: vi.fn(),
+    readActiveKb: vi.fn(),
     getKbSessionStatus: (id: string) => id === 'kb-1' ? 'authenticated' : 'signed-out',
     emit: vi.fn(),
   };
@@ -125,6 +127,7 @@ describe('KnowledgeBasePanel', () => {
       value: { origin: 'http://localhost:3000', href: 'http://localhost:3000/en/know/discover', assign },
     });
     mockBrowser.beginSignIn.mockResolvedValue(ISSUER_URL);
+    mockBrowser.readActiveKb.mockResolvedValue(true);
     kbs$.next([kb1, kb2]);
     // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
     // with `kb: kb1` emulates "kb1 is active".
@@ -143,24 +146,41 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.getByText('Staging')).toBeInTheDocument();
     });
 
-    it('should display host:port for each KB, with a placeholder for a missing branch', () => {
+    it('should display host:port for each KB', () => {
       render(<KnowledgeBasePanel />);
-      expect(screen.getByText('prod.example.com:4000 · main')).toBeInTheDocument();
+      expect(screen.getByText('prod.example.com:4000')).toBeInTheDocument();
+      expect(screen.getByText('staging.example.com:4000')).toBeInTheDocument();
+    });
+
+    it('asks the active KB to describe itself again when the panel opens', () => {
+      render(<KnowledgeBasePanel />);
+      expect(mockBrowser.readActiveKb).toHaveBeenCalledTimes(1);
+    });
+
+    it('shows the connected KB\'s branch as current once it has answered', async () => {
+      render(<KnowledgeBasePanel />);
+      await waitFor(() => expect(screen.getByText('main')).not.toHaveAttribute('title'));
+    });
+
+    it('dims the connected KB\'s branch, with when it was read, when it did not answer', async () => {
+      mockBrowser.readActiveKb.mockResolvedValue(false);
+      render(<KnowledgeBasePanel />);
+      await act(async () => {});
+      expect(screen.getByText('main')).toHaveAttribute('title', expect.stringMatching(/^As of /));
+      expect(screen.getByText('main')).toHaveStyle({ opacity: '0.6' });
+    });
+
+    it('dims the branch another KB last reported, with when it was read', async () => {
+      activeSession$.next({ kb: kb2 } as any);
+      render(<KnowledgeBasePanel />);
+      await act(async () => {});
+      expect(screen.getByText('main')).toHaveAttribute('title', expect.stringMatching(/^As of /));
+    });
+
+    it('shows the placeholder for a KB that has never described itself', () => {
       // Fixed shape: the branch slot renders '–' rather than disappearing.
-      expect(screen.getByText('staging.example.com:4000 · –')).toBeInTheDocument();
-    });
-
-    it('should display gitBranch when present', () => {
       render(<KnowledgeBasePanel />);
-      // kb1 has gitBranch: 'main'
-      expect(screen.getByText(/· main/)).toBeInTheDocument();
-    });
-
-    it('should display the placeholder in the branch slot when gitBranch is absent', () => {
-      // Fixed shape (2026-07-21 identity decision): the slot renders '–'
-      // rather than disappearing — a missing field is a visible gap.
-      render(<KnowledgeBasePanel />);
-      expect(screen.getByText('staging.example.com:4000 · –')).toBeInTheDocument();
+      expect(screen.getByText('–')).toBeInTheDocument();
     });
 
     it('should render the Add knowledge base button', () => {
@@ -494,7 +514,7 @@ describe('KnowledgeBasePanel', () => {
       // Fixed shape, stacked (2026-07-21: vertical space over width): the
       // endpoint and the repo slot are separate lines; no repo → '–' line.
       expect(screen.getByText('localhost:4001')).toBeInTheDocument();
-      expect(screen.getByText('–')).toBeInTheDocument();
+      expect(within(screen.getByTitle('did:web:local.example')).getByText('–')).toBeInTheDocument();
       expect(screen.getByText('local')).toBeInTheDocument();
       // The did is inspectable as the row tooltip.
       expect(screen.getByTitle('did:web:local.example')).toBeInTheDocument();
@@ -505,7 +525,7 @@ describe('KnowledgeBasePanel', () => {
       discoveryHolder.current = { state: { kind: 'managed', kbs: [nameless] }, kbs: [nameless] };
       render(<KnowledgeBasePanel />);
 
-      expect(screen.getByText('–')).toBeInTheDocument();
+      expect(within(screen.getByTitle('did:web:nameless.example')).getByText('–')).toBeInTheDocument();
       expect(screen.getByText('localhost:4002')).toBeInTheDocument();
       expect(screen.getByText('org/other-kb')).toBeInTheDocument();
       // The endpoint appears once, as its own line — not as the name too.
@@ -537,7 +557,7 @@ describe('KnowledgeBasePanel', () => {
       expect(screen.queryByText('Found on this machine')).not.toBeInTheDocument();
       // The adopted row borrows discovery's repo, on its own stacked line
       // (render-only; endpoint · branch stays a short first line).
-      expect(screen.getByText('prod.example.com:4000 · main')).toBeInTheDocument();
+      expect(screen.getByText('prod.example.com:4000')).toBeInTheDocument();
       expect(screen.getByText('org/prod-kb')).toBeInTheDocument();
     });
 

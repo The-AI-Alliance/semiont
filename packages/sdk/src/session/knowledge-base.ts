@@ -24,11 +24,13 @@
  * never globally authenticated.
  */
 
+import type { KbDescription } from '@semiont/core';
+
 /**
  * **Where to connect** — an address plus the labels a host keeps locally.
  * Deliberately carries NO identity: you cannot know which knowledge base
  * answers at an address until you have authenticated and asked it
- * (`/api/status` is behind auth), so a target is what every caller can
+ * (`browse.kb()` needs a token), so a target is what every caller can
  * honestly construct up front — a session's whole input, and what `httpKb`
  * returns.
  *
@@ -40,13 +42,12 @@
 export interface KbTarget {
   id: string;
   label: string;
-  gitBranch?: string;
   endpoint: KbEndpoint;
 }
 
 /**
  * A **registered** knowledge base: a target plus the identity the KB itself
- * reported from `/api/status`. This is the shape the KB list stores and the
+ * reported (`browse.kb()`). This is the shape the KB list stores and the
  * discovery join compares against — everything past the point where identity
  * is knowable.
  *
@@ -65,6 +66,31 @@ export interface KbTarget {
  */
 export interface KnowledgeBase extends KbTarget {
   did: string;
+  /**
+   * The last time this KB described itself, and what it said beyond its name
+   * (which is `label`). Written only from a read whose did matched this
+   * entry's; absent until one has.
+   */
+  lastRead?: KbRead;
+}
+
+/**
+ * When a KB last described itself, and the live part of what it said. A host
+ * shows it as current only while a session to the KB is live, and as of `at`
+ * otherwise.
+ */
+export interface KbRead {
+  /** When the answer arrived, ISO 8601. */
+  at: string;
+  /** The working tree's branch then; absent when it was not a git checkout. */
+  gitBranch?: string;
+}
+
+export function kbRead(description: KbDescription, at: Date): KbRead {
+  return {
+    at: at.toISOString(),
+    ...(description.gitBranch !== undefined ? { gitBranch: description.gitBranch } : {}),
+  };
 }
 
 export type KbEndpoint = HttpEndpoint | LocalEndpoint;
@@ -131,13 +157,11 @@ export function httpKb(opts: {
   host: string;
   port: number;
   protocol: 'http' | 'https';
-  gitBranch?: string;
 }): KbTarget {
-  const { id, label, host, port, protocol, gitBranch } = opts;
+  const { id, label, host, port, protocol } = opts;
   return {
     id,
     label,
-    ...(gitBranch !== undefined ? { gitBranch } : {}),
     endpoint: { kind: 'http', host, port, protocol },
   };
 }

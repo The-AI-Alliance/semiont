@@ -103,7 +103,6 @@ describe('GET /resources/:id byte fidelity (S12 transport-fidelity lemma)', () =
       views,
       verifier: stubVerifier,
       health: () => ({ status: 'ok' }),
-      branch: () => 'main',
       logger: mockLogger,
     });
     await new Promise<void>((resolve) => archivist.listen(0, resolve));

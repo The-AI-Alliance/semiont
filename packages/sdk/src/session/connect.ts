@@ -1,13 +1,12 @@
 /**
- * What a completed sign-in learns about the knowledge base it reached: the
- * identity the KB reports of itself, and who the issuer says the user is —
- * both read from the KB with the fresh token, never assumed from the address
- * the user typed or the row they clicked.
+ * What a completed sign-in learns about the knowledge base it reached: what
+ * the KB says of itself, read from the KB with the fresh token, never assumed
+ * from the address the user typed or the row they clicked.
  */
 
 import { BehaviorSubject } from 'rxjs';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
-import { accessToken, baseUrl, type AccessToken } from '@semiont/core';
+import { accessToken, baseUrl, BusRequestError, kbDid, replyChannelsFor, type AccessToken, type KbDescription } from '@semiont/core';
 import { SemiontClient } from '../client';
 import type { HttpEndpoint } from './knowledge-base';
 import { kbGatewayUrl } from './storage';
@@ -29,31 +28,32 @@ export class IdentityUnverifiableError extends Error {
 
 export interface ConnectionIdentity {
   did: string;
-  /** The KB's own name; '' when it reports none — the word for that absence is a render concern. */
-  label: string;
-  gitBranch?: string;
+  description: KbDescription;
 }
 
 export async function describeConnection(target: HttpEndpoint, access: string): Promise<ConnectionIdentity> {
-  // `/api/status` requires authentication, so the throwaway client carries
-  // the token from birth — the same pattern the session factory's validate
-  // uses. Everything it opens is torn down on every exit.
+  // The KB describes itself only to a signed-in caller, so the throwaway
+  // client carries the token from birth. It subscribes to this one
+  // operation's replies and nothing else. Everything it opens is torn down on
+  // every exit.
   const token$ = new BehaviorSubject<AccessToken | null>(accessToken(access));
-  const transport = new HttpTransport({ baseUrl: baseUrl(kbGatewayUrl(target)), token$ });
+  const transport = new HttpTransport({
+    baseUrl: baseUrl(kbGatewayUrl(target)),
+    token$,
+    channels: replyChannelsFor(['browse:kb-requested']),
+  });
   const client = new SemiontClient(transport, new HttpContentTransport(transport), transport);
   try {
-    let status;
+    let description: KbDescription;
     try {
-      status = await client.system!.status();
+      description = await client.browse.kb();
     } catch (e) {
-      throw new IdentityUnverifiableError('unreachable', e instanceof Error ? e.message : String(e));
+      // A refusal is the KB answering that it cannot say what it is; any
+      // other failure is not having reached it.
+      const reason = e instanceof BusRequestError && e.code === 'bus.rejected' ? 'not-reported' : 'unreachable';
+      throw new IdentityUnverifiableError(reason, e instanceof Error ? e.message : String(e));
     }
-    if (!status.did) throw new IdentityUnverifiableError('not-reported', 'status reported no did');
-    return {
-      did: status.did,
-      label: status.projectName ?? '',
-      ...(status.gitBranch ? { gitBranch: status.gitBranch } : {}),
-    };
+    return { did: kbDid(description.domain), description };
   } finally {
     client.dispose();
     token$.complete();

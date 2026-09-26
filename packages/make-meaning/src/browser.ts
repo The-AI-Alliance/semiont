@@ -16,6 +16,8 @@
  * - browse:tag-schemas-requested — list tag schemas from the project projection
  * - browse:agents-requested — the collaborator directory: the KB's declared software
  *   agents, derived from the workers + actors inference config (COLLABORATOR-DIRECTORY)
+ * - browse:kb-requested — the KB's description of itself: the committed name and
+ *   domain, and the working tree's branch
  * - browse:directory-requested — list a project directory, merging fs + ViewStorage
  */
 
@@ -79,7 +81,7 @@ export const BROWSER_CHANNELS = [
   'browse:annotation-requested', 'browse:events-requested',
   'browse:annotation-history-requested', 'browse:referenced-by-requested',
   'browse:entity-types-requested', 'browse:tag-schemas-requested',
-  'browse:agents-requested', 'browse:directory-requested',
+  'browse:agents-requested', 'browse:kb-requested', 'browse:directory-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
 export class Browser {
@@ -145,6 +147,7 @@ export class Browser {
       pipe('browse:entity-types-requested',      (e, cid) => this.handleEntityTypes(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:tag-schemas-requested',       (e, cid) => this.handleTagSchemas(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:agents-requested',            (e, cid) => this.handleBrowseAgents(e, cid)).subscribe({ error: errorHandler }),
+      pipe('browse:kb-requested',                (e, cid) => this.handleBrowseKb(e, cid)).subscribe({ error: errorHandler }),
       pipe('browse:directory-requested',         (e, cid) => this.handleBrowseDirectory(e, cid)).subscribe({ error: errorHandler }),
     );
   }
@@ -477,6 +480,25 @@ export class Browser {
     } catch (error) {
       this.logger.error('Agent roster derivation failed', { error: errField(error) });
       this.eventBus.emit('browse:agents-failed', { message: error instanceof Error ? error.message : String(error), }, { correlationId });
+    }
+  }
+
+  private async handleBrowseKb(_event: EventMap['browse:kb-requested'], correlationId: string | undefined): Promise<void> {
+    try {
+      // Read at every ask, never kept: a `git checkout` in the tree restarts
+      // nothing and emits nothing, so a kept answer would name a branch the
+      // tree has left.
+      const domain = this.project.siteDomain();
+      if (!domain) {
+        throw new Error('The committed .semiont/config declares no [site] domain');
+      }
+      const gitBranch = this.project.gitBranch();
+      this.eventBus.emit('browse:kb-result', {
+        response: { name: this.project.name, domain, ...(gitBranch ? { gitBranch } : {}) },
+      }, { correlationId });
+    } catch (error) {
+      this.logger.error('KB description read failed', { error: errField(error) });
+      this.eventBus.emit('browse:kb-failed', { message: error instanceof Error ? error.message : String(error) }, { correlationId });
     }
   }
 

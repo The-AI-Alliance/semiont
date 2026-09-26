@@ -88,7 +88,6 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       views: eventStore.viewStorage,
       verifier: stubVerifier,
       health: () => ({ status: 'ok' }),
-      branch: () => 'main',
       logger: mockLogger,
     });
     await new Promise<void>((resolve) => server.listen(0, resolve));
@@ -136,6 +135,13 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
     });
     expect(res.status).toBe(400);
+  });
+
+  it('serves no branch route: the knowledge base describes itself over the bus', async () => {
+    const res = await fetch(`${baseUrl}/kb/branch`, {
+      headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
+    });
+    expect(res.status).toBe(404);
   });
 
   it('serves /health without auth', async () => {
@@ -205,7 +211,6 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         views: eventStore.viewStorage,
         verifier: null,
         health: () => ({ status: 'ok' }),
-      branch: () => 'main',
         logger: mockLogger,
       });
       await new Promise<void>((resolve) => secretless.listen(0, resolve));
@@ -301,7 +306,6 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         views: eventStore.viewStorage,
         verifier: null,
         health: () => ({ status: 'ok' }),
-      branch: () => 'main',
         logger: mockLogger,
       });
       await new Promise<void>((resolve) => secretless.listen(0, resolve));

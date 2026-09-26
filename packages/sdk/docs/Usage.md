@@ -187,6 +187,10 @@ const history = await semiont.browse.annotationHistory(resourceId, annotationId)
 
 // File browser
 const files = await semiont.browse.files('/docs', 'mtime');
+
+// What the knowledge base says of itself: { name, domain, gitBranch? }.
+// Asked on every call and never cached — a branch changes with no event.
+const { name, domain, gitBranch } = await semiont.browse.kb();
 ```
 
 ## Bind

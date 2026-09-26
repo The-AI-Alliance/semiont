@@ -205,7 +205,8 @@
     "connectToAddress": "Verbinden met {{address}}",
     "connectedToOther": "Verbonden met {{actual}}, niet met {{expected}}.",
     "identityCheckFailed": "Ingelogd, maar de identiteitscontrole kon deze kennisbasis niet bereiken.",
-    "identityNotReported": "Ingelogd, maar deze kennisbasis heeft geen identiteit gerapporteerd."
+    "identityNotReported": "Ingelogd, maar deze kennisbasis heeft geen identiteit gerapporteerd.",
+    "lastReadAt": "Stand van {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Geen kennisbases",

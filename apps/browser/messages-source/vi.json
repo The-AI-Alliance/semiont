@@ -205,7 +205,8 @@
     "connectToAddress": "Kết nối với {{address}}",
     "connectedToOther": "Đã kết nối với {{actual}}, không phải {{expected}}.",
     "identityCheckFailed": "Đã đăng nhập, nhưng việc kiểm tra danh tính không thể tiếp cận cơ sở kiến thức này.",
-    "identityNotReported": "Đã đăng nhập, nhưng cơ sở kiến thức này không báo cáo danh tính nào."
+    "identityNotReported": "Đã đăng nhập, nhưng cơ sở kiến thức này không báo cáo danh tính nào.",
+    "lastReadAt": "Tính đến {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Không có cơ sở kiến thức",

@@ -79,15 +79,6 @@ export interface ArchivistServerDeps {
   verifier: IssuerVerifier | null;
   /** Liveness payload for /health — actor states, counters. */
   health: () => Record<string, unknown>;
-  /**
-   * The KB working tree's current branch, `null` outside a git checkout.
-   *
-   * A live fact about the tree, so it is answered by the process that HOLDS
-   * the tree (SINGLE-KB-MOUNT P5). The gateway used to read it off its own
-   * `/kb` mount; the launcher cannot stage it because a branch switch does
-   * not restart the stack, and a staged value would quietly go stale.
-   */
-  branch: () => string | null;
   logger: Logger;
 }
 
@@ -97,7 +88,7 @@ const json = (res: ServerResponse, status: number, body: unknown): void => {
 };
 
 export function createArchivistServer(deps: ArchivistServerDeps): Server {
-  const { events, content, views, verifier, health, branch, logger } = deps;
+  const { events, content, views, verifier, health, logger } = deps;
 
   /**
    * The 401 posture every authenticated path shares. True = request may proceed.
@@ -132,15 +123,6 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
 
     if (req.method === 'GET' && url.pathname === '/health') {
       json(res, 200, health());
-      return;
-    }
-
-    // GET /kb/branch — the working tree's current branch (SINGLE-KB-MOUNT
-    // P5). A KB-tree read like every other path here, and authenticated like
-    // them: a branch name says which line of work a knowledge base is on.
-    if (req.method === 'GET' && url.pathname === '/kb/branch') {
-      if (!(await authorized(req, res))) return;
-      json(res, 200, { branch: branch() });
       return;
     }
 

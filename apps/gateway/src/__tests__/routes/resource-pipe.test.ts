@@ -104,7 +104,6 @@ describe('resource routes pipe contract (SIMPLER-JSON-LD.md Phase 1)', () => {
       views,
       verifier: stubVerifier,
       health: () => ({ status: 'ok' }),
-      branch: () => 'main',
       logger: mockLogger,
     });
     await new Promise<void>((resolve) => archivist.listen(0, resolve));

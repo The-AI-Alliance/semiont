@@ -22,8 +22,10 @@ import {
   BusRequestError,
   EventBus,
   getPrimaryRepresentation,
+  kbDid,
   resourceId,
   type EventMap,
+  type KbDescription,
 } from '@semiont/core';
 import {
   ACTIVE_KEY,
@@ -46,10 +48,12 @@ import {
   type BeginAuthorizationOptions,
 } from './oauth';
 import { describeConnection } from './connect';
-import type {
-  KnowledgeBase,
-  KbSessionStatus,
-  NewKnowledgeBase,
+import {
+  kbRead,
+  type KbRead,
+  type KnowledgeBase,
+  type KbSessionStatus,
+  type NewKnowledgeBase,
 } from './knowledge-base';
 import {
   applyTabChecks,
@@ -299,6 +303,8 @@ export class SemiontBrowser {
   async completeSignIn(callbackUrl: string): Promise<SignInOutcome> {
     const { pending, tokens } = await completeAuthorization(callbackUrl, this.storage);
     const identity = await describeConnection(pending.target, tokens.access);
+    const label = identity.description.name;
+    const lastRead = kbRead(identity.description, new Date());
     const session: StoredSession = {
       access: tokens.access,
       refresh: tokens.refresh,
@@ -318,15 +324,14 @@ export class SemiontBrowser {
       : existing
         ? { did: existing.did, ...(existing.label ? { name: existing.label } : {}) }
         : undefined;
-    const branch = identity.gitBranch ? { gitBranch: identity.gitBranch } : {};
     if (existing) {
-      const kb: KnowledgeBase = { ...existing, label: identity.label, ...branch };
-      this.updateKb(existing.id, { label: identity.label, ...branch });
+      const kb: KnowledgeBase = { ...existing, label, lastRead };
+      this.updateKb(existing.id, { label, lastRead });
       await this.signIn(existing.id, session);
       return { kb, ...(expected ? { expected } : {}) };
     }
     const kb = this.addKb(
-      { did: identity.did, label: identity.label, endpoint: pending.target, ...branch },
+      { did: identity.did, label, endpoint: pending.target, lastRead },
       session,
     );
     return { kb, ...(expected ? { expected } : {}) };
@@ -356,12 +361,11 @@ export class SemiontBrowser {
   }
 
   /**
-   * Patch a KB in the list. Restricted to the common, endpoint-agnostic
-   * fields (`label`, `email`, `gitBranch`) — the `endpoint` shape isn't
-   * editable in place; remove and re-add to change the connection
-   * target.
+   * Patch a KB in the list: what it last said of itself. The `endpoint`
+   * shape isn't editable in place; remove and re-add to change the
+   * connection target, and `did` is never patched (D4).
    */
-  updateKb(id: string, updates: { label?: string; email?: string; gitBranch?: string }): void {
+  updateKb(id: string, updates: { label?: string; lastRead?: KbRead }): void {
     this.kbs$.next(
       this.kbs$.getValue().map((kb) => (kb.id === id ? { ...kb, ...updates } : kb)),
     );
@@ -617,7 +621,7 @@ export class SemiontBrowser {
     // answer to a question asked of the wrong KB — meaningless even when it
     // is `not-found`. One pass, one guard: two async passes racing on one
     // activation is how the guard would stop meaning anything.
-    if (await this.voidIfIdentityChanged(session, kbId)) return;
+    if ((await this.readKb(session, kbId)) === 'voided') return;
 
     // Committed state here too, for the same reason `mutateOpenResources`
     // reads it: a sibling context may have added a tab before this session
@@ -653,9 +657,26 @@ export class SemiontBrowser {
   }
 
   /**
-   * Verify this KB is still the KB the registry entry claims, and void the
-   * state that is a claim about its contents if it is not
-   * (KB-IDENTITY-CHECKED-ON-ACTIVATION P1). Returns whether it voided.
+   * Ask the active KB to describe itself again, and record what it says. The
+   * KB panel calls this when it opens: a branch changes with no event, so the
+   * only fresh answer is one asked for.
+   *
+   * Resolves `true` only when the KB answered as itself — the one case in
+   * which its entry now shows the present rather than the last time it was
+   * asked.
+   */
+  async readActiveKb(): Promise<boolean> {
+    const session = this.activeSession$.getValue();
+    const kbId = this.activeKbId$.getValue();
+    if (!session || !kbId) return false;
+    return (await this.readKb(session, kbId)) === 'recorded';
+  }
+
+  /**
+   * Ask the KB to describe itself. If it is the KB the registry entry claims,
+   * record its name and branch on the entry; if it is not, void the state
+   * that is a claim about its contents (KB-IDENTITY-CHECKED-ON-ACTIVATION
+   * P1). Says which of the three happened.
    *
    * **The did is read in one direction only (D1).** A did is not unique — a
    * local clone and a codespace of one repo share one — so it is authoritative
@@ -664,26 +685,28 @@ export class SemiontBrowser {
    * question.
    *
    * **No verdict is not a mismatch (D3), and this must never be weakened.** A
-   * status call that rejects, a response with no did, and a transport with no
-   * admin namespace at all are three different absences, and none of them is
-   * evidence of anything. Losing a user's tabs because the gateway was briefly
-   * down is strictly worse than the phantoms this addresses.
+   * read that gets no answer and a KB that refuses to describe itself are
+   * different absences, and neither is evidence of anything. Losing a user's
+   * tabs because the gateway was briefly down is strictly worse than the
+   * phantoms this addresses. Neither records anything either: an entry shows
+   * what the KB last said, never what it failed to say.
    */
-  private async voidIfIdentityChanged(session: SemiontSession, kbId: string): Promise<boolean> {
+  private async readKb(session: SemiontSession, kbId: string): Promise<'recorded' | 'voided' | 'no-verdict'> {
     const expectedDid = this.kbs$.getValue().find((k) => k.id === kbId)?.did;
-    if (!expectedDid) return false;
+    if (!expectedDid) return 'no-verdict';
 
-    let observedDid: string | undefined;
+    let description: KbDescription;
     try {
-      // `admin` is undefined by TRANSPORT capability, not user role: a
-      // `kind: 'local'` endpoint has no admin routes in-process and never
-      // will. `/api/status` itself needs authentication but not an admin
-      // role, so this is readable by any signed-in user.
-      observedDid = (await session.client.system?.status())?.did;
+      description = await session.client.browse.kb();
     } catch {
-      return false; // unreachable — a symptom, not a verdict
+      return 'no-verdict'; // no answer — a symptom, not a verdict
     }
-    if (!observedDid || observedDid === expectedDid) return false;
+    const observedDid = kbDid(description.domain);
+    if (observedDid === expectedDid) {
+      if (this.disposed) return 'no-verdict';
+      this.updateKb(kbId, { label: description.name, lastRead: kbRead(description, new Date()) });
+      return 'recorded';
+    }
 
     // Both maps, at the same instant (D2). They are keyed the same way and
     // both say "these resources are in that KB"; voiding one would leave the
@@ -699,9 +722,10 @@ export class SemiontBrowser {
     // The registry entry itself is left exactly as the user wrote it (D4):
     // overwriting `did`/`label` would erase the only evidence a substitution
     // happened and sign them in to a KB they never chose under the name of one
-    // they did. Re-registering is a deliberate act; the panel has that flow.
+    // they did, and recording the other KB's branch would show its tree under
+    // this KB's row. Re-registering is a deliberate act; the panel has that flow.
     this.activeSignals$.getValue()?.notifyKbIdentityConflict({ expectedDid, observedDid });
-    return true;
+    return 'voided';
   }
 
   /**

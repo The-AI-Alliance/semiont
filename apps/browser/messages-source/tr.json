@@ -205,7 +205,8 @@
     "connectToAddress": "{{address}} adresine bağlan",
     "connectedToOther": "{{actual}} ile bağlanıldı, {{expected}} ile değil.",
     "identityCheckFailed": "Giriş yapıldı ancak kimlik kontrolü bu bilgi tabanına ulaşamadı.",
-    "identityNotReported": "Giriş yapıldı ancak bu bilgi tabanı bir kimlik bildirmedi."
+    "identityNotReported": "Giriş yapıldı ancak bu bilgi tabanı bir kimlik bildirmedi.",
+    "lastReadAt": "{{time}} itibarıyla"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Bilgi tabanı yok",

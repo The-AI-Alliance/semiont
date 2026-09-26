@@ -43,6 +43,7 @@ import type {
   GatheredContext,
   TagSchema,
   CollaboratorEntry,
+  KbDescription,
 } from '@semiont/core';
 
 // ── OpenAPI schema type aliases ─────────────────────────────────────────────
@@ -295,6 +296,12 @@ export interface BrowseNamespace {
   backlinks(resourceId: ResourceId): Promise<Annotation[]>;
   resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
+  /**
+   * What the KB says of itself — its committed name and domain, and the
+   * working tree's branch — asked on every call. Never cached: a branch
+   * changes with no event that could invalidate a kept answer.
+   */
+  kb(): Promise<KbDescription>;
 
   // UI signals — THIS viewer's own local fan-out, never the wire. The
   // cross-namespace pair is the rule: `browse.X()` does it for me,

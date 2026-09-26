@@ -205,7 +205,8 @@
     "connectToAddress": "Σύνδεση με {{address}}",
     "connectedToOther": "Συνδεδεμένο με {{actual}}, όχι με {{expected}}.",
     "identityCheckFailed": "Έχετε συνδεθεί, αλλά ο έλεγχος ταυτότητας δεν μπόρεσε να προσεγγίσει αυτή τη βάση γνώσης.",
-    "identityNotReported": "Έχετε συνδεθεί, αλλά αυτή η βάση γνώσης δεν ανέφερε ταυτότητα."
+    "identityNotReported": "Έχετε συνδεθεί, αλλά αυτή η βάση γνώσης δεν ανέφερε ταυτότητα.",
+    "lastReadAt": "Κατάσταση στις {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Δεν υπάρχουν βάσεις γνώσης",

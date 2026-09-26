@@ -402,6 +402,15 @@ const (
 	// not emittable (no registered schema)
 	BrowseAgentsFailed Channel = "browse:agents-failed"
 
+	// payload: BrowseKbRequest
+	BrowseKbRequested Channel = "browse:kb-requested"
+
+	// payload: BrowseKbResult
+	BrowseKbResult Channel = "browse:kb-result"
+
+	// not emittable (no registered schema)
+	BrowseKbFailed Channel = "browse:kb-failed"
+
 	// payload: BrowseDirectoryRequest
 	BrowseDirectoryRequested Channel = "browse:directory-requested"
 
@@ -658,6 +667,8 @@ var ChannelSchemas = map[Channel]string{
 	BrowseTagSchemasResult:           "BrowseTagSchemasResult",
 	BrowseAgentsRequested:            "BrowseAgentsRequest",
 	BrowseAgentsResult:               "BrowseAgentsResult",
+	BrowseKbRequested:                "BrowseKbRequest",
+	BrowseKbResult:                   "BrowseKbResult",
 	BrowseDirectoryRequested:         "BrowseDirectoryRequest",
 	BrowseDirectoryResult:            "BrowseDirectoryResult",
 	BrowseClick:                      "BrowseClickEvent",

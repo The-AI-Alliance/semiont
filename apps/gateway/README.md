@@ -115,7 +115,7 @@ Secrets are not in the file. They come from the environment.
 | `root.ts` | Service metadata, OpenAPI spec, Swagger UI |
 | `health.ts` | `/api/health` — always 200; liveness, not readiness |
 | `auth.ts` | `/api/users/me`; the agent and media tokens the gateway mints (`/api/tokens/agent`, `/api/tokens/media`); cookie consent. People sign in at the issuer, not here |
-| `status.ts` | `/api/status` — KB identity, version, branch |
+| `status.ts` | `/api/status` — the gateway's status and version |
 | `well-known.ts` | `/.well-known/oauth-protected-resource` — resource metadata naming this KB's issuer |
 | `resources/` | W3C-shaped resource and annotation endpoints; binary upload proxied to the Archivist |
 | `bus.ts` | `/bus/emit` and `/bus/subscribe` — the hub, over the selected signal driver (`src/signal/`) |

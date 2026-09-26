@@ -205,7 +205,8 @@
     "connectToAddress": "เชื่อมต่อกับ {{address}}",
     "connectedToOther": "เชื่อมต่อกับ {{actual}} ไม่ใช่ {{expected}}",
     "identityCheckFailed": "เข้าสู่ระบบแล้ว แต่การตรวจสอบตัวตนไม่สามารถเข้าถึงฐานความรู้นี้ได้",
-    "identityNotReported": "เข้าสู่ระบบแล้ว แต่ฐานความรู้นี้ไม่ได้รายงานตัวตน"
+    "identityNotReported": "เข้าสู่ระบบแล้ว แต่ฐานความรู้นี้ไม่ได้รายงานตัวตน",
+    "lastReadAt": "ณ {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ไม่มีฐานความรู้",

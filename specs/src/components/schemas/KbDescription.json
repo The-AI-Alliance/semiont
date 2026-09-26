@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "description": "What a knowledge base says about itself, answered by the Archivist from the committed .semiont/config and the working tree it holds. The only source clients use for a knowledge base's name and domain.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "The committed [project] name, or the knowledge base directory's name when none is declared."
+    },
+    "domain": {
+      "type": "string",
+      "description": "The committed [site] domain: the knowledge base's permanent identity. Its did is 'did:web:' + this domain (kbDid in @semiont/core). It names WHICH knowledge base this is, not which running copy: a local clone and a codespace of one repo report the same domain, so use it to verify what you connected to, never to select among copies. A knowledge base that declares none is refused with browse:kb-failed."
+    },
+    "gitBranch": {
+      "type": "string",
+      "description": "The working tree's current git branch. Absent when the tree is not a git checkout."
+    }
+  },
+  "required": [
+    "name",
+    "domain"
+  ]
+}

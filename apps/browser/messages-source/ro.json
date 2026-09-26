@@ -205,7 +205,8 @@
     "connectToAddress": "Conectare la {{address}}",
     "connectedToOther": "Conectat la {{actual}}, nu {{expected}}.",
     "identityCheckFailed": "Conectat, dar verificarea identității nu a putut accesa această bază de cunoștințe.",
-    "identityNotReported": "Conectat, dar această bază de cunoștințe nu a raportat o identitate."
+    "identityNotReported": "Conectat, dar această bază de cunoștințe nu a raportat o identitate.",
+    "lastReadAt": "La data de {{time}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nicio bază de cunoștințe",

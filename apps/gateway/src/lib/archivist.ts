@@ -38,32 +38,6 @@ const archivistSpan = <T>(op: string, run: () => Promise<T>): Promise<T> =>
   });
 
 /**
- * The KB working tree's current branch, for `/api/status` (SINGLE-KB-MOUNT
- * P5). The Archivist holds the tree, so it answers — this process has no
- * mount to read it off.
- *
- * `undefined` on every failure — unreachable, 401, malformed — because the
- * field is optional and `/api/status` must still answer. A status endpoint
- * that 503s because one optional field could not be filled is worse than one
- * that omits it, and the browser's KB panel already renders a placeholder in
- * the branch slot.
- */
-export async function kbBranch(
-  config: ArchivistAddressConfig,
-  credential: ServiceAccountCredential,
-): Promise<string | undefined> {
-  try {
-    const { base, headers } = await archivistEndpoint(config, credential);
-    const res = await archivistSpan('kb.branch', () => fetch(`${base}/kb/branch`, { headers }));
-    if (!res.ok) return undefined;
-    const { branch } = await res.json() as { branch?: string | null };
-    return branch ?? undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/**
  * Write a representation's bytes to the record.
  *
  * The `Blob` is handed to `fetch` directly rather than read into a Buffer:

@@ -1,0 +1,5 @@
+{
+  "type": "object",
+  "description": "Request for the knowledge base's description of itself",
+  "properties": {}
+}

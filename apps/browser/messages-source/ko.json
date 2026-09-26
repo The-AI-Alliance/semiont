@@ -205,7 +205,8 @@
     "connectToAddress": "{{address}}에 연결",
     "connectedToOther": "{{expected}}이(가) 아닌 {{actual}}에 연결되었습니다.",
     "identityCheckFailed": "로그인되었지만 신원 확인이 이 지식 베이스에 연결하지 못했습니다.",
-    "identityNotReported": "로그인되었지만 이 지식 베이스가 신원을 보고하지 않았습니다."
+    "identityNotReported": "로그인되었지만 이 지식 베이스가 신원을 보고하지 않았습니다.",
+    "lastReadAt": "{{time}} 기준"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "지식 베이스 없음",
