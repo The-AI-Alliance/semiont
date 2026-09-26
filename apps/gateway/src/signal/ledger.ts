@@ -23,6 +23,10 @@
  *  - Nothing reports a claim's expiry, so the projection keeps its own clock:
  *    a claim's age is the one its origin stored, and the sweep and the TTL
  *    check in `decide` are what bound the projection.
+ *  - Whether a claim was answered is shared too, in a third table. A replica
+ *    that loads a claim after its reply went by — because it started,
+ *    restarted or lagged — would otherwise count it against the client's cap
+ *    and report it lost when it expires.
  *
  * `owner` answers from the projection; `lookupReply` backs the
  * `pendingReplies` reconnect probe, gated by the same ownership. `gate` is the
@@ -44,14 +48,17 @@
 import { isObject, isString } from '@semiont/core';
 import { recordReplySuppressed } from '@semiont/observability';
 import { getLogger } from '../logger';
-import type { PlaneSubscription, SharedTable, SignalPlane } from './interface';
+import type { PlaneSubscription, SignalPlane } from './interface';
 import { CLAIM_MAX_GLOBAL, CLAIM_TTL_MS, PENDING_REPLIES_MAX, REPLY_RETENTION_TTL_MS } from './options';
 
 const getBusLogger = () => getLogger().child({ component: 'bus' });
 
-/** The shared tables claims and retained replies live in — one name each, every replica. */
-const CLAIMS_TABLE = 'ledger_claims';
-const REPLIES_TABLE = 'ledger_replies';
+/** The shared tables the ledger keeps — one name each, every replica. */
+export const LEDGER_TABLES = {
+  claims: 'ledger_claims',
+  replies: 'ledger_replies',
+  answered: 'ledger_answered',
+} as const;
 
 export interface RetainedReply {
   channel: string;
@@ -219,10 +226,40 @@ export function createCorrelationRegistry(
     }
   };
 
+  /**
+   * Answered markers for claims this replica does not hold yet: the two tables
+   * are watched separately, so a marker can arrive before its claim.
+   * Insertion-ordered by arrival and swept on the claims' TTL.
+   */
+  const answeredAhead = new Map<string, number>();
+
   const record = (cid: string, stored: StoredClaim) => {
     evictIfAtGlobalCap();
-    claims.set(cid, { clientId: stored.clientId, principalDid: stored.principalDid, claimedAt: stored.claimedAt });
-    perClient.set(stored.clientId, (perClient.get(stored.clientId) ?? 0) + 1);
+    const answered = answeredAhead.delete(cid);
+    claims.set(cid, {
+      clientId: stored.clientId,
+      principalDid: stored.principalDid,
+      claimedAt: stored.claimedAt,
+      ...(answered ? { answered } : {}),
+    });
+    if (!answered) perClient.set(stored.clientId, (perClient.get(stored.clientId) ?? 0) + 1);
+  };
+
+  /** The one place a claim becomes answered: its client's slot is released once. */
+  const markAnswered = (cid: string) => {
+    const claim = claims.get(cid);
+    if (!claim) {
+      const cutoff = now() - claimTtlMs;
+      for (const [ahead, at] of answeredAhead) {
+        if (at > cutoff) break;
+        answeredAhead.delete(ahead);
+      }
+      answeredAhead.set(cid, now());
+      return;
+    }
+    if (claim.answered) return;
+    claim.answered = true;
+    release(claim.clientId);
   };
 
   /**
@@ -242,15 +279,17 @@ export function createCorrelationRegistry(
   };
 
   let disposed = false;
-  let watching: PlaneSubscription | undefined;
-  const claimsTable: Promise<SharedTable> = (async () => {
-    const table = await plane.table(CLAIMS_TABLE, claimTtlMs);
-    const subscription = await table.watch(adopt);
+  const watches: PlaneSubscription[] = [];
+  const watched = async (name: string, ttl: number, onEntry: (key: string, value: string) => void) => {
+    const table = await plane.table(name, ttl);
+    const subscription = await table.watch(onEntry);
     if (disposed) subscription.close();
-    else watching = subscription;
+    else watches.push(subscription);
     return table;
-  })();
-  const repliesTable: Promise<SharedTable> = plane.table(REPLIES_TABLE, ttlMs);
+  };
+  const claimsTable = watched(LEDGER_TABLES.claims, claimTtlMs, adopt);
+  const answeredTable = watched(LEDGER_TABLES.answered, claimTtlMs, (cid) => markAnswered(cid));
+  const repliesTable = plane.table(LEDGER_TABLES.replies, ttlMs);
 
   /** One read per cid per replica, however many subscribers missed it. */
   const reads = new Map<string, Promise<void>>();
@@ -296,7 +335,7 @@ export function createCorrelationRegistry(
   };
 
   return {
-    ready: Promise.all([claimsTable, repliesTable]).then(() => undefined),
+    ready: Promise.all([claimsTable, answeredTable, repliesTable]).then(() => undefined),
     async claim(cid, clientId, principalDid) {
       const table = await claimsTable;
       sweepClaims();
@@ -313,13 +352,21 @@ export function createCorrelationRegistry(
       if (!cid) return;
       const claim = claims.get(cid);
       if (!claim) return; // not a claim this replica holds: nothing to retain
-      if (!claim.answered) {
-        claim.answered = true;
-        release(claim.clientId);
-      }
+      markAnswered(cid);
       sweepClaims();
-      // First writer wins: every replica holding the claim offers the same
-      // reply, and a refusal only means another got there first.
+      // First writer wins, for both tables: every replica holding the claim
+      // offers the same facts, and a refusal only means another got there
+      // first. This replica's own marker comes back on its watch as a no-op.
+      void answeredTable
+        .then((table) => table.create(cid, String(now())))
+        .catch((err: unknown) => {
+          // Another replica, or this one after a restart, will count this
+          // claim as unanswered and report it lost when it expires.
+          getBusLogger().warn('[bus ANSWERED-RECORD-FAILED] claim could not be recorded as answered', {
+            correlationId: cid,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       const stored = JSON.stringify({ channel, payload, retainedAt: now() });
       void repliesTable
         .then((table) => table.create(cid, stored))
@@ -397,9 +444,11 @@ export function createCorrelationRegistry(
     },
     dispose() {
       disposed = true;
-      watching?.close();
+      for (const subscription of watches) subscription.close();
+      watches.length = 0;
       claims.clear();
       perClient.clear();
+      answeredAhead.clear();
       reads.clear();
     },
   };

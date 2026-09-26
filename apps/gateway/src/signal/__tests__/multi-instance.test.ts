@@ -675,4 +675,29 @@ describe('a claim survives the replica that did not witness it', () => {
       (restarted ?? a).teardown();
     }
   });
+
+  // Answered-ness survives with the claims: a restarted replica loads a busy
+  // client's answered requests as answered, not as 256 slots it still holds.
+  test('a restart does not refuse a client whose requests were all answered before it', async () => {
+    const { servers } = await jetStreamNatsFixture();
+    const a = await makeInstance('A', servers);
+    let restarted: Instance | undefined;
+    try {
+      const cids = Array.from({ length: 256 }, (_, i) => `cid-busy-${i}`);
+      for (const cid of cids) await a.emitRequest('gather:requested', cid, 'client-busy');
+      for (const cid of cids) a.ingest('gather:summary-result', { summary: cid }, { meta: { correlationId: cid } });
+      // The last reply retained means every earlier reply was observed; the
+      // flush means every write that followed has reached the broker.
+      await vi.waitFor(async () => {
+        expect(await a.composition.lookupReply(cids[255]!, 'client-busy', PRINCIPAL)).toBeDefined();
+      });
+      await a.composition.plane.flush();
+      a.teardown();
+      restarted = await makeInstance('A (restarted)', servers);
+
+      await restarted.emitRequest('gather:requested', 'cid-busy-after', 'client-busy');
+    } finally {
+      (restarted ?? a).teardown();
+    }
+  });
 });

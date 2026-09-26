@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
-import { EventBus, annotationId, resourceId as makeResourceId, userId } from '@semiont/core';
+import { EventBus, annotationId, isObject, resourceId as makeResourceId, userId } from '@semiont/core';
 import type { Principal } from '../../identity/principal';
 import type {
   EventBus as EventBusType,
@@ -24,7 +24,7 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
 }));
 
 import { createBusRouter } from '../../routes/bus';
-import { createCorrelationRegistry } from '../../signal/ledger';
+import { LEDGER_TABLES, createCorrelationRegistry } from '../../signal/ledger';
 import { createInProcessSignalPlane } from '../../signal/in-process';
 import type { SharedTable, SignalPlane } from '../../signal/interface';
 import { compositionFor } from '../../signal';
@@ -1639,33 +1639,117 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
    * restates what a stored claim looks like.
    */
   function laggingFabric() {
-    const entries = new Map<string, string>();
-    const watchers: Array<(key: string, value: string) => void> = [];
+    const tables = new Map<string, { entries: Map<string, string>; watchers: Array<(key: string, value: string) => void> }>();
     let reads = 0;
-    const table: SharedTable = {
-      async create(key, value) {
-        if (entries.has(key)) return false;
-        entries.set(key, value);
-        return true;
-      },
-      async read(key) {
-        reads++;
-        return entries.get(key);
-      },
-      async watch(onEntry) {
-        watchers.push(onEntry);
-        return { close() {} };
-      },
+    const named = (name: string) => {
+      let held = tables.get(name);
+      if (!held) {
+        held = { entries: new Map(), watchers: [] };
+        tables.set(name, held);
+      }
+      return held;
     };
-    const replica = (): SignalPlane => ({ ...createInProcessSignalPlane(new EventBus()), table: async () => table });
-    return {
-      replica,
-      reads: () => reads,
-      catchUp: () => {
+    const tableNamed = (name: string): SharedTable => {
+      const { entries, watchers } = named(name);
+      return {
+        async create(key, value) {
+          if (entries.has(key)) return false;
+          entries.set(key, value);
+          return true;
+        },
+        async read(key) {
+          reads++;
+          return entries.get(key);
+        },
+        async watch(onEntry) {
+          watchers.push(onEntry);
+          return { close() {} };
+        },
+      };
+    };
+    const replica = (): SignalPlane => ({ ...createInProcessSignalPlane(new EventBus()), table: async (name) => tableNamed(name) });
+    /** Deliver what a table holds to its watchers — all tables, or one, in the order asked. */
+    const catchUp = (...names: string[]) => {
+      for (const name of names.length > 0 ? names : [...tables.keys()]) {
+        const { entries, watchers } = named(name);
         for (const [key, value] of entries) for (const watcher of watchers) watcher(key, value);
-      },
+      }
     };
+    return { replica, reads: () => reads, catchUp };
   }
+
+  it('after a restart, claims answered before it do not count against the client', async () => {
+    const plane = createInProcessSignalPlane(new EventBus());
+    const before = createCorrelationRegistry(plane);
+    for (let i = 0; i < 256; i++) {
+      await before.claim(`r-${i}`, OWNER, DID);
+      before.observe('gather:resource-complete', { response: {} }, { correlationId: `r-${i}` });
+    }
+    // Answered-ness is recorded off the observe path.
+    await new Promise((r) => setTimeout(r, 0));
+    before.dispose();
+
+    const after = createCorrelationRegistry(plane);
+    await after.ready;
+    expect(await after.claim('r-after', OWNER, DID), 'the client has no unanswered requests').toBe('ok');
+    after.dispose();
+  });
+
+  it('after a restart, a claim answered before it does not warn when it expires; an unanswered one does', async () => {
+    const warn = captureBusWarnings();
+    let clock = 1_000;
+    const plane = createInProcessSignalPlane(new EventBus());
+    const opts = { claimTtlMs: 60_000, now: () => clock };
+    const before = createCorrelationRegistry(plane, opts);
+    await before.claim('answered-before', OWNER, DID);
+    await before.claim('never-answered', OWNER, DID);
+    before.observe('gather:resource-complete', { response: {} }, { correlationId: 'answered-before' });
+    await new Promise((r) => setTimeout(r, 0));
+    before.dispose();
+
+    const after = createCorrelationRegistry(plane, opts);
+    await after.ready;
+    clock += 60_001;
+    await after.claim('sweeps-first', OWNER, DID);
+
+    const expired = warn.mock.calls
+      .filter((c) => String(c[0]).includes('CLAIM-EXPIRED'))
+      .map((c) => c[1])
+      .filter(isObject)
+      .map((fields) => fields.correlationId);
+    expect(expired).toContain('never-answered');
+    expect(expired).not.toContain('answered-before');
+    after.dispose();
+  });
+
+  it('an answered marker that arrives before its claim makes the claim answered on adoption', async () => {
+    const fabric = laggingFabric();
+    const here = createCorrelationRegistry(fabric.replica());
+    const there = createCorrelationRegistry(fabric.replica());
+    await there.claim('marker-first', OWNER, DID);
+    there.observe('gather:resource-complete', { response: {} }, { correlationId: 'marker-first' });
+    await new Promise((r) => setTimeout(r, 0));
+
+    fabric.catchUp(LEDGER_TABLES.answered, LEDGER_TABLES.claims);
+    expect(here.owner('marker-first'), 'adopted').toBeDefined();
+    // Answered, so it holds none of the client's 256 slots.
+    for (let i = 0; i < 256; i++) expect(await here.claim(`m-${i}`, OWNER, DID)).toBe('ok');
+    here.dispose();
+    there.dispose();
+  });
+
+  it("a replica's own answered marker coming back releases the client's slot once, not twice", async () => {
+    const registry = setup();
+    await registry.claim('echoed', OWNER, DID);
+    for (let i = 1; i < 256; i++) await registry.claim(`e-${i}`, OWNER, DID);
+    registry.observe('gather:resource-complete', { response: {} }, { correlationId: 'echoed' });
+    // The marker is written, and this replica's own watch delivers it back.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(await registry.claim('one-slot-free', OWNER, DID)).toBe('ok');
+    expect(await registry.claim('no-slot-left', OWNER, DID), 'a double release would admit this').toBe('at-capacity');
+    registry.dispose();
+  });
 
   it('a claim this replica has not seen yet is read from the table, not refused', async () => {
     const fabric = laggingFabric();
