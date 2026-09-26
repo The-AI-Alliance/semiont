@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
-import { EventBus, annotationId, resourceId as makeResourceId, userId } from '@semiont/core';
+import { EventBus, annotationId, isObject, resourceId as makeResourceId, userId } from '@semiont/core';
 import type { Principal } from '../../identity/principal';
 import type {
   EventBus as EventBusType,
@@ -1714,7 +1714,9 @@ describe('createCorrelationRegistry (unit — bounds with an injected clock)', (
 
     const expired = warn.mock.calls
       .filter((c) => String(c[0]).includes('CLAIM-EXPIRED'))
-      .map((c) => (c[1] as { correlationId?: string } | undefined)?.correlationId);
+      .map((c) => c[1])
+      .filter(isObject)
+      .map((fields) => fields.correlationId);
     expect(expired).toContain('never-answered');
     expect(expired).not.toContain('answered-before');
     after.dispose();
