@@ -52,7 +52,7 @@ type prober interface {
 	portChecks(ports []portNeed) bool
 	portCheck(p portNeed) bool // singular wording in plan mode
 	hostOllamaReachable(addr string, port int) bool
-	waitHTTP(label, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts
+	waitHTTP(label, container, url string, seconds int) (time.Duration, bool) // wall-clock budget, not attempts; ends when the container stops
 	waitTCP(label, addr string, port, seconds int) (time.Duration, bool)
 	waitPGAccepting(seconds int) bool       // the port gate does not prove PostgreSQL accepts sessions; initdb's temporary server is why
 	probeTCP(role string, rp rolePlan) bool // external-role reachability
@@ -557,8 +557,8 @@ func (x *liveExec) runDetached(args []string) (string, bool) {
 	return id, true
 }
 
-func (x *liveExec) waitHTTP(label, url string, seconds int) (time.Duration, bool) {
-	return waitForHTTP(x.u, label, url, seconds)
+func (x *liveExec) waitHTTP(label, container, url string, seconds int) (time.Duration, bool) {
+	return waitForContainerHTTP(x.u, x.rt, label, container, url, seconds)
 }
 
 func (x *liveExec) waitTCP(label, addr string, port, seconds int) (time.Duration, bool) {
@@ -1268,7 +1268,7 @@ func (x *planExec) runDetached(args []string) (string, bool) {
 	return "", true
 }
 
-func (x *planExec) waitHTTP(_, url string, seconds int) (time.Duration, bool) {
+func (x *planExec) waitHTTP(_, _, url string, seconds int) (time.Duration, bool) {
 	x.c("wait: %s (%ds)", url, seconds)
 	return 0, true
 }
