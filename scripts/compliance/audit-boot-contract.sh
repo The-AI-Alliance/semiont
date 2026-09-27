@@ -61,6 +61,7 @@ builder_for() {
 # by design (a documented fallback exists) or produced inside the container
 # before the server starts. An entry with neither property is a bug here.
 ALLOW="
+gateway LOG_FORMAT — optional logging knob with a default
 archivist SEMIONT_SKIP_REBUILD — operator escape hatch; default is to rebuild
 archivist HOME — present in every image runtime (config path resolution)
 librarian HOME — present in every image runtime (config path resolution)
