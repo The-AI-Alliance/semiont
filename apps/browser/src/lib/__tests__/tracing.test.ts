@@ -1,7 +1,7 @@
 /**
  * Tests for `initObservabilityWeb`.
  *
- * `web.ts` keeps a module-level `providerInstance` singleton, so each
+ * `tracing.ts` keeps a module-level `providerInstance` singleton, so each
  * test resets the module via `vi.resetModules()` to exercise the early-
  * return / register branches in isolation. The underlying
  * `WebTracerProvider.register()` is fine to call in a Node test runner
@@ -29,7 +29,7 @@ interface WebModule {
 
 async function loadFresh(): Promise<WebModule> {
   vi.resetModules();
-  return import('../web');
+  return import('../tracing');
 }
 
 afterEach(() => {

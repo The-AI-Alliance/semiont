@@ -30,7 +30,7 @@ setPdfWasmUrl(`${import.meta.env.BASE_URL}pdfjs/wasm/`);
 // observability chunk.
 const otlpEndpoint = import.meta.env['VITE_OTEL_OTLP_ENDPOINT'];
 if (otlpEndpoint) {
-  void import('@semiont/observability/web').then(({ initObservabilityWeb }) => {
+  void import('./lib/tracing').then(({ initObservabilityWeb }) => {
     initObservabilityWeb({ serviceName: 'semiont-browser', otlpEndpoint });
   });
 }

@@ -1,6 +1,11 @@
 /**
- * Web SDK initialization. Call once at the SPA bootstrap (e.g.
- * `apps/browser/src/main.tsx`).
+ * The Browser's OpenTelemetry tracer. `main.tsx` loads it — by dynamic
+ * import, so the web SDK stays out of the bundle unless a collector is
+ * configured — and calls `initObservabilityWeb` once.
+ *
+ * It lives here, not in `@semiont/observability`, because the Browser is its
+ * one user: in that package it made every server that traces carry a browser
+ * tracing SDK it never loads.
  *
  * Configuration for the browser doesn't read env vars; the SPA passes
  * config explicitly. CORS-allowed OTLP endpoints only — operators
