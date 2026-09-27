@@ -1,15 +1,17 @@
 // The protocol-completeness gate (GATEWAY-SIMPLIFY P0).
 //
-// The gateway's protocol lives in the spec: a client, a conformance suite or a
-// second implementation reads `specs/src/` and learns everything the gateway
-// answers. This check fails when the spec leaves something to be learned from
-// the code instead:
+// Each service's protocol lives in the spec: a client, a conformance suite or a
+// second implementation reads `specs/src/` and learns everything the service
+// answers. Two documents are held to it — the gateway's API
+// (`specs/src/openapi.json`) and the Archivist's HTTP surface
+// (`specs/src/archivist/openapi.json`) — and the check fails when either leaves
+// something to be learned from the code instead:
 //
 //   - a security scheme an operation names but the spec never defines;
 //   - an operation that does not say whether it is public;
 //   - a protected operation whose 401 carries no challenge header;
 //   - a response with no body schema, or an error whose body is not
-//     ErrorResponse;
+//     ErrorResponse (or an `allOf` refinement of it);
 //   - an operation with no 500 (every route can fail, and the failure has a
 //     body like any other error), or with a request body and no 400;
 //   - a stream whose event names, frame or id formats no schema names;
@@ -24,7 +26,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const ROOT_FILE = resolve(HERE, '../../specs/src/openapi.json');
+const REPO = resolve(HERE, '../..');
+const ROOT_FILES = ['specs/src/openapi.json', 'specs/src/archivist/openapi.json'].map((f) => resolve(REPO, f));
 
 const cache = new Map();
 function load(file) {
@@ -54,6 +57,16 @@ function deref(node, file) {
   return { node: current, file: currentFile };
 }
 
+/**
+ * An error body is an ErrorResponse, or a refinement of one: `allOf` naming
+ * ErrorResponse, narrowing what a route's errors carry (a `code` it defines).
+ */
+function isErrorBody(schema, file) {
+  if (refTarget(schema, file) === ERROR_RESPONSE) return true;
+  const { node, file: at } = deref(schema, file);
+  return Array.isArray(node.allOf) && node.allOf.some((member) => refTarget(member, at) === ERROR_RESPONSE);
+}
+
 /** The file a `$ref` names, so a schema can be recognised by what it is. */
 function refTarget(node, file) {
   if (!node || typeof node.$ref !== 'string') return undefined;
@@ -61,19 +74,12 @@ function refTarget(node, file) {
   return target ? resolve(dirname(file), target) : undefined;
 }
 
-const root = load(ROOT_FILE);
-const ERROR_RESPONSE = resolve(dirname(ROOT_FILE), 'components/schemas/ErrorResponse.json');
+const ERROR_RESPONSE = resolve(REPO, 'specs/src/components/schemas/ErrorResponse.json');
 const METHODS = ['get', 'put', 'post', 'delete', 'patch', 'head', 'options'];
 const failures = [];
-const fail = (where, message) => failures.push(`${where}: ${message}`);
-
-// ── Security schemes ──────────────────────────────────────────────────────
-const schemes = root.components?.securitySchemes ?? {};
-for (const [name, scheme] of Object.entries(schemes)) {
-  if (!scheme.description || scheme.description.trim() === '') {
-    fail(`securitySchemes.${name}`, 'has no description — the claims a credential must carry are protocol');
-  }
-}
+/** The document being checked, so each failure names it. */
+let current = '';
+const fail = (where, message) => failures.push(`${current} ${where}: ${message}`);
 
 // ── Limits ────────────────────────────────────────────────────────────────
 function checkLimits(where, limits) {
@@ -117,60 +123,73 @@ function checkStream(where, schema, file) {
   }
 }
 
-// ── Operations ────────────────────────────────────────────────────────────
-for (const [path, pathItemRef] of Object.entries(root.paths ?? {})) {
-  const { node: pathItem, file } = deref(pathItemRef, ROOT_FILE);
-  for (const method of METHODS) {
-    const op = pathItem[method];
-    if (!op) continue;
-    const where = `${method.toUpperCase()} ${path}`;
+for (const ROOT_FILE of ROOT_FILES) {
+  const root = load(ROOT_FILE);
+  current = ROOT_FILE.slice(REPO.length + 1);
 
-    if (!Array.isArray(op.security)) {
-      fail(where, 'declares no `security` — say [] for a public route');
+  // ── Security schemes ────────────────────────────────────────────────────
+  const schemes = root.components?.securitySchemes ?? {};
+  for (const [name, scheme] of Object.entries(schemes)) {
+    if (!scheme.description || scheme.description.trim() === '') {
+      fail(`securitySchemes.${name}`, 'has no description — the claims a credential must carry are protocol');
     }
-    const requirements = op.security ?? [];
-    for (const requirement of requirements) {
-      for (const name of Object.keys(requirement)) {
-        if (!(name in schemes)) fail(where, `names security scheme "${name}", which components.securitySchemes does not define`);
+  }
+
+  // ── Operations ────────────────────────────────────────────────────────────
+  for (const [path, pathItemRef] of Object.entries(root.paths ?? {})) {
+    const { node: pathItem, file } = deref(pathItemRef, ROOT_FILE);
+    for (const method of METHODS) {
+      const op = pathItem[method];
+      if (!op) continue;
+      const where = `${method.toUpperCase()} ${path}`;
+
+      if (!Array.isArray(op.security)) {
+        fail(where, 'declares no `security` — say [] for a public route');
       }
-    }
-    const isPublic = requirements.length === 0;
-
-    checkLimits(where, op['x-semiont-limits']);
-
-    const responses = op.responses ?? {};
-    if (!responses['500']) fail(where, 'declares no 500');
-    if (op.requestBody && !responses['400']) fail(where, 'takes a request body and declares no 400');
-    if (!isPublic && !responses['401']) fail(where, 'is protected and declares no 401');
-
-    for (const [status, responseRef] of Object.entries(responses)) {
-      const { node: response, file: responseFile } = deref(responseRef, file);
-      const label = `${where} ${status}`;
-
-      for (const [header, headerRef] of Object.entries(response.headers ?? {})) {
-        if (!deref(headerRef, responseFile).node.schema) fail(label, `header ${header} has no schema`);
+      const requirements = op.security ?? [];
+      for (const requirement of requirements) {
+        for (const name of Object.keys(requirement)) {
+          if (!(name in schemes)) fail(where, `names security scheme "${name}", which components.securitySchemes does not define`);
+        }
       }
-      if (status === '401') {
-        const headers = Object.keys(response.headers ?? {}).map((h) => h.toLowerCase());
-        if (!headers.includes('www-authenticate')) fail(label, 'carries no WWW-Authenticate header');
-      }
+      const isPublic = requirements.length === 0;
 
-      const code = Number(status);
-      const bodiless = code === 204 || (code >= 300 && code < 400);
-      const content = response.content;
-      if (!content || Object.keys(content).length === 0) {
-        if (!bodiless) fail(label, 'declares no body');
-        continue;
-      }
-      for (const [mediaType, media] of Object.entries(content)) {
-        if (!media.schema) {
-          fail(label, `${mediaType} has no schema`);
+      checkLimits(where, op['x-semiont-limits']);
+
+      const responses = op.responses ?? {};
+      if (!responses['500']) fail(where, 'declares no 500');
+      if (op.requestBody && !responses['400']) fail(where, 'takes a request body and declares no 400');
+      if (!isPublic && !responses['401']) fail(where, 'is protected and declares no 401');
+
+      for (const [status, responseRef] of Object.entries(responses)) {
+        const { node: response, file: responseFile } = deref(responseRef, file);
+        const label = `${where} ${status}`;
+
+        for (const [header, headerRef] of Object.entries(response.headers ?? {})) {
+          if (!deref(headerRef, responseFile).node.schema) fail(label, `header ${header} has no schema`);
+        }
+        if (status === '401') {
+          const headers = Object.keys(response.headers ?? {}).map((h) => h.toLowerCase());
+          if (!headers.includes('www-authenticate')) fail(label, 'carries no WWW-Authenticate header');
+        }
+
+        const code = Number(status);
+        const bodiless = code === 204 || (code >= 300 && code < 400);
+        const content = response.content;
+        if (!content || Object.keys(content).length === 0) {
+          if (!bodiless) fail(label, 'declares no body');
           continue;
         }
-        if (mediaType === 'text/event-stream') checkStream(`${label} ${mediaType}`, media.schema, responseFile);
-        if (code >= 400) {
-          if (mediaType !== 'application/json') fail(label, `an error body is ${mediaType}, not application/json`);
-          if (refTarget(media.schema, responseFile) !== ERROR_RESPONSE) fail(label, 'an error body is not ErrorResponse');
+        for (const [mediaType, media] of Object.entries(content)) {
+          if (!media.schema) {
+            fail(label, `${mediaType} has no schema`);
+            continue;
+          }
+          if (mediaType === 'text/event-stream') checkStream(`${label} ${mediaType}`, media.schema, responseFile);
+          if (code >= 400) {
+            if (mediaType !== 'application/json') fail(label, `an error body is ${mediaType}, not application/json`);
+            if (!isErrorBody(media.schema, responseFile)) fail(label, 'an error body is not ErrorResponse, or a refinement of it');
+          }
         }
       }
     }
@@ -182,4 +201,4 @@ if (failures.length > 0) {
   for (const f of failures) console.error(`  ✗ ${f}`);
   process.exit(1);
 }
-console.log('specs/src states the whole gateway protocol: every operation, response, header, stream and limit');
+console.log('specs/src states the whole protocol of the gateway and the Archivist: every operation, response, header, stream and limit');

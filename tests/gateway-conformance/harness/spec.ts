@@ -1,7 +1,8 @@
 /**
- * The spec, as the suite reads it: operations, their declared responses, the
- * limits, and validators compiled from the component schemas. Everything a
- * case asserts about shape comes from here — nothing is restated.
+ * The specs, as the suite reads them — the gateway's API, and the Archivist's
+ * HTTP surface its stand-in Archivist is held to: operations, their declared
+ * responses, the limits, and validators compiled from the component schemas.
+ * Everything a case asserts about shape comes from here — nothing is restated.
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -64,7 +65,7 @@ function absolutize(node: Json): void {
   Object.values(node).forEach(absolutize);
 }
 
-class Spec {
+export class Spec {
   readonly doc: JsonObject;
   private readonly ajv: Ajv;
   private readonly compiled = new Map<string, ValidateFunction>();
@@ -164,9 +165,17 @@ class Spec {
 }
 
 let cached: Spec | undefined;
+/** The gateway's API. */
 export function spec(): Spec {
   cached ??= new Spec(inject('specPath'));
   return cached;
+}
+
+let archivistCached: Spec | undefined;
+/** The Archivist's HTTP surface. */
+export function archivistSpec(): Spec {
+  archivistCached ??= new Spec(inject('archivistSpecPath'));
+  return archivistCached;
 }
 
 export function errorsOf(validate: ValidateFunction): string {

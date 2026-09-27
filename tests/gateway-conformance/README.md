@@ -30,6 +30,10 @@ configured another way).
   carry a stack frame, a source path or a secret's name; every stream must come
   as `text/event-stream`, and every message on it must be a `BusStreamMessage`
   with the id format its frame calls for ([harness/stream.ts](harness/stream.ts)).
+  Behind the gateway, every request it sends the Archivist must be an operation
+  the Archivist's spec (`specs/src/archivist/`) declares, with the parameters
+  that operation requires, and every reply the stand-in Archivist gives must
+  match its declaration ([harness/archivist.ts](harness/archivist.ts)).
   A violation fails the case whatever it was about.
 - **Hand-written**, each citing the text it checks: credentials, content and
   uploads, emitting (stamping, claims, profiles, unanswerable requests), the
@@ -41,7 +45,8 @@ configured another way).
 
 The world around a gateway is played by the harness: the trusted issuer
 (discovery, keys and the client-credentials grant, signing with
-`@semiont/core/testing/issuer`), a fake Archivist over HTTP, a broker that can
+`@semiont/core/testing/issuer`), a stand-in Archivist held to the Archivist's
+spec, a broker that can
 require credentials and be taken down and brought back, and an OTLP receiver.
 
 ## Running it

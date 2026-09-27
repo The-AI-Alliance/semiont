@@ -20,6 +20,7 @@ import { HTTPException } from 'hono/http-exception';
 import { errField, isObject, isString } from '@semiont/core';
 import type { StoredEvent, ServiceAccountCredential } from '@semiont/core';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
+import { validators } from '@semiont/core/openapi';
 import { SpanKind, withSpan } from '@semiont/observability';
 import { getLogger } from '../logger';
 
@@ -155,10 +156,14 @@ export async function getContent(
   }
 
   if (res.status === 404) {
-    const { reason } = await res.json().catch(() => ({})) as { reason?: string };
-    throw new HTTPException(404, {
-      message: reason === 'representation' ? 'Resource representation not found' : 'Resource not found',
-    });
+    const notFound: unknown = await res.json().catch(() => undefined);
+    if (validators.RepresentationNotFound(notFound)) {
+      throw new HTTPException(404, {
+        message: notFound.code === 'representation' ? 'Resource representation not found' : 'Resource not found',
+      });
+    }
+    getLogger().error('Archivist answered a 404 that is not a RepresentationNotFound', { component: 'archivist-client', resourceId });
+    throw new HTTPException(503, { message: 'Content store unavailable' });
   }
 
   if (!res.ok || !res.body) {

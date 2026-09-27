@@ -71,6 +71,10 @@ import { RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
 import { resolveRepresentation } from './representation';
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
+type ArchivistHealth = components['schemas']['ArchivistHealth'];
+type ArchivistEventsResponse = components['schemas']['ArchivistEventsResponse'];
+type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
+type RepresentationNotFound = components['schemas']['RepresentationNotFound'];
 
 /** An upload clone: the bytes are stored, and the token names the resource cloned. */
 export interface CloneUploadInput {
@@ -108,8 +112,8 @@ export interface ArchivistServerDeps {
    * `null` disables everything but /health, never opens it.
    */
   verifier: IssuerVerifier | null;
-  /** Liveness payload for /health — actor states, counters. */
-  health: () => Record<string, unknown>;
+  /** Liveness payload for /health. */
+  health: () => ArchivistHealth;
   logger: Logger;
 }
 
@@ -127,24 +131,25 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
    * Every refusal is 401, including "no issuer is configured here". That is
    * deployment state, and a caller who has not proved who they are has not
    * earned it — the same reason the gateway's agent exchange answers one
-   * status for every refusal.
+   * status for every refusal. The challenge says whether a token was
+   * presented and refused (RFC 6750 §3), and nothing more.
    */
   const authorized = async (req: IncomingMessage, res: ServerResponse): Promise<boolean> => {
     const header = req.headers.authorization;
     const bearer = header?.startsWith('Bearer ') ? header.slice(7) : undefined;
-    if (!bearer || !verifier) {
-      json(res, 401, { error: 'unauthorized' });
+    const refuse = () => {
+      res.writeHead(401, {
+        'Content-Type': 'application/json',
+        'WWW-Authenticate': bearer ? 'Bearer error="invalid_token"' : 'Bearer',
+      });
+      res.end(JSON.stringify({ error: 'unauthorized' }));
       return false;
-    }
+    };
+    if (!bearer || !verifier) return refuse();
     try {
-      const claims = await verifier.verify(bearer as AccessToken);
-      if (!hasServiceRole(claims)) {
-        json(res, 401, { error: 'unauthorized' });
-        return false;
-      }
+      if (!hasServiceRole(await verifier.verify(bearer as AccessToken))) return refuse();
     } catch {
-      json(res, 401, { error: 'unauthorized' });
-      return false;
+      return refuse();
     }
     return true;
   };
@@ -171,7 +176,10 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       }
 
       events.queryEvents(makeResourceId(rawId), { fromSequence })
-        .then((replay) => json(res, 200, { events: replay }))
+        .then((replay) => {
+          const answer: ArchivistEventsResponse = { events: replay };
+          json(res, 200, answer);
+        })
         .catch((error: unknown) => {
           logger.error('D1 read path failed', { resourceId: rawId, fromSequence, error: errField(error) });
           json(res, 500, { error: 'event read failed' });
@@ -199,9 +207,10 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
         })
         .catch((error: unknown) => {
           if (error instanceof RepresentationMissing) {
-            // `reason` rides the wire because the gateway serves two
-            // different client-visible messages for these two cases.
-            json(res, 404, { error: error.message, reason: error.reason });
+            // `code` rides the wire because each reader answers the two
+            // cases differently (RepresentationNotFound in the spec).
+            const notFound: RepresentationNotFound = { error: error.message, code: error.reason };
+            json(res, 404, notFound);
             return;
           }
           logger.error('Content read failed', { resourceId: rid, error: errField(error) });
@@ -248,7 +257,8 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       upload.input.contentChecksum = stored.checksum;
       upload.input.byteSize = stored.byteSize;
       try {
-        json(res, 200, { resourceId: String(await record(upload)) });
+        const recordedAs: CreateResourceResponse = { resourceId: String(await record(upload)) };
+        json(res, 200, recordedAs);
       } catch (error) {
         logger.warn('Upload not recorded', { storageUri: upload.input.storageUri, error: errField(error) });
         json(res, 500, { error: error instanceof Error ? error.message : String(error) });

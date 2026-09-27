@@ -99,7 +99,11 @@ eachPlane(
       expect((await eventually('content.put.server', 10_000, () => otlp.spans.find((s) => s.name === 'content.put.server' && s.traceId === put.traceId))).kind).toBe(SERVER);
       expect((await eventually('archivist.resources.record', 10_000, () => otlp.spans.find((s) => s.name === 'archivist.resources.record' && s.traceId === put.traceId))).kind).toBe(CLIENT);
 
-      world().archivist.descriptions.set(id, { '@context': 'https://schema.org/', '@id': id });
+      world().archivist.descriptions.set(id, {
+        resource: { '@context': 'https://schema.org/', '@id': id, name: 'traced', representations: [] },
+        annotations: [],
+        entityReferences: [],
+      });
       const describe = traceparent();
       expect((await call(world().origin, 'GET', `/resources/${id}/jsonld`, { token, headers: { traceparent: describe.header } })).status).toBe(200);
       expect((await eventually('archivist.resources.describe', 10_000, () => otlp.spans.find((s) => s.name === 'archivist.resources.describe' && s.traceId === describe.traceId))).kind).toBe(CLIENT);

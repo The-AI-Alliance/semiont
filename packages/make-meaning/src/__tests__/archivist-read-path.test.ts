@@ -12,7 +12,7 @@
  * This test asserts replay-not-gap against a real event log.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import type { AddressInfo } from 'net';
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -25,6 +25,7 @@ import { createArchivistServer, type RecordedUpload } from '../archivist-read-pa
 import { archivistContentReads } from '@semiont/content';
 import type { ArchivistAddressConfig } from '@semiont/core/node';
 import { createTestProject, type TestProject } from './helpers/test-project';
+import { archivistNonConformance, archivistOperations } from './helpers/archivist-spec';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -52,14 +53,48 @@ const stubVerifier = {
 
 type GetResourceResponse = components['schemas']['GetResourceResponse'];
 
+/**
+ * Every reply this file receives from an Archivist it started is checked
+ * against the Archivist's spec (specs/src/archivist), and the last case fails
+ * unless every operation the spec declares was exercised. The gateway
+ * conformance suite holds its stand-in Archivist to the same document, so the
+ * two cannot drift apart.
+ */
+const archivists = new Set<Server>();
+const exercised = new Set<string>();
+const offSpec: string[] = [];
+const realFetch = globalThis.fetch;
+const archivistPorts = () =>
+  new Set([...archivists].map((s) => s.address()).flatMap((a) => (a !== null && typeof a === 'object' ? [a.port] : [])));
+
+beforeAll(() => {
+  globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const res = await realFetch(input, init);
+    const url = new URL(input instanceof Request ? input.url : input);
+    if (archivistPorts().has(Number(url.port))) {
+      const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+      const { operation, problems } = archivistNonConformance(method, url.pathname, { status: res.status, headers: res.headers, body: await res.clone().text() });
+      if (operation) exercised.add(operation);
+      offSpec.push(...problems);
+    }
+    return res;
+  };
+});
+afterAll(() => {
+  globalThis.fetch = realFetch;
+});
+afterEach(() => {
+  expect(offSpec.splice(0)).toEqual([]);
+});
+
 describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   /** What `describe` answers, by resource id; absent means no such resource. */
   let descriptions: Map<string, GetResourceResponse>;
   /** Every upload the server asked to record, and how the record answers. */
   let recorded: RecordedUpload[];
   let recordAnswer: { resourceId: string } | { refuse: string };
-  const serverWith = (verifier: IssuerVerifier | null) =>
-    createArchivistServer({
+  const serverWith = (verifier: IssuerVerifier | null) => {
+    const server = createArchivistServer({
       events: eventStore.log,
       content: new WorkingTreeStore(tp.project, mockLogger),
       views: eventStore.viewStorage,
@@ -70,9 +105,12 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         if ('refuse' in recordAnswer) throw new Error(recordAnswer.refuse);
         return resourceId(recordAnswer.resourceId);
       },
-      health: () => ({ status: 'ok' }),
+      health: () => ({ status: 'ok', actors: ['stower'] }),
       logger: mockLogger,
     });
+    archivists.add(server);
+    return server;
+  };
   let tp: TestProject;
   let eventBus: EventBus;
   let eventStore: EventStore;
@@ -164,7 +202,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   it('serves /health without auth', async () => {
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok' });
+    expect(await res.json()).toEqual({ status: 'ok', actors: ['stower'] });
   });
 
   /**
@@ -400,10 +438,8 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
       // The gateway maps these to two different client-visible messages, so
       // the wire must carry which case it is.
-      const unknownBody = await (await get('res-nobody')).json() as { reason?: string };
-      const bodilessBody = await bodiless.json() as { reason?: string };
-      expect(unknownBody.reason).toBe('resource');
-      expect(bodilessBody.reason).toBe('representation');
+      expect(await (await get('res-nobody')).json()).toMatchObject({ code: 'resource' });
+      expect(await bodiless.json()).toMatchObject({ code: 'representation' });
     });
 
     it('refuses an unauthenticated read', async () => {
@@ -514,5 +550,9 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         expect(reads.getBinary).toBeTypeOf('function');
       });
     });
+  });
+
+  it('exercises every operation the Archivist\'s spec declares', () => {
+    expect(archivistOperations().filter((operation) => !exercised.has(operation))).toEqual([]);
   });
 });

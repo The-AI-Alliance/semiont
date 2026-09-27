@@ -75,6 +75,21 @@ func (e AnnotationType) Valid() bool {
 	}
 }
 
+// Defines values for ArchivistHealthStatus.
+const (
+	Ok ArchivistHealthStatus = "ok"
+)
+
+// Valid indicates whether the value is a known member of the ArchivistHealthStatus enum.
+func (e ArchivistHealthStatus) Valid() bool {
+	switch e {
+	case Ok:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BindBodyOperationOp.
 const (
 	BindBodyOperationOpAdd     BindBodyOperationOp = "add"
@@ -1197,6 +1212,24 @@ func (e RepresentationRel) Valid() bool {
 	}
 }
 
+// Defines values for RepresentationNotFoundCode.
+const (
+	RepresentationNotFoundCodeRepresentation RepresentationNotFoundCode = "representation"
+	RepresentationNotFoundCodeResource       RepresentationNotFoundCode = "resource"
+)
+
+// Valid indicates whether the value is a known member of the RepresentationNotFoundCode enum.
+func (e RepresentationNotFoundCode) Valid() bool {
+	switch e {
+	case RepresentationNotFoundCodeRepresentation:
+		return true
+	case RepresentationNotFoundCodeResource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SettingsThemeChangedEventTheme.
 const (
 	Dark   SettingsThemeChangedEventTheme = "dark"
@@ -1736,6 +1769,21 @@ type AnnotationTarget_Selector struct {
 	union json.RawMessage
 }
 
+// ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
+type ArchivistEventsResponse struct {
+	Events []StoredEventResponse `json:"events"`
+}
+
+// ArchivistHealth The Archivist's liveness answer: it serves, and the actors it hosts.
+type ArchivistHealth struct {
+	// Actors The record actors this process hosts.
+	Actors []string              `json:"actors"`
+	Status ArchivistHealthStatus `json:"status"`
+}
+
+// ArchivistHealthStatus defines model for ArchivistHealth.Status.
+type ArchivistHealthStatus string
+
 // BeckonFocusEvent Emitted when an annotation receives focus for beckoning. resourceId is a guard, not navigation: it names the resource this focus applies to, and a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
 type BeckonFocusEvent struct {
 	AnnotationId *string `json:"annotationId,omitempty"`
@@ -2262,7 +2310,7 @@ type CreateAnnotationRequest_Body struct {
 	union json.RawMessage
 }
 
-// CreateResourceResponse Response body for POST /resources (202 Accepted). The Archivist has stored the bytes and recorded the resource before this response is sent, so the resourceId is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle after the 202.
+// CreateResourceResponse The id of the resource an upload created. The Archivist answers it (200) once it has stored the bytes and recorded the resource, and the gateway forwards it (202), so the id is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle afterwards.
 type CreateResourceResponse struct {
 	// ResourceId The id of the newly created resource, as the record minted it.
 	ResourceId string `json:"resourceId"`
@@ -3949,6 +3997,21 @@ type RepresentationAddedPayload struct {
 	Representation Representation `json:"representation"`
 }
 
+// RepresentationNotFound defines model for RepresentationNotFound.
+type RepresentationNotFound struct {
+	Code    RepresentationNotFoundCode `json:"code"`
+	Details interface{}                `json:"details,omitempty"`
+
+	// Error What went wrong, in a sentence.
+	Error string `json:"error"`
+
+	// Hint What the caller can do about it, when there is something to say.
+	Hint *string `json:"hint,omitempty"`
+}
+
+// RepresentationNotFoundCode defines model for RepresentationNotFound.Code.
+type RepresentationNotFoundCode string
+
 // RepresentationRemovedPayload Payload for yield:representation-removed domain event
 type RepresentationRemovedPayload struct {
 	// Checksum Checksum of the representation to remove
@@ -4232,6 +4295,51 @@ type ResourceUpdatedPayload struct {
 
 	// ContentChecksum SHA-256 of new content
 	ContentChecksum string `json:"contentChecksum"`
+}
+
+// ResourceUpload The multipart upload that creates a resource. A client sends it to the gateway's `POST /resources`; the gateway forwards it untouched to the Archivist's `POST /resources`, which stores the bytes and records the resource. One body, two hops.
+type ResourceUpload struct {
+	// ArchiveOriginal With `cloneToken`: 'true' archives the source once the clone exists.
+	ArchiveOriginal *string `json:"archiveOriginal,omitempty"`
+
+	// CloneToken A clone token from `yield:clone-token-requested`. With it, the resource is created as a clone of the token's source, inheriting its entity types; `language`, `entityTypes` and the generation fields are then not read.
+	CloneToken *string `json:"cloneToken,omitempty"`
+
+	// EntityTypes JSON-stringified array of entity type names
+	EntityTypes *string `json:"entityTypes,omitempty"`
+
+	// File Binary content
+	File openapi_types.File `json:"file"`
+
+	// Format Media type of the content (e.g. text/plain, text/markdown, image/png)
+	Format string `json:"format"`
+
+	// GenerationPrompt For AI-generated resources: the prompt that drove generation
+	GenerationPrompt *string `json:"generationPrompt,omitempty"`
+
+	// Generator For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job.
+	Generator *string `json:"generator,omitempty"`
+
+	// IsDraft 'true' or 'false' — whether the resource is a draft
+	IsDraft *string `json:"isDraft,omitempty"`
+
+	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
+	JobId *string `json:"jobId,omitempty"`
+
+	// Language ISO 639-1 language code
+	Language *string `json:"language,omitempty"`
+
+	// Name Human-readable resource name
+	Name string `json:"name"`
+
+	// SourceAnnotationId For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event.
+	SourceAnnotationId *string `json:"sourceAnnotationId,omitempty"`
+
+	// SourceResourceId For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event.
+	SourceResourceId *string `json:"sourceResourceId,omitempty"`
+
+	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
+	StorageUri string `json:"storageUri"`
 }
 
 // ScoredResource defines model for ScoredResource.
@@ -4867,51 +4975,6 @@ type ServiceUnavailable = ErrorResponse
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
 
-// PostResourcesMultipartBody defines parameters for PostResources.
-type PostResourcesMultipartBody struct {
-	// ArchiveOriginal With `cloneToken`: 'true' archives the source once the clone exists.
-	ArchiveOriginal *string `json:"archiveOriginal,omitempty"`
-
-	// CloneToken A clone token from `yield:clone-token-requested`. With it, the resource is created as a clone of the token's source, inheriting its entity types; `language`, `entityTypes` and the generation fields are then not read.
-	CloneToken *string `json:"cloneToken,omitempty"`
-
-	// EntityTypes JSON-stringified array of entity type names
-	EntityTypes *string `json:"entityTypes,omitempty"`
-
-	// File Binary content
-	File openapi_types.File `json:"file"`
-
-	// Format Media type of the content (e.g. text/plain, text/markdown, image/png)
-	Format string `json:"format"`
-
-	// GenerationPrompt For AI-generated resources: the prompt that drove generation
-	GenerationPrompt *string `json:"generationPrompt,omitempty"`
-
-	// Generator For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job.
-	Generator *string `json:"generator,omitempty"`
-
-	// IsDraft 'true' or 'false' — whether the resource is a draft
-	IsDraft *string `json:"isDraft,omitempty"`
-
-	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
-	JobId *string `json:"jobId,omitempty"`
-
-	// Language ISO 639-1 language code
-	Language *string `json:"language,omitempty"`
-
-	// Name Human-readable resource name
-	Name string `json:"name"`
-
-	// SourceAnnotationId For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event.
-	SourceAnnotationId *string `json:"sourceAnnotationId,omitempty"`
-
-	// SourceResourceId For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event.
-	SourceResourceId *string `json:"sourceResourceId,omitempty"`
-
-	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
-	StorageUri string `json:"storageUri"`
-}
-
 // PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
 type PostApiTokensAgentJSONRequestBody = AgentTokenRequest
 
@@ -4925,7 +4988,7 @@ type PostBusEmitJSONRequestBody = BusEmitRequest
 type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
 
 // PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
-type PostResourcesMultipartRequestBody PostResourcesMultipartBody
+type PostResourcesMultipartRequestBody = ResourceUpload
 
 // Getter for additional properties for AgentOrganization. Returns the specified
 // element and whether it was found

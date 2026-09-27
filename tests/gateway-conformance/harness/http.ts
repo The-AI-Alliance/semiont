@@ -3,7 +3,7 @@
  * suite can be put through: that its status is declared for the route, and
  * that its body and headers are what the declaration says.
  */
-import { errorsOf, spec, type Method } from './spec';
+import { archivistSpec, errorsOf, spec, type Method, type Spec } from './spec';
 
 export interface Reply {
   status: number;
@@ -42,14 +42,23 @@ export async function call(origin: string, method: string, path: string, options
 }
 
 /**
- * The reply's status is one the spec declares for `method path`, and the
- * reply matches that declaration: content type, body schema (JSON bodies),
+ * The reply's status is one the gateway's spec declares for `method path`, and
+ * the reply matches that declaration: content type, body schema (JSON bodies),
  * and every declared header whose schema it has, against that schema.
  * Returns a list of mismatches; empty is conformant.
  */
 export function nonConformance(method: Method, path: string, reply: Reply): string[] {
+  return conformance(spec(), method, path, reply);
+}
+
+/** The same, against the Archivist's spec: what the stand-in Archivist answers. */
+export function archivistNonConformance(method: Method, path: string, reply: Reply): string[] {
+  return conformance(archivistSpec(), method, path, reply);
+}
+
+function conformance(against: Spec, method: Method, path: string, reply: Reply): string[] {
   const problems: string[] = [];
-  const declared = spec().response(method, path, reply.status);
+  const declared = against.response(method, path, reply.status);
   if (!declared) return [`${method.toUpperCase()} ${path} answered ${reply.status}, which the spec does not declare (body: ${reply.text.slice(0, 200)})`];
 
   const content = declared['content'] as Record<string, { schema?: unknown }> | undefined;
@@ -65,7 +74,7 @@ export function nonConformance(method: Method, path: string, reply: Reply): stri
       } else if (reply.status >= 400 && /\bat [^\s]+ \(|\.[cm]?[jt]s:\d+|node_modules|\/Users\/|\/home\/|JWT_SECRET|CLIENT_SECRET/.test(reply.text)) {
         problems.push(`${reply.status} body carries internals — a stack frame, a source path or a secret's name: ${reply.text.slice(0, 200)}`);
       } else {
-        const validate = spec().validator(content[media]!.schema as never);
+        const validate = against.validator(content[media]!.schema as never);
         if (!validate(reply.json)) problems.push(`${reply.status} body does not match the declared schema: ${errorsOf(validate)}`);
       }
     }
@@ -79,7 +88,7 @@ export function nonConformance(method: Method, path: string, reply: Reply): stri
       continue;
     }
     if (header.schema !== undefined) {
-      const validate = spec().validator(header.schema as never);
+      const validate = against.validator(header.schema as never);
       if (!validate(value)) problems.push(`${reply.status} ${name}: ${JSON.stringify(value)} does not match its schema (${errorsOf(validate)})`);
     }
   }

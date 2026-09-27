@@ -115,13 +115,13 @@ eachPlane('content', (world) => {
       world().archivist.mode.refuseUploads = undefined;
     }
 
-    world().archivist.mode.failing = true;
+    world().archivist.mode.refusesGateway = true;
     try {
       const unavailable = await call(world().origin, 'POST', '/resources', { token, body: body() });
       expect(unavailable.status).toBe(503);
       expect(nonConformance('post', '/resources', unavailable)).toEqual([]);
     } finally {
-      world().archivist.mode.failing = false;
+      world().archivist.mode.refusesGateway = false;
     }
     await watcher.quiet('person:profile', 500, (f) => f.payload['_userId'] === world().personDid('refused-uploader'));
   });
@@ -177,7 +177,7 @@ eachPlane('content', (world) => {
 
   it('the pipe and the description answer 503 when the Archivist cannot serve them', async () => {
     const token = await world().person('reader');
-    world().archivist.mode.failing = true;
+    world().archivist.mode.refusesGateway = true;
     try {
       for (const path of ['/resources/{id}', '/resources/{id}/jsonld'] as const) {
         const reply = await call(world().origin, 'GET', path.replace('{id}', `res-${randomUUID()}`), { token });
@@ -185,7 +185,7 @@ eachPlane('content', (world) => {
         expect(nonConformance('get', path, reply), path).toEqual([]);
       }
     } finally {
-      world().archivist.mode.failing = false;
+      world().archivist.mode.refusesGateway = false;
     }
   });
 

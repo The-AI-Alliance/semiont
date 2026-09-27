@@ -21,7 +21,7 @@ on the plane.
 | `tests/gateway-conformance` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, replicas, boot refusals, the headers on every response, and the span and metric names |
 | The gateway's boot | Its route table is exactly the spec's operations — no undeclared route, no declared operation unserved ([spec-routes.ts](../src/spec-routes.ts)); every suite run boots gateways, so a route added without a spec entry fails CI |
 | `apps/gateway`'s own `npm test` | Only the manifest census: the gateway's runtime dependencies are core and observability plus what its source imports, and nothing it imports is undeclared |
-| `packages/make-meaning` | The Archivist's side of what the gateway proxies: the recording upload, the description, the content and replay reads |
+| `packages/make-meaning` | The Archivist's side of what the gateway proxies: the recording upload, the description, the content and replay reads — every reply checked against the Archivist's spec (`specs/src/archivist/`), and every operation it declares exercised. The suite holds its stand-in Archivist, and the gateway's requests to it, to the same document |
 
 ## Running the suite
 

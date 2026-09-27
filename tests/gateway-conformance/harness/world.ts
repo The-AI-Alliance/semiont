@@ -178,11 +178,13 @@ export class World {
   }
 
   /**
-   * Every violation carried since the last call — by the streams a case
-   * opened, which are then closed, and by the standing ones.
+   * Every violation since the last call — carried by the streams a case
+   * opened, which are then closed, and by the standing ones, and anything the
+   * gateway sent the Archivist, or the stand-in answered, outside its spec.
    */
   drain(): string[] {
     const violations = [...this.streams, ...this.standing].flatMap((s) => s.violations.splice(0));
+    violations.push(...this.archivist.violations.splice(0));
     for (const s of this.streams) s.close();
     this.streams.length = 0;
     return violations;

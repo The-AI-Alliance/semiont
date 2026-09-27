@@ -66,6 +66,11 @@ way, as ordinary events (once globally, once scoped to their resource). See
 | `GET /resources/:id/jsonld` | a resource's linked-data description (the Browser's answer to `browse:resource-requested`); 404 when there is no such resource | the gateway, for `GET /resources/:id/jsonld` |
 | `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
 
+The contract is [specs/src/archivist/openapi.json](../../specs/src/archivist/openapi.json): every
+status each route answers and its body — a missing resource's bytes are a 404 whose `code` is
+`resource` or `representation` — and the headers. The Archivist's tests check every reply against
+it, and the gateway conformance suite holds its stand-in Archivist to it.
+
 A browser never calls these: its requests go to the gateway, which calls them with its own
 credential.
 
@@ -74,7 +79,8 @@ carrying the `semiont-service` role. Each caller gets one with its own service a
 gateway requires the same role to issue a service its agent token.
 
 Every refusal is **401**, including when no identity provider is configured: without a verifier,
-every path but `/health` refuses.
+every path but `/health` refuses. Its challenge is `Bearer`, or `Bearer error="invalid_token"` when a
+token was presented and refused.
 
 **⚠️ Standing rule: this surface serves the KB tree and each resource's linked-data description,
 and nothing else.** Every other `browse:*`, and `match:*` and `gather:*`, stay on the bus. An
