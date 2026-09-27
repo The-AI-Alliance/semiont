@@ -14,7 +14,10 @@ set -euo pipefail
 #   --npmrc <path>     Path to .npmrc for registry auth
 #   --dry-run          Stage but do not publish
 
-cd "$(git rev-parse --show-toplevel)"
+# The repository root, found from where this script lives rather than asked of
+# git: in a container that runs as root over a checkout owned by another user,
+# git refuses the repository ("dubious ownership").
+cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
 # --- Colors ---
 

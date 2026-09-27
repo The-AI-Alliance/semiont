@@ -244,8 +244,9 @@ jobs:
 
   # Generated code is committed (so consumers and CI never need the
   # generators), which means it can go stale the moment its authority changes.
-  # scripts/ci/local-build.sh has these gates too, but that script does NOT run
-  # in CI — without this job, nothing checks generated artifacts on a PR.
+  # scripts/ci/local-build.sh has these gates too, but in CI that script runs
+  # only in Stack Smoke, which few PRs trigger — without this job, nothing
+  # checks generated artifacts on a PR.
   generated-artifacts:
     name: Generated Artifacts (drift)
     runs-on: ubuntu-latest

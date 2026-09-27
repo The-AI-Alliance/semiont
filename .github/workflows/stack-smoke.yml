@@ -1,41 +1,41 @@
-# Stack smoke: build the launcher from THIS branch, boot a real stack from a
-# published image set, and assert the things the hermetic suite cannot.
+# Stack smoke: boot a real stack and assert the things the hermetic suite
+# cannot. The check itself is scripts/release/smoke-stack.sh, which this
+# workflow runs and a laptop runs the same way; what it asserts is said there,
+# once.
 #
-# TWO AXES, named separately, which is the whole point:
+# The LAUNCHER always comes from the commit this workflow runs on. The IMAGES
+# come from one of two places:
 #
-#   - the LAUNCHER comes from the ref this workflow runs on, built here;
-#   - the IMAGES come from the `images` tag, already on ghcr.
-#
-# That is what keeps a launcher change testable without publishing anything.
-# A job that booted published images with a published launcher could only run
-# at release time, and a per-PR version of it would deadlock any change that
-# must move the launcher and an image together — the image cannot publish
-# until CI is green, and CI cannot be green without the image. Here the
-# launcher is built, never pulled, so only a change that genuinely needs a NEW
-# image has to wait for one, and then it names that tag.
-#
-# The check itself is scripts/release/smoke-stack.sh, which this workflow runs
-# and a laptop runs the same way; what it asserts is said there, once.
+#   - the same commit, by default: scripts/ci/local-build.sh builds the
+#     packages, publishes them to a Verdaccio it starts on the runner, builds
+#     every image against it into the runner's docker store as `:local`, and
+#     builds the launcher. Nothing is pushed anywhere. A change that moves the
+#     launcher and an image together is tested together, before either is
+#     published;
+#   - a published tag, when a run names one (`images`): the release's question,
+#     whether the images people will pull boot with this launcher, asked before
+#     `latest` moves to them (docs/development/RELEASE.md).
 name: Stack Smoke
 
 on:
   workflow_dispatch:
     inputs:
       images:
-        description: "ghcr tag to boot (e.g. latest, or 0.6.5)"
-        required: true
-        default: latest
+        description: "Published ghcr tag to boot (e.g. 0.6.5, or latest); empty builds every image from this commit"
+        required: false
+        default: ''
         type: string
-  # Self-testing: a change to this workflow proves it still boots a stack.
-  # Deliberately NOT a gate on other work — the fake covers per-PR regression,
-  # and this lane answers "does the model match reality", which periodic
-  # verification suffices for. It is also the only way to exercise a
-  # dispatch-only workflow before it reaches the default branch, which GitHub
-  # requires before `gh workflow run` will find it.
+  # Self-testing: a change to this workflow, its script or the build it runs
+  # proves it still boots a stack. Deliberately NOT a gate on other work — the
+  # fake covers per-PR regression, and this lane answers "does the model match
+  # reality", which periodic verification suffices for. It is also the only way
+  # to exercise a dispatch-only workflow before it reaches the default branch,
+  # which GitHub requires before `gh workflow run` will find it.
   pull_request:
     paths:
       - .github/workflows/stack-smoke.yml
       - scripts/release/smoke-stack.sh
+      - scripts/ci/local-build.sh
 
 permissions:
   contents: read
@@ -43,21 +43,28 @@ permissions:
 jobs:
   boot:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A ceiling, not an estimate: how long the build takes on a runner is
+    # measured by its first runs.
+    timeout-minutes: 90
     env:
-      # Selects the image tag the launcher pulls. Without it the launcher
-      # takes `latest`, which is the right default and the wrong thing to
-      # assume when the point is to name a set.
-      SEMIONT_VERSION: ${{ inputs.images || 'latest' }}
+      # The image tag the launcher boots: `local`, the images built below from
+      # this commit, unless the run names a published tag.
+      SEMIONT_VERSION: ${{ inputs.images || 'local' }}
     steps:
       - uses: actions/checkout@v7.0.1
 
+      - name: Build the packages, images and launcher from this commit
+        if: env.SEMIONT_VERSION == 'local'
+        run: scripts/ci/local-build.sh
+
       - uses: actions/setup-go@v7.0.0
+        if: env.SEMIONT_VERSION != 'local'
         with:
           go-version-file: apps/launcher/go.mod
 
-      - name: Build the launcher from this branch
+      - name: Build the launcher from this commit
         # Where the smoke script runs it from.
+        if: env.SEMIONT_VERSION != 'local'
         run: cd apps/launcher && go build -o dist/semiont .
 
       - name: Boot a stack and check it
