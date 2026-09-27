@@ -1,6 +1,6 @@
 /**
  * An OTLP/HTTP receiver: collects the spans a gateway exports as JSON, and
- * each metric's name with the attribute keys its data points carried, so a
+ * each metric's name with the attribute keys and values its data points carried, so a
  * case can check the names the observability contract
  * (docs/system/administration/OBSERVABILITY.md) promises.
  */
@@ -21,6 +21,8 @@ export interface OtlpReceiver {
   readonly spans: ReceivedSpan[];
   /** Metric name → every attribute key seen on its data points. */
   readonly metrics: Map<string, Set<string>>;
+  /** Metric name → every value its sum and gauge data points carried, in arrival order. */
+  readonly values: Map<string, number[]>;
   close(): Promise<void>;
 }
 
@@ -43,6 +45,7 @@ function attributes(kvs: unknown): Record<string, unknown> {
 export async function startOtlp(): Promise<OtlpReceiver> {
   const spans: ReceivedSpan[] = [];
   const metrics = new Map<string, Set<string>>();
+  const values = new Map<string, number[]>();
   const server: Server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
@@ -84,7 +87,11 @@ export async function startOtlp(): Promise<OtlpReceiver> {
                   const data = m[kind];
                   if (!isObject(data)) continue;
                   for (const point of list(data['dataPoints'])) {
-                    if (isObject(point)) for (const key of Object.keys(attributes(point['attributes']))) keys.add(key);
+                    if (!isObject(point)) continue;
+                    for (const key of Object.keys(attributes(point['attributes']))) keys.add(key);
+                    // OTLP/JSON carries an int64 as a string.
+                    const value = Number(point['asInt'] ?? point['asDouble']);
+                    if (kind !== 'histogram' && Number.isFinite(value)) values.set(name, [...(values.get(name) ?? []), value]);
                   }
                 }
               }
@@ -104,6 +111,7 @@ export async function startOtlp(): Promise<OtlpReceiver> {
     endpoint: `http://127.0.0.1:${port}`,
     spans,
     metrics,
+    values,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

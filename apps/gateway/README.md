@@ -99,7 +99,8 @@ naming each failing field by its JSON pointer — when it does not match.
   "identity": { "issuer": "http://keycloak:8080/realms/semiont", "subjectClaim": "sub" },
   "archivist": { "host": "archivist", "port": 24103 },
   "signal": { "type": "nats", "servers": "nats:4222" },
-  "logLevel": "info"
+  "logLevel": "info",
+  "logFormat": "json"
 }
 ```
 
@@ -110,7 +111,9 @@ without the launcher is given the same document.
 Secrets are never in it. The gateway's own are environment variables —
 `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` — and a
 broker credential is named by the variable holding it (`signal.userEnv`,
-`signal.passwordEnv`). The standard `OTEL_*` variables configure telemetry.
+`signal.passwordEnv`). Every environment variable the gateway reads, what
+sets it and what it changes, is in
+[`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json).
 
 ## HTTP surface
 

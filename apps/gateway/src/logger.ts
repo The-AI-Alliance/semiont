@@ -1,12 +1,14 @@
 /**
  * Core Logger Module
  *
- * Winston-based logging with configurable log levels and structured metadata.
- * Supports environment-based configuration for development and production.
+ * Winston-based logging with structured metadata, at the level and in the
+ * format the configuration document names. Logs go to stdout, the container's
+ * contract — `semiont logs` reads the runtime's stream.
  */
 
 import winston from 'winston';
 import { getLogTraceContext } from '@semiont/observability';
+import type { GatewayConfig } from './config';
 
 /**
  * Winston format that injects the active OTel span's trace_id/span_id
@@ -23,35 +25,11 @@ const traceContextFormat = winston.format((info) => {
   return info;
 })();
 
-/**
- * Log levels supported by the logger
- */
-export type LogLevel = 'error' | 'warn' | 'info' | 'http' | 'debug';
+/** The document's logging fields. */
+type LoggingSettings = Pick<GatewayConfig, 'logLevel' | 'logFormat'>;
 
-/**
- * Logger configuration options
- */
-export interface LoggerConfig {
-  level: LogLevel;
-  format: 'json' | 'simple';
-}
-
-/**
- * The logger's configuration: the level from the configuration document, and
- * LOG_FORMAT from the environment (json | simple; json when unset). Logs go
- * to stdout, the container's contract — `semiont logs` reads the runtime's
- * stream.
- */
-function getLoggerConfig(level: LogLevel): LoggerConfig {
-  const format = (process.env.LOG_FORMAT || 'json') as 'json' | 'simple';
-  return { level, format };
-}
-
-/**
- * Create Winston format based on configuration
- */
-function createFormat(config: LoggerConfig): winston.Logform.Format {
-  if (config.format === 'json') {
+function createFormat(format: GatewayConfig['logFormat']): winston.Logform.Format {
+  if (format === 'json') {
     return winston.format.combine(
       winston.format.timestamp(),
       winston.format.errors({ stack: true }),
@@ -80,24 +58,17 @@ let loggerInstance: winston.Logger | null = null;
 /**
  * Initialize the global logger
  * Call this once at application startup
- *
- * @param logLevel - The configuration document's level
  */
-export function initializeLogger(logLevel: LogLevel): winston.Logger {
-  const config = getLoggerConfig(logLevel);
-
+export function initializeLogger({ logLevel, logFormat }: LoggingSettings): winston.Logger {
   loggerInstance = winston.createLogger({
-    level: config.level,
-    format: createFormat(config),
-    transports: [new winston.transports.Console({ level: config.level })],
+    level: logLevel,
+    format: createFormat(logFormat),
+    transports: [new winston.transports.Console({ level: logLevel })],
     // Don't exit on handled exceptions
     exitOnError: false
   });
 
-  loggerInstance.info('Logger initialized', {
-    level: config.level,
-    format: config.format,
-  });
+  loggerInstance.info('Logger initialized', { level: logLevel, format: logFormat });
 
   return loggerInstance;
 }

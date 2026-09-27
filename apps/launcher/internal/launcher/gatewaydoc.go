@@ -81,8 +81,8 @@ func gatewayVars(addr string, userEnv []string) map[string]string {
 // KB's committed identity, the address the launcher computed, the port it
 // publishes, and the user's variables. The absent-section decisions live here
 // and nowhere else: no [signal] is the in-process plane, no logLevel is info,
-// no publicURL is the local address, and a hand-written archivist section
-// wins over the launcher's.
+// the log format is JSON (a KB config names none), no publicURL is the local
+// address, and a hand-written archivist section wins over the launcher's.
 func gatewayDocument(env *envConfig, kbName, kbDomain, addr string, port int, userEnv []string) ([]byte, error) {
 	if kbDomain == "" {
 		return nil, fmt.Errorf("the knowledge base declares no [site] domain in its .semiont/config: the gateway has no identity to run under")
@@ -138,5 +138,6 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, addr string, port int, us
 	if env.LogLevel != "" {
 		doc.LogLevel = semiont.GatewayConfigLogLevel(env.LogLevel)
 	}
+	doc.LogFormat = semiont.Json
 	return json.MarshalIndent(doc, "", "  ")
 }

@@ -2,31 +2,32 @@
  * Starting and stopping gateway processes.
  *
  * A gateway is `GATEWAY_COMMAND`, a configuration document and an
- * environment. What the configuration says is modelled here once
- * (`GatewaySettings`); `writeConfiguration` renders it into the file the
- * gateway reads, and a case that needs a broken configuration edits the
- * settings, never the rendering.
+ * environment. The document is `GatewaySettings`, the spec's own type with the
+ * fields a case may delete made optional; `writeConfiguration` renders it into
+ * the file the gateway reads, and a case that needs a broken configuration
+ * edits the settings, never the rendering. The environment holds only what
+ * specs/src/gateway-environment/variables.json lists.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { components } from '@semiont/core';
 import { GATEWAY_COMMAND } from './paths';
 import { freePort } from './net';
+import { gatewayEnvironment } from './spec';
 
 export type Plane = 'in-process' | 'nats';
 
-/** Everything a gateway is configured with. */
-export interface GatewaySettings {
-  kb: { name?: string; domain?: string };
-  port: number;
-  publicUrl: string;
-  identity: { issuer?: string; subjectClaim?: string };
-  archivist: { host?: string; port?: number };
-  signal: { type: 'in-process' } | { type: 'nats'; servers?: string; userEnv?: string; passwordEnv?: string };
-  logLevel: 'error' | 'warn' | 'info' | 'debug';
-  /** Fields the document does not declare, for the case that checks they are refused. */
-  undeclared?: Record<string, unknown>;
+type Document = components['schemas']['GatewayConfig'];
+
+/** Everything a gateway is configured with: the document, with the fields a case may delete optional. */
+export interface GatewaySettings extends Omit<Document, 'kb' | 'identity' | 'archivist'> {
+  kb: Partial<Document['kb']>;
+  identity: Partial<Document['identity']>;
+  archivist: Partial<Document['archivist']>;
+  /** Fields written into the document as given, over the settings: for the cases that check what is refused. */
+  verbatim?: Record<string, unknown>;
 }
 
 export interface GatewayEnvironment {
@@ -43,17 +44,22 @@ export interface GatewayEnvironment {
  * deleted is absent from the document.
  */
 function writeConfiguration(dir: string, s: GatewaySettings): void {
-  const document = {
-    kb: { ...s.kb },
-    port: s.port,
-    publicUrl: s.publicUrl,
-    identity: { ...s.identity },
-    archivist: { ...s.archivist },
-    signal: s.signal,
-    logLevel: s.logLevel,
-    ...s.undeclared,
-  };
-  writeFileSync(join(dir, '.semiontconfig'), JSON.stringify(document, null, 2) + '\n');
+  const { verbatim, ...fields } = s;
+  writeFileSync(join(dir, '.semiontconfig'), JSON.stringify({ ...fields, ...verbatim }, null, 2) + '\n');
+}
+
+/**
+ * The suite sets nothing a gateway does not read: every variable it passes is
+ * listed in specs/src/gateway-environment/variables.json or named by the
+ * document, except PATH, which finds the gateway's command.
+ */
+function checkEnvironment(env: GatewayEnvironment, settings: GatewaySettings): void {
+  const named = [settings.signal.userEnv, settings.signal.passwordEnv].filter((n): n is string => n !== undefined);
+  const listed = new Set([...gatewayEnvironment(), ...named, 'PATH']);
+  const unlisted = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
+  if (unlisted.length > 0) {
+    throw new Error(`the suite set ${unlisted.join(', ')}, which specs/src/gateway-environment/variables.json does not list and the document does not name`);
+  }
 }
 
 export interface GatewayProcess {
@@ -72,6 +78,7 @@ export interface LaunchOptions {
 }
 
 function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+  checkEnvironment(env, settings);
   const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-home-'));
   writeConfiguration(dir, settings);
   const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: dir };
@@ -103,6 +110,7 @@ export async function defaultSettings(parts: {
     archivist: { ...parts.archivist },
     signal: parts.plane === 'nats' ? { type: 'nats', servers: parts.natsUrl! } : { type: 'in-process' },
     logLevel: 'warn',
+    logFormat: 'json',
   };
 }
 
