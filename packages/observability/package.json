@@ -52,7 +52,7 @@
   "license": "Apache-2.0",
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
-    "rollup": "^4.63.3",
+    "rollup": "^4.63.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.5.1",
     "typescript": "^6.0.2",
