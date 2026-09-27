@@ -125,8 +125,8 @@ const entries = [
     },
   },
   // `@semiont/core/testing/issuer` — the in-process OIDC issuer double. Its
-  // own shard, so importing the `testing` barrel for the axiom harnesses does
-  // not drag `msw` in behind it.
+  // own shard, so importing the `testing` barrel does not drag `jose` in
+  // behind it.
   {
     input: 'dist-types/testing/issuer.d.ts',
     file: 'dist/testing/issuer.d.ts',

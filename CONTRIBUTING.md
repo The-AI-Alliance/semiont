@@ -305,8 +305,8 @@ All contributions should include appropriate tests. We have comprehensive testin
 
 ### Testing Documentation
 
-- **[System Testing Guide](docs/development/TESTING.md)** - Overall testing strategy, Vitest, MSW v2, Browser testing
-- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - unit and integration tests
+- **[System Testing Guide](docs/development/TESTING.md)** - How every suite is configured and run, the SDK's test doubles, end-to-end, CI
+- **[Gateway Testing Guide](apps/gateway/docs/TESTING.md)** - The black-box conformance suite and what each check covers
 
 ### Quick Start
 
@@ -317,8 +317,8 @@ npm test
 
 **Run service-specific tests:**
 ```bash
-cd apps/gateway && npm test     # Gateway tests (Jest)
-cd apps/browser && npm test    # Browser tests (Vitest)
+cd apps/browser && npm test                 # Browser suite
+cd tests/gateway-conformance && npm test    # The gateway, black-box (needs a built gateway and nats-server)
 ```
 
 ### Test Requirements for PRs

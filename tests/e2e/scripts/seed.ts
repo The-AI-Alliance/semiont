@@ -1,25 +1,24 @@
 /**
- * Seed the e2e KB with the minimum fixture set the spec suite assumes.
+ * Seed the e2e KB with the fixture set the spec suite assumes.
  *
- * The Playwright suite documents (in ``tests/e2e/README.md``) that it
- * "assumes the target KB has ≥2 resources and ≥1 entity type." Entity
- * types are auto-bootstrapped on gateway startup
+ * The Archivist bootstraps entity types when it starts
  * (`packages/make-meaning/src/bootstrap/entity-types.ts`); resources are
- * not. A freshly-rebuilt template KB starts empty, which makes specs
- * 02-09 fail at the very first "open resource:" assertion.
+ * not bootstrapped. A freshly-rebuilt template KB starts empty, which makes
+ * specs 02-09 fail at the very first "open resource:" assertion.
  *
  * Seeds two `text/plain` resources (for the text-annotation specs) plus
- * four `application/pdf` resources: a 3-word render smoke fixture (for
+ * five `application/pdf` resources: a 3-word render smoke fixture (for
  * `14-pdf-render.spec.ts`, the PDFJS-6-UNIFY browser smoke), a
  * text-layer fixture with a Concept-dense paragraph (for
  * `20-pdf-assisted-detection.spec.ts`, AI detection on a PDF), an
  * unreadable scan (for `22-pdf-scanned-decline.spec.ts` and
+ * `23-pdf-anchored-text.spec.ts`), a legible scan OCR reads reliably (for
  * `23-pdf-anchored-text.spec.ts`), and a hybrid whose two pages are one
- * typed and one scanned (for `24-pdf-hybrid-class-c.spec.ts`). Every PDF is
- * seeded **first** on purpose: Discover lists resources newest-first
- * (`make-meaning/src/resource-context.ts` `sortByDateDesc`), so the two
- * oldest resources sort last and never become the `.first()` card the text
- * specs (02-09) open. Adding the PDFs must not displace that card.
+ * typed and one scanned (for `24-pdf-hybrid-class-c.spec.ts`). Every PDF
+ * is seeded **first** on purpose: Discover lists resources newest-first
+ * (`@semiont/graph`'s `compareByRecencyThenId`), so the PDFs
+ * sort last and never become the `.first()` card the text specs (02-09)
+ * open. Adding a PDF must not displace that card.
  *
  * This module exports two entry points:
  *

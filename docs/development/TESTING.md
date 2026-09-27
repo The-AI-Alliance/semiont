@@ -267,7 +267,7 @@ The suite is **deliberately scoped**. It is the smallest set of paths that has b
 ### What's in scope
 
 - **Not in CI.** No workflow runs it. Run it locally against a stack you brought up.
-- **Seeded.** Playwright's global setup, [`scripts/seed.ts`](../../tests/e2e/scripts/seed.ts), authenticates through `@semiont/sdk` and uploads the fixtures the specs assume: two `text/plain` resources and four PDFs. Each seed has a stable storage URI, so a re-run against a seeded knowledge base skips it.
+- **Seeded.** Playwright's global setup, [`scripts/seed.ts`](../../tests/e2e/scripts/seed.ts), authenticates through `@semiont/sdk` and uploads the fixtures the specs assume: text resources for the annotation specs, PDFs for the PDF specs. Each seed has a stable storage URI, so a re-run against a seeded knowledge base skips it.
 - **Real sign-in.** Connect leaves the Browser for the launcher-run Keycloak, and the fixture types the credentials into its login page.
 - **Single-worker, no retries.** One worker; a flake is diagnosed, not retried away.
 - **Chromium only.** No cross-browser matrix.
@@ -500,7 +500,7 @@ npm test --workspace=@semiont/make-meaning
 
 ### Per-workspace scripts
 
-Every npm package under `packages/` runs `npm test` as `vitest run`, with two exceptions: `@semiont/react-ui` runs its suite as four sequential shards (`test:shard:1`–`4`) with an 8 GB heap, and `@semiont/jobs` runs bare `vitest`, which watches in an interactive terminal and runs once otherwise. Every package defines `test:coverage`.
+Every npm package under `packages/` runs `npm test` as `vitest run`, except `@semiont/react-ui`, which runs its suite as four sequential shards (`test:shard:1`–`4`) with an 8 GB heap. Every package defines `test:coverage`.
 
 Browser (`apps/browser/`):
 
@@ -508,7 +508,7 @@ Browser (`apps/browser/`):
 npm test                    # Everything
 npm run test:unit           # Tests whose names do not match "integration"
 npm run test:integration    # Tests whose names match "integration"
-npm run test:security       # Session gates, locale layout, privacy page, validation
+npm run test:security       # Session gates, locale layout, validation
 npm run test:a11y           # Tests whose names match "Accessibility"
 npm run test:coverage       # Everything, with coverage
 npm run test:watch          # Watch mode

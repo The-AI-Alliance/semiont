@@ -48,7 +48,7 @@ export default defineConfig({
       // fourteen others did not import this file, so it read as a repo-wide
       // floor and enforced nothing — a comment pretending to be a gate. A
       // threshold belongs in the package that measured it, at the value it
-      // measured, with the date (see apps/gateway for one that is real).
+      // measured, with the date.
     },
   },
 });

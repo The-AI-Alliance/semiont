@@ -268,12 +268,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        },
-        "env": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -373,12 +367,6 @@
           "type": "integer"
         },
         "environment": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
-        },
-        "env": {
           "type": "object",
           "additionalProperties": {
             "type": "string"
@@ -704,12 +692,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        },
-        "env": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -931,12 +913,6 @@
           "additionalProperties": {
             "type": "string"
           }
-        },
-        "env": {
-          "type": "object",
-          "additionalProperties": {
-            "type": "string"
-          }
         }
       },
       "required": [
@@ -1085,20 +1061,6 @@
             },
             "additionalProperties": true
           }
-        },
-        "env": {
-          "type": "object",
-          "properties": {
-            "NODE_ENV": {
-              "type": "string",
-              "enum": [
-                "development",
-                "production",
-                "test"
-              ]
-            }
-          },
-          "additionalProperties": true
         },
         "logLevel": {
           "type": "string",

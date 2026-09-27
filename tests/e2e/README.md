@@ -29,10 +29,7 @@ container run --rm \
 > It is stable across restarts and routes to every published port. See
 > [Container networking](#container-networking-reaching-the-host) for why.
 >
-> An earlier version of this quickstart said to run
-> `container ls | grep semiont-` and paste the Browser/gateway container IPs
-> here. That is wrong twice over, and both failures cost a full run each
-> (measured 2026-08-07):
+> A container's own IP (from `container ls`) fails twice over:
 >
 > - **Container IPs change on every stack restart.** Reusing an address read
 >   even minutes earlier fails in `globalSetup` with
@@ -63,10 +60,9 @@ library disagree, so the tag is not decorative. Derive it rather than typing
 it — `$PW` above reads the version off disk, which is the one source that
 cannot be stale relative to what is about to run.
 
-This README previously hard-coded the tag and drifted **twice**: Dependabot
-bumps `package.json` and `package-lock.json` together, but nothing installs
-them here, so three versions diverge silently — declared, installed, and
-documented. On 2026-08-05 they were 1.62.0, 1.61.1 and 1.61.0 respectively.
+Dependabot bumps `package.json` and `package-lock.json` together, but
+nothing installs them here, so the declared and installed versions diverge
+silently until someone runs `npm ci`; a hard-coded tag would make a third.
 
 **Nothing else catches this.** `tests/e2e` is not a root workspace and no CI
 workflow runs it, so the suite's dependencies are only ever installed by a
@@ -95,10 +91,7 @@ restarts**.
 
 > **No CORS origin to configure.** The gateway serves open CORS
 > (`Access-Control-Allow-Origin: *`, bearer-only — no credentials), so the
-> browser signs in from *any* origin. This removed an earlier
-> `corsOrigin`-baked-into-the-image workaround; if you're following older
-> notes that tell you to set `services.gateway.corsOrigin` and rebuild,
-> that config field no longer exists.
+> browser signs in from *any* origin.
 
 Run the suite against the gateway for **both** URLs, with the Browser
 published on host port 3000 (`-p 3000:3000`; the gateway already publishes
@@ -147,46 +140,27 @@ container run --rm \
   debugging the first time: `crypto.randomUUID`, form-field ordering,
   stale tabs, fixture ordering, etc.
 
-## Current tests
+## The specs
 
-Each targets a path that has broken before. A regression in any of them
-fails the corresponding test.
+[`specs/`](specs/) holds one `NN-short-name.spec.ts` per path that has
+broken before; a regression in that path fails that spec. Specs tagged
+`@slow` run only under `npm run test:slow`.
 
-1. `01-sign-in.spec.ts` — sign-in succeeds, lands on the knowledge
-   section.
-2. `02-open-resource.spec.ts` — open a resource from Discover, content
-   loads.
-3. `03-navigate-resources.spec.ts` — click between two open-resource
-   sidebar tabs, content actually updates.
-4. `04-manual-highlight.spec.ts` — select text with motivation=highlight,
-   confirm the highlight is persisted and survives reload.
-5. `05-manual-reference.spec.ts` — select text with motivation=linking
-   and an entity-type chip, confirm the reference is persisted and
-   survives reload.
-6. `06-assisted-reference.spec.ts` — click the assist widget's
-   "Annotate" button with entity types selected, confirm the assist
-   dispatch crosses the wire.
-7. `07-sign-out-sign-in.spec.ts` — sign out, sign back in, confirm the
-   session state rebuilds and bus round-trips still work on the fresh
-   client.
-8. `08-hover-beckon.spec.ts` — hover over an annotation, confirm the
-   BeckonStateUnit focus/sparkle signal flows. Auto-skips if the fixture
-   resource has no annotations (the template KB starts empty;
-   tests 04 and 05 create annotations when they run).
-9. `99-diagnose-entity-types.spec.ts` — instance-tracking diagnostic
-   for the entity-types flow (ActorStateUnit / BrowseNamespace construction
-   counts + cache delivery). Not a regression guard — a running
-   dashboard for the singleton-ness invariants the SSE reconnect
-   logic depends on.
+## Scope
 
-## Non-goals (for now)
-
-- Not wired into CI. Run locally against a manually-brought-up stack.
-- Not seeding fixtures. Assumes the target KB has ≥2 resources and ≥1
-  entity type — true of the default template KB.
-- Not testing real OAuth. Credentials sign-in only.
-- Not parallel. Single worker until fixtures are per-test-isolated.
-- Not cross-browser. Chromium only.
+- **Not in CI.** No workflow runs it; run it locally against a stack you
+  brought up.
+- **Seeded.** Playwright's global setup ([`scripts/seed.ts`](scripts/seed.ts))
+  authenticates through `@semiont/sdk` and uploads the fixtures the specs
+  assume: text resources for the annotation specs, PDFs for the PDF specs.
+  Each seed has a stable
+  storage URI, so a re-run against a seeded knowledge base skips it.
+- **Real sign-in.** Connect leaves the Browser for the launcher-run
+  Keycloak, and the `signIn` fixture types the credentials into its login
+  page.
+- **One worker, no retries.** Specs share the knowledge base; a flake is
+  diagnosed, not retried away.
+- **Chromium only.**
 
 ## Running against a freshly-built stack
 

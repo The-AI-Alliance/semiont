@@ -13,7 +13,7 @@
  *
  * Configuration via env vars (with sensible defaults):
  *   - `JAEGER_QUERY_URL`  — Jaeger UI/Query base URL.
- *                           Default: `http://192.168.64.16:16686`
+ *                           Default: `http://192.168.64.1:16686`
  *   - `JAEGER_SERVICES`   — Comma-separated services to query.
  *                           Default: `semiont-gateway,semiont-worker,semiont-smelter,semiont-browser`
  *   - `JAEGER_ATTACH`     — `failure` (default), `always`, or `off`.
@@ -36,7 +36,7 @@ import { promises as fs } from 'fs';
 import type { TestInfo } from '@playwright/test';
 import type { BusLogCapture } from './bus-log';
 
-const JAEGER_QUERY_URL = process.env.JAEGER_QUERY_URL ?? 'http://192.168.64.16:16686';
+const JAEGER_QUERY_URL = process.env.JAEGER_QUERY_URL ?? 'http://192.168.64.1:16686';
 
 const JAEGER_SERVICES = (
   process.env.JAEGER_SERVICES ??

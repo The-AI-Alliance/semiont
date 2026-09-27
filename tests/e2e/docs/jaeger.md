@@ -35,7 +35,7 @@ Three env vars, all optional:
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `JAEGER_QUERY_URL` | `http://192.168.64.16:16686` | Jaeger UI/Query base URL. |
+| `JAEGER_QUERY_URL` | `http://192.168.64.1:16686` | Jaeger UI/Query base URL: the host bridge gateway, which reaches the published port from the Playwright container and from the host alike. |
 | `JAEGER_SERVICES` | `semiont-gateway,semiont-worker,semiont-smelter,semiont-browser` | Comma-separated services to query. |
 | `JAEGER_ATTACH` | `failure` | When to attach evidence — `failure` (default), `always`, or `off`. |
 

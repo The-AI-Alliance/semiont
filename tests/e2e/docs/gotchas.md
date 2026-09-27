@@ -69,13 +69,14 @@ that creates its own `page` context, re-attach the bus log there with
 
 Apple's container runtime assigns a fresh bridge IP on every
 `container run` and every `container start` — not just on rebuild.
-Re-grab both the Browser and gateway IP before each test run. See
-[containers.md § IP refresh](containers.md#ip-refresh).
+Never point the suite at one: use the host bridge gateway,
+`192.168.64.1`, for both URLs. It routes to every published port and
+does not change. See [containers.md § IP refresh](containers.md#ip-refresh).
 
 ## `SEMIONT_VERSION=local` is load-bearing
 
-`local-build.sh` builds all five Semiont images as local-only `:local`
-tags — but the KB stack consumes them only when started with
+`local-build.sh` builds every Semiont image as a local-only `:local`
+tag — but the KB stack consumes them only when started with
 `SEMIONT_VERSION=local semiont start`. Without it, the launcher pulls
 the **published** images and your local code changes are invisible.
 Forgetting this leads to "why isn't my gateway code change visible?"

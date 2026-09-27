@@ -7,9 +7,9 @@
  *
  * It SERVES nothing. Keys, signatures and document shape are what a verifier
  * suite actually needs; how those two URLs get answered is the consumer's —
- * the gateway routes them through the MSW server its whole suite already runs,
- * core's own suite stubs `fetch`. Owning the transport here would mean core
- * taking a network-interception dependency to answer two URLs, and forcing it
+ * the gateway conformance harness serves them on a port of its own, core's own
+ * suite stubs `fetch`. Owning the transport here would mean core taking a
+ * server or network-interception dependency to answer two URLs, and forcing it
  * on everyone importing this subpath.
  *
  * `discoveryFetches` / `jwksFetches` still count, because reading a document
