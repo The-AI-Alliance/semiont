@@ -138,10 +138,15 @@ Auth is applied **per router**, not globally with a public-endpoint allowlist. E
 | `status` | `/api/status` |
 | `bus` | `/bus/*` ([`routes/bus.ts`](../../../apps/gateway/src/routes/bus.ts)) |
 
-`/api/health` and `POST /api/tokens/agent` are the only API operations the spec
-declares public, alongside the documentation meta-routes and the root splash page.
-`route-spec-coverage.test.ts` holds this table honest: every registered route must
-either answer 401 to an unauthenticated caller or be declared public in the spec.
+The spec declares four operations public: `GET /api/health`, `GET /`,
+`GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. The
+[gateway conformance suite](../../../tests/gateway-conformance/README.md) holds
+this table honest for every operation the spec declares: a protected one answers
+401 to an unauthenticated caller, a public one answers without challenging. The
+other half is the gateway's own: before it listens, it compares its route table
+with the spec it ships and refuses to start on any difference — a route the
+spec does not declare, or a declared operation nothing serves. A new route is
+declared in the spec first.
 
 The maintenance consequence: **a new router is unauthenticated until you say otherwise.** Adding one means deciding its auth explicitly, and reviewing that decision belongs in the PR review — there is no global default to fall back on.
 

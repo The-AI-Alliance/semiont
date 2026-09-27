@@ -3,8 +3,11 @@
   "properties": {
     "resourceId": {
       "type": "string",
-      "description": "The resource ID to generate a media token for"
+      "description": "The resource ID to generate a media token for",
+      "minLength": 1
     }
   },
-  "required": ["resourceId"]
+  "required": [
+    "resourceId"
+  ]
 }

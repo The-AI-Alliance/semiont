@@ -5,6 +5,15 @@ browser (or any headless client) and the Semiont gateway. If the code
 deviates from what's written here, the code is wrong — or this doc is
 wrong and needs updating, deliberately. No third option.
 
+The OpenAPI document ([specs/src/openapi.json](../../specs/src/openapi.json))
+is the other half of this contract, and the half a machine reads: every
+route, every status each answers and its body, the headers, the stream's
+messages and id formats, the limits (`x-semiont-limits`, `maxItems`), and
+the claims a token must carry (the `bearerAuth` scheme). This doc states
+what a schema cannot: order, entitlement, recovery, and what the gateway
+does on its own initiative. The gateway conformance suite
+(`tests/gateway-conformance`) checks a running gateway against both.
+
 Transport-agnostic guarantees (at-most-once emit, per-channel ordering,
 `busRequest` semantics, `_userId` injection invariant) live in the
 shared contract at
@@ -37,42 +46,93 @@ Neighboring docs:
 Browser / headless client                         Gateway
   │                                                  │
   │    POST /bus/emit                                │
-  │    { channel, payload, scope? }  →  202          │
+  │    { channel, payload, scope?,                   │
+  │      clientId?, correlationId? }  →  202         │
   │ ─────────────────────────────────────►           │
   │                                                  │
   │    POST /bus/subscribe                           │
-  │    { global: [...], scoped: [{scope, channels,   │
-  │      lastEventId?}, ...] }                       │
+  │    { clientId, global: [...],                    │
+  │      scoped: [{scope, channels, lastEventId?}],  │
+  │      pendingReplies: [...] }                     │
   │ ◄── event-stream ──────────────────────────────  │
   │                                                  │
 ```
 
-- `POST /bus/emit` — fire-and-forget. Body is a single
-  `{channel, payload, scope?}`. 202 on accepted; 400 on validation
-  failure or unknown channel; 401 on auth failure.
+- `POST /bus/emit` (BusEmitRequest) — fire-and-forget. 202 with
+  `BusEmitAccepted` (`subscribers`: how many observers the target had at
+  dispatch, absent when the signal plane cannot count them); 400 when the
+  body or the channel's payload does not validate or the channel is not in
+  the registry; 401; 409 when a request's `correlationId` is already
+  claimed; 429 when the client already has as many unanswered requests as
+  it may; 503 when the signal plane's broker is not connected — the event
+  is refused, never accepted and lost.
 
-- `POST /bus/subscribe` — long-lived SSE (the response streams). The
-  JSON body is a **subscription matrix**: `global` channels plus any
+- `POST /bus/subscribe` (BusSubscribeRequest) — a long-lived SSE stream.
+  The JSON body is a **subscription matrix**: `global` channels plus any
   number of `scoped` entries — one per resource scope, each naming its
-  channels and optionally that scope's resumption watermark
-  (multi-resource scope, 2026-07-29). One connection holds many resource scopes at
-  once. 400 on a malformed body, an empty matrix, duplicate scopes, or
-  more than 512 scopes (warn-logged from 128).
+  channels and optionally that scope's resumption watermark — the
+  client's `clientId`, and the correlation ids it still awaits
+  (`pendingReplies`). 400 on a body that does not validate, an empty
+  matrix, or a scope named twice.
 
-Every event carries an `event:` line of `bus-event` and a `data:` line
-of `{channel, payload, scope?}`.
+The stream carries two messages (BusStreamMessage): `bus-event`, whose
+`data:` line is a JSON BusFrame `{channel, correlationId?, payload,
+scope?}` and whose `id:` is one of the three formats below; and `ping`,
+the heartbeat, with an empty `data:` and no id.
 
 No other transport is used for bus traffic. Regular HTTP is for auth,
 health, and binary resources.
 
+## Every response
+
+- **Errors are JSON.** Every non-2xx response, on every route, is
+  `application/json` with an `ErrorResponse` body (`{error, code?, hint?}`)
+  — including a path the gateway does not serve, which answers 404.
+- **CORS is open and credential-less.** `Access-Control-Allow-Origin: *`
+  and no `Access-Control-Allow-Credentials`: the API is bearer-only, so no
+  origin can ride a browser's ambient credentials.
+- **Security headers.** `X-Content-Type-Options: nosniff`,
+  `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer`,
+  `Strict-Transport-Security: max-age=31536000; includeSubDomains` (a
+  browser honours it only over HTTPS), `X-XSS-Protection: 1; mode=block`, a
+  `Content-Security-Policy` of `default-src 'none'; frame-ancestors 'none';
+  base-uri 'none'; form-action 'none'`, and a `Permissions-Policy` that
+  disables every browser feature.
+- **`X-Request-ID`** names the request in the gateway's logs.
+
+## Limits
+
+The numbers live in the spec, not here:
+
+| Limit | Where | Past it |
+|---|---|---|
+| Scopes on one connection | `BusSubscribeRequest.scoped.maxItems` | 400 |
+| Pending replies named on subscribe | `BusSubscribeRequest.pendingReplies.maxItems` | 400 |
+| Unanswered requests per client | the same `maxItems` | 429 on the next emit |
+| How long a claim lasts unanswered | `/bus/emit` `x-semiont-limits.claimSeconds` | the claim expires; its reply is no longer routed |
+| How long a reply is retained | `/bus/subscribe` `x-semiont-limits.replyRetentionSeconds` | `pendingReplies` no longer recovers it |
+| Heartbeat interval | `x-semiont-limits.heartbeatSeconds` | — |
+| Bytes written to a connection and not yet taken | `x-semiont-limits.pendingWriteBytes` | the connection is closed |
+| Live frames arriving during a replay | `x-semiont-limits.replayBufferEvents` | the connection is closed |
+
+A closed connection is not an error the client handles: it reconnects
+with its watermarks and `pendingReplies` and loses nothing either
+covers.
+
 ## Authentication and authorization
 
-Both endpoints require a valid JWT (`Authorization: Bearer …`).
+Both endpoints require a valid JWT (`Authorization: Bearer …`); the
+`bearerAuth` scheme in the spec is the claims contract.
 
 - 401: token missing, malformed, expired, or signed with a key the
-  gateway doesn't recognize (e.g. the gateway was restarted with a
-  different secret, making earlier-issued tokens invalid).
-- 403: currently not used. All authenticated users see all channels.
+  gateway doesn't recognize. The `WWW-Authenticate` challenge names the
+  resource metadata (`resource_metadata="<origin>/.well-known/oauth-protected-resource"`),
+  with `error="invalid_token"` when a token was presented and refused.
+  With no token, the body's `hint` names the header to send. A refused
+  token is told only that (`Invalid token`): why it did not verify is in
+  the gateway's log, not the reply. A verified token that lacks the role
+  an operation requires is told which role.
+- 403: not used. All authenticated users see all channels.
   That's a known gap — see "Known gaps" below.
 
 The gateway stamps `_userId` (the verified principal's DID) and `_roles`
@@ -101,6 +161,27 @@ deduplication) applies unchanged. HTTP adds:
     channel". The map's `satisfies Record<EventName, ...>` forces
     coverage of every `EventName` — a new channel added to `EventMap`
     but not `CHANNEL_SCHEMAS` is a build error.
+- **Claims.** A registry operation's request carrying a `correlationId`
+  claims that id for its `clientId` and the verified principal before it
+  is published — `clientId` is required then (400 without it). The claim
+  is what routes the reply: a frame on a correlated channel reaches only
+  connections subscribed under the same `clientId` by the same principal.
+  A live id claimed twice is refused (409); a client with as many
+  unanswered requests as `pendingReplies` may name is refused (429). A
+  claim is released by its first reply, or expires after `claimSeconds`.
+  Claims live in a table every gateway replica on one broker shares, so a
+  reply reaches its requester whichever replica each is connected to.
+- **Profile.** When the channel is one whose registry `effect` writes and
+  the principal is a person whose token carries `name`, the gateway also
+  publishes `person:profile` `{_userId, name}` — how the record learns
+  what a person is called.
+- **An unanswerable request fails fast.** When the plane can count
+  observers (the in-process plane) and a request with a `correlationId`
+  reaches none, the gateway publishes the operation's own failure channel
+  with the request's fields, `code: "peer-unavailable"` and a message,
+  so the caller learns in milliseconds that the service that answers it
+  is not connected. A broker plane cannot count, so there the caller
+  waits out its deadline.
 
 ### `POST /bus/subscribe`
 
@@ -129,8 +210,12 @@ shapes:
 | Shape | Meaning | Resumable |
 |---|---|---|
 | `p-<scope>-<seq>` | Persisted event, scoped. `<scope>` is the resource id, `<seq>` is `event.metadata.sequenceNumber`. | **Yes.** |
-| `e-<channel>:<cid>` | Correlation reply (payload carries a `correlationId`). **Deterministic** — the same reply is tagged with the same id on every connection, so a make-before-break overlap dedups it to one emission. | No. |
-| `e-<connectionId>-<counter>` | Any other ephemeral event (no `correlationId`). Unique per connection; no replay meaning. | No. |
+| `e-<channel>:<cid>` | A frame carrying a `correlationId`. **Deterministic** — the same reply is tagged with the same id on every connection, so a make-before-break overlap, or a retained reply replayed on reconnect, dedups to one emission. | No. |
+| `e-<connectionId>-<counter>` | Any other frame. Unique per connection; no replay meaning. | No. |
+
+The patterns are `PersistedEventId`, `ReplyEventId` and `EphemeralEventId`
+in the spec. The persisted form is used exactly when the frame carries a
+`scope` and its payload a `metadata.sequenceNumber`.
 
 Resumption is **per scope**: clients track the last persisted (`p-*`)
 id seen PER SCOPE and send each as the `lastEventId` field on that
@@ -153,6 +238,19 @@ For each scoped entry carrying a watermark:
 
 Clients that send no watermarks get live-only behavior.
 
+**The order on the stream** is fixed: for each scoped entry with a
+watermark, in the order the entries were sent, its replay (or its gap
+event; for `retention-exceeded`, the gap, then the replay of what the
+record still holds); then every retained reply `pendingReplies` names; then the live
+frames that arrived while the replay ran, less any persisted event the
+replay already delivered; then the live tail. The first `ping` follows
+the catch-up.
+
+**Presence.** Opening a stream publishes `session:joined` and closing
+it `session:left`, each `{participant, connectionId}` — the principal's
+DID and a per-connection id, since one person with two tabs is two
+connections.
+
 ### HTTP-specific quirk: response-lost during a genuine disconnect — bounded by retention
 
 The shared contract publishes a `busRequest` reply exactly once, at
@@ -165,24 +263,25 @@ the reply published to a dead subscriber and the caller waiting out its
   takes over (see "Reconnect discipline" below).
 - The **attach gate**: no correlated emit leaves before the reply path
   is `'open'`.
-- **Correlated-reply retention**:
-  the gateway retains recent replies (bounded: 60s TTL / 1024 entries,
-  keyed by correlationId), `busRequest` registers its cid with the
-  transport BEFORE emitting, and every subscribe body carries the
-  outstanding cids as `pendingReplies` — so a reply published while
-  the connection was genuinely down is REPLAYED on reconnect, with its
-  deterministic `e-<channel>:<cid>` id (a copy that also arrived live
-  dedups client-side, same as the make-before-break overlap).
+- **Correlated-reply retention**: the gateway retains the reply to
+  every claimed request for `replyRetentionSeconds`, keyed by
+  correlationId; `busRequest` registers its cid with the transport
+  BEFORE emitting, and every subscribe body carries the outstanding cids
+  as `pendingReplies` — so a reply published while the connection was
+  genuinely down is REPLAYED on reconnect, with its deterministic
+  `e-<channel>:<cid>` id (a copy that also arrived live dedups
+  client-side, same as the make-before-break overlap). Only the client
+  and principal that made the request can recover it.
 
-What remains lost: a reply older than the retention TTL (the caller's
-own 30s deadline passed long before), retention-cap eviction under
-pathological load, and a gateway restart (in-memory buffer). A future
-**multi-instance deployment is the named tripwire**: a reconnect landing
-on a different replica finds no buffer, so replicas must not ship
-without deciding sticky routing vs a shared retention store (see
-TRANSPORT-CONTRACT.md § Delivery guarantees). Consumers keep their
-defense-in-depth: the cache's bounded SWR retry (B14) and terminal
-failure (B15) stay, but should fire approximately never.
+Under the NATS signal plane, claims and retained replies live in the
+broker's key-value tables, which every replica shares: a reconnect
+landing on another replica, or on a restarted one, recovers the same
+replies. Under the in-process plane they live in the one gateway
+process and a restart loses them. What remains lost: a reply older than
+the retention window (the caller's own 30s deadline passed long
+before). Consumers keep their defense-in-depth: the cache's bounded SWR
+retry (B14) and terminal failure (B15) stay, but should fire
+approximately never.
 
 `LocalTransport` doesn't have this failure mode — in-process
 subscribers never disconnect during a call — and omits `trackReply`.
@@ -349,13 +448,21 @@ The SSE stream is plain `text/event-stream`. Each event is written as:
 ```
 event: bus-event
 id: <ephemeral or persisted id>
-data: <JSON-stringified {channel, payload, scope?}>
+data: <JSON-stringified {channel, correlationId?, payload, scope?}>
 <blank line>
 ```
 
-The gateway writes each event through Hono's `streamSSE` with no
-compression and no chunked-JSON framing — `data:` is always exactly
-one line, followed by one terminating blank line.
+and the heartbeat as:
+
+```
+event: ping
+data:
+<blank line>
+```
+
+No compression and no chunked-JSON framing — `data:` is always exactly
+one line, followed by one terminating blank line. A client ignores an
+`event` it does not know.
 
 **Client parsers must hold event-assembly state across `reader.read()`
 boundaries.** A single SSE event can exceed the first TCP segment (a
@@ -381,7 +488,7 @@ determines scoping semantics and delivery path.
 | Category | Scope on wire | Receivers |
 |---|---|---|
 | Command (one handler) | None | The single global handler. |
-| Correlation-ID response | None | The caller, filtering by correlationId. |
+| Correlation-ID response | None | Only the connections of the `clientId` and principal that claimed its correlationId. |
 | Resource-bound broadcast | `resourceId` | Every SSE connection subscribed to that scope. |
 
 System-wide broadcasts (`beckon:focus`, `frame:entity-type-added`, etc.)
@@ -407,18 +514,17 @@ A consumer that wants correctness over HTTP must assume:
 
 - Every `/bus/emit` either succeeds (202) or fails (4xx). No third
   outcome.
-- Every SSE event is live unless delivered as part of a replay
-  response to `Last-Event-ID`. Ephemeral events (command responses,
-  progress) are never replayed; persisted domain events are replayed
-  only when the client sent a `p-*` resumption id on reconnect.
+- Every SSE event is live unless delivered as part of a replay: a
+  scope's persisted events after the `lastEventId` its entry carried, or
+  a retained reply `pendingReplies` named. Nothing else is replayed.
 - A bare reconnect (no gap) requires no cache action. A gap the server
   couldn't cover arrives as a `bus:resume-gap` event; on that event,
   the consumer must revalidate state for the affected scope.
-- `busRequest` has a 30s timeout and no retry. HTTP adds: a reconnect
-  during the request window drops the response. Callers that must
-  eventually complete need (a) a cache-layer refetch, (b) an explicit
-  retry on timeout, or (c) acceptance that the operation is
-  fire-and-forget.
+- `busRequest` has a 30s timeout and no retry. A reconnect during the
+  request window loses nothing while the reply is retained; a caller
+  that must complete past that still needs (a) a cache-layer refetch,
+  (b) an explicit retry on timeout, or (c) acceptance that the operation
+  is fire-and-forget.
 - CorrelationIds are the only way to match a request to its response.
   They must be UUIDs or equivalently-unique. The gateway does not
   deduplicate them.
@@ -443,9 +549,9 @@ documented fixes for, which we rediscover by bisection.
 
 ### No channel-level authorization
 
-Any authenticated user who subscribes to a channel receives everything
-on that channel. Resources don't have per-user ACLs in the transport
-layer. Handlers may enforce authorization in the handler body (e.g.
+Any authenticated user who subscribes to a broadcast channel receives
+everything on it; only correlated replies are routed to their requester.
+Resources don't have per-user ACLs in the transport layer. Handlers may enforce authorization in the handler body (e.g.
 by checking `_userId`), but `/bus/subscribe` itself does not filter.
 Genuine limitation for any multi-tenant deployment.
 

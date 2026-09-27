@@ -1,0 +1,10 @@
+{
+  "description": "The service failed in a way no other status describes. The body is an ErrorResponse like every other error.",
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../schemas/ErrorResponse.json"
+      }
+    }
+  }
+}

@@ -78,7 +78,7 @@ describe('AnnotationOperations', () => {
     const stored = await workingTree.store(opts.content, uri);
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
-      uid,
+      { did: uid, roles: [] },
       asBusRequestPrimitive(eventBus),
     );
   }

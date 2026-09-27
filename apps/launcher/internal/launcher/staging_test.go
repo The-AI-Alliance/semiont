@@ -125,9 +125,9 @@ func TestPatchKBIdentityRespectsHandWrittenSection(t *testing.T) {
 }
 
 // The whole per-service staging rule in one place. This is the test that
-// catches a boot break: four services REFUSE to start without an Archivist
-// address (SINGLE-KB-MOUNT P4), and the two that describe a KB tree they do
-// not mount need its committed identity at the same time (P5) — a patch
+// catches a boot break: three services REFUSE to start without an Archivist
+// address (SINGLE-KB-MOUNT P4), and the one that describes a KB tree it does
+// not mount needs its committed identity at the same time (P5) — a patch
 // structure that assigned rather than chained would silently drop one.
 func TestStagedConfigPerService(t *testing.T) {
 	x := &liveExec{root: t.TempDir()}
@@ -137,10 +137,8 @@ func TestStagedConfigPerService(t *testing.T) {
 		archivist  bool
 		kbIdentity bool
 	}{
-		// The gateway joined the identity column in P5: once it stops mounting
-		// /kb, staged [kb] is the ONLY way it sees the committed domain its
-		// boot refusal turns on.
-		{"gateway", true, true},
+		// The gateway is absent: it takes a configuration document, not a
+		// patched copy (gatewaydoc_test.go).
 		{"librarian", true, true},
 		{"smelter", true, false},
 		{"worker", true, false},

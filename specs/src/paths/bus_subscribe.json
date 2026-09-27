@@ -1,10 +1,14 @@
 {
   "post": {
     "summary": "Subscribe to the Semiont event bus (SSE)",
-    "description": "Opens a long-lived Server-Sent Events stream over which the bus delivers events matching the requested subscription matrix. The JSON body names unscoped `global` channels plus any number of `scoped` entries — one per resource scope — so a single connection can hold live subscriptions to many resources at once (MULTI-RESOURCE-SCOPE).\n\nEach SSE frame has `event: bus-event`, a JSON-encoded `data` of the form `{ channel, payload, scope? }` (scoped events carry their originating scope), and an `id` (a persisted event id `p-<scope>-<seq>` for domain events; an ephemeral `e-*` id for job-lifecycle / correlated-reply channels).\n\nResumption is per scope: pass each scope's last-received persisted id as `lastEventId` on its scoped entry — the server replays that scope's missed persisted events and emits a scoped `bus:resume-gap` synthetic event when the gap cannot be covered.",
-    "tags": ["Bus"],
+    "description": "Opens a long-lived Server-Sent Events stream of the bus frames the subscription matrix selects: `global` channels unscoped, and each `scoped` entry's channels within its resource scope. One connection holds any number of scopes up to the cap.\n\n**Messages** are BusStreamMessage: `bus-event` messages carrying a BusFrame, and `ping` heartbeats. Each `data:` is one line.\n\n**Order.** For each scoped entry that carries a `lastEventId`, in the order the entries were sent: that scope's persisted events after the watermark, on the entry's channels, in sequence order — or a scoped `bus:resume-gap` when the watermark cannot be honoured (for `retention-exceeded`, the gap and then what the record still holds). Then every retained reply named by `pendingReplies`. Then the live frames that arrived meanwhile, less any persisted event the replay already delivered. Then the live tail. An entry without a watermark is a fresh subscription: no replay and no gap.\n\n**Delivery.** A frame on a correlated channel (a registry operation's result or failure) reaches only connections whose `clientId` and principal emitted the request it answers; every other frame reaches every connection subscribed to its channel (and scope). Delivery is at most once; ids let a client dedup (see BusEventMessage).\n\n**Presence.** Opening the stream publishes `session:joined` and closing it `session:left`, each `{participant: <the principal's DID>, connectionId}`.\n\n**Bounds.** A connection that has `x-semiont-limits.pendingWriteBytes` of frames written but not yet taken by the client, or that receives more than `replayBufferEvents` live frames while its replay runs, is closed; the client reconnects with its watermarks and `pendingReplies`.",
+    "tags": [
+      "Bus"
+    ],
     "security": [
-      { "bearerAuth": [] }
+      {
+        "bearerAuth": []
+      }
     ],
     "requestBody": {
       "required": true,
@@ -18,17 +22,17 @@
     },
     "responses": {
       "200": {
-        "description": "SSE stream opened",
+        "description": "The stream",
         "content": {
           "text/event-stream": {
             "schema": {
-              "$ref": "../components/schemas/EventStreamResponse.json"
+              "$ref": "../components/schemas/BusStreamMessage.json"
             }
           }
         }
       },
       "400": {
-        "description": "Malformed body, no channels requested, duplicate scopes, malformed scoped entry, or scope count above the per-connection cap",
+        "description": "The body is not JSON or does not match BusSubscribeRequest, or two scoped entries name the same scope.",
         "content": {
           "application/json": {
             "schema": {
@@ -38,15 +42,17 @@
         }
       },
       "401": {
-        "description": "Authentication required",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
       }
+    },
+    "x-semiont-limits": {
+      "heartbeatSeconds": 15,
+      "replyRetentionSeconds": 60,
+      "pendingWriteBytes": 16777216,
+      "replayBufferEvents": 1000
     }
   }
 }

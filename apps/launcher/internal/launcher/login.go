@@ -9,7 +9,6 @@ package launcher
 import (
 	"bufio"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -93,15 +92,6 @@ func Login(args []string) int {
 	ep, err := discoverIssuer(ctx, cli, base)
 	cancel()
 	if err != nil {
-		if errors.Is(err, errNoIssuer) {
-			u.Fail("The knowledge base at %s trusts no external issuer, so there is nothing to sign in to.", base)
-			fmt.Fprintln(os.Stderr, "  Add an [identity] section to its config — the launcher runs Keycloak by default:")
-			fmt.Fprintln(os.Stderr, "    [environments.<env>.identity]")
-			fmt.Fprintln(os.Stderr, "    type = \"keycloak\"")
-			fmt.Fprintln(os.Stderr, "    issuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"")
-			fmt.Fprintln(os.Stderr, "    subjectClaim = \"sub\"")
-			return 1
-		}
 		u.Fail("%v", err)
 		fmt.Fprintln(os.Stderr, "  Is the stack up?  semiont status")
 		return 1

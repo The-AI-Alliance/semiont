@@ -45,8 +45,6 @@
  * The driver moves frames and honors addresses; it never decides entitlement
  * — and it never inspects a payload (the P0.5 guard makes both mechanical).
  */
-import type { SignalPlaneOptions } from './options';
-
 declare const REPLY_ADDRESS: unique symbol;
 /**
  * An opaque routing address for correlated replies. Minted by the gateway's
@@ -146,8 +144,27 @@ export interface SharedTable {
   watch(onEntry: (key: string, value: string) => void): Promise<PlaneSubscription>;
 }
 
+/**
+ * The plane cannot carry a frame now: its broker connection is down, or
+ * closed for good. A frame handed to a disconnected broker client is
+ * discarded when it reconnects, so the plane refuses it instead of accepting
+ * a frame nobody will receive.
+ */
+export class SignalPlaneUnavailable extends Error {
+  constructor() {
+    super('The signal plane is unavailable: its broker is not connected');
+  }
+}
+
 export interface SignalPlane {
+  /** Throws `SignalPlaneUnavailable` when `available()` is false. */
   ingest(channel: string, payload: unknown, envelope?: PlaneEnvelope): IngestReceipt;
+  /**
+   * Whether a frame ingested now would reach the fabric. Always true
+   * in-process; under a broker, false from the moment the connection drops
+   * until it is restored, and for good once it closes.
+   */
+  available(): boolean;
   subscribeClient(spec: ClientSubscriptionSpec): PlaneSubscription;
   /**
    * Handler mode. `group` names the competing-consumer group; each frame on
@@ -158,7 +175,8 @@ export interface SignalPlane {
    * Addressed publication (verb group 3's other half): the frame reaches
    * every `subscribeClient` holding `address`, and nobody else. `channel`
    * here is an envelope label for the receiver's `onFrame` — it never maps
-   * to a channel subject, so it need not be registry vocabulary.
+   * to a channel subject, so it need not be registry vocabulary. Throws
+   * `SignalPlaneUnavailable` as `ingest` does.
    */
   deliver(address: ReplyAddress, channel: string, payload: unknown): void;
   /**
@@ -199,4 +217,3 @@ export interface SignalPlane {
   dispose(): void;
 }
 
-export type SignalPlaneFactory = (opts?: SignalPlaneOptions) => SignalPlane;

@@ -1,0 +1,77 @@
+{
+  "post": {
+    "summary": "Store an upload and record the resource",
+    "description": "The gateway's `POST /resources`, forwarded untouched, with the principal the gateway verified. The Archivist stores the bytes at `storageUri`, outside git, and records the resource — as a clone of the token's source when the upload carries `cloneToken` — attributed to `Semiont-Principal`. It answers once the resource is recorded.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "Semiont-Principal",
+        "in": "header",
+        "required": true,
+        "description": "The DID of the caller the gateway verified. The record attributes the resource to it. Believed because only a service account can call this route.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      {
+        "name": "Semiont-Roles",
+        "in": "header",
+        "required": false,
+        "description": "That caller's roles, comma-separated; absent when it has none. A worker's `semiont-worker` is what obliges its upload to cite a job.",
+        "schema": {
+          "type": "string"
+        }
+      }
+    ],
+    "requestBody": {
+      "required": true,
+      "content": {
+        "multipart/form-data": {
+          "schema": {
+            "$ref": "../../components/schemas/ResourceUpload.json"
+          }
+        }
+      }
+    },
+    "responses": {
+      "200": {
+        "description": "The resource is recorded.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/CreateResourceResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "`Semiont-Principal` is missing; the body is not multipart/form-data, or not a ResourceUpload; the base media type is not supported; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "500": {
+        "description": "The bytes could not be stored, or the record refused the resource; the message says why.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -624,25 +624,22 @@ func tracesArgs() []string {
 const kbMountTarget = "/kb"
 
 // gatewayArgs: the gateway mounts NO piece of the knowledge base (P6). It
-// reaches bytes and the record over HTTP through the Archivist, and everything
-// it once read off the tree — the KB name, the committed did:web domain — the
-// launcher stages into its config copy. What is left is that copy and the
-// gateway's own state.
-func gatewayArgs(stage, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+// reaches bytes and the record over HTTP through the Archivist, and is
+// configured by one document the launcher writes resolved (gatewaydoc.go) —
+// the KB's committed identity, the addresses, the issuer — mounted where its
+// config copy used to be. Resolved means no ${VAR} is left for it to expand,
+// so it gets none of the dependency hosts the sidecars do. What is left is
+// that document, the gateway's own state, its secrets, and the user's
+// variables (the document names its broker credentials by variable).
+func gatewayArgs(stage, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
-		"--volume", stage + "/gateway.toml:/home/semiont/.semiontconfig:ro"}
+		"--volume", stage + "/" + gatewayDocumentFile + ":/home/semiont/.semiontconfig:ro"}
 	// Persistent state the gateway itself owns (stateStores["gateway"]).
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a,
-		"--env", "POSTGRES_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+addr,
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "OLLAMA_HOST="+addr,
 		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
 		// SEMIONT_ROOT: it is a standard override project.ts already
 		// honours, and the env and its mount live in this one builder —

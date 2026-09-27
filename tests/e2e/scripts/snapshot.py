@@ -13,7 +13,7 @@ Usage::
 
     python3 tests/e2e/scripts/snapshot.py [--seconds 60] [--errors-only]
     python3 tests/e2e/scripts/snapshot.py --seconds 30 --errors-only
-    python3 tests/e2e/scripts/snapshot.py --jaeger-url http://192.168.64.16:16686
+    python3 tests/e2e/scripts/snapshot.py --jaeger-url http://<host>:16686
 
 Dumps:
 
@@ -27,7 +27,7 @@ Defaults:
 - ``--containers semiont-gateway,semiont-worker,semiont-smelter`` —
   matches the production stack's structured-log containers. Frontend
   is omitted (its logs are mostly unstructured static-server stdout).
-- ``--jaeger-url http://192.168.64.16:16686`` — local Jaeger from
+- ``--jaeger-url http://localhost:16686`` — local Jaeger from
   ``semiont start`` (on by default; ``--no-observe`` skips it).
   Override for non-local stacks.
 - ``--max-lines-per-container 40`` — caps verbose dumps so the report
@@ -44,7 +44,7 @@ from datetime import datetime, timedelta, timezone
 ap = argparse.ArgumentParser()
 ap.add_argument('--seconds', type=int, default=60)
 ap.add_argument('--errors-only', action='store_true')
-ap.add_argument('--jaeger-url', default='http://192.168.64.16:16686')
+ap.add_argument('--jaeger-url', default='http://localhost:16686')
 ap.add_argument('--containers', default='semiont-gateway,semiont-worker,semiont-smelter')
 ap.add_argument('--max-lines-per-container', type=int, default=40)
 args = ap.parse_args()

@@ -84,6 +84,7 @@ packages/core/src/config/config.types.ts
 
 # Generated OpenAPI bundle (source is specs/src/)
 specs/openapi.json
+specs/archivist.openapi.json
 
 # Compiled scripts (should use tsx, not tsc)
 packages/*/scripts/*.js

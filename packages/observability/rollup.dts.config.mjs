@@ -44,7 +44,6 @@ function isExternal(id) {
 const entries = [
   { input: 'dist-types/index.d.ts', file: 'dist/index.d.ts' },
   { input: 'dist-types/node.d.ts', file: 'dist/node.d.ts' },
-  { input: 'dist-types/web.d.ts', file: 'dist/web.d.ts' },
   { input: 'dist-types/process-logger.d.ts', file: 'dist/process-logger.d.ts' },
 ];
 

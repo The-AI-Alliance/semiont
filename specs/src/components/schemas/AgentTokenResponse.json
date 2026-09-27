@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "description": "Bearer JWT for subsequent authenticated requests"
+    },
+    "did": {
+      "type": "string",
+      "description": "DID of the software-agent identity the token is acting as"
+    }
+  },
+  "required": [
+    "token",
+    "did"
+  ],
+  "description": "The agent token and the DID it names."
+}

@@ -109,7 +109,7 @@ jobs:
         run: |
           cd apps/browser
           # Run all tests including accessibility tests
-          SEMIONT_ROOT=../.. npm test -- --reporter=verbose
+          npm test -- --reporter=verbose
         continue-on-error: false
         env:
           CI: true
@@ -118,7 +118,7 @@ jobs:
         if: always()
         run: |
           cd apps/browser
-          SEMIONT_ROOT=../.. npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
+          npm run test:coverage -- --reporter=json --outputFile=a11y-report.json
         continue-on-error: true
 
       - name: Upload accessibility test results

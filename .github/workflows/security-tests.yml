@@ -160,111 +160,23 @@ jobs:
           npm ci --include=optional
           npm run build:packages
 
-      - name: Setup test database and config
+      - name: Write the gateway's configuration document
         run: |
-          # Project anchor (.semiont/config) — written directly; there is no CLI to init with
-          cd ../..
-          mkdir -p .semiont
+          # The gateway's configuration document (GatewayConfig in specs/),
+          # written the way the launcher writes it: resolved, and carrying the
+          # knowledge base's identity. The gateway refuses to boot without a
+          # valid one.
           printf '%s\n' \
-            '[project]' \
-            'name = "test-project"' \
-            '' \
-            '[site]' \
-            'domain = "localhost"' \
-            'siteName = "Semiont CI"' \
-            > .semiont/config
-          # Write ~/.semiontconfig with ci environment so gateway can start.
-          # `[defaults] environment` is how the gateway selects it — the same key a real
-          # KB uses and the launcher reads. No SEMIONT_ENV export anywhere.
-          #
-          # This step stands in for the LAUNCHER, so it stages what the launcher
-          # stages: `[kb]`, the KB's committed identity, copied from the
-          # `.semiont/config` written just above (SINGLE-KB-MOUNT P5). The
-          # gateway mounts no KB tree, so this is the only place it can see
-          # either value, and it refuses to boot without `domain`.
-          #
-          # `[identity]` is MANDATORY: a knowledge base without a trusted issuer
-          # can authenticate nobody and cannot reach its own record, so the
-          # loader refuses a config that omits it. Nothing here reaches that
-          # issuer — these tests assert that protected routes answer 401 — but
-          # the gateway will not start without the section.
-          #
-          # `[archivist]` likewise: the gateway asserts at boot that it has an
-          # address for the record. Nothing here dials it either.
-          #
-          # TOP-LEVEL, and before the first `[environments…]` header: TOML
-          # assigns any key after a table header to that table, so appending it
-          # lower down would bury `[kb]` inside an environment section — with no
-          # parse error to notice.
-          printf '%s\n' \
-            '[defaults]' \
-            'environment = "ci"' \
-            '' \
-            '[kb]' \
-            'name = "test-project"' \
-            'domain = "localhost"' \
-            '' \
-            '[environments.ci.gateway]' \
-            'platform = "posix"' \
-            'port = 4000' \
-            'publicURL = "http://localhost:4000"' \
-            '' \
-            '[environments.ci.identity]' \
-            'type = "keycloak"' \
-            'issuer = "http://localhost:8080/realms/semiont"' \
-            'subjectClaim = "sub"' \
-            '' \
-            '[environments.ci.archivist]' \
-            'host = "localhost"' \
-            'port = 24103' \
-            '' \
-            '[environments.ci.make-meaning.graph]' \
-            'type = "memory"' \
-            '' \
-            '[environments.ci.vectors]' \
-            'type = "memory"' \
-            '' \
-            '[environments.ci.embedding]' \
-            'type = "ollama"' \
-            'model = "nomic-embed-text"' \
-            'baseURL = "http://localhost:11434"' \
-            '' \
-            '[environments.ci.make-meaning.actors.gatherer.inference]' \
-            'type = "ollama"' \
-            'model = "llama3"' \
-            'baseURL = "http://localhost:11434"' \
-            '' \
-            '[environments.ci.make-meaning.actors.matcher.inference]' \
-            'type = "ollama"' \
-            'model = "llama3"' \
-            'baseURL = "http://localhost:11434"' \
-            '' \
-            '[environments.ci.workers.default.inference]' \
-            'type = "ollama"' \
-            'model = "llama3"' \
-            'baseURL = "http://localhost:11434"' \
+            '{' \
+            '  "kb": { "name": "test-project", "domain": "localhost" },' \
+            '  "port": 4000,' \
+            '  "publicUrl": "http://localhost:4000",' \
+            '  "identity": { "issuer": "http://localhost:8080/realms/semiont", "subjectClaim": "sub" },' \
+            '  "archivist": { "host": "localhost", "port": 24103 },' \
+            '  "signal": { "type": "in-process" },' \
+            '  "logLevel": "info"' \
+            '}' \
             > ~/.semiontconfig
-
-      # `test:coverage` below runs the FULL gateway suite, which includes the
-      # signal-plane fixtures spawning a real nats-server from PATH
-      # (SIGNAL-PLANE P1/P3) — same install as ci.yml's gateway jobs.
-      - name: Install nats-server (gateway signal-plane conformance)
-        run: |
-          NATS_VERSION=v2.14.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
-
-      - name: Run security tests
-        run: npm run test:security
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
-          JWT_SECRET: test-secret-key-for-testing-32char
-
-      - name: Run all tests with coverage
-        run: npm run test:coverage
-        env:
-          JWT_SECRET: test-secret-key-for-testing-32char
 
       - name: Run TypeScript type checking
         run: npm run typecheck
@@ -273,18 +185,11 @@ jobs:
 
       - name: Build application (fast)
         run: npm run build:fast
-        env:
-          JWT_SECRET: test-secret-key-for-testing-32char
 
       - name: Start gateway for API security verification
         run: |
-          # Start gateway using the ci environment configuration
-          # (selected by `[defaults] environment = "ci"` in ~/.semiontconfig)
+          # Start the gateway on the configuration document written above.
           cd ../..
-          # No SEMIONT_ROOT and no SEMIONT_ANCHORED_TEXT_DIR: the gateway mounts
-          # no piece of the knowledge base (SINGLE-KB-MOUNT P6), so it reads
-          # ~/.semiontconfig alone and neither variable names anything it opens.
-          export NODE_ENV=test
           export JWT_SECRET=test-secret-key-for-testing-32char
           # The gateway's own service account; boot refuses without it. Nothing
           # here presents it to an issuer.
@@ -387,15 +292,6 @@ jobs:
           fi
           # Kill any remaining Node.js processes
           pkill -f "node.*dist/index.js" || true
-
-      - name: Upload test coverage
-        uses: codecov/codecov-action@v7.1.1
-        if: always()
-        with:
-          file: ./apps/gateway/coverage/lcov.info
-          flags: gateway
-          name: gateway-coverage
-        continue-on-error: true
 
   security-report:
     name: Security Test Report

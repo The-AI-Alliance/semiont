@@ -255,8 +255,8 @@ export function initObservabilityNode(config: NodeObservabilityConfig): boolean 
  * Both halves of the contract — the path and the marker — come from the
  * environment, so nothing here restates what the shell already decided. This
  * lives in `node.ts` rather than beside `registerRestartCountProvider` in
- * `index.ts` because it reads a file: `index.ts` imports no node builtins, and
- * `./web` depends on it staying that way.
+ * `index.ts` because it reads a file: `index.ts` imports no node builtins,
+ * because the Browser bundles it (through `@semiont/http-transport`).
  */
 export function registerSupervisorRestartCount(): void {
   const events = process.env['SUPERVISE_EVENTS'];

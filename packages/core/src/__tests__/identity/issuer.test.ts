@@ -24,10 +24,9 @@ const AUDIENCE = 'semiont-gateway';
 
 let issuer: FixtureIssuer;
 
-// Two URLs answered, so two URLs are stubbed. The gateway routes the same
-// fixture through the MSW server its whole suite already runs; core answers
-// `fetch` directly rather than take a network-interception dependency to serve
-// a discovery document and a key set.
+// Two URLs answered, so two URLs are stubbed. The gateway conformance harness
+// serves the same fixture over HTTP; core answers `fetch` directly rather than
+// take a server dependency to serve a discovery document and a key set.
 function serve(...issuers: FixtureIssuer[]): void {
   const routes = new Map<string, () => unknown>();
   for (const i of issuers) {

@@ -1,4 +1,4 @@
-import type { EnvironmentConfig } from '@semiont/core';
+import type { GatewayConfig } from '../config';
 import { IssuerVerifier } from '@semiont/core/identity';
 
 /**
@@ -25,17 +25,14 @@ let verifier: IssuerVerifier | undefined;
 let naming: PersonNaming | undefined;
 
 /**
- * The issuer the gateway trusts for human tokens — `services.identity`,
- * applied once at startup (and by tests).
+ * The issuer the gateway trusts for human tokens — the configuration
+ * document's `identity`, applied once at startup.
  *
- * `[identity]` is MANDATORY (user, 2026-09-21), so there is always one. It was
- * optional until the config loaders were made to refuse its absence, and what
- * that bought was a gateway nobody could sign in to: no person, because there
- * were no keys to verify against; no sidecar, because the agent-minter refuses
- * before it mints; and no access to its own record, because dialling the
- * Archivist needs a service-account token. Four callers carried a
- * "what if there is no issuer" branch for a configuration only a test harness
- * ever produced.
+ * An issuer is MANDATORY (user, 2026-09-21): the document is not valid
+ * without one. Without it nobody could sign in — no person, because there are
+ * no keys to verify against; no sidecar, because the agent-minter refuses
+ * before it mints — and the gateway could not reach its own record, because
+ * dialling the Archivist needs a service-account token.
  *
  * `audience` is NOT config: it is this knowledge base's own resource
  * identifier, derived from the committed did:web domain (`kbResource`). It
@@ -51,7 +48,7 @@ let naming: PersonNaming | undefined;
  * under. One resolved value feeds both, so the two cannot disagree.
  */
 export function configureTrustedIssuer(
-  identity: NonNullable<EnvironmentConfig['services']['identity']>,
+  identity: GatewayConfig['identity'],
   kb: { audience: string; domain: string },
 ): void {
   verifier = new IssuerVerifier({ issuer: identity.issuer, audience: kb.audience });

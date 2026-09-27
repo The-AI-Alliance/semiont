@@ -65,16 +65,13 @@ export function profileOnce(principal: Principal | undefined, publish: PublishFr
 }
 
 /**
- * THE rule: a person's name reaches the record when they make a WRITE.
- *
- * Both of the gateway's emit paths ask this — `/bus/emit` for the channel it
- * was handed, the upload route for the channel it is about to emit. Neither
- * decides for itself. The upload route used to assert "reaching this line IS
- * the write", which is a second answer the registry cannot correct: a channel
- * whose effect changed would move one path and leave the other behind.
+ * THE rule for `/bus/emit`: a person's name reaches the record when the
+ * channel they emit on WRITES.
  *
  * Which channels write is the registry's `effect` axis, generated — not a
- * roster restated here.
+ * roster restated here. The upload route does not ask it: it emits no
+ * channel, and an upload the Archivist has recorded is a write whichever
+ * command recorded it.
  */
 export function profileForWrite(
   channel: string,

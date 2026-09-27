@@ -1,25 +1,27 @@
 {
   "type": "object",
-  "description": "Subscription matrix for the bus SSE stream (MULTI-RESOURCE-SCOPE). `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming replay from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required.",
+  "description": "Subscription matrix for the bus stream. `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required, and no scope may appear in two entries.",
   "properties": {
     "global": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "description": "Unscoped channels to subscribe to."
     },
     "pendingReplies": {
       "type": "array",
       "items": {
-        "type": "string"
+        "type": "string",
+        "minLength": 1
       },
       "maxItems": 256,
-      "description": "Correlation ids of busRequest replies this client still awaits (BUS-RESUMPTION Phase 2). The server replays any matching replies from its bounded retention buffer (TTL 60s) as normal frames with their deterministic `e-<channel>:<cid>` ids, so a reply that ALSO arrived live dedups client-side. At most 256 entries."
+      "description": "Correlation ids of requests this client still awaits a reply to. The gateway writes every reply it still retains for them (for `x-semiont-limits.replyRetentionSeconds` after it was published) as an ordinary frame with its ReplyEventId, so a reply that also arrived live dedups client-side. A client can have no more pending than it may have unanswered requests, so this bound is also the number of unanswered requests `POST /bus/emit` allows a client."
     },
     "scoped": {
       "type": "array",
-      "description": "Per-resource-scope subscriptions. Scopes must be unique across entries.",
+      "description": "Per-resource-scope subscriptions, at most 512 on one connection. Scopes must be unique across entries.",
       "items": {
         "type": "object",
         "required": [
@@ -30,25 +32,30 @@
         "properties": {
           "scope": {
             "type": "string",
-            "description": "Resource scope (a resourceId)."
+            "description": "Resource scope (a resourceId).",
+            "minLength": 1
           },
           "channels": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             },
-            "description": "Channels to subscribe within this scope."
+            "description": "Channels to subscribe within this scope.",
+            "minItems": 1
           },
           "lastEventId": {
             "type": "string",
-            "description": "This scope's last-seen persisted event id (`p-<scope>-<seq>`). The server replays this scope's persisted events after it before joining the live tail, and emits a scoped `bus:resume-gap` when it cannot cover the gap (unparseable or mismatched id, retention exceeded, or query error)."
+            "description": "This scope's last-seen PersistedEventId. The gateway replays this scope's persisted events after it — those on the entry's channels — before the live tail, and writes a scoped `bus:resume-gap` (BusResumeGap) when it cannot cover the gap."
           }
         }
-      }
+      },
+      "maxItems": 512
     },
     "clientId": {
       "type": "string",
-      "description": "Routing address for correlated replies (CORRELATED-REPLY-ROUTING D1): a UUID minted once per bus-client lifetime \u2014 per actor, NOT per connection, so it survives a make-before-break reconnect and both overlap connections share it. Required: a subscriber without one could never receive a correlated frame, and that must fail loudly here rather than silently at delivery. Not authentication \u2014 the JWT stays that; this is an unguessable routing address, never echoed into any payload or broadcast frame."
+      "description": "Routing address for correlated replies: a UUID minted once per bus-client lifetime — per actor, not per connection, so it survives a reconnect and two overlapping connections share it. A correlated reply is delivered to a connection only when its request was emitted under the same clientId by the same principal. Not authentication — the bearer token stays that — and never echoed into any payload or broadcast frame.",
+      "minLength": 1
     }
   },
   "additionalProperties": false,

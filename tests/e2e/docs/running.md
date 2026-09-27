@@ -22,9 +22,9 @@ local-dev defaults.
 | `E2E_BROWSER_URL` | `http://localhost:3000` | The Browser the tests drive. |
 | `E2E_GATEWAY_URL` | `http://localhost:4000` | Gateway the sign-in form points at. |
 
-The default test user seeded by the gateway is
-`admin@example.com` / `password`. Override via the env vars if you
-seeded something else.
+The user must exist in the stack's issuer. The stack flow in the
+[README](../README.md#running-against-a-freshly-built-stack) creates
+`admin@example.com` / `password` with `semiont useradd`.
 
 ## Running from a container (recommended on macOS)
 
@@ -33,9 +33,8 @@ its ports published on the host. **Target the host bridge gateway,
 `192.168.64.1`** — it routes to every published port (`:3000` browser,
 `:4000` gateway, `:24100` worker health) and is stable across restarts.
 
-**Do not use the containers' own IPs.** An earlier version of this page said
-to `container ls | grep` them and re-grab before every run. Two things break
-(both measured 2026-08-07):
+**Do not use the containers' own IPs** (from `container ls`). Two things
+break:
 
 - A stale address fails in `globalSetup` with `connect EHOSTUNREACH`, before
   any spec runs — and container IPs change on *every* stack restart.

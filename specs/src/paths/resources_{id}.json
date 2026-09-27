@@ -2,35 +2,58 @@
   "get": {
     "summary": "Get a resource's stored representation (the pipe)",
     "description": "Returns the stored representation's bytes, verbatim, with the stored media type in Content-Type (`application/octet-stream` when the stored metadata carries none). The Accept header is never read: there is no content negotiation and no transcoding, so the served bytes always hash to the representation's registered checksum.\n\nThe resource's JSON-LD description (descriptor + annotations + inbound entity references) lives at GET /resources/{id}/jsonld; every content response advertises it via a `Link: rel=\"describedby\"` header.\n\nContent is immutable (checksum-addressed), and this route is bearer-authenticated, so responses carry `Cache-Control: private, max-age=31536000, immutable`.",
-    "tags": ["Resources"],
+    "tags": [
+      "Resources"
+    ],
     "security": [
-      { "bearerAuth": [] }
+      {
+        "bearerAuth": []
+      }
     ],
     "parameters": [
       {
         "name": "id",
         "in": "path",
         "required": true,
-        "schema": { "type": "string" }
+        "schema": {
+          "type": "string"
+        }
       }
     ],
     "responses": {
       "200": {
-        "description": "The stored representation's bytes, verbatim",
+        "description": "The stored representation's bytes, verbatim, with the stored media type as Content-Type (`application/octet-stream` when none is recorded).",
         "headers": {
           "Link": {
-            "schema": { "type": "string" },
-            "description": "`</resources/{id}/jsonld>; rel=\"describedby\"; type=\"application/ld+json\"` — where to dereference the resource's JSON-LD description"
+            "schema": {
+              "type": "string"
+            },
+            "description": "`</resources/{id}/jsonld>; rel=\"describedby\"; type=\"application/ld+json\"` — where the resource's JSON-LD description is."
+          },
+          "Cache-Control": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "private, max-age=31536000, immutable"
+              ]
+            },
+            "description": "Content is immutable; `private` because this route is bearer-authenticated and a shared cache must not serve it to anyone else."
           }
         },
         "content": {
           "*/*": {
-            "schema": { "type": "string", "format": "binary" }
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
           }
         }
       },
+      "401": {
+        "$ref": "../components/responses/Unauthorized.json"
+      },
       "404": {
-        "description": "Resource or representation not found",
+        "description": "`Resource not found` when the knowledge base has no such resource; `Resource representation not found` when it has the resource but not its bytes.",
         "content": {
           "application/json": {
             "schema": {
@@ -40,14 +63,10 @@
         }
       },
       "500": {
-        "description": "Failed to retrieve resource",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
+        "$ref": "../components/responses/InternalError.json"
+      },
+      "503": {
+        "$ref": "../components/responses/ServiceUnavailable.json"
       }
     }
   }

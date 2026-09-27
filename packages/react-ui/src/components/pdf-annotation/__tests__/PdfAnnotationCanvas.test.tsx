@@ -80,11 +80,15 @@ function stubIntersectionObserver() {
   // for "what is on screen" — and a map would keep only the last registered.
   const observed: Array<{ el: Element; cb: IntersectionObserverCallback }> = [];
   const margins = new Map<IntersectionObserverCallback, string>();
+  let observeCalls = 0;
   class FakeIO {
     constructor(private cb: IntersectionObserverCallback, options?: IntersectionObserverInit) {
       margins.set(cb, options?.rootMargin ?? '0px');
     }
-    observe(el: Element) { observed.push({ el, cb: this.cb }); }
+    observe(el: Element) {
+      observeCalls++;
+      observed.push({ el, cb: this.cb });
+    }
     unobserve(el: Element) {
       for (let i = observed.length - 1; i >= 0; i--) {
         if (observed[i]!.el === el && observed[i]!.cb === this.cb) observed.splice(i, 1);
@@ -99,16 +103,26 @@ function stubIntersectionObserver() {
   }
   vi.stubGlobal('IntersectionObserver', FakeIO);
 
-  /** Fire only the observer that has no preload margin — the one that decides
-   *  which page the reader is actually looking at. */
+  /** Deliver one entry per observed slot to the observers `match` selects:
+   *  intersecting for `visible`, not for the rest. Refuses a visible page no
+   *  selected observer has registered — that entry would reach nobody, and the
+   *  test would only find out a second later, from an empty mount list. */
   function fireFor(visible: number[], match: (rootMargin: string) => boolean) {
     const byCb = new Map<IntersectionObserverCallback, IntersectionObserverEntry[]>();
+    const reached = new Set<number>();
     for (const { el, cb } of observed) {
       if (!match(margins.get(cb) ?? '0px')) continue;
       const page = Number((el as HTMLElement).dataset.page);
+      reached.add(page);
       byCb.set(cb, [...(byCb.get(cb) ?? []), {
         target: el, isIntersecting: visible.includes(page),
       } as unknown as IntersectionObserverEntry]);
+    }
+    const unreached = visible.filter((page) => !reached.has(page));
+    if (unreached.length > 0) {
+      throw new Error(
+        `fire([${visible}]): no observer has registered page ${unreached} yet — wait on io.observedPages() first`,
+      );
     }
     act(() => { for (const [cb, entries] of byCb) cb(entries, {} as IntersectionObserver); });
   }
@@ -119,12 +133,13 @@ function stubIntersectionObserver() {
   }
 
   /**
-   * Pages currently registered with an observer, deduped. The slots reach the
-   * DOM one effect BEFORE `observe()` runs on them, so waiting on the DOM and
-   * then firing delivers entries to nobody — the component never learns a page
-   * became visible, and the test sees an empty mount list. Wait on this
-   * instead. (Both observers are created in the same effect pass, so a page
-   * appearing here means both have it.)
+   * Pages currently registered with an observer, deduped. The slots — and the
+   * strip, which lands in the same commit — reach the DOM one effect BEFORE
+   * `observe()` runs on them, so a wait on the DOM can pass with nothing
+   * registered. Whether the test then fires before or after the effect is a
+   * race between React's scheduler and waitFor's closing 0ms timer, which CI
+   * load decides. Wait on this instead. (Both observers are created in the
+   * same effect pass, so a page appearing here means both have it.)
    */
   function observedPages(): number[] {
     const pages = new Set(observed.map(({ el }) => Number((el as HTMLElement).dataset.page)));
@@ -134,6 +149,9 @@ function stubIntersectionObserver() {
   return {
     fireOnscreen,
     observedPages,
+    /** Every `observe()` so far, re-registrations included — `observedPages`
+     *  cannot see an unobserve followed by an observe of the same slot. */
+    observeCalls: () => observeCalls,
     /**
      * Fire both observers: these pages are mounted AND on screen — the
      * ordinary case. A test that needs the two to differ (a page preloaded
@@ -738,6 +756,35 @@ describe('PdfAnnotationCanvas', () => {
       await waitFor(() => expect(mountedPages()).toEqual([4, 5]));
     });
 
+    test('a re-render does not re-register the slots with the observers', async () => {
+      // A real IntersectionObserver answers every observe() — a re-observe
+      // after unobserve included — with a fresh notification. Re-registering
+      // the slots on each commit therefore closed a loop: notification →
+      // state → render → re-register → notification. Measured in Chromium on
+      // an idle 30-page document: 120 commits/s, 7,200 observe() calls/s.
+      // This stub does not notify on observe(), so the loop cannot show here;
+      // the re-registration that feeds it can.
+      const io = stubIntersectionObserver();
+      scannedDoc();
+
+      render(
+        <PdfAnnotationCanvas resourceUri="res-1"
+          pdfUrl={mockPdfUrl}
+          drawingMode={null}
+          pageLayout="scroll"
+        />
+      );
+      await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
+      });
+      const registrations = io.observeCalls();
+
+      io.fire([1, 2]);
+      await waitFor(() => expect(mountedPages()).toEqual([1, 2]));
+
+      expect(io.observeCalls()).toBe(registrations);
+    });
+
     test('still fetches the whole-resource map once, across many mounted pages (P4)', async () => {
       // P4's invariant has to survive the move from one shared page-load
       // effect into N independent page views.
@@ -934,6 +981,7 @@ describe('PdfAnnotationCanvas', () => {
         { container: scroller },
       );
       await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
       });
       io.fire([1]);
@@ -957,6 +1005,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
       });
       io.fire([1]);
@@ -1072,6 +1121,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
       });
       io.fire([1]);
@@ -1104,6 +1154,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
       });
       io.fire([1]);
@@ -1131,6 +1182,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
       });
       io.fire([1]);
@@ -1166,6 +1218,7 @@ describe('PdfAnnotationCanvas', () => {
         />
       );
       await waitFor(() => {
+        expect(io.observedPages()).toHaveLength(5);
         expect(document.querySelectorAll('.semiont-pdf-annotation-canvas__strip-page')).toHaveLength(5);
       });
       io.fire([1]);

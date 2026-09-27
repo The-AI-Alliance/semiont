@@ -1,7 +1,7 @@
 # Containers and rebuild flow
 
 The e2e harness drives the Browser **container**, which talks to the
-gateway **container**. All five Semiont images bundle `@semiont/*`
+gateway **container**. Every Semiont image bundles `@semiont/*`
 packages — a change to a package isn't visible to the tests until the
 images are rebuilt and the stack is restarted from them. This doc walks
 through that lifecycle.
@@ -12,12 +12,12 @@ through that lifecycle.
 |---|---|---|
 | `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
 | `semiont-gateway` | `@semiont/gateway` on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-worker`, `semiont-smelter`, `semiont-weaver` | Background workers / pipeline actors | published images, or `:local` via `scripts/ci/local-build.sh` |
-| plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres` | Storage + inference | started by `semiont start` |
+| `semiont-archivist`, `semiont-librarian`, `semiont-dispatcher`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `scripts/ci/local-build.sh` |
+| plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres`, `semiont-nats`, `semiont-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
 
 **Key fact:** `scripts/ci/local-build.sh` (in this repo) publishes the
-`@semiont/*` packages to a throwaway local Verdaccio and builds **all
-five** Semiont images from them as local-only `:local` tags (plus the
+`@semiont/*` packages to a throwaway local Verdaccio and builds **every**
+Semiont image from them as a local-only `:local` tag (plus the
 launcher binary). KB repos build nothing — the stack consumes the
 `:local` images only when started with `SEMIONT_VERSION=local semiont
 start`; without that, the launcher pulls the published images and your
@@ -84,7 +84,7 @@ container ls | grep -E 'semiont-(browser|gateway)'    # inspection only
 1. Starts a fresh `semiont-verdaccio` container on `:4873`.
 2. Builds each package in a node:24-alpine container and publishes it
    to Verdaccio.
-3. Builds the five Semiont images against Verdaccio, tagged
+3. Builds every Semiont image against Verdaccio, tagged
    `ghcr.io/the-ai-alliance/semiont-<svc>:local` (never pushed), and
    loads them into every container engine on the machine.
 4. Builds the launcher binary to `apps/launcher/dist/semiont`.

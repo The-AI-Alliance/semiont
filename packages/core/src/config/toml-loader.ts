@@ -39,7 +39,13 @@ function deepMerge<T extends Record<string, unknown>>(base: T, override: Partial
   return result as T;
 }
 
-function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
+/**
+ * Every ${VAR} and ${VAR:-default} in a parsed config, resolved against
+ * `env`. The rule is shared with the Go launcher, which resolves the
+ * gateway's configuration document by it; both run
+ * specs/src/config-placeholders/cases.json.
+ */
+export function resolveEnvVars(obj: unknown, env: Record<string, string | undefined>): unknown {
   if (typeof obj === 'string') {
     return obj.replace(/\$\{([^}]+)\}/g, (match, expr: string) => {
       const sepIdx = expr.indexOf(':-');

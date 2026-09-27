@@ -52,17 +52,17 @@ semiont logs --service gateway
 
 ### Gateway container exits immediately
 
-Its startup contract is strict, and each unmet requirement throws:
+Its startup contract is strict: each unmet requirement stops it before it listens, and the output names what is missing.
 
-| Missing | Symptom |
+| Missing or wrong | What it says |
 |---|---|
-| `SEMIONT_ROOT` | `SEMIONT_ROOT environment variable is not set` |
-| `services.gateway` in the environment config | `services.gateway is required in environment config` |
-| `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
-| `JWT_SECRET` under 32 characters | Startup validation failure |
-| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The service refuses to boot: it cannot authenticate as its own service account — see below |
-| `[identity]` in the environment config | Gateway and sidecars refuse to boot; there is no issuer to trust |
-| `subjectClaim` in `[identity]` | Gateway and sidecars refuse to boot: `names no subjectClaim` — the claim people are named by is declared, never defaulted |
+| The configuration document (`~/.semiontconfig` in the container) | `Cannot read the gateway's configuration document at …` — the launcher writes it; check the mount |
+| A field of that document | `… is not a gateway configuration document (GatewayConfig):` followed by each failing field by its JSON pointer, e.g. `/identity is missing subjectClaim` |
+| `JWT_SECRET`, or a key in it under 32 characters | `JWT_SECRET is not set …` / `JWT_SECRET must be at least 32 characters long …` |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | `… not set — this gateway has no service account …` — see below |
+| A broker credential variable the document names (`signal.userEnv`, `signal.passwordEnv`) | `/signal/userEnv names the environment variable …, which is not set` |
+| The broker, under `signal.type = "nats"` | `The broker is unreachable …`, or `… it must run with JetStream enabled.` |
+| Routes and spec in agreement (a build defect, not configuration) | `The gateway's routes are not its spec's operations:` followed by each difference |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 
@@ -110,7 +110,7 @@ container ps --all | grep semiont-nats
 semiont logs --service gateway | grep -iE "BROKER-DOWN|BROKER-RECONNECTED"
 ```
 
-`[signal BROKER-DOWN]` with no later `[signal BROKER-RECONNECTED]` confirms the outage. **Nothing restarts the broker for you** — it is a stock third-party image, outside the launcher's process supervision. Bring it back with `semiont start --service messaging` (or start the container directly); the gateway reconnects on its own, no gateway restart. A gateway that has been up since before the broker returned recovers without intervention — the client retries indefinitely by design.
+`[signal BROKER-DOWN]` with no later `[signal BROKER-RECONNECTED]` confirms the outage. Until it reconnects, the gateway refuses every emit with 503 rather than accepting frames it could not deliver; open streams stay open and carry frames again once it does. **Nothing restarts the broker for you** — it is a stock third-party image, outside the launcher's process supervision. Bring it back with `semiont start --service messaging` (or start the container directly); the gateway reconnects on its own, no gateway restart. A gateway that has been up since before the broker returned recovers without intervention — the client retries indefinitely by design.
 
 If `semiont status` shows the stack green while emits still fail, the served-health/wedged-bus gap above is why; trust the `BROKER-DOWN` breadcrumb over the health line.
 

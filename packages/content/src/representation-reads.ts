@@ -22,7 +22,8 @@
 
 import type { IContentTransport, ResourceId } from '@semiont/core';
 import { archivistAddress, archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
-import type { ServiceAccountCredential } from '@semiont/core';
+import type { ServiceAccountCredential, components } from '@semiont/core';
+import { validators } from '@semiont/core/openapi';
 
 /**
  * The byte read, and nothing else — DERIVED from the transport contract so it
@@ -32,8 +33,8 @@ import type { ServiceAccountCredential } from '@semiont/core';
  */
 export type ContentReads = Pick<IContentTransport, 'getBinary'>;
 
-/** Which half of the lookup failed — the gateway serves two different 404s. */
-export type MissingReason = 'resource' | 'representation';
+/** Which half of the lookup failed — the `code` of the Archivist's RepresentationNotFound. */
+export type MissingReason = components['schemas']['RepresentationNotFound']['code'];
 
 export class RepresentationMissing extends Error {
   constructor(readonly resourceId: string, readonly reason: MissingReason) {
@@ -60,7 +61,8 @@ export class RepresentationMissing extends Error {
  *
  * A miss arrives as `RepresentationMissing` — the same error the in-process
  * face throws for the same fact, so no caller can tell whether the bytes were
- * a hop away. `reason` rides the wire precisely so this side need not guess.
+ * a hop away. The Archivist's `code` says which half failed, precisely so this
+ * side need not guess; a 404 without one is a broken Archivist, not a miss.
  */
 export function archivistContentReads(
   config: ArchivistAddressConfig,
@@ -82,11 +84,11 @@ export function archivistContentReads(
       const res = await fetch(url, { headers });
 
       if (res.status === 404) {
-        const { reason } = await res.json().catch(() => ({})) as { reason?: string };
-        throw new RepresentationMissing(
-          String(resourceId),
-          reason === 'representation' ? 'representation' : 'resource',
-        );
+        const notFound: unknown = await res.json().catch(() => undefined);
+        if (!validators.RepresentationNotFound(notFound)) {
+          throw new Error(`Archivist content read for ${String(resourceId)}: a 404 that is not a RepresentationNotFound`);
+        }
+        throw new RepresentationMissing(String(resourceId), notFound.code);
       }
       if (!res.ok) {
         throw new Error(`Archivist content read failed for ${String(resourceId)}: ${res.status} ${res.statusText}`);

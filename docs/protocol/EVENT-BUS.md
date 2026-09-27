@@ -18,13 +18,14 @@ payload and an envelope — not an HTTP call. That is what makes a subsystem rel
 gateway's own handlers receive their frames from the broker through a queue group, so a handler
 moving to another process costs no extra hop.
 
-Four paths are deliberately not on the bus. They are the whole list; a fifth is a design change,
+Five paths are deliberately not on the bus. They are the whole list; a sixth is a design change,
 not an oversight.
 
 | path | what | why not the bus |
 |---|---|---|
-| `PUT /content/:storageUri` | byte writes to the Archivist | Bytes ride HTTP, never the bus. Streaming an arbitrarily large body as a frame is the wrong shape. |
+| `POST /resources` (on the Archivist) | an upload: the bytes, and the resource they are recorded as | Bytes ride HTTP, never the bus. Streaming an arbitrarily large body as a frame is the wrong shape; and the Archivist, which writes the tree, records the resource in the same call, so the gateway makes no request of its own. |
 | `GET /resources/:id/content` | byte reads from the Archivist | Same. |
+| `GET /resources/:id/jsonld` | a resource's linked-data description, for an HTTP client following a content response's `Link: rel="describedby"` | A client dereferencing a link speaks HTTP. `browse:resource-requested` remains the bus-side read for everyone else. |
 | `GET /events/:resourceId?fromSequence=N` | the `Last-Event-ID` replay behind `/bus/subscribe` | A bulk backlog read at connection setup, not an event. Bounded to one resource from one sequence, one customer. `browse:events-requested` remains the bus-side read for ordinary queries — the duplication is accepted and narrow. |
 | `POST /api/tokens/agent` | a sidecar or worker buying an agent token | Bootstrapping a credential must not depend on the thing the credential is for. |
 
@@ -32,7 +33,7 @@ not an oversight.
 API), datastores (Neo4j, Qdrant, Postgres), `/health` liveness probes, and OTLP telemetry.
 
 The standing rule governing what may live on the Archivist's HTTP surface at all — *"this surface
-serves the KB tree, and nothing else"* — is stated once, in
+serves the KB tree and each resource's linked-data description, and nothing else"* — is stated once, in
 [`archivist-read-path.ts`](../../packages/make-meaning/src/archivist-read-path.ts)'s header. This
 table is the system-level view; that header is the gate.
 
@@ -73,7 +74,7 @@ Each channel falls into one of five payload categories. The category tells you w
 |---|---|---|---|---|
 | **Domain event** (`StoredEvent<...>`; `EnrichedEvent<...>` where the EventStore enriches) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
 | **Command** | OpenAPI schema (`components['schemas']`) | yes — `/bus/emit` | no | `yield:create`, `mark:archive`, `match:search-requested` |
-| **Result / failure** | OpenAPI schema or inline `{ correlationId, ... }` | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
+| **Result / failure** | OpenAPI schema or inline `{ response, ... }`; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:selection-changed` |
 | **SSE infrastructure** | inline | no | no | `stream-connected`, `bus:resume-gap` |
 
@@ -150,9 +151,9 @@ In-process transports (e.g. `LocalTransport` from `@semiont/make-meaning`) emit 
 
 The bus is fan-out: every subscriber to a channel sees every event on it. Request/response semantics are layered on top via a `correlationId`:
 
-1. The caller generates a UUID and emits a request (e.g. `match:search-requested`) with `correlationId` in the payload.
-2. The handler does its work and emits the response (`match:search-results` or `match:search-failed`) carrying the **same** `correlationId`.
-3. The caller filters the response channel by `correlationId` to receive only its own answer.
+1. The caller generates a UUID and emits a request (e.g. `match:search-requested`) with that `correlationId` on the frame's envelope — beside the payload, never inside it — and its `clientId`.
+2. The handler does its work and emits the response (`match:search-results` or `match:search-failed`) carrying the **same** `correlationId` on its envelope.
+3. The gateway delivers the response only to the connections of the client that made the request (the request's emit *claimed* the id), and the caller matches it by `correlationId`.
 
 `busRequest` ([packages/core/src/bus-request.ts](../../packages/core/src/bus-request.ts)) implements this pattern uniformly. It lives in `@semiont/core`, next to the bus protocol, so the SDK *and* in-process workers share one helper. You call it with the **operation** — the request channel — and a payload; it mints the `correlationId`, looks the reply channels up from the registry, emits, and resolves the awaited reply:
 
@@ -166,12 +167,12 @@ Two declarations make this work, and together they retire a whole bug class (a r
 
 - **The operations registry.** [`BUS_OPERATIONS`](../../packages/core/src/bus-operations.ts) declares every request/reply operation **once** as a triple — `request → { result, failure, progress? }`. `busRequest` reads the request channel's entry to find its reply channels (so a caller can't pass a mismatched or unbridged pair), and the bridged-reply set is *derived* from it (see [Fan-in](#fan-in-sse-bridging)). The return type is inferred from the result channel — callers never write `<TResult>`.
 
-- **The reply-shape standard.** Every reply is one of three shapes, all keyed by `correlationId`:
-  - `{ correlationId, response: T }` — success with data → resolves to `T`.
-  - `{ correlationId }` — success, no data → resolves to `void`.
-  - `{ correlationId } & CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
+- **The reply-shape standard.** Every reply carries the request's `correlationId` on its envelope, and its payload is one of three shapes:
+  - `{ response: T }` — success with data → resolves to `T`.
+  - `{}` — success, no data → resolves to `void`.
+  - `CommandError` — failure → rejects with `BusRequestError` whose `code` is the failure's own `CommandError.code` promoted to the client vocabulary (`bus.not-found`, `bus.peer-unavailable`, `bus.unauthorized`, `bus.none-pending`), or `bus.rejected` when the failure carries none, per the [SDK error model](../../packages/sdk/docs/Usage.md#error-handling).
 
-  `busRequest` reads `e.response`, so **every reply handler must echo the request's `correlationId` and put its data under `response`** — a handler that doesn't echo the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
+  `busRequest` reads `e.response`, so **every reply handler must carry the request's `correlationId` onto its reply's envelope and put its data under `response`** — a reply without the id hangs the caller until `bus.timeout`. The uniformity is exactly what lets the return type be derived from the registry instead of hand-annotated.
 
 ## Trace context: the `_trace` carrier
 

@@ -10,12 +10,12 @@
 
 import { Hono } from 'hono';
 import { authMiddleware } from '../middleware/auth';
-import type { components, EnvironmentConfig } from '@semiont/core';
+import type { components } from '@semiont/core';
 
 type StatusResponse = components['schemas']['StatusResponse'];
 
 // Create status router with plain Hono
-export const statusRouter = new Hono<{ Variables: { config: EnvironmentConfig } }>();
+export const statusRouter = new Hono();
 
 // Apply auth middleware
 statusRouter.use('/api/status', authMiddleware);

@@ -15,7 +15,11 @@
             }
           }
         }
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
       }
-    }
+    },
+    "security": []
   }
 }

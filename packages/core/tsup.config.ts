@@ -25,7 +25,7 @@ export default defineConfig({
     'src/testing.ts',
     'src/testing/axioms.ts',
     // `@semiont/core/testing/issuer` — the in-process OIDC issuer double. Its
-    // own entry so the `testing` barrel never pulls `msw` in behind it.
+    // own entry so the `testing` barrel never pulls `jose` in behind it.
     'src/testing/issuer.ts',
   ],
   external: ['fast-check'],

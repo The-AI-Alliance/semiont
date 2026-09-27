@@ -85,7 +85,7 @@ open the span tree in the Jaeger UI.
 When you have a specific trace ID and want the raw JSON:
 
 ```sh
-curl -s "http://192.168.64.16:16686/api/traces/<traceID>" \
+curl -s "http://localhost:16686/api/traces/<traceID>" \
   | python3 -c "
 import json, sys
 d = json.load(sys.stdin)['data'][0]
@@ -106,7 +106,7 @@ full trace ID:
 
 ```sh
 # List recent traces from a service, get full IDs
-curl -s "http://192.168.64.16:16686/api/traces?service=semiont-gateway&limit=20" \
+curl -s "http://localhost:16686/api/traces?service=semiont-gateway&limit=20" \
   | python3 -c "import json,sys; [print(t['traceID']) for t in json.load(sys.stdin)['data']]"
 ```
 

@@ -37,20 +37,30 @@ export interface CreateResourceInput {
   isDraft?: boolean;
 }
 
+/**
+ * Who a command is emitted as: the verified principal, and the roles its
+ * token carries — the two facts the gateway stamps on every emit as `_userId`
+ * and `_roles`. The Stower reads both: a worker's create must cite its job.
+ */
+export interface Emitter {
+  did: UserId;
+  roles: readonly string[];
+}
+
 export class ResourceOperations {
   /**
    * Create a new resource via EventBus → Stower
    */
   static async createResource(
     input: CreateResourceInput,
-    userId: UserId,
+    emitter: Emitter,
     bus: BusRequestPrimitive,
   ): Promise<ResourceId> {
     // Confirmed in-process write over busRequest: the reply is matched by
     // correlationId, so concurrent creates can't cross-resolve (the old race()
     // took the first yield:create-ok on the channel regardless of which create
-    // it answered). In-process callers stamp `_userId` directly, mirroring what
-    // the gateway does for wire callers.
+    // it answered). In-process callers stamp `_userId` and `_roles` directly,
+    // mirroring what the gateway does for wire callers.
     const { resourceId: rId } = await busRequest(
       bus,
       'yield:create',
@@ -60,7 +70,8 @@ export class ResourceOperations {
         contentChecksum: input.contentChecksum,
         byteSize: input.byteSize,
         format: input.format,
-        _userId: userId,
+        _userId: emitter.did,
+        ...(emitter.roles.length > 0 ? { _roles: [...emitter.roles] } : {}),
         language: input.language,
         entityTypes: input.entityTypes,
         generatedFrom: input.generatedFrom,

@@ -1,5 +1,5 @@
 /**
- * Spec validation — `@semiont/core/openapi`.
+ * Spec validation, and the spec's limits — `@semiont/core/openapi`.
  *
  * The validators are GENERATED from `specs/openapi.json`
  * (`scripts/spec/generate-validators.mjs`), the same bundle `types.ts` and
@@ -22,6 +22,9 @@ import type { ErrorObject } from 'ajv';
 import * as generated from './generated/openapi-validators.cjs';
 
 export const validators = generated;
+
+/** The limits the spec states — generated from it the same way. */
+export { operationLimits, itemLimits } from './generated/protocol-limits';
 
 /**
  * Ajv's error list as one human-readable line, for a 4xx body.

@@ -1,0 +1,75 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Semiont Archivist",
+    "version": "0.1.0",
+    "description": "The Archivist's HTTP surface: what the gateway (and only the fleet's own services) call to store and read the knowledge base's bytes, read its linked-data descriptions, and replay a resource's events. Everything else reaches the Archivist over the bus."
+  },
+  "servers": [
+    {
+      "url": "http://{host}:{port}",
+      "description": "The address the gateway's configuration names (`archivist.host`, `archivist.port`).",
+      "variables": {
+        "host": {
+          "default": "archivist"
+        },
+        "port": {
+          "default": "24103"
+        }
+      }
+    }
+  ],
+  "paths": {
+    "/health": {
+      "$ref": "paths/health.json"
+    },
+    "/events/{resourceId}": {
+      "$ref": "paths/events_{resourceId}.json"
+    },
+    "/resources": {
+      "$ref": "paths/resources.json"
+    },
+    "/resources/{id}/content": {
+      "$ref": "paths/resources_{id}_content.json"
+    },
+    "/resources/{id}/jsonld": {
+      "$ref": "paths/resources_{id}_jsonld.json"
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceAccount": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "`Authorization: Bearer <JWT>` from the knowledge base's trusted issuer — the issuer and audience the `bearerAuth` scheme of the gateway's API names — carrying `semiont-service` in its flat `roles` claim: a service account of this knowledge base. People never call the Archivist; the gateway does, as itself."
+      }
+    },
+    "schemas": {
+      "ArchivistEventsResponse": {
+        "$ref": "../components/schemas/ArchivistEventsResponse.json"
+      },
+      "ArchivistHealth": {
+        "$ref": "../components/schemas/ArchivistHealth.json"
+      },
+      "CreateResourceResponse": {
+        "$ref": "../components/schemas/CreateResourceResponse.json"
+      },
+      "ErrorResponse": {
+        "$ref": "../components/schemas/ErrorResponse.json"
+      },
+      "GetResourceResponse": {
+        "$ref": "../components/schemas/GetResourceResponse.json"
+      },
+      "RepresentationNotFound": {
+        "$ref": "../components/schemas/RepresentationNotFound.json"
+      },
+      "ResourceUpload": {
+        "$ref": "../components/schemas/ResourceUpload.json"
+      },
+      "StoredEventResponse": {
+        "$ref": "../components/schemas/StoredEventResponse.json"
+      }
+    }
+  }
+}

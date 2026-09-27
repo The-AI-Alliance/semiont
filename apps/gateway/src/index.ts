@@ -1,35 +1,21 @@
 import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
-import { swaggerUI } from '@hono/swagger-ui';
-import { type EnvironmentConfig, EventBus, evaluateEnvPlaceholders, kbResource, withDeadline, errField } from '@semiont/core';
-import { loadEnvironmentConfig } from '@semiont/core/node';
+import { HTTPException } from 'hono/http-exception';
+import { EventBus, kbResource, withDeadline, errField, isObject } from '@semiont/core';
 import type { Principal } from './identity/principal';
+import { CONFIG_PATH, fromEnvironment, readGatewayConfig, type GatewayConfig } from './config';
 
-
-// Load configuration from .semiont/config + ~/.semiontconfig (TOML).
-// The environment is resolved by the loader from `[defaults] environment` — the
-// SAME key the launcher selects from (config.go) — so one config selects it for
-// both halves. Nothing is selected here — no environment variable, no 'local'
-// default: those disagreed across entry points and silently loaded the wrong
-// (empty) section.
-// `null`, not a KB root: this process mounts no knowledge base (SINGLE-KB-MOUNT
-// P6). Everything it needs — the KB's own committed settings plus the
-// launcher's staged `[kb]` identity and archivist topology — arrives in the
-// per-service copy the launcher mounts at ~/.semiontconfig, which is exactly
-// what the loader reads when given no root. Every sidecar has loaded this way
-// since it was extracted; the gateway was the last holdout, and only because
-// it still had a tree to read from.
-//
-// SEMIONT_ROOT and SEMIONT_ANCHORED_TEXT_DIR are gone with the mounts they
-// named. The store the second one pointed at belongs to the Smelter
-// (ANCHORED-TEXT-TO-SMELTER P1) and the tree the first one pointed at belongs
-// to the Archivist; this process reaches both over HTTP.
-const config = loadEnvironmentConfig(null);
-
-if (!config.services?.gateway) {
-  throw new Error('services.gateway is required in environment config');
-}
+// Everything the gateway reads at boot is one document the launcher writes
+// resolved (GatewayConfig in specs/; the user's ruling on GATEWAY-SIMPLIFY S1,
+// 2026-09-27: "Resolved JSON doc"). It is validated here and nothing in it is
+// defaulted: a document that does not validate stops the process before it
+// serves. The KB's identity — its committed `[site] domain` — is in it, which
+// is how a gateway that mounts no KB tree knows what it is: the audience it
+// accepts tokens for, the authority its people and agents are named under,
+// and the issuer of the tokens it signs (KB-IDENTITY-VS-ADDRESS decision 8).
+const config: GatewayConfig = readGatewayConfig(CONFIG_PATH);
+const kbDomain = config.kb.domain;
 
 // Checked HERE, with the other startup requirements, rather than only in
 // JWTService.initialize below: a missing secret should cost a millisecond at
@@ -38,64 +24,25 @@ if (!config.services?.gateway) {
 const { requireJwtSecret } = await import('./auth/jwt');
 requireJwtSecret();
 
-// ── KB identity (KB-IDENTITY-VS-ADDRESS decision 8) ──────────────────────
-//
-// The knowledge base's domain — its committed `[site] domain`, as the launcher
-// stages it (`[kb] domain`, SINGLE-KB-MOUNT P5) — is this process's one source
-// for the KB's identity: the audience it accepts tokens for, the authority its
-// people and agents are named under, the issuer of the tokens it signs. The
-// gateway mounts no KB tree, so the staged copy is the only one it sees.
-const kbDomain: string = (() => {
-  const domain = config.kb?.domain;
-  // Decision 8 — a knowledge base declares its identity or does not run.
-  // `semiont start` already refuses this; a gateway launched another way
-  // (docker, npm, a script) must refuse too.
-  if (!domain) {
-    throw new Error(
-      'This knowledge base declares no identity: [site] domain is missing from its ' +
-        '.semiont/config, so the launcher staged no [kb] domain.\n' +
-        'A knowledge base declares its identity or does not run — it is permanent, and has no safe default ' +
-        "(inferring one from an address is how two KBs end up sharing a fabricated 'did:web:localhost').\n" +
-        'Add:\n\n  [site]\n  domain = "your-org.github.io:your-kb-repo"\n',
-    );
-  }
-  return domain;
-})();
-
 // The issuer the gateway trusts for human tokens (EXTERNAL-IDENTITY): keys are
 // discovered on first use, so a configured issuer that is unreachable surfaces
-// at the first human request, not here. No section, no trusted issuer — only
-// gateway-signed tokens authenticate.
+// at the first human request, not here.
 //
 // The AUDIENCE is not configured. It is this knowledge base's own resource
-// identifier, derived from the domain resolved above, which is why this runs
-// after that block rather than before it. One declared fact decides what the
-// KB calls itself, what it requires in `aud`, and the authority its people and
+// identifier, derived from its domain. One declared fact decides what the KB
+// calls itself, what it requires in `aud`, and the authority its people and
 // agents are named under — a person and the software working for them are
 // peers beneath one did:web (VERIFIED-PROVENANCE P5).
 const { configureTrustedIssuer } = await import('./identity/trusted-issuer');
-// `[identity]` is mandatory (user, 2026-09-21): the loaders refuse a config
-// without it, so this is an assertion that they did, not a fallback.
-const identity: NonNullable<EnvironmentConfig['services']['identity']> = (() => {
-  const configured = config.services.identity;
-  if (!configured) {
-    throw new Error('services.identity is required — every knowledge base trusts an issuer');
-  }
-  return configured;
-})();
-configureTrustedIssuer(identity, { audience: kbResource(kbDomain), domain: kbDomain });
+configureTrustedIssuer(config.identity, { audience: kbResource(kbDomain), domain: kbDomain });
 
-// What it takes to reach the record, asserted with the rest of the startup
-// requirements rather than on the first Archivist read.
-const { requireArchivistAccess } = await import('./boot-requirements');
-const archivistAccess = requireArchivistAccess(config);
-
-const gatewayService = config.services.gateway;
+// The gateway's own account at the issuer, which it reaches the Archivist with.
+const { requireServiceAccount } = await import('./boot-requirements');
+const serviceAccount = requireServiceAccount();
 
 // Import logging utilities
 import { initializeLogger, getLogger } from './logger';
 
-// Initialize Winston logger with log level from environment config
 initializeLogger(config.logLevel);
 const logger = getLogger();
 
@@ -135,9 +82,10 @@ import { createResourcesRouter } from './routes/resources/index';
 import { createBusRouter } from './routes/bus';
 import { createNatsSignalPlane } from './signal/nats';
 import { SIGNAL_FLUSH_TIMEOUT_MS } from './signal/options';
-import { compositionFor } from './signal';
-import type { ServiceAccountCredential } from '@semiont/core';
+import { compositionFor, SignalPlaneUnavailable } from './signal';
 import { authMiddleware } from './middleware/auth';
+import type { ArchivistAccess } from './lib/archivist';
+import { routeMismatches } from './spec-routes';
 
 // Import for static OpenAPI spec
 import * as fs from 'fs';
@@ -153,11 +101,10 @@ import { securityHeaders } from './middleware/security-headers';
 // Import logging middleware
 import { requestIdMiddleware } from './middleware/request-id';
 import { requestLoggerMiddleware } from './middleware/request-logger';
-import { errorLoggerMiddleware } from './middleware/error-logger';
 
 type Variables = {
   principal: Principal;
-  config: EnvironmentConfig;
+  config: GatewayConfig;
   eventBus: EventBus;
 };
 
@@ -172,37 +119,45 @@ app.use('*', cors({ origin: '*' }));
 // Add security headers middleware (after CORS, before other middleware)
 app.use('*', securityHeaders());
 
-// Add logging middleware (order matters!)
-app.use('*', requestIdMiddleware);       // Generate request ID first
-app.use('*', errorLoggerMiddleware);     // Catch errors second
-app.use('*', requestLoggerMiddleware);   // Log requests third
+// Logging: the request id first, so every later line carries it.
+app.use('*', requestIdMiddleware);
+app.use('*', requestLoggerMiddleware);
+
+// Every error is an ErrorResponse, whatever threw it (TRANSPORT-HTTP.md
+// § Every response). An HTTPException carries its status and message; anything
+// else is a 500 whose cause goes to the log and never to the caller.
+app.onError((error, c) => {
+  if (error instanceof HTTPException) {
+    return c.json({ error: error.message }, error.status);
+  }
+  if (error instanceof SignalPlaneUnavailable) {
+    return c.json({ error: error.message }, 503);
+  }
+  c.get('logger').error('Unhandled error during request processing', {
+    type: 'unhandled_error',
+    method: c.req.method,
+    path: c.req.path,
+    error: error.message,
+    stack: error.stack,
+    name: error.name,
+  });
+  return c.json({ error: 'Internal server error' }, 500);
+});
+app.notFound((c) => c.json({ error: 'Not found' }, 404));
 
 /**
- * This process's own account at the knowledge base's issuer.
- *
- * Resolved HERE because this is the gateway's boundary, which is where every
- * other service resolves it — six `*-main.ts` entry points read the same pair.
- * Resolving it inside `archivistAddress` instead would leave the gateway never
- * naming the credential it depends on, and nothing able to supply another.
- *
- * Eager: requireArchivistAccess asserted both halves above, so nothing here
- * could legitimately be absent and none of it needs discovering on a request.
+ * Where the Archivist is and this process's own account to reach it with,
+ * resolved once: the document and requireServiceAccount asserted every part
+ * above, so nothing here needs discovering on a request.
  */
-const archivistCredentialValue: ServiceAccountCredential = {
-  issuer: identity.issuer,
-  clientId: archivistAccess.clientId,
-  clientSecret: archivistAccess.clientSecret,
+const archivist: ArchivistAccess = {
+  address: { services: { archivist: config.archivist } },
+  credential: { issuer: config.identity.issuer, clientId: serviceAccount.clientId, clientSecret: serviceAccount.clientSecret },
 };
-function archivistCredential(): ServiceAccountCredential {
-  return archivistCredentialValue;
-}
 
-// Inject config, the event bus and HOW TO GET this process's credential into
-// context for all routes. A resolver rather than a value, so a gateway that
-// never dials the Archivist never has to have one.
 app.use('*', async (c, next) => {
   c.set('config', config);
-  c.set('archivistCredential', archivistCredential);
+  c.set('archivist', archivist);
   c.set('eventBus', eventBus);
   await next();
 });
@@ -215,24 +170,24 @@ app.route('/', statusRouter);
 const resourcesRouter = createResourcesRouter();
 app.route('/', resourcesRouter);
 // ── Signal Plane selection (SIGNAL-PLANE P2, D6) ─────────────────────────
-// services.signal comes from [environments.<env>.signal]; absent means the
-// in-process driver, bit for bit (D7 — it never retires). The loader already
-// refused typed-but-incomplete, so a 'nats' selection here always has
-// servers. Under NATS the ingest receipt carries no observer count, so the
+// `in-process` is the driver that never retires (D7); `nats` is the fabric
+// replicas share, and the document is only valid with its servers. Under
+// NATS the ingest receipt carries no observer count, so the
 // unanswerable-request fast-fail is absent and callers fall back to the
 // busRequest timeout — the recorded P2 consequence, restated at the
 // selection site so the operator reading this file learns it here.
-const signalConfig = config.services.signal;
+const signalConfig = config.signal;
 const signalPlane =
-  signalConfig?.type === 'nats'
+  signalConfig.type === 'nats'
     ? await createNatsSignalPlane({
-        servers: evaluateEnvPlaceholders(signalConfig.servers ?? ''),
-        // Credentials are optional: absent means an unauthenticated broker.
-        ...(signalConfig.user ? { user: evaluateEnvPlaceholders(signalConfig.user) } : {}),
-        ...(signalConfig.password ? { pass: evaluateEnvPlaceholders(signalConfig.password) } : {}),
+        servers: signalConfig.servers,
+        // Credentials are named, never carried: the document holds the names
+        // of the environment variables, and absent means an unauthenticated broker.
+        ...(signalConfig.userEnv ? { user: fromEnvironment('/signal/userEnv', signalConfig.userEnv) } : {}),
+        ...(signalConfig.passwordEnv ? { pass: fromEnvironment('/signal/passwordEnv', signalConfig.passwordEnv) } : {}),
       })
     : undefined;
-logger.info('Signal Plane driver selected', { driver: signalConfig?.type ?? 'in-process' });
+logger.info('Signal Plane driver selected', { driver: signalConfig.type });
 
 // The composition (P3): plane + ledger, seeded HERE with the configured
 // driver so the ledger's standing tap exists from boot; routes reach the
@@ -264,7 +219,7 @@ if (signalPlane) {
   await withDeadline('Signal Plane readiness flush', SIGNAL_FLUSH_TIMEOUT_MS,
     () => signalPlane.flush(),
     'The broker is unreachable; the gateway will not serve until it answers.');
-  logger.info('Signal Plane ready', { driver: signalConfig?.type });
+  logger.info('Signal Plane ready', { driver: signalConfig.type });
 }
 
 // The ledger's claims table, open and projected before the port opens: a
@@ -279,222 +234,158 @@ await withDeadline('Ledger claims table', SIGNAL_FLUSH_TIMEOUT_MS,
 const busRouter = createBusRouter(authMiddleware);
 app.route('/', busRouter);
 
-// API Resourceation root - redirect to appropriate format
-app.get('/api', (c) => {
-  const acceptHeader = c.req.header('Accept') || '';
-  const userAgent = c.req.header('User-Agent') || '';
-  const token = c.req.query('token');
-  
-  // If request is from a browser, redirect to Swagger UI
-  if (acceptHeader.includes('text/html') || userAgent.includes('Mozilla')) {
-    // Preserve token in redirect if it was provided
-    const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
-    return c.redirect(redirectUrl);
-  }
-
-  // For API clients requesting JSON, redirect to OpenAPI spec
-  const redirectUrl = token ? `/api/openapi.json?token=${token}` : '/api/openapi.json';
-  return c.redirect(redirectUrl);
-});
-
-// Serve OpenAPI JSON specification - now automatically generated
-app.get('/api/openapi.json', (c) => {
-  // Serve the static OpenAPI spec — dist/openapi.json (prod) or specs/openapi.json (dev/test)
-  const distPath = path.join(__dirname, 'openapi.json');
-  const openApiPath = fs.existsSync(distPath) ? distPath : path.join(__dirname, '../../../specs/openapi.json');
-  const openApiContent = fs.readFileSync(openApiPath, 'utf-8');
-  const openApiSpec = JSON.parse(openApiContent);
-
-  // Stamp the running build's version over the spec file's placeholder. The
-  // committed spec carries a fixed `info.version` (OpenAPI requires the field)
-  // that no release step rewrites, so serving it verbatim would report a
-  // version this build is not. Same treatment as `servers` below: the file is
-  // the contract, the response describes the instance answering.
-  openApiSpec.info = { ...openApiSpec.info, version: __SEMIONT_VERSION__ };
-
-  // Update server URL dynamically
-  const port = gatewayService.port || 4000;
-  const apiUrl = gatewayService.publicURL || `http://localhost:${port}`;
-  if (apiUrl) {
-    openApiSpec.servers = [
-      {
-        url: apiUrl,
-        description: 'API Server',
-      },
-    ];
-  }
-
-  return c.json(openApiSpec);
-});
-
-// Serve Swagger UI resourceation - now public
-app.get('/api/docs', async (c) => {
-  // Token is optional for authenticated access
-  const token = c.req.query('token');
-  
-  try {
-    const swaggerHandler = swaggerUI({ 
-      url: token ? `/api/openapi.json?token=${token}` : '/api/openapi.json',
-      persistAuthorization: true,
-      title: 'Semiont API Resourceation'
-    });
-    
-    // TypeScript workarounds: swaggerUI has type mismatches
-    // - It's typed as MiddlewareHandler expecting (c, next) but runtime only uses (c)
-    // - Context type incompatibility requires 'as any' cast
-    return await swaggerHandler(c as any, async () => {});
-  } catch (error) {
-    logger.error('Error in /api/docs handler', {
-      error: error instanceof Error ? error.message : String(error),
-      stack: error instanceof Error ? error.stack : undefined
-    });
-    return c.json({ error: 'Failed to load resourceation', details: String(error) }, 500);
-  }
-});
-
-// Redirect /api/swagger to /api/docs for convenience
-app.get('/api/swagger', (c) => {
-  const token = c.req.query('token');
-  const redirectUrl = token ? `/api/docs?token=${token}` : '/api/docs';
-  return c.redirect(redirectUrl);
-});
-
-// 404 handler for non-existent API routes
-app.all('/api/*', (c) => {
-  return c.json({ error: 'Not found' }, 404);
-});
-
-// Start server
-const port = gatewayService.port || 4000;
-
-// Only start server if not in test environment
-if (config.env?.NODE_ENV !== 'test') {
-  // Tier 2 observability — no-op when no OTEL_EXPORTER_OTLP_ENDPOINT set
-  // (or `OTEL_SDK_DISABLED=true`). Init before serve() so any spans
-  // created during request handling are captured.
-  const { initObservabilityNode } = await import('@semiont/observability/node');
-  initObservabilityNode({ serviceName: 'semiont-gateway' });
-
-  // `semiont.process.restarts` (GATEWAY-SUPERVISION F3). The supervisor is
-  // POSIX shell and cannot emit OTel, but it keeps a durable event log on the
-  // state mount and writes one `starting gateway` line per life — so the child
-  // reports the count on its behalf. The supervisor exports the log path and
-  // the service name; nothing here restates either.
-  //
-  // F2 (this file) and F3 (the metric) are not redundant: metrics leave over
-  // OTLP and a process that dies before flushing never gets the last word out,
-  // while the file survives even a torn-down container. They fail differently.
-  const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
-  registerSupervisorRestartCount();
-
-  // `semiont.bus.correlation.size` — the claims this replica's ledger holds,
-  // against the cap that bounds them.
-  //
-  // Registered HERE rather than inside `compositionFor`, which the module
-  // scope above already called: an observable gauge binds the meter that
-  // exists when it is created, and before this init that is the no-op one.
-  // Composing at import time is correct for the ledger's tap and wrong for
-  // its metric, so the two happen where each of them works.
-  const { registerCorrelationRegistryProvider } = await import('@semiont/observability');
-  registerCorrelationRegistryProvider(() => compositionFor(eventBus).occupancy());
-
-  // BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET —
-  // without it the process cannot mint or attribute a token, so it must not
-  // accept connections.
-  //
-  // Inside the serve callback it would be too late: /api/health answers 200
-  // unconditionally, so a missing secret would yield a container that listens,
-  // reports healthy in `semiont status`, and fails every sign-in. Failing here
-  // makes the misconfiguration undeployable.
-  const { JWTService } = await import('./auth/jwt');
-  JWTService.initialize(kbDomain);
-
-  const server = serve({
-    fetch: app.fetch,
-    port: port,
-    hostname: '0.0.0.0'
-  }, async (info) => {
-    logger.info('Semiont Gateway ready', {
-      url: `http://localhost:${info.port}/api`,
-      environment: config.env?.NODE_ENV ?? 'development'
-    });
-
-    // Startup posture log (SDK-AUTH-CORS Phase 6): make the open-CORS/bearer-only
-    // stance visible at boot, so a future auth failure isn't misdiagnosed as the
-    // CORS mystery that produced CORS-LOGIN-FIX.md.
-    logger.info('Auth posture: bearer-only, open CORS', {
-      cors: 'any origin (*)',
-      credentials: 'disabled',
-      auth: 'Authorization: Bearer; media tokens via ?token= for /api/resources/:id',
-    });
-
-    // The entity-type warm (getEntityTypes → initializeTagCollections seed)
-    // moved into archivist-main with the rest of the record's startup
-    // (EXTRACT-ARCHIVIST P3).
-  });
-
-  // Graceful shutdown, matching every sidecar (archivist/librarian/smelter/
-  // weaver/worker `-main`). The gateway was the ONLY Semiont service without
-  // one: on `semiont stop` the runtime's SIGTERM fell through to the default
-  // handler, so the process died mid-request.
-  //
-  // Registered inside the non-test guard with `serve()`: a test importing this
-  // module must not install process-wide signal handlers.
-  //
-  // Order is stop-taking-work first, then release: close the listener so no new
-  // request is accepted, drain the signal plane so in-flight replies are not
-  // lost with the connection, then tear down the bus. The job queue and its
-  // teardown left with the dispatcher (EXTRACT-JOBS P2/P3); the gateway owns no
-  // datastore to disconnect.
-  let shuttingDown = false;
-  const shutdown = (signal: string) => {
-    // A second signal during teardown would double-close the listener and race
-    // the disconnect. The sidecars do not guard this; here it is two lines.
-    if (shuttingDown) return;
-    shuttingDown = true;
-    logger.info('Shutting down', { signal });
-    void (async () => {
-      try {
-        server.close();
-        // Drain before the connection dies with the process
-        // (SIGNAL-PLANE-FLUSH D5). `nc.publish` returns having written into a
-        // client-side buffer; on a scale-down or redeploy, frames written
-        // moments earlier — replies whose requesters are still waiting — go
-        // with the process. They get a timeout while the operator sees a clean
-        // shutdown, which is the silent lossy mode L4 forbids. One round trip
-        // at the end of teardown, after the actors that might still publish
-        // have stopped.
-        //
-        // Explicit rather than folded into `dispose()`: this is the only
-        // production disposal path and it is already async, whereas making
-        // `dispose()` return a promise would touch every composition root and
-        // every test teardown for a single call site.
-        // Bounded, and a timeout is NOT fatal here: the drain is best effort
-        // (the interface is explicit that flush confirms nothing), and a
-        // gateway restarted DURING a broker outage would otherwise hang here
-        // until the runtime SIGKILLs it — skipping the teardown below. Losing
-        // the drain is the smaller harm; losing it silently is not, so it logs.
-        if (signalPlane) {
-          await withDeadline('Signal Plane drain', SIGNAL_FLUSH_TIMEOUT_MS, () => signalPlane!.flush())
-            .catch((error: unknown) => logger.warn('Signal Plane drain timed out; in-flight frames may be lost', { error: errField(error) }));
-        }
-        eventBus.destroy();
-        logger.info('Shutdown complete');
-        process.exit(0);
-      } catch (error) {
-        // Exit non-zero: a teardown that failed halfway is not a clean stop,
-        // and the runtime should see that rather than a success code.
-        logger.error('Shutdown failed', { error: error instanceof Error ? error.message : String(error) });
-        process.exit(1);
-      }
-    })();
-  };
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+// The OpenAPI document: the contract this gateway serves. The build copies the
+// bundled spec beside the entry point.
+const openApiDocument: unknown = JSON.parse(fs.readFileSync(path.join(__dirname, 'openapi.json'), 'utf-8'));
+const openApiPaths = isObject(openApiDocument) ? openApiDocument['paths'] : undefined;
+const openApiInfo = isObject(openApiDocument) ? openApiDocument['info'] : undefined;
+if (!isObject(openApiDocument) || !isObject(openApiPaths) || !isObject(openApiInfo)) {
+  throw new Error(`${path.join(__dirname, 'openapi.json')} is not an OpenAPI document with info and paths`);
 }
 
-export type AppType = typeof app;
+// Published as it runs, with the running build's version stamped over the
+// spec file's placeholder. The committed spec carries a fixed `info.version`
+// (OpenAPI requires the field) that no release step rewrites, so serving it
+// verbatim would report a version this build is not. Same treatment as
+// `servers`: the file is the contract, the response describes the instance
+// answering.
+app.get('/api/openapi.json', (c) =>
+  c.json({
+    ...openApiDocument,
+    info: { ...openApiInfo, version: __SEMIONT_VERSION__ },
+    servers: [{ url: config.publicUrl, description: 'API Server' }],
+  }),
+);
 
-// Export app for testing
-export { app };
+// Start server
+const port = config.port;
+
+// Tier 2 observability — no-op when no OTEL_EXPORTER_OTLP_ENDPOINT set
+// (or `OTEL_SDK_DISABLED=true`). Init before serve() so any spans
+// created during request handling are captured.
+const { initObservabilityNode } = await import('@semiont/observability/node');
+initObservabilityNode({ serviceName: 'semiont-gateway' });
+
+// `semiont.process.restarts` (GATEWAY-SUPERVISION F3). The supervisor is
+// POSIX shell and cannot emit OTel, but it keeps a durable event log on the
+// state mount and writes one `starting gateway` line per life — so the child
+// reports the count on its behalf. The supervisor exports the log path and
+// the service name; nothing here restates either.
+//
+// F2 (this file) and F3 (the metric) are not redundant: metrics leave over
+// OTLP and a process that dies before flushing never gets the last word out,
+// while the file survives even a torn-down container. They fail differently.
+const { registerSupervisorRestartCount } = await import('@semiont/observability/node');
+registerSupervisorRestartCount();
+
+// `semiont.bus.correlation.size` — the claims this replica's ledger holds,
+// against the cap that bounds them.
+//
+// Registered HERE rather than inside `compositionFor`, which the module
+// scope above already called: an observable gauge binds the meter that
+// exists when it is created, and before this init that is the no-op one.
+// Composing at import time is correct for the ledger's tap and wrong for
+// its metric, so the two happen where each of them works.
+const { registerCorrelationRegistryProvider } = await import('@semiont/observability');
+registerCorrelationRegistryProvider(() => compositionFor(eventBus).occupancy());
+
+// BEFORE serve(), and deliberately unguarded: this validates JWT_SECRET —
+// without it the process cannot mint or attribute a token, so it must not
+// accept connections.
+//
+// Inside the serve callback it would be too late: /api/health answers 200
+// unconditionally, so a missing secret would yield a container that listens,
+// reports healthy in `semiont status`, and fails every sign-in. Failing here
+// makes the misconfiguration undeployable.
+const { JWTService } = await import('./auth/jwt');
+JWTService.initialize(kbDomain);
+
+// The route table is final here: the gateway serves exactly what its spec
+// declares, or nothing (spec-routes.ts).
+const mismatches = routeMismatches(app.routes, openApiPaths);
+if (mismatches.length > 0) {
+  throw new Error(
+    `The gateway's routes are not its spec's operations:\n${mismatches.map((m) => `  - ${m}`).join('\n')}\n` +
+      'The spec is the route table: declare a route in specs/src (and rebundle) before registering it, and serve every operation it declares.',
+  );
+}
+
+const server = serve({
+  fetch: app.fetch,
+  port: port,
+  hostname: '0.0.0.0'
+}, async (info) => {
+  logger.info('Semiont Gateway ready', {
+    url: `http://localhost:${info.port}/api`,
+  });
+
+  // Startup posture log (SDK-AUTH-CORS Phase 6): make the open-CORS/bearer-only
+  // stance visible at boot, so a future auth failure isn't misdiagnosed as the
+  // CORS mystery that produced CORS-LOGIN-FIX.md.
+  logger.info('Auth posture: bearer-only, open CORS', {
+    cors: 'any origin (*)',
+    credentials: 'disabled',
+    auth: 'Authorization: Bearer; media tokens via ?token= for /api/resources/:id',
+  });
+
+  // The entity-type warm (getEntityTypes → initializeTagCollections seed)
+  // moved into archivist-main with the rest of the record's startup
+  // (EXTRACT-ARCHIVIST P3).
+});
+
+// Graceful shutdown, matching every sidecar (archivist/librarian/smelter/
+// weaver/worker `-main`). The gateway was the ONLY Semiont service without
+// one: on `semiont stop` the runtime's SIGTERM fell through to the default
+// handler, so the process died mid-request.
+//
+// Order is stop-taking-work first, then release: close the listener so no new
+// request is accepted, drain the signal plane so in-flight replies are not
+// lost with the connection, then tear down the bus. The job queue and its
+// teardown left with the dispatcher (EXTRACT-JOBS P2/P3); the gateway owns no
+// datastore to disconnect.
+let shuttingDown = false;
+const shutdown = (signal: string) => {
+  // A second signal during teardown would double-close the listener and race
+  // the disconnect. The sidecars do not guard this; here it is two lines.
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info('Shutting down', { signal });
+  void (async () => {
+    try {
+      server.close();
+      // Drain before the connection dies with the process
+      // (SIGNAL-PLANE-FLUSH D5). `nc.publish` returns having written into a
+      // client-side buffer; on a scale-down or redeploy, frames written
+      // moments earlier — replies whose requesters are still waiting — go
+      // with the process. They get a timeout while the operator sees a clean
+      // shutdown, which is the silent lossy mode L4 forbids. One round trip
+      // at the end of teardown, after the actors that might still publish
+      // have stopped.
+      //
+      // Explicit rather than folded into `dispose()`: this is the only
+      // production disposal path and it is already async, whereas making
+      // `dispose()` return a promise would touch every composition root and
+      // every test teardown for a single call site.
+      // Bounded, and a timeout is NOT fatal here: the drain is best effort
+      // (the interface is explicit that flush confirms nothing), and a
+      // gateway restarted DURING a broker outage would otherwise hang here
+      // until the runtime SIGKILLs it — skipping the teardown below. Losing
+      // the drain is the smaller harm; losing it silently is not, so it logs.
+      if (signalPlane) {
+        await withDeadline('Signal Plane drain', SIGNAL_FLUSH_TIMEOUT_MS, () => signalPlane!.flush())
+          .catch((error: unknown) => logger.warn('Signal Plane drain timed out; in-flight frames may be lost', { error: errField(error) }));
+      }
+      eventBus.destroy();
+      logger.info('Shutdown complete');
+      process.exit(0);
+    } catch (error) {
+      // Exit non-zero: a teardown that failed halfway is not a clean stop,
+      // and the runtime should see that rather than a success code.
+      logger.error('Shutdown failed', { error: error instanceof Error ? error.message : String(error) });
+      process.exit(1);
+    }
+  })();
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

@@ -35,22 +35,20 @@ The gateway makes exactly one authorization decision: **authenticated, or 401**.
 
 ### Security Testing
 
-Comprehensive security test coverage ensures no authentication regressions:
+The [gateway conformance suite](../../../tests/gateway-conformance/README.md) runs
+a built gateway against the spec on every pull request:
 
-- **route-spec-coverage.test.ts**: Tests ALL gateway routes dynamically
-  - Validates all non-public routes return 401 without authentication
-  - Uses OpenAPI spec as single source of truth for public routes
-  - Tests invalid tokens, malformed tokens, expired tokens
-  - Auto-detects route patterns and catch-all routes
-  - Provides coverage statistics (tested vs skipped routes)
-  - Runs in CI/CD via `npm run test:security`
-
-- **security-controls.test.ts**: Tests security headers
-  - CORS configuration
-  - Content security headers
-  - Request validation
-
-**CI/CD Integration**: Security tests run on every pull request via GitHub Actions ([.github/workflows/security-tests.yml](../../../.github/workflows/security-tests.yml))
+- Every protected operation the spec declares answers 401 without a credential,
+  and 401 `invalid_token` to one it cannot verify — invalid, malformed, expired,
+  forged, or from another issuer or audience
+- Public operations answer without challenging; undeclared methods and paths
+  answer 404, and a gateway whose routes are not exactly the spec's operations
+  refuses to start
+- Every response carries the security headers, open credential-less CORS and a
+  request id; no error body carries a stack trace, a source path or a secret's
+  name
+- Every JSON body is validated against the spec, and every reply checked against
+  its declaration
 
 ### Data Security
 
@@ -82,23 +80,21 @@ That is the whole list. There are **no** OAuth client credentials here: the gate
 
 ### Production Deployment
 
-1. **Use HTTPS**: Always deploy behind a reverse proxy with TLS termination
-2. **Set NODE_ENV**: Ensure `NODE_ENV=production` to disable development shortcuts
-3. **Secure Secrets**: Use a secrets management system for sensitive configuration
-4. **Network Security**: Deploy gateway services in private networks when possible
-5. **Regular Updates**: Keep dependencies updated with security patches
-6. **Admission**: Restrict who may authenticate at the trusted issuer. The gateway admits every subject the issuer vouches for.
+1. **Use HTTPS**: Always deploy behind a reverse proxy with TLS termination. The gateway sends `Strict-Transport-Security` on every response; a browser honours it only over HTTPS
+2. **Secure Secrets**: Use a secrets management system for sensitive configuration
+3. **Network Security**: Deploy gateway services in private networks when possible
+4. **Regular Updates**: Keep dependencies updated with security patches
+5. **Admission**: Restrict who may authenticate at the trusted issuer. The gateway admits every subject the issuer vouches for.
 
-### Development vs Production
+### One gateway, everywhere
 
-| Feature | Development | Production |
-|---------|------------|------------|
-| Authentication | Required (trusted issuer) | Required (trusted issuer) |
-| HTTPS | Optional | Required |
-| Error Details | Full stack traces | Generic error messages |
-| Debug Logging | Enabled | Disabled |
-| CORS | Open (`*`, bearer-only) | Open (`*`, bearer-only) |
-| JWT Expiration | Same as production | See [Authentication](./AUTHENTICATION.md) |
+The gateway has no development mode: it reads no `NODE_ENV` and behaves the same wherever it runs.
+
+- **Authentication** is always required, against the trusted issuer.
+- **Error bodies** never carry internals — a stack frame, a source path or a secret's name — anywhere; the conformance suite checks every one. The cause goes to the log.
+- **Log level** is the configuration document's `logLevel` (the launcher writes `info` unless the KB's config says otherwise).
+- **CORS** is open (`*`) and credential-less, because authentication is bearer-only.
+- **HTTPS** is the deployment's: the gateway serves HTTP and sends `Strict-Transport-Security`, which a browser honours only over HTTPS.
 
 ## Security Best Practices for Operators
 

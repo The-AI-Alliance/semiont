@@ -42,7 +42,10 @@ import { HttpTransport } from '@semiont/http-transport';
 import {
   EventBus,
   PERSISTED_EVENT_TYPES,
+  BusRequestError,
+  ResourceOperations,
   baseUrl as makeBaseUrl,
+  busRequest,
   withDeadline,
   kbResource } from '@semiont/core';
 import { IssuerVerifier } from '@semiont/core/identity';
@@ -330,11 +333,27 @@ async function main() {
 
   logger.info('Bus pumps attached', { inbound: ARCHIVIST_INBOUND_CHANNELS.length, outbound: outbound.length, facts: PERSISTED_EVENT_TYPES.length });
 
-  // ── The HTTP surface: health, the D1 read path, the content write path ──
+  // ── The HTTP surface: health, the D1 read path, bytes, descriptions ──
+  // The recording upload and the description ask the actors beside them on
+  // this process's own bus: the Stower (or the CloneTokenManager) records,
+  // the Browser describes.
+  const actors = asBusRequestPrimitive(localBus);
   const server = createArchivistServer({
     events: eventStore.log,
     content,
     views,
+    describe: async (id) => {
+      try {
+        return await busRequest(actors, 'browse:resource-requested', { resourceId: id });
+      } catch (error) {
+        if (error instanceof BusRequestError && error.code === 'bus.not-found') return undefined;
+        throw error;
+      }
+    },
+    record: (upload) =>
+      upload.kind === 'clone'
+        ? ResourceOperations.createFromCloneToken(upload.input, upload.emitter.did, actors)
+        : ResourceOperations.createResource(upload.input, upload.emitter, actors),
     // The Archivist verifies its OWN callers now. It serves the event log and
     // accepts byte writes, so it is the one place in the stack where a shared
     // static string was guarding the most valuable thing in it.
@@ -346,7 +365,7 @@ async function main() {
     logger,
   });
   server.listen(healthPort, () => {
-    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId', '/content/:storageUri', '/resources/:id/content'] });
+    logger.info('Archivist HTTP surface ready', { port: healthPort, paths: ['/health', '/events/:resourceId', 'POST /resources', '/resources/:id/content', '/resources/:id/jsonld'] });
   });
 
   const shutdown = () => {

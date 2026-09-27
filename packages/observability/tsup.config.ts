@@ -6,7 +6,7 @@ export default defineConfig({
   // 619ms build. Failures still fail the command; build.sh prints the per-package
   // check mark. Drop this line temporarily when you want the size column.
   silent: true,
-  entry: ['src/index.ts', 'src/node.ts', 'src/web.ts', 'src/process-logger.ts'],
+  entry: ['src/index.ts', 'src/node.ts', 'src/process-logger.ts'],
   format: ['esm'],
   dts: false,
   clean: true,

@@ -296,19 +296,21 @@ export function PdfAnnotationCanvas({
     };
   }, [pageLayout, numPages]);
 
-  const registerSlot = useCallback((page: number) => (el: HTMLDivElement | null) => {
-    const previous = slotRefs.current.get(page);
-    if (previous) {
-      observerRef.current?.unobserve(previous);
-      onscreenRef.current?.unobserve(previous);
-    }
-    if (el) {
-      slotRefs.current.set(page, el);
-      observerRef.current?.observe(el);
-      onscreenRef.current?.observe(el);
-    } else {
+  // One ref callback for every slot, stable across renders: React re-runs a
+  // ref whose identity changes on every commit, and re-running this one is an
+  // unobserve + observe — which a real IntersectionObserver answers with a
+  // fresh notification, whose state update re-renders, whose commit
+  // re-observes: a render loop on an idle page.
+  const registerSlot = useCallback((el: HTMLDivElement) => {
+    const page = Number(el.dataset.page);
+    slotRefs.current.set(page, el);
+    observerRef.current?.observe(el);
+    onscreenRef.current?.observe(el);
+    return () => {
+      observerRef.current?.unobserve(el);
+      onscreenRef.current?.unobserve(el);
       slotRefs.current.delete(page);
-    }
+    };
   }, []);
 
   /** Keeps the current page's rectangle in view as the reader scrolls. */
@@ -477,7 +479,7 @@ export function PdfAnnotationCanvas({
           {Array.from({ length: numPages }, (_, i) => i + 1).map((page) => (
             <div
               key={page}
-              ref={registerSlot(page)}
+              ref={registerSlot}
               data-page={page}
               className="semiont-pdf-annotation-canvas__slot"
               // min-height, and applied whether or not the page is mounted:

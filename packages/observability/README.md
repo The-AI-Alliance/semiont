@@ -6,7 +6,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/observability.svg)](https://www.npmjs.com/package/@semiont/observability)
 [![License](https://img.shields.io/npm/l/@semiont/observability.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-OpenTelemetry-based tracing and metrics for [Semiont](https://github.com/The-AI-Alliance/semiont). Tier 2 of the Semiont observability stack: process-init helpers (Node + Web), a thin `withSpan` wrapper, W3C trace-context propagation across the bus, and a small set of metric recorders for the platform's hot paths.
+OpenTelemetry-based tracing and metrics for [Semiont](https://github.com/The-AI-Alliance/semiont). Tier 2 of the Semiont observability stack: Node process-init helpers, a thin `withSpan` wrapper, W3C trace-context propagation across the bus, and a small set of metric recorders for the platform's hot paths.
 
 > **Off by default.** With no `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_CONSOLE_EXPORTER=true`) set, every API in this package becomes a no-op via the `@opentelemetry/api` no-op tracer. You pay nothing in production unless you opt in.
 
@@ -76,16 +76,9 @@ logger.info('Started', { config });
 
 Reads `LOG_LEVEL` (default `info`) and `LOG_FORMAT` (`json` default, `simple` for dev). When an OTel SDK is initialized and a span is active at log time, every emitted line gets `trace_id` / `span_id` fields — Tier 3 correlation between grep-the-stdout and the trace UI. Lives on its own subpath so consumers that don't want winston in their bundle can ignore it.
 
-## Quick start (Web)
+## In the browser
 
-```ts
-// SPA entry point (main.tsx)
-import { initObservabilityWeb } from '@semiont/observability/web';
-
-initObservabilityWeb({ serviceName: 'semiont-browser' });
-```
-
-Web init wires up the same universal API plus browser-appropriate context propagation. Spans created in the SPA propagate to the gateway via the bus's `_trace` payload field.
+The universal API below runs in the Browser as it does in Node: the Browser bundles it through `@semiont/http-transport`, which is why `index.ts` imports no Node builtins. The Browser's tracer itself — the web SDK and its exporter — is the Browser's own (`apps/browser/src/lib/tracing.ts`), so no server that traces carries a browser SDK. Spans created in the SPA propagate to the gateway via the bus's `_trace` payload field.
 
 ## Universal API
 

@@ -17,36 +17,35 @@ Gateway developer's guide to implementing and debugging authentication in the Se
 - **Router-level authentication** - Each router applies auth middleware to its routes
 - **JWT Bearer token authentication** - All protected routes require valid JWT
 - **OpenAPI spec as source of truth** - Public vs protected routes documented in OpenAPI spec
-- **Comprehensive test coverage** - All routes tested for proper authentication in CI/CD
+- **Conformance-tested** - every operation the spec declares is probed for its authentication by the [conformance suite](../../../tests/gateway-conformance/README.md) in CI
 
 ### Authentication Pattern
 
 Routes are protected at the router level using Hono's `router.use()` middleware:
 
 ```typescript
-// Example: Resources router protects all /api/resources/* routes
+// The resources router protects its whole route group
 export function createResourceRouter(): ResourcesRouterType {
-  const router = new Hono<{ Variables: { user: User } }>();
-  router.use('/api/resources/*', authMiddleware);  // Protects entire route group
+  const router = new Hono<{ Variables: ResourceVariables }>();
+  router.use('/api/resources/*', authMiddleware);
+  router.use('/resources/*', authMiddleware);
   return router;
 }
-
-// Example: Entity types router
-export const entityTypesRouter = new Hono<{ Variables: { user: User } }>();
-entityTypesRouter.use('/api/entity-types/*', authMiddleware);
-
 ```
 
 ### Public Endpoints
 
-These endpoints are documented in the OpenAPI spec as public (no `security` field):
+The OpenAPI spec declares these public with `"security": []`:
 
-- `GET /api/health` - Health check for load balancer monitoring
+- `GET /api/health` and `GET /` - Health check for load balancer monitoring
+- `GET /api/openapi.json` - The OpenAPI document
 - `GET /.well-known/oauth-protected-resource` - Which issuer this gateway trusts (RFC 9728)
-- `POST /api/tokens/agent` - Software-agent token exchange. NOT public: the caller presents its own
-  service-account token from the trusted issuer, carrying `semiont-service` in a flat `roles` claim
 
-All other routes require JWT authentication via router-level middleware.
+Every other operation declares `bearerAuth` (and `GET /api/resources/{id}` also
+`mediaToken`). `POST /api/tokens/agent` is not public: the caller presents its own
+service-account token from the trusted issuer, carrying `semiont-service` in a flat
+`roles` claim. The `bearerAuth` scheme's description in the spec is the claims
+contract.
 
 ## Adding Authentication to New Routes
 
@@ -77,7 +76,7 @@ myFeatureRouter.get('/api/my-feature/items', async (c) => {
 
 ### Add Routes to Protected Router
 
-If adding routes to an existing protected router (like `resourcesRouter` or `entityTypesRouter`), they automatically inherit authentication:
+If adding routes to an existing protected router (like the resources router), they automatically inherit authentication:
 
 ```typescript
 // routes/resources/routes/my-new-route.ts
@@ -97,7 +96,7 @@ export function registerMyNewRoute(router: ResourcesRouterType) {
 To make a route public, either:
 
 1. **Create a separate router without auth middleware** (for grouped public routes)
-2. **Update OpenAPI spec** to mark route as public (no `security` field)
+2. **Update the OpenAPI spec** to mark the route public (`"security": []`)
 
 ```typescript
 // Example: Public routes router (no auth middleware)
@@ -108,9 +107,6 @@ publicRouter.get('/api/health', async (c) => {
   return c.json({ status: 'healthy' });
 });
 
-publicRouter.get('/api', async (c) => {
-  return c.json({ version: '1.0.0' });
-});
 ```
 
 **IMPORTANT**: Mark public routes in OpenAPI spec:
@@ -120,8 +116,8 @@ publicRouter.get('/api', async (c) => {
 {
   "get": {
     "summary": "Health check",
+    "security": [],
     "responses": { ... }
-    // No "security" field = public route
   }
 }
 ```
@@ -132,9 +128,11 @@ The gateway has exactly one authorization gate: `authMiddleware`, which answers
 401 or admits the request. Nothing in the gateway reads a role to decide access,
 and no route returns 403.
 
-The principal carries no role flags at all. It is derived from the token's own
-claims — DID, email, name, image, domain — and nothing more, so there is no
-admission opinion for the gateway to hold and none to leak into a response.
+The principal carries no admission flags. It is derived from the token's own
+claims — DID, email, name, image, domain, and the `roles` the token carries —
+so there is no admission opinion for the gateway to hold. `roles` gates nothing
+here: `POST /bus/emit` stamps it onto the payload as `_roles`, and the dispatcher
+authorizes a `job:claim` by it.
 Accounts are administered at the knowledge base's identity provider, and a
 token's lifetime is the revocation window: disabling an account there stops the
 issuer minting and refreshing, and a token already issued works until it expires.
@@ -208,10 +206,10 @@ the gateway run N replicas without a shared revocation table.
 ## JWT Token Structure
 
 A person's token is the issuer's: its claims are the issuer's, and the gateway
-reads `sub`, `email`, `email_verified`, and `name` from it. A gateway-minted
-token carries the claim set validated by `JWTPayloadSchema` in
-[src/types/jwt-types.ts](../src/types/jwt-types.ts) and, for a software agent,
-its `agentDid`.
+reads the claim `[identity] subjectClaim` names, `email`, `email_verified`,
+`name` and `picture` from it. A gateway-minted token carries the claim set
+validated by `JWTPayloadSchema` in
+[src/types/jwt-types.ts](../src/types/jwt-types.ts).
 
 ### Agent Token
 
@@ -221,13 +219,16 @@ its `agentDid`.
   "email": "anthropic-claude-sonnet-5@agents.example.github.io",
   "name": "anthropic claude-sonnet-5",
   "domain": "example.github.io:my-kb",
-  "iss": "semiont-gateway",
+  "roles": ["semiont-worker"],
+  "iss": "example.github.io:my-kb",
   "iat": 1698765432,
   "exp": 1698769032
 }
 ```
 
-The DID is the whole identity: there is no row id beside it, and no role flag.
+`iss` is the knowledge base's own domain. `roles` is present only when the service
+account that asked for the token carried `semiont-worker`, which lets the agent
+claim jobs. The DID is the whole identity: there is no row id beside it.
 The lifetime IS the revocation window — an hour — because no account exists
 anywhere to disable. That is the price of agents having no issuer accounts, and
 it is why the exchange is the gateway's only minting surface.
@@ -254,25 +255,26 @@ issuer signed and has not expired is admitted.
 ### Security Features
 
 - **Router-level protection** - Routes protected via router.use() middleware
-- **Comprehensive test coverage** - route-spec-coverage.test.ts validates all routes
+- **Conformance-tested** - see below
 - **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
-- **Request validation** - All inputs validated with Zod schemas
+- **Request validation** - every JSON body validated against its schema in the spec, by validators generated from it
 - **SQL injection prevention** - not applicable; the gateway issues no SQL and holds no database
 - **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
 
 ### Security Test Coverage
 
-The gateway includes comprehensive route-level authentication test coverage:
+The [conformance suite](../../../tests/gateway-conformance/README.md) runs a
+built gateway and probes every operation the spec declares:
 
-- **Dynamic route testing** - Tests ALL registered Hono routes automatically
-- **OpenAPI spec validation** - Uses OpenAPI as single source of truth for public routes
-- **401 validation** - Verifies all non-public routes return 401 without auth
-- **Token validation** - Tests invalid tokens, malformed tokens, expired tokens
-- **Auto-detection** - Automatically detects catch-all routes and route patterns
-- **Coverage reporting** - Provides statistics on tested vs skipped routes
-- **CI/CD integration** - Runs via `npm run test:security` in GitHub Actions
+- **No credential** - every protected operation answers 401 with the challenge and a hint, before reading its body; another scheme, or a cookie, is no credential
+- **A refused credential** - every protected operation answers 401 `invalid_token` to a token it cannot verify, and says nothing of why
+- **Public operations** - answer without a credential, and never challenge
+- **Undeclared methods and paths** - answer 404
+- **Tokens** - wrong audience, issuer, key, expiry or claims; forged gateway-signed tokens; media tokens out of scope; key rotation
 
-This test ensures no authentication regressions occur when adding or modifying routes.
+A route registered in code and absent from the spec never reaches it: the
+gateway refuses to start when its routes are not exactly the spec's operations.
+Declare the route in the spec first, and the probes cover it.
 
 ## Debugging Authentication Issues
 
@@ -389,7 +391,7 @@ See [System Authentication Architecture](../../../docs/system/administration/AUT
 - No global authentication middleware
 - No PUBLIC_ENDPOINTS array
 - OpenAPI spec defines public vs protected routes
-- Comprehensive test coverage via route-spec-coverage.test.ts
+- Every declared operation's authentication probed by the conformance suite
 
 **Implementation Files**:
 - [src/middleware/auth.ts](../src/middleware/auth.ts) - JWT validation middleware

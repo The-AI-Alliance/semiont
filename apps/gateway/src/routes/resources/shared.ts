@@ -2,16 +2,15 @@
 import { Hono } from 'hono';
 import type { Principal } from '../../identity/principal';
 import { authMiddleware } from '../../middleware/auth';
-import type { EnvironmentConfig, EventBus } from '@semiont/core';
+import type { EventBus } from '@semiont/core';
 
-// The context these routes read. `config` and `eventBus` are set by the
-// global middleware in index.ts; the rest by authMiddleware below.
+// The context these routes read. `eventBus` and `archivist` are set by the
+// global middleware in index.ts; `principal` by authMiddleware below.
 // Named once — the router type and the constructor below both refer to it,
 // rather than restating it and drifting.
 type ResourceVariables = {
   principal: Principal;
   eventBus: EventBus;
-  config: EnvironmentConfig;
 };
 
 // Shared router type

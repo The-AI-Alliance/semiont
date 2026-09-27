@@ -21,6 +21,7 @@ import (
 
 const (
 	BearerAuthScopes = "bearerAuth.Scopes"
+	MediaTokenScopes = "mediaToken.Scopes"
 )
 
 // Defines values for AnchoredTextAbsentKind.
@@ -68,6 +69,21 @@ const (
 func (e AnnotationType) Valid() bool {
 	switch e {
 	case AnnotationTypeAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for ArchivistHealthStatus.
+const (
+	Ok ArchivistHealthStatus = "ok"
+)
+
+// Valid indicates whether the value is a known member of the ArchivistHealthStatus enum.
+func (e ArchivistHealthStatus) Valid() bool {
+	switch e {
+	case Ok:
 		return true
 	default:
 		return false
@@ -212,24 +228,78 @@ func (e BrowseDirectoryRequestSort) Valid() bool {
 	}
 }
 
+// Defines values for BusEventMessageEvent.
+const (
+	BusEvent BusEventMessageEvent = "bus-event"
+)
+
+// Valid indicates whether the value is a known member of the BusEventMessageEvent enum.
+func (e BusEventMessageEvent) Valid() bool {
+	switch e {
+	case BusEvent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BusPingMessageEvent.
+const (
+	Ping BusPingMessageEvent = "ping"
+)
+
+// Valid indicates whether the value is a known member of the BusPingMessageEvent enum.
+func (e BusPingMessageEvent) Valid() bool {
+	switch e {
+	case Ping:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BusResumeGapReason.
+const (
+	QueryError             BusResumeGapReason = "query-error"
+	RetentionExceeded      BusResumeGapReason = "retention-exceeded"
+	ScopeMismatch          BusResumeGapReason = "scope-mismatch"
+	UnparseableLastEventId BusResumeGapReason = "unparseable-last-event-id"
+)
+
+// Valid indicates whether the value is a known member of the BusResumeGapReason enum.
+func (e BusResumeGapReason) Valid() bool {
+	switch e {
+	case QueryError:
+		return true
+	case RetentionExceeded:
+		return true
+	case ScopeMismatch:
+		return true
+	case UnparseableLastEventId:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CommandErrorCode.
 const (
-	NonePending     CommandErrorCode = "none-pending"
-	NotFound        CommandErrorCode = "not-found"
-	PeerUnavailable CommandErrorCode = "peer-unavailable"
-	Unauthorized    CommandErrorCode = "unauthorized"
+	CommandErrorCodeNonePending     CommandErrorCode = "none-pending"
+	CommandErrorCodeNotFound        CommandErrorCode = "not-found"
+	CommandErrorCodePeerUnavailable CommandErrorCode = "peer-unavailable"
+	CommandErrorCodeUnauthorized    CommandErrorCode = "unauthorized"
 )
 
 // Valid indicates whether the value is a known member of the CommandErrorCode enum.
 func (e CommandErrorCode) Valid() bool {
 	switch e {
-	case NonePending:
+	case CommandErrorCodeNonePending:
 		return true
-	case NotFound:
+	case CommandErrorCodeNotFound:
 		return true
-	case PeerUnavailable:
+	case CommandErrorCodePeerUnavailable:
 		return true
-	case Unauthorized:
+	case CommandErrorCodeUnauthorized:
 		return true
 	default:
 		return false
@@ -464,6 +534,51 @@ const (
 func (e FragmentSelectorType) Valid() bool {
 	switch e {
 	case FragmentSelectorTypeFragmentSelector:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayConfigLogLevel.
+const (
+	Debug GatewayConfigLogLevel = "debug"
+	Error GatewayConfigLogLevel = "error"
+	Http  GatewayConfigLogLevel = "http"
+	Info  GatewayConfigLogLevel = "info"
+	Warn  GatewayConfigLogLevel = "warn"
+)
+
+// Valid indicates whether the value is a known member of the GatewayConfigLogLevel enum.
+func (e GatewayConfigLogLevel) Valid() bool {
+	switch e {
+	case Debug:
+		return true
+	case Error:
+		return true
+	case Http:
+		return true
+	case Info:
+		return true
+	case Warn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatewayConfigSignalType.
+const (
+	InProcess GatewayConfigSignalType = "in-process"
+	Nats      GatewayConfigSignalType = "nats"
+)
+
+// Valid indicates whether the value is a known member of the GatewayConfigSignalType enum.
+func (e GatewayConfigSignalType) Valid() bool {
+	switch e {
+	case InProcess:
+		return true
+	case Nats:
 		return true
 	default:
 		return false
@@ -1097,6 +1212,24 @@ func (e RepresentationRel) Valid() bool {
 	}
 }
 
+// Defines values for RepresentationNotFoundCode.
+const (
+	RepresentationNotFoundCodeRepresentation RepresentationNotFoundCode = "representation"
+	RepresentationNotFoundCodeResource       RepresentationNotFoundCode = "resource"
+)
+
+// Valid indicates whether the value is a known member of the RepresentationNotFoundCode enum.
+func (e RepresentationNotFoundCode) Valid() bool {
+	switch e {
+	case RepresentationNotFoundCodeRepresentation:
+		return true
+	case RepresentationNotFoundCodeResource:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SettingsThemeChangedEventTheme.
 const (
 	Dark   SettingsThemeChangedEventTheme = "dark"
@@ -1443,6 +1576,24 @@ type AgentSoftware struct {
 	AdditionalProperties map[string]interface{} `json:"-"`
 }
 
+// AgentTokenRequest The (provider, model) the agent token is issued for: together they name the agent.
+type AgentTokenRequest struct {
+	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
+	Model string `json:"model"`
+
+	// Provider Inference provider (e.g. ollama, anthropic)
+	Provider string `json:"provider"`
+}
+
+// AgentTokenResponse The agent token and the DID it names.
+type AgentTokenResponse struct {
+	// Did DID of the software-agent identity the token is acting as
+	Did string `json:"did"`
+
+	// Token Bearer JWT for subsequent authenticated requests
+	Token string `json:"token"`
+}
+
 // AnchoredText Text paired with the geometry that indexes it — the minimum needed to turn a character range into a selection, or a rectangle into a quote. Whole-resource: a producer iterates page by page, but every consumer wants one map.
 type AnchoredText struct {
 	// Items Positioned runs indexing `text`, roughly one per word.
@@ -1617,6 +1768,21 @@ type AnnotationTarget_Selector_4_Item struct {
 type AnnotationTarget_Selector struct {
 	union json.RawMessage
 }
+
+// ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
+type ArchivistEventsResponse struct {
+	Events []StoredEventResponse `json:"events"`
+}
+
+// ArchivistHealth The Archivist's liveness answer: it serves, and the actors it hosts.
+type ArchivistHealth struct {
+	// Actors The record actors this process hosts.
+	Actors []string              `json:"actors"`
+	Status ArchivistHealthStatus `json:"status"`
+}
+
+// ArchivistHealthStatus defines model for ArchivistHealth.Status.
+type ArchivistHealthStatus string
 
 // BeckonFocusEvent Emitted when an annotation receives focus for beckoning. resourceId is a guard, not navigation: it names the resource this focus applies to, and a viewer currently showing a different resource ignores the event — a deliberate ignore rather than a silent no-op. Focus never moves the viewer; driving the Browser to a resource is browse:resource-open's job.
 type BeckonFocusEvent struct {
@@ -1969,41 +2135,101 @@ type BusEmitAccepted struct {
 	Subscribers *int `json:"subscribers,omitempty"`
 }
 
-// BusEmitRequest Emit an event on the Semiont bus. Channel names come from bus-protocol.ts; payload shape is validated against the channel's registered schema (CHANNEL_SCHEMAS). An optional scope routes resource-scoped broadcasts (e.g. mark:added, job:complete) to per-resource subscribers via eventBus.scope(scope); leave it unset for unscoped/global events.
+// BusEmitRequest One event for the bus. `channel` names a channel of the bus registry (specs/src/bus/registry.json) and `payload` must match the schema the registry's `validate` names for it. `scope` publishes a resource-bound broadcast to that resource's subscribers only; everything else is unscoped. `clientId` and `correlationId` are routing facts beside the payload, never inside it.
 type BusEmitRequest struct {
-	// Channel Channel name from bus-protocol.ts EventMap
+	// Channel A channel of the bus registry.
 	Channel string `json:"channel"`
 
-	// ClientId Routing address for this request's reply (CORRELATED-REPLY-ROUTING D1/D2): the emit doubles as a claim on the correlationId, and delivery matches BOTH this and the emitting principal. Top-level, not inside `payload` — a wire concern like `scope`, so it never enters a channel's domain type. Optional in the schema because a plain broadcast needs no return address; the route requires it when the channel is a registered request channel and the payload carries a correlationId.
+	// ClientId The address this request's reply is delivered to: the emit claims `correlationId` for this clientId and the verified principal. Required when `channel` is a registry operation's request and a correlationId is present; ignored otherwise. An empty string counts as absent.
 	ClientId *string `json:"clientId,omitempty"`
 
-	// CorrelationId Pairs a reply with its request. Top-level, not inside `payload` -- a wire concern like `scope` and `clientId`, so it never enters a channel's domain type (BUS-ROUTING-DECLARED D2, carried out by BUS-CARRIES-FRAMES P3). It was declared in 70 payload schemas and echoed by hand in nine handlers until then, which is what forced every driver that wanted to route to deserialize an application payload first. Optional because an announcement correlates nothing; the route requires it on a registered request channel.
+	// CorrelationId Pairs a reply with its request. On a registry operation's request it claims the id: a second claim of a live id is refused with 409. Replies carry it back on the frame, never in the payload.
 	CorrelationId *string `json:"correlationId,omitempty"`
 
-	// Payload Channel-specific payload, validated against CHANNEL_SCHEMAS
+	// Payload The channel's payload, validated against the schema its registry entry names. `_userId` and `_roles` are the gateway's to write: whatever a caller puts there is replaced.
 	Payload map[string]interface{} `json:"payload"`
 
-	// Scope Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — clients must never set this.
+	// Scope The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one.
 	Scope *string `json:"scope,omitempty"`
 }
 
-// BusSubscribeRequest Subscription matrix for the bus SSE stream (MULTI-RESOURCE-SCOPE). `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming replay from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required.
+// BusEventMessage A bus frame on the stream: `event: bus-event`, an `id:` line, and one `data:` line holding the JSON-serialised BusFrame. This schema describes the message with `data` already parsed.
+type BusEventMessage struct {
+	// Data One frame of the bus stream, as the `data` line of a `bus-event` message carries it (JSON-serialised on one line). `payload` is the channel's payload as its registry entry declares it. A frame on a scoped subscription carries the scope it was published on; a correlated reply carries the `correlationId` of the request it answers.
+	Data  BusFrame             `json:"data"`
+	Event BusEventMessageEvent `json:"event"`
+	Id    BusEventMessage_Id   `json:"id"`
+}
+
+// BusEventMessageEvent defines model for BusEventMessage.Event.
+type BusEventMessageEvent string
+
+// BusEventMessage_Id defines model for BusEventMessage.Id.
+type BusEventMessage_Id struct {
+	union json.RawMessage
+}
+
+// BusFrame One frame of the bus stream, as the `data` line of a `bus-event` message carries it (JSON-serialised on one line). `payload` is the channel's payload as its registry entry declares it. A frame on a scoped subscription carries the scope it was published on; a correlated reply carries the `correlationId` of the request it answers.
+type BusFrame struct {
+	// Channel A channel of the bus registry (specs/src/bus/registry.json).
+	Channel string `json:"channel"`
+
+	// CorrelationId The request this frame answers. Present on correlated replies; absent otherwise.
+	CorrelationId *string `json:"correlationId,omitempty"`
+
+	// Payload The channel's payload. A replayed persisted event is the stored event itself, whose `metadata.sequenceNumber` the message id carries.
+	Payload map[string]interface{} `json:"payload"`
+
+	// Scope The resource scope the frame was published on. Present exactly when it arrived through a `scoped` entry of the subscription.
+	Scope *string `json:"scope,omitempty"`
+}
+
+// BusPingMessage The heartbeat: `event: ping` with an empty `data:` line. The first is written once the stream has caught up (after any replay), then one every `x-semiont-limits.heartbeatSeconds`. It carries no id, so it never disturbs a client's last-seen ids.
+type BusPingMessage struct {
+	Data  string              `json:"data"`
+	Event BusPingMessageEvent `json:"event"`
+}
+
+// BusPingMessageEvent defines model for BusPingMessage.Event.
+type BusPingMessageEvent string
+
+// BusResumeGap The payload of `bus:resume-gap`: a scope's `lastEventId` could not be honoured, so the client cannot trust that it has every persisted event of that scope and must refetch what it caches for it. Written by the gateway, never by a participant.
+type BusResumeGap struct {
+	// LastSeenId The watermark the entry carried.
+	LastSeenId *string `json:"lastSeenId,omitempty"`
+
+	// Reason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
+	Reason BusResumeGapReason `json:"reason"`
+
+	// Scope The scope of the subscription entry whose watermark failed.
+	Scope *string `json:"scope,omitempty"`
+}
+
+// BusResumeGapReason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
+type BusResumeGapReason string
+
+// BusStreamMessage Every message the bus stream carries. A client ignores an `event` it does not know; the gateway writes no other.
+type BusStreamMessage struct {
+	union json.RawMessage
+}
+
+// BusSubscribeRequest Subscription matrix for the bus stream. `global` channels are delivered unscoped; each `scoped` entry subscribes the connection to one resource scope's channels, optionally resuming from that scope's last-seen persisted event id. At least one global channel or one scoped entry is required, and no scope may appear in two entries.
 type BusSubscribeRequest struct {
-	// ClientId Routing address for correlated replies (CORRELATED-REPLY-ROUTING D1): a UUID minted once per bus-client lifetime — per actor, NOT per connection, so it survives a make-before-break reconnect and both overlap connections share it. Required: a subscriber without one could never receive a correlated frame, and that must fail loudly here rather than silently at delivery. Not authentication — the JWT stays that; this is an unguessable routing address, never echoed into any payload or broadcast frame.
+	// ClientId Routing address for correlated replies: a UUID minted once per bus-client lifetime — per actor, not per connection, so it survives a reconnect and two overlapping connections share it. A correlated reply is delivered to a connection only when its request was emitted under the same clientId by the same principal. Not authentication — the bearer token stays that — and never echoed into any payload or broadcast frame.
 	ClientId string `json:"clientId"`
 
 	// Global Unscoped channels to subscribe to.
 	Global *[]string `json:"global,omitempty"`
 
-	// PendingReplies Correlation ids of busRequest replies this client still awaits (BUS-RESUMPTION Phase 2). The server replays any matching replies from its bounded retention buffer (TTL 60s) as normal frames with their deterministic `e-<channel>:<cid>` ids, so a reply that ALSO arrived live dedups client-side. At most 256 entries.
+	// PendingReplies Correlation ids of requests this client still awaits a reply to. The gateway writes every reply it still retains for them (for `x-semiont-limits.replyRetentionSeconds` after it was published) as an ordinary frame with its ReplyEventId, so a reply that also arrived live dedups client-side. A client can have no more pending than it may have unanswered requests, so this bound is also the number of unanswered requests `POST /bus/emit` allows a client.
 	PendingReplies *[]string `json:"pendingReplies,omitempty"`
 
-	// Scoped Per-resource-scope subscriptions. Scopes must be unique across entries.
+	// Scoped Per-resource-scope subscriptions, at most 512 on one connection. Scopes must be unique across entries.
 	Scoped *[]struct {
 		// Channels Channels to subscribe within this scope.
 		Channels []string `json:"channels"`
 
-		// LastEventId This scope's last-seen persisted event id (`p-<scope>-<seq>`). The server replays this scope's persisted events after it before joining the live tail, and emits a scoped `bus:resume-gap` when it cannot cover the gap (unparseable or mismatched id, retention exceeded, or query error).
+		// LastEventId This scope's last-seen PersistedEventId. The gateway replays this scope's persisted events after it — those on the entry's channels — before the live tail, and writes a scoped `bus:resume-gap` (BusResumeGap) when it cannot cover the gap.
 		LastEventId *string `json:"lastEventId,omitempty"`
 
 		// Scope Resource scope (a resourceId).
@@ -2084,9 +2310,9 @@ type CreateAnnotationRequest_Body struct {
 	union json.RawMessage
 }
 
-// CreateResourceResponse Response body for POST /resources (202 Accepted). The route writes content to disk, emits yield:create, and AWAITS the confirmed-write reply — so the returned resourceId is the one Stower minted, and the resource's event is persisted before this response is sent. What remains asynchronous is downstream projection: graph, views and vectors settle after the 202.
+// CreateResourceResponse The id of the resource an upload created. The Archivist answers it (200) once it has stored the bytes and recorded the resource, and the gateway forwards it (202), so the id is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle afterwards.
 type CreateResourceResponse struct {
-	// ResourceId The id of the newly-created resource. Assigned by Stower when it persists yield:create.
+	// ResourceId The id of the newly created resource, as the record minted it.
 	ResourceId string `json:"resourceId"`
 }
 
@@ -2192,24 +2418,26 @@ type EntityTypeAddedPayload struct {
 	EntityType string `json:"entityType"`
 }
 
-// ErrorResponse defines model for ErrorResponse.
+// EphemeralEventId `e-<connectionId>-<n>` — the id of any other frame: unique on its connection, meaningless elsewhere. Never a resumption watermark.
+type EphemeralEventId = string
+
+// ErrorResponse The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type ErrorResponse struct {
+	// Code A machine-readable class, when the route defines one.
 	Code    *string     `json:"code,omitempty"`
 	Details interface{} `json:"details,omitempty"`
-	Error   string      `json:"error"`
+
+	// Error What went wrong, in a sentence.
+	Error string `json:"error"`
+
+	// Hint What the caller can do about it, when there is something to say.
+	Hint *string `json:"hint,omitempty"`
 }
 
 // EventMetadata Metadata added at persistence time. Part of every StoredEvent. Integrity is provided by git at the commit level (when gitSync is enabled), not by in-event metadata fields.
 type EventMetadata struct {
 	// SequenceNumber Monotonic position in the event log (ordering authority)
 	SequenceNumber int `json:"sequenceNumber"`
-}
-
-// EventStreamResponse defines model for EventStreamResponse.
-type EventStreamResponse struct {
-	Data  string  `json:"data"`
-	Event string  `json:"event"`
-	Id    *string `json:"id,omitempty"`
 }
 
 // ExtractedText defines model for ExtractedText.
@@ -2337,6 +2565,59 @@ type FrameAddTagSchemaCommand struct {
 	// Schema A structural-analysis schema (e.g. legal-irac, scientific-imrad, argument-toulmin). Defines a methodology framework as an id, name, description, domain hint, and an ordered list of categories. KBs and their skills register schemas with the runtime registry via `frame.addTagSchema(...)` at session start.
 	Schema TagSchema `json:"schema"`
 }
+
+// GatewayConfig Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at `~/.semiontconfig`. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are its environment: JWT_SECRET, SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET, and the standard OTEL_* variables. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
+type GatewayConfig struct {
+	// Archivist Where the Archivist listens.
+	Archivist struct {
+		Host string `json:"host"`
+		Port int    `json:"port"`
+	} `json:"archivist"`
+
+	// Identity The issuer this knowledge base trusts.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+
+		// SubjectClaim The claim a person's DID is built from: `did:web:<domain>:users:<its value>`.
+		SubjectClaim string `json:"subjectClaim"`
+	} `json:"identity"`
+
+	// Kb The knowledge base's committed identity (`[project] name` and `[site] domain` in its .semiont/config).
+	Kb struct {
+		// Domain Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under.
+		Domain string `json:"domain"`
+
+		// Name Its name, published as the resource metadata's `resource_name`.
+		Name string `json:"name"`
+	} `json:"kb"`
+	LogLevel GatewayConfigLogLevel `json:"logLevel"`
+
+	// Port The port the gateway listens on.
+	Port int `json:"port"`
+
+	// PublicUrl The URL clients reach this gateway at: the `servers` entry of the OpenAPI document it serves.
+	PublicUrl string `json:"publicUrl"`
+
+	// Signal The signal plane: `in-process`, one gateway on its own fabric; or `nats`, the fabric every replica on one broker shares, which requires `servers` and a broker with JetStream.
+	Signal struct {
+		// PasswordEnv The environment variable holding the broker password, when the broker requires one.
+		PasswordEnv *string `json:"passwordEnv,omitempty"`
+
+		// Servers The broker's address (`host:port`, or several, comma-separated). Required for `nats`.
+		Servers *string                 `json:"servers,omitempty"`
+		Type    GatewayConfigSignalType `json:"type"`
+
+		// UserEnv The environment variable holding the broker user, when the broker requires one.
+		UserEnv *string `json:"userEnv,omitempty"`
+	} `json:"signal"`
+}
+
+// GatewayConfigLogLevel defines model for GatewayConfig.LogLevel.
+type GatewayConfigLogLevel string
+
+// GatewayConfigSignalType defines model for GatewayConfig.Signal.Type.
+type GatewayConfigSignalType string
 
 // GatherAnnotationComplete Completion payload emitted on the gather:annotation-complete bus channel when annotation context gathering finishes.
 type GatherAnnotationComplete struct {
@@ -2670,13 +2951,12 @@ type GraphResourceNode struct {
 // GraphResourceNodeType defines model for GraphResourceNode.Type.
 type GraphResourceNodeType string
 
-// HealthResponse defines model for HealthResponse.
+// HealthResponse Liveness: the process is up and serving. It asks nothing of the Archivist or the broker — a gateway that cannot reach them refuses to start, so one that answers here got past both at boot.
 type HealthResponse struct {
-	Environment string `json:"environment"`
-	Message     string `json:"message"`
-	Status      string `json:"status"`
-	Timestamp   string `json:"timestamp"`
-	Version     string `json:"version"`
+	Message   string `json:"message"`
+	Status    string `json:"status"`
+	Timestamp string `json:"timestamp"`
+	Version   string `json:"version"`
 }
 
 // InferenceLimits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
@@ -3600,6 +3880,9 @@ type PdfTextItem struct {
 	Y     float32 `json:"y"`
 }
 
+// PersistedEventId `p-<scope>-<sequenceNumber>` — the id of a persisted event delivered on a scoped subscription. Resumable: send it back as that scope's `lastEventId`. Stable across connections, so a client dedups by it.
+type PersistedEventId = string
+
 // PersonProfileCommand Bus command the gateway emits when a person ACTS, carrying the display name it just verified on their token. The Stower persists it as person:profiled, and only when the name differs from the latest one recorded for that DID — so the log holds one line per name a subject has had, not one per act. A name is a fact ABOUT an identity, never part of the record of an act: no artifact carries it, and readers resolve it from the people projection. Emitted only for a person (an issuer token); an agent token never produces one, and neither does a request that merely reads.
 type PersonProfileCommand struct {
 	// UnderscoreUserId The person's DID, injected by the /bus/emit gateway from the verified token. Clients do not set this.
@@ -3632,6 +3915,9 @@ type ProtectedResourceMetadata struct {
 
 // ProtectedResourceMetadataBearerMethodsSupported defines model for ProtectedResourceMetadata.BearerMethodsSupported.
 type ProtectedResourceMetadataBearerMethodsSupported string
+
+// ReplyEventId `e-<channel>:<correlationId>` — the id of a frame that carries a correlationId. Deterministic: the same reply has the same id on every connection, so a copy arriving on two connections (a reconnect overlap, or a replay of a retained reply) dedups. Never a resumption watermark.
+type ReplyEventId = string
 
 // Representation A specific, byte-addressable rendition of a resource (file/asset/variant).
 type Representation struct {
@@ -3710,6 +3996,21 @@ type RepresentationAddedPayload struct {
 	// Representation A specific, byte-addressable rendition of a resource (file/asset/variant).
 	Representation Representation `json:"representation"`
 }
+
+// RepresentationNotFound defines model for RepresentationNotFound.
+type RepresentationNotFound struct {
+	Code    RepresentationNotFoundCode `json:"code"`
+	Details interface{}                `json:"details,omitempty"`
+
+	// Error What went wrong, in a sentence.
+	Error string `json:"error"`
+
+	// Hint What the caller can do about it, when there is something to say.
+	Hint *string `json:"hint,omitempty"`
+}
+
+// RepresentationNotFoundCode defines model for RepresentationNotFound.Code.
+type RepresentationNotFoundCode string
 
 // RepresentationRemovedPayload Payload for yield:representation-removed domain event
 type RepresentationRemovedPayload struct {
@@ -3994,6 +4295,51 @@ type ResourceUpdatedPayload struct {
 
 	// ContentChecksum SHA-256 of new content
 	ContentChecksum string `json:"contentChecksum"`
+}
+
+// ResourceUpload The multipart upload that creates a resource. A client sends it to the gateway's `POST /resources`; the gateway forwards it untouched to the Archivist's `POST /resources`, which stores the bytes and records the resource. One body, two hops.
+type ResourceUpload struct {
+	// ArchiveOriginal With `cloneToken`: 'true' archives the source once the clone exists.
+	ArchiveOriginal *string `json:"archiveOriginal,omitempty"`
+
+	// CloneToken A clone token from `yield:clone-token-requested`. With it, the resource is created as a clone of the token's source, inheriting its entity types; `language`, `entityTypes` and the generation fields are then not read.
+	CloneToken *string `json:"cloneToken,omitempty"`
+
+	// EntityTypes JSON-stringified array of entity type names
+	EntityTypes *string `json:"entityTypes,omitempty"`
+
+	// File Binary content
+	File openapi_types.File `json:"file"`
+
+	// Format Media type of the content (e.g. text/plain, text/markdown, image/png)
+	Format string `json:"format"`
+
+	// GenerationPrompt For AI-generated resources: the prompt that drove generation
+	GenerationPrompt *string `json:"generationPrompt,omitempty"`
+
+	// Generator For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job.
+	Generator *string `json:"generator,omitempty"`
+
+	// IsDraft 'true' or 'false' — whether the resource is a draft
+	IsDraft *string `json:"isDraft,omitempty"`
+
+	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
+	JobId *string `json:"jobId,omitempty"`
+
+	// Language ISO 639-1 language code
+	Language *string `json:"language,omitempty"`
+
+	// Name Human-readable resource name
+	Name string `json:"name"`
+
+	// SourceAnnotationId For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event.
+	SourceAnnotationId *string `json:"sourceAnnotationId,omitempty"`
+
+	// SourceResourceId For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event.
+	SourceResourceId *string `json:"sourceResourceId,omitempty"`
+
+	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
+	StorageUri string `json:"storageUri"`
 }
 
 // ScoredResource defines model for ScoredResource.
@@ -4449,7 +4795,7 @@ type UpdateAnnotationBodyRequest_Operations_Item struct {
 //
 // The remaining fields exist to be displayed, and all of them come from the token's own claims. Role flags used to ride here; they gated nothing, and the row that held them is gone.
 type UserResponse struct {
-	// Did The authenticated principal's DID — `did:web:<domain>:users:<email>` for a person, `did:web:<domain>:agents:<provider>:<model>` for a software agent.
+	// Did The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent.
 	Did string `json:"did"`
 
 	// Domain Not always the email's suffix: a software agent's email sits in an `agents.<host>` namespace while its domain is the deployment's.
@@ -4620,56 +4966,17 @@ type YieldUpdateOk struct {
 	} `json:"response"`
 }
 
-// PostApiTokensAgentJSONBody defines parameters for PostApiTokensAgent.
-type PostApiTokensAgentJSONBody struct {
-	// Model Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)
-	Model string `json:"model"`
+// InternalError The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
+type InternalError = ErrorResponse
 
-	// Provider Inference provider (e.g. ollama, anthropic)
-	Provider string `json:"provider"`
-}
+// ServiceUnavailable The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
+type ServiceUnavailable = ErrorResponse
 
-// PostResourcesMultipartBody defines parameters for PostResources.
-type PostResourcesMultipartBody struct {
-	// EntityTypes JSON-stringified array of entity type names
-	EntityTypes *string `json:"entityTypes,omitempty"`
-
-	// File Binary content
-	File openapi_types.File `json:"file"`
-
-	// Format Media type of the content (e.g. text/plain, text/markdown, image/png)
-	Format string `json:"format"`
-
-	// GenerationPrompt For AI-generated resources: the prompt that drove generation
-	GenerationPrompt *string `json:"generationPrompt,omitempty"`
-
-	// Generator For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job.
-	Generator *string `json:"generator,omitempty"`
-
-	// IsDraft 'true' or 'false' — whether the resource is a draft
-	IsDraft *string `json:"isDraft,omitempty"`
-
-	// JobId The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload.
-	JobId *string `json:"jobId,omitempty"`
-
-	// Language ISO 639-1 language code
-	Language *string `json:"language,omitempty"`
-
-	// Name Human-readable resource name
-	Name string `json:"name"`
-
-	// SourceAnnotationId For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event.
-	SourceAnnotationId *string `json:"sourceAnnotationId,omitempty"`
-
-	// SourceResourceId For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event.
-	SourceResourceId *string `json:"sourceResourceId,omitempty"`
-
-	// StorageUri Where the content lives (file://... for local). Required — the client names the location; the server does not derive one.
-	StorageUri string `json:"storageUri"`
-}
+// Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
+type Unauthorized = ErrorResponse
 
 // PostApiTokensAgentJSONRequestBody defines body for PostApiTokensAgent for application/json ContentType.
-type PostApiTokensAgentJSONRequestBody PostApiTokensAgentJSONBody
+type PostApiTokensAgentJSONRequestBody = AgentTokenRequest
 
 // PostApiTokensMediaJSONRequestBody defines body for PostApiTokensMedia for application/json ContentType.
 type PostApiTokensMediaJSONRequestBody = MediaTokenRequest
@@ -4681,7 +4988,7 @@ type PostBusEmitJSONRequestBody = BusEmitRequest
 type PostBusSubscribeJSONRequestBody = BusSubscribeRequest
 
 // PostResourcesMultipartRequestBody defines body for PostResources for multipart/form-data ContentType.
-type PostResourcesMultipartRequestBody PostResourcesMultipartBody
+type PostResourcesMultipartRequestBody = ResourceUpload
 
 // Getter for additional properties for AgentOrganization. Returns the specified
 // element and whether it was found
@@ -7648,6 +7955,156 @@ func (t BodyOperationReplace_OldItem) MarshalJSON() ([]byte, error) {
 }
 
 func (t *BodyOperationReplace_OldItem) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsPersistedEventId returns the union data inside the BusEventMessage_Id as a PersistedEventId
+func (t BusEventMessage_Id) AsPersistedEventId() (PersistedEventId, error) {
+	var body PersistedEventId
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromPersistedEventId overwrites any union data inside the BusEventMessage_Id as the provided PersistedEventId
+func (t *BusEventMessage_Id) FromPersistedEventId(v PersistedEventId) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergePersistedEventId performs a merge with any union data inside the BusEventMessage_Id, using the provided PersistedEventId
+func (t *BusEventMessage_Id) MergePersistedEventId(v PersistedEventId) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsReplyEventId returns the union data inside the BusEventMessage_Id as a ReplyEventId
+func (t BusEventMessage_Id) AsReplyEventId() (ReplyEventId, error) {
+	var body ReplyEventId
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromReplyEventId overwrites any union data inside the BusEventMessage_Id as the provided ReplyEventId
+func (t *BusEventMessage_Id) FromReplyEventId(v ReplyEventId) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeReplyEventId performs a merge with any union data inside the BusEventMessage_Id, using the provided ReplyEventId
+func (t *BusEventMessage_Id) MergeReplyEventId(v ReplyEventId) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsEphemeralEventId returns the union data inside the BusEventMessage_Id as a EphemeralEventId
+func (t BusEventMessage_Id) AsEphemeralEventId() (EphemeralEventId, error) {
+	var body EphemeralEventId
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromEphemeralEventId overwrites any union data inside the BusEventMessage_Id as the provided EphemeralEventId
+func (t *BusEventMessage_Id) FromEphemeralEventId(v EphemeralEventId) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeEphemeralEventId performs a merge with any union data inside the BusEventMessage_Id, using the provided EphemeralEventId
+func (t *BusEventMessage_Id) MergeEphemeralEventId(v EphemeralEventId) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t BusEventMessage_Id) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *BusEventMessage_Id) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsBusEventMessage returns the union data inside the BusStreamMessage as a BusEventMessage
+func (t BusStreamMessage) AsBusEventMessage() (BusEventMessage, error) {
+	var body BusEventMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBusEventMessage overwrites any union data inside the BusStreamMessage as the provided BusEventMessage
+func (t *BusStreamMessage) FromBusEventMessage(v BusEventMessage) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBusEventMessage performs a merge with any union data inside the BusStreamMessage, using the provided BusEventMessage
+func (t *BusStreamMessage) MergeBusEventMessage(v BusEventMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsBusPingMessage returns the union data inside the BusStreamMessage as a BusPingMessage
+func (t BusStreamMessage) AsBusPingMessage() (BusPingMessage, error) {
+	var body BusPingMessage
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromBusPingMessage overwrites any union data inside the BusStreamMessage as the provided BusPingMessage
+func (t *BusStreamMessage) FromBusPingMessage(v BusPingMessage) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeBusPingMessage performs a merge with any union data inside the BusStreamMessage, using the provided BusPingMessage
+func (t *BusStreamMessage) MergeBusPingMessage(v BusPingMessage) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t BusStreamMessage) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *BusStreamMessage) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -11155,6 +11612,9 @@ type ClientInterface interface {
 	// GetApiHealth request
 	GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetApiOpenapiJson request
+	GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// GetApiResourcesId request
 	GetApiResourcesId(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
@@ -11220,6 +11680,18 @@ func (c *Client) GetWellKnownOauthProtectedResource(ctx context.Context, reqEdit
 
 func (c *Client) GetApiHealth(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewGetApiHealthRequest(c.Server)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetApiOpenapiJson(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetApiOpenapiJsonRequest(c.Server)
 	if err != nil {
 		return nil, err
 	}
@@ -11462,6 +11934,33 @@ func NewGetApiHealthRequest(server string) (*http.Request, error) {
 	}
 
 	operationPath := fmt.Sprintf("/api/health")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewGetApiOpenapiJsonRequest generates requests for GetApiOpenapiJson
+func NewGetApiOpenapiJsonRequest(server string) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/api/openapi.json")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -11876,6 +12375,9 @@ type ClientWithResponsesInterface interface {
 	// GetApiHealthWithResponse request
 	GetApiHealthWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiHealthResponse, error)
 
+	// GetApiOpenapiJsonWithResponse request
+	GetApiOpenapiJsonWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiOpenapiJsonResponse, error)
+
 	// GetApiResourcesIdWithResponse request
 	GetApiResourcesIdWithResponse(ctx context.Context, id string, reqEditors ...RequestEditorFn) (*GetApiResourcesIdResponse, error)
 
@@ -11919,6 +12421,7 @@ type GetResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *HealthResponse
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -11941,7 +12444,7 @@ type GetWellKnownOauthProtectedResourceResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ProtectedResourceMetadata
-	JSON404      *ErrorResponse
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -11964,6 +12467,7 @@ type GetApiHealthResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *HealthResponse
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -11982,11 +12486,40 @@ func (r GetApiHealthResponse) StatusCode() int {
 	return 0
 }
 
+type GetApiOpenapiJsonResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *struct {
+		Info    map[string]interface{} `json:"info"`
+		Openapi string                 `json:"openapi"`
+		Paths   map[string]interface{} `json:"paths"`
+	}
+	JSON500 *InternalError
+}
+
+// Status returns HTTPResponse.Status
+func (r GetApiOpenapiJsonResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetApiOpenapiJsonResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 type GetApiResourcesIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON401      *Unauthorized
 	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
+	JSON500      *InternalError
+	JSON503      *ServiceUnavailable
 }
 
 // Status returns HTTPResponse.Status
@@ -12009,7 +12542,8 @@ type GetApiStatusResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *StatusResponse
-	JSON401      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -12031,15 +12565,10 @@ func (r GetApiStatusResponse) StatusCode() int {
 type PostApiTokensAgentResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *struct {
-		// Did DID of the software-agent identity the token is acting as
-		Did string `json:"did"`
-
-		// Token Bearer JWT for subsequent authenticated requests
-		Token string `json:"token"`
-	}
-	JSON400 *ErrorResponse
-	JSON401 *ErrorResponse
+	JSON200      *AgentTokenResponse
+	JSON400      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -12062,7 +12591,9 @@ type PostApiTokensMediaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *MediaTokenResponse
-	JSON401      *ErrorResponse
+	JSON400      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -12085,7 +12616,8 @@ type GetApiUsersMeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *UserResponse
-	JSON401      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -12109,7 +12641,11 @@ type PostBusEmitResponse struct {
 	HTTPResponse *http.Response
 	JSON202      *BusEmitAccepted
 	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON409      *ErrorResponse
+	JSON429      *ErrorResponse
+	JSON500      *InternalError
+	JSON503      *ErrorResponse
 }
 
 // Status returns HTTPResponse.Status
@@ -12132,7 +12668,8 @@ type PostBusSubscribeResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON500      *InternalError
 }
 
 // Status returns HTTPResponse.Status
@@ -12156,7 +12693,9 @@ type PostResourcesResponse struct {
 	HTTPResponse *http.Response
 	JSON202      *CreateResourceResponse
 	JSON400      *ErrorResponse
-	JSON401      *ErrorResponse
+	JSON401      *Unauthorized
+	JSON500      *ErrorResponse
+	JSON503      *ServiceUnavailable
 }
 
 // Status returns HTTPResponse.Status
@@ -12178,8 +12717,10 @@ func (r PostResourcesResponse) StatusCode() int {
 type GetResourcesIdResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
+	JSON401      *Unauthorized
 	JSON404      *ErrorResponse
-	JSON500      *ErrorResponse
+	JSON500      *InternalError
+	JSON503      *ServiceUnavailable
 }
 
 // Status returns HTTPResponse.Status
@@ -12202,8 +12743,10 @@ type GetResourcesIdJsonldResponse struct {
 	Body                 []byte
 	HTTPResponse         *http.Response
 	ApplicationldJSON200 *GetResourceResponse
+	JSON401              *Unauthorized
 	JSON404              *ErrorResponse
-	JSON504              *ErrorResponse
+	JSON500              *InternalError
+	JSON503              *ServiceUnavailable
 }
 
 // Status returns HTTPResponse.Status
@@ -12247,6 +12790,15 @@ func (c *ClientWithResponses) GetApiHealthWithResponse(ctx context.Context, reqE
 		return nil, err
 	}
 	return ParseGetApiHealthResponse(rsp)
+}
+
+// GetApiOpenapiJsonWithResponse request returning *GetApiOpenapiJsonResponse
+func (c *ClientWithResponses) GetApiOpenapiJsonWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GetApiOpenapiJsonResponse, error) {
+	rsp, err := c.GetApiOpenapiJson(ctx, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetApiOpenapiJsonResponse(rsp)
 }
 
 // GetApiResourcesIdWithResponse request returning *GetApiResourcesIdResponse
@@ -12392,6 +12944,13 @@ func ParseGetResponse(rsp *http.Response) (*GetResponse, error) {
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -12418,12 +12977,12 @@ func ParseGetWellKnownOauthProtectedResourceResponse(rsp *http.Response) (*GetWe
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
-		var dest ErrorResponse
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON404 = &dest
+		response.JSON500 = &dest
 
 	}
 
@@ -12451,6 +13010,50 @@ func ParseGetApiHealthResponse(rsp *http.Response) (*GetApiHealthResponse, error
 		}
 		response.JSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetApiOpenapiJsonResponse parses an HTTP response from a GetApiOpenapiJsonWithResponse call
+func ParseGetApiOpenapiJsonResponse(rsp *http.Response) (*GetApiOpenapiJsonResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetApiOpenapiJsonResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest struct {
+			Info    map[string]interface{} `json:"info"`
+			Openapi string                 `json:"openapi"`
+			Paths   map[string]interface{} `json:"paths"`
+		}
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
 	}
 
 	return response, nil
@@ -12470,6 +13073,13 @@ func ParseGetApiResourcesIdResponse(rsp *http.Response) (*GetApiResourcesIdRespo
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -12478,11 +13088,18 @@ func ParseGetApiResourcesIdResponse(rsp *http.Response) (*GetApiResourcesIdRespo
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
+		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -12511,11 +13128,18 @@ func ParseGetApiStatusResponse(rsp *http.Response) (*GetApiStatusResponse, error
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -12537,13 +13161,7 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest struct {
-			// Did DID of the software-agent identity the token is acting as
-			Did string `json:"did"`
-
-			// Token Bearer JWT for subsequent authenticated requests
-			Token string `json:"token"`
-		}
+		var dest AgentTokenResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -12557,11 +13175,18 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -12589,12 +13214,26 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 		}
 		response.JSON200 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
+		response.JSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -12623,11 +13262,18 @@ func ParseGetApiUsersMeResponse(rsp *http.Response) (*GetApiUsersMeResponse, err
 		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -12663,11 +13309,39 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -12696,11 +13370,18 @@ func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeRespons
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
 
 	}
 
@@ -12736,11 +13417,25 @@ func ParsePostResourcesResponse(rsp *http.Response) (*PostResourcesResponse, err
 		response.JSON400 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
-		var dest ErrorResponse
+		var dest Unauthorized
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest ErrorResponse
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -12761,6 +13456,13 @@ func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, e
 	}
 
 	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -12769,11 +13471,18 @@ func ParseGetResourcesIdResponse(rsp *http.Response) (*GetResourcesIdResponse, e
 		response.JSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
-		var dest ErrorResponse
+		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 
@@ -12801,6 +13510,13 @@ func ParseGetResourcesIdJsonldResponse(rsp *http.Response) (*GetResourcesIdJsonl
 		}
 		response.ApplicationldJSON200 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Unauthorized
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON401 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -12808,12 +13524,19 @@ func ParseGetResourcesIdJsonldResponse(rsp *http.Response) (*GetResourcesIdJsonl
 		}
 		response.JSON404 = &dest
 
-	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
-		var dest ErrorResponse
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
-		response.JSON504 = &dest
+		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest ServiceUnavailable
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

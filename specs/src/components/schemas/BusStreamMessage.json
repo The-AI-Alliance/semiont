@@ -1,0 +1,11 @@
+{
+  "description": "Every message the bus stream carries. A client ignores an `event` it does not know; the gateway writes no other.",
+  "oneOf": [
+    {
+      "$ref": "./BusEventMessage.json"
+    },
+    {
+      "$ref": "./BusPingMessage.json"
+    }
+  ]
+}

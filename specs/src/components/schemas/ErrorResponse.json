@@ -1,11 +1,18 @@
 {
   "type": "object",
+  "description": "The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.",
   "properties": {
     "error": {
-      "type": "string"
+      "type": "string",
+      "description": "What went wrong, in a sentence."
     },
     "code": {
-      "type": "string"
+      "type": "string",
+      "description": "A machine-readable class, when the route defines one."
+    },
+    "hint": {
+      "type": "string",
+      "description": "What the caller can do about it, when there is something to say."
     },
     "details": {}
   },

@@ -33,7 +33,7 @@ headers and SSE `_trace` payload fields.
 | `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
 | `content.{put,get}`    | `HttpContentTransport.*` / `LocalContentTransport.*` | client / internal |
 | `content.{put,get}.server` | Gateway `/resources*` routes          | server   |
-| `archivist.{content.put,content.get,kb.branch,events.replay}` | Gateway → Archivist HTTP | client |
+| `archivist.{resources.record,content.get,resources.describe,events.replay}` | Gateway → Archivist HTTP | client |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
 The `archivist.*` row is the third hop. The two `content.*` rows describe a

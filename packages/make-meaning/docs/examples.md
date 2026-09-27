@@ -36,7 +36,7 @@ const rId = await ResourceOperations.createResource(
     format: 'text/markdown',
     language: 'en',
   },
-  userId('user-123'),
+  { did: userId('user-123'), roles: [] },
   eventBus,
 );
 

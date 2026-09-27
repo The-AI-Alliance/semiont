@@ -1,0 +1,5 @@
+{
+  "type": "string",
+  "description": "`p-<scope>-<sequenceNumber>` — the id of a persisted event delivered on a scoped subscription. Resumable: send it back as that scope's `lastEventId`. Stable across connections, so a client dedups by it.",
+  "pattern": "^p-.+-[0-9]+$"
+}

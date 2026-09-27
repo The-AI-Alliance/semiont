@@ -1,0 +1,67 @@
+{
+  "get": {
+    "summary": "A resource's bytes",
+    "description": "The bytes of the resource's representation, streamed, with the media type the record stores.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "id",
+        "in": "path",
+        "required": true,
+        "description": "The resource, percent-encoded.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The bytes, verbatim. A read that fails after the first byte closes the connection rather than end a truncated body as if it were whole.",
+        "headers": {
+          "Content-Type": {
+            "description": "The media type the record stores.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        },
+        "content": {
+          "*/*": {
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "404": {
+        "description": "The record holds no such resource, or holds it but not its bytes; `code` says which.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/RepresentationNotFound.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "description": "The bytes could not be read.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}

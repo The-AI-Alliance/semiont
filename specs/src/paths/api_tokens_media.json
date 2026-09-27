@@ -1,9 +1,15 @@
 {
   "post": {
     "summary": "Generate Media Token",
-    "description": "Generate a short-lived, resource-scoped media token for use as a ?token= query parameter on binary resource URLs (images, PDFs). Requires session authentication.",
-    "tags": ["Authentication"],
-    "security": [{ "bearerAuth": [] }],
+    "description": "A short-lived, resource-scoped media token (see the `mediaToken` scheme) for a `?token=` query parameter on `GET /api/resources/{id}`, where `<img>`, PDF.js and download links cannot send a header. Requires a bearer token.",
+    "tags": [
+      "Authentication"
+    ],
+    "security": [
+      {
+        "bearerAuth": []
+      }
+    ],
     "requestBody": {
       "required": true,
       "content": {
@@ -25,8 +31,8 @@
           }
         }
       },
-      "401": {
-        "description": "Unauthorized",
+      "400": {
+        "description": "The body is not JSON, or does not match MediaTokenRequest.",
         "content": {
           "application/json": {
             "schema": {
@@ -34,6 +40,12 @@
             }
           }
         }
+      },
+      "401": {
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
       }
     }
   }

@@ -188,241 +188,97 @@ semiont start --runtime podman
 The launcher is told which runtime to use by `--runtime`. The gateway's tests
 need no container runtime of their own.
 
-## Manual Setup (Alternative)
+## Running a gateway by hand
 
-If you prefer manual setup or need to understand the internals:
+The launcher is the normal way. Running the gateway outside it takes what the
+launcher would give it — a built package, its configuration document, and three
+secrets:
 
-### Prerequisites
+```bash
+npm run build:packages            # at the repository root: the gateway needs core
+npm run build -w semiont-gateway  # typecheck, then bundle to apps/gateway/dist
+```
 
-- Node.js 18+ (recommend using nvm)
-- Docker (for the infrastructure containers)
-- A KB with `.semiont/semiontconfig/<name>.toml` holding credentials for the graph, vectors, inference, and an `[identity]` section naming the issuer — `semiont init` generates one
+Write `~/.semiontconfig` — a JSON `GatewayConfig`
+([schema](../../../specs/src/components/schemas/GatewayConfig.json)), resolved:
+no `${VAR}` in it, nothing left to default. The
+[README](../README.md#configuration) has an example. Then:
 
-### There is no gateway database to set up
+```bash
+export JWT_SECRET="$(openssl rand -hex 32)"
+export SEMIONT_OIDC_CLIENT_ID=semiont-gateway
+export SEMIONT_OIDC_CLIENT_SECRET=<the secret the realm registers for it>
+node apps/gateway/dist/index.js
+```
+
+It refuses to start — before it listens — on a document that does not validate
+(each failing field is named by its JSON pointer), on a missing or short
+`JWT_SECRET`, on a missing service account, and on a broker it cannot reach or
+that runs without JetStream.
+
+### There is no gateway database
 
 The gateway holds no database and issues no SQL. It reads every caller's
-identity off their token, and the record lives in the KB's event log
-(`.semiont/events/`). There is no ORM, no migration step, and no schema of ours
-to create.
+identity off their token, and the record lives in the Archivist. PostgreSQL
+still runs in a Semiont stack, but it belongs to **Keycloak**; see
+[Database](../../../docs/system/administration/DATABASE.md).
 
-PostgreSQL still runs in a Semiont stack, but it belongs to **Keycloak** — it
-holds the realm and its accounts. `semiont start` provisions it and creates the
-database itself; see [Database](../../../docs/system/administration/DATABASE.md).
+## Testing
 
-### Manual Development Workflow
-
-**1. Initial Setup**
-
-```bash
-# Clone and install
-cd apps/gateway
-npm install
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your local settings
-
-```
-
-**2. Start Development Server**
+The gateway's behavioural contract is the black-box
+[conformance suite](../../../tests/gateway-conformance/README.md): it starts
+gateway processes on both signal planes and checks them against `specs/`. See
+[TESTING.md](./TESTING.md).
 
 ```bash
-# Run with hot reload
-npm run dev
-
-# Server starts on http://localhost:4000
+curl http://localhost:4000/api/health            # public
+curl http://localhost:4000/api/openapi.json      # public: the contract
+curl -H "Authorization: Bearer $TOKEN" http://localhost:4000/api/status
 ```
 
-## Environment Configuration
+## Debugging
 
-Create `.env` file with these local development settings:
+Set `logLevel` to `debug` in the configuration document to see every request,
+authentication attempt and bus line; see [LOGGING.md](./LOGGING.md).
 
-```env
-# Server
-NODE_ENV=development
-PORT=4000
+### "JWT_SECRET must be at least 32 characters long"
 
-# JWT (use a long random string for local dev). Signs agent and media tokens
-# only — people's tokens are the issuer's. May also be an ordered,
-# comma-separated key ring during a rotation — first key signs, all verify.
-JWT_SECRET="local-development-secret-min-32-characters-long"
+Each key must be at least 32 characters — the check is per key, since
+`JWT_SECRET` may be a comma-separated rotation ring (the first key signs, every
+key verifies). Generate one with `openssl rand -hex 32`.
 
-# The gateway's own service account at the knowledge base's issuer, which it
-# exchanges for a token to reach the Archivist.
-SEMIONT_OIDC_CLIENT_ID="semiont-gateway"
-SEMIONT_OIDC_CLIENT_SECRET="the-secret-the-realm-was-imported-with"
-
-```
-
-## Testing API Endpoints
+### Does the gateway trust an issuer, and does it answer?
 
 ```bash
-# Health check (no auth required - for ALB health checks)
-curl http://localhost:4000/api/health
-
-# API documentation (no auth required)
-curl http://localhost:4000/api
-
-# Test greeting endpoint (requires authentication)
-TOKEN="your-jwt-token"
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:4000/api/hello
-
-# Test status endpoint (requires authentication)
-curl -H "Authorization: Bearer $TOKEN" \
-  http://localhost:4000/api/status
-```
-
-## Development Tools
-
-# Opens at http://localhost:5555
-```
-
-### API Testing
-
-Recommended tools:
-- [HTTPie](https://httpie.io/) - Command line HTTP client
-- [Postman](https://www.postman.com/) - GUI API testing
-- [Thunder Client](https://marketplace.visualstudio.com/items?itemName=rangav.vscode-thunder-client) - VS Code extension
-
-## Common Development Tasks
-
-### Adding Test Data
-
-There is no user table to seed. Accounts live at the identity provider; create
-one with `semiont useradd --email you@example.com --generate-password`.
-
-### Debugging
-
-**1. VS Code Debug Configuration**
-
-Add to `.vscode/launch.json`:
-
-```json
-{
-  "type": "node",
-  "request": "launch",
-  "name": "Debug Gateway",
-  "runtimeExecutable": "npm",
-  "runtimeArgs": ["run", "dev"],
-  "cwd": "${workspaceFolder}/apps/gateway",
-  "console": "integratedTerminal"
-}
-```
-
-**2. Enable Debug Logging**
-
-```bash
-# Winston logging (recommended)
-LOG_LEVEL=debug npm start
-
-# See all HTTP requests, auth attempts, and errors
-# For complete logging guide, see docs/LOGGING.md
-```
-
-**Alternative: Framework-specific debug**
-
-```env
-# In .env (legacy)
-DEBUG=hono:*
-```
-
-**3. Inspect Database Queries**
-
-```typescript
-// Temporarily add to see SQL queries
-```
-
-## Performance Tips
-
-1. **Database Connection Pooling**
-   - Default pool size: 10 connections
-
-2. **Hot Reload Optimization**
-   - Use `npm run dev` for file watching
-   - Nodemon restarts only on file changes
-
-3. **Type Checking**
-   - Run `npm run typecheck` periodically
-   - VS Code shows errors in real-time
-
-## Troubleshooting
-
-# Check Keycloak and its PostgreSQL are running
-container ps --all | grep -E "semiont-postgres|semiont-keycloak"
-
-# Is the realm there? (it imports on FIRST boot only, never again)
-container exec semiont-postgres psql -U postgres -lqt | grep keycloak
-
-# Does the gateway trust an issuer, and does the issuer answer?
 curl -s http://localhost:4000/.well-known/oauth-protected-resource
 ```
 
-### "JWT_SECRET too short"
+## Configuration
 
-- Each key must be at least 32 characters — the check is per key, not on the whole
-  string, since `JWT_SECRET` may be a comma-separated rotation ring
-- Generate secure secret: `openssl rand -hex 32`
-
-# Clear node_modules and reinstall
-rm -rf node_modules
-npm install
-```
-
-### "Port already in use"
-
-```bash
-# Find process using port 4000
-lsof -i :4000
-
-# Kill process
-kill -9 <PID>
-```
-
-## Configuration Management
-
-Configuration is TOML, read from two files at startup ([`src/index.ts`](../src/index.ts)):
-
-| File | Contents | Committed? |
-|---|---|---|
-| `<SEMIONT_ROOT>/.semiont/config` | Project anchor: the KB's name and its permanent `did:web` identity | Yes |
-| `<SEMIONT_ROOT>/.semiont/semiontconfig/<name>.toml` | Per-environment settings: database, graph, vectors, embedding, inference | Yes |
-
-The launcher stages a per-service copy of that config and mounts it into each
-container at `/home/semiont/.semiontconfig`, which is the path the process reads.
-
-- `SEMIONT_ROOT` — path to the knowledge-base working tree. **Required**; the process throws without it.
-- The environment block comes from `[defaults] environment` inside the config file.
-
-`loadEnvironmentConfig(projectRoot, env)` merges them into an `EnvironmentConfig`
-(`@semiont/core`). `services.gateway` must be present or startup fails.
-
-Beyond that, the gateway reads from the environment directly:
+One document, `~/.semiontconfig` (a JSON `GatewayConfig`), which the launcher
+writes resolved from the knowledge base's config and committed identity; see
+the [README](../README.md#configuration). Beyond it, the gateway reads from
+its environment:
 
 | Variable | Purpose |
 |---|---|
-| `JWT_SECRET` | Token signing. An ordered, comma-separated key ring: the first key signs, every key verifies; minimum 32 characters **per key**. A single value is the one-key case. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
-| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the knowledge base's issuer. It exchanges these for an access token to reach the Archivist; without them the first Archivist call fails |
-
-`semiont init` generates both TOML files. See the
-[Configuration Guide](../../../docs/system/administration/CONFIGURATION.md) for the
-full schema, and [SECRETS.md](../../../docs/system/services/SECRETS.md) for
-credential handling.
+| `JWT_SECRET` | Signs the tokens the gateway mints (agents, media). An ordered, comma-separated key ring: the first key signs, every key verifies; at least 32 characters **per key**. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the knowledge base's issuer, exchanged for the token it reaches the Archivist with |
+| the variables `signal.userEnv` / `signal.passwordEnv` name | The broker credentials, when the broker requires them |
+| `LOG_FORMAT` | `json` (default) or `simple` |
+| `OTEL_*` | The standard OpenTelemetry variables |
 
 ### Adding a configuration key
 
-1. Add it to the TOML schema and to `EnvironmentConfig` in `@semiont/core`
-2. Thread it through `loadEnvironmentConfig` / [`src/utils/config.ts`](../src/utils/config.ts)
-3. Read it off `config` at the call site — not from `process.env`, so one loader stays the single source of truth
+1. Add it to `GatewayConfig` in `specs/src/components/schemas/` and regenerate
+   (`npm run generate:openapi --workspace=@semiont/core`; `go generate ./...`
+   in `packages/sdk-go`).
+2. Have the launcher write it (`apps/launcher/internal/launcher/gatewaydoc.go`).
+3. Read it off the document at the call site — never from `process.env`.
 
 ## Related Documentation
 
-- [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
-- [Authentication Guide](./AUTHENTICATION.md) - JWT, OAuth, and MCP authentication
-- [Testing Guide](./TESTING.md) - Running and writing tests
+- [Semiont Protocol](../../../docs/protocol/README.md) - The verbs and the bus
+- [Authentication Guide](./AUTHENTICATION.md) - Tokens, agents, sign-in
+- [Testing Guide](./TESTING.md) - The conformance suite
 - [Deployment Guide](../../../docs/system/administration/DEPLOYMENT.md) - Production deployment procedures
-- [Contributing Guide](../../../CONTRIBUTING.md) - Code style and development patterns
-
----
-
-**Last Updated**: 2025-10-23

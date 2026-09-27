@@ -259,7 +259,7 @@ The `createKnowledgeBase(eventStore, project, graphDb, eventBus, logger, options
 `AnnotationOperations` (here) and `ResourceOperations` (in `@semiont/core`) are thin facades over `busRequest`. They do not access KB stores directly — the Stower handles persistence.
 
 ```
-ResourceOperations.createResource(input, userId, bus)
+ResourceOperations.createResource(input, { did: userId, roles: [] }, bus)
   → busRequest(bus, 'yield:create', …)
     → Stower persists, replies yield:create-ok / yield:create-failed
       → matched on correlationId; resolves to the new ResourceId

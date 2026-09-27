@@ -68,6 +68,17 @@ These types are generated during the build process:
 npm run generate:openapi  # Bundles spec → generates types.ts
 ```
 
+The spec's validators and limits come from the same bundle, on the
+`@semiont/core/openapi` subpath:
+
+```typescript
+import { validators, operationLimits, itemLimits } from '@semiont/core/openapi';
+
+validators.BusEmitRequest(body);                          // Ajv, compiled at build
+operationLimits['POST /bus/emit'].claimSeconds;           // an operation's x-semiont-limits
+itemLimits['BusSubscribeRequest.pendingReplies'];         // a property's maxItems
+```
+
 ### Branded Types
 
 Compile-time type safety for URIs, tokens, and identifiers:
@@ -136,16 +147,16 @@ import { BRIDGED_CHANNELS } from '@semiont/core';
 
 ### Resource writes
 
-The one statement of how a resource write maps onto its channel's payload, used by the gateway's upload route and by in-process callers alike:
+The one statement of how a resource write maps onto its channel's payload, used by the Archivist's upload path and by in-process callers alike:
 
 ```typescript
 import { ResourceOperations } from '@semiont/core';
 import type { CreateResourceInput, BusRequestPrimitive } from '@semiont/core';
 ```
 
-Each method rides a `BusRequestPrimitive` the caller supplies — the operation names the channel, the caller names the fabric — stamps the caller's `UserId` as `_userId`, and resolves to the new `ResourceId` from the Stower's correlated reply:
+Each method rides a `BusRequestPrimitive` the caller supplies — the operation names the channel, the caller names the fabric — stamps the caller as `_userId`, and resolves to the new `ResourceId` from the Stower's correlated reply:
 
-- **`createResource(input, userId, bus)`** — `yield:create`. Callers store the bytes first; `CreateResourceInput` carries the resulting `storageUri`, `contentChecksum` and `byteSize`, plus `name`, `format`, and optional `language`, `entityTypes`, generation provenance, `jobId` and `isDraft`.
+- **`createResource(input, emitter, bus)`** — `yield:create`. The `Emitter` is `{ did, roles }`, stamped as `_userId` and `_roles` — the Stower refuses a worker's create that cites no job. Callers store the bytes first; `CreateResourceInput` carries the resulting `storageUri`, `contentChecksum` and `byteSize`, plus `name`, `format`, and optional `language`, `entityTypes`, generation provenance, `jobId` and `isDraft`.
 - **`persistClone(input, userId, bus)`** — `yield:clone-persist`. A clone names its `parentResourceId`; callers reach this only after a clone token has been validated.
 - **`createFromCloneToken(input, userId, bus)`** — `yield:clone-create`. The bytes are already stored; the command carries the token and storage coordinates only.
 

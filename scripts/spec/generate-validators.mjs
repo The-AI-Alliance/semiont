@@ -85,7 +85,9 @@ if (names.length === 0) throw new Error(`No component schemas found in ${SPEC}`)
 
 const ajv = new Ajv({
   allErrors: true,       // report every problem, not just the first
-  coerceTypes: true,     // "123" → 123, as the wire has always behaved
+  // No coercion: a value of the wrong type is refused, never converted. The
+  // spec states the types; a validator that turned "123" into 123 would accept
+  // payloads the spec does not.
   removeAdditional: false,
   // OpenAPI vocabulary Ajv does not know. Annotation-only, deliberately:
   // `discriminator` is a dispatch HINT and the sibling `oneOf` stays the

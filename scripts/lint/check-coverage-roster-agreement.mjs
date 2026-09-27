@@ -37,7 +37,6 @@ const WORKFLOW = '.github/workflows/package-tests.yml';
  */
 const EXEMPT_FROM_MATRIX = [
   { name: 'browser', dir: 'apps/browser', uploadedBy: '.github/workflows/security-tests.yml' },
-  { name: 'gateway', dir: 'apps/gateway', uploadedBy: '.github/workflows/security-tests.yml' },
 ];
 
 const read = (file) => {

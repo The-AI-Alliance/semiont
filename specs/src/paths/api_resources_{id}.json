@@ -2,35 +2,61 @@
   "get": {
     "summary": "Get a resource's stored representation (browser-friendly alias)",
     "description": "Identical pipe to GET /resources/{id} — verbatim bytes, stored media type in Content-Type, Accept never read. Exists only as the auth affordance for `<img>` / PDF.js / download links, which cannot carry Authorization headers: the `?token=` media token rides along automatically.\n\nResponses carry `Cache-Control: public, max-age=31536000, immutable` — `public` is safe here, unlike the bearer-authenticated main route, because the `?token=` is part of the cache key.",
-    "tags": ["Resources"],
+    "tags": [
+      "Resources"
+    ],
     "security": [
-      { "bearerAuth": [] }
+      {
+        "bearerAuth": []
+      },
+      {
+        "mediaToken": []
+      }
     ],
     "parameters": [
       {
         "name": "id",
         "in": "path",
         "required": true,
-        "schema": { "type": "string" }
+        "schema": {
+          "type": "string"
+        }
       }
     ],
     "responses": {
       "200": {
-        "description": "The stored representation's bytes, verbatim",
+        "description": "The stored representation's bytes, verbatim, with the stored media type as Content-Type (`application/octet-stream` when none is recorded).",
         "headers": {
           "Link": {
-            "schema": { "type": "string" },
-            "description": "`</resources/{id}/jsonld>; rel=\"describedby\"; type=\"application/ld+json\"` — where to dereference the resource's JSON-LD description"
+            "schema": {
+              "type": "string"
+            },
+            "description": "`</resources/{id}/jsonld>; rel=\"describedby\"; type=\"application/ld+json\"` — where the resource's JSON-LD description is."
+          },
+          "Cache-Control": {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "public, max-age=31536000, immutable"
+              ]
+            },
+            "description": "Content is immutable; `public` is safe because the `?token=` is part of the cache key."
           }
         },
         "content": {
           "*/*": {
-            "schema": { "type": "string", "format": "binary" }
+            "schema": {
+              "type": "string",
+              "format": "binary"
+            }
           }
         }
       },
+      "401": {
+        "$ref": "../components/responses/Unauthorized.json"
+      },
       "404": {
-        "description": "Resource or representation not found",
+        "description": "`Resource not found` when the knowledge base has no such resource; `Resource representation not found` when it has the resource but not its bytes.",
         "content": {
           "application/json": {
             "schema": {
@@ -40,14 +66,10 @@
         }
       },
       "500": {
-        "description": "Failed to retrieve resource",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
+        "$ref": "../components/responses/InternalError.json"
+      },
+      "503": {
+        "$ref": "../components/responses/ServiceUnavailable.json"
       }
     }
   }

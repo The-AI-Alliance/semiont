@@ -18,6 +18,9 @@
     "/": {
       "$ref": "paths/api_health.json"
     },
+    "/api/openapi.json": {
+      "$ref": "paths/api_openapi.json"
+    },
     "/.well-known/oauth-protected-resource": {
       "$ref": "paths/well-known_oauth-protected-resource.json"
     },
@@ -53,6 +56,31 @@
     }
   },
   "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "`Authorization: Bearer <JWT>` — the scheme name in any case (RFC 7235); a header naming another scheme, or none, carries no credential, and nor does a cookie. The gateway accepts two kinds of token, told apart by `iss`.\n\n**Issuer tokens** — people and service accounts, minted by the knowledge base's trusted issuer (`[identity] issuer`). Signed RS256 by a key the issuer publishes at the `jwks_uri` its `/.well-known/openid-configuration` names. `iss` must equal the configured issuer exactly. `aud` must contain this knowledge base's resource identifier: its did:web resolved to an https URL, the value `/.well-known/oauth-protected-resource` publishes as `resource`. Expired, not-yet-valid or wrongly signed tokens are refused. The holder is named `did:web:<domain>:users:<subject>`, where `<domain>` is the knowledge base's `[site] domain` and `<subject>` is the value of the claim `[identity] subjectClaim` selects, which must be a non-empty string. `email` must be present, and `email_verified: false` is refused. `name` and `picture` are displayed when present. Capabilities ride a flat `roles` array: `semiont-service` lets a service account exchange its token at `POST /api/tokens/agent`, and `semiont-worker` additionally grants the agent token it receives the right to claim jobs.\n\n**Agent tokens** — minted by the gateway at `POST /api/tokens/agent`. Signed HS256 with the gateway's `JWT_SECRET` key ring (the first key signs, every key verifies); `iss` is the knowledge base's domain; they live one hour. Claims: exactly `did` (`did:web:<domain>:agents:<provider>:<model>`, the provider and model each URI-encoded), `email` (`<provider>-<model>@agents.<host>`, every run of characters outside `[A-Za-z0-9-]` in `<provider>:<model>` becoming one `-`, and `<host>` the domain up to its first `:`), `name` (`<provider> <model>`), `domain`, `iss`, `iat`, `exp`, and `roles: [\"semiont-worker\"]` when the minter carried that role.\n\nWhatever route it reaches, the verified holder's DID is what `POST /bus/emit` stamps as `_userId`, and the token's `roles` what it stamps as `_roles`."
+      },
+      "mediaToken": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "token",
+        "description": "A media token from `POST /api/tokens/media`: HS256 under the same key ring as agent tokens, naming one resource (`purpose: \"media\"`, `sub: <resourceId>`) and valid for five minutes. Accepted only by `GET /api/resources/{id}`, and only for the resource it names — for `<img>`, PDF.js and download links, which cannot send a header."
+      }
+    },
+    "responses": {
+      "Unauthorized": {
+        "$ref": "components/responses/Unauthorized.json"
+      },
+      "InternalError": {
+        "$ref": "components/responses/InternalError.json"
+      },
+      "ServiceUnavailable": {
+        "$ref": "components/responses/ServiceUnavailable.json"
+      }
+    },
     "schemas": {
       "Agent": {
         "$ref": "components/schemas/Agent.json"
@@ -305,9 +333,6 @@
       },
       "EventMetadata": {
         "$ref": "components/schemas/EventMetadata.json"
-      },
-      "EventStreamResponse": {
-        "$ref": "components/schemas/EventStreamResponse.json"
       },
       "ExtractedText": {
         "$ref": "components/schemas/ExtractedText.json"
@@ -731,6 +756,51 @@
       },
       "YieldUpdateOk": {
         "$ref": "components/schemas/YieldUpdateOk.json"
+      },
+      "BusEventMessage": {
+        "$ref": "components/schemas/BusEventMessage.json"
+      },
+      "BusFrame": {
+        "$ref": "components/schemas/BusFrame.json"
+      },
+      "BusPingMessage": {
+        "$ref": "components/schemas/BusPingMessage.json"
+      },
+      "BusResumeGap": {
+        "$ref": "components/schemas/BusResumeGap.json"
+      },
+      "BusStreamMessage": {
+        "$ref": "components/schemas/BusStreamMessage.json"
+      },
+      "EphemeralEventId": {
+        "$ref": "components/schemas/EphemeralEventId.json"
+      },
+      "PersistedEventId": {
+        "$ref": "components/schemas/PersistedEventId.json"
+      },
+      "ReplyEventId": {
+        "$ref": "components/schemas/ReplyEventId.json"
+      },
+      "AgentTokenRequest": {
+        "$ref": "components/schemas/AgentTokenRequest.json"
+      },
+      "AgentTokenResponse": {
+        "$ref": "components/schemas/AgentTokenResponse.json"
+      },
+      "GatewayConfig": {
+        "$ref": "components/schemas/GatewayConfig.json"
+      },
+      "ResourceUpload": {
+        "$ref": "components/schemas/ResourceUpload.json"
+      },
+      "ArchivistEventsResponse": {
+        "$ref": "components/schemas/ArchivistEventsResponse.json"
+      },
+      "ArchivistHealth": {
+        "$ref": "components/schemas/ArchivistHealth.json"
+      },
+      "RepresentationNotFound": {
+        "$ref": "components/schemas/RepresentationNotFound.json"
       }
     }
   }

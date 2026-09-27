@@ -1,69 +1,21 @@
 {
   "post": {
     "summary": "Create a resource",
-    "description": "Upload binary content + metadata as multipart/form-data. The gateway writes content to disk, then emits yield:create on the bus; Stower persists it and returns a 202 with the new resourceId. Full reconciliation happens via SSE domain events (yield:created).\n\nGeneration workers and the /know/compose page both hit this route — bytes always travel on the HTTP wire, never on the bus.",
-    "tags": ["Resources"],
+    "description": "Upload a representation's bytes with its metadata, as multipart/form-data. The gateway forwards the upload untouched to the Archivist, which holds the knowledge base's tree: it stores the bytes and records the resource — as a clone of the token's source when the upload carries `cloneToken` — for the caller the gateway verified, and the new resource's id comes back with 202. What follows from the resource's creation — graph, views, vectors — settles afterwards, announced by `yield:created` on the bus.\n\nBytes travel on this HTTP request, never on the bus.",
+    "tags": [
+      "Resources"
+    ],
     "security": [
-      { "bearerAuth": [] }
+      {
+        "bearerAuth": []
+      }
     ],
     "requestBody": {
       "required": true,
       "content": {
         "multipart/form-data": {
           "schema": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "Human-readable resource name"
-              },
-              "file": {
-                "type": "string",
-                "format": "binary",
-                "description": "Binary content"
-              },
-              "format": {
-                "type": "string",
-                "description": "Media type of the content (e.g. text/plain, text/markdown, image/png)"
-              },
-              "storageUri": {
-                "type": "string",
-                "description": "Where the content lives (file://... for local). Required — the client names the location; the server does not derive one."
-              },
-              "language": {
-                "type": "string",
-                "description": "ISO 639-1 language code"
-              },
-              "entityTypes": {
-                "type": "string",
-                "description": "JSON-stringified array of entity type names"
-              },
-              "sourceAnnotationId": {
-                "type": "string",
-                "description": "For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event."
-              },
-              "sourceResourceId": {
-                "type": "string",
-                "description": "For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event."
-              },
-              "generationPrompt": {
-                "type": "string",
-                "description": "For AI-generated resources: the prompt that drove generation"
-              },
-              "generator": {
-                "type": "string",
-                "description": "For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job."
-              },
-              "jobId": {
-                "type": "string",
-                "description": "The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload."
-              },
-              "isDraft": {
-                "type": "string",
-                "description": "'true' or 'false' — whether the resource is a draft"
-              }
-            },
-            "required": ["name", "file", "format", "storageUri"]
+            "$ref": "../components/schemas/ResourceUpload.json"
           }
         }
       }
@@ -80,7 +32,7 @@
         }
       },
       "400": {
-        "description": "Missing required fields (name, file, format, or storageUri), or the format's base MIME type is not a SupportedMediaType. The error message names the offending type.",
+        "description": "The upload is not multipart/form-data, or not a ResourceUpload (a field it requires is missing, or one is not what it must be); the format's base media type is not a SupportedMediaType; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
         "content": {
           "application/json": {
             "schema": {
@@ -90,7 +42,10 @@
         }
       },
       "401": {
-        "description": "Authentication required",
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "500": {
+        "description": "The knowledge base refused to record the resource; the message says why.",
         "content": {
           "application/json": {
             "schema": {
@@ -98,6 +53,9 @@
             }
           }
         }
+      },
+      "503": {
+        "$ref": "../components/responses/ServiceUnavailable.json"
       }
     }
   }

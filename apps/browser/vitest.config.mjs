@@ -24,16 +24,9 @@ export default mergeConfig(
       ],
       coverage: {
         exclude: [
-          'src/test/',
-          '**/mockData/*',
           'vitest.setup.ts',
-          'public/**',
           '**/public/**',
-          '**/mockServiceWorker.js',
           'scripts/**',
-          'next.config.js',
-          'postcss.config.js',
-          'tailwind.config.ts'
         ],
       },
       typecheck: {

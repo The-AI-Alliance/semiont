@@ -61,19 +61,22 @@ See [bus-logging.md](bus-logging.md) for the full capture API.
 
 ## Seed assumptions
 
-Every test assumes a seeded KB with **≥2 resources and ≥1 entity
-type**. The default template KB satisfies this. If your test needs
-specific fixture content (a resource named X, an annotation at offset
-Y), that's out of scope until we have per-test isolation — for now,
-either:
+Playwright's global setup, [`scripts/seed.ts`](../scripts/seed.ts),
+uploads the resources the specs assume — text resources for the
+annotation specs, PDFs for the PDF specs — and the Archivist bootstraps
+the entity types. A spec that needs a fixture of its own adds it there,
+with a stable `storageUri` so a re-run skips it; `openResourceByName`
+(`fixtures/discover.ts`)
+opens it by name. There is no per-test isolation: specs share one
+knowledge base, so:
 
-- Pick a property that holds across seeds (e.g. "the first resource"),
-- Or add a `test.skip('needs annotations on seed', ...)` with a
-  one-line reason.
+- Assert properties that hold whatever earlier specs created (e.g. "the
+  first resource"), not exact counts,
+- Or `test.skip(...)` with a one-line reason when the state a spec needs
+  is absent.
 
-Skipping is **explicit, never implicit**. If a feature isn't in the
-seed yet, use `test.skip(...)` with a reason. Never leave a test
-passing because it silently returned early.
+Skipping is **explicit, never implicit**. Never leave a test passing
+because it silently returned early.
 
 ## Selectors
 

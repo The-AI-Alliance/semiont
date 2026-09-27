@@ -18,17 +18,11 @@ export const healthRouter = new Hono();
  * Response type comes from OpenAPI spec via generated types.
  */
 async function health(c: Context) {
-  const nodeEnv = process.env.NODE_ENV;
-  if (!nodeEnv) {
-    throw new Error('NODE_ENV environment variable is required');
-  }
-
   const response: HealthResponse = {
     status: 'operational',
     message: 'Semiont API is running',
     version: __SEMIONT_VERSION__,
     timestamp: new Date().toISOString(),
-    environment: nodeEnv,
   };
 
   return c.json(response, 200);

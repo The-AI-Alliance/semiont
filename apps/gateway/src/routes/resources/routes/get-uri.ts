@@ -10,8 +10,10 @@
  *   response. A Link: rel="describedby" header points machine clients at
  *   the JSON-LD description.
  * - GET /resources/:id/jsonld — the JSON-LD description (GetResourceResponse:
- *   descriptor + annotations + inbound entity references) via the bus
- *   gateway. Live data — Cache-Control: no-cache.
+ *   descriptor + annotations + inbound entity references), read from the
+ *   Archivist over HTTP like the bytes (GATEWAY-SIMPLIFY S2, the user's
+ *   ruling of 2026-09-27: "(a) Archivist over HTTP"). Live data —
+ *   Cache-Control: no-cache.
  * No anchored-text face (ANCHORED-TEXT-TO-SMELTER P4): the store is reached
  * over the bus, the Smelter writes it, and the Archivist answers reads.
  *
@@ -24,9 +26,8 @@
 import type { Context } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import type { ResourcesRouterType } from '../shared';
-import { BusRequestError, busLog, busRequest, resourceId } from '@semiont/core';
-import { getContent } from '../../../lib/archivist';
-import { requestPrimitiveFor } from '../../../signal';
+import { busLog } from '@semiont/core';
+import { describeResource, getContent } from '../../../lib/archivist';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
 
 function traceCarrier(c: Context) {
@@ -53,40 +54,21 @@ function describedByLink(id: string): string {
 }
 
 export function registerGetResourceUri(router: ResourcesRouterType) {
-  // GET /resources/:id/jsonld — the JSON-LD description, via
-  // `browse:resource-requested`. Hono params don't span '/', so this cannot
-  // collide with the pipe route below.
+  // GET /resources/:id/jsonld — the JSON-LD description, the Archivist's
+  // answer. Hono params don't span '/', so this cannot collide with the pipe
+  // route below.
   router.get('/resources/:id/jsonld', async (c) => {
     const { id } = c.req.param();
-
-    try {
-      // Core `busRequest` over the gateway's PLANE primitive: the registry
-      // supplies the reply pair (unbridged replies unrepresentable), the
-      // primitive supplies the fabric (the Browser actor lives in the
-      // Archivist — a raw-bus emit starves under a remote driver), and the
-      // correlationId is busRequest's own.
-      const response = await busRequest(requestPrimitiveFor(c.get('eventBus')), 'browse:resource-requested', {
-        resourceId: resourceId(id),
-      });
-
-      // Headers passed to c.json directly: Hono's c.json overwrites a
-      // prepared content-type (set via c.header) with application/json.
-      return c.json(response, 200, {
-        'Content-Type': 'application/ld+json; charset=utf-8',
-        // Live data: annotations and inbound references change.
-        'Cache-Control': 'no-cache',
-      });
-    } catch (error) {
-      if (error instanceof Error) {
-        if (error.message === 'Resource not found') {
-          throw new HTTPException(404, { message: 'Resource not found' });
-        }
-        if (error instanceof BusRequestError && error.code === 'bus.timeout') {
-          throw new HTTPException(504, { message: 'Request timed out' });
-        }
-      }
-      throw error;
-    }
+    // The caller's trace continues into the Archivist read.
+    const description = await withTraceparent(traceCarrier(c), () => describeResource(c.get('archivist'), id));
+    if (description === undefined) throw new HTTPException(404, { message: 'Resource not found' });
+    // Headers passed to c.json directly: Hono's c.json overwrites a prepared
+    // content-type (set via c.header) with application/json.
+    return c.json(description, 200, {
+      'Content-Type': 'application/ld+json; charset=utf-8',
+      // Live data: annotations and inbound references change.
+      'Cache-Control': 'no-cache',
+    });
   });
 
   // GET /resources/:id — the pipe. Accept is never read; the JSON-LD
@@ -99,7 +81,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       withSpan(
         'content.get.server',
         async () => {
-          const { body, mediaType } = await getContent(c.get('config'), c.get('archivistCredential')(), id);
+          const { body, mediaType } = await getContent(c.get('archivist'), id);
 
           // private, not public: this route is bearer-authenticated, and
           // public would let shared caches store and re-serve the bytes
@@ -129,7 +111,7 @@ export function registerGetResourceUri(router: ResourcesRouterType) {
       withSpan(
         'content.get.server',
         async () => {
-          const { body, mediaType } = await getContent(c.get('config'), c.get('archivistCredential')(), id);
+          const { body, mediaType } = await getContent(c.get('archivist'), id);
 
           // public is safe here, unlike the main route: the ?token= is part
           // of the cache key (SIMPLER-JSON-LD.md decision 6).

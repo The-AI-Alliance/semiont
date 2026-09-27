@@ -43,28 +43,18 @@ whole deployment contract:
 ```
 container run -d --name semiont-gateway \
   --publish 4000:4000 \
-  --volume <config-stage>/gateway.toml:/home/semiont/.semiontconfig:ro \
+  --volume <config-stage>/gateway.json:/home/semiont/.semiontconfig:ro \
   --volume <state>:/semiont-state \
   --env XDG_STATE_HOME=/semiont-state \
-  --env POSTGRES_HOST=<host> --env NEO4J_HOST=<host> \
-  --env QDRANT_HOST=<host>   --env OLLAMA_HOST=<host> \
-  --env NATS_HOST=<host>     --env KEYCLOAK_HOST=<host> \
   --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
   --env JWT_SECRET=<key> \
   ghcr.io/the-ai-alliance/semiont-gateway:latest
 ```
 
-Two things in there are easy to misread:
-
-- **The `*_HOST` variables do not all mean it connects to those services.** It
-  dials NATS (the signal plane, when `[signal]` selects it) and Keycloak (token
-  verification) and nothing else on that list. The config loader expands every
-  `${VAR}` in the staged TOML eagerly, so every referenced variable must be
-  defined even for sections this process never consumes.
-- **There is no KB volume**, and that absence is the point. It is also enforced:
-  the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
-  signature change, not a line someone can slip in.
+**There is no KB volume**, and that absence is the point. It is also enforced:
+the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
+signature change, not a line someone can slip in.
 
 Required in the environment: `JWT_SECRET` (≥32 chars), plus
 `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own
@@ -82,56 +72,83 @@ one step:
    server dies), under the shared supervisor when the launcher sets it for
    local runs. `tini` forwards `SIGTERM` either way.
 
-Startup then refuses rather than degrades. A missing `services.gateway`, an
-absent `JWT_SECRET`, a knowledge base that declares no identity, or a missing
-sign-in policy each stop the process before it listens — a gateway that accepts
-connections it cannot authenticate is the failure mode these checks exist to
-prevent.
+Startup then refuses rather than degrades. A configuration document that does
+not validate, an absent or short `JWT_SECRET`, no service account, a broker that
+does not answer or runs without JetStream, or routes that are not exactly the
+spec's operations each stop the process before it listens — a gateway that
+accepts connections it cannot authenticate, or serves a route no one declared,
+is the failure mode these checks exist to prevent.
 
 `SIGTERM`/`SIGINT` close the listener, drain the signal plane under a deadline
 so in-flight frames reach the broker, tear down the bus, and exit.
 
 ## Configuration
 
-One file: `~/.semiontconfig`, bind-mounted read-only by the launcher, which
-stages it per service from the knowledge base's own config. The process reads it
-with no project root — there is no tree to read from — so everything it needs
-arrives in that file, including the launcher-staged `[kb]` identity card
-carrying the KB's committed name, `did:web` domain, and sign-in policy.
+One document: `~/.semiontconfig`, a JSON `GatewayConfig`
+([schema](../../specs/src/components/schemas/GatewayConfig.json)), bind-mounted
+read-only. The launcher writes it resolved from the knowledge base's config and
+committed identity: no `${VAR}` is left in it, and the gateway defaults nothing.
+The gateway validates it against the schema at boot, and refuses to serve —
+naming each failing field by its JSON pointer — when it does not match.
 
-One section selects the gateway's driver, defaulting to the single-process local
-shape when absent: `[signal]` (`in-process` or `nats`) chooses the bus fan-out.
-The `[jobs]` section in the same file is the dispatcher's, not this process's;
-`nats` and `jetstream` share one NATS daemon, and `[signal] type = "nats"` is
-what gateway replicas require. See
-[CONFIGURATION.md](../../docs/system/administration/CONFIGURATION.md).
+```json
+{
+  "kb": { "name": "My KB", "domain": "example.github.io:my-kb" },
+  "port": 4000,
+  "publicUrl": "http://localhost:4000",
+  "identity": { "issuer": "http://keycloak:8080/realms/semiont", "subjectClaim": "sub" },
+  "archivist": { "host": "archivist", "port": 24103 },
+  "signal": { "type": "nats", "servers": "nats:4222" },
+  "logLevel": "info"
+}
+```
 
-Secrets are not in the file. They come from the environment.
+`signal.type` is `in-process` (one gateway) or `nats` (the fabric replicas
+share, which needs `servers` and a broker with JetStream). A gateway started
+without the launcher is given the same document.
+
+Secrets are never in it. The gateway's own are environment variables —
+`JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` — and a
+broker credential is named by the variable holding it (`signal.userEnv`,
+`signal.passwordEnv`). The standard `OTEL_*` variables configure telemetry.
 
 ## HTTP surface
 
-| Router | Serves |
-|---|---|
-| `root.ts` | Service metadata, OpenAPI spec, Swagger UI |
-| `health.ts` | `/api/health` — always 200; liveness, not readiness |
-| `auth.ts` | `/api/users/me`; the agent and media tokens the gateway mints (`/api/tokens/agent`, `/api/tokens/media`); cookie consent. People sign in at the issuer, not here |
-| `status.ts` | `/api/status` — the gateway's status and version |
-| `well-known.ts` | `/.well-known/oauth-protected-resource` — resource metadata naming this KB's issuer |
-| `resources/` | W3C-shaped resource and annotation endpoints; binary upload proxied to the Archivist |
-| `bus.ts` | `/bus/emit` and `/bus/subscribe` — the hub, over the selected signal driver (`src/signal/`) |
+The OpenAPI document in [specs/src](../../specs/src/openapi.json) is the contract:
+every route, every status each can answer and its body, the headers, the bus
+stream's messages and id formats, the limits, and the claims a token must carry.
+[TRANSPORT-HTTP.md](../../docs/protocol/TRANSPORT-HTTP.md) states the semantics a
+schema cannot hold.
 
-Emitted payloads are validated against the schema the bus registry binds to each
-channel, so an ill-formed event is a 400 at the edge rather than a confused
-subscriber downstream.
+| Route | Serves |
+|---|---|
+| `GET /api/health`, `GET /` | Liveness: 200 once the process serves |
+| `GET /api/openapi.json` | The OpenAPI document, stamped with this build's version and public URL |
+| `GET /.well-known/oauth-protected-resource` | Resource metadata naming this knowledge base's issuer (RFC 9728) |
+| `GET /api/users/me` | The principal the bearer token names |
+| `POST /api/tokens/agent`, `POST /api/tokens/media` | The tokens the gateway mints. People sign in at the issuer, not here |
+| `GET /api/status` | The gateway's status and version |
+| `POST /bus/emit`, `POST /bus/subscribe` | The bus hub, over the selected signal driver (`src/signal/`) |
+| `POST /resources` | Upload: the bytes go to the Archivist, then `yield:create` records the resource |
+| `GET /resources/{id}`, `GET /api/resources/{id}` | The stored bytes, streamed from the Archivist; the second takes a `?token=` media token |
+| `GET /resources/{id}/jsonld` | The resource's JSON-LD description |
+
+Every error, on every route, is a JSON `ErrorResponse`. Emitted payloads are
+validated against the schema the bus registry binds to each channel, so an
+ill-formed event is a 400 at the edge rather than a confused subscriber
+downstream.
 
 ## Development
 
 ```bash
-npm run dev            # watch mode
+npm run dev            # watch mode (needs ~/.semiontconfig; see docs/DEVELOPMENT.md)
 npm run typecheck
-npm test               # unit
-npm run test:integration
+npm test               # the manifest census
 ```
+
+The gateway's behavioural contract is the black-box
+[conformance suite](../../tests/gateway-conformance/README.md), run against a
+built gateway on both signal planes; see [TESTING.md](docs/TESTING.md).
 
 The package publishes as [`@semiont/gateway`](https://www.npmjs.com/package/@semiont/gateway);
 the container image installs that package and runs it directly, with no CLI
@@ -142,6 +159,6 @@ layer in between.
 - [ARCHITECTURE.md](docs/ARCHITECTURE.md) — internal structure
 - [AUTHENTICATION.md](docs/AUTHENTICATION.md) — tokens, agents, sign-in
 - [DEVELOPMENT.md](docs/DEVELOPMENT.md) — working on the gateway
-- [TESTING.md](docs/TESTING.md) — suites and what each covers
+- [TESTING.md](docs/TESTING.md) — the conformance suite and what each check covers
 - [LOGGING.md](docs/LOGGING.md) — log shape and levels
 - [Services overview](../../docs/system/services/OVERVIEW.md) — where the gateway sits among the services

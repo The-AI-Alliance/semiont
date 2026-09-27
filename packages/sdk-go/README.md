@@ -32,7 +32,7 @@ cd packages/sdk-go && go generate ./...
 ```
 
 That runs the pinned generator (`oapi-codegen@v2.6.0`) inside a
-`golang:1.25` container — no host Go needed — against `specs/openapi.json`,
+`golang:1.27` container — no host Go needed — against `specs/openapi.json`,
 rewriting `client_gen.go`. Commit the result. Until someone regenerates,
 the committed client lags the spec safely: it can't drift into wrongness,
 it just doesn't know about new endpoints yet.

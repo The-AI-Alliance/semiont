@@ -4,7 +4,7 @@
   "properties": {
     "did": {
       "type": "string",
-      "description": "The authenticated principal's DID — `did:web:<domain>:users:<email>` for a person, `did:web:<domain>:agents:<provider>:<model>` for a software agent."
+      "description": "The authenticated principal's DID — `did:web:<domain>:users:<subject>` for a person, where the subject is the issuer claim the knowledge base names its people by (`identity.subjectClaim`), `did:web:<domain>:agents:<provider>:<model>` for a software agent."
     },
     "email": {
       "type": "string"

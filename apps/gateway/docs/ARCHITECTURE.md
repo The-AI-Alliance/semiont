@@ -6,27 +6,23 @@ This document describes the architectural patterns and design principles that go
 
 **All long-lived state is created once at startup in [src/index.ts](../src/index.ts); routes construct nothing.**
 
-Startup builds four things, and refuses rather than degrades when any is missing:
+Startup builds four things, and refuses rather than degrades when any is missing — and then refuses to listen unless its routes are exactly the spec's operations (below):
 
-1. **Config** — `loadEnvironmentConfig(null)`. No KB root: the gateway mounts no knowledge-base tree. Everything it needs — the KB's committed settings, the launcher-staged `[kb]` identity, the archivist address — arrives in the per-service config mounted at `~/.semiontconfig`.
-2. **Identity** — two halves. `configureTrustedIssuer` ([src/identity/trusted-issuer.ts](../src/identity/trusted-issuer.ts)) names the issuer whose published keys verify every bearer this process accepts; people and service accounts alike obtain their tokens there, and the gateway keeps no account, no session and no row. `requireJwtSecret` ([src/auth/jwt.ts](../src/auth/jwt.ts)) checks the key ring the gateway signs its own two token kinds with — agent tokens minted at `POST /api/tokens/agent` and media tokens — the only credentials that originate here. Beside them, the launcher-staged `[kb] domain` — the KB's committed `[site] domain` — is required: it is the audience tokens must carry, the authority people and agents are named under, and the issuer of the tokens the gateway signs.
-3. **Archivist access** — `requireArchivistAccess` ([src/boot-requirements.ts](../src/boot-requirements.ts)): the address of the record and this process's own service-account credential for reaching it. Checked at boot so a misconfigured record fails once, loudly, rather than on the first content read.
-4. **EventBus + Signal Plane** — the per-process RxJS bus, composed with the fan-out driver by `compositionFor(eventBus, plane?)` ([src/signal/](../src/signal/)): plane plus the correlation ledger. `[signal] type = "nats"` seeds it with the NATS driver; absent, it lazily composes the in-process driver. See [The Signal Plane](#the-signal-plane).
+1. **Config** — `readGatewayConfig` ([src/config.ts](../src/config.ts)): one JSON document at `~/.semiontconfig`, a `GatewayConfig` from `specs/`, validated against the spec's schema. The launcher writes it resolved — the KB's committed name and domain, the port and public URL, the issuer, the Archivist's address, the signal plane, the log level — so the gateway neither parses TOML nor resolves or defaults anything.
+2. **Identity** — two halves. `configureTrustedIssuer` ([src/identity/trusted-issuer.ts](../src/identity/trusted-issuer.ts)) names the issuer whose published keys verify every bearer this process accepts; people and service accounts alike obtain their tokens there, and the gateway keeps no account, no session and no row. `requireJwtSecret` ([src/auth/jwt.ts](../src/auth/jwt.ts)) checks the key ring the gateway signs its own two token kinds with — agent tokens minted at `POST /api/tokens/agent` and media tokens — the only credentials that originate here. The document's `kb.domain` — the KB's committed `[site] domain` — is the audience tokens must carry, the authority people and agents are named under, and the issuer of the tokens the gateway signs.
+3. **Archivist access** — the document's `archivist` address and this process's own service account (`requireServiceAccount`, [src/boot-requirements.ts](../src/boot-requirements.ts)), resolved once into the `archivist` context value every proxying route uses. Checked at boot so a misconfigured record fails once, loudly, rather than on the first content read.
+4. **EventBus + Signal Plane** — the per-process RxJS bus, composed with the fan-out driver by `compositionFor(eventBus, plane?)` ([src/signal/](../src/signal/)): plane plus the correlation ledger. A `signal.type` of `nats` seeds it with the NATS driver; `in-process` composes the in-process one. See [The Signal Plane](#the-signal-plane).
 
-Routes read `config` and `eventBus` from Hono context (auth middleware adds the caller's `principal`) and reach everything KB-shaped remotely — content bytes through [src/lib/archivist.ts](../src/lib/archivist.ts), domain reads over the bus:
+**The route table is the spec's.** Once every route is registered, and before `serve()`, `routeMismatches` ([src/spec-routes.ts](../src/spec-routes.ts)) compares `app.routes` with the operations in the OpenAPI document the build ships beside the entry point. A route the spec does not declare, a declared operation nothing serves, or middleware on a path the spec does not name stops the process, naming each. The conformance suite probes every operation the spec declares from outside; this is the half it cannot see.
+
+Routes read `eventBus` and `archivist` from Hono context (auth middleware adds the caller's `principal`) and reach everything KB-shaped remotely. The gateway makes no bus request of its own: an upload, content bytes, a JSON-LD description and a replay are HTTP calls to the archivist through [src/lib/archivist.ts](../src/lib/archivist.ts), and every other domain read is a client's own bus request, which the gateway only relays:
 
 ```typescript
 // The pipe: bytes proxied from the archivist
-const { body, mediaType } = await getContent(c.get('config'), id);
-
-// A domain read: one bus round-trip, answered in another container
-const response = await busRequest(
-  requestPrimitiveFor(c.get('eventBus')),
-  'browse:resource-requested', { resourceId: resourceId(id) },
-);
+const { body, mediaType } = await getContent(c.get('archivist'), id);
 ```
 
-Graph, vectors, embedding, inference, the event store, the working tree, and the job queue belong to other services. [package.json](../package.json) enforces the store half: `@semiont/graph`, `@semiont/vectors`, `@semiont/inference`, and `@semiont/event-sourcing` are not dependencies, so a route cannot import a store client at all. A census test enforces the queue half: no gateway code references a `job:*` handler.
+Graph, vectors, embedding, inference, the event store, the working tree, and the job queue belong to other services. [package.json](../package.json) enforces the store half: `@semiont/graph`, `@semiont/vectors`, `@semiont/inference`, and `@semiont/event-sourcing` are not dependencies, so a route cannot import a store client at all. The conformance suite enforces the queue half: a `job:*` request gets no answer from the gateway.
 
 ## Process Split
 
@@ -38,25 +34,25 @@ It was the last non-routing work in this process, and it left with the dispatche
 
 ## The Signal Plane
 
-`src/signal/` is the hub's fan-out behind a driver interface ([interface.ts](../src/signal/interface.ts)) — the plane moves frames and honors reply addresses; it never inspects a payload or decides entitlement. Two drivers implement it, certified by one conformance suite:
+`src/signal/` is the hub's fan-out behind a driver interface ([interface.ts](../src/signal/interface.ts)) — the plane moves frames and honors reply addresses; it never inspects a payload or decides entitlement. Two drivers implement it, and the conformance suite runs the gateway on each:
 
 - **in-process** ([in-process.ts](../src/signal/in-process.ts)) — the per-process EventBus; the permanent local default.
 - **NATS** ([nats.ts](../src/signal/nats.ts)) — frames ride core subjects and are never stored; the ledger's tables are JetStream KV buckets on the same server, which also holds the dispatcher's queue. This driver is what lets the gateway run as N replicas.
 
-Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane. Claims, and the replies retained for reconnect recovery, live in tables every replica shares — JetStream KV buckets under NATS, so the broker must run with JetStream — and each replica keeps a projection of the claims; a replica that has not caught up with a claim reads the table rather than refusing the reply, so a replica that starts, restarts or lags still delivers to the claim's owner, and recovery answers from any replica, across restarts (the driver never learns the correlation vocabulary — that census is enforced). The gateway does not listen until its claims table is open. With the driver remote, startup flushes the plane before listening, so the ledger's standing tap and every early `/bus/subscribe` interest are registered with the broker before the first frame can be missed; shutdown drains it under a deadline for the same reason in reverse. Under a broker outage emits fail and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
+Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane. Claims, and the replies retained for reconnect recovery, live in tables every replica shares — JetStream KV buckets under NATS, so the broker must run with JetStream — and each replica keeps a projection of the claims; a replica that has not caught up with a claim reads the table rather than refusing the reply, so a replica that starts, restarts or lags still delivers to the claim's owner, and recovery answers from any replica, across restarts. The driver never learns the correlation vocabulary: the correlationId rides the frame's envelope, ferried unread, and a correlationId inside a payload is the caller's data and routes nothing. The gateway does not listen until its claims table is open. With the driver remote, startup flushes the plane before listening, so the ledger's standing tap and every early `/bus/subscribe` interest are registered with the broker before the first frame can be missed; shutdown drains it under a deadline for the same reason in reverse. Under a broker outage emits are refused with 503 — the NATS client discards whatever is published while it is disconnected, so the plane reports itself unavailable rather than accept a frame it would lose — and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
 
 ## Domain Traffic Rides the Bus
 
-Domain reads and commands have no per-route HTTP faces: clients emit bus operations (`POST /bus/emit`, replies over the SSE subscription) via the SDK, and the answering actors live in other containers — the archivist's Browser answers `browse:*`, the librarian's Matcher and Gatherer answer `bind:*` and `gather:*`, the dispatcher answers `job:*`. The one delegating HTTP route left is `GET /resources/:id/jsonld`, which wraps `browse:resource-requested` in core's `busRequest` over the gateway's plane primitive, for machine clients arriving over plain HTTP.
+Domain reads and commands have no per-route HTTP faces: clients emit bus operations (`POST /bus/emit`, replies over the SSE subscription) via the SDK, and the answering actors live in other containers — the archivist's Browser answers `browse:*`, the librarian's Matcher and Gatherer answer `bind:*` and `gather:*`, the dispatcher answers `job:*`. The gateway makes no bus request of its own: `GET /resources/:id/jsonld`, the linked-data description for machine clients arriving over plain HTTP, is read from the Archivist over HTTP like the bytes.
 
 ### The Content Plane
 
 | Route | Behavior |
 |-------|----------|
 | `GET /resources/:id` | The pipe: stored bytes, verbatim, stored media type in `Content-Type`. The `Accept` header is never read — no negotiation, no transcoding — so byte fidelity holds on every response. A `Link: rel="describedby"` header points at the JSON-LD description. |
-| `GET /resources/:id/jsonld` | The JSON-LD description (descriptor + annotations + inbound references), via the bus. |
+| `GET /resources/:id/jsonld` | The JSON-LD description (descriptor + annotations + inbound references), read from the archivist. |
 | `GET /api/resources/:id` | Browser-friendly alias of the pipe; exists only as the `?token=` auth affordance for `<img>`, PDF.js, and download links. |
-| `POST /resources` | Multipart upload: bytes stream to the archivist (`PUT /content/:storageUri`), then the creation event rides the bus. |
+| `POST /resources` | Multipart upload, streamed untouched to the archivist, which stores the bytes and records the resource. |
 
 The gateway holds no bytes — both directions stream through the archivist's HTTP byte surface.
 
@@ -77,8 +73,9 @@ The Archivist holds the knowledge base's files and event log. Requests reach it 
 
 | Client calls the gateway | The gateway calls the Archivist |
 |---|---|
-| `POST /resources` | `PUT /content/:storageUri?checksum=…` writes the bytes; the gateway then emits `yield:create` on the bus |
+| `POST /resources` | `POST /resources` with the multipart body unchanged, naming the caller in `Semiont-Principal` and `Semiont-Roles`: the archivist stores the bytes and records the resource |
 | `GET /resources/:id`, `GET /api/resources/:id` | `GET /resources/:id/content`, streamed back unchanged |
+| `GET /resources/:id/jsonld` | `GET /resources/:id/jsonld` |
 | `POST /bus/subscribe` with `Last-Event-ID` | `GET /events/:resourceId?fromSequence=N` for the events the client missed |
 
 The gateway authenticates with its own service account: a token from the knowledge base's identity provider carrying the `semiont-service` role. Browsers never reach the Archivist; their tokens lack that role.

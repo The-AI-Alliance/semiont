@@ -1,28 +1,30 @@
 {
   "type": "object",
-  "description": "Emit an event on the Semiont bus. Channel names come from bus-protocol.ts; payload shape is validated against the channel's registered schema (CHANNEL_SCHEMAS). An optional scope routes resource-scoped broadcasts (e.g. mark:added, job:complete) to per-resource subscribers via eventBus.scope(scope); leave it unset for unscoped/global events.",
+  "description": "One event for the bus. `channel` names a channel of the bus registry (specs/src/bus/registry.json) and `payload` must match the schema the registry's `validate` names for it. `scope` publishes a resource-bound broadcast to that resource's subscribers only; everything else is unscoped. `clientId` and `correlationId` are routing facts beside the payload, never inside it.",
   "properties": {
     "channel": {
       "type": "string",
-      "description": "Channel name from bus-protocol.ts EventMap"
+      "description": "A channel of the bus registry.",
+      "minLength": 1
     },
     "payload": {
       "type": "object",
-      "description": "Channel-specific payload, validated against CHANNEL_SCHEMAS",
+      "description": "The channel's payload, validated against the schema its registry entry names. `_userId` and `_roles` are the gateway's to write: whatever a caller puts there is replaced.",
       "additionalProperties": true
     },
     "scope": {
       "type": "string",
-      "description": "Optional resource scope for broadcast channels (e.g. resourceId). Publishers only — clients must never set this.",
+      "description": "The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one.",
       "minLength": 1
     },
     "clientId": {
       "type": "string",
-      "description": "Routing address for this request's reply (CORRELATED-REPLY-ROUTING D1/D2): the emit doubles as a claim on the correlationId, and delivery matches BOTH this and the emitting principal. Top-level, not inside `payload` — a wire concern like `scope`, so it never enters a channel's domain type. Optional in the schema because a plain broadcast needs no return address; the route requires it when the channel is a registered request channel and the payload carries a correlationId."
+      "description": "The address this request's reply is delivered to: the emit claims `correlationId` for this clientId and the verified principal. Required when `channel` is a registry operation's request and a correlationId is present; ignored otherwise. An empty string counts as absent."
     },
     "correlationId": {
       "type": "string",
-      "description": "Pairs a reply with its request. Top-level, not inside `payload` -- a wire concern like `scope` and `clientId`, so it never enters a channel's domain type (BUS-ROUTING-DECLARED D2, carried out by BUS-CARRIES-FRAMES P3). It was declared in 70 payload schemas and echoed by hand in nine handlers until then, which is what forced every driver that wanted to route to deserialize an application payload first. Optional because an announcement correlates nothing; the route requires it on a registered request channel."
+      "description": "Pairs a reply with its request. On a registry operation's request it claims the id: a second claim of a live id is refused with 409. Replies carry it back on the frame, never in the payload.",
+      "minLength": 1
     }
   },
   "required": [

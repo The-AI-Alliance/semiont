@@ -1,183 +1,91 @@
 # Testing Guide - Semiont
 
-This guide covers the testing strategy and implementation for the Semiont project, with a focus on the modern testing stack used in the Browser.
+This guide covers how Semiont's test suites are organized, configured and run: the in-process suites in every workspace, the black-box gateway conformance suite, the Go suites, and the end-to-end suite that drives a live stack.
 
 ## Overview
 
-The Semiont project uses a modern testing stack built on:
-- **Vitest** - Fast, ESM-native test runner
-- **MSW v2** - API mocking without implementation details
-- **React Testing Library** - Component testing focused on user behavior
-- **ES Modules** - Native JavaScript module system throughout
+- **Vitest** runs every TypeScript suite: each workspace under `apps/` and `packages/`, and the gateway conformance suite.
+- **React Testing Library**, with the `@testing-library/jest-dom` and `jest-axe` matchers, tests the components in `@semiont/react-ui` and the Browser under jsdom.
+- **The SDK's test doubles** (`@semiont/sdk/testing`, `@semiont/core/testing`) stand in for a knowledge base: a real `SemiontClient` over a scriptable in-memory transport. Unit tests make no network requests.
+- **Playwright** drives the live Browser in the end-to-end suite.
+- **Go's `testing` package** covers the launcher and `packages/sdk-go`.
 
-## Test Types and Organization
+## Test Suites
 
-Semiont organizes tests into five distinct categories for targeted testing:
+| Suite | Where | What it exercises | Needs |
+|---|---|---|---|
+| Workspace suites | every workspace in `apps/*` and `packages/*` with a `test` script, the gateway aside | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
+| Gateway manifest census | `apps/gateway` (`npm test`) | The gateway's `package.json`: its runtime dependencies are exactly what its source imports | Nothing |
+| Gateway conformance | [`tests/gateway-conformance`](../../tests/gateway-conformance/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway and `nats-server` 2.10 or later on `PATH` |
+| Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start/stop lifecycles; the Go bus client's wire contract | The Go toolchain named in each `go.mod` |
+| End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user in its issuer |
 
-### 🧩 **Unit Tests**
-Test individual components, functions, and hooks in isolation:
-- Component rendering and props handling
-- Hook behavior and state management
-- Utility function logic
-- Individual SDK namespace methods
+The Browser's `test:unit`, `test:integration`, `test:security` and `test:a11y` scripts are filters over its one suite, not separate suites — see [Running Tests](#running-tests).
 
-### 🔗 **Integration Tests**
-Test component interactions and multi-step workflows:
-- Complete user flows (e.g., signup process)
-- Component communication
-- State management across components
-- Form submission workflows
+CI adds checks that are not test suites: the security workflow starts a built Browser and gateway and probes them with `curl`, the accessibility workflow runs Lighthouse against a built Browser, and the architecture workflow runs the lint and compliance audits. See [Continuous Integration](#continuous-integration).
 
-### 🌐 **API Tests**
-Test API endpoints, route handlers, and middleware:
-- HTTP request/response handling
-- Authentication middleware
-- Input validation
-- Error handling
-- Database operations
-
-### 🔒 **Security Tests**
-Focus on security-critical functionality:
-- Authentication flows
-- Authorization checks
-- Input sanitization
-- GDPR compliance features
-- Admin access controls
-
-### 🎭 **End-to-End Tests**
-Real-browser Playwright tests that drive the live Browser against a live gateway and KB stack. Catch cross-layer regressions that unit and integration tests can't see:
-- SSE timing and reconnect
-- React lifecycle ↔ event-bus interaction
-- Cross-package round-trips (Browser → gateway → make-meaning → workers)
-- Auth session rebuild after sign-out/sign-in
-- Persistence: annotation reload, view-state survival
-
-Lives in [`tests/e2e/`](../../tests/e2e/) (separate npm workspace; not bundled with package tests). See the [End-to-End Tests](#end-to-end-tests) section below for the full picture.
+The end-to-end suite has its own section below: [End-to-End Tests](#end-to-end-tests).
 
 ## Test Environment Configuration
 
-Semiont uses a hierarchical test environment system to support different testing scenarios. The test orchestrator (`scripts/test.ts`) is the authoritative source for all test configuration, which is passed to downstream test processes via a temporary JSON file.
+There is no test orchestrator and no test environment to select. A suite's configuration is its own config file — a `vitest.config.*`, or the e2e suite's `playwright.config.ts` — and anything else a test needs it builds for itself: a temporary directory, a test double, a child process. No configuration file is handed to a test run, and no variable selects a profile.
 
-### How Configuration Works
+### One shared Vitest config
 
-1. **Configuration Generation**: When `scripts/test.ts` runs tests, it:
-   - Determines the appropriate configuration based on environment, suite, and service
-   - Loads and merges configuration from `environments/`
-   - Writes the full configuration to a temporary JSON file
-   - Sets `SEMIONT_TEST_CONFIG_PATH` environment variable pointing to this file
-   - Shows the config file path in the output for transparency
+[`vitest.shared.config.ts`](../../vitest.shared.config.ts) at the repository root holds what every workspace suite has in common:
 
-2. **Configuration Access**: Test files can access configuration by:
-   - Checking for `SEMIONT_TEST_CONFIG_PATH` environment variable
-   - Reading and parsing the JSON file at that path
-   - Using the configuration values for test setup
+- `globals: true` and the `node` environment;
+- the test files, `src/**/*.test.{ts,tsx}`, excluding `node_modules` and `dist`;
+- coverage: the `v8` provider; the reporters `text`, `json`, `json-summary`, `html`, `lcov` and `cobertura`; and the excludes — test files, config files, declaration files, `index.ts` barrels, generated `types.ts`, and the sidecars' `src/*-main.ts` process wiring.
 
-3. **Automatic Cleanup**: The temporary config file is automatically deleted when tests complete
+It sets no coverage thresholds.
 
-### Environment Hierarchy
+Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only what is local. `npm run lint:vitest-coverage` enforces this: every workspace that declares `test:coverage` must have a vitest config, that config must derive from the shared one, and it must not re-declare `coverage.reporter` — `mergeConfig` concatenates arrays, so a local list would run every reporter twice.
 
-```
-environments/
-├── test.json        # Base test configuration (shared settings)
-├── unit.json        # Unit tests (extends test + mocked dependencies)
-└── integration.json # Integration tests (extends test + real database)
-```
+### What each workspace adds
 
-### Environment Selection
+| Workspace | Local configuration |
+|---|---|
+| `apps/browser` | `jsdom`; [`vitest.setup.ts`](../../apps/browser/vitest.setup.ts); the React plugin; the `@` → `src` alias; the `threads` pool with `maxConcurrency: 2`; `dangerouslyIgnoreUnhandledErrors`, for tests that throw on purpose; `tsconfig.test.json` for `vitest typecheck`; extra coverage excludes |
+| `packages/react-ui` | `jsdom`; [`vitest.setup.ts`](../../packages/react-ui/vitest.setup.ts); the `@` → `src` alias; a coverage `include` of `src/**/*.{ts,tsx}` |
+| `packages/core` | the `@` → `src` alias; a coverage `include` of `src/**/*.ts` |
+| `packages/content` | a global setup that regenerates the gitignored PDF fixtures before every run |
+| `packages/event-sourcing`, `packages/make-meaning` | a setup file that points `XDG_STATE_HOME` into the OS temp directory; make-meaning's also sets a 10-second test timeout |
+| `packages/mcp-server` | test files limited to `src/**/*.test.ts`; a coverage `include` of `src/**/*.ts`, less `src/index.ts`, which boots a stdio server on import and is tested as a process |
+| `apps/gateway`, and `packages/` `graph`, `http-transport`, `inference`, `jobs`, `observability`, `ontology`, `sdk`, `vectors` | nothing |
 
-Tests automatically use the appropriate environment based on their type:
+A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
 
-- **Unit Tests** (config: `unit.ts`):
-  - Mocked database connections (`mockMode: true`)
-  - No external service dependencies
-  - Fast execution, ideal for TDD
-  - Used by default Browser tests and gateway unit tests
+The two jsdom setup files:
 
-- **Integration Tests** (config: `integration.ts`):
-  - Real PostgreSQL via Testcontainers (`useTestcontainers: true`)
-  - Actual database operations
-  - Full API endpoint testing
-  - Used for gateway integration tests
+- **The Browser's** adds the jest-dom matchers; polyfills `DOMMatrix`, `matchMedia` and `getAnimations`; fixes `window.location` at `http://localhost:3000/`; stubs `URL.createObjectURL`; resolves relative `fetch` URLs against `http://localhost:3000`; mocks `react-router`'s hooks, `react-i18next` (serving the real English strings from the generated `messages/en.json`) and `@/i18n/routing`; and cleans up after each test.
+- **react-ui's** adds the jest-dom and jest-axe matchers; fills jsdom's gaps (`DOMMatrix`, `scrollIntoView`, a `focus` that moves `document.activeElement`); cleans up after each test; and replaces `globalThis.fetch` with one that throws `Unit test attempted a network request: <url>`.
 
-- **Base Test** (config: `test.ts`):
-  - Shared configuration for all test types
-  - Disabled production features (analytics, monitoring)
-  - Test-specific domains and emails
-  - Rarely used directly, serves as parent config
+### Environment variables
 
-### Configuration Properties
+No Vitest suite takes configuration from the shell. A test that exercises code which reads a variable sets it and restores it; a setup file sets only what production code in its process reads — `XDG_STATE_HOME`, above. The Boot Contract audit enforces the second rule: [`audit-test-env-hygiene.sh`](../../scripts/compliance/audit-test-env-hygiene.sh) fails when a test file under `apps/gateway`, `apps/browser` or `packages/*` exports a `SEMIONT_*` variable that no production code in the same process — the workspace and the `@semiont/*` packages it depends on — reads.
 
-Each test environment provides:
-- Test-specific domain and email settings
-- Disabled production features (analytics, maintenance mode)
-- Appropriate database configuration (mocked vs. real)
-- Security settings optimized for testing
-- NODE_ENV set to 'test' for all test types
+`NODE_ENV` selects nothing. Vitest sets it to `test` when it is unset; no code compares it to `test`, and the only reads — react-ui's error boundaries and the Browser's translation manager — check for `development` to show diagnostics.
 
-### Using Configuration in Tests
+### Test doubles, not services
 
-The configuration object passed to tests contains:
+Workspace suites run with nothing listening. CI's package matrix starts no database, vector store or model server, and the `graph`, `vectors` and `inference` suites pass without Neo4j, Qdrant or Ollama.
 
-```typescript
-{
-  site: {
-    name: string,
-    url: string,
-    apiUrl: string
-  },
-  aws: {
-    region: string,
-    account: string,
-    // ... other AWS settings
-  },
-  app: {
-    database: {
-      url: string
-    },
-    // ... other app settings
-  }
-}
-```
+- **The SDK.** `@semiont/sdk/testing` provides a real `SemiontClient` (`createTestClient`) or `SemiontSession` (`createTestSession`) over `FaultyTransport`, the scriptable in-memory transport from `@semiont/core/testing`. An operation the test did not script throws `No response scripted for bus operation "<op>"` rather than answering with a fabricated reply. `stubGateway()` supplies gateway operations that each reject with their own name; `inMemoryContent()` stores content and throws on an unknown id.
+- **React.** `@semiont/react-ui/test-utils` assembles those doubles into providers: `renderWithProviders` renders inside a real `SemiontBrowser` whose active session runs on them. The Browser's [`src/test-utils.tsx`](../../apps/browser/src/test-utils.tsx) builds on it.
+- **Property axioms.** `@semiont/core/testing/axioms` holds the StateUnit and liveness axiom harnesses. It needs `fast-check` in the importing package's devDependencies.
+- **An identity provider.** `@semiont/core/testing/issuer` is an in-process OIDC issuer: signing keys, signed tokens, and the discovery and JWKS documents. It serves nothing; the consumer answers the two URLs.
+- **A real broker where a mock would prove nothing.** `@semiont/jobs`' JetStream tests and the conformance suite's NATS plane spawn `nats-server` from `PATH`. A missing binary fails the run with instructions; it never skips.
 
-#### Option 1: Using the Config Loader Helper
+### The gateway conformance suite
 
-```typescript
-import { loadTestConfig, getTestConfigValue } from '@/config/test-config-loader';
+[`tests/gateway-conformance/vitest.config.ts`](../../tests/gateway-conformance/vitest.config.ts) is its own config, not derived from the shared one: test files `cases/**/*.test.ts`; the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. Its global setup refuses to start without a built gateway (`apps/gateway/dist/index.js`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
 
-// In your test setup
-const config = loadTestConfig();
-if (config) {
-  // Use config.site.apiUrl, config.app.database.url, etc.
-  const apiUrl = config.site.apiUrl;
-  const dbUrl = config.app?.database?.url;
-}
+Each gateway the suite starts gets a fresh temporary `HOME` holding `~/.semiontconfig` — the `GatewayConfig` document — and an environment of `PATH`, `HOME`, and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
 
-// Or get specific values
-const apiUrl = getTestConfigValue('site.apiUrl', 'http://localhost:3001');
-```
+### The end-to-end suite
 
-#### Option 2: Direct Access in Test Setup
-
-```typescript
-// In your test setup file (e.g., vitest.setup.js)
-import { readFileSync } from 'fs';
-
-const configPath = process.env.SEMIONT_TEST_CONFIG_PATH;
-if (configPath) {
-  const config = JSON.parse(readFileSync(configPath, 'utf-8'));
-  // Use configuration values
-  process.env.SERVER_API_URL = config.site.apiUrl;
-}
-```
-
-### Benefits of This Approach
-
-1. **Single Source of Truth**: All configuration originates from `scripts/test.ts`
-2. **Type Safety**: Configuration can be typed and validated
-3. **Environment Agnostic**: Tests don't need to know about NODE_ENV
-4. **Flexible**: Full configuration object available, not just simple flags
-5. **Clean**: Temporary files are automatically cleaned up after tests
-6. **Transparent**: Config file paths are shown in test output for debugging
+[`tests/e2e/playwright.config.ts`](../../tests/e2e/playwright.config.ts) reads four variables: `E2E_EMAIL` and `E2E_PASSWORD`, which are required — the config exits before any test runs if either is missing — and `E2E_BROWSER_URL` and `E2E_GATEWAY_URL`, which default to `http://localhost:3000` and `http://localhost:4000`. Its global setup seeds the knowledge base through `@semiont/sdk`. See [End-to-End Tests](#end-to-end-tests).
 
 ## Browser Testing Stack
 
@@ -185,55 +93,30 @@ if (configPath) {
 
 #### Vitest
 - ESM-first test runner built on Vite
-- Jest-compatible API for easy migration
-- Blazing fast with parallel test execution
+- Jest-compatible API
+- Parallel test execution
 - Native TypeScript support
-
-#### MSW (Mock Service Worker) v2
-- Intercepts requests at the network level
-- Works in both Node.js and browser environments
-- Provides realistic API mocking
-- No implementation details in tests
 
 #### React Testing Library
 - Encourages testing user interactions
 - Focuses on accessibility and user experience
-- Works seamlessly with Vitest
+- `@testing-library/jest-dom` matchers for DOM assertions, `jest-axe` for accessibility violations
 
-### Configuration
+#### The SDK's test doubles
+- A real `SemiontClient` and `SemiontSession` over a scriptable in-memory transport
+- Unscripted operations fail loudly, naming the operation
+- Composed into React providers by `@semiont/react-ui/test-utils`
+
+The Vitest configs and setup files are described under [Test Environment Configuration](#test-environment-configuration).
 
 ### TypeScript Configuration for Tests
 
-To enable strict TypeScript checking for test files, create a separate `tsconfig.test.json`:
-
-```json
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "types": ["vitest", "vitest/globals", "@testing-library/jest-dom", "node"],
-    "noEmit": true,
-    "allowJs": true
-  },
-  "include": [
-    "vitest.setup.js",
-    "src/**/*.test.ts",
-    "src/**/*.test.tsx",
-    "src/**/*.spec.ts", 
-    "src/**/*.spec.tsx",
-    "src/**/__tests__/**/*",
-    "src/mocks/**/*",
-    "src/types/**/*"
-  ],
-  "exclude": ["node_modules"]
-}
-```
-
-Add these scripts to `package.json` for type checking:
+The Browser typechecks its test files with a separate [`tsconfig.test.json`](../../apps/browser/tsconfig.test.json). It extends `tsconfig.json`, adds the `vitest`, `vitest/globals`, `@testing-library/jest-dom`, `node`, `react` and `react-dom` types, and includes `vitest.setup.ts` and every test file. Three scripts use the two configs:
 
 ```json
 {
   "scripts": {
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit --project tsconfig.json",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "typecheck:all": "npm run typecheck && npm run typecheck:test"
   }
@@ -249,128 +132,6 @@ const mock = fn as vi.MockedFunction<typeof fn>
 // Use:
 import type { MockedFunction } from 'vitest'
 const mock = fn as MockedFunction<typeof fn>
-```
-
-#### `vitest.config.js`
-```javascript
-import { defineConfig } from 'vitest/config'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-export default defineConfig({
-  test: {
-    globals: true,
-    environment: 'jsdom',
-    setupFiles: ['./vitest.setup.js'],
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      exclude: [
-        'node_modules/',
-        'src/test/',
-        '**/*.d.ts',
-        '**/*.config.*',
-        '**/mockData/*',
-        'src/mocks/**',
-        '**/__tests__/**',
-        'vitest.setup.js'
-      ],
-    },
-  },
-  resolve: {
-    alias: {
-      '@': path.resolve(__dirname, './src'),
-    },
-  },
-})
-```
-
-#### `vitest.setup.js`
-```javascript
-import '@testing-library/jest-dom'
-import { beforeAll, afterEach, afterAll, vi } from 'vitest'
-import { server } from './src/mocks/server.js'
-
-// Enable API mocking with MSW
-beforeAll(() => server.listen({
-  onUnhandledRequest: 'warn'
-}))
-
-// Reset any runtime request handlers we may add during the tests
-afterEach(() => server.resetHandlers())
-
-// Disable API mocking after the tests are done
-afterAll(() => server.close())
-
-// Mock the host's router
-vi.mock('next/navigation', () => ({
-  useRouter() {
-    return {
-      push: vi.fn(),
-      replace: vi.fn(),
-      prefetch: vi.fn(),
-      back: vi.fn(),
-      forward: vi.fn(),
-      refresh: vi.fn(),
-    }
-  },
-  useSearchParams() {
-    return {
-      get: vi.fn(),
-    }
-  },
-  usePathname() {
-    return ''
-  },
-  redirect: vi.fn(),
-  notFound: vi.fn(),
-}))
-
-// Mock URL.createObjectURL and URL.revokeObjectURL
-global.URL.createObjectURL = vi.fn(() => 'blob:mock-url')
-global.URL.revokeObjectURL = vi.fn()
-```
-
-### MSW Setup
-
-#### `src/mocks/server.ts`
-```typescript
-import { setupServer } from 'msw/node'
-import { handlers } from './handlers'
-
-export const server = setupServer(...handlers)
-```
-
-#### `src/mocks/browser.ts`
-```typescript
-import { setupWorker } from 'msw/browser'
-import { handlers } from './handlers'
-
-export const worker = setupWorker(...handlers)
-```
-
-#### `src/mocks/handlers.ts`
-```typescript
-import { http, HttpResponse } from 'msw'
-
-export const handlers = [
-  // Health check endpoint
-  http.get('/api/health', () => {
-    return HttpResponse.json({ status: 'ok' })
-  }),
-
-  // Authentication endpoints
-  http.get('/api/auth/session', () => {
-    return HttpResponse.json({
-      user: { 
-        email: 'test@example.com',
-        name: 'Test User'
-      }
-    })
-  }),
-]
 ```
 
 ## Writing Tests
@@ -400,94 +161,20 @@ describe('SemiontBranding', () => {
 })
 ```
 
-### Testing Async Components
+### Code That Talks to a Knowledge Base
+
+Script the transport, then observe through a real client:
 
 ```typescript
-import { describe, it, expect } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
-import { GreetingSection } from '../GreetingSection'
+import { createTestClient } from '@semiont/sdk/testing'
 
-// MSW will intercept this API call
-describe('GreetingSection', () => {
-  it('should display greeting from API', async () => {
-    render(<GreetingSection />)
-    
-    // Wait for the API call to complete
-    await waitFor(() => {
-      expect(screen.getByText(/Hello from MSW!/)).toBeInTheDocument()
-    })
-  })
-})
+const { client, transport } = createTestClient()
+transport.queueReply('browse:resources-requested', { resources: [], total: 0, offset: 0 })
+// Hand `client` to the unit under test. An operation nobody scripted throws
+// "No response scripted for bus operation ..." instead of answering.
 ```
 
-## Migration from Jest to Vitest
-
-### Key Differences
-
-1. **Import statements**
-   ```typescript
-   // Jest
-   import { jest } from '@jest/globals'
-   
-   // Vitest
-   import { vi } from 'vitest'
-   ```
-
-2. **Mocking**
-   ```typescript
-   // Jest
-   jest.mock('./module')
-   jest.fn()
-   jest.spyOn()
-   
-   // Vitest
-   vi.mock('./module')
-   vi.fn()
-   vi.spyOn()
-   ```
-
-3. **Configuration**
-   - Jest uses `jest.config.js`
-   - Vitest uses `vitest.config.js` with Vite-compatible configuration
-
-4. **ESM Support**
-   - Jest requires additional configuration for ESM
-   - Vitest has native ESM support out of the box
-
-### Migration Steps
-
-1. **Install Vitest dependencies**
-   ```bash
-   npm install --save-dev vitest @vitest/coverage-v8 jsdom
-   ```
-
-2. **Update test scripts in package.json**
-   ```json
-   {
-     "scripts": {
-       "test": "vitest run",
-       "test:watch": "vitest",
-       "test:coverage": "vitest run --coverage",
-       "test:unit": "vitest run --testNamePattern=\"^(?!.*integration).*\"",
-       "test:integration": "vitest run --testNamePattern=\"integration\"",
-       "test:api": "vitest run [specific-api-test-files]",
-       "test:security": "vitest run --testNamePattern=\"security\""
-     }
-   }
-   ```
-
-3. **Replace Jest imports**
-   - Find and replace `jest` with `vi`
-   - Update any Jest-specific APIs
-
-4. **Update MSW to v2**
-   ```bash
-   npm install msw@latest --save-dev
-   ```
-
-5. **Convert to ESM syntax**
-   - Use `import` instead of `require`
-   - Add `"type": "module"` to package.json if needed
+`queueReply` scripts what the gateway answers; the transport's `schedule` scripts the wire (`deliver`, `drop-reply`, `delay`, `duplicate-reply`, `reject-emit`). For components, `renderWithProviders` from `@semiont/react-ui/test-utils` renders inside a `SemiontBrowser` on the same doubles, or inside one the test passes as `browser`. The patterns are in [react-ui's testing guide](../../packages/react-ui/docs/TESTING.md).
 
 ## Best Practices
 
@@ -509,33 +196,30 @@ const button = screen.getByTestId('submit-button')
 const button = screen.getByRole('button', { name: /submit/i })
 ```
 
-### 3. Mock at the Network Level
+### 3. Script the SDK, Not the Network
 ```typescript
-// ❌ Bad - Mocking implementation
-vi.mock('./http-transport', () => ({
-  fetchData: vi.fn(() => Promise.resolve(mockData))
+// ❌ Bad - a hand-rolled mock encodes its author's model of the contract
+vi.mock('@semiont/http-transport', () => ({
+  HttpTransport: vi.fn(() => ({ emit: vi.fn() }))
 }))
 
-// ✅ Good - Using MSW to mock at network level
-http.get('/api/data', () => {
-  return HttpResponse.json(mockData)
-})
+// ✅ Good - a real client over the scriptable transport
+const { client, transport } = createTestClient()
+transport.queueReply('browse:resources-requested', { resources: [], total: 0, offset: 0 })
 ```
+
+Unit tests never reach the network: react-ui's setup file makes any `fetch` throw.
 
 ### 4. Keep Tests Focused
 ```typescript
 // Each test should verify one behavior
-it('should show error message when API fails', async () => {
-  // Arrange - Set up error response
-  server.use(
-    http.get('/api/data', () => {
-      return HttpResponse.error()
-    })
-  )
-  
+it('should show error message when loading fails', async () => {
+  // Arrange - a data source that fails
+  const load = vi.fn().mockRejectedValue(new Error('offline'))
+
   // Act - Render component
-  render(<DataDisplay />)
-  
+  render(<DataDisplay load={load} />)
+
   // Assert - Check error is displayed
   await waitFor(() => {
     expect(screen.getByText(/error loading data/i)).toBeInTheDocument()
@@ -576,41 +260,33 @@ vi.clearAllMocks())` is fine, because `vi` is an object rather than a function.
 
 ## End-to-End Tests
 
-The e2e suite at [`tests/e2e/`](../../tests/e2e/) is a separate npm workspace running Playwright against a real running stack. It exists to catch regressions that no in-process test can see: SSE timing windows, lifecycle-vs-bus race conditions, navigation tear-down, sign-out/sign-in session rebuild, and end-to-end persistence of annotations across reload.
+The e2e suite at [`tests/e2e/`](../../tests/e2e/) is its own package, with its own lockfile, running Playwright against a real running stack. It exists to catch regressions that no in-process test can see: SSE timing windows, lifecycle-vs-bus race conditions, navigation tear-down, sign-out/sign-in session rebuild, and end-to-end persistence of annotations across reload.
 
-The suite is **deliberately scoped**. It is the smallest set of paths that has broken before and that unit/integration tests can't catch. Pure component logic stays in unit tests; multi-component interaction in a mocked tree stays in integration tests; e2e is reserved for cross-layer behavior that requires the real wire.
+The suite is **deliberately scoped**. It is the smallest set of paths that has broken before and that unit/integration tests can't catch. Pure component logic stays in unit tests; multi-component interaction in a composed tree stays in integration tests; e2e is reserved for cross-layer behavior that requires the real wire.
 
 ### What's in scope
 
-- **Not in CI.** Run locally against a manually-brought-up stack. Adding CI requires fixture isolation work that hasn't happened yet.
-- **No fixture seeding.** Tests assume the target KB has ≥2 resources and ≥1 entity type — true of the default template KB. Property-style assertions ("the first resource", "any annotation"), not specific-content assertions.
-- **No real OAuth.** Credentials sign-in only.
-- **Single-worker.** Concurrency requires per-test isolation that doesn't exist yet.
+- **Not in CI.** No workflow runs it. Run it locally against a stack you brought up.
+- **Seeded.** Playwright's global setup, [`scripts/seed.ts`](../../tests/e2e/scripts/seed.ts), authenticates through `@semiont/sdk` and uploads the fixtures the specs assume: text resources for the annotation specs, PDFs for the PDF specs. Each seed has a stable storage URI, so a re-run against a seeded knowledge base skips it.
+- **Real sign-in.** Connect leaves the Browser for the launcher-run Keycloak, and the fixture types the credentials into its login page.
+- **Single-worker, no retries.** One worker; a flake is diagnosed, not retried away.
 - **Chromium only.** No cross-browser matrix.
+- **Slow specs opt in.** `npm test` excludes specs tagged `@slow`; `npm run test:slow` runs only those.
 
 ### Layout
 
 ```text
 tests/e2e/
-├── specs/                            # one .spec.ts per regression-guarded path
-│   ├── 01-sign-in.spec.ts            # sign-in → land on knowledge section
-│   ├── 02-open-resource.spec.ts      # open from Discover, content loads
-│   ├── 03-navigate-resources.spec.ts # tab between two open resources
-│   ├── 04-manual-highlight.spec.ts   # select → motivation=highlight, persists across reload
-│   ├── 05-manual-reference.spec.ts   # select → motivation=linking + entity type, persists
-│   ├── 06-assisted-reference.spec.ts # assist widget dispatches across the wire
-│   ├── 07-sign-out-sign-in.spec.ts   # session rebuilds; bus round-trips on fresh client
-│   ├── 08-hover-beckon.spec.ts       # hover annotation → BeckonStateUnit focus signal flows
-│   └── 99-diagnose-entity-types.spec.ts  # singleton-ness diagnostic (not a guard)
-├── fixtures/
-│   ├── auth.ts                       # signedInPage fixture; depends on bus
-│   └── bus-log.ts                    # wire-level bus capture API
-├── docs/                             # the operations manual (linked below)
+├── specs/                # NN-short-name.spec.ts, one per guarded path
+├── fixtures/             # auth (signedInPage), bus-log, discover, generate,
+│                         #   generated, jaeger, page-errors, sdk-session
+├── lib/
+├── scripts/              # seed.ts (the global setup) and live-monitoring helpers
+├── docs/                 # the operations manual (linked below)
 ├── playwright.config.ts
-└── package.json                      # separate workspace — own deps
+├── package.json          # own dependencies
+└── package-lock.json     # own lockfile — the authority for them
 ```
-
-A regression in any of `01`–`08` fails the corresponding test. `99-diagnose-entity-types.spec.ts` is a running dashboard for the SSE-reconnect singleton invariants — it doesn't assert pass/fail in the regression sense.
 
 ### Protocol-level assertions, not just UI
 
@@ -656,18 +332,18 @@ Two required, two with local-dev defaults:
 | `E2E_BROWSER_URL` | `http://localhost:3000` | The Browser the tests drive |
 | `E2E_GATEWAY_URL` | `http://localhost:4000` | Gateway the sign-in form points at |
 
-The default seeded admin is `admin@example.com` / `password`. No fallback — the suite fails fast if `E2E_EMAIL`/`E2E_PASSWORD` aren't set, on purpose (no silent use of a default account).
+No fallback for the credentials, on purpose — the suite fails fast if `E2E_EMAIL`/`E2E_PASSWORD` aren't set, so it never silently uses a default account. The user must exist in the stack's issuer; the stack flow in [`tests/e2e/README.md`](../../tests/e2e/README.md#running-against-a-freshly-built-stack) creates `admin@example.com` with `semiont useradd`.
 
 ### Quick run
 
-The recommended path on macOS is the official Playwright container, which can reach the dev stack's bridge IPs directly:
+The recommended path on macOS is the official Playwright container. From inside it, `localhost` is the container itself, so reach the stack's host-published ports through the host bridge gateway, `192.168.64.1` — it is stable across restarts, where a container's own IP is not:
 
 ```sh
 # 1. Bring up the stack (Browser + gateway + KB), once per session.
 #    See tests/e2e/README.md "Running against a freshly-built stack".
 
-# 2. Re-grab IPs every time anything restarts (Apple container reassigns them).
-container ls | grep -E 'semiont-(browser|gateway)'
+# 2. The image tag must match the installed @playwright/test.
+PW=$(node -p "require('./tests/e2e/node_modules/@playwright/test/package.json').version")
 
 # 3. Run the suite.
 container run --rm \
@@ -675,10 +351,10 @@ container run --rm \
   -w /workspace/tests/e2e \
   -e E2E_EMAIL=admin@example.com \
   -e E2E_PASSWORD=password \
-  -e E2E_BROWSER_URL=http://<browser-ip>:3000 \
-  -e E2E_GATEWAY_URL=http://<gateway-ip>:4000 \
+  -e E2E_BROWSER_URL=http://192.168.64.1:3000 \
+  -e E2E_GATEWAY_URL=http://192.168.64.1:4000 \
   -e CI=1 \
-  mcr.microsoft.com/playwright:v1.59.1-noble \
+  "mcr.microsoft.com/playwright:v$PW-noble" \
   npm test
 ```
 
@@ -690,9 +366,10 @@ Run from the host (with Node + Playwright installed):
 
 ```sh
 cd tests/e2e
-npm install
+npm ci                             # installs the lockfile exactly; never rewrites it
 npx playwright install chromium    # one-time browser download
 npm test
+npm run test:slow       # only the @slow specs
 npm run test:headed     # watch the browser
 npm run test:debug      # Playwright inspector (step through)
 npm run test:ui         # Playwright runner UI
@@ -727,16 +404,11 @@ The recurring lesson: instrument, don't speculate. A `console.log` in the produc
 
 Anything inside `@semiont/*` is published to a local Verdaccio and consumed via `npm install` in the container builds — your local source tree is invisible to the running stack until you republish.
 
-| Change in | Rebuild | Restart |
-|---|---|---|
-| `packages/react-ui`, `packages/http-transport`, `packages/core`, `packages/sdk` | `./scripts/ci/local-build.sh` | Browser container |
-| `apps/browser` only | `./scripts/ci/local-build.sh` | Browser container |
-| `packages/make-meaning`, `event-sourcing`, anything gateway-side | `./scripts/ci/local-build.sh` (rebuilds the `:local` images) | the stack: `SEMIONT_VERSION=local semiont start` |
-| `apps/gateway` | `./scripts/ci/local-build.sh` | the stack: `SEMIONT_VERSION=local semiont start` |
+After any product-code change, run `./scripts/ci/local-build.sh`, then restart the stack with `SEMIONT_VERSION=local semiont start`. The script builds every service image and the Browser image, plus the launcher, against the local registry, tagged `:local`.
 
 Two pitfalls that have caught real time before:
 
-- **`SEMIONT_VERSION=local` is load-bearing.** `local-build.sh` builds all five images (and the launcher) as local-only `:local` tags — but a KB stack consumes them only when started with `SEMIONT_VERSION=local semiont start`. Without it, the launcher pulls the published images and your local changes are invisible.
+- **`SEMIONT_VERSION=local` is load-bearing.** A stack consumes the `:local` images only when started with it. Without it, the launcher pulls the published images and your local changes are invisible.
 - **Apple container `--rm` is unreliable.** Stopped containers linger and conflict on next start. Wipe with `container stop $name && container rm $name` before retrying.
 
 Full step-by-step in [`tests/e2e/docs/containers.md`](../../tests/e2e/docs/containers.md).
@@ -770,8 +442,9 @@ test.describe('short description', () => {
 Key conventions:
 
 - **Fixture ordering matters.** The `bus` fixture's `addInitScript` runs *before* `page.goto`. That ordering is guaranteed when you destructure `bus` in the test params or use `signedInPage` (which depends on `bus`). If you build a helper that creates its own `page`, re-attach the bus log there with `attachBusLog(page)` first.
-- **Selectors prefer role + accessible name.** Fall back to `getByPlaceholder` only when role-based queries can't disambiguate. No `data-testid` convention yet.
+- **Selectors prefer role + accessible name.** Fall back to `getByPlaceholder` only when role-based queries can't disambiguate.
 - **Skip explicitly.** `test.skip(...)` with a one-line reason. Never let a test pass by silently returning early.
+- **Tag long specs `@slow`** so `npm test` leaves them to `npm run test:slow`.
 
 Full guide: [`tests/e2e/docs/writing.md`](../../tests/e2e/docs/writing.md).
 
@@ -779,10 +452,10 @@ Full guide: [`tests/e2e/docs/writing.md`](../../tests/e2e/docs/writing.md).
 
 The ones that have cost real debugging time, captured so you don't re-discover them:
 
-- **`crypto.randomUUID` requires a secure context.** `localhost` and `127.0.0.1` count as secure; arbitrary `http://192.168.x.x` does not. The auth fixture polyfills it via `addInitScript`. The polyfill is also masking a latent product bug — any user hitting the Browser over HTTP from a non-localhost hostname hits the same issue.
-- **Container IPs change on every restart.** Apple's container runtime reassigns bridge IPs on every `container run` and every `container start`. Re-grab both IPs before each test run.
+- **`crypto.randomUUID` requires a secure context.** `localhost` and `127.0.0.1` count as secure; `http://192.168.x.x` does not, and there `crypto.randomUUID` is undefined. Browser-reachable code takes its ids from `@semiont/core`'s helpers, built on `crypto.getRandomValues()`, so the suite needs no polyfill. A "crypto.randomUUID is not a function" error means someone added a direct call to browser-reachable code.
+- **Container IPs change on every restart.** Apple's container runtime assigns a fresh bridge IP on every `container run` and `container start`. Point the suite at the host bridge gateway, `192.168.64.1`, never a container's own IP.
 - **Stale browser tabs poison gateway logs.** A lingering tab from an earlier dev session retries SSE with an expired token, flooding `container logs` with `401`s. Close the tab before debugging.
-- **Playwright image tag must match `@playwright/test`.** When `npm install` upgrades the package, pull the matching `mcr.microsoft.com/playwright:<version>-noble`.
+- **Playwright image tag must match `@playwright/test`.** Derive it from the installed package, as in [Quick run](#quick-run); after a dependency bump, `npm ci` in `tests/e2e` before running.
 
 Full list in [`tests/e2e/docs/gotchas.md`](../../tests/e2e/docs/gotchas.md).
 
@@ -795,68 +468,78 @@ The operational depth lives in [`tests/e2e/docs/`](../../tests/e2e/docs/):
 - **[writing.md](../../tests/e2e/docs/writing.md)** — spec template, fixture ordering, selector conventions.
 - **[debugging.md](../../tests/e2e/docs/debugging.md)** — traces, JSONL recipes, diagnostic specs.
 - **[bus-logging.md](../../tests/e2e/docs/bus-logging.md)** — `__SEMIONT_BUS_LOG__`, the `bus` capture fixture, every helper.
+- **[jaeger.md](../../tests/e2e/docs/jaeger.md)** — the `jaeger` fixture that attaches matching distributed traces to the report.
+- **[page-errors.md](../../tests/e2e/docs/page-errors.md)** — the `pageErrors` fixture for uncaught browser-side errors.
+- **[live-monitoring.md](../../tests/e2e/docs/live-monitoring.md)** — bug-hunting on the running stack without Playwright.
 - **[gotchas.md](../../tests/e2e/docs/gotchas.md)** — full list of sharp edges.
 
-## Coverage Goals
+## Coverage
 
-### Current Coverage
-- Overall: ~22% line coverage
-- UI Components: 88-100%
-- API routes: Limited coverage
+Coverage is measured per workspace and reported to Codecov. [`codecov.yml`](../../codecov.yml) sets the gates:
 
-### Target Coverage
-- Critical business logic: 90%+
-- UI components: 80%+
-- Utility functions: 90%+
-- API routes: 70%+
+- **Project:** target 70%, allowed to drop by 1%.
+- **Patch:** new code targets 80%, with a 5% threshold.
 
-### Excluded from Coverage
-- Test files themselves
-- Mock data and handlers
-- Configuration files
-- Type definition files
+Each package and the Browser has a flag (with carryforward) and a component. `package-tests.yml` uploads each package's `lcov.info` under its flag; `security-tests.yml` uploads the Browser's. `npm run lint:coverage-roster` fails when the workspaces declaring `test:coverage`, the package matrix, and codecov's flags and components disagree. No vitest config sets a threshold, so a coverage run never fails a suite.
+
+Excluded from coverage: what the shared config excludes (see [One shared Vitest config](#one-shared-vitest-config)), plus codecov's `ignore` list — test files and directories, build output, config files, generated files, examples and demos, and `scripts/`.
 
 ## Running Tests
 
-Tests run through each workspace's npm scripts — vitest underneath. There is no
-`semiont test` command: the `semiont` launcher runs knowledge bases, not this
-monorepo's test suite.
+Tests run through each workspace's npm scripts. There is no `semiont test` command: the `semiont` launcher runs knowledge bases, not this monorepo's test suite.
+
+### From the repository root
+
+`npm test` fans out to every workspace that defines a `test` script (`--workspaces --if-present` over `apps/*`, `packages/*` and `packages/sdk/docs/__snippets__`), and `npm run typecheck` does the same for `typecheck`. `tests/gateway-conformance` and `tests/e2e` are not root workspaces — each has its own `package.json` and lockfile and runs from its own directory — and the Go modules run under `go test`.
+
+To target one workspace from the root, use `--workspace`:
+
+```bash
+npm test --workspace=@semiont/make-meaning
+```
 
 ### Per-workspace scripts
 
-Gateway (`apps/gateway/`):
-
-```bash
-npm test                    # Everything
-npm run test:unit           # Excludes integration
-npm run test:integration    # Spins up PostgreSQL (see below)
-npm run test:api            # Admin endpoints, docs, auth middleware
-npm run test:security        # Name-pattern: security
-npm run test:coverage       # Everything, with coverage
-npm run test:watch          # Watch mode
-```
+Every npm package under `packages/` runs `npm test` as `vitest run`, except `@semiont/react-ui`, which runs its suite as four sequential shards (`test:shard:1`–`4`) with an 8 GB heap. Every package defines `test:coverage`.
 
 Browser (`apps/browser/`):
 
 ```bash
 npm test                    # Everything
-npm run test:unit           # Excludes integration
-npm run test:integration    # Name-pattern: integration
-npm run test:security       # Admin page/layout + validation
-npm run test:a11y           # Accessibility assertions
+npm run test:unit           # Tests whose names do not match "integration"
+npm run test:integration    # Tests whose names match "integration"
+npm run test:security       # Session gates, locale layout, validation
+npm run test:a11y           # Tests whose names match "Accessibility"
 npm run test:coverage       # Everything, with coverage
 npm run test:watch          # Watch mode
+npm run test:ui             # Vitest UI
 ```
 
-From the repo root, `npm test` fans out to every workspace that defines a `test`
-script (`--workspaces --if-present`), and `npm run typecheck` does the same for
-`tsc --noEmit`.
+`test`, `test:coverage` and `test:security` first run `scripts/merge-translations.js`, which generates the gitignored `messages/` directory the i18n mock reads; the other scripts expect it to exist.
 
-To target one workspace from the root, use `--workspace`:
+Gateway (`apps/gateway/`): `npm test` runs only the manifest census. The gateway's behaviour is the conformance suite's, run against a built gateway:
 
 ```bash
-npm run test:unit --workspace=apps/gateway
+npm run build:packages
+npm run build -w semiont-gateway
+cd tests/gateway-conformance
+npm ci
+npm test
 ```
+
+Its `pretest` typechecks the cases first. What each check covers is in the gateway's [TESTING.md](../../apps/gateway/docs/TESTING.md).
+
+Go, as CI runs them:
+
+```bash
+cd apps/launcher && go test -timeout 30m ./...
+```
+
+```bash
+cd packages/sdk-go && go test -timeout 5m ./...
+```
+
+The launcher suite takes minutes; its development notes are in [`apps/launcher/README.md`](../../apps/launcher/README.md#development).
 
 ### Run them in a container
 
@@ -866,30 +549,27 @@ lightningcss), so use an Alpine image — a glibc `node:24` fails with a
 
 ```bash
 container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
-  sh -c 'npm run test:unit --workspace=apps/gateway'
+  sh -c 'npm test --workspace=@semiont/make-meaning'
 ```
 
 `tsc --noEmit` is libc-agnostic and runs under either image.
 
-### The gateway's two vitest configs
-
-`apps/gateway` runs its tests under two configs, and a plain `vitest run` uses
-only the first:
+`@semiont/jobs` and the conformance suite need `nats-server`; Alpine packages it:
 
 ```bash
-npm run test --workspace=apps/gateway
-npm run test:integration --workspace=apps/gateway
+container run --rm -v "$(pwd)":/work -w /work node:24-alpine \
+  sh -c 'apk add --no-cache nats-server && npm test --workspace=@semiont/jobs'
 ```
 
-Despite the name, the integration suite needs no database and no container
-runtime — the gateway holds no database. It is a second suite with its own
-setup file, and CI runs both in the same job, so running only the default one
-locally can leave a failure to be discovered in CI.
+For Go, use the `golang` image whose tag satisfies the `toolchain` line in the module's `go.mod`:
 
-### Coverage
+```bash
+container run --rm -v "$(pwd)":/work -w /work/packages/sdk-go golang:1.27.1 go test -timeout 5m ./...
+```
 
-`npm run test:coverage` writes an HTML report to
-`apps/{browser,gateway}/coverage/index.html` alongside the console summary.
+### Coverage reports
+
+`npm run test:coverage` writes the workspace's `coverage/` directory — `lcov.info`, `coverage-summary.json`, `cobertura-coverage.xml`, and an HTML report at `coverage/index.html` — alongside the console summary.
 
 ### End-to-end tests
 
@@ -897,28 +577,27 @@ E2E tests run against a live stack, not a workspace script — see
 [End-to-End Tests](#end-to-end-tests) above for the environment they need and how
 to bring the stack up.
 
-
 ## Debugging Tests
 
 ### Common Issues
 
-1. **Module resolution errors**
-   ```typescript
-   // Use dynamic imports for ESM modules
-   const sessionModule = await import('@/lib/session')
+1. **A unit test attempted a network request**
+   ```text
+   Unit test attempted a network request: <url>
    ```
+   react-ui's setup file refuses every `fetch`. Build the client from `@semiont/sdk/testing` (or through `renderWithProviders`) and script the response, rather than issuing a request no server answers.
 
-2. **Vitest globals not found**
+2. **No response scripted for a bus operation**
+   ```text
+   No response scripted for bus operation "<op>".
+   ```
+   The unit reached an operation the test did not script. Add `transport.queueReply('<op>', <response>)`, or pass a `makeResponse` that handles it.
+
+3. **Vitest globals not found**
    ```typescript
-   // Ensure globals: true in vitest.config.js
-   // Or import explicitly:
+   // A config that merges vitest.shared.config.ts gets globals: true.
+   // Otherwise import explicitly:
    import { describe, it, expect } from 'vitest'
-   ```
-
-3. **MSW not intercepting requests**
-   ```typescript
-   // Check server is started in setup file
-   // Verify request URL matches handler pattern
    ```
 
 4. **Async tests timing out**
@@ -934,43 +613,52 @@ to bring the stack up.
 - `screen.debug()` - Print current DOM
 - `screen.logTestingPlaygroundURL()` - Get testing playground link
 - `vi.mocked(module).mock.calls` - Inspect mock calls
-- MSW request logging in console
+- `transport.requestLog` - Every request a `FaultyTransport` saw, in order, with the action its schedule applied
 
 ## Continuous Integration
 
-[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) is the authority on
-what passes. It runs on every push and pull request, on Node 24, with these jobs:
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on pushes to
+`main` and `develop`, on pull requests into them, and on manual dispatch, on
+Node 24, with these jobs:
 
 | Job | What it covers |
 |---|---|
 | `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
-| `test-gateway` | typecheck, `npm test`, and `npm run test:integration` for `apps/gateway` |
-| `test-comprehensive` | Browser and gateway suites again, gateway integration included |
+| `test-gateway` | `npm run typecheck` + the manifest census for `apps/gateway` |
+| `gateway-conformance` | Builds the gateway, installs `nats-server`, runs `tests/gateway-conformance` |
+| `test-comprehensive` | The Browser suite and the gateway census again, one subshell each |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
-| `check-phantom-deps` | imports not declared in the importing package's `package.json` |
-| `build-all` | every workspace builds, and `tsc --noEmit` across the monorepo |
-| `generated-artifacts` | drift checks: bus registry vs generated code, the bundled OpenAPI spec vs `packages/sdk-go/client_gen.go`, and Go schema coverage |
-| `test-launcher` | `apps/launcher` Go tests |
+| `check-phantom-deps` | Every import in a published `dist` is declared by its package |
+| `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
+| `generated-artifacts` | Drift checks: the bus registry vs its generated TypeScript and Go, the bundled OpenAPI spec vs `packages/sdk-go/client_gen.go`, and Go schema coverage |
+| `test-launcher` | `gofmt` over both Go modules; `go vet` and `go test` for `apps/launcher`; `go vet`, `go build` and `go test` for `packages/sdk-go`; `govulncheck` for the launcher |
 
-Four other workflows carry test gates of their own:
-[`security-tests.yml`](../../.github/workflows/security-tests.yml),
-[`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml),
-[`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml),
-and [`package-tests.yml`](../../.github/workflows/package-tests.yml).
+Four other workflows carry test gates of their own, on the same pushes and pull requests:
+
+| Workflow | What it runs |
+|---|---|
+| [`package-tests.yml`](../../.github/workflows/package-tests.yml) | A matrix over every package in `packages/` with a suite: typecheck, `npm test`, then `test:coverage` and the Codecov upload (neither of which fails the job); `nats-server` is installed for `jobs` only |
+| [`security-tests.yml`](../../.github/workflows/security-tests.yml) | The Browser's `test:security` and `test:coverage`, then a built Browser probed for privileged content in its SPA shell; a built gateway probed for `401`s on protected routes, the JSON error shape, and no leaked secrets |
+| [`accessibility-tests.yml`](../../.github/workflows/accessibility-tests.yml) | react-ui's `test:a11y`; the Browser's full suite; Lighthouse against a built Browser, failing below an accessibility score of 90. Also daily at 06:00 UTC |
+| [`architecture-compliance.yml`](../../.github/workflows/architecture-compliance.yml) | After `build:packages`: the doc-snippet, raw-bus, StateUnit, boot-contract (with test-env hygiene and `vi.mock` targets) and storage-URI audits; the lint gates, among them `lint:vitest-coverage`, `lint:coverage-roster` and `lint:spec-protocol`; the react-ui and Browser compliance reports. Also on pushes to `feature/**` |
+
+[`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml) is not a per-PR gate: on manual dispatch (and on pull requests that change it), it builds the launcher from the branch, boots a stack from a published image set, and checks that every service is healthy, the staged realm answers and allows the Browser's origin, and `stop` releases every port. The e2e suite runs in no workflow.
 
 Locally, prefer the targeted script for the code you changed over re-running
 everything — CI runs the full matrix.
 
 ## Related Documentation
 
-### Application Testing Documentation
-- [Browser Testing](../../apps/browser/README.md#testing) - Browser-specific testing setup, scripts, and philosophy
-- [Gateway Testing](../../apps/gateway/README.md#testing) - Gateway API testing and integration tests
+### Workspace Testing Guides
+- [Browser Testing](../../apps/browser/docs/TESTING.md) - Browser test layout and scripts
+- [react-ui Testing](../../packages/react-ui/docs/TESTING.md) - Component testing by composition, test utilities
+- [Gateway Testing](../../apps/gateway/docs/TESTING.md) - What checks the gateway: the spec lint, the conformance suite, the boot, the census
+- [Gateway Conformance Suite](../../tests/gateway-conformance/README.md) - What the black-box suite checks and how to run it
 
 ### End-to-End Testing
-- [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, current spec list, full stack-rebuild flow
+- [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, container networking, full stack-rebuild flow
 - [running.md](../../tests/e2e/docs/running.md) - Invocation, single spec, headed mode, repeat-each
-- [containers.md](../../tests/e2e/docs/containers.md) - Container rebuild lifecycle, Verdaccio publishing, IP refresh
+- [containers.md](../../tests/e2e/docs/containers.md) - Container rebuild lifecycle, Verdaccio publishing
 - [writing.md](../../tests/e2e/docs/writing.md) - Spec template, fixture ordering, protocol assertions
 - [debugging.md](../../tests/e2e/docs/debugging.md) - Trace report, JSONL extraction, diagnostic specs
 - [bus-logging.md](../../tests/e2e/docs/bus-logging.md) - Wire-level capture API and helpers
@@ -986,7 +674,6 @@ everything — CI runs the full matrix.
 ## Resources
 
 - [Vitest Documentation](https://vitest.dev/)
-- [MSW Documentation](https://mswjs.io/)
 - [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/)
 - [Testing Library Best Practices](https://kentcdodds.com/blog/common-mistakes-with-react-testing-library)
-- [MSW Best Practices](https://mswjs.io/docs/best-practices)
+- [Playwright Documentation](https://playwright.dev/)

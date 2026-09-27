@@ -27,14 +27,15 @@ npm install @semiont/gateway
 node node_modules/@semiont/gateway/dist/index.js
 ```
 
-Requires in the environment:
+It needs, at `~/.semiontconfig`, its configuration document — a JSON
+`GatewayConfig` ([schema](https://github.com/The-AI-Alliance/semiont/blob/main/specs/src/components/schemas/GatewayConfig.json)),
+resolved: the knowledge base's committed name and did:web domain, the port and
+public URL, the issuer, where the Archivist listens, and the signal plane. The
+launcher writes it; running the package directly means writing one. And in the
+environment:
 
-- `SEMIONT_ROOT` — path to the knowledge-base working tree
-- A config TOML readable at `~/.semiontconfig` — the container image mounts the
-  KB's `.semiont/semiontconfig/<name>.toml` there; running the package directly
-  means placing or symlinking one yourself. The environment block comes from its
-  `[defaults] environment`.
-- `JWT_SECRET` — minimum 32 characters
+- `JWT_SECRET` — minimum 32 characters (a comma-separated key ring during a
+  rotation: the first key signs, every key verifies)
 - `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` — the gateway's own service
   account at the knowledge base's issuer
 

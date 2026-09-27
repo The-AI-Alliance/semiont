@@ -5,7 +5,6 @@ import {
   useLoadingState,
 } from '../useUI';
 
-// Following MSW v2 + Vitest + ESM strategy established in the codebase
 describe('useUI Hooks', () => {
   describe('useDropdown', () => {
     let addEventListenerSpy: any;

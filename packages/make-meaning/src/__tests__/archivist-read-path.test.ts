@@ -12,20 +12,20 @@
  * This test asserts replay-not-gap against a real event log.
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import type { AddressInfo } from 'net';
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import { EventBus, resourceId, userId, type Logger, type ResourceId, type StoredEvent } from '@semiont/core';
+import { EventBus, resourceId, userId, type Logger, type ResourceId, type StoredEvent, type components } from '@semiont/core';
 import { createEventStore, type EventStore } from '@semiont/event-sourcing';
 import { WorkingTreeStore, calculateChecksum } from '@semiont/content';
-import type { StoredResource } from '@semiont/core';
 import { createServer, type Server } from 'http';
 import type { IssuerVerifier } from '@semiont/core/identity';
-import { createArchivistServer } from '../archivist-read-path';
+import { createArchivistServer, type RecordedUpload } from '../archivist-read-path';
 import { archivistContentReads } from '@semiont/content';
 import type { ArchivistAddressConfig } from '@semiont/core/node';
 import { createTestProject, type TestProject } from './helpers/test-project';
+import { archivistNonConformance, archivistOperations } from './helpers/archivist-spec';
 
 const mockLogger: Logger = {
   debug: vi.fn(),
@@ -51,7 +51,66 @@ const stubVerifier = {
   },
 } as unknown as IssuerVerifier;
 
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
+
+/**
+ * Every reply this file receives from an Archivist it started is checked
+ * against the Archivist's spec (specs/src/archivist), and the last case fails
+ * unless every operation the spec declares was exercised. The gateway
+ * conformance suite holds its stand-in Archivist to the same document, so the
+ * two cannot drift apart.
+ */
+const archivists = new Set<Server>();
+const exercised = new Set<string>();
+const offSpec: string[] = [];
+const realFetch = globalThis.fetch;
+const archivistPorts = () =>
+  new Set([...archivists].map((s) => s.address()).flatMap((a) => (a !== null && typeof a === 'object' ? [a.port] : [])));
+
+beforeAll(() => {
+  globalThis.fetch = async (input: string | URL | Request, init?: RequestInit) => {
+    const res = await realFetch(input, init);
+    const url = new URL(input instanceof Request ? input.url : input);
+    if (archivistPorts().has(Number(url.port))) {
+      const method = (init?.method ?? (input instanceof Request ? input.method : 'GET')).toUpperCase();
+      const { operation, problems } = archivistNonConformance(method, url.pathname, { status: res.status, headers: res.headers, body: await res.clone().text() });
+      if (operation) exercised.add(operation);
+      offSpec.push(...problems);
+    }
+    return res;
+  };
+});
+afterAll(() => {
+  globalThis.fetch = realFetch;
+});
+afterEach(() => {
+  expect(offSpec.splice(0)).toEqual([]);
+});
+
 describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
+  /** What `describe` answers, by resource id; absent means no such resource. */
+  let descriptions: Map<string, GetResourceResponse>;
+  /** Every upload the server asked to record, and how the record answers. */
+  let recorded: RecordedUpload[];
+  let recordAnswer: { resourceId: string } | { refuse: string };
+  const serverWith = (verifier: IssuerVerifier | null) => {
+    const server = createArchivistServer({
+      events: eventStore.log,
+      content: new WorkingTreeStore(tp.project, mockLogger),
+      views: eventStore.viewStorage,
+      verifier,
+      describe: async (id) => descriptions.get(String(id)),
+      record: async (upload) => {
+        recorded.push(upload);
+        if ('refuse' in recordAnswer) throw new Error(recordAnswer.refuse);
+        return resourceId(recordAnswer.resourceId);
+      },
+      health: () => ({ status: 'ok', actors: ['stower'] }),
+      logger: mockLogger,
+    });
+    archivists.add(server);
+    return server;
+  };
   let tp: TestProject;
   let eventBus: EventBus;
   let eventStore: EventStore;
@@ -82,14 +141,10 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
       });
     }
 
-    const server = createArchivistServer({
-      events: eventStore.log,
-      content: new WorkingTreeStore(tp.project, mockLogger),
-      views: eventStore.viewStorage,
-      verifier: stubVerifier,
-      health: () => ({ status: 'ok' }),
-      logger: mockLogger,
-    });
+    descriptions = new Map();
+    recorded = [];
+    recordAnswer = { resourceId: 'res-recorded' };
+    const server = serverWith(stubVerifier);
     await new Promise<void>((resolve) => server.listen(0, resolve));
     baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     close = () => new Promise((resolve, reject) => server.close((e) => (e ? reject(e) : resolve())));
@@ -147,94 +202,188 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
   it('serves /health without auth', async () => {
     const res = await fetch(`${baseUrl}/health`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ status: 'ok' });
+    expect(await res.json()).toEqual({ status: 'ok', actors: ['stower'] });
   });
 
   /**
-   * SINGLE-KB-MOUNT P2 — the Archivist accepts bytes (D1 reverses GATEWAY.md
-   * D4a). The gateway will stream upload bodies here instead of writing the
-   * shared mount itself; the event contract is untouched — the Stower still
-   * `register`s and does the one `git add` on event apply, which is why the
-   * write below is `noGit` and emits nothing.
+   * The recording upload (GATEWAY-SIMPLIFY P3, S3): the gateway forwards a
+   * client's multipart upload untouched, naming the principal it verified,
+   * and the Archivist — the KB tree's one writer — stores the bytes and
+   * records the resource in one call, answering the new id. The gateway no
+   * longer parses the upload or makes a bus request of its own.
    */
-  describe('PUT /content/:storageUri (SINGLE-KB-MOUNT P2)', () => {
-    const BODY = 'hello archivist';
-    const URI = 'file://docs/note.md';
-    const put = (uri: string, body: string, opts: { auth?: string; checksum?: string } = {}) =>
-      fetch(`${baseUrl}/content/${encodeURIComponent(uri)}${opts.checksum ? `?checksum=${opts.checksum}` : ''}`, {
-        method: 'PUT',
-        body,
-        ...(opts.auth !== undefined ? { headers: { authorization: opts.auth } } : {}),
-      });
+  describe('POST /resources — store and record an upload', () => {
+    const BYTES = '# Uploaded\n';
+    const PRINCIPAL = 'did:web:example.github.io:kb:users:uploader';
+    const form = (fields: Record<string, string>, file?: string) => {
+      const f = new FormData();
+      for (const [k, v] of Object.entries(fields)) f.set(k, v);
+      if (file !== undefined) f.set('file', new Blob([file], { type: 'text/markdown' }), 'upload.md');
+      return f;
+    };
+    const post = (body: FormData, headers: Record<string, string> = { authorization: `Bearer ${SERVICE_TOKEN}`, 'semiont-principal': PRINCIPAL }) =>
+      fetch(`${baseUrl}/resources`, { method: 'POST', body, headers });
+    const complete = { name: 'Uploaded', format: 'text/markdown', storageUri: 'file://docs/uploaded.md' };
 
-    it('writes the bytes and returns the stored record', async () => {
-      const res = await put(URI, BODY, { auth: `Bearer ${SERVICE_TOKEN}` });
+    it('stores the bytes where the record will find them, records the resource for the principal, and answers its id', async () => {
+      const res = await post(form({
+        ...complete,
+        language: 'en',
+        entityTypes: JSON.stringify(['Person']),
+        sourceResourceId: 'res-source',
+        sourceAnnotationId: 'ann-source',
+        generationPrompt: 'a prompt',
+        generator: JSON.stringify({ '@type': 'Software', name: 'a model', provider: 'ollama', model: 'a-model' }),
+        jobId: 'job-1',
+        isDraft: 'true',
+      }, BYTES));
       expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ resourceId: 'res-recorded' });
 
-      const stored = await res.json() as StoredResource;
-      expect(stored.storageUri).toBe(URI);
-      expect(stored.checksum).toBe(calculateChecksum(BODY));
-      expect(stored.byteSize).toBe(Buffer.byteLength(BODY));
-
-      // On disk where the Stower's `register` will find it on event apply.
-      const onDisk = await fs.readFile(path.join(tp.project.root, 'docs/note.md'), 'utf8');
-      expect(onDisk).toBe(BODY);
+      expect(await fs.readFile(path.join(tp.project.root, 'docs/uploaded.md'), 'utf8')).toBe(BYTES);
+      expect(recorded).toEqual([{
+        kind: 'create',
+        emitter: { did: PRINCIPAL, roles: [] },
+        input: {
+          name: 'Uploaded',
+          storageUri: 'file://docs/uploaded.md',
+          contentChecksum: calculateChecksum(BYTES),
+          byteSize: Buffer.byteLength(BYTES),
+          format: 'text/markdown',
+          language: 'en',
+          entityTypes: ['Person'],
+          generatedFrom: { resourceId: 'res-source', annotationId: 'ann-source' },
+          generationPrompt: 'a prompt',
+          generator: { '@type': 'Software', name: 'a model', provider: 'ollama', model: 'a-model' },
+          jobId: 'job-1',
+          isDraft: true,
+        },
+      }]);
     });
 
-    it('accepts a matching checksum', async () => {
-      const res = await put(URI, BODY, { auth: `Bearer ${SERVICE_TOKEN}`, checksum: calculateChecksum(BODY) });
-      expect(res.status).toBe(200);
-    });
-
-    it('rejects a disagreeing checksum before anything is written', async () => {
-      const res = await put('file://docs/evil.md', BODY, {
-        auth: `Bearer ${SERVICE_TOKEN}`,
-        checksum: calculateChecksum('different bytes'),
+    it('records the roles the gateway verified beside the principal', async () => {
+      const res = await post(form(complete, BYTES), {
+        authorization: `Bearer ${SERVICE_TOKEN}`,
+        'semiont-principal': PRINCIPAL,
+        'semiont-roles': 'semiont-worker',
       });
-      expect(res.status).toBe(409);
-
-      // "Before anything is written" is the load-bearing half: a rejected
-      // body must leave no file for the Stower's register to trip over.
-      await expect(fs.access(path.join(tp.project.root, 'docs/evil.md'))).rejects.toThrow();
+      expect(res.status).toBe(200);
+      expect(recorded[0]!.emitter).toEqual({ did: PRINCIPAL, roles: ['semiont-worker'] });
     });
 
-    it('refuses an unauthenticated write', async () => {
-      const res = await put(URI, BODY);
+    it('records an upload carrying a clone token as a clone', async () => {
+      const res = await post(form({ ...complete, cloneToken: 'clone-token-1', archiveOriginal: 'true' }, BYTES));
+      expect(res.status).toBe(200);
+      expect(recorded).toEqual([{
+        kind: 'clone',
+        emitter: { did: PRINCIPAL, roles: [] },
+        input: {
+          token: 'clone-token-1',
+          name: 'Uploaded',
+          storageUri: 'file://docs/uploaded.md',
+          contentChecksum: calculateChecksum(BYTES),
+          byteSize: Buffer.byteLength(BYTES),
+          format: 'text/markdown',
+          archiveOriginal: true,
+        },
+      }]);
+    });
+
+    it('keeps a media type\'s parameters on the recorded format', async () => {
+      const res = await post(form({ ...complete, format: 'text/plain; charset=iso-8859-1' }, BYTES));
+      expect(res.status).toBe(200);
+      expect(recorded[0]!.input.format).toBe('text/plain; charset=iso-8859-1');
+    });
+
+    it('refuses with a 400 naming what is wrong — and stores nothing', async () => {
+      const cases: Array<[string, FormData, RegExp]> = [
+        ['no name', form({ format: 'text/plain', storageUri: 'file://docs/x.md' }, BYTES), /name/],
+        ['no file', form(complete), /file/],
+        ['no format', form({ name: 'n', storageUri: 'file://docs/x.md' }, BYTES), /format/],
+        ['no storageUri', form({ name: 'n', format: 'text/plain' }, BYTES), /storageUri/],
+        ['an unsupported media type', form({ ...complete, format: 'application/x-nope' }, BYTES), /application\/x-nope/],
+        ['entityTypes that are not a JSON array', form({ ...complete, entityTypes: 'Person' }, BYTES), /entityTypes/],
+        ['a generator that is not JSON', form({ ...complete, generator: '{' }, BYTES), /generator/],
+      ];
+      for (const [why, body, names] of cases) {
+        const res = await post(body);
+        expect(res.status, why).toBe(400);
+        expect((await res.json() as { error: string }).error, why).toMatch(names);
+      }
+      expect(recorded).toEqual([]);
+      await expect(fs.access(path.join(tp.project.root, 'docs/uploaded.md'))).rejects.toThrow();
+    });
+
+    it('refuses an upload that names no principal: the record attributes every resource', async () => {
+      const res = await post(form(complete, BYTES), { authorization: `Bearer ${SERVICE_TOKEN}` });
+      expect(res.status).toBe(400);
+      expect(recorded).toEqual([]);
+    });
+
+    it('answers 500 with the record\'s reason when the record refuses the resource', async () => {
+      recordAnswer = { refuse: 'yield:create refused: a worker-role emitter must cite the job it fulfils in `jobId`' };
+      const res = await post(form(complete, BYTES));
+      expect(res.status).toBe(500);
+      expect((await res.json() as { error: string }).error).toMatch(/must cite the job/);
+    });
+
+    it('refuses an unauthenticated upload, and stores nothing', async () => {
+      const res = await post(form(complete, BYTES), { 'semiont-principal': PRINCIPAL });
       expect(res.status).toBe(401);
-      await expect(fs.access(path.join(tp.project.root, 'docs/note.md'))).rejects.toThrow();
+      expect(recorded).toEqual([]);
+      await expect(fs.access(path.join(tp.project.root, 'docs/uploaded.md'))).rejects.toThrow();
     });
 
-    it('refuses to serve open when no verifier is configured — 401, never default-open', async () => {
-      const secretless = createArchivistServer({
-        events: eventStore.log,
-        content: new WorkingTreeStore(tp.project, mockLogger),
-        views: eventStore.viewStorage,
-        verifier: null,
-        health: () => ({ status: 'ok' }),
-        logger: mockLogger,
-      });
+    it('refuses to serve open when no verifier is configured', async () => {
+      const secretless = serverWith(null);
       await new Promise<void>((resolve) => secretless.listen(0, resolve));
       const port = (secretless.address() as AddressInfo).port;
       try {
-        const res = await fetch(`http://127.0.0.1:${port}/content/${encodeURIComponent(URI)}`, {
-          method: 'PUT',
-          body: BODY,
-        });
-        // 401, not a distinct status: an unverified caller does not learn
-        // whether this deployment is configured.
+        const res = await fetch(`http://127.0.0.1:${port}/resources`, { method: 'POST', body: form(complete, BYTES), headers: { 'semiont-principal': PRINCIPAL } });
         expect(res.status).toBe(401);
       } finally {
         await new Promise<void>((resolve, reject) => secretless.close((e) => (e ? reject(e) : resolve())));
       }
     });
 
-    it('refuses an empty storage URI', async () => {
-      const res = await fetch(`${baseUrl}/content/`, {
+    it('serves no raw byte write: bytes arrive with the resource they belong to', async () => {
+      const res = await fetch(`${baseUrl}/content/${encodeURIComponent('file://docs/raw.md')}`, {
         method: 'PUT',
-        body: BODY,
+        body: BYTES,
         headers: { authorization: `Bearer ${SERVICE_TOKEN}` },
       });
-      expect(res.status).toBe(400);
+      expect(res.status).toBe(404);
+    });
+  });
+
+  /**
+   * The linked-data description (GATEWAY-SIMPLIFY P3, S2): the target of the
+   * `Link: rel="describedby"` header on every content response, served here
+   * so the gateway proxies it as it proxies bytes.
+   */
+  describe('GET /resources/:id/jsonld — the description', () => {
+    const DESCRIPTION: GetResourceResponse = {
+      resource: { '@context': 'https://schema.org/', '@id': 'https://example.github.io/kb/resources/res-described', name: 'Described', representations: [] },
+      annotations: [],
+      entityReferences: [],
+    };
+
+    it('answers the record\'s description as JSON-LD', async () => {
+      descriptions.set('res-described', DESCRIPTION);
+      const res = await fetch(`${baseUrl}/resources/res-described/jsonld`, { headers: { authorization: `Bearer ${SERVICE_TOKEN}` } });
+      expect(res.status).toBe(200);
+      expect(res.headers.get('content-type')).toMatch(/^application\/ld\+json/);
+      expect(await res.json()).toEqual(DESCRIPTION);
+    });
+
+    it('answers 404 for a resource the record does not hold', async () => {
+      const res = await fetch(`${baseUrl}/resources/res-nobody/jsonld`, { headers: { authorization: `Bearer ${SERVICE_TOKEN}` } });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: 'Resource not found' });
+    });
+
+    it('refuses an unauthenticated read', async () => {
+      expect((await fetch(`${baseUrl}/resources/res-described/jsonld`)).status).toBe(401);
     });
   });
 
@@ -289,10 +438,8 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
 
       // The gateway maps these to two different client-visible messages, so
       // the wire must carry which case it is.
-      const unknownBody = await (await get('res-nobody')).json() as { reason?: string };
-      const bodilessBody = await bodiless.json() as { reason?: string };
-      expect(unknownBody.reason).toBe('resource');
-      expect(bodilessBody.reason).toBe('representation');
+      expect(await (await get('res-nobody')).json()).toMatchObject({ code: 'resource' });
+      expect(await bodiless.json()).toMatchObject({ code: 'representation' });
     });
 
     it('refuses an unauthenticated read', async () => {
@@ -300,14 +447,7 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
     });
 
     it('refuses to serve open when no verifier is configured', async () => {
-      const secretless = createArchivistServer({
-        events: eventStore.log,
-        content: new WorkingTreeStore(tp.project, mockLogger),
-        views: eventStore.viewStorage,
-        verifier: null,
-        health: () => ({ status: 'ok' }),
-        logger: mockLogger,
-      });
+      const secretless = serverWith(null);
       await new Promise<void>((resolve) => secretless.listen(0, resolve));
       const port = (secretless.address() as AddressInfo).port;
       try {
@@ -410,5 +550,9 @@ describe('Archivist D1 read path (EXTRACT-ARCHIVIST P2a)', () => {
         expect(reads.getBinary).toBeTypeOf('function');
       });
     });
+  });
+
+  it('exercises every operation the Archivist\'s spec declares', () => {
+    expect(archivistOperations().filter((operation) => !exercised.has(operation))).toEqual([]);
   });
 });

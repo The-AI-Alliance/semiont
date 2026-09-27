@@ -1,0 +1,22 @@
+{
+  "get": {
+    "summary": "Liveness",
+    "description": "Answers while the process serves. Public: the launcher probes it before any credential exists.",
+    "security": [],
+    "responses": {
+      "200": {
+        "description": "The Archivist serves.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ArchivistHealth.json"
+            }
+          }
+        }
+      },
+      "500": {
+        "$ref": "../../components/responses/InternalError.json"
+      }
+    }
+  }
+}

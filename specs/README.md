@@ -8,7 +8,8 @@ This directory contains the source-of-truth OpenAPI specification for the Semion
 specs/
 ├── README.md                   # This file
 ├── src/                        # Source OpenAPI files (tracked in git)
-│   ├── openapi.json           # Root spec with $ref to all paths and schemas
+│   ├── openapi.json           # The gateway's API: root spec with $ref to all paths and schemas
+│   ├── archivist/             # The Archivist's HTTP surface: a second document (see its README)
 │   ├── paths/                 # Individual endpoint definitions (37 files)
 │   │   ├── resources_{id}.json
 │   │   ├── annotations_{id}.json
@@ -18,7 +19,8 @@ specs/
 │           ├── Annotation.json
 │           ├── CreateResourceRequest.json
 │           └── ...
-└── openapi.json                # Generated bundle (NOT tracked in git)
+├── openapi.json                # Generated bundle (NOT tracked in git)
+└── archivist.openapi.json      # The Archivist's, bundled (NOT tracked in git)
 ```
 
 The OpenAPI specification source lives in this directory; the human-readable API and W3C compliance documentation lives in [docs/protocol/](../docs/protocol/).
@@ -74,10 +76,19 @@ gateway and Browser import from core
 
 2. **Bundle and validate**:
    ```bash
-   npm run openapi:bundle    # Bundle source → specs/openapi.json
+   npm run openapi:bundle    # Bundle source → specs/openapi.json and specs/archivist.openapi.json
    npm run openapi:lint      # Lint source files
    npm run openapi:validate  # Validate bundled output
+   npm run lint:spec-protocol  # The spec states the whole gateway protocol
    ```
+
+   `lint:spec-protocol` ([scripts/spec/check-protocol.mjs](../scripts/spec/check-protocol.mjs))
+   fails when the spec leaves something to be learned from the gateway's code
+   instead: an operation that does not say whether it is public, a 401 with no
+   challenge header, a response with no body schema, an error whose body is not
+   `ErrorResponse`, an operation with no 500 (or with a request body and no
+   400), a stream whose event names, frame or id formats no schema names, or a
+   limit in `x-semiont-limits` that is not a positive integer.
 
 3. **Regenerate types** (happens automatically during build):
    ```bash

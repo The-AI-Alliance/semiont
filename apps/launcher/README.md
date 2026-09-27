@@ -701,7 +701,7 @@ regenerates regardless.
 Build and test (hermetically — no Go on the host required):
 
 ```sh
-container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.25 \
+container run --rm -v "$(pwd)":/work -w /work/apps/launcher golang:1.27.1 \
   sh -c "go vet ./... && go test ./..."
 ```
 
