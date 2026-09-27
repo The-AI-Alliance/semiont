@@ -1,0 +1,245 @@
+{
+  "$comment": "The telemetry a gateway exports over OTLP, in any language: every span and metric, its kind, and the attributes it carries. A gateway exports these and no others. The conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row here, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a row arrives on. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum) or `gauge`.",
+  "spans": [
+    {
+      "name": "bus.dispatch:{channel}",
+      "kind": "server",
+      "when": "traffic",
+      "meaning": "An emit the gateway accepted, in the caller's trace when the request carried one.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        }
+      ]
+    },
+    {
+      "name": "sse.deliver:{channel}",
+      "kind": "producer",
+      "when": "traffic",
+      "meaning": "A correlated reply written to the stream of the client whose request it answers.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.cid"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on a reply in a resource scope"
+        }
+      ]
+    },
+    {
+      "name": "content.get.server",
+      "kind": "server",
+      "when": "traffic",
+      "meaning": "A read of a resource's bytes.",
+      "attributes": [
+        {
+          "key": "resource.id"
+        }
+      ]
+    },
+    {
+      "name": "content.put.server",
+      "kind": "server",
+      "when": "traffic",
+      "meaning": "An upload.",
+      "attributes": []
+    },
+    {
+      "name": "archivist.resources.record",
+      "kind": "client",
+      "when": "traffic",
+      "meaning": "An upload forwarded to the Archivist.",
+      "attributes": [
+        {
+          "key": "peer.service",
+          "values": [
+            "archivist"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "archivist.resources.describe",
+      "kind": "client",
+      "when": "traffic",
+      "meaning": "A JSON-LD description asked of the Archivist.",
+      "attributes": [
+        {
+          "key": "peer.service",
+          "values": [
+            "archivist"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "archivist.content.get",
+      "kind": "client",
+      "when": "traffic",
+      "meaning": "Bytes read from the Archivist.",
+      "attributes": [
+        {
+          "key": "peer.service",
+          "values": [
+            "archivist"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "archivist.events.replay",
+      "kind": "client",
+      "when": "traffic",
+      "meaning": "A scope's persisted events read from the Archivist for a replay.",
+      "attributes": [
+        {
+          "key": "peer.service",
+          "values": [
+            "archivist"
+          ]
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "name": "semiont.bus.emit",
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Emits accepted.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on an emit in a resource scope"
+        }
+      ]
+    },
+    {
+      "name": "semiont.bus.reply.suppressed",
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Correlated replies withheld from a subscriber that did not ask for them.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        }
+      ]
+    },
+    {
+      "name": "semiont.bus.resume_gap",
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Resumes answered with a gap, by the gap's reason.",
+      "attributes": [
+        {
+          "key": "bus.resume_gap.reason"
+        }
+      ]
+    },
+    {
+      "name": "semiont.bus.unanswerable",
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Requests no participant could answer; only a plane that can count subscribers counts them.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        }
+      ],
+      "planes": [
+        "in-process"
+      ]
+    },
+    {
+      "name": "semiont.sse.subscribers",
+      "instrument": "up-down counter",
+      "when": "traffic",
+      "meaning": "Open bus streams.",
+      "attributes": []
+    },
+    {
+      "name": "semiont.bus.correlation.size",
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "Outstanding request claims, and the cap on them.",
+      "attributes": [
+        {
+          "key": "correlation.kind",
+          "values": [
+            "claims",
+            "claims_max"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.process.start_time",
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "When the process started.",
+      "attributes": []
+    },
+    {
+      "name": "semiont.runtime.event_loop.lag",
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "Time the process could not serve anything, over the last export interval.",
+      "attributes": [
+        {
+          "key": "lag.stat",
+          "values": [
+            "mean",
+            "p99",
+            "max"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.runtime.heap",
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "Memory in use, allocated, allowed, and resident.",
+      "attributes": [
+        {
+          "key": "heap.stat",
+          "values": [
+            "used",
+            "total",
+            "limit",
+            "rss"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.process.restarts",
+      "instrument": "gauge",
+      "when": "supervised",
+      "meaning": "Lives the supervisor recorded, less one.",
+      "attributes": []
+    },
+    {
+      "name": "semiont.process.abnormal_exit",
+      "instrument": "counter",
+      "when": "fatal",
+      "meaning": "A fatal error, just before the process exits.",
+      "attributes": [
+        {
+          "key": "reason",
+          "values": [
+            "uncaughtException",
+            "unhandledRejection"
+          ]
+        }
+      ]
+    }
+  ]
+}

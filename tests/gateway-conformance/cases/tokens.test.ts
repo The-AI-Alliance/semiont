@@ -6,6 +6,7 @@ import { randomBytes } from 'node:crypto';
 import { expect, it } from 'vitest';
 import { call, nonConformance, type Reply } from '../harness/http';
 import { SERVICE_ROLE, WORKER_ROLE } from '../harness/roles';
+import { kbIdentity, principals } from '../harness/spec';
 import { eachPlane } from '../harness/world';
 
 function decode(token: string): { header: Record<string, unknown>; payload: Record<string, unknown> } {
@@ -64,13 +65,24 @@ eachPlane('credentials', (world) => {
     }
   });
 
+  const { people, agents } = principals(kbIdentity().domain);
+
+  for (const person of people) {
+    it(`a person is named exactly by their subject (principals/cases.json): ${person.why}`, async () => {
+      const me = await call(world().origin, 'GET', '/api/users/me', { token: await world().person(person.subject) });
+      expect(me.status, me.text).toBe(200);
+      expect((me.json as { did: string }).did).toBe(person.did);
+    });
+  }
+
   it('a service account exchanges its token for an agent token naming a (provider, model)', async () => {
+    const agent = agents[0]!;
     const service = await world().issuer.service('a-sidecar', [SERVICE_ROLE]);
-    const reply = await call(world().origin, 'POST', '/api/tokens/agent', { token: service, json: { provider: 'anthropic', model: 'claude-sonnet-5' } });
+    const reply = await call(world().origin, 'POST', '/api/tokens/agent', { token: service, json: { provider: agent.provider, model: agent.model } });
     expect(reply.status, reply.text).toBe(200);
     expect(nonConformance('post', '/api/tokens/agent', reply)).toEqual([]);
     const { token, did } = reply.json as { token: string; did: string };
-    expect(did).toBe(`${world().kb.did}:agents:anthropic:claude-sonnet-5`);
+    expect(did).toBe(agent.did);
 
     const { header, payload } = decode(token);
     expect(header['alg']).toBe('HS256');
@@ -91,16 +103,17 @@ eachPlane('credentials', (world) => {
     expect(Object.keys(decode(token).payload).sort()).toEqual(['did', 'domain', 'email', 'exp', 'iat', 'iss', 'name', 'roles']);
   });
 
-  it('an agent token names its agent exactly: the model URI-encoded in the DID, a synthetic address under agents.<host>, provider and model as its name', async () => {
-    const { token, did } = await world().agent('ollama', 'gemma2:27b');
-    expect(did).toBe(`${world().kb.did}:agents:ollama:gemma2%3A27b`);
-    expect(Object.keys(decode(token).payload).sort()).toEqual(['did', 'domain', 'email', 'exp', 'iat', 'iss', 'name']);
+  for (const agent of agents) {
+    it(`an agent token names its agent exactly (principals/cases.json): ${agent.why}`, async () => {
+      const { token, did } = await world().agent(agent.provider, agent.model);
+      expect(did).toBe(agent.did);
+      expect(Object.keys(decode(token).payload).sort()).toEqual(['did', 'domain', 'email', 'exp', 'iat', 'iss', 'name']);
 
-    const host = world().kb.domain.split(':')[0];
-    const me = await call(world().origin, 'GET', '/api/users/me', { token });
-    expect(me.status, me.text).toBe(200);
-    expect(me.json).toEqual({ did, email: `ollama-gemma2-27b@agents.${host}`, name: 'ollama gemma2:27b', image: null, domain: world().kb.domain });
-  });
+      const me = await call(world().origin, 'GET', '/api/users/me', { token });
+      expect(me.status, me.text).toBe(200);
+      expect(me.json).toEqual({ did, email: agent.email, name: agent.name, image: null, domain: world().kb.domain });
+    });
+  }
 
   it('the agent exchange refuses a caller without the service role, and a body without provider and model', async () => {
     const person = await world().person('not-a-service');

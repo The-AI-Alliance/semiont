@@ -220,6 +220,139 @@ export function gatewayEnvironment(): string[] {
   return names;
 }
 
+export interface TelemetryAttribute {
+  key: string;
+  /** The only values it may carry, where the spec lists them. */
+  values?: string[];
+  /** Why it may be absent: it is carried only under this condition. */
+  only?: string;
+}
+
+export interface TelemetryRow {
+  name: string;
+  /** A span's OTLP kind, or a metric's instrument. */
+  kind: string;
+  when: 'export' | 'traffic' | 'supervised' | 'fatal';
+  attributes: TelemetryAttribute[];
+  planes?: string[];
+}
+
+const WHEN = ['export', 'traffic', 'supervised', 'fatal'] as const;
+const isWhen = (v: unknown): v is TelemetryRow['when'] => WHEN.some((w) => w === v);
+
+function telemetryRows(rows: unknown, kindKey: 'kind' | 'instrument'): TelemetryRow[] {
+  if (!Array.isArray(rows)) throw new Error('gateway-telemetry/telemetry.json: spans and metrics must be lists');
+  return rows.map((r) => {
+    if (!isObject(r) || typeof r['name'] !== 'string' || typeof r[kindKey] !== 'string' || !isWhen(r['when']) || !Array.isArray(r['attributes'])) {
+      throw new Error(`gateway-telemetry/telemetry.json: a row is malformed: ${JSON.stringify(r)}`);
+    }
+    const attributes = r['attributes'].map((a): TelemetryAttribute => {
+      if (!isObject(a) || typeof a['key'] !== 'string') throw new Error(`gateway-telemetry/telemetry.json: ${r['name']} has a malformed attribute`);
+      const values = Array.isArray(a['values']) ? a['values'].map(String) : undefined;
+      return { key: a['key'], ...(values ? { values } : {}), ...(typeof a['only'] === 'string' ? { only: a['only'] } : {}) };
+    });
+    const planes = Array.isArray(r['planes']) ? r['planes'].map(String) : undefined;
+    return { name: r['name'], kind: String(r[kindKey]), when: r['when'], attributes, ...(planes ? { planes } : {}) };
+  });
+}
+
+let telemetryTable: { spans: TelemetryRow[]; metrics: TelemetryRow[] } | undefined;
+
+/** The telemetry a gateway exports (gateway-telemetry/telemetry.json): its spans and metrics. */
+export function telemetry(): { spans: TelemetryRow[]; metrics: TelemetryRow[] } {
+  if (telemetryTable) return telemetryTable;
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'gateway-telemetry/telemetry.json'), 'utf8'));
+  if (!isObject(table)) throw new Error('gateway-telemetry/telemetry.json is not an object');
+  telemetryTable = { spans: telemetryRows(table['spans'], 'kind'), metrics: telemetryRows(table['metrics'], 'instrument') };
+  return telemetryTable;
+}
+
+/** What an exported span name looks like for a row: `{channel}` stands for any channel. */
+export function spanPattern(row: TelemetryRow): RegExp {
+  const parts = row.name.split(/\{[a-z]+\}/).map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  return new RegExp(`^${parts.join('.+')}$`);
+}
+
+/** A span's exported name, from the row the spec lists: `spanName('bus.dispatch:{channel}', { channel })`. */
+export function spanName(template: string, fill: Record<string, string> = {}): string {
+  if (!telemetry().spans.some((r) => r.name === template)) throw new Error(`the spec lists no span ${template}`);
+  return template.replace(/\{([a-z]+)\}/g, (_, key: string) => {
+    const value = fill[key];
+    if (value === undefined) throw new Error(`span ${template} needs a value for {${key}}`);
+    return value;
+  });
+}
+
+/** A metric's name, as the spec lists it. */
+export function metricName(name: string): string {
+  if (!telemetry().metrics.some((r) => r.name === name)) throw new Error(`the spec lists no metric ${name}`);
+  return name;
+}
+
+export interface PersonCase {
+  why: string;
+  subject: string;
+  did: string;
+}
+
+export interface AgentCase {
+  why: string;
+  provider: string;
+  model: string;
+  did: string;
+  email: string;
+  name: string;
+}
+
+interface Principals {
+  personDid(subject: string): string;
+  people: PersonCase[];
+  agents: AgentCase[];
+}
+
+const principalsByDomain = new Map<string, Principals>();
+
+/**
+ * How the gateway names its principals under `domain` (principals/cases.json):
+ * a person's DID from the table's `person` form, each part after the domain
+ * percent-encoded as the table states — encodeURIComponent's encoding — and
+ * checked against every person case when loaded; and the table's cases for
+ * this domain — people, and agents with the DID, address and name the gateway
+ * must give each.
+ */
+export function principals(domain: string): Principals {
+  const known = principalsByDomain.get(domain);
+  if (known) return known;
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'principals/cases.json'), 'utf8'));
+  if (!isObject(table) || typeof table['person'] !== 'string' || !Array.isArray(table['people']) || !Array.isArray(table['agents'])) {
+    throw new Error('principals/cases.json has no person form, people or agents');
+  }
+  const form = table['person'];
+  const person = (d: string, subject: string) => form.replace('{domain}', d).replace('{subject}', encodeURIComponent(subject));
+  const people: PersonCase[] = [];
+  for (const c of table['people']) {
+    if (!isObject(c) || typeof c['why'] !== 'string' || typeof c['domain'] !== 'string' || typeof c['subject'] !== 'string' || typeof c['did'] !== 'string') {
+      throw new Error(`principals/cases.json: a person case is malformed: ${JSON.stringify(c)}`);
+    }
+    if (person(c['domain'], c['subject']) !== c['did']) {
+      throw new Error(`principals/cases.json: "${c['why']}" — the person form gives ${person(c['domain'], c['subject'])}, the case says ${c['did']}`);
+    }
+    if (c['domain'] === domain) people.push({ why: c['why'], subject: c['subject'], did: c['did'] });
+  }
+  const agents = table['agents'].flatMap((c): AgentCase[] => {
+    if (!isObject(c) || c['domain'] !== domain) return [];
+    const { why, provider, model, did, email, name } = c;
+    if (![why, provider, model, did, email, name].every((v) => typeof v === 'string')) {
+      throw new Error(`principals/cases.json: an agent case is malformed: ${JSON.stringify(c)}`);
+    }
+    return [{ why: String(why), provider: String(provider), model: String(model), did: String(did), email: String(email), name: String(name) }];
+  });
+  if (people.length === 0 || agents.length === 0) throw new Error(`principals/cases.json needs person and agent cases under ${domain}, the suite's knowledge base`);
+  const loaded = { personDid: (subject: string) => person(domain, subject), people, agents };
+  principalsByDomain.set(domain, loaded);
+  return loaded;
+}
+
 /** The knowledge-base identity the suite runs under, from the shared case table. */
 export function kbIdentity(): { name: string; domain: string; did: string; resource: string } {
   const table = JSON.parse(readFileSync(join(SPEC_SOURCE, 'kb-identity/cases.json'), 'utf8')) as {

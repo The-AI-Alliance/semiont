@@ -15,7 +15,7 @@ import { call, type Reply } from './http';
 import { freePort } from './net';
 import { startIssuer, type IssuerServer } from './issuer';
 import { SERVICE_ROLE } from './roles';
-import { kbIdentity } from './spec';
+import { kbIdentity, principals } from './spec';
 import { subscribe, type BusFrame, type BusStream, type SubscribeBody } from './stream';
 
 export const PLANES: readonly Plane[] = ['in-process', 'nats'];
@@ -110,9 +110,9 @@ export class World {
     return this.issuer.person(sub, claims);
   }
 
-  /** The DID the gateway names a person by, as the `bearerAuth` scheme states it. */
+  /** The DID the gateway names a person by (principals/cases.json). */
   personDid(sub: string): string {
-    return `${this.kb.did}:users:${sub}`;
+    return principals(this.kb.domain).personDid(sub);
   }
 
   /** A software agent's token, minted by the gateway for a service account with `roles`. */
