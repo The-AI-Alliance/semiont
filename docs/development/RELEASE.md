@@ -54,7 +54,9 @@ Semiont publishes a release in these steps:
    ```
    It builds the launcher from the ref it runs on, so it is equally the way to
    test a LAUNCHER change against the current images, from any branch, without
-   publishing anything. The same script runs locally with the launcher built
+   publishing anything. Without `images`, it builds every image from the ref
+   as well (`scripts/ci/local-build.sh`), pushing nothing. The same script
+   runs locally with the launcher built
    from your checkout: `scripts/release/smoke-stack.sh <version>`, or `local`
    for the images `scripts/ci/local-build.sh` builds.
 6. **release:bump** — bumps the version for the next development cycle.

@@ -28,7 +28,8 @@
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it. stack-smoke.yml builds the launcher and runs this script.
+# debugging it. stack-smoke.yml runs it after scripts/ci/local-build.sh, or,
+# given a published tag, after building only the launcher.
 #
 # Requires: docker (or another runtime via SMOKE_RUNTIME), git, curl, nc.
 
