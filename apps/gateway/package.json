@@ -21,7 +21,7 @@
     "@hono/node-server": "^2.1.1",
     "@semiont/core": "*",
     "@semiont/observability": "*",
-    "hono": "^4.13.8",
+    "hono": "^4.13.9",
     "jose": "^6.2.12",
     "jsonwebtoken": "^9.0.2",
     "nats": "^2.29.3",

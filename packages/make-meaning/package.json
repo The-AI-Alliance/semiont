@@ -64,10 +64,10 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
     "fast-check": "^4.10.0",
-    "rollup": "^4.63.3",
+    "rollup": "^4.63.5",
     "rollup-plugin-dts": "^6.4.1",
     "tsup": "^8.0.1",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.2",
     "vitest": "^4.1.11"
   },
