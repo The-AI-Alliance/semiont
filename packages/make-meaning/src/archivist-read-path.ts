@@ -1,16 +1,20 @@
 /**
  * The Archivist's HTTP surface: the /health probe, the D1 sequence-ranged
- * event read path (EXTRACT-ARCHIVIST P2a), and the content write and read
- * paths (SINGLE-KB-MOUNT P2/P3).
+ * event read path (EXTRACT-ARCHIVIST P2a), the content read path
+ * (SINGLE-KB-MOUNT P3), the recording upload, and the linked-data
+ * description (GATEWAY-SIMPLIFY P3).
  *
- * ⚠️ STANDING RULE, load-bearing: **this surface serves the KB tree, and
- * nothing else.** `browse:*`, `match:*`, `gather:*` stay on the bus. The
- * earlier, narrower rule — exactly one customer, the gateway's SSE resume —
- * was re-examined by SINGLE-KB-MOUNT D1 (2026-08-29), which reversed
- * GATEWAY.md D4a: the Archivist is the knowledge base's storage authority,
- * and this HTTP surface is how bytes and record reads reach it (D2: bytes
- * ride HTTP, never the bus). That is a change of design, not a widened seam;
- * an endpoint that is not a KB-tree read or write still does not belong here.
+ * ⚠️ STANDING RULE, load-bearing: **this surface serves the KB tree and
+ * each resource's linked-data description, and nothing else.** Every other
+ * `browse:*`, and `match:*` and `gather:*`, stay on the bus. The rule's
+ * history: exactly one customer, the gateway's SSE resume, until
+ * SINGLE-KB-MOUNT D1 (2026-08-29) made the Archivist the knowledge base's
+ * storage authority and this surface the way bytes and record reads reach it
+ * (D2: bytes ride HTTP, never the bus); then the user's ruling of 2026-09-27
+ * on GATEWAY-SIMPLIFY S2 — "(a) Archivist over HTTP" — added the description,
+ * so the gateway, which proxies bytes, proxies it too and makes no bus
+ * request of its own. An endpoint that is none of these still does not
+ * belong here.
  *
  * D1 (settled 2026-08-27): moving the event store out of the gateway breaks
  * `/bus/subscribe`'s `Last-Event-ID` replay, which reads the log in-process
@@ -21,26 +25,26 @@
  *   GET /events/:resourceId?fromSequence=N   (inclusive, like the filter it
  *   mirrors: `queryEvents(rId, { fromSequence })`; the caller does the +1)
  *
- * SINGLE-KB-MOUNT P2/P3: the gateway stops touching the shared mount for
- * bytes and proxies both directions here —
+ * The gateway proxies bytes and descriptions here —
  *
- *   PUT /content/:storageUri[?checksum=sha256hex]   (storageUri URI-encoded
- *   as one path segment; an optional checksum is verified BEFORE anything is
- *   written, and a disagreement is a 409)
+ *   POST /resources                                 (the client's multipart
+ *   upload, forwarded untouched, with the principal the gateway verified in
+ *   `Semiont-Principal` and its roles in `Semiont-Roles`: the bytes are
+ *   stored `noGit` at their storageUri and the resource is recorded — by the
+ *   Stower, or the CloneTokenManager for an upload carrying a clone token —
+ *   and the answer is its id. The user's ruling on GATEWAY-SIMPLIFY S3,
+ *   2026-09-27: "(a) Archivist records it".)
  *
  *   GET /resources/:id/content                      (the bytes, streamed,
  *   with the media type the record stores; the 404 carries `reason` so the
  *   gateway can serve its two different not-found messages)
  *
- * **The addresses differ because the lifecycle does**, not by oversight: at
- * write time neither the resource nor its view exists — bytes land before the
- * event — so the write has only a tree address to be addressed by, while the
- * read has a record. Both go through ONE resolution (`representation.ts`);
- * neither restates where bytes live.
+ *   GET /resources/:id/jsonld                       (the description: the
+ *   descriptor, its annotations, and the annotations that reference it)
  *
- * The write is `noGit` and emits nothing: the event contract is untouched —
- * the Stower still `register`s the bytes from disk and does the one `git add`
- * on event apply (GATEWAY.md D4b, single-writer).
+ * The principal headers are believed because every path here requires a
+ * service account's token: only the fleet's own services call this surface,
+ * and they are the ones that verify people.
  *
  * Auth: callers present a token from the knowledge base's trusted issuer
  * carrying the `semiont-service` role — the same credential a sidecar uses to
@@ -55,14 +59,37 @@
  */
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from 'http';
+import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
-import type { AccessToken, Logger } from '@semiont/core';
-import { resourceId as makeResourceId, errField, hasServiceRole } from '@semiont/core';
+import type { AccessToken, CreateResourceInput, Emitter, Logger, ResourceId, components } from '@semiont/core';
+import { resourceId as makeResourceId, userId as makeUserId, errField, hasServiceRole, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { IssuerVerifier } from '@semiont/core/identity';
+import { validators } from '@semiont/core/openapi';
 
 import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
-import { ChecksumMismatchError, RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
+import { RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
 import { resolveRepresentation } from './representation';
+
+type GetResourceResponse = components['schemas']['GetResourceResponse'];
+
+/** An upload clone: the bytes are stored, and the token names the resource cloned. */
+export interface CloneUploadInput {
+  token: string;
+  name: string;
+  storageUri: string;
+  contentChecksum: string;
+  byteSize: number;
+  format: string;
+  archiveOriginal?: boolean;
+}
+
+/** What `record` is asked to write, once the bytes are stored. */
+export type RecordedUpload =
+  | { kind: 'create'; input: CreateResourceInput; emitter: Emitter }
+  | { kind: 'clone'; input: CloneUploadInput; emitter: Emitter };
+
+/** A refusal of the request itself — answered 400 with its message. */
+class BadUpload extends Error {}
 
 export interface ArchivistServerDeps {
   /** The record's log — the read half only. */
@@ -72,6 +99,10 @@ export interface ArchivistServerDeps {
   content: Pick<WorkingTreeStore, 'store' | 'retrieveStream'>;
   /** The record's views — the resource half of the one resolution. */
   views: Pick<ViewStorage, 'get'>;
+  /** A resource's linked-data description, or undefined when the record holds no such resource. */
+  describe: (resourceId: ResourceId) => Promise<GetResourceResponse | undefined>;
+  /** Record an upload whose bytes are stored; resolves with the new resource's id, rejects with the record's reason. */
+  record: (upload: RecordedUpload) => Promise<ResourceId>;
   /**
    * Verifies caller tokens against the issuer this knowledge base trusts.
    * `null` disables everything but /health, never opens it.
@@ -88,7 +119,7 @@ const json = (res: ServerResponse, status: number, body: unknown): void => {
 };
 
 export function createArchivistServer(deps: ArchivistServerDeps): Server {
-  const { events, content, views, verifier, health, logger } = deps;
+  const { events, content, views, verifier, describe, record, health, logger } = deps;
 
   /**
    * The 401 posture every authenticated path shares. True = request may proceed.
@@ -183,31 +214,45 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
       return;
     }
 
-    if (req.method === 'PUT' && url.pathname.startsWith('/content/')) {
+    // GET /resources/:id/jsonld — the description. Matched before the
+    // `/content` suffix below cannot claim it: both end a resource path.
+    const describeMatch = req.method === 'GET' && /^\/resources\/(.+)\/jsonld$/.exec(url.pathname);
+    if (describeMatch) {
       if (!(await authorized(req, res))) return;
-
-      const storageUri = decodeURIComponent(url.pathname.slice('/content/'.length));
-      if (!storageUri) {
-        json(res, 400, { error: 'storageUri path segment is required' });
+      const described = await describe(makeResourceId(decodeURIComponent(describeMatch[1]!)));
+      if (!described) {
+        json(res, 404, { error: 'Resource not found' });
         return;
       }
-      const expectedChecksum = url.searchParams.get('checksum');
+      res.writeHead(200, { 'Content-Type': 'application/ld+json; charset=utf-8' });
+      res.end(JSON.stringify(described));
+      return;
+    }
 
-      // Streamed straight in: memory is bounded by the chunk. The store
-      // renames into place only once the checksum agrees.
-      content.store(req, storageUri, {
-        noGit: true,
-        ...(expectedChecksum !== null ? { expectedChecksum } : {}),
-      })
-        .then((stored) => json(res, 200, stored))
-        .catch((error: unknown) => {
-          if (error instanceof ChecksumMismatchError) {
-            json(res, 409, { error: 'checksum mismatch: body does not match the checksum the caller supplied' });
-            return;
-          }
-          logger.error('Content write failed', { storageUri, error: errField(error) });
-          json(res, 500, { error: 'content write failed' });
-        });
+    if (req.method === 'POST' && url.pathname === '/resources') {
+      if (!(await authorized(req, res))) return;
+      let upload: RecordedUpload;
+      let file: File;
+      try {
+        ({ upload, file } = await readUpload(req));
+      } catch (error) {
+        if (error instanceof BadUpload) {
+          json(res, 400, { error: error.message });
+          return;
+        }
+        throw error;
+      }
+      // Streamed from the parsed part: the store hashes as it writes, and the
+      // record is asked only once the bytes are in place.
+      const stored = await content.store(Readable.fromWeb(file.stream()), upload.input.storageUri, { noGit: true });
+      upload.input.contentChecksum = stored.checksum;
+      upload.input.byteSize = stored.byteSize;
+      try {
+        json(res, 200, { resourceId: String(await record(upload)) });
+      } catch (error) {
+        logger.warn('Upload not recorded', { storageUri: upload.input.storageUri, error: errField(error) });
+        json(res, 500, { error: error instanceof Error ? error.message : String(error) });
+      }
       return;
     }
 
@@ -221,3 +266,105 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
     else res.end();
   }));
 }
+
+/**
+ * The upload, read and checked: the multipart fields `POST /resources`
+ * declares in the gateway's spec, and the principal the gateway vouches for.
+ * Every refusal is a `BadUpload` naming what is wrong. The checksum and size
+ * are filled in once the bytes are stored.
+ */
+async function readUpload(req: IncomingMessage): Promise<{ upload: RecordedUpload; file: File }> {
+  const did = req.headers['semiont-principal'];
+  if (typeof did !== 'string' || did === '') {
+    throw new BadUpload('Semiont-Principal is required: the record attributes every resource to someone');
+  }
+  const rolesHeader = req.headers['semiont-roles'];
+  const emitter: Emitter = {
+    did: makeUserId(did),
+    roles: typeof rolesHeader === 'string' && rolesHeader !== '' ? rolesHeader.split(',').map((r) => r.trim()) : [],
+  };
+
+  let form: FormData;
+  try {
+    form = await new Request('http://archivist/resources', {
+      method: 'POST',
+      headers: { 'content-type': req.headers['content-type'] ?? '' },
+      body: Readable.toWeb(req) as ReadableStream<Uint8Array>,
+      duplex: 'half',
+    }).formData();
+  } catch {
+    throw new BadUpload('The body is not multipart/form-data');
+  }
+  const text = (field: string): string | undefined => {
+    const value = form.get(field);
+    return typeof value === 'string' && value !== '' ? value : undefined;
+  };
+  const json = (field: string): unknown => {
+    const value = text(field);
+    if (value === undefined) return undefined;
+    try {
+      return JSON.parse(value);
+    } catch {
+      throw new BadUpload(`${field} is not JSON`);
+    }
+  };
+
+  const name = text('name');
+  const format = text('format');
+  const storageUri = text('storageUri');
+  const file = form.get('file');
+  const missing = [
+    ['name', name],
+    ['file', file instanceof File ? file : undefined],
+    ['format', format],
+    ['storageUri', storageUri],
+  ].filter(([, v]) => v === undefined).map(([k]) => k);
+  if (missing.length > 0 || !(file instanceof File) || !name || !format || !storageUri) {
+    throw new BadUpload(`Missing required fields: ${missing.join(', ')}`);
+  }
+  // A format may carry parameters ("text/plain; charset=iso-8859-1"); the base
+  // type is what must be supported, and the parameters stay on the record.
+  const base = baseMediaType(format);
+  if (!isSupportedMediaType(base)) throw new BadUpload(`Unsupported media type: ${base}`);
+
+  const common = { name, storageUri, contentChecksum: '', byteSize: 0, format };
+  const cloneToken = text('cloneToken');
+  if (cloneToken !== undefined) {
+    const archiveOriginal = text('archiveOriginal');
+    return {
+      file,
+      upload: { kind: 'clone', emitter, input: { token: cloneToken, ...common, ...(archiveOriginal === undefined ? {} : { archiveOriginal: archiveOriginal === 'true' }) } },
+    };
+  }
+
+  const entityTypes = json('entityTypes');
+  if (entityTypes !== undefined && !isNameList(entityTypes)) {
+    throw new BadUpload('entityTypes is not a JSON array of names');
+  }
+  // One agent: the record binds one generator to the executor.
+  const generator = json('generator');
+  if (generator !== undefined && !validators.Agent(generator)) {
+    throw new BadUpload('generator is not an Agent');
+  }
+  const sourceResourceId = text('sourceResourceId');
+  const sourceAnnotationId = text('sourceAnnotationId');
+  const language = text('language');
+  const generationPrompt = text('generationPrompt');
+  const jobId = text('jobId');
+  const isDraft = text('isDraft');
+  const input: CreateResourceInput = {
+    ...common,
+    ...(language === undefined ? {} : { language }),
+    ...(entityTypes === undefined ? {} : { entityTypes }),
+    ...(sourceResourceId || sourceAnnotationId
+      ? { generatedFrom: { ...(sourceResourceId ? { resourceId: sourceResourceId } : {}), ...(sourceAnnotationId ? { annotationId: sourceAnnotationId } : {}) } }
+      : {}),
+    ...(generationPrompt === undefined ? {} : { generationPrompt }),
+    ...(generator === undefined ? {} : { generator }),
+    ...(jobId === undefined ? {} : { jobId }),
+    ...(isDraft === undefined ? {} : { isDraft: isDraft === 'true' }),
+  };
+  return { file, upload: { kind: 'create', emitter, input } };
+}
+
+const isNameList = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');

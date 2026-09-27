@@ -1,10 +1,14 @@
 {
   "post": {
     "summary": "Create a resource",
-    "description": "Upload binary content + metadata as multipart/form-data. The gateway writes content to disk, then emits yield:create on the bus; Stower persists it and returns a 202 with the new resourceId. Full reconciliation happens via SSE domain events (yield:created).\n\nGeneration workers and the /know/compose page both hit this route — bytes always travel on the HTTP wire, never on the bus.",
-    "tags": ["Resources"],
+    "description": "Upload a representation's bytes with its metadata, as multipart/form-data. The gateway forwards the upload untouched to the Archivist, which holds the knowledge base's tree: it stores the bytes and records the resource — as a clone of the token's source when the upload carries `cloneToken` — for the caller the gateway verified, and the new resource's id comes back with 202. What follows from the resource's creation — graph, views, vectors — settles afterwards, announced by `yield:created` on the bus.\n\nBytes travel on this HTTP request, never on the bus.",
+    "tags": [
+      "Resources"
+    ],
     "security": [
-      { "bearerAuth": [] }
+      {
+        "bearerAuth": []
+      }
     ],
     "requestBody": {
       "required": true,
@@ -61,9 +65,22 @@
               "isDraft": {
                 "type": "string",
                 "description": "'true' or 'false' — whether the resource is a draft"
+              },
+              "cloneToken": {
+                "type": "string",
+                "description": "A clone token from `yield:clone-token-requested`. With it, the resource is created as a clone of the token's source, inheriting its entity types; `language`, `entityTypes` and the generation fields are then not read."
+              },
+              "archiveOriginal": {
+                "type": "string",
+                "description": "With `cloneToken`: 'true' archives the source once the clone exists."
               }
             },
-            "required": ["name", "file", "format", "storageUri"]
+            "required": [
+              "name",
+              "file",
+              "format",
+              "storageUri"
+            ]
           }
         }
       }
@@ -80,7 +97,7 @@
         }
       },
       "400": {
-        "description": "Missing required fields (name, file, format, or storageUri), or the format's base MIME type is not a SupportedMediaType. The error message names the offending type.",
+        "description": "The upload is not multipart/form-data; a required field is missing (name, file, format, storageUri); the format's base media type is not a SupportedMediaType; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
         "content": {
           "application/json": {
             "schema": {
@@ -90,7 +107,10 @@
         }
       },
       "401": {
-        "description": "Authentication required",
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "500": {
+        "description": "The knowledge base refused to record the resource; the message says why.",
         "content": {
           "application/json": {
             "schema": {
@@ -98,6 +118,9 @@
             }
           }
         }
+      },
+      "503": {
+        "$ref": "../components/responses/ServiceUnavailable.json"
       }
     }
   }

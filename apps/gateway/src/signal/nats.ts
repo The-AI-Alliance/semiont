@@ -37,15 +37,16 @@
  */
 import { JSONCodec, NatsError, StringCodec, connect, type NatsConnection, type Subscription } from 'nats';
 import { getLogger } from '../logger';
-import type {
-  ClientSubscriptionSpec,
-  IngestReceipt,
-  OnFrame,
-  PlaneSubscription,
-  SharedTable,
-  SignalPlane,
+import {
+  SignalPlaneUnavailable,
+  type ClientSubscriptionSpec,
+  type IngestReceipt,
+  type OnFrame,
+  type PlaneSubscription,
+  type SharedTable,
+  type SignalPlane,
 } from './interface';
-import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
+import { itemLimits } from '@semiont/core/openapi';
 
 const getSignalLogger = () => getLogger().child({ component: 'signal' });
 
@@ -80,7 +81,7 @@ interface InboxEnvelope {
   payload: unknown;
 }
 
-export interface NatsSignalPlaneOptions extends SignalPlaneOptions {
+export interface NatsSignalPlaneOptions {
   servers: string;
   /**
    * Broker credentials. Absent means an unauthenticated broker, which is what
@@ -96,27 +97,24 @@ export interface NatsSignalPlaneOptions extends SignalPlaneOptions {
    */
   user?: string;
   pass?: string;
-  /** Passed through to the client; the conformance fixture disables it. */
-  reconnect?: boolean;
 }
 
 /**
  * A frame as it travels over NATS: routing metadata beside the payload. The
  * driver ferries `meta` verbatim and never reads a key out of it — that is
- * what keeps the seam free of gateway policy (P0.5 census). Decoded
- * defensively: a frame from an older build has no wrapper, and reading its
- * whole body as the payload is the correct reading of it.
+ * what keeps the seam free of gateway policy (P0.5 census). A message
+ * without that shape was not published by a gateway, and is dropped.
  */
-function decodeFrame(raw: unknown): { meta?: Record<string, string>; payload: unknown } {
+function decodeFrame(raw: unknown): { meta?: Record<string, string>; payload: unknown } | undefined {
   if (raw !== null && typeof raw === 'object' && 'payload' in (raw as object)) {
     const framed = raw as { meta?: Record<string, string>; payload: unknown };
     return { meta: framed.meta, payload: framed.payload };
   }
-  return { payload: raw };
+  getSignalLogger().warn('[signal FRAME-MALFORMED] a message with no frame shape dropped');
+  return undefined;
 }
 
 export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promise<SignalPlane> {
-  const options = resolveSignalPlaneOptions(opts);
   const nc: NatsConnection = await connect({
     servers: opts.servers,
     ...(opts.user === undefined ? {} : { user: opts.user }),
@@ -128,25 +126,34 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
     // every emit 500'd even after the broker returned, and only a gateway
     // restart would have recovered. Found by the gate, 2026-09-15.
     maxReconnectAttempts: -1,
-    ...(opts.reconnect === undefined ? {} : { reconnect: opts.reconnect }),
   });
   const codec = JSONCodec();
   const open = new Set<Subscription>();
+  let connected = true;
+  const available = () => connected && !nc.isClosed();
+  const publish = (subject: string, data: Uint8Array) => {
+    if (!available()) throw new SignalPlaneUnavailable();
+    nc.publish(subject, data);
+  };
 
   // The connection-status watcher (Live gate, broker-down protocol item 3:
   // degradation must produce a breadcrumb — "silence is itself a failure",
-  // LIVENESS-AXIOMS L4). With infinite reconnect the first live outage was
-  // QUIET: frames buffered client-side, callers got 202s, nothing logged.
-  // These two lines are what an operator greps during a broker outage.
-  // The loop ends when dispose() closes the connection.
+  // LIVENESS-AXIOMS L4). These two lines are what an operator greps during a
+  // broker outage. It also keeps `connected`: the client discards whatever
+  // was published while disconnected when it reconnects (nats.js resets its
+  // outbound buffer on every dial), so a frame ingested then is refused
+  // rather than accepted and lost. The loop ends when dispose() closes the
+  // connection.
   void (async () => {
     for await (const status of nc.status()) {
       if (status.type === 'disconnect') {
+        connected = false;
         getSignalLogger().warn(
-          '[signal BROKER-DOWN] NATS connection lost; frames buffer client-side until reconnect',
+          '[signal BROKER-DOWN] NATS connection lost; emits are refused until it is restored',
           { servers: opts.servers },
         );
       } else if (status.type === 'reconnect') {
+        connected = true;
         getSignalLogger().info('[signal BROKER-RECONNECTED] NATS connection restored', {
           servers: opts.servers,
         });
@@ -179,20 +186,22 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
   };
 
   return {
+    available,
+
     ingest(channel, payload, envelope): IngestReceipt {
       const subject = envelope?.scope ? subjectForScoped(envelope.scope, channel) : subjectForChannel(channel);
       // The envelope travels WITH the payload on the wire — a broker frame is
       // { meta?, payload } — routing metadata the driver ferries and never reads.
-      nc.publish(subject, codec.encode({ meta: envelope?.meta, payload }));
+      publish(subject, codec.encode({ meta: envelope?.meta, payload }));
       // A remote fabric cannot count observers: report nothing, never a
       // fabricated zero (see IngestReceipt).
       return {};
     },
 
     subscribeClient(spec: ClientSubscriptionSpec): PlaneSubscription {
-      if (spec.scoped.length > options.maxScopes) {
+      if (spec.scoped.length > itemLimits['BusSubscribeRequest.scoped']) {
         throw new Error(
-          `signal plane: ${spec.scoped.length} scopes exceeds the per-subscription cap of ${options.maxScopes}`,
+          `signal plane: ${spec.scoped.length} scopes exceeds the per-subscription cap of ${itemLimits['BusSubscribeRequest.scoped']}`,
         );
       }
       const subs: Subscription[] = [];
@@ -202,10 +211,8 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
             nc.subscribe(subjectForChannel(channel), {
               callback: (_err, msg) => {
                 if (_err) return;
-                {
-                  const frame = decodeFrame(codec.decode(msg.data));
-                  spec.onFrame(channel, frame.payload, { meta: frame.meta });
-                }
+                const frame = decodeFrame(codec.decode(msg.data));
+                if (frame) spec.onFrame(channel, frame.payload, { meta: frame.meta });
               },
             }),
           ),
@@ -218,10 +225,8 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
               nc.subscribe(subjectForScoped(entry.scope, channel), {
                 callback: (_err, msg) => {
                   if (_err) return;
-                  {
-                    const frame = decodeFrame(codec.decode(msg.data));
-                    spec.onFrame(channel, frame.payload, { scope: entry.scope, meta: frame.meta });
-                  }
+                  const frame = decodeFrame(codec.decode(msg.data));
+                  if (frame) spec.onFrame(channel, frame.payload, { scope: entry.scope, meta: frame.meta });
                 },
               }),
             ),
@@ -244,7 +249,7 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
 
     deliver(address, channel, payload): void {
       const envelope: InboxEnvelope = { channel, payload };
-      nc.publish(inboxSubjectFor(address), codec.encode(envelope));
+      publish(inboxSubjectFor(address), codec.encode(envelope));
     },
 
     subscribeHandlers(group: string, channels: readonly string[], onFrame: OnFrame): PlaneSubscription {
@@ -258,10 +263,8 @@ export async function createNatsSignalPlane(opts: NatsSignalPlaneOptions): Promi
               queue: group,
               callback: (_err, msg) => {
                 if (_err) return;
-                {
-                  const frame = decodeFrame(codec.decode(msg.data));
-                  onFrame(channel, frame.payload, { meta: frame.meta });
-                }
+                const frame = decodeFrame(codec.decode(msg.data));
+                if (frame) onFrame(channel, frame.payload, { meta: frame.meta });
               },
             }),
           ),

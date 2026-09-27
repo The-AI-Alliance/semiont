@@ -12,16 +12,13 @@
     },
     "timestamp": {
       "type": "string"
-    },
-    "environment": {
-      "type": "string"
     }
   },
   "required": [
     "status",
     "message",
     "version",
-    "timestamp",
-    "environment"
-  ]
+    "timestamp"
+  ],
+  "description": "Liveness: the process is up and serving. It asks nothing of the Archivist or the broker — a gateway that cannot reach them refuses to start, so one that answers here got past both at boot."
 }

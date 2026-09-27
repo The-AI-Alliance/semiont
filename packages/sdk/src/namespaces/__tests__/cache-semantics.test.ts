@@ -92,7 +92,7 @@ function fakeMarkBodyUpdated(
   };
 }
 
-function fakeBusResumeGap(scope: string | undefined, reason: string): EventMap['bus:resume-gap'] {
+function fakeBusResumeGap(scope: string | undefined, reason: EventMap['bus:resume-gap']['reason']): EventMap['bus:resume-gap'] {
   return scope === undefined ? { reason } : { scope, reason };
 }
 
@@ -819,7 +819,7 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       // The roster's one real staleness event — a gateway restart with a
       // changed TOML — necessarily presents as an SSE gap.
-      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'retention window exceeded'));
+      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'retention-exceeded'));
       await flush();
 
       const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;

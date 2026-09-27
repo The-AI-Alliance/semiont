@@ -53,7 +53,6 @@ COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 
 USER semiont
 
-ENV NODE_ENV=production
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \

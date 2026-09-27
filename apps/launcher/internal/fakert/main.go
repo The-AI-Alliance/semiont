@@ -1450,7 +1450,6 @@ func serve(container string, ports []string) {
 				// the grant — every JSON-bodied, Content-Type explicit (the
 				// generated Go client parses JSON200 only when the header
 				// says json, exactly like the real gateway).
-				//   FAKERT_NO_ISSUER=1        the KB trusts no issuer (404 metadata)
 				//   FAKERT_DEVICE_PENDING=n   polls answered authorization_pending first (default 1)
 				//   FAKERT_DEVICE_DENY=1      the user denies at the issuer
 				//   FAKERT_MISSING_CLIENT=id  the realm has no such client (401 invalid_client)
@@ -1465,10 +1464,6 @@ func serve(container string, ports []string) {
 					_ = json.NewEncoder(w).Encode(body)
 				}
 				if r.URL.Path == "/.well-known/oauth-protected-resource" {
-					if os.Getenv("FAKERT_NO_ISSUER") != "" {
-						jsonOut(404, map[string]any{"error": "This knowledge base trusts no external issuer"})
-						return
-					}
 					jsonOut(200, map[string]any{
 						"resource":                 origin,
 						"authorization_servers":    []string{issuer},

@@ -77,7 +77,16 @@ gateway and Browser import from core
    npm run openapi:bundle    # Bundle source → specs/openapi.json
    npm run openapi:lint      # Lint source files
    npm run openapi:validate  # Validate bundled output
+   npm run lint:spec-protocol  # The spec states the whole gateway protocol
    ```
+
+   `lint:spec-protocol` ([scripts/spec/check-protocol.mjs](../scripts/spec/check-protocol.mjs))
+   fails when the spec leaves something to be learned from the gateway's code
+   instead: an operation that does not say whether it is public, a 401 with no
+   challenge header, a response with no body schema, an error whose body is not
+   `ErrorResponse`, an operation with no 500 (or with a request body and no
+   400), a stream whose event names, frame or id formats no schema names, or a
+   limit in `x-semiont-limits` that is not a positive integer.
 
 3. **Regenerate types** (happens automatically during build):
    ```bash

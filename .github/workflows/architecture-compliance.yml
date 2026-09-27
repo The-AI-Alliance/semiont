@@ -71,6 +71,7 @@ jobs:
           npm run lint:coverage-roster || fail=1
           npm run lint:vitest-coverage || fail=1
           npm run lint:notice || fail=1
+          npm run lint:spec-protocol || fail=1
           echo "::endgroup::"
           exit $fail
 

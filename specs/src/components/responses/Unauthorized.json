@@ -1,0 +1,19 @@
+{
+  "description": "No credential, or one the gateway does not accept (see the `bearerAuth` scheme). The challenge names where to learn which issuer to sign in at: `Bearer resource_metadata=\"<origin>/.well-known/oauth-protected-resource\"`, with `error=\"invalid_token\"` first when a credential was presented and refused (RFC 6750 §3, RFC 9728 §5.1). With no credential, the body's `hint` names the header to send; a refused credential is not told why it was refused.",
+  "headers": {
+    "WWW-Authenticate": {
+      "description": "`Bearer [error=\"invalid_token\", ]resource_metadata=\"<origin>/.well-known/oauth-protected-resource\"`",
+      "schema": {
+        "type": "string",
+        "pattern": "^Bearer (error=\"invalid_token\", )?resource_metadata=\"[^\"]+/\\.well-known/oauth-protected-resource\"$"
+      }
+    }
+  },
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../schemas/ErrorResponse.json"
+      }
+    }
+  }
+}

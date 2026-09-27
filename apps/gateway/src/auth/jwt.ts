@@ -29,18 +29,17 @@ export interface JWTPayload {
  * Comma is unambiguous as a delimiter: generated secrets are hex
  * (`semiont start`) and the documented manual recipe is `openssl rand -hex 32`.
  *
- * Exported so index.ts can check it among its other module-scope requirements
- * (SEMIONT_ROOT, services.gateway) — i.e. before startMakeMeaning dials the
- * graph and vector stores. Failing a millisecond in beats failing after those
- * connections are up, and both paths enforce the same rule because there is
- * only one copy of it.
+ * Exported so index.ts can check it at boot, before the signal plane is
+ * connected. Failing a millisecond in beats failing after that connection is
+ * up, and both paths enforce the same rule because there is only one copy of
+ * it.
  */
 export function requireJwtSecret(): string[] {
   const raw = process.env.JWT_SECRET;
   if (!raw) {
     throw new Error(
       'JWT_SECRET is not set. `semiont start` generates one per knowledge base ' +
-      'and injects it; set JWT_SECRET explicitly to override, or in test setup.'
+      'and injects it; set JWT_SECRET explicitly to override.'
     );
   }
   const ring = raw.split(',').map(s => s.trim()).filter(Boolean);
@@ -94,21 +93,6 @@ export class JWTService {
     return this.domain;
   }
 
-  /**
-   * Override configuration for testing purposes
-   * @param config The configuration to use
-   */
-  static setTestConfig(domain: string): void {
-    this.domain = domain;
-  }
-
-  /**
-   * Reset configuration cache (useful for testing)
-   */
-  static resetConfig(): void {
-    this.domain = null;
-  }
-  
   // Injected by `semiont start` (generated once per knowledge base and kept, so
   // tokens survive a restart), or set explicitly to override. Still re-read per
   // operation rather than cached: initialize() has already gated it, so this is

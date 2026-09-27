@@ -1,0 +1,62 @@
+{
+  "$comment": "How a ${VAR} in a knowledge base's config resolves \u2014 shared by the TypeScript config loader (packages/core, toml-loader.ts resolveEnvVars) and the Go launcher (apps/launcher, which resolves the gateway's configuration document). Both run every case; a change to the rule changes this table first.",
+  "cases": [
+    {
+      "why": "a set variable replaces its reference",
+      "template": "http://${KEYCLOAK_HOST}:8080/realms/semiont",
+      "env": {
+        "KEYCLOAK_HOST": "10.0.0.5"
+      },
+      "result": "http://10.0.0.5:8080/realms/semiont"
+    },
+    {
+      "why": "text without a reference is itself",
+      "template": "nats://broker:4222",
+      "env": {},
+      "result": "nats://broker:4222"
+    },
+    {
+      "why": "every reference in a value is resolved",
+      "template": "${HOST}:${PORT}",
+      "env": {
+        "HOST": "h",
+        "PORT": "4222"
+      },
+      "result": "h:4222"
+    },
+    {
+      "why": "an unset variable with a default takes the default",
+      "template": "http://${GATEWAY_HOST:-localhost}:4000",
+      "env": {},
+      "result": "http://localhost:4000"
+    },
+    {
+      "why": "a set variable wins over its default",
+      "template": "http://${GATEWAY_HOST:-localhost}:4000",
+      "env": {
+        "GATEWAY_HOST": "gw"
+      },
+      "result": "http://gw:4000"
+    },
+    {
+      "why": "a variable set to the empty string is set",
+      "template": "x${EMPTY:-fallback}y",
+      "env": {
+        "EMPTY": ""
+      },
+      "result": "xy"
+    },
+    {
+      "why": "a default may be empty",
+      "template": "a${UNSET:-}b",
+      "env": {},
+      "result": "ab"
+    },
+    {
+      "why": "an unset variable with no default refuses, naming it",
+      "template": "${NATS_HOST}:4222",
+      "env": {},
+      "error": "NATS_HOST"
+    }
+  ]
+}

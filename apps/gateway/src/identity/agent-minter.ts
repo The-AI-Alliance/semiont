@@ -26,8 +26,14 @@ import { trustedIssuer } from './trusted-issuer';
  */
 export { SERVICE_ROLE };
 
+/**
+ * A refusal: `message` is what the caller is told, `reason` what the log
+ * records. A token that does not verify is told only that — why it did not is
+ * the verifier's detail, and the caller has no use for it an attacker would
+ * not have more.
+ */
 export class AgentMinterRefused extends Error {
-  constructor(message: string) {
+  constructor(message: string, readonly reason: string) {
     super(message);
   }
 }
@@ -44,37 +50,23 @@ export interface AuthorizedMinter {
 }
 
 /**
- * Verify a caller's bearer token and confirm it carries the agent role.
+ * Verify a caller's bearer token and confirm it carries the service role.
  *
  * Returns who asked (for logging) and whether it may delegate the worker
  * capability to the agent token being minted — read from the same verified
  * claims, so there is one verification, not two.
  */
-export async function authorizeAgentMinter(authorization: string | undefined): Promise<AuthorizedMinter> {
-  // Every refusal here is a 401, including "this deployment trusts no issuer".
-  // That is a configuration state, and an unverified caller has no business
-  // learning it — a distinct status would be a hole in the route-coverage
-  // contract shaped like a deployment detail. An operator learns about a
-  // missing issuer from the gateway's own startup, not from an anonymous 503.
-  const bearer = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined;
-  if (!bearer) {
-    throw new AgentMinterRefused('Agent authentication requires a bearer token');
-  }
-
-  const issuer = trustedIssuer();
+export async function authorizeAgentMinter(bearer: AccessToken): Promise<AuthorizedMinter> {
   let claims;
   try {
-    claims = await issuer.verify(bearer as AccessToken);
+    claims = await trustedIssuer().verify(bearer);
   } catch (error) {
-    throw new AgentMinterRefused(
-      `Agent token rejected: ${error instanceof Error ? error.message : String(error)}`,
-    );
+    throw new AgentMinterRefused('Invalid token', error instanceof Error ? error.message : String(error));
   }
 
   if (!hasServiceRole(claims)) {
-    throw new AgentMinterRefused(
-      `Agent token carries no '${SERVICE_ROLE}' role in its '${ROLES_CLAIM}' claim`,
-    );
+    const missing = `The token carries no '${SERVICE_ROLE}' role in its '${ROLES_CLAIM}' claim`;
+    throw new AgentMinterRefused(missing, missing);
   }
 
   const azp = claims['azp'];

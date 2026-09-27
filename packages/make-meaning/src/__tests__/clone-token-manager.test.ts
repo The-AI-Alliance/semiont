@@ -79,7 +79,7 @@ describe('CloneTokenManager format selection', () => {
     const stored = await kb.content.store(Buffer.from(content), uri);
     return ResourceOperations.createResource(
       { name: `source-${fileCounter}`, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format },
-      userId('did:web:test:users:ctm-test'),
+      { did: userId('did:web:test:users:ctm-test'), roles: [] },
       asBusRequestPrimitive(eventBus),
     );
   }

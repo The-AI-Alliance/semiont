@@ -1,87 +1,30 @@
 /**
  * Create Resource Route
  *
- * Handles binary content upload via multipart/form-data.
- * Sends the content to the Archivist — the KB tree's one writer
- * (SINGLE-KB-MOUNT) — then emits yield:create with storageUri.
- * Returns 202 with { resourceId } — frontend navigates using the ID
- * and reconciles full state via SSE domain events.
+ * An upload is multipart/form-data, and the gateway forwards it untouched to
+ * the Archivist — the KB tree's one writer — which stores the bytes and
+ * records the resource (the user's ruling on GATEWAY-SIMPLIFY S3, 2026-09-27:
+ * "(a) Archivist records it"). The gateway authenticates the caller, names
+ * them to the Archivist, and answers 202 with the new resource's id; it
+ * neither parses the upload nor makes a bus request. The frontend navigates
+ * by the id and reconciles full state from the SSE domain events.
  */
 
-import { HTTPException } from 'hono/http-exception';
-import { busLog, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { ResourcesRouterType } from '../shared';
-import type { components } from '@semiont/core';
-import { ResourceOperations } from '@semiont/core';
-import { putContent } from '../../../lib/archivist';
-import { requestPrimitiveFor, compositionFor } from '../../../signal';
-import { profileForWrite } from '../../../identity/person-profile';
+import { recordUpload } from '../../../lib/archivist';
+import { compositionFor, SignalPlaneUnavailable } from '../../../signal';
+import { profileOnce } from '../../../identity/person-profile';
 import { SpanKind, withSpan, withTraceparent } from '@semiont/observability';
+import type { components } from '@semiont/core';
 
-type ContentFormat = components['schemas']['ContentFormat'];
-type Agent = components['schemas']['Agent'];
+type CreateResourceResponse = components['schemas']['CreateResourceResponse'];
 
 export function registerCreateResource(router: ResourcesRouterType) {
   router.post('/resources', async (c) => {
     const principal = c.get('principal');
 
-    if (!principal) {
-      throw new HTTPException(401, { message: 'Authentication required' });
-    }
-
-    // Parse multipart/form-data
-    const formData = await c.req.formData();
-
-    // Extract fields
-    const name = formData.get('name') as string;
-    const file = formData.get('file') as File;
-    const formatRaw = formData.get('format') as string;
-    const language = formData.get('language') as string | null;
-    const entityTypesStr = formData.get('entityTypes') as string | null;
-    const storageUri = formData.get('storageUri') as string | null;
-    const sourceAnnotationId = formData.get('sourceAnnotationId') as string | null;
-    const sourceResourceId = formData.get('sourceResourceId') as string | null;
-    const generationPrompt = formData.get('generationPrompt') as string | null;
-    const generatorStr = formData.get('generator') as string | null;
-    const isDraftStr = formData.get('isDraft') as string | null;
-    // The job this resource fulfils, when a worker is creating it. Forwarded
-    // onto yield:create untouched: the Stower derives who requested the
-    // resource from the cited job's own events, and refuses a worker-role
-    // create that cites none. Absent for a person's own upload.
-    const jobId = formData.get('jobId') as string | null;
-    const cloneToken = formData.get('cloneToken') as string | null;
-    const archiveOriginalStr = formData.get('archiveOriginal') as string | null;
-
-    // Validate required fields. storageUri is required: the client names the
-    // content's location (the typed PutBinaryRequest.storageUri is required,
-    // and every client supplies one), so the server does not invent a path.
-    if (!name || !file || !formatRaw || !storageUri) {
-      throw new HTTPException(400, {
-        message: 'Missing required fields: name, file, format, storageUri'
-      });
-    }
-
-    // ContentFormat is a free-form string that may carry parameters
-    // ("text/plain; charset=iso-8859-1"); admission is gated on the base
-    // type's registry membership. Parameters are preserved on the stored
-    // format as metadata.
-    const formatBase = baseMediaType(formatRaw);
-    if (!isSupportedMediaType(formatBase)) {
-      throw new HTTPException(400, {
-        message: `Unsupported media type: ${formatBase}`,
-      });
-    }
-    const format: ContentFormat = formatRaw;
-
-    busLog('PUT', 'content', {
-      name,
-      format,
-      storageUri,
-      sizeBytes: file.size,
-    });
-
-    // Tier 2: parent the server span on the client transport's
-    // traceparent header (sent by HttpContentTransport.putBinary).
+    // Tier 2: parent the server span on the client transport's traceparent
+    // header (sent by HttpContentTransport.putBinary).
     const traceparent = c.req.header('traceparent');
     const tracestate = c.req.header('tracestate');
     const carrier = traceparent
@@ -91,97 +34,28 @@ export function registerCreateResource(router: ResourcesRouterType) {
     const resourceId = await withTraceparent(carrier, () =>
       withSpan(
         'content.put.server',
-        async () => {
-          // Parse entityTypes from JSON string
-          const entityTypes = entityTypesStr ? JSON.parse(entityTypesStr) : [];
-          const generator = generatorStr ? (JSON.parse(generatorStr) as Agent | Agent[]) : undefined;
-
-          // Flat HTTP wire → nested bus-command shape. The HTTP form keeps
-          // names flat for multipart convenience; the bus/event schema uses
-          // nested `generatedFrom` per the W3C prov-style semantics.
-          const generatedFrom = (sourceResourceId || sourceAnnotationId)
-            ? {
-                ...(sourceResourceId ? { resourceId: sourceResourceId } : {}),
-                ...(sourceAnnotationId ? { annotationId: sourceAnnotationId } : {}),
-              }
-            : undefined;
-
-          // The bytes go to the record over HTTP, never onto the bus (D2),
-          // and never onto a mount here: the Archivist is the KB tree's one
-          // writer (SINGLE-KB-MOUNT D1). `noGit` still holds on its side, so
-          // GATEWAY.md D4b is untouched — the Stower's `register` does the
-          // ONE `git add` when the event applies, exactly as before.
-          //
-          // The File goes to fetch as-is: undici streams a blob body, where
-          // the arrayBuffer()/Buffer.from() pair this replaces made two more
-          // full copies of every upload.
-          const stored = await putContent(c.get('config'), c.get('archivistCredential')(), storageUri, file);
-
-          // The PLANE-backed primitive, never the raw bus: the Stower lives in
-          // the Archivist, reachable only through the signal plane under a
-          // remote driver (the yield:create starvation bug, 2026-09-15).
-          const bus = requestPrimitiveFor(c.get('eventBus'));
-
-          // The other place a person writes through the gateway. It ASKS the
-          // same rule /bus/emit asks, naming the channel this request is about
-          // to emit rather than asserting that reaching this line is a write —
-          // one answer, and the registry can correct it. Through the PLANE: a
-          // raw bus emit never leaves this process under a remote driver.
-          profileForWrite(
-            cloneToken ? 'yield:clone-persist' : 'yield:create',
-            principal,
-            (ch, p) => compositionFor(c.get('eventBus')).plane.ingest(ch, p),
-          );
-
-          // Clone uploads carry a token instead of full metadata: the
-          // CloneTokenManager validates it and inherits the source's entity
-          // types (EXTRACT-ARCHIVIST P3 — bytes never ride the bus, D4a).
-          if (cloneToken) {
-            return ResourceOperations.createFromCloneToken(
-              {
-                token: cloneToken,
-                name,
-                storageUri,
-                contentChecksum: stored.checksum,
-                byteSize: stored.byteSize,
-                format,
-                archiveOriginal: archiveOriginalStr ? archiveOriginalStr === 'true' : undefined,
-              },
-              principal.did,
-              bus,
-            );
-          }
-
-          // Delegate to make-meaning for resource creation (via EventBus)
-          return ResourceOperations.createResource(
-            {
-              name,
-              storageUri,
-              contentChecksum: stored.checksum,
-              byteSize: stored.byteSize,
-              format,
-              language: language || undefined,
-              entityTypes,
-              generatedFrom,
-              generationPrompt: generationPrompt || undefined,
-              generator,
-              jobId: jobId || undefined,
-              isDraft: isDraftStr ? isDraftStr === 'true' : undefined,
-            },
-            principal.did,
-            bus,
-          );
-        },
-        {
-          kind: SpanKind.SERVER,
-          attrs: {
-            'content.format': format,
-            'content.size_bytes': file.size,
-          },
-        },
+        () =>
+          recordUpload(
+            c.get('archivist'),
+            { body: c.req.raw.body, contentType: c.req.header('content-type') ?? '' },
+            { did: principal.did, roles: principal.roles ?? [] },
+          ),
+        { kind: SpanKind.SERVER, attrs: {} },
       ),
     );
 
-    return c.json({ resourceId }, 202);
+    // A recorded upload is a write, whichever command the Archivist issued for
+    // it, so the person who made it is named on the record (PERSON-PROFILE
+    // D3) — once it is recorded: an upload refused wrote nothing. The upload
+    // stands whether or not the plane can carry the name.
+    try {
+      profileOnce(principal, (ch, p) => compositionFor(c.get('eventBus')).plane.ingest(ch, p));
+    } catch (error) {
+      if (!(error instanceof SignalPlaneUnavailable)) throw error;
+      c.get('logger').warn('[bus PROFILE-DROPPED] the signal plane could not carry an uploader\'s name', { did: principal.did });
+    }
+
+    const response: CreateResourceResponse = { resourceId };
+    return c.json(response, 202);
   });
 }

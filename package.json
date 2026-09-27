@@ -32,6 +32,7 @@
     "openapi:bundle": "redocly bundle specs/src/openapi.json -o specs/openapi.json",
     "openapi:lint": "redocly lint specs/src/openapi.json",
     "openapi:validate": "redocly lint specs/openapi.json",
+    "lint:spec-protocol": "node scripts/spec/check-protocol.mjs",
     "version:show": "node scripts/release/version.mjs show",
     "version:sync": "node scripts/release/version.mjs sync",
     "version:bump": "./scripts/release/version-bump.sh",

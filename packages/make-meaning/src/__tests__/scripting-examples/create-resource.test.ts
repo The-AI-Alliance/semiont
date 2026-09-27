@@ -53,7 +53,7 @@ describe('Scripting Example: Create Resource', () => {
     const stored = await kb.content.store(opts.content, uri);
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language },
-      uid,
+      { did: uid, roles: [] },
       asBusRequestPrimitive(eventBus),
     );
   }

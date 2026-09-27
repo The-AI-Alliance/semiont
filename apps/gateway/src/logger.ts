@@ -34,49 +34,17 @@ export type LogLevel = 'error' | 'warn' | 'info' | 'http' | 'debug';
 export interface LoggerConfig {
   level: LogLevel;
   format: 'json' | 'simple';
-  transports: ('console' | 'file')[];
 }
 
 /**
- * Get logger configuration from environment config or environment variables
- *
- * Priority:
- * 1. Provided logLevel parameter (from environment config)
- * 2. LOG_LEVEL environment variable
- * 3. Default: 'info'
- *
- * Environment variables:
- * - LOG_LEVEL: error | warn | info | http | debug (fallback if no config provided)
- * - LOG_FORMAT: json | simple (default: json)
- * - LOG_DIR: where to write log files. UNSET MEANS NO FILE LOGGING.
- * - NODE_ENV: development | production | test
+ * The logger's configuration: the level from the configuration document, and
+ * LOG_FORMAT from the environment (json | simple; json when unset). Logs go
+ * to stdout, the container's contract — `semiont logs` reads the runtime's
+ * stream.
  */
-function getLoggerConfig(logLevel?: LogLevel): LoggerConfig {
-  const level = logLevel || (process.env.LOG_LEVEL as LogLevel) || 'info';
+function getLoggerConfig(level: LogLevel): LoggerConfig {
   const format = (process.env.LOG_FORMAT || 'json') as 'json' | 'simple';
-  const nodeEnv = process.env.NODE_ENV || 'development';
-
-  // In test mode, only use console transport with minimal logging
-  if (nodeEnv === 'test') {
-    return {
-      level: 'error', // Only log errors in tests
-      format: 'simple',
-      transports: ['console']
-    };
-  }
-
-  // File logging is OPT-IN on LOG_DIR, never a relative-path default: WORKDIR
-  // is /kb, so winston would write logs/ inside the user's knowledge base — a
-  // git repo they commit.
-  //
-  // Stdout is the container's contract anyway: node is PID 1 and `semiont logs`
-  // reads the runtime's stream. Anyone who wants files sets LOG_DIR to a path.
-  const transports: ('console' | 'file')[] = ['console'];
-  if (process.env.LOG_DIR) {
-    transports.push('file');
-  }
-
-  return { level, format, transports };
+  return { level, format };
 }
 
 /**
@@ -105,39 +73,6 @@ function createFormat(config: LoggerConfig): winston.Logform.Format {
 }
 
 /**
- * Create Winston transports based on configuration
- */
-function createTransports(config: LoggerConfig): winston.transport[] {
-  const transports: winston.transport[] = [];
-
-  if (config.transports.includes('console')) {
-    transports.push(
-      new winston.transports.Console({
-        level: config.level
-      })
-    );
-  }
-
-  if (config.transports.includes('file')) {
-    // Guaranteed set: getLoggerConfig only requests 'file' when LOG_DIR is
-    // present. No relative fallback — that is what wrote into the KB.
-    const logDir = process.env.LOG_DIR!;
-    transports.push(
-      new winston.transports.File({
-        filename: `${logDir}/error.log`,
-        level: 'error'
-      }),
-      new winston.transports.File({
-        filename: `${logDir}/combined.log`,
-        level: config.level
-      })
-    );
-  }
-
-  return transports;
-}
-
-/**
  * Global Winston logger instance
  */
 let loggerInstance: winston.Logger | null = null;
@@ -146,15 +81,15 @@ let loggerInstance: winston.Logger | null = null;
  * Initialize the global logger
  * Call this once at application startup
  *
- * @param logLevel - Optional log level from environment config
+ * @param logLevel - The configuration document's level
  */
-export function initializeLogger(logLevel?: LogLevel): winston.Logger {
+export function initializeLogger(logLevel: LogLevel): winston.Logger {
   const config = getLoggerConfig(logLevel);
 
   loggerInstance = winston.createLogger({
     level: config.level,
     format: createFormat(config),
-    transports: createTransports(config),
+    transports: [new winston.transports.Console({ level: config.level })],
     // Don't exit on handled exceptions
     exitOnError: false
   });
@@ -162,7 +97,6 @@ export function initializeLogger(logLevel?: LogLevel): winston.Logger {
   loggerInstance.info('Logger initialized', {
     level: config.level,
     format: config.format,
-    transports: config.transports
   });
 
   return loggerInstance;

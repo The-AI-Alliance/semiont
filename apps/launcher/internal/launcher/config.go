@@ -76,10 +76,6 @@ type envConfig struct {
 	// pre-rename key the KB fleet still carries, accepted until every fleet
 	// repo has moved. loadConfig collapses them into Gateway and rejects a
 	// file that sets both — see resolveGatewaySection.
-	//
-	// Note this lane parses FEWER fields than the TypeScript one, which also
-	// reads publicURL. That asymmetry predates the alias: confgen writes
-	// publicURL and the launcher never reads it back. Do not "fix" it here.
 	Gateway    *gatewayCfg            `toml:"gateway"`
 	GatewayOld *gatewayCfg            `toml:"backend"`
 	Graph      *graphCfg              `toml:"graph"`
@@ -98,6 +94,12 @@ type envConfig struct {
 	// [site] once, at the top level of its committed .semiont/config; an
 	// environment cannot override it, here or in any service's loader.
 	Site map[string]any `toml:"site"`
+	// Archivist: a hand-written address for the Archivist — a topology the
+	// launcher cannot see. Absent, the launcher supplies its own.
+	Archivist *archivistCfg `toml:"archivist"`
+	// LogLevel is the environment's log level, written into the gateway's
+	// configuration document (gatewaydoc.go).
+	LogLevel string `toml:"logLevel"`
 }
 
 // declaresRole answers whether this config declares a role — the section
@@ -134,6 +136,14 @@ func (e *envConfig) declaresRole(role string) bool {
 type gatewayCfg struct {
 	Platform string `toml:"platform"`
 	Port     int    `toml:"port"`
+	// PublicURL: where clients reach the gateway — the servers entry of the
+	// OpenAPI document it serves. Written into its configuration document.
+	PublicURL string `toml:"publicURL"`
+}
+
+type archivistCfg struct {
+	Host string `toml:"host"`
+	Port int    `toml:"port"`
 }
 
 type graphCfg struct {

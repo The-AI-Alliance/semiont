@@ -1,0 +1,34 @@
+{
+  "type": "object",
+  "description": "A bus frame on the stream: `event: bus-event`, an `id:` line, and one `data:` line holding the JSON-serialised BusFrame. This schema describes the message with `data` already parsed.",
+  "properties": {
+    "event": {
+      "type": "string",
+      "enum": [
+        "bus-event"
+      ]
+    },
+    "id": {
+      "oneOf": [
+        {
+          "$ref": "./PersistedEventId.json"
+        },
+        {
+          "$ref": "./ReplyEventId.json"
+        },
+        {
+          "$ref": "./EphemeralEventId.json"
+        }
+      ]
+    },
+    "data": {
+      "$ref": "./BusFrame.json"
+    }
+  },
+  "required": [
+    "event",
+    "id",
+    "data"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,20 @@
+{
+  "type": "object",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "Inference provider (e.g. ollama, anthropic)",
+      "minLength": 1
+    },
+    "model": {
+      "type": "string",
+      "description": "Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "provider",
+    "model"
+  ],
+  "description": "The (provider, model) the agent token is issued for: together they name the agent."
+}

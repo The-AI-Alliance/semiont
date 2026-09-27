@@ -6,14 +6,20 @@
  */
 
 import { Hono } from 'hono';
+import { validators } from '@semiont/core/openapi';
 import { authMiddleware } from '../middleware/auth';
+import { validBody } from './valid-body';
+import { bearerChallenge, bearerToken, missingCredential } from '../identity/resource-metadata';
 import { JWTService } from '../auth/jwt';
 import { authorizeAgentMinter, AgentMinterRefused, type AuthorizedMinter } from '../identity/agent-minter';
 import { WORKER_ROLE } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { email as makeEmail, agentToDid } from '@semiont/core';
+import { accessToken, email as makeEmail, agentToDid } from '@semiont/core';
 
 type UserResponse = components['schemas']['UserResponse'];
+type AgentTokenResponse = components['schemas']['AgentTokenResponse'];
+type MediaTokenResponse = components['schemas']['MediaTokenResponse'];
+
 
 export const authRouter = new Hono();
 
@@ -83,32 +89,21 @@ const AGENT_TOKEN_TTL_SECONDS = 60 * 60;
  * write's citation of it, never from this token.
  */
 authRouter.post('/api/tokens/agent', async (c) => {
+  const bearer = bearerToken(c.req.header('Authorization'));
+  if (!bearer) return missingCredential(c);
   let minter: AuthorizedMinter;
   try {
-    minter = await authorizeAgentMinter(c.req.header('Authorization'));
+    minter = await authorizeAgentMinter(accessToken(bearer));
   } catch (error) {
     if (error instanceof AgentMinterRefused) {
+      c.get('logger')?.warn('Agent token refused', { reason: error.reason });
+      c.header('WWW-Authenticate', bearerChallenge(c, 'invalid_token'));
       return c.json({ error: error.message }, 401);
     }
     throw error;
   }
 
-  let body: { provider?: string; model?: string };
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid request body' }, 400);
-  }
-
-  if (!body.provider || typeof body.provider !== 'string') {
-    return c.json({ error: 'provider is required' }, 400);
-  }
-  if (!body.model || typeof body.model !== 'string') {
-    return c.json({ error: 'model is required' }, 400);
-  }
-
-  const inferenceProvider = body.provider;
-  const model = body.model;
+  const { provider: inferenceProvider, model } = await validBody(c, validators.AgentTokenRequest);
 
   // The KB's own domain is the authority the agent's DID is named under.
   const domain = JWTService.kbDomain();
@@ -148,7 +143,8 @@ authRouter.post('/api/tokens/agent', async (c) => {
     ...(minter.workerCapable ? { roles: [WORKER_ROLE] } : {}),
   }, `${AGENT_TOKEN_TTL_SECONDS}s`);
 
-  return c.json({ token, did }, 200);
+  const response: AgentTokenResponse = { token, did };
+  return c.json(response, 200);
 });
 
 /**
@@ -159,16 +155,8 @@ authRouter.post('/api/tokens/agent', async (c) => {
  * via ?token= query parameter without exposing the session JWT in URLs.
  */
 authRouter.post('/api/tokens/media', authMiddleware, async (c) => {
-  let body: { resourceId: string };
-  try {
-    body = await c.req.json();
-  } catch {
-    return c.json({ error: 'Invalid request body' }, 400);
-  }
-  if (!body.resourceId || typeof body.resourceId !== 'string') {
-    return c.json({ error: 'resourceId is required' }, 400);
-  }
-  const token = JWTService.generateMediaToken(body.resourceId);
-  return c.json({ token }, 200);
+  const { resourceId } = await validBody(c, validators.MediaTokenRequest);
+  const response: MediaTokenResponse = { token: JWTService.generateMediaToken(resourceId) };
+  return c.json(response, 200);
 });
 

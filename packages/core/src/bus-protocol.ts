@@ -497,21 +497,13 @@ export type EventMap = {
   'stream-connected': Record<string, never>;
   'replay-window-exceeded': { resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string };
   /**
-   * Emitted by the `/bus/subscribe` handler when a client reconnected
-   * with `Last-Event-ID: p-<scope>-<seq>` but the server could not
-   * replay all missed persisted events for that scope (retention
-   * window exceeded, scope unknown, or request unparseable). The
-   * client should treat this as a signal to fall back to the pre-
-   * resumption contract: invalidate caches for the affected scope
-   * and re-read from scratch. Analogous to `replay-window-exceeded`
-   * but scoped to the bus gateway rather than the per-resource
-   * events stream.
-   *
-   * `scope` is the scope string the client asked about (omitted for
-   * global-persisted resumption gaps, if that path ever exists).
-   * `reason` is human-readable, for logging.
+   * Written by the `/bus/subscribe` handler when a scoped entry's
+   * `lastEventId` cannot be honoured — the watermark is unparseable or
+   * names another scope, the record no longer holds the events after
+   * it, or the record could not be read. The client falls back to
+   * invalidating what it caches for that scope and re-reading it.
    */
-  'bus:resume-gap': { scope?: string; lastSeenId?: string; reason: string };
+  'bus:resume-gap': components['schemas']['BusResumeGap'];
   'session:joined': components['schemas']['SessionJoinedEvent'];
   'session:left': components['schemas']['SessionLeftEvent'];
 };
@@ -821,7 +813,7 @@ export const CHANNEL_SCHEMAS = {
   // ── SSE infrastructure ──────────────────────────────────────────
   'stream-connected':                 null, // Record<string, never>
   'replay-window-exceeded':           null, // inline payload
-  'bus:resume-gap':                   null, // inline payload
+  'bus:resume-gap':                   null,
   'session:joined':                   'SessionJoinedEvent',
   'session:left':                     'SessionLeftEvent',
 } as const satisfies Record<EventName, keyof components['schemas'] | null>;

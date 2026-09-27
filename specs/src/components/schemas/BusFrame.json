@@ -1,0 +1,31 @@
+{
+  "type": "object",
+  "description": "One frame of the bus stream, as the `data` line of a `bus-event` message carries it (JSON-serialised on one line). `payload` is the channel's payload as its registry entry declares it. A frame on a scoped subscription carries the scope it was published on; a correlated reply carries the `correlationId` of the request it answers.",
+  "properties": {
+    "channel": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A channel of the bus registry (specs/src/bus/registry.json)."
+    },
+    "correlationId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The request this frame answers. Present on correlated replies; absent otherwise."
+    },
+    "payload": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "The channel's payload. A replayed persisted event is the stored event itself, whose `metadata.sequenceNumber` the message id carries."
+    },
+    "scope": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The resource scope the frame was published on. Present exactly when it arrived through a `scoped` entry of the subscription."
+    }
+  },
+  "required": [
+    "channel",
+    "payload"
+  ],
+  "additionalProperties": false
+}

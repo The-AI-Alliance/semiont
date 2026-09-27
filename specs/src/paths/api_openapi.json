@@ -1,0 +1,41 @@
+{
+  "get": {
+    "summary": "The OpenAPI document",
+    "description": "This document, as the running gateway serves it: `info.version` is the running build's version, and `servers` names this gateway's public URL. Public.",
+    "tags": [
+      "System"
+    ],
+    "security": [],
+    "responses": {
+      "200": {
+        "description": "The OpenAPI 3.0 document",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "required": [
+                "openapi",
+                "info",
+                "paths"
+              ],
+              "properties": {
+                "openapi": {
+                  "type": "string"
+                },
+                "info": {
+                  "type": "object"
+                },
+                "paths": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
+      }
+    }
+  }
+}

@@ -2,10 +2,11 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
-import type { EventBus, StoredEvent, EnvironmentConfig, components } from '@semiont/core';
+import type { EventBus, StoredEvent, components } from '@semiont/core';
 import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
+  getActiveTraceparent,
   injectTraceparent,
   recordBusEmit,
   recordResumeGap,
@@ -14,21 +15,21 @@ import {
   recordSubscriberDisconnect,
   withSpan,
   withTraceparent,
+  type TraceCarrier,
 } from '@semiont/observability';
 import { getLogger } from '../logger';
 import type { Principal } from '../identity/principal';
 import {
-  MAX_SCOPES,
-  PENDING_REPLIES_MAX,
   SCOPE_WARN_THRESHOLD,
+  SignalPlaneUnavailable,
   compositionFor,
   isCorrelatedChannel,
   toReplyAddress,
   type PlaneSubscription,
 } from '../signal';
-import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
-import type { ServiceAccountCredential } from '@semiont/core';
-import { validators, formatErrors } from '@semiont/core/openapi';
+import { replayEvents } from '../lib/archivist';
+import { formatErrors, itemLimits, operationLimits, validators } from '@semiont/core/openapi';
+import { validBody } from './valid-body';
 import type { HttpBindings } from '@hono/node-server';
 import { profileForWrite } from '../identity/person-profile';
 
@@ -37,46 +38,27 @@ type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 const getBusLogger = () => getLogger().child({ component: 'bus' });
 
 type BusEmitAccepted = components['schemas']['BusEmitAccepted'];
+type BusSubscribeRequest = components['schemas']['BusSubscribeRequest'];
+type BusResumeGap = components['schemas']['BusResumeGap'];
 
 /**
- * Fetch `Last-Event-ID` replay from the Archivist's D1 read path
- * (EXTRACT-ARCHIVIST): one narrow call — the events for one resource from
- * one sequence, inclusive. The gateway is still this endpoint's only
- * customer.
- *
- * What may live on the Archivist's HTTP surface at all is decided in ONE
- * place — the standing rule in `archivist-read-path.ts`. Do not restate it
- * here; a second copy is how the two drift.
- *
- * Address and auth come from `archivistEndpoint` (@semiont/core/node),
- * shared with the content proxying and with the fleet's own byte readers so
- * the deployment fact has one home. A missing host or secret throws — the
- * caller's catch degrades to a scoped `bus:resume-gap`, which is the honest
- * answer when the record cannot be reached.
+ * The trace a frame was published under, as its envelope carries it. The
+ * frame is written to a connection later and elsewhere — after a broker hop,
+ * or out of the replay buffer — so the context rides the envelope rather than
+ * the call stack, and every plane delivers `_trace` alike.
  */
-async function fetchArchivistReplay(
-  config: ArchivistAddressConfig,
-  credential: ServiceAccountCredential,
-  resourceId: string,
-  fromSequence: number,
-): Promise<StoredEvent[]> {
-  const { base, headers } = await archivistEndpoint(config, credential);
-  // A CLIENT span for the same reason lib/archivist.ts wraps its three calls:
-  // this crosses to another service, and without it a slow replay is
-  // indistinguishable from a slow gateway.
-  const res = await withSpan(
-    'archivist.events.replay',
-    () => fetch(
-      `${base}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`,
-      { headers },
-    ),
-    { kind: SpanKind.CLIENT, attrs: { 'peer.service': 'archivist' } },
-  );
-  if (!res.ok) {
-    throw new Error(`Archivist replay read failed: ${res.status} ${res.statusText}`);
-  }
-  const { events } = await res.json() as { events: StoredEvent[] };
-  return events;
+function envelopeMeta(correlationId: string | undefined): Record<string, string> | undefined {
+  const meta: Record<string, string> = { ...getActiveTraceparent() };
+  if (correlationId !== undefined) meta['correlationId'] = correlationId;
+  // Absent rather than empty, so every plane presents the same envelope.
+  return Object.keys(meta).length === 0 ? undefined : meta;
+}
+
+function traceOf(meta: Readonly<Record<string, string>> | undefined): TraceCarrier | undefined {
+  const traceparent = meta?.['traceparent'];
+  if (!traceparent) return undefined;
+  const tracestate = meta?.['tracestate'];
+  return tracestate ? { traceparent, tracestate } : { traceparent };
 }
 
 /**
@@ -128,31 +110,27 @@ function extractSequence(payload: unknown): number | null {
 }
 
 /** One scoped entry of the POST /bus/subscribe subscription matrix. */
-interface ScopedSubscription {
-  scope: string;
-  channels: string[];
-  lastEventId?: string;
-}
+type ScopedSubscription = NonNullable<BusSubscribeRequest['scoped']>[number];
 
 /**
- * Outbound flow-control bound, per SSE connection. `writeSSE` resolves only
- * when the connection's consumer accepts the chunk, so the bytes held by
- * unresolved writes measure exactly what this subscriber forces the gateway
- * to buffer. A half-open socket — a client container torn down without a
- * FIN — never errors and never closes, so without a bound its bus
- * subscriptions accumulate every fan-out payload as a pending write until
- * the heap bursts (gateway OOM, 2026-09-03: ~8 such subscribers each
- * holding the full `browse:*-result` stream). Past the bound the subscriber
- * is disconnected: a live client reconnects with Last-Event-ID /
+ * The stream's bounds, as the spec states them.
+ *
+ * `pendingWriteBytes` is outbound flow control, per SSE connection.
+ * `writeSSE` resolves only when the connection's consumer accepts the chunk,
+ * so the bytes held by unresolved writes measure exactly what this subscriber
+ * forces the gateway to buffer. A half-open socket — a client container torn
+ * down without a FIN — never errors and never closes, so without a bound its
+ * bus subscriptions accumulate every fan-out payload as a pending write until
+ * the heap bursts (gateway OOM, 2026-09-03: ~8 such subscribers each holding
+ * the full `browse:*-result` stream). Past the bound the subscriber is
+ * disconnected: a live client reconnects with Last-Event-ID /
  * `pendingReplies` and resumes; a dead one stops costing memory.
+ *
+ * `replayBufferEvents` is the same protection for the buffer-during-replay
+ * window: a connection that stalls mid-replay must not queue live fan-out
+ * without limit either.
  */
-export const MAX_PENDING_WRITE_BYTES = 16 * 1024 * 1024;
-
-/**
- * Same protection for the buffer-during-replay window: a connection that
- * stalls mid-replay must not queue live fan-out without limit either.
- */
-export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
+const subscribeLimits = operationLimits['POST /bus/subscribe'];
 
 // ── The seam (SIGNAL-PLANE P0) ─────────────────────────────────────────
 //
@@ -163,61 +141,24 @@ export const MAX_REPLAY_BUFFER_EVENTS = 1_000;
 // matrix caps and the ledger budgets are the seam's construction options
 // (../signal/options — D8's seven, today's values as defaults).
 
-const isStringArray = (v: unknown): v is string[] =>
-  Array.isArray(v) && v.every((x) => typeof x === 'string');
-
 /**
- * Validate the subscription-matrix body (schema: BusSubscribeRequest).
- * Returns an error message rather than throwing so the route can wrap it
- * in a single HTTPException site.
+ * The subscription matrix: the spec's schema (BusSubscribeRequest), then the
+ * two rules it cannot state — something is subscribed, and no scope is named
+ * twice. Every refusal is a 400.
  */
-function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[]; clientId: string } | { error: string } {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
-    return { error: 'body must be a JSON object' };
-  }
-  const { global: rawGlobal, scoped: rawScoped, pendingReplies: rawPending, clientId } = raw as {
-    global?: unknown;
-    scoped?: unknown;
-    pendingReplies?: unknown;
-    clientId?: unknown;
-  };
-  // Required by BusSubscribeRequest (P1). It is the routing address the
-  // delivery filter matches on; without it a client would silently receive no
-  // correlated replies at all, which is the failure this rejects up front.
-  if (typeof clientId !== 'string' || clientId === '') {
-    return { error: '`clientId` is required (BusSubscribeRequest)' };
-  }
-  const global = rawGlobal === undefined ? [] : rawGlobal;
-  if (!isStringArray(global)) return { error: '`global` must be an array of channel names' };
-
-  const pendingReplies = rawPending === undefined ? [] : rawPending;
-  if (!isStringArray(pendingReplies)) return { error: '`pendingReplies` must be an array of correlation ids' };
-  if (pendingReplies.length > PENDING_REPLIES_MAX) {
-    return { error: `pendingReplies count ${pendingReplies.length} exceeds the cap of ${PENDING_REPLIES_MAX}` };
-  }
-
-  const scopedList = rawScoped === undefined ? [] : rawScoped;
-  if (!Array.isArray(scopedList)) return { error: '`scoped` must be an array' };
-  const scoped: ScopedSubscription[] = [];
-  const seenScopes = new Set<string>();
-  for (const entry of scopedList) {
-    if (entry === null || typeof entry !== 'object') return { error: 'each `scoped` entry must be an object' };
-    const { scope, channels, lastEventId } = entry as Record<string, unknown>;
-    if (typeof scope !== 'string' || scope === '') return { error: 'each `scoped` entry needs a non-empty `scope`' };
-    if (!isStringArray(channels) || channels.length === 0) return { error: `scoped entry "${scope}" needs a non-empty \`channels\` array` };
-    if (lastEventId !== undefined && typeof lastEventId !== 'string') return { error: `scoped entry "${scope}" has a non-string \`lastEventId\`` };
-    if (seenScopes.has(scope)) return { error: `duplicate scope "${scope}" in matrix` };
-    seenScopes.add(scope);
-    scoped.push({ scope, channels, ...(lastEventId !== undefined ? { lastEventId } : {}) });
-  }
-
+async function subscription(c: Context): Promise<{ global: string[]; scoped: ScopedSubscription[]; pendingReplies: string[]; clientId: string }> {
+  const body = await validBody(c, validators.BusSubscribeRequest);
+  const global = body.global ?? [];
+  const scoped = body.scoped ?? [];
   if (global.length === 0 && scoped.length === 0) {
-    return { error: 'At least one global channel or scoped entry is required' };
+    throw new HTTPException(400, { message: 'At least one global channel or scoped entry is required' });
   }
-  if (scoped.length > MAX_SCOPES) {
-    return { error: `scope count ${scoped.length} exceeds the per-connection cap of ${MAX_SCOPES}` };
+  const seen = new Set<string>();
+  for (const { scope } of scoped) {
+    if (seen.has(scope)) throw new HTTPException(400, { message: `duplicate scope "${scope}" in matrix` });
+    seen.add(scope);
   }
-  return { global, scoped, pendingReplies, clientId };
+  return { global, scoped, pendingReplies: body.pendingReplies ?? [], clientId: body.clientId };
 }
 
 /**
@@ -229,17 +170,12 @@ function parseSubscribeBody(raw: unknown): { global: string[]; scoped: ScopedSub
  * behavior. The router owns no plane or registry state of its own anymore.
  */
 export function createBusRouter(authMiddleware: AuthMiddleware) {
-  const busRouter = new Hono<{ Variables: { principal: Principal; eventBus: EventBus; config: EnvironmentConfig } }>();
+  const busRouter = new Hono<{ Variables: { principal: Principal; eventBus: EventBus } }>();
 
   busRouter.use('/bus/*', authMiddleware);
 
   busRouter.post('/bus/subscribe', async (c) => {
-    const raw: unknown = await c.req.json().catch(() => null);
-    const parsed = parseSubscribeBody(raw);
-    if ('error' in parsed) {
-      throw new HTTPException(400, { message: parsed.error });
-    }
-    const { global: channels, scoped, pendingReplies, clientId } = parsed;
+    const { global: channels, scoped, pendingReplies, clientId } = await subscription(c);
     const eventBus = c.get('eventBus');
     // Read OUTSIDE the stream callback: `c` is the request context, and the
     // presence pair below must name the principal on this connection.
@@ -249,7 +185,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const plane = composition.plane;
 
     if (scoped.length >= SCOPE_WARN_THRESHOLD) {
-      getBusLogger().warn('large scope matrix', { scopeCount: scoped.length, cap: MAX_SCOPES });
+      getBusLogger().warn('large scope matrix', { scopeCount: scoped.length });
     }
 
     return streamSSE(c, async (stream) => {
@@ -291,8 +227,17 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // consumer that retires presence by DID would drop a viewer who merely
       // closed a duplicate tab.
       const presence = { participant: subscriberDid ?? '', connectionId };
+      // A stream outlives a broker outage; its presence frames do not.
+      const announce = (channel: 'session:joined' | 'session:left') => {
+        try {
+          plane.ingest(channel, presence);
+        } catch (error) {
+          if (!(error instanceof SignalPlaneUnavailable)) throw error;
+          getBusLogger().warn('[bus PRESENCE-DROPPED] the signal plane could not carry a presence frame', { channel, connectionId });
+        }
+      };
       recordSubscriberConnect();
-      plane.ingest('session:joined', presence);
+      announce('session:joined');
 
       // ── Connection teardown ───────────────────────────────────────────
       //
@@ -312,7 +257,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         planeSub?.close();
         gate.close();
         recordSubscriberDisconnect();
-        plane.ingest('session:left', presence);
+        announce('session:left');
         getBusLogger().info('SSE disconnect', { connectionId, reason, pendingBytes });
         // abort() rejects the pending writer.write()s, releasing the
         // frames they hold; destroy() closes the socket itself so the OS
@@ -337,18 +282,18 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
        * what this connection forces the gateway to hold: `writeSSE`
        * resolves only when the consumer accepts the chunk, so a dead or
        * stalled subscriber accumulates unresolved writes, each retaining
-       * its serialized frame. Past MAX_PENDING_WRITE_BYTES the subscriber
+       * its serialized frame. Past subscribeLimits.pendingWriteBytes the subscriber
        * is disconnected.
        */
       const boundedWrite = async (frame: { event: string; data: string; id?: string }): Promise<void> => {
         if (tornDown) return;
         const cost = frame.data.length;
         pendingBytes += cost;
-        if (pendingBytes > MAX_PENDING_WRITE_BYTES) {
+        if (pendingBytes > subscribeLimits.pendingWriteBytes) {
           getBusLogger().warn('SSE pending-write overflow — disconnecting dead or stalled subscriber', {
             connectionId,
             pendingBytes,
-            cap: MAX_PENDING_WRITE_BYTES,
+            cap: subscribeLimits.pendingWriteBytes,
           });
           teardown('pending-write-overflow');
           return;
@@ -373,6 +318,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         payload: unknown,
         eventScope: string | undefined,
         correlationId: string | undefined,
+        trace: TraceCarrier | undefined,
       ): Promise<void> => {
         const seq = extractSequence(payload);
         let id: string;
@@ -421,26 +367,27 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
           busLog('SSE', channel, payload, eventScope, cid);
           await boundedWrite({ event: 'bus-event', data, id });
         };
-        if (typeof cid === 'string' && cid.length > 0) {
-          await withSpan(`sse.deliver:${channel}`, doWrite, {
-            kind: SpanKind.PRODUCER,
-            attrs: {
-              'bus.channel': channel,
-              'bus.cid': cid,
-              ...(eventScope ? { 'bus.scope': eventScope } : {}),
-            },
-          });
-        } else {
-          await doWrite();
-        }
+        await withTraceparent(trace, async () => {
+          if (typeof cid === 'string' && cid.length > 0) {
+            await withSpan(`sse.deliver:${channel}`, doWrite, {
+              kind: SpanKind.PRODUCER,
+              attrs: {
+                'bus.channel': channel,
+                'bus.cid': cid,
+                ...(eventScope ? { 'bus.scope': eventScope } : {}),
+              },
+            });
+          } else {
+            await doWrite();
+          }
+        });
       };
 
-      const emitResumeGap = async (reason: string, gapScope?: string, lastSeenId?: string) => {
-        // Counted at the ONE funnel every gap path goes through. `reason` is a
-        // closed set (scope-mismatch, unparseable-last-event-id, replay
-        // failure), so the label stays low-cardinality.
+      const emitResumeGap = async (reason: BusResumeGap['reason'], gapScope?: string, lastSeenId?: string) => {
+        // Counted at the ONE funnel every gap path goes through. `reason` is
+        // the spec's closed set, so the label stays low-cardinality.
         recordResumeGap(reason);
-        const payload: { scope?: string; lastSeenId?: string; reason: string } = { reason };
+        const payload: BusResumeGap = { reason };
         if (gapScope !== undefined) payload.scope = gapScope;
         if (lastSeenId !== undefined) payload.lastSeenId = lastSeenId;
         await boundedWrite({
@@ -467,7 +414,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // buffer drains to empty do we flip to live mode. JS's single-
       // threaded model guarantees no event slips between the final
       // "buffer empty" check and the mode flip.
-      type Queued = { channel: string; payload: unknown; scope: string | undefined; correlationId: string | undefined };
+      type Queued = { channel: string; payload: unknown; scope: string | undefined; correlationId: string | undefined; trace: TraceCarrier | undefined };
       const liveBuffer: Queued[] = [];
       let mode: 'buffering' | 'live' = 'live';
 
@@ -476,19 +423,20 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         payload: unknown,
         eventScope: string | undefined,
         correlationId: string | undefined,
+        trace: TraceCarrier | undefined,
       ) => {
         if (mode === 'buffering') {
-          if (liveBuffer.length >= MAX_REPLAY_BUFFER_EVENTS) {
+          if (liveBuffer.length >= subscribeLimits.replayBufferEvents) {
             getBusLogger().warn('SSE replay-buffer overflow — disconnecting stalled subscriber', {
               connectionId,
-              cap: MAX_REPLAY_BUFFER_EVENTS,
+              cap: subscribeLimits.replayBufferEvents,
             });
             teardown('replay-buffer-overflow');
             return;
           }
-          liveBuffer.push({ channel, payload, scope: eventScope, correlationId });
+          liveBuffer.push({ channel, payload, scope: eventScope, correlationId, trace });
         } else {
-          void writeBusEvent(channel, payload, eventScope, correlationId);
+          void writeBusEvent(channel, payload, eventScope, correlationId, trace);
         }
       };
 
@@ -509,11 +457,12 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         scoped,
         onFrame: (channel, payload, envelope) => {
           const correlationId = envelope.meta?.correlationId;
+          const trace = traceOf(envelope.meta);
           if (envelope.scope === undefined && isCorrelatedChannel(channel)) {
-            gate.offer(channel, correlationId, () => emitOrBuffer(channel, payload, undefined, correlationId));
+            gate.offer(channel, correlationId, () => emitOrBuffer(channel, payload, undefined, correlationId, trace));
             return;
           }
-          emitOrBuffer(channel, payload, envelope.scope, correlationId);
+          emitOrBuffer(channel, payload, envelope.scope, correlationId, trace);
         },
       });
 
@@ -547,7 +496,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             // The record lives in the Archivist (EXTRACT-ARCHIVIST P3):
             // replay reads the D1 sequence-ranged path, this seam's one
             // customer. The +1 is ours — the path is inclusive.
-            const events = await fetchArchivistReplay(c.get('config'), c.get('archivistCredential')(), String(rId), parsed.sequence + 1);
+            const events = await replayEvents(c.get('archivist'), String(rId), parsed.sequence + 1);
             const replayable: StoredEvent[] = events.filter((e) => allowedTypes.has(e.type as string));
 
             if (events.length > 0 && events[0]!.metadata.sequenceNumber > parsed.sequence + 1) {
@@ -556,7 +505,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
             for (const ev of replayable) {
               // Replayed from the event log: the log stores facts, not routing.
-              await writeBusEvent(ev.type as string, ev, entry.scope, undefined);
+              await writeBusEvent(ev.type as string, ev, entry.scope, undefined, undefined);
             }
           } catch (err) {
             getBusLogger().warn('bus resume query failed', {
@@ -580,14 +529,14 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         if (tornDown) break;
         const retained = await composition.lookupReply(cid, clientId, subscriberDid);
         if (retained) {
-          await writeBusEvent(retained.channel, retained.payload, undefined, retained.correlationId);
+          await writeBusEvent(retained.channel, retained.payload, undefined, retained.correlationId, undefined);
         }
       }
 
       // ── Drain buffer and switch to live mode ─────────────────────────
       while (liveBuffer.length > 0 && !tornDown) {
         const next = liveBuffer.shift()!;
-        await writeBusEvent(next.channel, next.payload, next.scope, next.correlationId);
+        await writeBusEvent(next.channel, next.payload, next.scope, next.correlationId, next.trace);
       }
       mode = 'live';
 
@@ -597,7 +546,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // context alive for the life of the process.
       while (!tornDown && !stream.aborted && !stream.closed) {
         await boundedWrite({ event: 'ping', data: '' });
-        await stream.sleep(15_000);
+        await stream.sleep(subscribeLimits.heartbeatSeconds * 1000);
       }
     });
   });
@@ -623,19 +572,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     const eventBus = c.get('eventBus');
     const composition = compositionFor(eventBus);
     const plane = composition.plane;
-    const body = await c.req.json();
-    const { channel, payload, scope, correlationId } = body;
-    const emitterClientId = typeof body.clientId === 'string' && body.clientId !== '' ? body.clientId : undefined;
-
-    if (!channel || typeof channel !== 'string') {
-      throw new HTTPException(400, { message: 'channel is required' });
-    }
-    if (!payload || typeof payload !== 'object') {
-      throw new HTTPException(400, { message: 'payload must be an object' });
-    }
-    if (scope !== undefined && (typeof scope !== 'string' || scope === '')) {
-      throw new HTTPException(400, { message: 'scope must be a non-empty string' });
-    }
+    const { channel, payload, scope, correlationId, clientId } = await validBody(c, validators.BusEmitRequest);
+    // An empty clientId is no clientId (BusEmitRequest).
+    const emitterClientId = clientId === '' ? undefined : clientId;
 
     if (!(channel in CHANNEL_SCHEMAS)) {
       throw new HTTPException(400, { message: `Unknown channel: ${channel}` });
@@ -646,7 +585,10 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       // A registry naming a schema the spec does not carry is drift, not a bad
       // request — say so instead of waving the payload through unchecked.
       if (!validate) throw new Error(`No generated validator for schema "${schemaName}" (channel ${channel})`);
-      if (!validate(payload)) {
+      // Checked through its own name: the guard would narrow `payload` to the
+      // union of every schema, and the stamping below writes to it as a record.
+      const candidate: unknown = payload;
+      if (!validate(candidate)) {
         const errorMessage = formatErrors(validate.errors);
         getBusLogger().warn('Bus emit validation failed', { channel, scope, schemaName, errorMessage });
         throw new HTTPException(400, { message: `Invalid payload for ${channel}: ${errorMessage}` });
@@ -662,6 +604,10 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     // (EXTRACT-JOBS P0). Gateway-authoritative: CLEARED unconditionally, then
     // set only from the verified principal, so a caller cannot forge a
     // capability by hand-writing the field.
+    // Refused before anything is recorded: a claim made now would stand for a
+    // request the plane cannot carry.
+    if (!plane.available()) throw new SignalPlaneUnavailable();
+
     const principal = c.get('principal');
     delete payload._roles;
     if (principal) {
@@ -709,7 +655,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
         // immediately and loudly. Evicting a live claim instead would turn
         // that request's future reply into a silent drop (LIVENESS-AXIOMS L2).
         throw new HTTPException(429, {
-          message: `client has ${PENDING_REPLIES_MAX} unanswered requests; retry when one settles`,
+          message: `client has ${itemLimits['BusSubscribeRequest.pendingReplies']} unanswered requests; retry when one settles`,
         });
       }
     }
@@ -752,8 +698,9 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             scope,
             // The envelope the frame travels under, everywhere: `meta` is
             // ferried verbatim by every driver (P0.5), so an in-process
-            // handler and one across the broker read the same key.
-            meta: correlationId === undefined ? undefined : { correlationId },
+            // handler and one across the broker read the same keys — the
+            // correlation key, and the trace this dispatch runs under.
+            meta: envelopeMeta(correlationId),
           }).observers;
 
           busLog('EMIT', channel, payload, scope, correlationId);
@@ -830,7 +777,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
               // Unscoped, like every other reply: retention and the delivery
               // filter both watch the unscoped subject. Through the SAME
               // funnel as every emit (P0.1 q0 (a)): one ingest, no side door.
-              plane.ingest(operation.failure, failure, { meta: { correlationId: failureCid } });
+              plane.ingest(operation.failure, failure, { meta: envelopeMeta(failureCid) });
             }
           }
           return subscribers;

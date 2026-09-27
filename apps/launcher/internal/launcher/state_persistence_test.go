@@ -23,7 +23,7 @@ import (
 // without a red test.
 
 func TestGatewayWritesStateToSemiontState(t *testing.T) {
-	args := gatewayArgs("stage", "addr", "secret", "jwt", "v1", 4000, nil, nil)
+	args := gatewayArgs("stage", "secret", "jwt", "v1", 4000, nil, nil)
 	if !hasEnv(args, "XDG_STATE_HOME=/semiont-state") {
 		t.Fatalf("gateway must set XDG_STATE_HOME=/semiont-state (jobsDir lives under it); args=%v", args)
 	}

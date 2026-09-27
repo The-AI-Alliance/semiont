@@ -49,7 +49,7 @@ describe('ResourceOperations', () => {
     const stored = await kb.content.store(opts.content, uri);
     return ResourceOperations.createResource(
       { name: opts.name, storageUri: stored.storageUri, contentChecksum: stored.checksum, byteSize: stored.byteSize, format: opts.format, language: opts.language, entityTypes: opts.entityTypes },
-      uid,
+      { did: uid, roles: [] },
       asBusRequestPrimitive(eventBus),
     );
   }
@@ -235,7 +235,7 @@ describe('ResourceOperations', () => {
         // peer: derivation binds a supplied generator to the executor's
         // identity and refuses a person claiming a model produced their own
         // upload (VERIFIED-PROVENANCE P2).
-        userId(generator['@id']),
+        { did: userId(generator['@id']), roles: [] },
         asBusRequestPrimitive(eventBus),
       );
 
@@ -271,7 +271,7 @@ describe('ResourceOperations', () => {
           format: 'text/plain',
           generatedFrom: { resourceId: 'res-only' }, // no annotationId
         },
-        userId('did:web:test:users:user-1'),
+        { did: userId('did:web:test:users:user-1'), roles: [] },
         asBusRequestPrimitive(eventBus),
       );
 

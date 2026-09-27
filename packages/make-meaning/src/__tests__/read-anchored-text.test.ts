@@ -101,7 +101,7 @@ describe('readAnchoredText + the anchored-text store', () => {
         byteSize: stored.byteSize,
         format: 'application/pdf' as 'text/plain',
       },
-      TEST_USER_ID,
+      { did: TEST_USER_ID, roles: [] },
       asBusRequestPrimitive(eventBus),
     );
     eventBus.emit('smelt:settled', {

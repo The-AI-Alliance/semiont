@@ -103,10 +103,6 @@ component_management:
       name: "Browser (app)"
       paths:
         - apps/browser/**
-    - component_id: gateway
-      name: "Gateway (app)"
-      paths:
-        - apps/gateway/**
 
 # Ignore certain files from coverage
 ignore:
@@ -227,9 +223,4 @@ flags:
   browser:
     paths:
       - apps/browser/**
-    carryforward: true
-
-  gateway:
-    paths:
-      - apps/gateway/**
     carryforward: true

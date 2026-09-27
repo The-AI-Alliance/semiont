@@ -34,10 +34,6 @@ const (
 	deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
 )
 
-// errNoIssuer: the knowledge base trusts no external issuer (no [identity]
-// section), so there is nothing to sign in to.
-var errNoIssuer = errors.New("the knowledge base trusts no external issuer")
-
 type issuerEndpoints struct {
 	Issuer              string `json:"issuer"`
 	DeviceAuthorization string `json:"device_authorization_endpoint"`
@@ -52,9 +48,6 @@ func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base 
 	meta, err := cli.GetWellKnownOauthProtectedResourceWithResponse(ctx)
 	if err != nil {
 		return issuerEndpoints{}, fmt.Errorf("gateway unreachable at %s: %w", base, err)
-	}
-	if meta.JSON404 != nil {
-		return issuerEndpoints{}, errNoIssuer
 	}
 	if meta.JSON200 == nil || len(meta.JSON200.AuthorizationServers) == 0 {
 		return issuerEndpoints{}, fmt.Errorf("gateway at %s published no authorization server (HTTP %d)", base, meta.HTTPResponse.StatusCode)

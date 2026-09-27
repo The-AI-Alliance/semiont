@@ -20,7 +20,7 @@ import type {
   SharedTable,
   SignalPlane,
 } from './interface';
-import { resolveSignalPlaneOptions, type SignalPlaneOptions } from './options';
+import { itemLimits } from '@semiont/core/openapi';
 
 /** The frame's envelope, as the seam's `PlaneEnvelope`.
  *
@@ -87,11 +87,7 @@ function handleOn(table: MemoryTable): SharedTable {
   };
 }
 
-export function createInProcessSignalPlane(
-  eventBus: EventBus,
-  opts?: SignalPlaneOptions,
-): SignalPlane {
-  const options = resolveSignalPlaneOptions(opts);
+export function createInProcessSignalPlane(eventBus: EventBus): SignalPlane {
   const openSubs = new Set<Subscription>();
   const groups = new Map<string, HandlerGroup>();
   /** Addressed delivery in-process: address → the onFrames subscribed under
@@ -105,6 +101,8 @@ export function createInProcessSignalPlane(
   };
 
   return {
+    available: () => true,
+
     ingest(channel, payload, envelope): IngestReceipt {
       const bus = envelope?.scope ? eventBus.scope(envelope.scope) : eventBus;
       // The whole envelope rides through: the in-process fabric is the bus,
@@ -121,9 +119,9 @@ export function createInProcessSignalPlane(
     subscribeClient(spec: ClientSubscriptionSpec): PlaneSubscription {
       // The same runaway guard the route enforces at parse — defense in
       // depth at the seam, so a second caller cannot bypass it.
-      if (spec.scoped.length > options.maxScopes) {
+      if (spec.scoped.length > itemLimits['BusSubscribeRequest.scoped']) {
         throw new Error(
-          `signal plane: ${spec.scoped.length} scopes exceeds the per-subscription cap of ${options.maxScopes}`,
+          `signal plane: ${spec.scoped.length} scopes exceeds the per-subscription cap of ${itemLimits['BusSubscribeRequest.scoped']}`,
         );
       }
       const subs: Subscription[] = [];

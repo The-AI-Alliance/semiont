@@ -1,0 +1,5 @@
+{
+  "type": "string",
+  "description": "`e-<connectionId>-<n>` — the id of any other frame: unique on its connection, meaningless elsewhere. Never a resumption watermark.",
+  "pattern": "^e-[^:]+-[0-9]+$"
+}

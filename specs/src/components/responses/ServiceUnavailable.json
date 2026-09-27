@@ -1,0 +1,10 @@
+{
+  "description": "The Archivist, which holds the knowledge base's record and bytes, could not be reached or refused the gateway.",
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../schemas/ErrorResponse.json"
+      }
+    }
+  }
+}

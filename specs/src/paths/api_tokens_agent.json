@@ -1,7 +1,7 @@
 {
   "post": {
     "summary": "Software-Agent Token Exchange",
-    "description": "Exchange a service-account token for a bearer JWT issued for a software-agent identity.\n\nThe caller authenticates at the knowledge base's trusted issuer as its own service account and presents that token here; it must carry `semiont-service` in a flat `roles` claim. What comes back names a (provider, model) agent identity, which is a different thing from the caller: one worker process holds several agent identities at once when a deployment configures different models for different job types, so the credential and the identity cannot be the same.\n\nThe issued JWT carries the agent's DID (shape `did:web:<host>:agents:<provider>:<model>`); the bus stamps that DID onto `_userId`, so every event the agent emits carries its verified identity. The knowledge base records the agent as the `generator` of what it writes; the `creator` — whoever requested the job — is derived from the write's citation of that job, never from this token.",
+    "description": "Exchange a service-account token for a bearer JWT issued for a software-agent identity.\n\nThe caller authenticates at the knowledge base's trusted issuer as its own service account and presents that token here; it must carry `semiont-service` in a flat `roles` claim (see the `bearerAuth` scheme). A token that does not verify, or lacks that role, is refused with 401. What comes back names a (provider, model) agent identity, which is a different thing from the caller: one worker process holds several agent identities at once when a deployment configures different models for different job types, so the credential and the identity cannot be the same.\n\nThe issued JWT carries the agent's DID (shape `did:web:<host>:agents:<provider>:<model>`); the bus stamps that DID onto `_userId`, so every event the agent emits carries its verified identity. The knowledge base records the agent as the `generator` of what it writes; the `creator` — whoever requested the job — is derived from the write's citation of that job, never from this token.",
     "tags": [
       "Authentication"
     ],
@@ -15,21 +15,7 @@
       "content": {
         "application/json": {
           "schema": {
-            "type": "object",
-            "properties": {
-              "provider": {
-                "type": "string",
-                "description": "Inference provider (e.g. ollama, anthropic)"
-              },
-              "model": {
-                "type": "string",
-                "description": "Model identifier (e.g. gemma2:27b, claude-3-5-sonnet)"
-              }
-            },
-            "required": [
-              "provider",
-              "model"
-            ]
+            "$ref": "../components/schemas/AgentTokenRequest.json"
           }
         }
       }
@@ -40,27 +26,13 @@
         "content": {
           "application/json": {
             "schema": {
-              "type": "object",
-              "properties": {
-                "token": {
-                  "type": "string",
-                  "description": "Bearer JWT for subsequent authenticated requests"
-                },
-                "did": {
-                  "type": "string",
-                  "description": "DID of the software-agent identity the token is acting as"
-                }
-              },
-              "required": [
-                "token",
-                "did"
-              ]
+              "$ref": "../components/schemas/AgentTokenResponse.json"
             }
           }
         }
       },
       "400": {
-        "description": "Missing or invalid request fields",
+        "description": "The body is not JSON, or does not match the request schema.",
         "content": {
           "application/json": {
             "schema": {
@@ -70,14 +42,10 @@
         }
       },
       "401": {
-        "description": "Missing, unverifiable, or insufficiently privileged caller token. Also the answer when this knowledge base trusts no issuer: configuration state is not an unverified caller's business.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
       }
     }
   }

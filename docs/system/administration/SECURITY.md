@@ -35,22 +35,19 @@ The gateway makes exactly one authorization decision: **authenticated, or 401**.
 
 ### Security Testing
 
-Comprehensive security test coverage ensures no authentication regressions:
+The [gateway conformance suite](../../../tests/gateway-conformance/README.md) runs
+a built gateway against the spec on every pull request:
 
-- **route-spec-coverage.test.ts**: Tests ALL gateway routes dynamically
-  - Validates all non-public routes return 401 without authentication
-  - Uses OpenAPI spec as single source of truth for public routes
-  - Tests invalid tokens, malformed tokens, expired tokens
-  - Auto-detects route patterns and catch-all routes
-  - Provides coverage statistics (tested vs skipped routes)
-  - Runs in CI/CD via `npm run test:security`
-
-- **security-controls.test.ts**: Tests security headers
-  - CORS configuration
-  - Content security headers
-  - Request validation
-
-**CI/CD Integration**: Security tests run on every pull request via GitHub Actions ([.github/workflows/security-tests.yml](../../../.github/workflows/security-tests.yml))
+- Every protected operation the spec declares answers 401 without a credential,
+  and 401 `invalid_token` to one it cannot verify — invalid, malformed, expired,
+  forged, or from another issuer or audience
+- Public operations answer without challenging; undeclared methods and paths
+  answer 404
+- Every response carries the security headers, open credential-less CORS and a
+  request id; no error body carries a stack trace, a source path or a secret's
+  name
+- Every JSON body is validated against the spec, and every reply checked against
+  its declaration
 
 ### Data Security
 

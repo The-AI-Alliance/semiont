@@ -1,0 +1,23 @@
+{
+  "name": "@semiont/tests-gateway-conformance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Black-box conformance suite for the gateway: starts gateway processes and checks them against specs/. Imports nothing from the gateway; see README.md.",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "pretest": "npm run typecheck",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@semiont/core": "file:../../packages/core",
+    "@semiont/jobs": "file:../../packages/jobs",
+    "@types/node": "^26.0.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "jose": "^6.2.12",
+    "nats": "^2.29.3",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.11"
+  }
+}

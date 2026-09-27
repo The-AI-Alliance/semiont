@@ -111,7 +111,7 @@ async function bootHarness(): Promise<Harness> {
           format: (input.format ?? 'text/plain') as 'text/plain',
           entityTypes: input.entityTypes,
         },
-        TEST_USER_ID,
+        { did: TEST_USER_ID, roles: [] },
         asBusRequestPrimitive(eventBus),
       );
     };

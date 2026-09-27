@@ -61,8 +61,9 @@ way, as ordinary events (once globally, once scoped to their resource). See
 | Route | What it does | Called by |
 | --- | --- | --- |
 | `GET /health` | liveness; the only unauthenticated path | health checks |
-| `PUT /content/:storageUri` | stores an upload's bytes, streamed; a supplied `checksum` is verified before anything is written (409 on mismatch). The resource is not recorded until the gateway's `yield:create` arrives on the bus and the Stower commits the file. | the gateway, for `POST /resources` |
+| `POST /resources` | an upload, multipart as the client sent it, for the principal named in `Semiont-Principal` (with its roles in `Semiont-Roles`): the bytes are stored and the resource is recorded — by the Stower, or by the CloneTokenManager when the upload carries `cloneToken` — and the answer is `{resourceId}`. 400 names what is wrong with the upload; 500 carries the record's reason for refusing it. | the gateway, for `POST /resources` |
 | `GET /resources/:id/content` | a resource's bytes, streamed, with its stored media type | the gateway, for `GET /resources/:id`; the Librarian, the Smelter and the workers, directly |
+| `GET /resources/:id/jsonld` | a resource's linked-data description (the Browser's answer to `browse:resource-requested`); 404 when there is no such resource | the gateway, for `GET /resources/:id/jsonld` |
 | `GET /events/:resourceId?fromSequence=N` | one resource's events from a sequence number | the gateway, when a client resumes its subscription with `Last-Event-ID` |
 
 A browser never calls these: its requests go to the gateway, which calls them with its own
@@ -75,9 +76,13 @@ gateway requires the same role to issue a service its agent token.
 Every refusal is **401**, including when no identity provider is configured: without a verifier,
 every path but `/health` refuses.
 
-**⚠️ Standing rule: this surface serves the KB tree, and nothing else.** `browse:*`, `match:*`
-and `gather:*` stay on the bus. An endpoint that is not a KB-tree read or write does not belong
-here.
+**⚠️ Standing rule: this surface serves the KB tree and each resource's linked-data description,
+and nothing else.** Every other `browse:*`, and `match:*` and `gather:*`, stay on the bus. An
+endpoint that is none of these does not belong here.
+
+The principal headers on `POST /resources` are believed because the caller holds the
+`semiont-service` role: only the stack's own services call this surface, and the gateway is the one
+that verified the person.
 
 **Known limit: a worker outside the stack.** A worker reads resource bytes here directly, so it
 needs this port and a token carrying `semiont-service`. This service accepts the same role for

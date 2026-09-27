@@ -46,10 +46,11 @@
  * entitlement gate, and retention must not be the gap in it.
  */
 import { isObject, isString } from '@semiont/core';
+import { itemLimits, operationLimits } from '@semiont/core/openapi';
 import { recordReplySuppressed } from '@semiont/observability';
 import { getLogger } from '../logger';
 import type { PlaneSubscription, SignalPlane } from './interface';
-import { CLAIM_MAX_GLOBAL, CLAIM_TTL_MS, PENDING_REPLIES_MAX, REPLY_RETENTION_TTL_MS } from './options';
+import { CLAIM_MAX_GLOBAL } from './options';
 
 const getBusLogger = () => getLogger().child({ component: 'bus' });
 
@@ -130,16 +131,7 @@ export interface DeliveryGate {
   close(): void;
 }
 
-export function createCorrelationRegistry(
-  plane: SignalPlane,
-  opts: {
-    ttlMs?: number;
-    claimTtlMs?: number;
-    pendingRepliesMax?: number;
-    claimMaxGlobal?: number;
-    now?: () => number;
-  } = {},
-): {
+export function createCorrelationRegistry(plane: SignalPlane): {
   /** Resolves once both tables are open and this replica's projection holds
    *  every claim the table already contained. */
   ready: Promise<void>;
@@ -163,11 +155,10 @@ export function createCorrelationRegistry(
   occupancy(): { claims: number; claimsMax: number };
   dispose(): void;
 } {
-  const ttlMs = opts.ttlMs ?? REPLY_RETENTION_TTL_MS;
-  const claimTtlMs = opts.claimTtlMs ?? CLAIM_TTL_MS;
-  const pendingRepliesMax = opts.pendingRepliesMax ?? PENDING_REPLIES_MAX;
-  const claimMaxGlobal = opts.claimMaxGlobal ?? CLAIM_MAX_GLOBAL;
-  const now = opts.now ?? Date.now;
+  const replyRetentionMs = operationLimits['POST /bus/subscribe'].replyRetentionSeconds * 1000;
+  const claimMs = operationLimits['POST /bus/emit'].claimSeconds * 1000;
+  // A client may await as many replies as a subscribe may name.
+  const pendingRepliesMax = itemLimits['BusSubscribeRequest.pendingReplies'];
 
   /**
    * Insertion-ordered, which is nearly claim-ordered: a claim adopted late
@@ -203,14 +194,14 @@ export function createCorrelationRegistry(
    * ordinary cleanup and stays quiet.
    */
   const sweepClaims = () => {
-    const cutoff = now() - claimTtlMs;
+    const cutoff = Date.now() - claimMs;
     for (const [cid, claim] of claims) {
       if (claim.claimedAt > cutoff) break;
       if (!claim.answered) {
         getBusLogger().warn('[bus CLAIM-EXPIRED] claim swept with no reply', {
           correlationId: cid,
           clientId: claim.clientId,
-          ageMs: now() - claim.claimedAt,
+          ageMs: Date.now() - claim.claimedAt,
         });
       }
       forget(cid);
@@ -220,12 +211,12 @@ export function createCorrelationRegistry(
   /** The global-cap backstop correct clients cannot reach. Oldest-first,
    *  breadcrumbed per entry — never silent (L4). */
   const evictIfAtGlobalCap = () => {
-    if (claims.size < claimMaxGlobal) return;
+    if (claims.size < CLAIM_MAX_GLOBAL) return;
     const oldest = claims.keys().next().value;
     if (oldest !== undefined) {
       getBusLogger().warn('[bus CLAIM-EVICTED] global claim cap reached', {
         correlationId: oldest,
-        cap: claimMaxGlobal,
+        cap: CLAIM_MAX_GLOBAL,
       });
       forget(oldest);
     }
@@ -254,12 +245,12 @@ export function createCorrelationRegistry(
   const markAnswered = (cid: string) => {
     const claim = claims.get(cid);
     if (!claim) {
-      const cutoff = now() - claimTtlMs;
+      const cutoff = Date.now() - claimMs;
       for (const [ahead, at] of answeredAhead) {
         if (at > cutoff) break;
         answeredAhead.delete(ahead);
       }
-      answeredAhead.set(cid, now());
+      answeredAhead.set(cid, Date.now());
       return;
     }
     if (claim.answered) return;
@@ -279,7 +270,7 @@ export function createCorrelationRegistry(
       getBusLogger().warn('[bus CLAIM-MALFORMED] unparseable stored claim ignored', { correlationId: cid });
       return;
     }
-    if (now() - stored.claimedAt > claimTtlMs) return;
+    if (Date.now() - stored.claimedAt > claimMs) return;
     record(cid, stored);
   };
 
@@ -292,19 +283,31 @@ export function createCorrelationRegistry(
     else watches.push(subscription);
     return table;
   };
-  const claimsTable = watched(LEDGER_TABLES.claims, claimTtlMs, adopt);
-  const answeredTable = watched(LEDGER_TABLES.answered, claimTtlMs, (cid) => markAnswered(cid));
-  const repliesTable = plane.table(LEDGER_TABLES.replies, ttlMs);
+  const claimsTable = watched(LEDGER_TABLES.claims, claimMs, adopt);
+  const answeredTable = watched(LEDGER_TABLES.answered, claimMs, (cid) => markAnswered(cid));
+  const repliesTable = plane.table(LEDGER_TABLES.replies, replyRetentionMs);
 
-  /** One read per cid per replica, however many subscribers missed it. */
+  /**
+   * One read per cid per replica, however many subscribers missed it. A reply
+   * on its way to subscribers whose claim is nowhere — never made, or expired
+   * from the table — cannot be delivered to anyone: breadcrumbed once, here,
+   * because it is lossy (L4). A recovery probe for an unknown cid is not a
+   * reply and says nothing.
+   */
   const reads = new Map<string, Promise<void>>();
-  const readThrough = (cid: string): Promise<void> => {
+  const readThrough = (cid: string, reply: { channel: string } | undefined): Promise<void> => {
     let pending = reads.get(cid);
     if (!pending) {
       pending = claimsTable
         .then((table) => table.read(cid))
         .then((value) => {
           if (value !== undefined) adopt(cid, value);
+          else if (reply) {
+            getBusLogger().warn('[bus REPLY-UNCLAIMED] a reply for a correlationId no client holds a claim on; delivered to no one', {
+              correlationId: cid,
+              channel: reply.channel,
+            });
+          }
         })
         .catch((err: unknown) => {
           // The frames held behind this read are dropped: a claim this replica
@@ -322,16 +325,14 @@ export function createCorrelationRegistry(
 
   /**
    * Three verdicts. `unknown` is only ever provisional: `gate` reads the table
-   * and asks again, and an `unknown` after that is a cid nobody claimed — the
-   * structural in-process case, where a gateway-internal `busRequest` rides
-   * the plane via `requestPrimitiveFor` and consumes its reply itself. That
-   * drop is silent: a warn would fire on every in-process operation.
-   * Claimed-then-expired is also silent here; it is breadcrumbed at sweep time.
+   * and asks again, and an `unknown` after that is a reply no client claimed,
+   * which `readThrough` breadcrumbs. Claimed-then-expired while this replica
+   * still holds the claim is silent here; it is breadcrumbed at sweep time.
    */
   const decide = (channel: string, cid: string, clientId: string, principalDid: string | undefined): 'deliver' | 'drop' | 'unknown' => {
     const claim = claims.get(cid);
     if (!claim) return 'unknown';
-    if (now() - claim.claimedAt > claimTtlMs) return 'drop';
+    if (Date.now() - claim.claimedAt > claimMs) return 'drop';
     if (claim.clientId === clientId && claim.principalDid === principalDid) return 'deliver';
     // Owned by someone else. THIS is the amplification the filter removes,
     // and the only refusal worth a counter.
@@ -346,7 +347,7 @@ export function createCorrelationRegistry(
       sweepClaims();
       if (claims.has(cid)) return 'conflict';
       if ((perClient.get(clientId) ?? 0) >= pendingRepliesMax) return 'at-capacity';
-      const stored: StoredClaim = { clientId, claimedAt: now(), ...(principalDid === undefined ? {} : { principalDid }) };
+      const stored: StoredClaim = { clientId, claimedAt: Date.now(), ...(principalDid === undefined ? {} : { principalDid }) };
       if (!(await table.create(cid, JSON.stringify(stored)))) return 'conflict';
       // The watch may already have delivered it; it counts once either way.
       if (!claims.has(cid)) record(cid, stored);
@@ -363,7 +364,7 @@ export function createCorrelationRegistry(
       // offers the same facts, and a refusal only means another got there
       // first. This replica's own marker comes back on its watch as a no-op.
       void answeredTable
-        .then((table) => table.create(cid, String(now())))
+        .then((table) => table.create(cid, String(Date.now())))
         .catch((err: unknown) => {
           // Another replica, or this one after a restart, will count this
           // claim as unanswered and report it lost when it expires.
@@ -372,7 +373,7 @@ export function createCorrelationRegistry(
             error: err instanceof Error ? err.message : String(err),
           });
         });
-      const stored = JSON.stringify({ channel, payload, retainedAt: now() });
+      const stored = JSON.stringify({ channel, payload, retainedAt: Date.now() });
       void repliesTable
         .then((table) => table.create(cid, stored))
         .catch((err: unknown) => {
@@ -408,7 +409,7 @@ export function createCorrelationRegistry(
           }
           if (verdict === 'drop') return;
           held.set(cid, [later(channel, cid, deliver)]);
-          void readThrough(cid).then(() => {
+          void readThrough(cid, { channel }).then(() => {
             const queue = held.get(cid) ?? [];
             held.delete(cid);
             for (const run of queue) run();
@@ -423,13 +424,13 @@ export function createCorrelationRegistry(
     owner(cid) {
       const claim = claims.get(cid);
       if (!claim) return undefined;
-      if (now() - claim.claimedAt > claimTtlMs) return undefined;
+      if (Date.now() - claim.claimedAt > claimMs) return undefined;
       return { clientId: claim.clientId, principalDid: claim.principalDid };
     },
     async lookupReply(cid, clientId, principalDid) {
       // Ownership first, from the projection or the claims table: a replica
       // answering recovery may not have caught up with the claim.
-      if (!claims.has(cid)) await readThrough(cid);
+      if (!claims.has(cid)) await readThrough(cid, undefined);
       const claim = claims.get(cid);
       if (!claim || claim.clientId !== clientId || claim.principalDid !== principalDid) return undefined;
       const value = await (await repliesTable).read(cid);
@@ -441,11 +442,11 @@ export function createCorrelationRegistry(
       }
       // The table's TTL is enforced by the broker on its own schedule; the
       // window a caller is promised is enforced here.
-      if (now() - reply.retainedAt > ttlMs) return undefined;
+      if (Date.now() - reply.retainedAt > replyRetentionMs) return undefined;
       return { channel: reply.channel, payload: reply.payload, correlationId: cid, retainedAt: reply.retainedAt };
     },
     occupancy() {
-      return { claims: claims.size, claimsMax: claimMaxGlobal };
+      return { claims: claims.size, claimsMax: CLAIM_MAX_GLOBAL };
     },
     dispose() {
       disposed = true;

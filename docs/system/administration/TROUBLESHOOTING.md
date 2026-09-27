@@ -110,7 +110,7 @@ container ps --all | grep semiont-nats
 semiont logs --service gateway | grep -iE "BROKER-DOWN|BROKER-RECONNECTED"
 ```
 
-`[signal BROKER-DOWN]` with no later `[signal BROKER-RECONNECTED]` confirms the outage. **Nothing restarts the broker for you** — it is a stock third-party image, outside the launcher's process supervision. Bring it back with `semiont start --service messaging` (or start the container directly); the gateway reconnects on its own, no gateway restart. A gateway that has been up since before the broker returned recovers without intervention — the client retries indefinitely by design.
+`[signal BROKER-DOWN]` with no later `[signal BROKER-RECONNECTED]` confirms the outage. Until it reconnects, the gateway refuses every emit with 503 rather than accepting frames it could not deliver; open streams stay open and carry frames again once it does. **Nothing restarts the broker for you** — it is a stock third-party image, outside the launcher's process supervision. Bring it back with `semiont start --service messaging` (or start the container directly); the gateway reconnects on its own, no gateway restart. A gateway that has been up since before the broker returned recovers without intervention — the client retries indefinitely by design.
 
 If `semiont status` shows the stack green while emits still fail, the served-health/wedged-bus gap above is why; trust the `BROKER-DOWN` breadcrumb over the health line.
 

@@ -1332,22 +1332,6 @@ func TestLoginDeviceGrantStoresTokens(t *testing.T) {
 	}
 }
 
-func TestLoginRefusesKBWithoutIssuer(t *testing.T) {
-	s := newScenario(t, "container")
-	s.extraEnv = append(s.extraEnv, "FAKERT_NO_ISSUER=1")
-	if _, stderr, code := s.run(t, "start"); code != 0 {
-		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
-	}
-	_, stderr, code := s.run(t, "login")
-	if code == 0 {
-		t.Fatal("login must refuse when the knowledge base trusts no issuer")
-	}
-	mustContain(t, "refusal", stderr, "trusts no external issuer", "[identity]")
-	if _, err := os.Stat(tokensPathFor(s.home)); err == nil {
-		t.Error("a refused login stored a token")
-	}
-}
-
 func TestLoginDeniedAtIssuer(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "FAKERT_DEVICE_DENY=1")

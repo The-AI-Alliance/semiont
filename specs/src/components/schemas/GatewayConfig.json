@@ -1,0 +1,131 @@
+{
+  "type": "object",
+  "description": "Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at `~/.semiontconfig`. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are its environment: JWT_SECRET, SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET, and the standard OTEL_* variables. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.",
+  "properties": {
+    "kb": {
+      "type": "object",
+      "description": "The knowledge base's committed identity (`[project] name` and `[site] domain` in its .semiont/config).",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Its name, published as the resource metadata's `resource_name`."
+        },
+        "domain": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Its did:web domain: its permanent identity, the source of the audience its tokens must carry, and the authority its people and agents are named under."
+        }
+      },
+      "required": [
+        "name",
+        "domain"
+      ],
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the gateway listens on."
+    },
+    "publicUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL clients reach this gateway at: the `servers` entry of the OpenAPI document it serves."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer this knowledge base trusts.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        },
+        "subjectClaim": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The claim a person's DID is built from: `did:web:<domain>:users:<its value>`."
+        }
+      },
+      "required": [
+        "issuer",
+        "subjectClaim"
+      ],
+      "additionalProperties": false
+    },
+    "archivist": {
+      "type": "object",
+      "description": "Where the Archivist listens.",
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ],
+      "additionalProperties": false
+    },
+    "signal": {
+      "type": "object",
+      "description": "The signal plane: `in-process`, one gateway on its own fabric; or `nats`, the fabric every replica on one broker shares, which requires `servers` and a broker with JetStream.",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "in-process",
+            "nats"
+          ]
+        },
+        "servers": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The broker's address (`host:port`, or several, comma-separated). Required for `nats`."
+        },
+        "userEnv": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The environment variable holding the broker user, when the broker requires one."
+        },
+        "passwordEnv": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The environment variable holding the broker password, when the broker requires one."
+        }
+      },
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false
+    },
+    "logLevel": {
+      "type": "string",
+      "enum": [
+        "error",
+        "warn",
+        "info",
+        "http",
+        "debug"
+      ]
+    }
+  },
+  "required": [
+    "kb",
+    "port",
+    "publicUrl",
+    "identity",
+    "archivist",
+    "signal",
+    "logLevel"
+  ],
+  "additionalProperties": false
+}

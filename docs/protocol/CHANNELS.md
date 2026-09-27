@@ -32,7 +32,7 @@ Attention-coordination channels broadcast globally, not persisted. Delivered to 
 
 ## Correlation-ID responses
 
-Non-persisted results matched back to the originating request by `correlationId`. Always published on the **global** bus; the caller filters by its own `correlationId`. Consumers use `busRequest` ([`packages/core/src/bus-request.ts`](../../packages/core/src/bus-request.ts)), which hides the correlation glue and looks up the result/failure channels from `BUS_OPERATIONS`. Every reply follows the standard shape: `{ correlationId, response: T }` (data), `{ correlationId }` (void), or `{ correlationId } & CommandError` (failure).
+Non-persisted results matched back to the originating request by the `correlationId` on their envelope. Always published on the **global** bus; the gateway delivers each only to the client that made the request, which matches it by `correlationId`. Consumers use `busRequest` ([`packages/core/src/bus-request.ts`](../../packages/core/src/bus-request.ts)), which hides the correlation glue and looks up the result/failure channels from `BUS_OPERATIONS`. Every reply's payload follows the standard shape: `{ response: T }` (data), `{}` (void), or `CommandError` (failure).
 
 - `browse:*-result` / `browse:*-failed`
 - `mark:*-ok` / `mark:*-failed`

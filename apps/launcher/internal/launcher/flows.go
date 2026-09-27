@@ -102,7 +102,7 @@ func flowFullStart(x executor, fc flowCtx) int {
 	}
 	x.say(sayOK, "Required ports are free")
 
-	stage, ok := x.stageAll(fc.configFile, fc.plan.EnvName, addr, fc.opts.observe)
+	stage, ok := x.stageAll(fc, addr)
 	if !ok {
 		return 1
 	}
@@ -687,7 +687,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := gatewayArgs(stage, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -909,7 +909,7 @@ func flowOneService(x executor, fc flowCtx) int {
 	stage := ""
 	if isConfigConsumer(svc) {
 		var ok bool
-		if stage, ok = x.stageOne(svc, fc.configFile, fc.plan.EnvName, addr); !ok {
+		if stage, ok = x.stageOne(svc, fc, addr); !ok {
 			return 1
 		}
 	}

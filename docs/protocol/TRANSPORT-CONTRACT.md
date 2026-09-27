@@ -165,13 +165,14 @@ gateway. Clients do not set this."*
 
 - Called with the **operation** — the request channel — and a payload.
   It looks the result and failure channels up from the `BUS_OPERATIONS`
-  registry, generates a `correlationId`, adds it to the payload, emits,
-  and observes those reply channels filtered on that correlationId.
+  registry, generates a `correlationId`, emits with it on the frame's
+  envelope (never in the payload), and observes those reply channels
+  filtered on that correlationId.
 - **Return type inferred** from the operation's result channel — callers
   pass neither the reply channels nor a `<TResult>` annotation. Replies
-  follow the standard shape (`{ correlationId, response: T }` /
-  `{ correlationId }` / `{ correlationId } & CommandError`); `busRequest`
-  resolves `response` or rejects with a typed error.
+  carry the request's correlationId on their envelope and follow the
+  standard payload shape (`{ response: T }` / `{}` / `CommandError`);
+  `busRequest` resolves `response` or rejects with a typed error.
 - **30-second timeout** by default. Applies above the transport.
 - **Return value tied to correlationId, not connection.** The caller
   gets exactly one resolution — the first matching result or fail
@@ -201,12 +202,12 @@ durability, and the asymmetry is the design, not a gap:
   exactly-once for the original requester *within its own deadline
   envelope* (retention TTL is 2× the default `busRequest` timeout;
   deterministic `e-<channel>:<cid>` ids dedup replay against any live
-  copy). NOT durable: retention is in-memory, so a gateway restart —
-  and, in a future multi-instance deployment, a reconnect landing on a
-  different instance — loses it. Those residuals degrade to exactly the
-  pre-retention outcome (the caller's timeout), never worse; the
-  multi-instance case is the named tripwire that must reopen this
-  design (sticky routing or a shared store) before replicas ship.
+  copy). Under the NATS signal plane the retained replies live in a
+  key-value table every gateway replica shares, so a reconnect landing on
+  another replica, or on a restarted one, recovers them; under the
+  in-process plane they live in the one gateway process, and a restart
+  loses them. A lost reply degrades to exactly the pre-retention outcome
+  (the caller's timeout), never worse.
 
 Why the tiers differ: a domain event matters forever — every future
 reader needs it. A reply matters only to one caller, only until that

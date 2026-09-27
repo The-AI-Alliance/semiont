@@ -26,6 +26,15 @@ Semiont uses a two-layer TOML configuration model, and **both layers live in the
 > **inside each container** at `/home/semiont/.semiontconfig`, which is where
 > the service process reads it from. If you see that path in service code or
 > logs, it is the container's view of the file you edited in the KB repo.
+>
+> The gateway is the exception: what it finds there is not a copy but its
+> configuration document — a JSON `GatewayConfig`
+> ([schema](../../../specs/src/components/schemas/GatewayConfig.json)) the
+> launcher writes from the selected environment and the KB's committed identity,
+> with every `${VAR}` already resolved. It names a broker credential by the
+> variable holding it (`signal.user = "${NATS_USER}"` becomes
+> `"userEnv": "NATS_USER"`), so a literal credential there is refused. See the
+> [gateway README](../../../apps/gateway/README.md#configuration).
 
 ### `.semiont/config` (project-local, committed)
 
@@ -442,7 +451,7 @@ images run one process and exit by default, and only the launcher's local path o
 stacks do not set it either: compose owns the services inside. See
 [DEPLOYMENT.md](./DEPLOYMENT.md) for restart ownership on each supported path.
 
-Variable references in the config use `${VAR_NAME}` syntax. The launcher leaves them verbatim when it stages the file; interpolation happens inside the container at load time, so the values never pass through your shell history or the launcher's logs.
+Variable references in the config use `${VAR_NAME}` syntax (`${VAR_NAME:-default}` supplies a default). The launcher leaves them verbatim when it stages a service's copy; interpolation happens inside the container at load time, so the values never pass through your shell history or the launcher's logs. The gateway's document is the exception: the launcher resolves its references when it writes it, by the same rule ([specs/src/config-placeholders/cases.json](../../../specs/src/config-placeholders/cases.json) is the rule's case table, run by both), and credentials stay named rather than resolved.
 
 ## Quick Start
 

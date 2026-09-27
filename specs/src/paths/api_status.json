@@ -22,14 +22,10 @@
         }
       },
       "401": {
-        "description": "Unauthorized",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
+        "$ref": "../components/responses/Unauthorized.json"
+      },
+      "500": {
+        "$ref": "../components/responses/InternalError.json"
       }
     }
   }

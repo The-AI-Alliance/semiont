@@ -1,10 +1,10 @@
 {
   "type": "object",
-  "description": "Response body for POST /resources (202 Accepted). The route writes content to disk, emits yield:create, and AWAITS the confirmed-write reply \u2014 so the returned resourceId is the one Stower minted, and the resource's event is persisted before this response is sent. What remains asynchronous is downstream projection: graph, views and vectors settle after the 202.",
+  "description": "Response body for POST /resources (202 Accepted). The Archivist has stored the bytes and recorded the resource before this response is sent, so the resourceId is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle after the 202.",
   "properties": {
     "resourceId": {
       "type": "string",
-      "description": "The id of the newly-created resource. Assigned by Stower when it persists yield:create."
+      "description": "The id of the newly created resource, as the record minted it."
     }
   },
   "required": [

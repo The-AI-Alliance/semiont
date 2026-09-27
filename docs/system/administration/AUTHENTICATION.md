@@ -112,11 +112,11 @@ The gateway, the services behind it (Archivist, Stower, dispatcher, the sidecars
 
 ### Public endpoints (no auth)
 
-- `GET /api/health` — health check
+- `GET /api/health` and `GET /` — health check
 - `GET /.well-known/oauth-protected-resource` — names the issuer this deployment trusts (RFC 9728)
-- `/`, `/api`, `/api/docs`, `/api/swagger`, `/api/openapi.json` — the API documentation and the OpenAPI document itself
+- `GET /api/openapi.json` — the OpenAPI document itself
 
-That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring no `security` is public — and `route-spec-coverage.test.ts` fails the build if any other registered route answers an unauthenticated caller with anything but 401.
+That is the complete list. The OpenAPI spec is the single source of truth for it — an operation declaring `"security": []` is public — and the gateway conformance suite (`tests/gateway-conformance`) probes every operation the spec declares, failing if a protected one answers an unauthenticated caller with anything but 401.
 
 There is no password endpoint, no provider endpoint and no refresh endpoint. People obtain tokens from the issuer.
 

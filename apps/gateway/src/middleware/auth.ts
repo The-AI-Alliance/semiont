@@ -1,6 +1,6 @@
 import { Context, Next } from 'hono';
 import { principalFromToken } from '../identity/principal';
-import { bearerChallenge } from '../identity/resource-metadata';
+import { bearerChallenge, bearerToken, missingCredential } from '../identity/resource-metadata';
 import { JWTService } from '../auth/jwt';
 import { accessToken } from '@semiont/core';
 
@@ -32,16 +32,13 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
           path: c.req.path,
           error: error instanceof Error ? error.message : String(error)
         });
-        return c.json({ error: 'Unauthorized' }, 401);
+        c.header('WWW-Authenticate', bearerChallenge(c, 'invalid_token'));
+        return c.json({ error: 'Invalid media token' }, 401);
       }
     }
   }
 
-  const authHeader = c.req.header('Authorization');
-  let tokenStr: string | undefined;
-  if (authHeader?.startsWith('Bearer ')) {
-    tokenStr = authHeader.substring(7).trim();
-  }
+  const tokenStr = bearerToken(c.req.header('Authorization'));
 
   if (!tokenStr) {
     logger.warn('Authentication failed: No token', {
@@ -50,14 +47,7 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
       path: c.req.path,
       method: c.req.method
     });
-    // Actionable body (SDK-AUTH-CORS Phase 6): keep the machine-readable
-    // `error` code, add a `hint` so a bare-IRI browser navigation / a script
-    // that forgot the header gets one line naming the fix.
-    c.header('WWW-Authenticate', bearerChallenge(c));
-    return c.json({
-      error: 'Unauthorized',
-      hint: 'Authentication required: send an `Authorization: Bearer <token>` header. A raw browser navigation to a protected resource is unauthenticated.',
-    }, 401);
+    return missingCredential(c);
   }
 
   try {

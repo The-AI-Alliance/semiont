@@ -36,18 +36,18 @@ Nothing in Semiont is waiting on them.
 
 ### Access levels
 
-- **Public**: `GET /`, `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and the
-  documentation meta-routes (`/api`, `/api/docs`, `/api/swagger`, `/api/openapi.json`)
+- **Public**: `GET /`, `GET /api/health`, `GET /.well-known/oauth-protected-resource`, and
+  `GET /api/openapi.json`, the OpenAPI document
 - **Authenticated**: everything else — resources, annotations, entity types, search,
   graph queries, status, and the bus
 - **Service account**: `POST /api/tokens/agent` and the Archivist read path additionally
   require the `semiont-service` role above
 
 The OpenAPI spec is the single source of truth for which routes are public: an
-operation declaring no `security` is public, and
-[`route-spec-coverage.test.ts`](../../apps/gateway/src/__tests__/route-spec-coverage.test.ts)
-fails the build if any other registered route answers something other than 401 to
-an unauthenticated caller.
+operation declaring `security: []` is public, and the
+[gateway conformance suite](../../tests/gateway-conformance/README.md) fails if any
+other declared operation answers an unauthenticated caller with anything but 401,
+or a public one challenges.
 
 ### What this means in practice
 
@@ -153,8 +153,9 @@ resourcesRouter.use('/api/resources/*', authMiddleware);
 
 `authMiddleware` verifies the bearer token, resolves the principal, and answers
 401 when it cannot. A route that needs a narrower audience than "any
-authenticated caller" needs a new gate, and `route-spec-coverage.test.ts` is
-where its contract gets declared.
+authenticated caller" needs a new gate, declared in the spec first; the
+[gateway conformance suite](../../tests/gateway-conformance/README.md) then
+probes it.
 
 ---
 

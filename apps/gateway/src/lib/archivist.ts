@@ -1,7 +1,9 @@
 /**
- * The gateway's two byte-proxying calls onto the Archivist's HTTP surface
- * (SINGLE-KB-MOUNT): resource creation writes bytes (`putContent`) and the
- * content pipe reads them back (`getContent`).
+ * The gateway's calls onto the Archivist's HTTP surface: an upload is stored
+ * and recorded there (`recordUpload`), the content pipe reads bytes back
+ * (`getContent`), and a resource's linked-data description is read there
+ * (`describeResource`). The gateway parses none of it: it forwards, and maps
+ * the Archivist's answer onto its own responses.
  *
  * Where the Archivist is and how we prove who we are lives in
  * `@semiont/core/node` — the address and the secret are deployment facts, and
@@ -15,9 +17,9 @@
  */
 
 import { HTTPException } from 'hono/http-exception';
-import type { StoredResource } from '@semiont/core';
+import { errField, isObject, isString } from '@semiont/core';
+import type { StoredEvent, ServiceAccountCredential } from '@semiont/core';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
-import type { ServiceAccountCredential } from '@semiont/core';
 import { SpanKind, withSpan } from '@semiont/observability';
 import { getLogger } from '../logger';
 
@@ -31,68 +33,92 @@ import { getLogger } from '../logger';
  * round-trip while attributing none of it: a slow Archivist rendered as a slow
  * gateway. These spans put the time where it is spent.
  */
+/** Where the Archivist is, and the gateway's own account to reach it with — resolved once, at boot. */
+export interface ArchivistAccess {
+  address: ArchivistAddressConfig;
+  credential: ServiceAccountCredential;
+}
+
+const endpoint = (archivist: ArchivistAccess) => archivistEndpoint(archivist.address, archivist.credential);
+
 const archivistSpan = <T>(op: string, run: () => Promise<T>): Promise<T> =>
   withSpan(`archivist.${op}`, run, {
     kind: SpanKind.CLIENT,
     attrs: { 'peer.service': 'archivist' },
   });
 
+/** Who an upload is recorded for — the principal this gateway verified. */
+export interface UploadPrincipal {
+  did: string;
+  roles: readonly string[];
+}
+
 /**
- * Write a representation's bytes to the record.
+ * Forward a client's upload to the Archivist, which stores the bytes and
+ * records the resource, and answer the new resource's id.
  *
- * The `Blob` is handed to `fetch` directly rather than read into a Buffer:
- * undici streams a blob body, so this adds no copy of its own. Note the
- * gateway is still not chunk-bounded end to end — `c.req.formData()` has
- * already materialized the upload before this is called — so this is not the
- * whole of D7. Bounding the multipart parse itself is separate work.
- *
- * The full ledger, so nobody reads "it streams" as more than it is: of the
- * three hops an upload takes, **two stream** (this one, and the Archivist's
- * body → temp file) and **one does not** (`formData()` above). The Archivist
- * streams its verification read as well, so exactly one full copy of an upload
- * is held anywhere, in this process, by the multipart parser.
- *
- * No `?checksum` is sent: the gateway has no independent checksum to assert
- * (its old one came FROM the local `store` call this replaces), and the
- * response carries the authoritative one. The query parameter exists for
- * callers that already hold the value.
- *
- * Every failure — unreachable, 401, 503, 500 — maps to one 503. The gateway
- * cannot act differently on any of them, and the distinction belongs in the
- * log rather than in a status code a client cannot use.
+ * The multipart body is streamed through untouched — the gateway neither
+ * parses nor holds it — with the principal it verified named in
+ * `Semiont-Principal` and `Semiont-Roles`. The Archivist's 400 (a malformed
+ * upload) and 500 (the record refused it) come back with its message; it being
+ * unreachable, or refusing this gateway's own credential, is a 503.
  */
-export async function putContent(
-  config: ArchivistAddressConfig,
-  credential: ServiceAccountCredential,
-  storageUri: string,
-  body: Blob,
-): Promise<StoredResource> {
-  const { base, headers } = await archivistEndpoint(config, credential);
-  const url = `${base}/content/${encodeURIComponent(storageUri)}`;
+export async function recordUpload(
+  archivist: ArchivistAccess,
+  upload: { body: ReadableStream<Uint8Array> | null; contentType: string },
+  principal: UploadPrincipal,
+): Promise<string> {
+  const { base, headers } = await endpoint(archivist);
+  const forwarded: Record<string, string> = {
+    ...headers,
+    'content-type': upload.contentType,
+    'semiont-principal': principal.did,
+    ...(principal.roles.length > 0 ? { 'semiont-roles': principal.roles.join(',') } : {}),
+  };
 
   let res: Response;
   try {
-    res = await archivistSpan('content.put', () => fetch(url, { method: 'PUT', headers, body }));
+    res = await archivistSpan('resources.record', () =>
+      fetch(`${base}/resources`, { method: 'POST', headers: forwarded, body: upload.body, duplex: 'half' }),
+    );
   } catch (error) {
-    getLogger().error('Archivist content write unreachable', {
-      component: 'archivist-client',
-      storageUri,
-      error: error instanceof Error ? error.message : String(error),
-    });
+    getLogger().error('Archivist unreachable for an upload', { component: 'archivist-client', error: errField(error) });
     throw new HTTPException(503, { message: 'Content store unavailable' });
   }
 
+  const answer: unknown = await res.json().catch(() => undefined);
+  if (res.ok && isObject(answer) && isString(answer['resourceId'])) return answer['resourceId'];
+  if ((res.status === 400 || res.status === 500) && isObject(answer) && isString(answer['error'])) {
+    throw new HTTPException(res.status, { message: answer['error'] });
+  }
+  getLogger().error('Archivist upload failed', { component: 'archivist-client', status: res.status, statusText: res.statusText });
+  throw new HTTPException(503, { message: 'Content store unavailable' });
+}
+
+/**
+ * A resource's linked-data description, read from the Archivist; undefined
+ * when it holds no such resource.
+ */
+export async function describeResource(
+  archivist: ArchivistAccess,
+  resourceId: string,
+): Promise<unknown> {
+  const { base, headers } = await endpoint(archivist);
+  let res: Response;
+  try {
+    res = await archivistSpan('resources.describe', () =>
+      fetch(`${base}/resources/${encodeURIComponent(resourceId)}/jsonld`, { headers }),
+    );
+  } catch (error) {
+    getLogger().error('Archivist unreachable for a description', { component: 'archivist-client', resourceId, error: errField(error) });
+    throw new HTTPException(503, { message: 'Content store unavailable' });
+  }
+  if (res.status === 404) return undefined;
   if (!res.ok) {
-    getLogger().error('Archivist content write failed', {
-      component: 'archivist-client',
-      storageUri,
-      status: res.status,
-      statusText: res.statusText,
-    });
+    getLogger().error('Archivist description failed', { component: 'archivist-client', resourceId, status: res.status, statusText: res.statusText });
     throw new HTTPException(503, { message: 'Content store unavailable' });
   }
-
-  return await res.json() as StoredResource;
+  return res.json();
 }
 
 /**
@@ -110,11 +136,10 @@ export async function putContent(
  * always served are preserved without the gateway reading a view.
  */
 export async function getContent(
-  config: ArchivistAddressConfig,
-  credential: ServiceAccountCredential,
+  archivist: ArchivistAccess,
   resourceId: string,
 ): Promise<{ body: ReadableStream<Uint8Array>; mediaType: string }> {
-  const { base, headers } = await archivistEndpoint(config, credential);
+  const { base, headers } = await endpoint(archivist);
   const url = `${base}/resources/${encodeURIComponent(resourceId)}/content`;
 
   let res: Response;
@@ -124,7 +149,7 @@ export async function getContent(
     getLogger().error('Archivist content read unreachable', {
       component: 'archivist-client',
       resourceId,
-      error: error instanceof Error ? error.message : String(error),
+      error: errField(error),
     });
     throw new HTTPException(503, { message: 'Content store unavailable' });
   }
@@ -147,4 +172,28 @@ export async function getContent(
   }
 
   return { body: res.body, mediaType: res.headers.get('content-type') || 'application/octet-stream' };
+}
+
+/**
+ * The events for one resource from one sequence, inclusive — the Archivist's
+ * D1 read path behind `/bus/subscribe`'s replay (EXTRACT-ARCHIVIST). What may
+ * live on the Archivist's HTTP surface at all is decided in ONE place, the
+ * standing rule in `archivist-read-path.ts`. A failure throws; the caller
+ * degrades it to a scoped `bus:resume-gap`, the honest answer when the record
+ * cannot be read.
+ */
+export async function replayEvents(
+  archivist: ArchivistAccess,
+  resourceId: string,
+  fromSequence: number,
+): Promise<StoredEvent[]> {
+  const { base, headers } = await endpoint(archivist);
+  const res = await archivistSpan('events.replay', () =>
+    fetch(`${base}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`, { headers }),
+  );
+  if (!res.ok) {
+    throw new Error(`Archivist replay read failed: ${res.status} ${res.statusText}`);
+  }
+  const { events } = await res.json() as { events: StoredEvent[] };
+  return events;
 }

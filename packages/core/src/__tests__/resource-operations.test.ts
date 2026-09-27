@@ -75,7 +75,7 @@ describe('ResourceOperations (exported from @semiont/core)', () => {
         jobId: 'job-7',
         isDraft: true,
       },
-      ALICE,
+      { did: ALICE, roles: [] },
       inProcess(bus),
     );
 
@@ -94,6 +94,19 @@ describe('ResourceOperations (exported from @semiont/core)', () => {
       isDraft: true,
       _userId: ALICE,
     });
+    expect(await seen).not.toHaveProperty('_roles');
+    bus.destroy();
+  });
+
+  it('createResource stamps the emitter\'s roles as _roles, as the gateway stamps them on an emit', async () => {
+    const bus = new EventBus();
+    const { seen } = stower(bus, 'yield:create', 'res-2');
+    await ResourceOperations.createResource(
+      { name: 'Generated', storageUri: 'file://g.md', contentChecksum: 'abc', byteSize: 1, format: 'text/markdown', jobId: 'job-8' },
+      { did: ALICE, roles: ['semiont-worker'] },
+      inProcess(bus),
+    );
+    expect(await seen).toMatchObject({ _userId: ALICE, _roles: ['semiont-worker'] });
     bus.destroy();
   });
 
@@ -151,7 +164,7 @@ describe('ResourceOperations (exported from @semiont/core)', () => {
     await expect(
       ResourceOperations.createResource(
         { name: 'x', storageUri: 'file://x', contentChecksum: 'c', byteSize: 1, format: 'text/plain' },
-        ALICE,
+        { did: ALICE, roles: [] },
         inProcess(bus),
       ),
     ).rejects.toBeInstanceOf(BusRequestError);

@@ -106,7 +106,7 @@ const rId = await ResourceOperations.createResource(
     format: 'text/plain',
     language: 'en',
   },
-  userId('script-user'),
+  { did: userId('script-user'), roles: [] },
   eventBus,
 );
 

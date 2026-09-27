@@ -25,13 +25,13 @@ import (
 // stager: writes what a container will read: per-service config copies, the launcher-owned
 // collector and Prometheus configs, the realm document, the broker's authorization block.
 type stager interface {
-	stageAll(configFile, envName, addr string, traces bool) (string, bool) // per-service config copies + the collector's own; returns stage dir
-	stageOne(svc, configFile, envName, addr string) (string, bool)         // one service's fresh private copy
-	stageCollector(addr string) (string, bool)                             // the collector's own config: launcher-owned, no KB config involved
-	stageMetrics(addr string) (string, bool)                               // Prometheus's scrape config: same launcher-owned pattern
-	stageRealm(realm string, doc []byte) (string, bool)                    // the realm file Keycloak imports; returns its staged path
-	stageNatsConf(doc []byte) (string, bool)                               // the broker's authorization block (no secret in it); returns its staged path
-	sweepStaging()                                                         // /tmp/semiont-config.* removal (+ state forget)
+	stageAll(fc flowCtx, addr string) (string, bool)             // per-service config (the gateway's document, the others' copies) + the collector's own; returns stage dir
+	stageOne(svc string, fc flowCtx, addr string) (string, bool) // one service's fresh private config
+	stageCollector(addr string) (string, bool)                   // the collector's own config: launcher-owned, no KB config involved
+	stageMetrics(addr string) (string, bool)                     // Prometheus's scrape config: same launcher-owned pattern
+	stageRealm(realm string, doc []byte) (string, bool)          // the realm file Keycloak imports; returns its staged path
+	stageNatsConf(doc []byte) (string, bool)                     // the broker's authorization block (no secret in it); returns its staged path
+	sweepStaging()                                               // /tmp/semiont-config.* removal (+ state forget)
 }
 
 // runner: the container lifecycle itself — pull, run, tear down, and show the crash where it
@@ -346,19 +346,46 @@ func (x *liveExec) stageDir() (string, bool) {
 }
 
 // archivistDialers: the services that resolve the Archivist's address from
-// their staged config, and so must be handed it. The gateway proxies bytes
-// onto the record; the Smelter, the Librarian and the Worker read bytes from
-// it directly (SINGLE-KB-MOUNT P4). All four refuse to boot without it, which
-// is the point — a process that cannot reach the record has nothing to do.
-//
-// The Archivist itself is absent: it IS the record, and holds the mount.
-var archivistDialers = map[string]bool{"gateway": true, "smelter": true, "librarian": true, "worker": true}
+// their staged config copy, and so must be handed it. The Smelter, the
+// Librarian and the Worker read bytes from it directly (SINGLE-KB-MOUNT P4);
+// all three refuse to boot without it. The gateway is absent because its
+// configuration document carries the address (gatewaydoc.go); the Archivist,
+// because it IS the record, and holds the mount.
+var archivistDialers = map[string]bool{"smelter": true, "librarian": true, "worker": true}
 
 // kbIdentityStaged: the services that describe a KB tree they do not mount,
 // and so must be handed its committed identity rather than reading it
-// (SINGLE-KB-MOUNT P5/P6). The Archivist is absent because it HOLDS the
-// tree; the Smelter and Worker are absent because they never name the KB.
-var kbIdentityStaged = map[string]bool{"gateway": true, "librarian": true}
+// (SINGLE-KB-MOUNT P5/P6). The gateway's document carries it; the Archivist
+// HOLDS the tree; the Smelter and Worker never name the KB.
+var kbIdentityStaged = map[string]bool{"librarian": true}
+
+// gatewayDocumentFile: the gateway is configured by a document, not a copy
+// of the KB's config (gatewaydoc.go). One name, staged and mounted.
+const gatewayDocumentFile = "gateway.json"
+
+// stageService writes one service's config into the stage: the gateway's
+// resolved document, or another service's patched copy of the KB config.
+func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr string) bool {
+	if svc == "gateway" {
+		env, _, _, err := loadConfig(fc.configFile)
+		if err == nil {
+			var doc []byte
+			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), addr, fc.plan.GatewayPort, fc.userEnv); err == nil {
+				err = os.WriteFile(filepath.Join(stage, gatewayDocumentFile), doc, 0o644)
+			}
+		}
+		if err != nil {
+			x.u.Fail("Writing the gateway's configuration document: %v", err)
+			return false
+		}
+		return true
+	}
+	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, fc.plan.EnvName, addr), 0o644); err != nil {
+		x.u.Fail("Staging config for %s: %v", svc, err)
+		return false
+	}
+	return true
+}
 
 // stagedConfig applies every launcher-owned patch a service's config needs.
 // ONE decider: `stageAll` and `stageOne` stage the same services from the
@@ -431,26 +458,24 @@ func patchKBIdentity(cfg []byte, name, domain string) []byte {
 	return append(cfg, []byte(stanza)...)
 }
 
-func (x *liveExec) stageAll(configFile, envName, addr string, traces bool) (string, bool) {
+func (x *liveExec) stageAll(fc flowCtx, addr string) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
 		return "", false
 	}
-	cfg, err := os.ReadFile(configFile)
+	cfg, err := os.ReadFile(fc.configFile)
 	if err != nil {
-		x.u.Fail("Reading %s: %v", configFile, err)
+		x.u.Fail("Reading %s: %v", fc.configFile, err)
 		return "", false
 	}
 	for _, svc := range stackServices {
-		out := x.stagedConfig(svc, cfg, envName, addr)
-		if err := os.WriteFile(filepath.Join(stage, svc+".toml"), out, 0o644); err != nil {
-			x.u.Fail("Staging config for %s: %v", svc, err)
+		if !x.stageService(stage, svc, cfg, fc, addr) {
 			return "", false
 		}
 	}
 	// The collector's config is launcher-owned, not a KB copy; the variant
 	// follows --observe (traces → Jaeger or nop).
-	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, traces)), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stage, "collector.yaml"), []byte(collectorConfig(addr, fc.opts.observe)), 0o644); err != nil {
 		x.u.Fail("Staging the collector config: %v", err)
 		return "", false
 	}
@@ -488,18 +513,17 @@ func (x *liveExec) stageCollector(addr string) (string, bool) {
 	return stage, true
 }
 
-func (x *liveExec) stageOne(svc, configFile, envName, addr string) (string, bool) {
+func (x *liveExec) stageOne(svc string, fc flowCtx, addr string) (string, bool) {
 	stage, ok := x.stageDir()
 	if !ok {
 		return "", false
 	}
-	cfg, err := os.ReadFile(configFile)
+	cfg, err := os.ReadFile(fc.configFile)
 	if err != nil {
-		x.u.Fail("Reading %s: %v", configFile, err)
+		x.u.Fail("Reading %s: %v", fc.configFile, err)
 		return "", false
 	}
-	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, envName, addr), 0o644); err != nil {
-		x.u.Fail("Staging config for %s: %v", svc, err)
+	if !x.stageService(stage, svc, cfg, fc, addr) {
 		return "", false
 	}
 	return stage, true
@@ -1201,24 +1225,33 @@ func (x *planExec) stageCollector(string) (string, bool) {
 	return "<config-stage>", true
 }
 
-func (x *planExec) stageAll(_, envName, _ string, _ bool) (string, bool) {
+func (x *planExec) stageAll(fc flowCtx, _ string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
-		staged = append(staged, svc+".toml")
+		if svc != "gateway" {
+			staged = append(staged, svc+".toml")
+		}
 	}
+	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
-	for _, svc := range []string{"gateway", "worker", "smelter", "librarian"} {
-		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
+	for _, svc := range stackServices {
+		if archivistDialers[svc] {
+			x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", fc.plan.EnvName, svc)
+		}
 	}
 	return "<config-stage>", true
 }
 
-func (x *planExec) stageOne(svc, _, envName, _ string) (string, bool) {
+func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
+	if svc == "gateway" {
+		x.c("write a fresh <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
+		return "<config-stage>", true
+	}
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml", svc)
 	if archivistDialers[svc] {
-		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", envName, svc)
+		x.c("append [environments.%s.archivist] host/port (launcher-staged topology) to %s.toml", fc.plan.EnvName, svc)
 	}
 	return "<config-stage>", true
 }
