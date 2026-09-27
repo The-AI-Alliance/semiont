@@ -45,14 +45,14 @@ container run -d --name semiont-gateway \
   --publish 4000:4000 \
   --volume <config-stage>/gateway.json:/home/semiont/.semiontconfig:ro \
   --volume <state>:/semiont-state \
-  --env XDG_STATE_HOME=/semiont-state \
   --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
   --env JWT_SECRET=<key> \
   ghcr.io/the-ai-alliance/semiont-gateway:latest
 ```
 
-**There is no KB volume**, and that absence is the point. It is also enforced:
+The state volume holds only the supervisor's events log; the gateway itself
+writes nothing to disk. **There is no KB volume**, and that absence is the point. It is also enforced:
 the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
 signature change, not a line someone can slip in.
 

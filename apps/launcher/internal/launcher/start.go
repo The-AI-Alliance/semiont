@@ -629,22 +629,19 @@ const kbMountTarget = "/kb"
 // the KB's committed identity, the addresses, the issuer — mounted where its
 // config copy used to be. Resolved means no ${VAR} is left for it to expand,
 // so it gets none of the dependency hosts the sidecars do. What is left is
-// that document, the gateway's own state, its secrets, and the user's
-// variables (the document names its broker credentials by variable).
+// that document, the state mount its supervisor keeps its events on, its
+// secrets, and the user's variables (the document names its broker
+// credentials by variable).
 func gatewayArgs(stage, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
 		"--volume", stage + "/" + gatewayDocumentFile + ":/home/semiont/.semiontconfig:ro"}
-	// Persistent state the gateway itself owns (stateStores["gateway"]).
+	// The gateway writes nothing to disk; supervise.sh keeps its events log on
+	// the state mount so a death record outlives the container.
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a,
-		// XDG_STATE_HOME rides in argv, NOT as an image ENV like
-		// SEMIONT_ROOT: it is a standard override project.ts already
-		// honours, and the env and its mount live in this one builder —
-		// no cross-file pair for imagepaths_test to guard.
-		"--env", "XDG_STATE_HOME=/semiont-state",
 		// The gateway's own account at the realm. It dials the Archivist for
 		// content, events and the branch, and proves who it is like any caller.
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("gateway"),
