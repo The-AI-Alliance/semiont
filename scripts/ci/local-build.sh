@@ -623,8 +623,10 @@ if [[ "$IMAGES_ONLY" != true ]]; then
 
       # Create .npmrc for Verdaccio auth
       # The body and the NPMRC terminator MUST stay at column 0 — this is
-      # `<<NPMRC`, not `<<-NPMRC`, so an indented terminator never closes the
+      # <<NPMRC, not <<-NPMRC, so an indented terminator never closes the
       # heredoc and every command below it silently becomes .npmrc content.
+      # No backticks in these comments: this whole script is a double-quoted
+      # string, so the host shell runs anything in backticks.
       cat > /tmp/.npmrc <<NPMRC
 registry=http://$HOST_ADDR:4873
 //$HOST_ADDR:4873/:_authToken=$VERDACCIO_TOKEN
@@ -1017,6 +1019,9 @@ case "$(uname -m)" in
 esac
 
 mkdir -p "$GOCACHE_DIR" "$GOMODCACHE_DIR"
+# -buildvcs=false: Go would run git to stamp the commit into the binary, which
+# nothing reads (the version comes from -ldflags in a release build), and git
+# refuses a checkout owned by another user, as a root container on Linux sees it.
 step "Building the semiont launcher (${LAUNCHER_GOOS}/${LAUNCHER_GOARCH}) in ${GO_IMAGE}..."
 $RT run --rm \
   -v "$REPO_ROOT":/workspace \
@@ -1026,7 +1031,7 @@ $RT run --rm \
   -e GOPROXY="$GOPROXY_CACHED" \
   -e GOOS="$LAUNCHER_GOOS" -e GOARCH="$LAUNCHER_GOARCH" -e CGO_ENABLED=0 \
   "$GO_IMAGE" \
-  go build -o dist/semiont .
+  go build -buildvcs=false -o dist/semiont .
 ok "apps/launcher/dist/semiont built"
 
 banner "DONE ✓"
