@@ -52,17 +52,17 @@ semiont logs --service gateway
 
 ### Gateway container exits immediately
 
-Its startup contract is strict, and each unmet requirement throws:
+Its startup contract is strict: each unmet requirement stops it before it listens, and the output names what is missing.
 
-| Missing | Symptom |
+| Missing or wrong | What it says |
 |---|---|
-| `SEMIONT_ROOT` | `SEMIONT_ROOT environment variable is not set` |
-| `services.gateway` in the environment config | `services.gateway is required in environment config` |
-| `NODE_ENV` | `NODE_ENV environment variable is required` (thrown from `/api/health`) |
-| `JWT_SECRET` under 32 characters | Startup validation failure |
-| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The service refuses to boot: it cannot authenticate as its own service account — see below |
-| `[identity]` in the environment config | Gateway and sidecars refuse to boot; there is no issuer to trust |
-| `subjectClaim` in `[identity]` | Gateway and sidecars refuse to boot: `names no subjectClaim` — the claim people are named by is declared, never defaulted |
+| The configuration document (`~/.semiontconfig` in the container) | `Cannot read the gateway's configuration document at …` — the launcher writes it; check the mount |
+| A field of that document | `… is not a gateway configuration document (GatewayConfig):` followed by each failing field by its JSON pointer, e.g. `/identity is missing subjectClaim` |
+| `JWT_SECRET`, or a key in it under 32 characters | `JWT_SECRET is not set …` / `JWT_SECRET must be at least 32 characters long …` |
+| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | `… not set — this gateway has no service account …` — see below |
+| A broker credential variable the document names (`signal.userEnv`, `signal.passwordEnv`) | `/signal/userEnv names the environment variable …, which is not set` |
+| The broker, under `signal.type = "nats"` | `The broker is unreachable …`, or `… it must run with JetStream enabled.` |
+| Routes and spec in agreement (a build defect, not configuration) | `The gateway's routes are not its spec's operations:` followed by each difference |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.
 

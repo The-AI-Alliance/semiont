@@ -43,8 +43,6 @@ RUN rm -rf /usr/local/lib/node_modules/npm \
 
 COPY LICENSE apps/gateway/NOTICE /home/semiont/
 
-WORKDIR /kb
-RUN chown semiont:nodejs /kb
 # Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
 # /usr/local/bin refuses writes once USER drops privileges below.
 RUN apk add --no-cache tini
@@ -58,7 +56,6 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "require('http').get('http://localhost:4000/api/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
 
-ENV SEMIONT_ENV=local
 ENV GATEWAY_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/gateway
 
 # The image publishes ONE binary and nothing execs it by name: CMD is `node` on

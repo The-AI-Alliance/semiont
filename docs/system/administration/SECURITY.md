@@ -80,23 +80,21 @@ That is the whole list. There are **no** OAuth client credentials here: the gate
 
 ### Production Deployment
 
-1. **Use HTTPS**: Always deploy behind a reverse proxy with TLS termination
-2. **Set NODE_ENV**: Ensure `NODE_ENV=production` to disable development shortcuts
-3. **Secure Secrets**: Use a secrets management system for sensitive configuration
-4. **Network Security**: Deploy gateway services in private networks when possible
-5. **Regular Updates**: Keep dependencies updated with security patches
-6. **Admission**: Restrict who may authenticate at the trusted issuer. The gateway admits every subject the issuer vouches for.
+1. **Use HTTPS**: Always deploy behind a reverse proxy with TLS termination. The gateway sends `Strict-Transport-Security` on every response; a browser honours it only over HTTPS
+2. **Secure Secrets**: Use a secrets management system for sensitive configuration
+3. **Network Security**: Deploy gateway services in private networks when possible
+4. **Regular Updates**: Keep dependencies updated with security patches
+5. **Admission**: Restrict who may authenticate at the trusted issuer. The gateway admits every subject the issuer vouches for.
 
-### Development vs Production
+### One gateway, everywhere
 
-| Feature | Development | Production |
-|---------|------------|------------|
-| Authentication | Required (trusted issuer) | Required (trusted issuer) |
-| HTTPS | Optional | Required |
-| Error Details | Full stack traces | Generic error messages |
-| Debug Logging | Enabled | Disabled |
-| CORS | Open (`*`, bearer-only) | Open (`*`, bearer-only) |
-| JWT Expiration | Same as production | See [Authentication](./AUTHENTICATION.md) |
+The gateway has no development mode: it reads no `NODE_ENV` and behaves the same wherever it runs.
+
+- **Authentication** is always required, against the trusted issuer.
+- **Error bodies** never carry internals — a stack frame, a source path or a secret's name — anywhere; the conformance suite checks every one. The cause goes to the log.
+- **Log level** is the configuration document's `logLevel` (the launcher writes `info` unless the KB's config says otherwise).
+- **CORS** is open (`*`) and credential-less, because authentication is bearer-only.
+- **HTTPS** is the deployment's: the gateway serves HTTP and sends `Strict-Transport-Security`, which a browser honours only over HTTPS.
 
 ## Security Best Practices for Operators
 
