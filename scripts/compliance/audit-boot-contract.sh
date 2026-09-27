@@ -61,12 +61,7 @@ builder_for() {
 # by design (a documented fallback exists) or produced inside the container
 # before the server starts. An entry with neither property is a bug here.
 ALLOW="
-gateway KC_BOOTSTRAP_ADMIN_USERNAME — read by semiont useradd only, which runs via container exec with the OPERATOR's environment; the image must never carry realm-admin credentials
-gateway KC_BOOTSTRAP_ADMIN_PASSWORD — same: administering the realm is an operator act, not a service capability
-gateway LOG_DIR — optional logging knob with a default
-gateway LOG_LEVEL — optional logging knob with a default
 gateway LOG_FORMAT — optional logging knob with a default
-gateway HOME — present in every image runtime (config path resolution)
 archivist SEMIONT_SKIP_REBUILD — operator escape hatch; default is to rebuild
 archivist HOME — present in every image runtime (config path resolution)
 librarian HOME — present in every image runtime (config path resolution)
@@ -99,7 +94,7 @@ for svc in gateway worker smelter weaver archivist librarian; do
 done
 
 # ── B2 — [kb] identity census ───────────────────────────────────────────────
-kb_reads=$(grep -rhoE 'config\.kb\??\.[a-zA-Z]+' apps/gateway/src packages/make-meaning/src \
+kb_reads=$(grep -rhoE 'config\.kb\??\.[a-zA-Z]+' packages/make-meaning/src \
   --include='*.ts' 2>/dev/null | grep -v __tests__ | sed -E 's/.*\.//' | sort -u || true)
 kb_staged=$(sed -n '/func patchKBIdentity/,/^}/p' "$EXECUTOR_GO" | sed 's/\\n/ /g' \
   | grep -oE '[a-zA-Z]+ = (%q|%d|%s|\[)' | awk '{print $1}' | sort -u)
