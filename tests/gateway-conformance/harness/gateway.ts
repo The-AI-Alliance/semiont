@@ -2,31 +2,32 @@
  * Starting and stopping gateway processes.
  *
  * A gateway is `GATEWAY_COMMAND`, a configuration document and an
- * environment. What the configuration says is modelled here once
- * (`GatewaySettings`); `writeConfiguration` renders it into the file the
- * gateway reads, and a case that needs a broken configuration edits the
- * settings, never the rendering.
+ * environment. The document is `GatewaySettings`, the spec's own type with the
+ * fields a case may delete made optional; `writeConfiguration` renders it into
+ * the file the gateway reads, and a case that needs a broken configuration
+ * edits the settings, never the rendering. The environment holds only what
+ * specs/src/gateway-environment/variables.json lists.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { components } from '@semiont/core';
 import { GATEWAY_COMMAND } from './paths';
 import { freePort } from './net';
+import { gatewayEnvironment } from './spec';
 
 export type Plane = 'in-process' | 'nats';
 
-/** Everything a gateway is configured with. */
-export interface GatewaySettings {
-  kb: { name?: string; domain?: string };
-  port: number;
-  publicUrl: string;
-  identity: { issuer?: string; subjectClaim?: string };
-  archivist: { host?: string; port?: number };
-  signal: { type: 'in-process' } | { type: 'nats'; servers?: string; userEnv?: string; passwordEnv?: string };
-  logLevel: 'error' | 'warn' | 'info' | 'debug';
-  /** Fields the document does not declare, for the case that checks they are refused. */
-  undeclared?: Record<string, unknown>;
+type Document = components['schemas']['GatewayConfig'];
+
+/** Everything a gateway is configured with: the document, with the fields a case may delete optional. */
+export interface GatewaySettings extends Omit<Document, 'kb' | 'identity' | 'archivist'> {
+  kb: Partial<Document['kb']>;
+  identity: Partial<Document['identity']>;
+  archivist: Partial<Document['archivist']>;
+  /** Fields written into the document as given, over the settings: for the cases that check what is refused. */
+  verbatim?: Record<string, unknown>;
 }
 
 export interface GatewayEnvironment {
@@ -43,24 +44,32 @@ export interface GatewayEnvironment {
  * deleted is absent from the document.
  */
 function writeConfiguration(dir: string, s: GatewaySettings): void {
-  const document = {
-    kb: { ...s.kb },
-    port: s.port,
-    publicUrl: s.publicUrl,
-    identity: { ...s.identity },
-    archivist: { ...s.archivist },
-    signal: s.signal,
-    logLevel: s.logLevel,
-    ...s.undeclared,
-  };
-  writeFileSync(join(dir, '.semiontconfig'), JSON.stringify(document, null, 2) + '\n');
+  const { verbatim, ...fields } = s;
+  writeFileSync(join(dir, '.semiontconfig'), JSON.stringify({ ...fields, ...verbatim }, null, 2) + '\n');
+}
+
+/**
+ * The suite sets nothing a gateway does not read: every variable it passes is
+ * listed in specs/src/gateway-environment/variables.json or named by the
+ * document, except PATH, which finds the gateway's command.
+ */
+function checkEnvironment(env: GatewayEnvironment, settings: GatewaySettings): void {
+  const named = [settings.signal.userEnv, settings.signal.passwordEnv].filter((n): n is string => n !== undefined);
+  const listed = new Set([...gatewayEnvironment(), ...named, 'PATH']);
+  const unlisted = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
+  if (unlisted.length > 0) {
+    throw new Error(`the suite set ${unlisted.join(', ')}, which specs/src/gateway-environment/variables.json does not list and the document does not name`);
+  }
 }
 
 export interface GatewayProcess {
   readonly origin: string;
   readonly port: number;
   readonly settings: GatewaySettings;
+  /** Every complete line the gateway wrote, stdout and stderr interleaved. */
   readonly output: string[];
+  /** The complete lines it wrote to stdout, where its logs go. */
+  readonly stdout: string[];
   /** Resolves with the exit code once the process has exited. */
   readonly exited: Promise<number | null>;
   stop(): Promise<void>;
@@ -71,7 +80,22 @@ export interface LaunchOptions {
   env: GatewayEnvironment;
 }
 
-function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+/** Appends each complete line of a stream to every list in `into`; a line split across chunks is kept whole. */
+function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
+  let partial = '';
+  const push = (line: string) => {
+    if (line) for (const list of into) list.push(line);
+  };
+  stream.on('data', (chunk: Buffer) => {
+    const parts = (partial + chunk.toString('utf8')).split('\n');
+    partial = parts.pop() ?? '';
+    parts.forEach(push);
+  });
+  stream.on('end', () => push(partial));
+}
+
+function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
+  checkEnvironment(env, settings);
   const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-home-'));
   writeConfiguration(dir, settings);
   const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: dir };
@@ -79,11 +103,11 @@ function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output
   const [command, ...args] = GATEWAY_COMMAND;
   const child = spawn(command!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
-  const collect = (chunk: Buffer) => output.push(...chunk.toString('utf8').split('\n').filter(Boolean));
-  child.stdout!.on('data', collect);
-  child.stderr!.on('data', collect);
+  const stdout: string[] = [];
+  collectLines(child.stdout!, [output, stdout]);
+  collectLines(child.stderr!, [output]);
   const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
-  return { child, output, exited, dir };
+  return { child, output, stdout, exited, dir };
 }
 
 /** The settings a gateway runs with when a case says nothing else. */
@@ -103,12 +127,13 @@ export async function defaultSettings(parts: {
     archivist: { ...parts.archivist },
     signal: parts.plane === 'nats' ? { type: 'nats', servers: parts.natsUrl! } : { type: 'in-process' },
     logLevel: 'warn',
+    logFormat: 'json',
   };
 }
 
 /** Start a gateway and wait until it answers. Fails with its output when it exits instead. */
 export async function startGateway(options: LaunchOptions): Promise<GatewayProcess> {
-  const { child, output, exited, dir } = launch(options);
+  const { child, output, stdout, exited, dir } = launch(options);
   const origin = `http://127.0.0.1:${options.settings.port}`;
   let gone = false;
   void exited.then(() => {
@@ -137,6 +162,7 @@ export async function startGateway(options: LaunchOptions): Promise<GatewayProce
     port: options.settings.port,
     settings: options.settings,
     output,
+    stdout,
     exited,
     async stop() {
       if (child.exitCode === null && child.signalCode === null) {

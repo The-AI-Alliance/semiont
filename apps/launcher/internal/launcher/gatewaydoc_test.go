@@ -120,8 +120,9 @@ func TestGatewayDocumentRefusesALiteralSecret(t *testing.T) {
 }
 
 // Absent sections are decided here and nowhere else: no [signal] is the
-// in-process plane, no logLevel is info, and a hand-written archivist
-// section — a topology the launcher cannot see — wins over its address.
+// in-process plane, no logLevel is info, the log format is JSON (a KB config
+// names none), and a hand-written archivist section — a topology the
+// launcher cannot see — wins over its address.
 func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
 	text := strings.Replace(gatewayDocFixture, "[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n", "", 1)
 	text = strings.Replace(text, "logLevel = \"debug\"\n", "", 1)
@@ -136,6 +137,9 @@ func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
 	}
 	if doc.LogLevel != "info" {
 		t.Errorf("logLevel = %q, want info", doc.LogLevel)
+	}
+	if doc.LogFormat != semiont.Json {
+		t.Errorf("logFormat = %q, want json", doc.LogFormat)
 	}
 	if doc.Archivist.Host != "archivist.internal" || doc.Archivist.Port != 9999 {
 		t.Errorf("archivist = %+v, want the hand-written section", doc.Archivist)

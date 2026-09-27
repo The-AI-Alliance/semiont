@@ -211,6 +211,15 @@ export function operationFor(request: string): RegistryOperation {
   return op;
 }
 
+/** The names of the environment variables a gateway reads (gateway-environment/variables.json). */
+export function gatewayEnvironment(): string[] {
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'gateway-environment/variables.json'), 'utf8'));
+  const rows = isObject(table) && Array.isArray(table['variables']) ? table['variables'] : [];
+  const names = rows.flatMap((row) => (isObject(row) && typeof row['name'] === 'string' ? [row['name']] : []));
+  if (names.length === 0) throw new Error('gateway-environment/variables.json lists no variables');
+  return names;
+}
+
 /** The knowledge-base identity the suite runs under, from the shared case table. */
 export function kbIdentity(): { name: string; domain: string; did: string; resource: string } {
   const table = JSON.parse(readFileSync(join(SPEC_SOURCE, 'kb-identity/cases.json'), 'utf8')) as {

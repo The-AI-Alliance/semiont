@@ -5,29 +5,13 @@ import (
 	"testing"
 )
 
-// JOB-RESTART-SAFETY P1 — the mount census.
-//
-// The gateway's job queue (`FsJobQueue`, `jobsDir`) lives under
-// XDG_STATE_HOME, and a job must survive a gateway restart — the failure this
-// plan exists to prevent (a container-local `jobsDir` dies with the container,
-// so the janitor has nothing to recover). That guarantee is two facts in this
-// one builder, and start.go's own comment notes nothing guards the pair:
-//
-//  1. the gateway container writes state to /semiont-state
-//     (`gatewayArgs` sets XDG_STATE_HOME=/semiont-state), and
-//  2. the "state" store mounts a HOST volume to /semiont-state
-//     (`stateStores["state"]`).
-//
-// Break either and jobsDir silently falls back inside the container. These
-// pin both, so a launcher/state refactor cannot make jobs ephemeral again
-// without a red test.
-
-func TestGatewayWritesStateToSemiontState(t *testing.T) {
-	args := gatewayArgs("stage", "secret", "jwt", "v1", 4000, nil, nil)
-	if !hasEnv(args, "XDG_STATE_HOME=/semiont-state") {
-		t.Fatalf("gateway must set XDG_STATE_HOME=/semiont-state (jobsDir lives under it); args=%v", args)
-	}
-}
+// The "state" store is the one host volume at /semiont-state. The Archivist
+// writes its projection tree and stamp under it (archivistArgs sets
+// XDG_STATE_HOME=/semiont-state), the librarian reads views from it, and the
+// supervisors of the containers that mount it (these two and the gateway) keep
+// their events logs there so a death record outlives the container. If the
+// store stopped mounting a host volume, all of that would
+// silently fall back inside the container and die with it.
 
 func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
 	home := t.TempDir()
@@ -35,12 +19,12 @@ func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
 
 	args := stateMountArgs("state", "some-root")
 	if len(args) == 0 {
-		t.Fatal("the \"state\" store must mount a host volume; got none — jobsDir would be container-ephemeral")
+		t.Fatal("the \"state\" store must mount a host volume; got none — the projection tree would be container-ephemeral")
 	}
 
 	target, hostPath, ok := volumeMount(args, "/semiont-state")
 	if !ok {
-		t.Fatalf("the \"state\" store must mount to /semiont-state (the gateway's XDG_STATE_HOME); args=%v", args)
+		t.Fatalf("the \"state\" store must mount to /semiont-state (the Archivist's XDG_STATE_HOME); args=%v", args)
 	}
 	if target != "/semiont-state" {
 		t.Fatalf("mount target = %q, want /semiont-state", target)
@@ -50,16 +34,6 @@ func TestStateStoreMountsSemiontStateOnHostVolume(t *testing.T) {
 	if hostPath == "" || !strings.HasPrefix(hostPath, home) {
 		t.Fatalf("state host path %q must be a real dir under the data home %q", hostPath, home)
 	}
-}
-
-// hasEnv reports whether args contains a "--env" immediately followed by want.
-func hasEnv(args []string, want string) bool {
-	for i := 0; i+1 < len(args); i++ {
-		if args[i] == "--env" && args[i+1] == want {
-			return true
-		}
-	}
-	return false
 }
 
 // volumeMount finds a "-v host:target" pair whose target matches want,

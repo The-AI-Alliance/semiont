@@ -9,8 +9,9 @@ the same.
 - **Level** — `logLevel` in the gateway's configuration document (`error`,
   `warn`, `info`, `http` or `debug`). The launcher writes it from the selected
   environment's `logLevel`, `info` when the environment names none.
-- **Format** — `LOG_FORMAT`: `json` (the default: one JSON object per line) or
-  `simple` (`<timestamp> [LEVEL] message {fields}`, for reading at a terminal).
+- **Format** — `logFormat` in the same document: `json` (one JSON object per
+  line) or `simple` (`<timestamp> [LEVEL] message {fields}`, for reading at a
+  terminal). The launcher writes `json`.
 
 ## What every line carries
 

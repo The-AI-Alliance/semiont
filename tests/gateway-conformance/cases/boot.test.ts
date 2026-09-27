@@ -4,6 +4,8 @@
  * what is missing. Then the signing key ring, across restarts.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startArchivist, type FakeArchivist } from '../harness/archivist';
 import { defaultSettings, refusedBoot, startGateway, type GatewayEnvironment, type GatewaySettings } from '../harness/gateway';
@@ -57,7 +59,9 @@ describe('starting a gateway', () => {
     ['no Archivist address', async () => ({ settings: await settings((s) => delete s.archivist.host), env: env() }), /\/archivist\b.*\bhost\b/],
     ['no issuer', async () => ({ settings: await settings((s) => delete s.identity.issuer), env: env() }), /\/identity\b.*\bissuer\b/],
     ['no subject claim', async () => ({ settings: await settings((s) => delete s.identity.subjectClaim), env: env() }), /\/identity\b.*\bsubjectClaim\b/],
-    ['a field the document does not declare', async () => ({ settings: await settings((s) => void (s.undeclared = { corsOrigin: '*' })), env: env() }), /corsOrigin/],
+    ['a field the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { corsOrigin: '*' })), env: env() }), /corsOrigin/],
+    ['a log format the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { logFormat: 'text' })), env: env() }), /\/logFormat\b/],
+    ['no configuration document in HOME', async () => ({ settings: await settings(), env: env({ HOME: join(tmpdir(), `gateway-conformance-no-home-${randomUUID()}`) }) }), /\.semiontconfig/],
     ['a NATS plane with no servers', async () => ({ settings: await settings((s) => void (s.signal = { type: 'nats' })), env: env() }), /servers/],
     [
       'a broker nobody answers at',

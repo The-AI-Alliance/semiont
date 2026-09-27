@@ -494,6 +494,26 @@ func waitForHTTPTick(u *UI, name, url string, seconds int, tick func(elapsed tim
 	return time.Since(t0), false
 }
 
+// waitForContainerHTTP is waitForHTTP for the container just started to serve
+// url. A stopped container will never answer, so the wait ends as soon as it
+// stops and says so, and the caller's log dump follows at once instead of after
+// the whole budget. A state the runtime cannot report is no reason to stop:
+// the budget still bounds the wait.
+func waitForContainerHTTP(u *UI, rt, label, container, url string, seconds int) (time.Duration, bool) {
+	return waitForHTTPTick(u, label, url, seconds, func(elapsed time.Duration) bool {
+		state, _ := containerState([]string{rt}, container)
+		if !stoppedStates[state] {
+			return true
+		}
+		u.Fail("%s stopped before it became ready at %s: container %s is %s (after %s).", label, url, container, state, took(elapsed))
+		return false
+	})
+}
+
+// stoppedStates are the states from which no container answers: docker's and
+// podman's exited and dead, Apple container's stopped.
+var stoppedStates = map[string]bool{"exited": true, "dead": true, "stopped": true}
+
 // waitForTCP waits for a TCP service in two phases. Phase 1 polls the published
 // port from the host — no container spawn per attempt (the old pg_isready-in-
 // a-container loop cost a fresh VM per attempt under Apple Container).

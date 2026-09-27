@@ -174,7 +174,8 @@ jobs:
             '  "identity": { "issuer": "http://localhost:8080/realms/semiont", "subjectClaim": "sub" },' \
             '  "archivist": { "host": "localhost", "port": 24103 },' \
             '  "signal": { "type": "in-process" },' \
-            '  "logLevel": "info"' \
+            '  "logLevel": "info",' \
+            '  "logFormat": "json"' \
             '}' \
             > ~/.semiontconfig
 

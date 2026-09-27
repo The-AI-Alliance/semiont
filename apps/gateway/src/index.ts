@@ -43,7 +43,7 @@ const serviceAccount = requireServiceAccount();
 // Import logging utilities
 import { initializeLogger, getLogger } from './logger';
 
-initializeLogger(config.logLevel);
+initializeLogger(config);
 const logger = getLogger();
 
 // Event-loop lag monitor.

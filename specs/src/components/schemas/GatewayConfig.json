@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at `~/.semiontconfig`. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are its environment: JWT_SECRET, SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET, and the standard OTEL_* variables. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.",
+  "description": "Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at `~/.semiontconfig`. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/gateway-environment/variables.json lists, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.",
   "properties": {
     "kb": {
       "type": "object",
@@ -115,7 +115,16 @@
         "info",
         "http",
         "debug"
-      ]
+      ],
+      "description": "The least severe level written."
+    },
+    "logFormat": {
+      "type": "string",
+      "enum": [
+        "json",
+        "simple"
+      ],
+      "description": "How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON."
     }
   },
   "required": [
@@ -125,7 +134,8 @@
     "identity",
     "archivist",
     "signal",
-    "logLevel"
+    "logLevel",
+    "logFormat"
   ],
   "additionalProperties": false
 }

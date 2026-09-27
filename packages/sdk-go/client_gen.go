@@ -540,6 +540,24 @@ func (e FragmentSelectorType) Valid() bool {
 	}
 }
 
+// Defines values for GatewayConfigLogFormat.
+const (
+	Json   GatewayConfigLogFormat = "json"
+	Simple GatewayConfigLogFormat = "simple"
+)
+
+// Valid indicates whether the value is a known member of the GatewayConfigLogFormat enum.
+func (e GatewayConfigLogFormat) Valid() bool {
+	switch e {
+	case Json:
+		return true
+	case Simple:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GatewayConfigLogLevel.
 const (
 	Debug GatewayConfigLogLevel = "debug"
@@ -2566,7 +2584,7 @@ type FrameAddTagSchemaCommand struct {
 	Schema TagSchema `json:"schema"`
 }
 
-// GatewayConfig Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at `~/.semiontconfig`. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are its environment: JWT_SECRET, SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET, and the standard OTEL_* variables. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
+// GatewayConfig Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at `~/.semiontconfig`. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/gateway-environment/variables.json lists, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
 type GatewayConfig struct {
 	// Archivist Where the Archivist listens.
 	Archivist struct {
@@ -2591,6 +2609,11 @@ type GatewayConfig struct {
 		// Name Its name, published as the resource metadata's `resource_name`.
 		Name string `json:"name"`
 	} `json:"kb"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat GatewayConfigLogFormat `json:"logFormat"`
+
+	// LogLevel The least severe level written.
 	LogLevel GatewayConfigLogLevel `json:"logLevel"`
 
 	// Port The port the gateway listens on.
@@ -2613,7 +2636,10 @@ type GatewayConfig struct {
 	} `json:"signal"`
 }
 
-// GatewayConfigLogLevel defines model for GatewayConfig.LogLevel.
+// GatewayConfigLogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+type GatewayConfigLogFormat string
+
+// GatewayConfigLogLevel The least severe level written.
 type GatewayConfigLogLevel string
 
 // GatewayConfigSignalType defines model for GatewayConfig.Signal.Type.

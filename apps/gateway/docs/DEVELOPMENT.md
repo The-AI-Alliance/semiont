@@ -257,16 +257,12 @@ curl -s http://localhost:4000/.well-known/oauth-protected-resource
 
 One document, `~/.semiontconfig` (a JSON `GatewayConfig`), which the launcher
 writes resolved from the knowledge base's config and committed identity; see
-the [README](../README.md#configuration). Beyond it, the gateway reads from
-its environment:
-
-| Variable | Purpose |
-|---|---|
-| `JWT_SECRET` | Signs the tokens the gateway mints (agents, media). An ordered, comma-separated key ring: the first key signs, every key verifies; at least 32 characters **per key**. See [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out) |
-| `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | The gateway's own service account at the knowledge base's issuer, exchanged for the token it reaches the Archivist with |
-| the variables `signal.userEnv` / `signal.passwordEnv` name | The broker credentials, when the broker requires them |
-| `LOG_FORMAT` | `json` (default) or `simple` |
-| `OTEL_*` | The standard OpenTelemetry variables |
+the [README](../README.md#configuration). Beyond it, the gateway reads the
+environment variables
+[`specs/src/gateway-environment/variables.json`](../../../specs/src/gateway-environment/variables.json)
+lists, each with what sets it and what it changes, and the broker credentials
+the document names (`signal.userEnv`, `signal.passwordEnv`). For rotating the
+signing key ring, see [Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out).
 
 ### Adding a configuration key
 
@@ -275,6 +271,10 @@ its environment:
    in `packages/sdk-go`).
 2. Have the launcher write it (`apps/launcher/internal/launcher/gatewaydoc.go`).
 3. Read it off the document at the call site — never from `process.env`.
+
+An environment variable is a row in `variables.json` first:
+`lint:gateway-environment` fails on a read the table does not list, on a row
+nothing reads, and on a row no conformance case names.
 
 ## Related Documentation
 

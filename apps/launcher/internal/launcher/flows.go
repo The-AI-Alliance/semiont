@@ -280,7 +280,7 @@ func flowBrowser(x executor, version string, port int, forceRestart bool) int {
 				x.say(sayFail, "Browser failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP("Browser", fmt.Sprintf("http://localhost:%d", port), 30)
+			d, ok := x.waitHTTP("Browser", "semiont-browser", fmt.Sprintf("http://localhost:%d", port), 30)
 			if !ok {
 				x.dumpLogs("semiont-browser", "browser")
 				return 1
@@ -305,7 +305,7 @@ func flowTraces(x executor, fc flowCtx) int {
 		x.say(sayFail, "traces (Jaeger) failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("traces (Jaeger)", healthEndpoint("traces", "jaeger", fc.plan), 30)
+	d, ok := x.waitHTTP("traces (Jaeger)", roleContainer("traces"), healthEndpoint("traces", "jaeger", fc.plan), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("traces"), "traces")
 		return 1
@@ -323,7 +323,7 @@ func flowMetrics(x executor, fc flowCtx, stage string) int {
 		x.say(sayFail, "metrics (Prometheus) failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("metrics (Prometheus)", healthEndpoint("metrics", "prometheus", fc.plan), 30)
+	d, ok := x.waitHTTP("metrics (Prometheus)", roleContainer("metrics"), healthEndpoint("metrics", "prometheus", fc.plan), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("metrics"), "metrics")
 		return 1
@@ -341,7 +341,7 @@ func flowCollector(x executor, fc flowCtx, addr, stage string) int {
 		x.say(sayFail, "collector failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("collector", healthEndpoint("collector", "otel", fc.plan), 30)
+	d, ok := x.waitHTTP("collector", roleContainer("collector"), healthEndpoint("collector", "otel", fc.plan), 30)
 	if !ok {
 		x.dumpLogs(roleContainer("collector"), "collector")
 		return 1
@@ -418,7 +418,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 		case "identity":
 			// Keycloak answers on the realm only once the import is done —
 			// the wait is the realm gate as well as the liveness gate.
-			d, ok := x.waitHTTP("identity ("+disp+")", healthEndpoint(role, rp.Driver, fc.plan), 90)
+			d, ok := x.waitHTTP("identity ("+disp+")", roleContainer("identity"), healthEndpoint(role, rp.Driver, fc.plan), 90)
 			if !ok {
 				x.dumpLogs(roleContainer("identity"), "identity")
 				return 1
@@ -435,7 +435,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		case "graph":
 			aux := fc.plan.AuxPorts("graph")[0].port
-			d, ok := x.waitHTTP("graph ("+disp+")", healthEndpoint(role, rp.Driver, fc.plan), 30)
+			d, ok := x.waitHTTP("graph ("+disp+")", roleContainer("graph"), healthEndpoint(role, rp.Driver, fc.plan), 30)
 			if !ok {
 				x.dumpLogs(roleContainer("graph"), "graph")
 				return 1
@@ -443,7 +443,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			x.say(sayOK, "graph — bolt://localhost:%d (browser: http://localhost:%d) %s", rp.Port, aux, x.dim("("+took(d)+")"))
 			x.record(role, id, rp.Image, providedLauncher, healthEndpoint(role, rp.Driver, fc.plan), rp.Driver)
 		case "vectors":
-			d, ok := x.waitHTTP("vectors ("+disp+")", healthEndpoint(role, rp.Driver, fc.plan), 15)
+			d, ok := x.waitHTTP("vectors ("+disp+")", roleContainer("vectors"), healthEndpoint(role, rp.Driver, fc.plan), 15)
 			if !ok {
 				x.dumpLogs(roleContainer("vectors"), "vectors")
 				return 1
@@ -644,7 +644,7 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 				x.say(sayFail, "Ollama container failed to start.")
 				return 1
 			}
-			d, ok := x.waitHTTP(role+" (Ollama)", healthEndpoint(role, rp.Driver, fc.plan), 30)
+			d, ok := x.waitHTTP(role+" (Ollama)", "semiont-ollama", healthEndpoint(role, rp.Driver, fc.plan), 30)
 			if !ok {
 				x.dumpLogs("semiont-ollama", role)
 				return 1
@@ -694,7 +694,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 		return 1
 	}
 	x.say(sayLog, "Waiting for gateway health...")
-	d, ok := x.waitHTTP("Gateway", healthEndpoint("gateway", driverSemiont, fc.plan), 120)
+	d, ok := x.waitHTTP("Gateway", "semiont-gateway", healthEndpoint("gateway", driverSemiont, fc.plan), 120)
 	if !ok {
 		x.dumpLogs("semiont-gateway", "gateway")
 		return 1
@@ -737,7 +737,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 		x.say(sayFail, "%s failed to start.", sc.label)
 		return 1
 	}
-	d, ok := x.waitHTTP(sc.label, healthEndpoint(sc.svc, driverSemiont, fc.plan), 30)
+	d, ok := x.waitHTTP(sc.label, semiontDescriptor(sc.svc).container, healthEndpoint(sc.svc, driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs(semiontDescriptor(sc.svc).container, sc.svc)
 		return 1
@@ -776,7 +776,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 		x.say(sayFail, "Archivist failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Archivist", healthEndpoint("archivist", driverSemiont, fc.plan), 30)
+	d, ok := x.waitHTTP("Archivist", "semiont-archivist", healthEndpoint("archivist", driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs("semiont-archivist", "archivist")
 		return 1
@@ -808,7 +808,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 		x.say(sayFail, "Librarian failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Librarian", healthEndpoint("librarian", driverSemiont, fc.plan), 30)
+	d, ok := x.waitHTTP("Librarian", "semiont-librarian", healthEndpoint("librarian", driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs("semiont-librarian", "librarian")
 		return 1
@@ -839,7 +839,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 		x.say(sayFail, "Dispatcher failed to start.")
 		return 1
 	}
-	d, ok := x.waitHTTP("Dispatcher", healthEndpoint("dispatcher", driverSemiont, fc.plan), 30)
+	d, ok := x.waitHTTP("Dispatcher", "semiont-dispatcher", healthEndpoint("dispatcher", driverSemiont, fc.plan), 30)
 	if !ok {
 		x.dumpLogs("semiont-dispatcher", "dispatcher")
 		return 1

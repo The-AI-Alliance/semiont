@@ -42,6 +42,11 @@ configured another way).
   a broker outage, boot refusals (broker credentials among them) and the
   signing key ring, the headers on every response, and the span and metric
   names with the attributes they carry.
+- **The environment** (`cases/environment.test.ts`): what each variable
+  [`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json)
+  lists changes, and the document's `logFormat`. The harness refuses to start a
+  gateway with a variable that table does not list or the document does not
+  name, so no case can lean on one the spec does not state.
 
 The world around a gateway is played by the harness: the trusted issuer
 (discovery, keys and the client-credentials grant, signing with

@@ -42,9 +42,9 @@ Semiont publishes a release in these steps:
 5. **Stack Smoke** — an optional gate
    ([`stack-smoke.yml`](../../.github/workflows/stack-smoke.yml)) that boots a
    real stack from a published image set and asserts what the launcher's
-   hermetic suite cannot: that every health gate opens against a real service
-   at a real route, that the realm the launcher stages actually imports and
-   answers, and that the realm allows the Browser's origin. Run it after the
+   hermetic suite cannot, by running
+   [`scripts/release/smoke-stack.sh`](../../scripts/release/smoke-stack.sh),
+   which says what it checks. Run it after the
    images exist at `:<version>` and **before** `latest` is moved to them —
    both publish workflows default `tag_latest` to false, so that ordering is
    the natural one, and this is the gate that decides whether `latest` should
@@ -54,7 +54,9 @@ Semiont publishes a release in these steps:
    ```
    It builds the launcher from the ref it runs on, so it is equally the way to
    test a LAUNCHER change against the current images, from any branch, without
-   publishing anything.
+   publishing anything. The same script runs locally with the launcher built
+   from your checkout: `scripts/release/smoke-stack.sh <version>`, or `local`
+   for the images `scripts/ci/local-build.sh` builds.
 6. **release:bump** — bumps the version for the next development cycle.
 
 ## Step 1: Publish a Stable Release

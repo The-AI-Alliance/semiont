@@ -5,25 +5,32 @@
 #   scripts/release/smoke-stack.sh 0.6.5           # one release's images
 #   scripts/release/smoke-stack.sh local           # images from scripts/ci/local-build.sh
 #
-# TWO AXES, and naming them separately is the point. The LAUNCHER is whatever
-# `semiont` is on PATH — build it from the branch you are testing. The IMAGES
-# are the tag given here. So a launcher change is testable against the images
-# people actually run, publishing nothing.
+# TWO AXES, and naming them separately is the point. The LAUNCHER is the one
+# built from this checkout, apps/launcher/dist/semiont (scripts/ci/local-build.sh
+# builds it beside the :local images), never whatever `semiont` is on PATH,
+# which is usually a release; the script refuses when the binary is missing or
+# older than the source it builds from. The IMAGES are the tag given here. So a
+# launcher change is testable against the images people actually run,
+# publishing nothing.
 #
 # WHAT IT ASSERTS, and nothing more: that every health gate opens against a
 # real service at a real route, that the realm the launcher STAGES imports and
 # answers, that the realm allows the Browser's origin, and that `stop` releases
-# every claimed port. It does NOT assert that inference works — the model
-# credential here is a placeholder, and what a model does is tests/e2e's
-# question, which assumes a stack is already up and drives the product through
-# a browser.
+# every claimed port. It does NOT assert that inference works — what a model
+# does is tests/e2e's question, which assumes a stack is already up and drives
+# the product through a browser.
+#
+# THE KNOWLEDGE BASE is exactly what a new user makes: `init` with only the
+# did:web domain, then `start` with no --config, so init's defaults and the
+# config a new KB records are what boot. A new KB that could not start is the
+# defect this check found on its first run.
 #
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
-# debugging it.
+# debugging it. stack-smoke.yml builds the launcher and runs this script.
 #
-# Requires: docker (or another runtime via --runtime), git, curl, nc.
+# Requires: docker (or another runtime via SMOKE_RUNTIME), git, curl, nc.
 
 set -uo pipefail
 
@@ -33,6 +40,20 @@ if [ -z "$IMAGES" ]; then
   exit 2
 fi
 RUNTIME="${SMOKE_RUNTIME:-docker}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
+if [ ! -x "$SEMIONT" ]; then
+  echo "No launcher built from this checkout at $SEMIONT. Build it with scripts/ci/local-build.sh." >&2
+  exit 2
+fi
+# The launcher compiles apps/launcher and packages/sdk-go; a source file newer
+# than the binary means the binary is not this checkout's launcher.
+NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/sdk-go" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
+  \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
+if [ -n "$NEWER" ]; then
+  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with scripts/ci/local-build.sh." >&2
+  exit 2
+fi
 KB="${SMOKE_KB:-$(mktemp -d)/kb}"
 
 PASS=0; FAIL=0
@@ -40,29 +61,26 @@ ok()    { printf '  \033[32mok\033[0m   %s\n' "$1"; PASS=$((PASS+1)); }
 bad()   { printf '  \033[31mFAIL\033[0m %s\n' "$1"; FAIL=$((FAIL+1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 
-# The config's ${ANTHROPIC_API_KEY} must be SET or the launcher refuses to
-# start, by design. A placeholder is honest here because nothing below asks a
-# model to do anything; it is not a credential and must never become one.
-export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-smoke-placeholder-not-a-credential}"
 # Selects the image tag. Without it the launcher takes `latest`, which is the
 # right default and the wrong thing to assume when the point is to name a set.
 export SEMIONT_VERSION="$IMAGES"
 
 head_ "Knowledge base ($KB)"
+echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
 mkdir -p "$KB" && cd "$KB" || exit 1
 git init -q && git config user.email smoke@example.com && git config user.name smoke
-# --config anthropic below, because that is what `init --inference anthropic`
-# writes; start's own default names ollama-gemma, which this KB has no copy of.
-if semiont init --yes --name stack-smoke --domain example.github.io:stack-smoke \
-     --inference anthropic --model claude-sonnet-4-5-20250929 \
-     --embedding ollama:nomic-embed-text >/dev/null; then
+# The domain is the one setting with no safe default, so it is the one flag.
+if "$SEMIONT" init --yes --domain example.github.io:stack-smoke >/dev/null; then
   ok "init wrote a config the plan deriver accepts"
 else
   bad "init refused"; exit 1
 fi
 
 head_ "Boot from :$IMAGES on $RUNTIME"
-if semiont start --runtime "$RUNTIME" --config anthropic; then
+# No --config: a new KB records the config it was made with, and `start` reads
+# that. Its defaults serve inference and embedding from Ollama: the host's when
+# one answers, otherwise a container that pulls the two small models.
+if "$SEMIONT" start --runtime "$RUNTIME"; then
   ok "every health gate opened against a real service"
 else
   bad "the stack did not come up"
@@ -71,7 +89,7 @@ fi
 head_ "Status"
 # `status --root` is the health-coded form: it exits non-zero when a core row
 # is unhealthy, so the exit status IS the assertion.
-if semiont status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
+if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
 head_ "The realm the launcher staged"
 # If the import silently produced a different realm, this 404s.
@@ -96,8 +114,26 @@ case "$HDR" in
   *) bad "the realm did not allow http://localhost:3000 — a freshly imported realm cannot complete sign-in" ;;
 esac
 
+# `stop` removes the containers and their logs with them, so a failed run
+# prints each one's recent log first.
+if [ "$FAIL" -gt 0 ]; then
+  head_ "Container logs"
+  case "$RUNTIME" in
+    container) NAMES=$(container ls -a -q) ;;
+    *)         NAMES=$("$RUNTIME" ps -a --format '{{.Names}}') ;;
+  esac
+  for NAME in $NAMES; do
+    case "$NAME" in semiont-*) ;; *) continue ;; esac
+    printf '\n--- %s\n' "$NAME"
+    case "$RUNTIME" in
+      container) container logs -n 50 "$NAME" 2>&1 ;;
+      *)         "$RUNTIME" logs --tail 50 "$NAME" 2>&1 ;;
+    esac
+  done
+fi
+
 head_ "Stop releases every claimed port"
-semiont stop --runtime "$RUNTIME" >/dev/null
+"$SEMIONT" stop --runtime "$RUNTIME" >/dev/null
 HELD=""
 for p in 4000 5432 7474 6333 8080 4222 24100 24101 24102 24103 24104 24105; do
   nc -z localhost "$p" 2>/dev/null && HELD="$HELD $p"

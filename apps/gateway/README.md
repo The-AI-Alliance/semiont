@@ -45,14 +45,14 @@ container run -d --name semiont-gateway \
   --publish 4000:4000 \
   --volume <config-stage>/gateway.json:/home/semiont/.semiontconfig:ro \
   --volume <state>:/semiont-state \
-  --env XDG_STATE_HOME=/semiont-state \
   --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
   --env JWT_SECRET=<key> \
   ghcr.io/the-ai-alliance/semiont-gateway:latest
 ```
 
-**There is no KB volume**, and that absence is the point. It is also enforced:
+The state volume holds only the supervisor's events log; the gateway itself
+writes nothing to disk. **There is no KB volume**, and that absence is the point. It is also enforced:
 the launcher's `gatewayArgs` takes no KB root, so re-adding the mount is a
 signature change, not a line someone can slip in.
 
@@ -99,7 +99,8 @@ naming each failing field by its JSON pointer — when it does not match.
   "identity": { "issuer": "http://keycloak:8080/realms/semiont", "subjectClaim": "sub" },
   "archivist": { "host": "archivist", "port": 24103 },
   "signal": { "type": "nats", "servers": "nats:4222" },
-  "logLevel": "info"
+  "logLevel": "info",
+  "logFormat": "json"
 }
 ```
 
@@ -110,7 +111,9 @@ without the launcher is given the same document.
 Secrets are never in it. The gateway's own are environment variables —
 `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` — and a
 broker credential is named by the variable holding it (`signal.userEnv`,
-`signal.passwordEnv`). The standard `OTEL_*` variables configure telemetry.
+`signal.passwordEnv`). Every environment variable the gateway reads, what
+sets it and what it changes, is in
+[`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json).
 
 ## HTTP surface
 
