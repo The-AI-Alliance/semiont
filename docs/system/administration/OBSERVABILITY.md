@@ -29,18 +29,22 @@ headers and SSE `_trace` payload fields.
 |------------------------|-------------------------------------------|----------|
 | `bus.emit:<channel>`   | `HttpTransport.emit` / `LocalTransport.emit` | producer |
 | `bus.recv:<channel>`   | Wire-parse / bridge subscriber            | consumer |
-| `bus.dispatch:<channel>` | Gateway `/bus/emit` handler             | server   |
 | `actor.<name>:<channel>` | In-process subscriber (Stower / Gatherer / Matcher / Browser / Smelter) | consumer |
 | `content.{put,get}`    | `HttpContentTransport.*` / `LocalContentTransport.*` | client / internal |
-| `content.{put,get}.server` | Gateway `/resources*` routes          | server   |
-| `archivist.{resources.record,content.get,resources.describe,events.replay}` | Gateway → Archivist HTTP | client |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
-The `archivist.*` row is the third hop. The two `content.*` rows describe a
-client/server pair that once covered the whole byte path, because the gateway
-was the content store; SINGLE-KB-MOUNT moved the tree to the Archivist and put
-a network call *inside* `content.put.server`. Without its own span that call is
-invisible, and a slow Archivist reads as a slow gateway.
+The gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
+`content.{get,put}.server` and the `archivist.*` client spans — with their kinds
+and attributes are specified in
+[`specs/src/gateway-telemetry/telemetry.json`](../../../specs/src/gateway-telemetry/telemetry.json),
+which the gateway conformance suite holds the gateway to in both directions.
+
+The `archivist.*` spans are the third hop. `content.{put,get}` and the
+gateway's `content.{put,get}.server` are a client/server pair that once covered
+the whole byte path, because the gateway was the content store;
+SINGLE-KB-MOUNT moved the tree to the Archivist and put a network call *inside*
+`content.put.server`. Without its own span that call is invisible, and a slow
+Archivist reads as a slow gateway.
 
 A typical "open resource" trace, parented by the SPA's transport call:
 
@@ -213,13 +217,14 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
 | `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
 | `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
-| `semiont.sse.subscribers`    | up-down counter  | (none)                                                  | `/bus/subscribe` connect/disconnect           |
 | `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Dispatcher `JobQueue.getStats()` — exported by the dispatcher, not the gateway, since the queue moved |
-| `semiont.bus.reply.suppressed` | counter        | `bus.channel`                                           | Gateway SSE: a correlated reply withheld from a non-owner |
-| `semiont.bus.resume_gap`     | counter          | `bus.resume_gap.reason`                                 | Gateway SSE: a resume that degraded to a gap  |
-| `semiont.bus.unanswerable`   | counter          | `bus.channel`                                           | Gateway `/bus/emit`: a request that reached zero subscribers |
-| `semiont.bus.correlation.size` | observable gauge | `correlation.kind` (`claims`/`claims_max`)            | Gateway correlation registry occupancy        |
 | `semiont.process.restarts`   | observable gauge | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
+
+The gateway's metrics — the bus counters, `semiont.sse.subscribers`,
+`semiont.bus.correlation.size`, and the process and runtime gauges every Node
+service exports — are specified, with their instruments, attributes and
+attribute values, in
+[`specs/src/gateway-telemetry/telemetry.json`](../../../specs/src/gateway-telemetry/telemetry.json).
 
 Additional vars:
 

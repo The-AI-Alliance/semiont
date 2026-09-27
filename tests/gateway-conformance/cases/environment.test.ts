@@ -14,9 +14,10 @@ import type { GatewayEnvironment, GatewaySettings } from '../harness/gateway';
 import { call } from '../harness/http';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
+import { metricName, spanName } from '../harness/spec';
 import { World } from '../harness/world';
 
-const DISPATCH = 'bus.dispatch:beckon:focus';
+const DISPATCH = spanName('bus.dispatch:{channel}', { channel: 'beckon:focus' });
 
 /** A gateway with `env` (and, when given, changed settings), exporting to its own receiver. */
 async function withGateway(
@@ -83,7 +84,8 @@ describe("the gateway's environment", () => {
       async (world, otlp) => {
         await emit(world);
         await eventually(DISPATCH, 10_000, () => otlp.spans.find((s) => s.name === DISPATCH));
-        await eventually('semiont.bus.emit in the output', 10_000, () => (world.gateway.output.some((l) => l.includes('semiont.bus.emit')) ? true : undefined));
+        const emits = metricName('semiont.bus.emit');
+        await eventually(`${emits} in the output`, 10_000, () => (world.gateway.output.some((l) => l.includes(emits)) ? true : undefined));
         expect([...otlp.metrics.keys()]).toEqual([]);
       },
     );
@@ -133,7 +135,11 @@ describe("the gateway's environment", () => {
       await withGateway(
         (otlp) => ({ OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint, OTEL_METRIC_EXPORT_INTERVAL: '500', SUPERVISE_EVENTS: events, SUPERVISE_NAME: 'gateway' }),
         async (_world, otlp) => {
-          const values = await eventually('semiont.process.restarts', 10_000, () => otlp.values.get('semiont.process.restarts'));
+          const restarts = metricName('semiont.process.restarts');
+          const values = await eventually(restarts, 10_000, () => {
+            const seen = otlp.metrics.get(restarts)?.values;
+            return seen && seen.length > 0 ? seen : undefined;
+          });
           expect(values.at(-1)).toBe(2);
         },
       );

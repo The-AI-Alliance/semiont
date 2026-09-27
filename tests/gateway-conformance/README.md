@@ -40,8 +40,15 @@ configured another way).
   stream (delivery, reply routing, replay and every gap reason, recovery,
   presence, the heartbeat), the connection bounds, replicas sharing a broker,
   a broker outage, boot refusals (broker credentials among them) and the
-  signing key ring, the headers on every response, and the span and metric
-  names with the attributes they carry.
+  signing key ring, and the headers on every response.
+- **Telemetry** (`cases/observability.test.ts`): each plane exports to its own
+  receiver, and its last case holds everything received to
+  [`specs/src/gateway-telemetry/telemetry.json`](../../specs/src/gateway-telemetry/telemetry.json)
+  in both directions — every span and metric a listed row of the listed kind,
+  carrying listed attributes, and every row the cases' traffic can produce arrived.
+- **Principals** (`cases/tokens.test.ts`): every person and agent case in
+  [`specs/src/principals/cases.json`](../../specs/src/principals/cases.json), named
+  exactly by a running gateway; every DID the suite expects comes from that table.
 - **The environment** (`cases/environment.test.ts`): what each variable
   [`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json)
   lists changes, and the document's `logFormat`. The harness refuses to start a

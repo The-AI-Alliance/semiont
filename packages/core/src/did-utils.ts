@@ -118,7 +118,7 @@ export function softwareToAgent(software: {
  * Parse a DID:WEB string into a typed Agent.
  *
  * Recognizes:
- *   did:web:<host>:users:<subject>         → Person  (name = decoded subject)
+ *   did:web:<host>:users:<subject>         → Person  (no name: the DID does not carry one)
  *   did:web:<host>:agents:<provider>:<model> → Software (provider + model)
  *
  * Anything else falls back to a Person with the trailing segment as

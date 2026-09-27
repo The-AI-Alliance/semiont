@@ -1,8 +1,8 @@
 /**
- * An OTLP/HTTP receiver: collects the spans a gateway exports as JSON, and
- * each metric's name with the attribute keys and values its data points carried, so a
- * case can check the names the observability contract
- * (docs/system/administration/OBSERVABILITY.md) promises.
+ * An OTLP/HTTP receiver: collects the spans a gateway exports as JSON, and for
+ * each metric the instrument it arrived as and the attributes and values its
+ * data points carried, so a case can hold the gateway to the telemetry the spec
+ * lists (specs/src/gateway-telemetry/telemetry.json).
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -16,13 +16,19 @@ export interface ReceivedSpan {
   parentSpanId: string | undefined;
 }
 
+export interface ReceivedMetric {
+  /** What its data points came as: `counter` (a monotonic sum), `up-down counter`, `gauge`, `histogram`. */
+  readonly instruments: Set<string>;
+  /** Attribute key → every value it carried. */
+  readonly attributes: Map<string, Set<string>>;
+  /** Every value its sum and gauge data points carried, in arrival order. */
+  readonly values: number[];
+}
+
 export interface OtlpReceiver {
   readonly endpoint: string;
   readonly spans: ReceivedSpan[];
-  /** Metric name → every attribute key seen on its data points. */
-  readonly metrics: Map<string, Set<string>>;
-  /** Metric name → every value its sum and gauge data points carried, in arrival order. */
-  readonly values: Map<string, number[]>;
+  readonly metrics: Map<string, ReceivedMetric>;
   close(): Promise<void>;
 }
 
@@ -44,8 +50,7 @@ function attributes(kvs: unknown): Record<string, unknown> {
 
 export async function startOtlp(): Promise<OtlpReceiver> {
   const spans: ReceivedSpan[] = [];
-  const metrics = new Map<string, Set<string>>();
-  const values = new Map<string, number[]>();
+  const metrics = new Map<string, ReceivedMetric>();
   const server: Server = createServer((req, res) => {
     const chunks: Buffer[] = [];
     req.on('data', (c: Buffer) => chunks.push(c));
@@ -81,17 +86,21 @@ export async function startOtlp(): Promise<OtlpReceiver> {
               for (const m of list(sm['metrics'])) {
                 const name = isObject(m) ? str(m['name']) : undefined;
                 if (!isObject(m) || !name) continue;
-                const keys = metrics.get(name) ?? new Set<string>();
-                metrics.set(name, keys);
+                const metric: ReceivedMetric = metrics.get(name) ?? { instruments: new Set<string>(), attributes: new Map<string, Set<string>>(), values: [] };
+                metrics.set(name, metric);
                 for (const kind of ['sum', 'gauge', 'histogram']) {
                   const data = m[kind];
                   if (!isObject(data)) continue;
+                  metric.instruments.add(kind === 'sum' ? (data['isMonotonic'] === true ? 'counter' : 'up-down counter') : kind);
                   for (const point of list(data['dataPoints'])) {
                     if (!isObject(point)) continue;
-                    for (const key of Object.keys(attributes(point['attributes']))) keys.add(key);
+                    for (const [key, value] of Object.entries(attributes(point['attributes']))) {
+                      const seen = metric.attributes.get(key) ?? new Set<string>();
+                      metric.attributes.set(key, seen.add(String(value)));
+                    }
                     // OTLP/JSON carries an int64 as a string.
                     const value = Number(point['asInt'] ?? point['asDouble']);
-                    if (kind !== 'histogram' && Number.isFinite(value)) values.set(name, [...(values.get(name) ?? []), value]);
+                    if (kind !== 'histogram' && Number.isFinite(value)) metric.values.push(value);
                   }
                 }
               }
@@ -111,7 +120,6 @@ export async function startOtlp(): Promise<OtlpReceiver> {
     endpoint: `http://127.0.0.1:${port}`,
     spans,
     metrics,
-    values,
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

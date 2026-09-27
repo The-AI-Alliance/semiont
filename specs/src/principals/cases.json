@@ -1,0 +1,101 @@
+{
+  "$comment": "How the gateway names the principals it acts for, under the knowledge base's domain (its committed `[site] domain`). A person is `did:web:{domain}:users:{subject}`, where the subject is the value of the claim `identity.subjectClaim` names. A software agent is `did:web:{domain}:agents:{provider}:{model}`, with the address `{slug}@agents.{host}` and the name `{provider} {model}`: {host} is the domain up to its first colon, and {slug} is `{provider}:{model}` with every run of characters outside [A-Za-z0-9-] replaced by one hyphen and a hyphen at either end removed. Every part of a DID after the domain is percent-encoded as ECMAScript's encodeURIComponent does: each UTF-8 byte of a character other than A–Z a–z 0–9 - _ . ! ~ * ' ( ) becomes %XX in uppercase hex; the domain is written as it is. Held by: @semiont/core's userToDid, agentToDid and didToAgent (principals-agreement.test.ts), the gateway conformance suite (every case, against a running gateway), and the Rust gateway's runner.",
+  "person": "did:web:{domain}:users:{subject}",
+  "people": [
+    {
+      "why": "a subject of letters and digits is itself",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "alice",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:alice"
+    },
+    {
+      "why": "a UUID subject is itself",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "3f1c2e0a-9b7d-4c1e-8a2f-6d5b4c3a2e10",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:3f1c2e0a-9b7d-4c1e-8a2f-6d5b4c3a2e10"
+    },
+    {
+      "why": "an email-shaped subject encodes its @",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "alice@example.org",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:alice%40example.org"
+    },
+    {
+      "why": "a colon in the subject is encoded, so it cannot split the DID",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "google-oauth2:104859221",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:google-oauth2%3A104859221"
+    },
+    {
+      "why": "a slash in the subject is encoded",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "tenant/alice",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:tenant%2Falice"
+    },
+    {
+      "why": "a space is %20",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "Alice Smith",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:Alice%20Smith"
+    },
+    {
+      "why": "a character outside ASCII is its UTF-8 bytes, each percent-encoded",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "josé",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:jos%C3%A9"
+    },
+    {
+      "why": "the characters encodeURIComponent leaves alone stay as they are",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "subject": "a-b_c.d!e~f*g'h(i)j",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:users:a-b_c.d!e~f*g'h(i)j"
+    }
+  ],
+  "agents": [
+    {
+      "why": "a provider and model of letters, digits and hyphens are themselves",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "provider": "anthropic",
+      "model": "claude-sonnet-5",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:anthropic:claude-sonnet-5",
+      "email": "anthropic-claude-sonnet-5@agents.the-ai-alliance.github.io",
+      "name": "anthropic claude-sonnet-5"
+    },
+    {
+      "why": "a colon in the model is encoded in the DID and becomes a hyphen in the address",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "provider": "ollama",
+      "model": "gemma2:27b",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:ollama:gemma2%3A27b",
+      "email": "ollama-gemma2-27b@agents.the-ai-alliance.github.io",
+      "name": "ollama gemma2:27b"
+    },
+    {
+      "why": "a slash in the model is encoded in the DID",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "provider": "ollama",
+      "model": "library/llama3",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:ollama:library%2Fllama3",
+      "email": "ollama-library-llama3@agents.the-ai-alliance.github.io",
+      "name": "ollama library/llama3"
+    },
+    {
+      "why": "dots in the model are kept in the DID and become hyphens in the address",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "provider": "anthropic",
+      "model": "claude-3.5-sonnet",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:anthropic:claude-3.5-sonnet",
+      "email": "anthropic-claude-3-5-sonnet@agents.the-ai-alliance.github.io",
+      "name": "anthropic claude-3.5-sonnet"
+    },
+    {
+      "why": "a run of characters outside [A-Za-z0-9-] is one hyphen in the address, none at either end",
+      "domain": "the-ai-alliance.github.io:semiont-arxiv-kb",
+      "provider": "my provider",
+      "model": "(beta)::model!",
+      "did": "did:web:the-ai-alliance.github.io:semiont-arxiv-kb:agents:my%20provider:(beta)%3A%3Amodel!",
+      "email": "my-provider-beta-model@agents.the-ai-alliance.github.io",
+      "name": "my provider (beta)::model!"
+    }
+  ]
+}
