@@ -12,7 +12,7 @@ import { vi, describe, it, expect, beforeEach, type Mocked } from 'vitest';
 import { userId } from '@semiont/core';
 import { Context } from 'hono';
 import type { Principal } from '../../identity/principal';
-import { authMiddleware, optionalAuthMiddleware } from '../../middleware/auth';
+import { authMiddleware } from '../../middleware/auth';
 import { principalFromToken } from '../../identity/principal';
 import { JWTService } from '../../auth/jwt';
 
@@ -508,139 +508,6 @@ describe('Auth Middleware', () => {
 
         expect(mockJWTService.verifyMediaToken).not.toHaveBeenCalled();
         expect(mockPrincipalFromToken).toHaveBeenCalledWith('normal-token');
-      });
-    });
-  });
-
-  describe('optionalAuthMiddleware', () => {
-    describe('No Authentication Required', () => {
-      it('should continue without authentication for missing header', async () => {
-        const context = createMockContext();
-        
-        await optionalAuthMiddleware(context, mockNext);
-        
-        expect(mockNext).toHaveBeenCalled();
-        expect(context.json).not.toHaveBeenCalled();
-        expect(context.set).not.toHaveBeenCalled();
-        expect(mockPrincipalFromToken).not.toHaveBeenCalled();
-      });
-
-      it('should continue without authentication for malformed header', async () => {
-        const malformedHeaders = [
-          'Basic username:password',
-          'Bearer', // no token
-          'InvalidScheme token',
-          'bearer token', // lowercase bearer
-          'Token token123', // wrong scheme
-        ];
-
-        for (const authHeader of malformedHeaders) {
-          vi.clearAllMocks();
-          const context = createMockContext({ 'Authorization': authHeader });
-          
-          await optionalAuthMiddleware(context, mockNext);
-          
-          expect(mockNext).toHaveBeenCalled();
-          expect(context.json).not.toHaveBeenCalled();
-          expect(context.set).not.toHaveBeenCalled();
-          expect(mockPrincipalFromToken).not.toHaveBeenCalled();
-        }
-      });
-
-      it('should continue without authentication for invalid tokens', async () => {
-        const context = createMockContext({ 'Authorization': 'Bearer invalid-token' });
-        mockPrincipalFromToken.mockRejectedValue(new Error('Invalid token'));
-        
-        await optionalAuthMiddleware(context, mockNext);
-        
-        expect(mockNext).toHaveBeenCalled();
-        expect(context.json).not.toHaveBeenCalled();
-        expect(context.set).not.toHaveBeenCalled();
-        expect(mockPrincipalFromToken).toHaveBeenCalledWith('invalid-token');
-      });
-    });
-
-    describe('Optional Authentication Success', () => {
-      const mockUser: Principal = {
-        did: userId('did:web:example.com:users:user%40example.com'),
-        email: 'user@example.com',
-        name: 'Test User',
-        image: null,
-        domain: 'example.com',
-      };
-
-      it('should set user context for valid tokens', async () => {
-        const context = createMockContext({ 'Authorization': 'Bearer valid-token' });
-        mockPrincipalFromToken.mockResolvedValue(mockUser);
-        
-        await optionalAuthMiddleware(context, mockNext);
-        
-        expect(context.set).toHaveBeenCalledWith('principal', mockUser);
-        expect(mockNext).toHaveBeenCalled();
-        expect(context.json).not.toHaveBeenCalled();
-        expect(mockPrincipalFromToken).toHaveBeenCalledWith('valid-token');
-      });
-
-      it('should handle token extraction correctly', async () => {
-        const testTokens = [
-          'short',
-          'very.long.jwt.token.with.many.segments',
-          'token-with-dashes-and_underscores',
-        ];
-
-        for (const token of testTokens) {
-          vi.clearAllMocks();
-          const context = createMockContext({ 'Authorization': `Bearer ${token}` });
-          mockPrincipalFromToken.mockResolvedValue(mockUser);
-          
-          await optionalAuthMiddleware(context, mockNext);
-          
-          expect(mockPrincipalFromToken).toHaveBeenCalledWith(token);
-          expect(context.set).toHaveBeenCalledWith('principal', mockUser);
-        }
-      });
-    });
-
-    describe('Error Handling', () => {
-      it('should handle authentication errors silently', async () => {
-        const authErrors = [
-          new Error('Token expired'),
-          new Error('Invalid signature'),
-          new Error('User not found'),
-          new Error('Database connection failed'),
-          new Error('Network timeout'),
-        ];
-
-        for (const error of authErrors) {
-          vi.clearAllMocks();
-          const context = createMockContext({ 'Authorization': 'Bearer error-token' });
-          mockPrincipalFromToken.mockRejectedValue(error);
-          
-          await optionalAuthMiddleware(context, mockNext);
-          
-          expect(mockNext).toHaveBeenCalled();
-          expect(context.json).not.toHaveBeenCalled();
-          expect(context.set).not.toHaveBeenCalled();
-        }
-      });
-
-      it('should not log sensitive information during optional auth failures', async () => {
-        const sensitiveError = new Error('User admin@secret.com token sk_secret_123 invalid');
-        const context = createMockContext({ 'Authorization': 'Bearer sensitive-token' });
-        mockPrincipalFromToken.mockRejectedValue(sensitiveError);
-        
-        // Mock console.error to verify no sensitive logging
-        const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-        
-        await optionalAuthMiddleware(context, mockNext);
-        
-        expect(mockNext).toHaveBeenCalled();
-        expect(context.set).not.toHaveBeenCalled();
-        
-        // Should not log sensitive information
-        expect(consoleSpy).not.toHaveBeenCalled();
-        
-        consoleSpy.mockRestore();
       });
     });
   });

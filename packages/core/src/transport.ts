@@ -111,9 +111,10 @@ export interface ITransport {
    *
    * Resolves with the number of subscribers the emit reached
    * (`/bus/emit` responds `{subscribers: n}`; GUIDED-TOUR P1), or `-1`
-   * when the count is unknown — an older gateway, an unreadable body, or
-   * an in-process transport where the question does not apply. `-1` is
-   * the same sentinel the Go client uses: a parse failure must stay
+   * when the count is unknown — a gateway on a broker signal plane, which
+   * cannot count and omits `subscribers`, an unreadable body, or an
+   * in-process transport where the question does not apply. `-1` is the
+   * same sentinel the Go client uses: an uncounted emit must stay
    * distinguishable from a genuine empty room.
    */
   emit<K extends keyof EventMap>(

@@ -5,10 +5,7 @@
     "subscribers": {
       "type": "integer",
       "minimum": 0,
-      "description": "Observers on the target subject when the event was dispatched."
+      "description": "Observers on the target subject when the event was dispatched. ABSENT means the gateway could not count: under a broker signal plane (`[signal] type = \"nats\"`) the event is published to a fabric whose observers the gateway cannot see. Never defaulted: a zero here is the claim that nobody was listening, and a gateway that did not observe that never makes it."
     }
-  },
-  "required": [
-    "subscribers"
-  ]
+  }
 }

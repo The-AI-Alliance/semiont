@@ -64,7 +64,7 @@ annotation id names exactly one annotation on exactly one resource, so the id is
 address; a second id would only be something for you to keep consistent. The launcher rejects
 one rather than ignoring it.
 
-**The `browse` moves fail on an empty room; the `beckon` moves do not.** Every emit reports
+**The `browse` moves fail on an empty room; the `beckon` moves do not.** An emit reports
 how many subscribers the target subject had at dispatch, but the two verbs treat zero
 differently on purpose: `beckon` exits 0 because a beckon is fire-and-forget, while **both**
 `browse --browser` forms exit 1 because each asked for a specific outcome — something on a
@@ -151,7 +151,7 @@ Two things to know about that output:
 
 ## Did anyone receive it?
 
-Every emit reports how many subscribers the gateway had **at dispatch**:
+An emit reports how many subscribers the gateway had **at dispatch**:
 
 ```
 ✓ Opened res-42 in the Browser (1 subscriber — broadcast, so still no confirmation anyone looked)
@@ -161,6 +161,10 @@ Every emit reports how many subscribers the gateway had **at dispatch**:
 Zero means the signal reached an empty room — worth acting on, because these channels have no
 reply and would otherwise fail silently. A positive count is **not** delivery: a subscriber is
 a connection, not a pair of eyes.
+
+A gateway on a broker signal plane (`[signal] type = "nats"`) cannot count, so it reports no
+number and the verb prints `(broadcast — no delivery confirmation)`. There, an empty room is
+indistinguishable from a full one, and `browse --browser` gates nothing.
 
 **Zero is an error for `browse --browser` and a fact for `beckon`**, per the split above:
 both `--browser` forms exit 1 (they asked for a specific outcome that did not happen), while

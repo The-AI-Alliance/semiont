@@ -105,10 +105,11 @@ func (c *Client) request(ctx context.Context, method, path string, body any) (*h
 // subscribes no one on the client's behalf, and an unbridged channel publishes
 // into an empty subject with a clean 202.
 //
-// -1 means the server answered 2xx with a body this client could not read
-// (an older gateway, or a body shape change) — distinguishable from a true
-// zero, because reporting "nobody is listening" on the strength of a parse
-// failure would be the same overclaim in reverse.
+// -1 means the emit was accepted but the count is UNKNOWN: the gateway said
+// it could not count (a broker signal plane leaves `subscribers` out of
+// BusEmitAccepted), or it answered with a body this client could not read.
+// Distinguishable from a true zero, because reporting "nobody is listening"
+// on the strength of either would be the same overclaim in reverse.
 func (c *Client) Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error) {
 	return c.emitWith(ctx, ch, payload, scope, "")
 }
@@ -135,11 +136,12 @@ func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope st
 	if resp.StatusCode/100 != 2 {
 		return -1, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode}
 	}
-	var accepted struct {
-		Subscribers *int `json:"subscribers"`
-	}
+	var accepted semiont.BusEmitAccepted
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
-	if err != nil || json.Unmarshal(raw, &accepted) != nil || accepted.Subscribers == nil {
+	if err != nil || json.Unmarshal(raw, &accepted) != nil {
+		return -1, nil
+	}
+	if accepted.Subscribers == nil {
 		return -1, nil
 	}
 	return *accepted.Subscribers, nil

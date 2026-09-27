@@ -18,7 +18,7 @@
     },
     "responses": {
       "202": {
-        "description": "Event accepted and published. The body reports how many subscribers the target subject had at dispatch; zero means the signal reached nobody.",
+        "description": "Event accepted and published. The body reports how many subscribers the target subject had at dispatch; zero means the signal reached nobody. The count is absent when the gateway cannot observe subscribers (a broker signal plane).",
         "content": {
           "application/json": {
             "schema": {

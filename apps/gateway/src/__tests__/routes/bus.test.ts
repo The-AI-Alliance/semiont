@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, beforeAll, vi } from 'vitest';
+import { describe, it, expect, beforeEach, beforeAll, afterAll, vi } from 'vitest';
 import { Hono } from 'hono';
 import type { Annotation } from '@semiont/core';
 import { EventBus, annotationId, isObject, resourceId as makeResourceId, userId } from '@semiont/core';
@@ -26,8 +26,11 @@ vi.mock('@semiont/observability', async (importOriginal) => ({
 import { createBusRouter } from '../../routes/bus';
 import { LEDGER_TABLES, createCorrelationRegistry } from '../../signal/ledger';
 import { createInProcessSignalPlane } from '../../signal/in-process';
+import { createNatsSignalPlane } from '../../signal/nats';
 import type { SharedTable, SignalPlane } from '../../signal/interface';
 import { compositionFor } from '../../signal';
+import { jetStreamNatsFixture } from '../../signal/__tests__/nats-fixture';
+import { validators, formatErrors } from '@semiont/core/openapi';
 import { initializeLogger, getLogger } from '../../logger';
 
 /**
@@ -494,6 +497,49 @@ describe('bus routes', () => {
 
       expect(res.status).toBe(202);
       await expect(res.json()).resolves.toEqual({ subscribers: 0 });
+    });
+
+    // The 202 body is the spec's `BusEmitAccepted` whichever driver carries
+    // the signal. Only an in-process fabric can count observers; a broker
+    // cannot, and the body says so by leaving `subscribers` out — a zero it
+    // never observed would tell the caller nobody was listening.
+    describe('the 202 body under each signal driver', () => {
+      afterAll(async () => {
+        const fixture = await jetStreamNatsFixture().catch(() => undefined);
+        fixture?.stop();
+      });
+
+      const drivers: Array<[string, (bus: EventBus) => Promise<SignalPlane>, components['schemas']['BusEmitAccepted']]> = [
+        ['in-process', async (bus) => createInProcessSignalPlane(bus), { subscribers: 0 }],
+        [
+          'nats',
+          async () => createNatsSignalPlane({ servers: (await jetStreamNatsFixture()).servers, reconnect: false }),
+          {},
+        ],
+      ];
+
+      it.each(drivers)('validates against BusEmitAccepted under the %s driver', async (_driver, makePlane, expected) => {
+        const bus = new EventBus();
+        const plane = await makePlane(bus);
+        const composition = compositionFor(bus, plane);
+        await composition.ready;
+        try {
+          const res = await buildApp(bus).request('/bus/emit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel: 'beckon:focus', payload: { annotationId: 'ann-1' } }),
+          });
+
+          expect(res.status).toBe(202);
+          const body: unknown = await res.json();
+          expect(validators.BusEmitAccepted(body), formatErrors(validators.BusEmitAccepted.errors)).toBe(true);
+          expect(body).toStrictEqual(expected);
+        } finally {
+          composition.dispose();
+          plane.dispose();
+          bus.destroy();
+        }
+      });
     });
 
     // The bus reads the principal off the request context (set by the
