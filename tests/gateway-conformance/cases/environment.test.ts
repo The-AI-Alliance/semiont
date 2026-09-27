@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { GatewayEnvironment, GatewaySettings } from '../harness/gateway';
+import { call } from '../harness/http';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
 import { World } from '../harness/world';
@@ -82,7 +83,7 @@ describe("the gateway's environment", () => {
       async (world, otlp) => {
         await emit(world);
         await eventually(DISPATCH, 10_000, () => otlp.spans.find((s) => s.name === DISPATCH));
-        await eventually('a metric in the output', 10_000, () => (world.gateway.output.some((l) => l.includes('semiont.runtime.event_loop.lag')) ? true : undefined));
+        await eventually('semiont.bus.emit in the output', 10_000, () => (world.gateway.output.some((l) => l.includes('semiont.bus.emit')) ? true : undefined));
         expect([...otlp.metrics.keys()]).toEqual([]);
       },
     );
@@ -143,17 +144,29 @@ describe("the gateway's environment", () => {
 });
 
 describe("the document's logFormat", () => {
-  const initialized = (world: World) =>
-    eventually('the logger\'s first line', 5_000, () => world.gateway.output.find((l) => l.includes('Logger initialized')));
+  /** Every line the gateway wrote to stdout, once it has written any. */
+  const logLines = (world: World) =>
+    eventually('log lines on stdout', 5_000, () => (world.gateway.stdout.length > 0 ? world.gateway.stdout : undefined));
 
-  it('json writes each line as one JSON object', async () => {
+  it('json writes each line as one JSON object, and a line logged during a traced request carries its trace_id and span_id', async () => {
     await withGateway(
-      () => ({}),
+      (otlp) => ({ OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint }),
       async (world) => {
-        const line = await initialized(world);
-        expect(JSON.parse(line)).toMatchObject({ level: 'info', message: 'Logger initialized' });
+        const traceId = randomUUID().replaceAll('-', '');
+        const traceparent = `00-${traceId}-${randomUUID().replaceAll('-', '').slice(0, 16)}-01`;
+        const reply = await call(world.origin, 'POST', '/bus/emit', {
+          token: await world.person('traced'),
+          json: { channel: 'beckon:focus', payload: {} },
+          headers: { traceparent },
+        });
+        expect(reply.status).toBe(202);
+        const traced = await eventually(`a line carrying trace ${traceId}`, 5_000, () => world.gateway.stdout.find((l) => l.includes(traceId)));
+        expect(JSON.parse(traced)).toMatchObject({ trace_id: traceId, span_id: expect.stringMatching(/^[0-9a-f]{16}$/) });
+        for (const line of await logLines(world)) {
+          expect(JSON.parse(line), line).toMatchObject({ level: expect.any(String), message: expect.any(String) });
+        }
       },
-      (s) => ({ ...s, logLevel: 'info', logFormat: 'json' }),
+      (s) => ({ ...s, logLevel: 'debug', logFormat: 'json' }),
     );
   });
 
@@ -161,7 +174,7 @@ describe("the document's logFormat", () => {
     await withGateway(
       () => ({}),
       async (world) => {
-        expect(await initialized(world)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[INFO\] Logger initialized\b/);
+        for (const line of await logLines(world)) expect(line).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[[A-Z]+\] /);
       },
       (s) => ({ ...s, logLevel: 'info', logFormat: 'simple' }),
     );

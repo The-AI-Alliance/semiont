@@ -66,7 +66,10 @@ export interface GatewayProcess {
   readonly origin: string;
   readonly port: number;
   readonly settings: GatewaySettings;
+  /** Every complete line the gateway wrote, stdout and stderr interleaved. */
   readonly output: string[];
+  /** The complete lines it wrote to stdout, where its logs go. */
+  readonly stdout: string[];
   /** Resolves with the exit code once the process has exited. */
   readonly exited: Promise<number | null>;
   stop(): Promise<void>;
@@ -77,7 +80,21 @@ export interface LaunchOptions {
   env: GatewayEnvironment;
 }
 
-function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+/** Appends each complete line of a stream to every list in `into`; a line split across chunks is kept whole. */
+function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
+  let partial = '';
+  const push = (line: string) => {
+    if (line) for (const list of into) list.push(line);
+  };
+  stream.on('data', (chunk: Buffer) => {
+    const parts = (partial + chunk.toString('utf8')).split('\n');
+    partial = parts.pop() ?? '';
+    parts.forEach(push);
+  });
+  stream.on('end', () => push(partial));
+}
+
+function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
   checkEnvironment(env, settings);
   const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-home-'));
   writeConfiguration(dir, settings);
@@ -86,11 +103,11 @@ function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output
   const [command, ...args] = GATEWAY_COMMAND;
   const child = spawn(command!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
-  const collect = (chunk: Buffer) => output.push(...chunk.toString('utf8').split('\n').filter(Boolean));
-  child.stdout!.on('data', collect);
-  child.stderr!.on('data', collect);
+  const stdout: string[] = [];
+  collectLines(child.stdout!, [output, stdout]);
+  collectLines(child.stderr!, [output]);
   const exited = new Promise<number | null>((resolve) => child.once('exit', (code) => resolve(code)));
-  return { child, output, exited, dir };
+  return { child, output, stdout, exited, dir };
 }
 
 /** The settings a gateway runs with when a case says nothing else. */
@@ -116,7 +133,7 @@ export async function defaultSettings(parts: {
 
 /** Start a gateway and wait until it answers. Fails with its output when it exits instead. */
 export async function startGateway(options: LaunchOptions): Promise<GatewayProcess> {
-  const { child, output, exited, dir } = launch(options);
+  const { child, output, stdout, exited, dir } = launch(options);
   const origin = `http://127.0.0.1:${options.settings.port}`;
   let gone = false;
   void exited.then(() => {
@@ -145,6 +162,7 @@ export async function startGateway(options: LaunchOptions): Promise<GatewayProce
     port: options.settings.port,
     settings: options.settings,
     output,
+    stdout,
     exited,
     async stop() {
       if (child.exitCode === null && child.signalCode === null) {
