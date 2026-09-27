@@ -1,0 +1,15 @@
+{
+  "type": "object",
+  "description": "The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.",
+  "properties": {
+    "events": {
+      "type": "array",
+      "items": {
+        "$ref": "StoredEventResponse.json"
+      }
+    }
+  },
+  "required": [
+    "events"
+  ]
+}

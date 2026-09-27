@@ -1,0 +1,23 @@
+{
+  "type": "object",
+  "description": "The Archivist's liveness answer: it serves, and the actors it hosts.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok"
+      ]
+    },
+    "actors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The record actors this process hosts."
+    }
+  },
+  "required": [
+    "status",
+    "actors"
+  ]
+}

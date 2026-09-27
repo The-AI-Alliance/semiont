@@ -789,6 +789,18 @@
       },
       "GatewayConfig": {
         "$ref": "components/schemas/GatewayConfig.json"
+      },
+      "ResourceUpload": {
+        "$ref": "components/schemas/ResourceUpload.json"
+      },
+      "ArchivistEventsResponse": {
+        "$ref": "components/schemas/ArchivistEventsResponse.json"
+      },
+      "ArchivistHealth": {
+        "$ref": "components/schemas/ArchivistHealth.json"
+      },
+      "RepresentationNotFound": {
+        "$ref": "components/schemas/RepresentationNotFound.json"
       }
     }
   }

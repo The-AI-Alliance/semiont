@@ -1,0 +1,19 @@
+{
+  "description": "No bearer token, or one that does not verify against the knowledge base's trusted issuer or carries no `semiont-service` role (see the `serviceAccount` scheme). The body never says which.",
+  "headers": {
+    "WWW-Authenticate": {
+      "description": "`Bearer` when no token was presented; `Bearer error=\"invalid_token\"` when one was presented and refused (RFC 6750 §3).",
+      "schema": {
+        "type": "string",
+        "pattern": "^Bearer( error=\"invalid_token\")?$"
+      }
+    }
+  },
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../../components/schemas/ErrorResponse.json"
+      }
+    }
+  }
+}

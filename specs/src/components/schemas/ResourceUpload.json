@@ -1,0 +1,69 @@
+{
+  "type": "object",
+  "description": "The multipart upload that creates a resource. A client sends it to the gateway's `POST /resources`; the gateway forwards it untouched to the Archivist's `POST /resources`, which stores the bytes and records the resource. One body, two hops.",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Human-readable resource name"
+    },
+    "file": {
+      "type": "string",
+      "format": "binary",
+      "description": "Binary content"
+    },
+    "format": {
+      "type": "string",
+      "description": "Media type of the content (e.g. text/plain, text/markdown, image/png)"
+    },
+    "storageUri": {
+      "type": "string",
+      "description": "Where the content lives (file://... for local). Required — the client names the location; the server does not derive one."
+    },
+    "language": {
+      "type": "string",
+      "description": "ISO 639-1 language code"
+    },
+    "entityTypes": {
+      "type": "string",
+      "description": "JSON-stringified array of entity type names"
+    },
+    "sourceAnnotationId": {
+      "type": "string",
+      "description": "For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event."
+    },
+    "sourceResourceId": {
+      "type": "string",
+      "description": "For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event."
+    },
+    "generationPrompt": {
+      "type": "string",
+      "description": "For AI-generated resources: the prompt that drove generation"
+    },
+    "generator": {
+      "type": "string",
+      "description": "For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job."
+    },
+    "jobId": {
+      "type": "string",
+      "description": "The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload."
+    },
+    "isDraft": {
+      "type": "string",
+      "description": "'true' or 'false' — whether the resource is a draft"
+    },
+    "cloneToken": {
+      "type": "string",
+      "description": "A clone token from `yield:clone-token-requested`. With it, the resource is created as a clone of the token's source, inheriting its entity types; `language`, `entityTypes` and the generation fields are then not read."
+    },
+    "archiveOriginal": {
+      "type": "string",
+      "description": "With `cloneToken`: 'true' archives the source once the clone exists."
+    }
+  },
+  "required": [
+    "name",
+    "file",
+    "format",
+    "storageUri"
+  ]
+}

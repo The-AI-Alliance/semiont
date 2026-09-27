@@ -1,0 +1,23 @@
+{
+  "description": "The Archivist's 404 for a resource's bytes: an ErrorResponse whose `code` says which half of the lookup failed — `resource` when the record holds no such resource, `representation` when it holds the resource but not its bytes. Each reader answers the two differently.",
+  "allOf": [
+    {
+      "$ref": "ErrorResponse.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "resource",
+            "representation"
+          ]
+        }
+      },
+      "required": [
+        "code"
+      ]
+    }
+  ]
+}

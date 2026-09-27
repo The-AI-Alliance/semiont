@@ -1,0 +1,68 @@
+{
+  "get": {
+    "summary": "One resource's events from one sequence number",
+    "description": "The events of one resource whose sequence number is at least `fromSequence`, in log order. The one read of the event log this surface serves, and deliberately narrow: a range of one resource, never the whole log. The gateway calls it to replay a scope a subscriber resumes, asking from the sequence after the last one the subscriber saw.",
+    "security": [
+      {
+        "serviceAccount": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "resourceId",
+        "in": "path",
+        "required": true,
+        "description": "The resource, percent-encoded.",
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      {
+        "name": "fromSequence",
+        "in": "query",
+        "required": true,
+        "description": "The first sequence number wanted, inclusive.",
+        "schema": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    ],
+    "responses": {
+      "200": {
+        "description": "The events, possibly none.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ArchivistEventsResponse.json"
+            }
+          }
+        }
+      },
+      "400": {
+        "description": "No resource, or `fromSequence` is not an integer of at least 1.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      },
+      "401": {
+        "$ref": "../responses/Unauthorized.json"
+      },
+      "500": {
+        "description": "The log could not be read.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "../../components/schemas/ErrorResponse.json"
+            }
+          }
+        }
+      }
+    }
+  }
+}
