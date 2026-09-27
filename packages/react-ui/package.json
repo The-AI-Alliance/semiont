@@ -129,7 +129,7 @@
     "@semiont/sdk": "*",
     "clsx": "^2.1.1",
     "pdfjs-dist": "^6.2.108",
-    "react-error-boundary": "^6.1.4",
+    "react-error-boundary": "^6.1.6",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "use-sync-external-store": "^1.7.0"
