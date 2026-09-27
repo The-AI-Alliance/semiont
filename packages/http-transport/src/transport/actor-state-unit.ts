@@ -877,14 +877,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         }
         return attempt;
       }, isRetryableRequestError, EMIT_RETRY);
-      // `-1` = count unknown (older gateway / unreadable body) — never let a
-      // parse failure read as an empty room. Same sentinel as the Go client.
+      // `-1` = count unknown, the same sentinel as the Go client, and never a
+      // zero: an absent `subscribers` is the gateway saying it could not count
+      // (a broker signal plane), and an unreadable body says nothing at all.
+      // Either way the emit was accepted, so neither may read as an empty room.
+      let accepted: components['schemas']['BusEmitAccepted'];
       try {
-        const reply = (await res.json()) as { subscribers?: unknown };
-        return typeof reply.subscribers === 'number' ? reply.subscribers : -1;
+        accepted = await res.json();
       } catch {
         return -1;
       }
+      return accepted.subscribers === undefined ? -1 : accepted.subscribers;
     },
 
     state$: state$.asObservable(),

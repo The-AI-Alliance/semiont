@@ -275,6 +275,34 @@ func TestEmitRefusesNonEmittableChannel(t *testing.T) {
 	}
 }
 
+// A gateway on a broker signal plane cannot count, and says so by leaving
+// `subscribers` out of BusEmitAccepted. That is UNKNOWN, never zero: only a
+// counted zero may read as an empty room.
+func TestEmitMapsAnAbsentCountToUnknown(t *testing.T) {
+	for _, tc := range []struct {
+		body string
+		want int
+	}{
+		{`{}`, -1},
+		{`{"subscribers":0}`, 0},
+		{`{"subscribers":2}`, 2},
+	} {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			_, _ = io.WriteString(w, tc.body)
+		}))
+		subscribers, err := NewClient(srv.URL, "tok").Emit(context.Background(), "beckon:focus", map[string]any{"annotationId": "ann-1"}, "")
+		srv.Close()
+		if err != nil {
+			t.Fatalf("%s: emit: %v", tc.body, err)
+		}
+		if subscribers != tc.want {
+			t.Errorf("%s: got %d subscribers, want %d", tc.body, subscribers, tc.want)
+		}
+	}
+}
+
 func TestReadSSEParsesFrames(t *testing.T) {
 	in := strings.NewReader(
 		"event: ping\ndata: \n\n" + // keep-alive, ignored

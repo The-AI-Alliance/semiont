@@ -27,10 +27,11 @@ type Transport interface {
 	// Emit publishes one event and reports how many subscribers the target
 	// subject had AT DISPATCH.
 	//
-	// -1 means UNKNOWN — an older gateway, an unreadable body, or a transport
-	// where the question does not apply. It is deliberately distinct from 0,
-	// which means the server counted zero: reporting "nobody is listening" on
-	// the strength of a parse failure would be a lie, and it is the same
+	// -1 means UNKNOWN — a gateway on a broker signal plane (it cannot count,
+	// and omits `subscribers`), an unreadable body, or a transport where the
+	// question does not apply. It is deliberately distinct from 0, which means
+	// the server counted zero: reporting "nobody is listening" on the strength
+	// of an uncounted emit would be a lie, and it is the same
 	// sentinel `ITransport.emit` returns on the TypeScript side. Callers that
 	// render this to a human must keep the three cases apart.
 	Emit(ctx context.Context, ch Channel, payload any, scope string) (int, error)

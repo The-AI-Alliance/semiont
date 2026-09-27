@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
-import type { EventBus, StoredEvent, EnvironmentConfig } from '@semiont/core';
+import type { EventBus, StoredEvent, EnvironmentConfig, components } from '@semiont/core';
 import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
@@ -35,6 +35,8 @@ import { profileForWrite } from '../identity/person-profile';
 type AuthMiddleware = (c: Context, next: Next) => Promise<Response | void>;
 
 const getBusLogger = () => getLogger().child({ component: 'bus' });
+
+type BusEmitAccepted = components['schemas']['BusEmitAccepted'];
 
 /**
  * Fetch `Last-Event-ID` replay from the Archivist's D1 read path
@@ -738,13 +740,15 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
     // subscriber is not a subscriber to a scoped emit, and counting the
     // global subject would report a healthy fan-out for a signal nobody
     // scoped will receive.
-    let subscribers: number | undefined = 0;
-
-    await withTraceparent(carrier, () =>
+    //
+    // Undefined when the plane cannot count: a broker driver reports nothing
+    // rather than a zero it never observed (IngestReceipt), so neither the
+    // warning nor the fast-fail below fires, and the body carries no count.
+    const observers = await withTraceparent(carrier, () =>
       withSpan(
         `bus.dispatch:${channel}`,
         () => {
-          subscribers = plane.ingest(channel, payload, {
+          const subscribers = plane.ingest(channel, payload, {
             scope,
             // The envelope the frame travels under, everywhere: `meta` is
             // ferried verbatim by every driver (P0.5), so an in-process
@@ -829,6 +833,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
               plane.ingest(operation.failure, failure, { meta: { correlationId: failureCid } });
             }
           }
+          return subscribers;
         },
         {
           kind: SpanKind.SERVER,
@@ -840,7 +845,8 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
       ),
     );
 
-    return c.json({ subscribers }, 202);
+    const accepted: BusEmitAccepted = observers === undefined ? {} : { subscribers: observers };
+    return c.json(accepted, 202);
   });
 
   return busRouter;

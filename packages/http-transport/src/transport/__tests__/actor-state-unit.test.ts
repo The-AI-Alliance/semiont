@@ -435,12 +435,12 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('emit resolves -1 when the body is absent or unreadable (older gateway ≠ empty room)', async () => {
-    // A parse failure must NOT read as "nobody is listening": -1 (unknown,
-    // matching the Go client) keeps an older gateway distinguishable from a
-    // genuine zero-subscriber emit.
-    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => { throw new Error('no body'); } });
+  it('emit resolves -1 when the gateway could not count, and 0 only when it counted zero', async () => {
+    // A gateway on a broker signal plane cannot see the fabric's observers,
+    // so its BusEmitAccepted carries no `subscribers`. That is UNKNOWN (-1,
+    // matching the Go client), never an empty room.
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 0 }) });
 
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -449,7 +449,23 @@ describe('createActorStateUnit', () => {
     });
 
     await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-2' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-2' })).resolves.toBe(0);
+
+    stateUnit.dispose();
+  });
+
+  it('emit resolves -1 when an accepted emit has an unreadable body', async () => {
+    // The emit was accepted, so rejecting would misreport it as failed; the
+    // count is simply unknown.
+    mockFetch.mockResolvedValueOnce({ ok: true, json: async () => { throw new Error('no body'); } });
+
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+    });
+
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
 
     stateUnit.dispose();
   });
