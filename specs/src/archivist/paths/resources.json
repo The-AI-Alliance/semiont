@@ -50,7 +50,7 @@
         }
       },
       "400": {
-        "description": "`Semiont-Principal` is missing; the body is not multipart/form-data; a required field is missing; the base media type is not supported; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
+        "description": "`Semiont-Principal` is missing; the body is not multipart/form-data, or not a ResourceUpload; the base media type is not supported; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
         "content": {
           "application/json": {
             "schema": {

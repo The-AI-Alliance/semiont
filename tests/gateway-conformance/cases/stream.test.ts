@@ -248,6 +248,27 @@ eachPlane('subscribing', (world) => {
     }
   });
 
+  it('an answer the Archivist gives outside its spec is no replay: the scope gets a query-error gap, not a silent skip', async () => {
+    const token = await world().person('resumer');
+    // An event with no `type`: were it read on trust, it would match no
+    // subscribed channel and be dropped without a word.
+    const { type: _untyped, ...event } = storedEvent(PERSISTED, 'res-gap-5', 2);
+    world().archivist.mode.replayAnswer = { events: [event] };
+    try {
+      const stream = await world().open(token, { clientId: randomUUID(), scoped: [{ scope: 'res-gap-5', channels: [PERSISTED], lastEventId: 'p-res-gap-5-1' }] });
+      await stream.next('the first ping', (m) => m.event === 'ping');
+      expect(stream.frames('bus:resume-gap').map((f) => f.payload)).toEqual([
+        { reason: 'query-error', scope: 'res-gap-5', lastSeenId: 'p-res-gap-5-1' },
+      ]);
+      expect(stream.frames(PERSISTED)).toEqual([]);
+    } finally {
+      world().archivist.mode.replayAnswer = undefined;
+    }
+    const offSpec = world().archivist.violations.splice(0);
+    expect(offSpec).toHaveLength(1);
+    expect(offSpec[0]).toMatch(/GET \/events\/res-gap-5: 200 body does not match the declared schema/);
+  });
+
   it('live frames arriving during a replay follow it, less any the replay already delivered', async () => {
     const scope = `res-${randomUUID()}`;
     world().archivist.events.set(scope, [3, 4, 5].map((n) => storedEvent(PERSISTED, scope, n)));

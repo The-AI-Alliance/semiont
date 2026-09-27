@@ -72,6 +72,12 @@ export interface FakeArchivist {
     replayDelayMs: number;
     /** The event read answers 500. */
     replayFails: boolean;
+    /**
+     * The event read answers this body instead, whatever it is — for a case
+     * that needs the Archivist to answer outside its spec. It lands in
+     * `violations` like any off-spec reply; the case expects that, and clears it.
+     */
+    replayAnswer: unknown;
     /** An upload is refused by the record: answered 500 with this reason. */
     refuseUploads: string | undefined;
   };
@@ -129,7 +135,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
   const events = new Map<string, StoredEvent[]>();
   const descriptions = new Map<string, unknown>();
   const uploads: RecordedUpload[] = [];
-  const mode: FakeArchivist['mode'] = { refusesGateway: false, replayDelayMs: 0, replayFails: false, refuseUploads: undefined };
+  const mode: FakeArchivist['mode'] = { refusesGateway: false, replayDelayMs: 0, replayFails: false, replayAnswer: undefined, refuseUploads: undefined };
   const supported = new Set(spec().schema('SupportedMediaType')['enum'] as string[]);
   const uploadRequired = archivistSpec().schema('ResourceUpload')['required'] as string[];
 
@@ -246,6 +252,7 @@ export async function startArchivist(issuer: IssuerServer, audience: string): Pr
         if (!Number.isInteger(from) || from < 1) return json(400, { error: 'integer fromSequence >= 1 is required' });
         if (mode.replayDelayMs > 0) await new Promise((r) => setTimeout(r, mode.replayDelayMs));
         if (mode.replayFails) return json(500, { error: 'event read failed' });
+        if (mode.replayAnswer !== undefined) return json(200, mode.replayAnswer);
         return json(200, { events: (events.get(id) ?? []).filter((e) => e.metadata.sequenceNumber >= from) });
       }
 

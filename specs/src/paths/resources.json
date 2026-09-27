@@ -32,7 +32,7 @@
         }
       },
       "400": {
-        "description": "The upload is not multipart/form-data; a required field is missing (name, file, format, storageUri); the format's base media type is not a SupportedMediaType; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
+        "description": "The upload is not multipart/form-data, or not a ResourceUpload (a field it requires is missing, or one is not what it must be); the format's base media type is not a SupportedMediaType; or `entityTypes` or `generator` is not what it must be. The message names what is wrong.",
         "content": {
           "application/json": {
             "schema": {

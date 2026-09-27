@@ -64,7 +64,7 @@ import { pipeline } from 'stream/promises';
 import type { AccessToken, CreateResourceInput, Emitter, Logger, ResourceId, components } from '@semiont/core';
 import { resourceId as makeResourceId, userId as makeUserId, errField, hasServiceRole, baseMediaType, isSupportedMediaType } from '@semiont/core';
 import type { IssuerVerifier } from '@semiont/core/identity';
-import { validators } from '@semiont/core/openapi';
+import { formatErrors, validators } from '@semiont/core/openapi';
 
 import type { EventLog, ViewStorage } from '@semiont/event-sourcing';
 import { RepresentationMissing, type WorkingTreeStore } from '@semiont/content';
@@ -278,10 +278,12 @@ export function createArchivistServer(deps: ArchivistServerDeps): Server {
 }
 
 /**
- * The upload, read and checked: the multipart fields `POST /resources`
- * declares in the gateway's spec, and the principal the gateway vouches for.
- * Every refusal is a `BadUpload` naming what is wrong. The checksum and size
- * are filled in once the bytes are stored.
+ * The upload, read and checked: the multipart body is a `ResourceUpload` — the
+ * one schema the gateway's `POST /resources` and this one both name — and the
+ * principal the gateway vouches for. What the upload requires, and what each
+ * field is, is the schema's: the form is validated against it, and read off
+ * the type it generates. Every refusal is a `BadUpload` naming what is wrong.
+ * The checksum and size are filled in once the bytes are stored.
  */
 async function readUpload(req: IncomingMessage): Promise<{ upload: RecordedUpload; file: File }> {
   const did = req.headers['semiont-principal'];
@@ -305,76 +307,71 @@ async function readUpload(req: IncomingMessage): Promise<{ upload: RecordedUploa
   } catch {
     throw new BadUpload('The body is not multipart/form-data');
   }
-  const text = (field: string): string | undefined => {
-    const value = form.get(field);
-    return typeof value === 'string' && value !== '' ? value : undefined;
-  };
-  const json = (field: string): unknown => {
-    const value = text(field);
-    if (value === undefined) return undefined;
-    try {
-      return JSON.parse(value);
-    } catch {
-      throw new BadUpload(`${field} is not JSON`);
-    }
-  };
 
-  const name = text('name');
-  const format = text('format');
-  const storageUri = text('storageUri');
-  const file = form.get('file');
-  const missing = [
-    ['name', name],
-    ['file', file instanceof File ? file : undefined],
-    ['format', format],
-    ['storageUri', storageUri],
-  ].filter(([, v]) => v === undefined).map(([k]) => k);
-  if (missing.length > 0 || !(file instanceof File) || !name || !format || !storageUri) {
-    throw new BadUpload(`Missing required fields: ${missing.join(', ')}`);
+  // The text fields, an empty one as absent; `file` only as a file part.
+  const fields: Record<string, string> = {};
+  for (const [key, value] of form) {
+    if (key !== 'file' && typeof value === 'string' && value !== '') fields[key] = value;
   }
+  const part = form.get('file');
+  const candidate = part instanceof File ? { ...fields, file: part.name } : fields;
+  if (!validators.ResourceUpload(candidate) || !(part instanceof File)) {
+    throw new BadUpload(formatErrors(validators.ResourceUpload.errors));
+  }
+
+  const {
+    name, format, storageUri, language, entityTypes, sourceAnnotationId, sourceResourceId,
+    generationPrompt, generator, jobId, isDraft, cloneToken, archiveOriginal, file: _partName, ...unread
+  } = candidate;
+  // Every field ResourceUpload declares is read above: one the schema gains
+  // fails to compile here until this reads it.
+  unread satisfies Record<string, never>;
+
   // A format may carry parameters ("text/plain; charset=iso-8859-1"); the base
   // type is what must be supported, and the parameters stay on the record.
   const base = baseMediaType(format);
   if (!isSupportedMediaType(base)) throw new BadUpload(`Unsupported media type: ${base}`);
 
   const common = { name, storageUri, contentChecksum: '', byteSize: 0, format };
-  const cloneToken = text('cloneToken');
   if (cloneToken !== undefined) {
-    const archiveOriginal = text('archiveOriginal');
     return {
-      file,
+      file: part,
       upload: { kind: 'clone', emitter, input: { token: cloneToken, ...common, ...(archiveOriginal === undefined ? {} : { archiveOriginal: archiveOriginal === 'true' }) } },
     };
   }
 
-  const entityTypes = json('entityTypes');
-  if (entityTypes !== undefined && !isNameList(entityTypes)) {
+  const types = parseJson('entityTypes', entityTypes);
+  if (types !== undefined && !isNameList(types)) {
     throw new BadUpload('entityTypes is not a JSON array of names');
   }
   // One agent: the record binds one generator to the executor.
-  const generator = json('generator');
-  if (generator !== undefined && !validators.Agent(generator)) {
+  const agent = parseJson('generator', generator);
+  if (agent !== undefined && !validators.Agent(agent)) {
     throw new BadUpload('generator is not an Agent');
   }
-  const sourceResourceId = text('sourceResourceId');
-  const sourceAnnotationId = text('sourceAnnotationId');
-  const language = text('language');
-  const generationPrompt = text('generationPrompt');
-  const jobId = text('jobId');
-  const isDraft = text('isDraft');
   const input: CreateResourceInput = {
     ...common,
     ...(language === undefined ? {} : { language }),
-    ...(entityTypes === undefined ? {} : { entityTypes }),
+    ...(types === undefined ? {} : { entityTypes: types }),
     ...(sourceResourceId || sourceAnnotationId
       ? { generatedFrom: { ...(sourceResourceId ? { resourceId: sourceResourceId } : {}), ...(sourceAnnotationId ? { annotationId: sourceAnnotationId } : {}) } }
       : {}),
     ...(generationPrompt === undefined ? {} : { generationPrompt }),
-    ...(generator === undefined ? {} : { generator }),
+    ...(agent === undefined ? {} : { generator: agent }),
     ...(jobId === undefined ? {} : { jobId }),
     ...(isDraft === undefined ? {} : { isDraft: isDraft === 'true' }),
   };
-  return { file, upload: { kind: 'create', emitter, input } };
+  return { file: part, upload: { kind: 'create', emitter, input } };
+}
+
+/** A field that carries JSON, parsed; undefined when the field is absent. */
+function parseJson(field: string, value: string | undefined): unknown {
+  if (value === undefined) return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    throw new BadUpload(`${field} is not JSON`);
+  }
 }
 
 const isNameList = (value: unknown): value is string[] => Array.isArray(value) && value.every((v) => typeof v === 'string');

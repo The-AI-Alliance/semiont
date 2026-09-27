@@ -18,9 +18,9 @@
 
 import { HTTPException } from 'hono/http-exception';
 import { errField, isObject, isString } from '@semiont/core';
-import type { StoredEvent, ServiceAccountCredential } from '@semiont/core';
+import type { ServiceAccountCredential, components } from '@semiont/core';
 import { archivistEndpoint, type ArchivistAddressConfig } from '@semiont/core/node';
-import { validators } from '@semiont/core/openapi';
+import { formatErrors, validators } from '@semiont/core/openapi';
 import { SpanKind, withSpan } from '@semiont/observability';
 import { getLogger } from '../logger';
 
@@ -183,15 +183,17 @@ export async function getContent(
  * The events for one resource from one sequence, inclusive — the Archivist's
  * D1 read path behind `/bus/subscribe`'s replay (EXTRACT-ARCHIVIST). What may
  * live on the Archivist's HTTP surface at all is decided in ONE place, the
- * standing rule in `archivist-read-path.ts`. A failure throws; the caller
- * degrades it to a scoped `bus:resume-gap`, the honest answer when the record
- * cannot be read.
+ * standing rule in `archivist-read-path.ts`. A failure throws — including an
+ * answer that is not the ArchivistEventsResponse the Archivist's spec
+ * declares, which read on trust would drop an event it could not route; the
+ * caller degrades it to a scoped `bus:resume-gap`, the honest answer when the
+ * record cannot be read.
  */
 export async function replayEvents(
   archivist: ArchivistAccess,
   resourceId: string,
   fromSequence: number,
-): Promise<StoredEvent[]> {
+): Promise<components['schemas']['StoredEventResponse'][]> {
   const { base, headers } = await endpoint(archivist);
   const res = await archivistSpan('events.replay', () =>
     fetch(`${base}/events/${encodeURIComponent(resourceId)}?fromSequence=${fromSequence}`, { headers }),
@@ -199,6 +201,9 @@ export async function replayEvents(
   if (!res.ok) {
     throw new Error(`Archivist replay read failed: ${res.status} ${res.statusText}`);
   }
-  const { events } = await res.json() as { events: StoredEvent[] };
-  return events;
+  const answer: unknown = await res.json();
+  if (!validators.ArchivistEventsResponse(answer)) {
+    throw new Error(`Archivist replay answer is not an ArchivistEventsResponse: ${formatErrors(validators.ArchivistEventsResponse.errors)}`);
+  }
+  return answer.events;
 }

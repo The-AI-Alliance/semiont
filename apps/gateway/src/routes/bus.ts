@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { HTTPException } from 'hono/http-exception';
 import type { Context, Next } from 'hono';
-import type { EventBus, StoredEvent, components } from '@semiont/core';
+import type { EventBus, components } from '@semiont/core';
 import { BUS_OPERATIONS, CHANNEL_SCHEMAS, busLog, resourceId as makeResourceId } from '@semiont/core';
 import {
   SpanKind,
@@ -497,7 +497,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
             // replay reads the D1 sequence-ranged path, this seam's one
             // customer. The +1 is ours — the path is inclusive.
             const events = await replayEvents(c.get('archivist'), String(rId), parsed.sequence + 1);
-            const replayable: StoredEvent[] = events.filter((e) => allowedTypes.has(e.type as string));
+            const replayable = events.filter((e) => allowedTypes.has(e.type));
 
             if (events.length > 0 && events[0]!.metadata.sequenceNumber > parsed.sequence + 1) {
               await emitResumeGap('retention-exceeded', entry.scope, entry.lastEventId);
@@ -505,7 +505,7 @@ export function createBusRouter(authMiddleware: AuthMiddleware) {
 
             for (const ev of replayable) {
               // Replayed from the event log: the log stores facts, not routing.
-              await writeBusEvent(ev.type as string, ev, entry.scope, undefined, undefined);
+              await writeBusEvent(ev.type, ev, entry.scope, undefined, undefined);
             }
           } catch (err) {
             getBusLogger().warn('bus resume query failed', {
