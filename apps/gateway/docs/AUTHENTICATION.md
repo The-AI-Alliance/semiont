@@ -272,8 +272,9 @@ built gateway and probes every operation the spec declares:
 - **Undeclared methods and paths** - answer 404
 - **Tokens** - wrong audience, issuer, key, expiry or claims; forged gateway-signed tokens; media tokens out of scope; key rotation
 
-A route registered in code and absent from the spec is not seen by it: declare
-the route in the spec first, and the probes cover it.
+A route registered in code and absent from the spec never reaches it: the
+gateway refuses to start when its routes are not exactly the spec's operations.
+Declare the route in the spec first, and the probes cover it.
 
 ## Debugging Authentication Issues
 

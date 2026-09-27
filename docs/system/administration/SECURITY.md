@@ -42,7 +42,8 @@ a built gateway against the spec on every pull request:
   and 401 `invalid_token` to one it cannot verify — invalid, malformed, expired,
   forged, or from another issuer or audience
 - Public operations answer without challenging; undeclared methods and paths
-  answer 404
+  answer 404, and a gateway whose routes are not exactly the spec's operations
+  refuses to start
 - Every response carries the security headers, open credential-less CORS and a
   request id; no error body carries a stack trace, a source path or a secret's
   name

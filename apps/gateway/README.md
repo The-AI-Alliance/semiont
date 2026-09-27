@@ -72,11 +72,12 @@ one step:
    server dies), under the shared supervisor when the launcher sets it for
    local runs. `tini` forwards `SIGTERM` either way.
 
-Startup then refuses rather than degrades. A missing `services.gateway`, an
-absent `JWT_SECRET`, a knowledge base that declares no identity, or a missing
-sign-in policy each stop the process before it listens — a gateway that accepts
-connections it cannot authenticate is the failure mode these checks exist to
-prevent.
+Startup then refuses rather than degrades. A configuration document that does
+not validate, an absent or short `JWT_SECRET`, no service account, a broker that
+does not answer or runs without JetStream, or routes that are not exactly the
+spec's operations each stop the process before it listens — a gateway that
+accepts connections it cannot authenticate, or serves a route no one declared,
+is the failure mode these checks exist to prevent.
 
 `SIGTERM`/`SIGINT` close the listener, drain the signal plane under a deadline
 so in-flight frames reach the broker, tear down the bus, and exit.

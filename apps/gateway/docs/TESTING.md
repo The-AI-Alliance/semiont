@@ -19,6 +19,7 @@ on the plane.
 |---|---|
 | `npm run lint:spec-protocol` (repository root) | The spec states the whole protocol: every operation says whether it is public; every response has a body schema, every error body is an `ErrorResponse`, every 401 a challenge; the stream's messages, frame and id formats are schemas; the limits are positive integers |
 | `tests/gateway-conformance` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, replicas, boot refusals, the headers on every response, and the span and metric names |
+| The gateway's boot | Its route table is exactly the spec's operations — no undeclared route, no declared operation unserved ([spec-routes.ts](../src/spec-routes.ts)); every suite run boots gateways, so a route added without a spec entry fails CI |
 | `apps/gateway`'s own `npm test` | Only the manifest census: the gateway's runtime dependencies are core and observability plus what its source imports, and nothing it imports is undeclared |
 | `packages/make-meaning` | The Archivist's side of what the gateway proxies: the recording upload, the description, the content and replay reads |
 
@@ -36,7 +37,8 @@ npm test
 
 ## Adding to the protocol
 
-Change the spec first. A new route is probed by the spec-derived cases as soon
+Change the spec first — a gateway that registers a route the spec does not
+declare refuses to start. A new route is probed by the spec-derived cases as soon
 as the spec declares it — unauthenticated, with a bad credential, with a body
 that does not validate — and every reply it gives is checked against its
 declaration. Then write the cases no schema can state, each citing the text it

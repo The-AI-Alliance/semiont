@@ -2,7 +2,7 @@ import { cors } from 'hono/cors';
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
-import { EventBus, kbResource, withDeadline, errField } from '@semiont/core';
+import { EventBus, kbResource, withDeadline, errField, isObject } from '@semiont/core';
 import type { Principal } from './identity/principal';
 import { CONFIG_PATH, fromEnvironment, readGatewayConfig, type GatewayConfig } from './config';
 
@@ -85,6 +85,7 @@ import { SIGNAL_FLUSH_TIMEOUT_MS } from './signal/options';
 import { compositionFor, SignalPlaneUnavailable } from './signal';
 import { authMiddleware } from './middleware/auth';
 import type { ArchivistAccess } from './lib/archivist';
+import { routeMismatches } from './spec-routes';
 
 // Import for static OpenAPI spec
 import * as fs from 'fs';
@@ -233,22 +234,28 @@ await withDeadline('Ledger claims table', SIGNAL_FLUSH_TIMEOUT_MS,
 const busRouter = createBusRouter(authMiddleware);
 app.route('/', busRouter);
 
-// The OpenAPI document: the contract this gateway serves, published as it runs.
-app.get('/api/openapi.json', (c) => {
-  // The build copies the bundled spec beside the entry point.
-  const openApiSpec = JSON.parse(fs.readFileSync(path.join(__dirname, 'openapi.json'), 'utf-8'));
+// The OpenAPI document: the contract this gateway serves. The build copies the
+// bundled spec beside the entry point.
+const openApiDocument: unknown = JSON.parse(fs.readFileSync(path.join(__dirname, 'openapi.json'), 'utf-8'));
+const openApiPaths = isObject(openApiDocument) ? openApiDocument['paths'] : undefined;
+const openApiInfo = isObject(openApiDocument) ? openApiDocument['info'] : undefined;
+if (!isObject(openApiDocument) || !isObject(openApiPaths) || !isObject(openApiInfo)) {
+  throw new Error(`${path.join(__dirname, 'openapi.json')} is not an OpenAPI document with info and paths`);
+}
 
-  // Stamp the running build's version over the spec file's placeholder. The
-  // committed spec carries a fixed `info.version` (OpenAPI requires the field)
-  // that no release step rewrites, so serving it verbatim would report a
-  // version this build is not. Same treatment as `servers` below: the file is
-  // the contract, the response describes the instance answering.
-  openApiSpec.info = { ...openApiSpec.info, version: __SEMIONT_VERSION__ };
-
-  openApiSpec.servers = [{ url: config.publicUrl, description: 'API Server' }];
-
-  return c.json(openApiSpec);
-});
+// Published as it runs, with the running build's version stamped over the
+// spec file's placeholder. The committed spec carries a fixed `info.version`
+// (OpenAPI requires the field) that no release step rewrites, so serving it
+// verbatim would report a version this build is not. Same treatment as
+// `servers`: the file is the contract, the response describes the instance
+// answering.
+app.get('/api/openapi.json', (c) =>
+  c.json({
+    ...openApiDocument,
+    info: { ...openApiInfo, version: __SEMIONT_VERSION__ },
+    servers: [{ url: config.publicUrl, description: 'API Server' }],
+  }),
+);
 
 // Start server
 const port = config.port;
@@ -292,6 +299,16 @@ registerCorrelationRegistryProvider(() => compositionFor(eventBus).occupancy());
 // makes the misconfiguration undeployable.
 const { JWTService } = await import('./auth/jwt');
 JWTService.initialize(kbDomain);
+
+// The route table is final here: the gateway serves exactly what its spec
+// declares, or nothing (spec-routes.ts).
+const mismatches = routeMismatches(app.routes, openApiPaths);
+if (mismatches.length > 0) {
+  throw new Error(
+    `The gateway's routes are not its spec's operations:\n${mismatches.map((m) => `  - ${m}`).join('\n')}\n` +
+      'The spec is the route table: declare a route in specs/src (and rebundle) before registering it, and serve every operation it declares.',
+  );
+}
 
 const server = serve({
   fetch: app.fetch,
