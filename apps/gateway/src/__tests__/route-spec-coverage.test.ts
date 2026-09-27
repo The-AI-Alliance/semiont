@@ -39,15 +39,15 @@
  *     that lets a spec silently fall out of sync.
  *
  *   - Request-Body Validation — every spec-declared JSON request
- *     body must be wired through `validateRequestBody()` somewhere
- *     in gateway source. Protects against "spec claims the body is
- *     validated, handler accepts garbage."
+ *     body must name the handler check that enforces it. Protects
+ *     against "spec claims the body is validated, handler accepts
+ *     garbage."
  *
  * Everything derives from the spec and `app.routes`. The only
  * hand-curated lists are `DOCUMENTATION_META_ROUTES` (the four
- * self-referential docs endpoints) and `MANUAL_REQUEST_VALIDATION`
- * (auth/OAuth handlers that validate in-handler instead of via
- * middleware — each entry carries a one-line justification).
+ * self-referential docs endpoints) and `REQUEST_BODY_VALIDATION`
+ * (each JSON request body, with the in-handler check that enforces
+ * it — gated against the spec in both directions).
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -509,15 +509,15 @@ describe('Route Authentication Coverage — THE primary security contract', () =
       }
 
       // EXPLANATION: Hono's route table includes entries for:
-      // 1. Middleware routes (router.use(), validateRequestBody(), etc.)
+      // 1. Middleware routes (router.use(), per-route middleware)
       // 2. Handler routes (router.get(), router.post(), etc.)
       //
       // For a route like:
-      //   router.post('/api/tokens/local', validateRequestBody('...'), handler)
+      //   router.post('/api/tokens/media', authMiddleware, handler)
       //
       // Hono registers TWO entries:
-      //   1. POST /api/tokens/local (middleware: validateRequestBody)
-      //   2. POST /api/tokens/local (handler)
+      //   1. POST /api/tokens/media (middleware: authMiddleware)
+      //   2. POST /api/tokens/media (handler)
       //
       // This is expected and correct behavior. The middleware runs first, then the handler.
       // Both entries in the route table allow Hono to match and execute in order.
@@ -964,8 +964,8 @@ describe('Spec Contract Hygiene', () => {
     // Three patterns count as "referenced":
     //
     //   1. `'<Name>'` or `"<Name>"` — string literal, catches
-    //      `CHANNEL_SCHEMAS` entries, `validateRequestBody('Name')`,
-    //      and `components['schemas']['Name']` type indexing.
+    //      `CHANNEL_SCHEMAS` entries and `components['schemas']['Name']`
+    //      type indexing.
     //   2. Inside any `components['schemas'][...]` type access.
     //   3. Module-level type aliases that use the schema name (already
     //      covered by (1) since the alias RHS contains the string
@@ -1033,7 +1033,7 @@ describe('Spec Contract Hygiene', () => {
       orphans.forEach((o) => console.error(`   specs/src/components/schemas/${o}.json`));
       console.error(
         '\n   Fix: either reference the schema from a path/another schema,\n' +
-          '   wire it into runtime validation (e.g. CHANNEL_SCHEMAS or validateRequestBody),\n' +
+          '   wire it into runtime validation (e.g. CHANNEL_SCHEMAS),\n' +
           '   or delete the file if truly unused.\n',
       );
     }
@@ -1046,26 +1046,19 @@ describe('Spec Contract Hygiene', () => {
 //
 // Every spec operation declaring a JSON request body promises a
 // contract: the handler only ever receives payloads matching the
-// declared schema. The way the gateway delivers on that promise
-// today is `validateRequestBody(validators.<SchemaName>)` middleware. A spec
-// entry claiming a schema, with no matching middleware call in
-// source, is a spec that lies about its contract.
-//
-// A small set of auth/OAuth handlers predates the middleware and
-// does manual field checks. They're listed here with a reason;
-// anything else must use `validateRequestBody`.
-const MANUAL_REQUEST_VALIDATION = new Map<string, string>([
+// declared schema. Each handler keeps that promise in its own body, so
+// this list names every such schema and the check that enforces it.
+// It mirrors the spec's request bodies and is gated in both
+// directions: a body the spec gains without an entry fails, and so
+// does an entry for a body the spec no longer declares.
+const REQUEST_BODY_VALIDATION = new Map<string, string>([
   ['MediaTokenRequest', 'auth handler does manual field presence check on resourceId'],
   ['BusEmitRequest', 'bus emit validates per-channel payload shape, not the envelope'],
   ['BusSubscribeRequest', 'subscribe validates the matrix in-body (parseSubscribeBody) — semantic checks the schema cannot express: duplicate scopes, per-connection caps, non-empty entries — before streamSSE takes the response'],
-  ['ExtractionOutcome', 'isExtractionOutcome in get-uri.ts narrows every item field plus the provenance (method enum, decline enum, ocrConfidence numbers): geometry that typechecks as JSON but is missing `page` or carries a string coordinate would store happily and place an annotation rectangle nowhere'],
 ]);
 
 describe('Request-Body Validation', () => {
-  it('every spec-declared JSON request body is validated somewhere in gateway source', async () => {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-
+  it('every spec-declared JSON request body names the handler check that enforces it', () => {
     // Collect schema names declared as JSON request bodies across the spec.
     const jsonBodySchemas = new Set<string>();
     for (const pathItem of Object.values(spec.paths ?? {})) {
@@ -1079,52 +1072,24 @@ describe('Request-Body Validation', () => {
       }
     }
 
-    // Recursively scan gateway source for `validateRequestBody(validators.Name)`
-    // calls — the validators are generated from the spec, so the name in source
-    // is the schema name by construction rather than by a matching string.
-    const srcDir = path.join(process.cwd(), 'src');
-    const validatedSchemas = new Set<string>();
-    async function walk(dir: string): Promise<void> {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      for (const entry of entries) {
-        const full = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          if (entry.name === '__tests__' || entry.name === 'node_modules') continue;
-          await walk(full);
-        } else if (entry.isFile() && (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx'))) {
-          const content = await fs.readFile(full, 'utf-8');
-          for (const m of content.matchAll(/validateRequestBody\s*\(\s*validators\.([A-Za-z0-9_]+)\s*\)/g)) {
-            validatedSchemas.add(m[1]!);
-          }
-        }
-      }
-    }
-    await walk(srcDir);
+    const unnamed = [...jsonBodySchemas].filter((name) => !REQUEST_BODY_VALIDATION.has(name)).sort();
+    const stale = [...REQUEST_BODY_VALIDATION.keys()].filter((name) => !jsonBodySchemas.has(name)).sort();
 
-    const unvalidated: string[] = [];
-    const exemptedButValidated: string[] = [];
-    for (const name of jsonBodySchemas) {
-      const isValidatedViaMiddleware = validatedSchemas.has(name);
-      const isExempted = MANUAL_REQUEST_VALIDATION.has(name);
-      if (!isValidatedViaMiddleware && !isExempted) unvalidated.push(name);
-      if (isValidatedViaMiddleware && isExempted) exemptedButValidated.push(name);
-    }
-
-    if (unvalidated.length > 0) {
-      console.error('\n❌ Spec declares a JSON request body, but no handler validates it:');
-      unvalidated.forEach((s) => console.error(`   ${s}`));
+    if (unnamed.length > 0) {
+      console.error('\n❌ Spec declares a JSON request body that REQUEST_BODY_VALIDATION does not name:');
+      unnamed.forEach((s) => console.error(`   ${s}`));
       console.error(
-        '\n   Fix: add `validateRequestBody(\'<SchemaName>\')` middleware to the\n' +
-          '   route, or add the schema to MANUAL_REQUEST_VALIDATION with a\n' +
-          '   justification if the handler validates in-body.\n',
+        '\n   Fix: validate the body in its handler against the generated\n' +
+          '   validator (`validators.<SchemaName>` from @semiont/core/openapi),\n' +
+          '   then add the schema to REQUEST_BODY_VALIDATION naming that check.\n',
       );
     }
-    if (exemptedButValidated.length > 0) {
-      console.error('\n⚠️  Schemas listed as manually-validated but also use the middleware:');
-      exemptedButValidated.forEach((s) => console.error(`   ${s} — remove from MANUAL_REQUEST_VALIDATION`));
+    if (stale.length > 0) {
+      console.error('\n⚠️  REQUEST_BODY_VALIDATION names schemas the spec no longer declares as a JSON request body:');
+      stale.forEach((s) => console.error(`   ${s} — remove the entry`));
     }
 
-    expect(unvalidated).toEqual([]);
-    expect(exemptedButValidated).toEqual([]);
+    expect(unnamed).toEqual([]);
+    expect(stale).toEqual([]);
   });
 });

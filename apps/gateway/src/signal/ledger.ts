@@ -144,6 +144,11 @@ export function createCorrelationRegistry(
    *  every claim the table already contained. */
   ready: Promise<void>;
   claim(cid: string, clientId: string, principalDid: string | undefined): Promise<'ok' | 'conflict' | 'at-capacity'>;
+  /** This replica's projection alone — never the claims table. The request
+   *  path does not ask it: `gate` and `lookupReply` consult the projection
+   *  themselves, and read through on a miss. This is the one per-claim read
+   *  that cannot adopt the claim it reports on, which is how a test tells what
+   *  this replica holds from what the table holds. */
   owner(cid: string): { clientId: string; principalDid: string | undefined } | undefined;
   lookupReply(cid: string, clientId: string, principalDid: string | undefined): Promise<RetainedReply | undefined>;
   /** One correlated frame, as the composition's plane tap saw it. Takes the

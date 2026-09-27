@@ -12,8 +12,8 @@
  *    every correlated channel, held for the life of the composition — a
  *    reply must be observed (answered + retained) even when its client is
  *    between connections, which is the whole recovery story;
- *  - fronts the ledger's policy surface (`claim`, `owner`, `lookupReply`,
- *    `gate`, `occupancy`) so no caller wires plane and ledger separately.
+ *  - fronts the ledger's surface (`claim`, `owner`, `lookupReply`, `gate`,
+ *    `occupancy`) so no caller wires plane and ledger separately.
  *
  * One composition per EventBus, cached: the route reaches it per-request,
  * boot pre-seeds it with the configured driver, tests get a lazy in-process

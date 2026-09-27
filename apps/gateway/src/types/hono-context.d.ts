@@ -28,11 +28,5 @@ declare module 'hono' {
      * it simply never calls this.
      */
     archivistCredential: () => ServiceAccountCredential;
-
-    /**
-     * Validated request body set by validateRequestBody middleware
-     * Type should be cast to specific schema type in route handlers
-     */
-    validatedBody: unknown;
   }
 }

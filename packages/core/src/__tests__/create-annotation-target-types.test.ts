@@ -8,8 +8,7 @@
  * These assertions are enforced by `tsc --noEmit` (core's `typecheck`), not at
  * vitest runtime (esbuild strips the types). The source-only case is RED on the
  * pre-P1 generated type (`required: ["source","selector"]`) and GREEN after the
- * `$ref AnnotationTarget` swap + regen. The behavioral RED→GREEN — the gateway's
- * `validate-openapi` runtime gate — lands in P2.
+ * `$ref AnnotationTarget` swap + regen.
  */
 import { describe, it, expect } from 'vitest';
 import type { components } from '../types';

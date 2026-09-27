@@ -134,7 +134,7 @@ Auth is applied **per router**, not globally with a public-endpoint allowlist. E
 
 | Router | Protected paths |
 |---|---|
-| `resources` | `/api/resources/*`, `/api/clone-tokens/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/gateway/src/routes/resources/shared.ts)) |
+| `resources` | `/api/resources/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/gateway/src/routes/resources/shared.ts)) |
 | `status` | `/api/status` |
 | `bus` | `/bus/*` ([`routes/bus.ts`](../../../apps/gateway/src/routes/bus.ts)) |
 

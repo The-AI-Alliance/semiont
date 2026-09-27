@@ -2,18 +2,7 @@ import { Context, Next } from 'hono';
 import { principalFromToken } from '../identity/principal';
 import { bearerChallenge } from '../identity/resource-metadata';
 import { JWTService } from '../auth/jwt';
-import type { Principal } from '../identity/principal';
 import { accessToken } from '@semiont/core';
-
-interface Variables {
-  /** The authenticated caller, built from the token's own claims. */
-  principal: Principal;
-}
-
-export interface AuthContext extends Context {
-  get: <T extends keyof Variables>(key: T) => Variables[T];
-  set: <T extends keyof Variables>(key: T, value: Variables[T]) => void;
-}
 
 // Resource paths that accept ?token= media tokens (GET only)
 const MEDIA_TOKEN_PATH = /^\/api\/resources\/([^/]+)$/;
@@ -97,21 +86,4 @@ export const authMiddleware = async (c: Context, next: Next): Promise<Response |
     c.header('WWW-Authenticate', bearerChallenge(c, 'invalid_token'));
     return c.json({ error: 'Invalid token' }, 401);
   }
-};
-
-export const optionalAuthMiddleware = async (c: Context, next: Next) => {
-  const authHeader = c.req.header('Authorization');
-
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    const tokenStr = authHeader.substring(7);
-
-    try {
-      const principal = await principalFromToken(accessToken(tokenStr));
-      c.set('principal', principal);
-    } catch (error) {
-      // Ignore auth errors for optional auth
-    }
-  }
-
-  await next();
 };
