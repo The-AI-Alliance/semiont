@@ -517,6 +517,14 @@ else
   # makes them unreadable inside the container; a directory mount works.
   VERDACCIO_CONF=$(mktemp -d)
   cp "$SCRIPT_DIR/verdaccio.yaml" "$VERDACCIO_CONF/config.yaml"
+  # The verdaccio image runs as its own user (uid 10001), and mktemp makes both
+  # dirs 0700 for the user running this script. Where a runtime enforces
+  # ownership on bind mounts — docker and podman on Linux — the registry could
+  # neither read its config nor write its storage ("config file does not exist
+  # or not reachable"). Apple container's shares do not enforce it, which is why
+  # only a Linux runner showed it.
+  chmod 0755 "$VERDACCIO_CONF"
+  chmod 0777 "$VERDACCIO_STORAGE"
   echo "  Container name: $VERDACCIO_NAME"
   echo "  Storage dir:    $VERDACCIO_STORAGE"
   echo "  Config dir:     $VERDACCIO_CONF"
