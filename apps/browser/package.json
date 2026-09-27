@@ -19,17 +19,17 @@
     "prestart": "node scripts/merge-translations.js",
     "start": "vite preview --host",
     "pretest": "node scripts/merge-translations.js",
-    "test": "SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json",
-    "test:watch": "SEMIONT_ROOT=../.. vitest",
+    "test": "vitest run --reporter=default --reporter=json --outputFile=test-results.json",
+    "test:watch": "vitest",
     "pretest:coverage": "node scripts/merge-translations.js",
-    "test:coverage": "SEMIONT_ROOT=../.. vitest run --coverage",
-    "test:ui": "SEMIONT_ROOT=../.. vitest --ui",
-    "test:unit": "SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json --testNamePattern=\"^(?!.*integration).*\"",
-    "test:integration": "SEMIONT_ROOT=../.. vitest run --reporter=default --reporter=json --outputFile=test-results.json --testNamePattern=\"integration\"",
+    "test:coverage": "vitest run --coverage",
+    "test:ui": "vitest --ui",
+    "test:unit": "vitest run --reporter=default --reporter=json --outputFile=test-results.json --testNamePattern=\"^(?!.*integration).*\"",
+    "test:integration": "vitest run --reporter=default --reporter=json --outputFile=test-results.json --testNamePattern=\"integration\"",
     "pretest:security": "node scripts/merge-translations.js",
-    "test:security": "SEMIONT_ROOT=../.. vitest run --reporter=verbose 'src/app/[locale]/__tests__/protected-layout-session-gates.test.tsx' 'src/app/[locale]/__tests__/layout.test.tsx' 'src/app/[locale]/privacy/__tests__/page.test.tsx' src/lib/__tests__/validation.test.ts",
-    "test:a11y": "SEMIONT_ROOT=../.. vitest run -t \"Accessibility\"",
-    "test:a11y:watch": "SEMIONT_ROOT=../.. vitest -t \"Accessibility\"",
+    "test:security": "vitest run --reporter=verbose 'src/app/[locale]/__tests__/protected-layout-session-gates.test.tsx' 'src/app/[locale]/__tests__/layout.test.tsx' src/lib/__tests__/validation.test.ts",
+    "test:a11y": "vitest run -t \"Accessibility\"",
+    "test:a11y:watch": "vitest -t \"Accessibility\"",
     "test:typecheck": "vitest typecheck",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
     "typecheck:all": "npm run typecheck && npm run typecheck:test"
@@ -47,8 +47,11 @@
     "@fontsource/orbitron": "^5.2.8",
     "@headlessui/react": "^2.2.10",
     "@heroicons/react": "^2.2.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-trace-web": "^2.11.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
     "@semiont/http-transport": "*",
-    "@semiont/observability": "*",
     "@semiont/react-ui": "*",
     "@semiont/sdk": "*",
     "i18next": "^26.4.2",
@@ -62,6 +65,7 @@
     "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
     "@testing-library/dom": "^10.4.2",
@@ -74,21 +78,11 @@
     "@vitejs/plugin-react": "^6.1.0",
     "@vitest/coverage-v8": "^4.1.11",
     "@vitest/ui": "^4.1.11",
-    "axe-core": "^4.12.1",
-    "cross-env": "^10.1.0",
-    "fast-check": "^4.10.0",
-    "jest-axe": "^11.0.0",
     "jsdom": "^30.0.0",
-    "msw": "^2.15.0",
     "postcss": "^8.5.28",
     "tailwindcss": "^4.2.1",
     "typescript": "^6.0.2",
     "vite": "^8.3.0",
     "vitest": "^4.1.11"
-  },
-  "msw": {
-    "workerDirectory": [
-      "apps/browser/public"
-    ]
   }
 }
