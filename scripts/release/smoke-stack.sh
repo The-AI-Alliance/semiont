@@ -5,10 +5,13 @@
 #   scripts/release/smoke-stack.sh 0.6.5           # one release's images
 #   scripts/release/smoke-stack.sh local           # images from scripts/ci/local-build.sh
 #
-# TWO AXES, and naming them separately is the point. The LAUNCHER is whatever
-# `semiont` is on PATH — build it from the branch you are testing. The IMAGES
-# are the tag given here. So a launcher change is testable against the images
-# people actually run, publishing nothing.
+# TWO AXES, and naming them separately is the point. The LAUNCHER is the one
+# built from this checkout, apps/launcher/dist/semiont (scripts/ci/local-build.sh
+# builds it beside the :local images), never whatever `semiont` is on PATH,
+# which is usually a release; the script refuses when the binary is missing or
+# older than the source it builds from. The IMAGES are the tag given here. So a
+# launcher change is testable against the images people actually run,
+# publishing nothing.
 #
 # WHAT IT ASSERTS, and nothing more: that every health gate opens against a
 # real service at a real route, that the realm the launcher STAGES imports and
@@ -33,6 +36,20 @@ if [ -z "$IMAGES" ]; then
   exit 2
 fi
 RUNTIME="${SMOKE_RUNTIME:-docker}"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+SEMIONT="$REPO_ROOT/apps/launcher/dist/semiont"
+if [ ! -x "$SEMIONT" ]; then
+  echo "No launcher built from this checkout at $SEMIONT. Build it with scripts/ci/local-build.sh." >&2
+  exit 2
+fi
+# The launcher compiles apps/launcher and packages/sdk-go; a source file newer
+# than the binary means the binary is not this checkout's launcher.
+NEWER=$(find "$REPO_ROOT/apps/launcher" "$REPO_ROOT/packages/sdk-go" -path "$REPO_ROOT/apps/launcher/dist" -prune -o \
+  \( \( -name '*.go' ! -name '*_test.go' \) -o -name go.mod -o -name go.sum \) -newer "$SEMIONT" -print | head -1)
+if [ -n "$NEWER" ]; then
+  echo "$SEMIONT is older than ${NEWER#"$REPO_ROOT"/}. Rebuild it with scripts/ci/local-build.sh." >&2
+  exit 2
+fi
 KB="${SMOKE_KB:-$(mktemp -d)/kb}"
 
 PASS=0; FAIL=0
@@ -49,11 +66,12 @@ export ANTHROPIC_API_KEY="${ANTHROPIC_API_KEY:-smoke-placeholder-not-a-credentia
 export SEMIONT_VERSION="$IMAGES"
 
 head_ "Knowledge base ($KB)"
+echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
 mkdir -p "$KB" && cd "$KB" || exit 1
 git init -q && git config user.email smoke@example.com && git config user.name smoke
 # --config anthropic below, because that is what `init --inference anthropic`
 # writes; start's own default names ollama-gemma, which this KB has no copy of.
-if semiont init --yes --name stack-smoke --domain example.github.io:stack-smoke \
+if "$SEMIONT" init --yes --name stack-smoke --domain example.github.io:stack-smoke \
      --inference anthropic --model claude-sonnet-4-5-20250929 \
      --embedding ollama:nomic-embed-text >/dev/null; then
   ok "init wrote a config the plan deriver accepts"
@@ -62,7 +80,7 @@ else
 fi
 
 head_ "Boot from :$IMAGES on $RUNTIME"
-if semiont start --runtime "$RUNTIME" --config anthropic; then
+if "$SEMIONT" start --runtime "$RUNTIME" --config anthropic; then
   ok "every health gate opened against a real service"
 else
   bad "the stack did not come up"
@@ -71,7 +89,7 @@ fi
 head_ "Status"
 # `status --root` is the health-coded form: it exits non-zero when a core row
 # is unhealthy, so the exit status IS the assertion.
-if semiont status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
+if "$SEMIONT" status --root "$KB"; then ok "every core row healthy"; else bad "a core row is unhealthy"; fi
 
 head_ "The realm the launcher staged"
 # If the import silently produced a different realm, this 404s.
@@ -97,7 +115,7 @@ case "$HDR" in
 esac
 
 head_ "Stop releases every claimed port"
-semiont stop --runtime "$RUNTIME" >/dev/null
+"$SEMIONT" stop --runtime "$RUNTIME" >/dev/null
 HELD=""
 for p in 4000 5432 7474 6333 8080 4222 24100 24101 24102 24103 24104 24105; do
   nc -z localhost "$p" 2>/dev/null && HELD="$HELD $p"
