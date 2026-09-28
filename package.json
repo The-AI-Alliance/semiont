@@ -64,7 +64,8 @@
     "lint:attribution": "node scripts/lint/check-attribution-one-copy.mjs",
     "lint:coverage-roster": "node scripts/lint/check-coverage-roster-agreement.mjs",
     "lint:vitest-coverage": "node scripts/lint/check-vitest-coverage-config.mjs",
-    "lint:notice": "node scripts/lint/check-notice-components.mjs"
+    "lint:notice": "node scripts/lint/check-notice-components.mjs",
+    "lint:dependabot": "node scripts/lint/check-dependabot-coverage.mjs"
   },
   "engines": {
     "node": ">=24.15.0",

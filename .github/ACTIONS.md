@@ -40,6 +40,13 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 - CDK: Infrastructure tests and synthesis
 - Scripts: TypeScript compilation and validation
 
+### Gateway Crate Advisories (`gateway-advisories.yml`)
+**The gateway's crates against RustSec's advisory database**:
+- `cargo deny check advisories bans sources`, as `apps/gateway/deny.toml` configures it
+- An advisory ignored there carries its reason; an ignore that stops matching fails the run
+- Crates must come from crates.io, named by a version; a yanked crate fails
+- Licences are not checked here: the Gateway Tests job's crate licence gate owns them
+
 ### CodeQL Analysis (`codeql-analysis.yml`)
 **Automated security code scanning**:
 - Runs on push, PR, and weekly schedule
@@ -50,11 +57,13 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 ## 🔧 Configuration Files
 
 ### Dependabot (`dependabot.yml`)
-**Automated dependency updates**:
-- Weekly dependency updates for all npm packages
-- Separate configurations for browser, gateway, CDK, scripts
-- Security-focused updates with proper labeling
-- Automatic PR creation for dependency updates
+**Automated dependency updates**, weekly, each ecosystem with its own entry:
+- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/gateway-conformance`
+- Go modules: `apps/launcher`, `packages/sdk-go`
+- Cargo: `apps/gateway`, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `apps/gateway/rust-toolchain.toml`
+- GitHub Actions, and the Docker base images of the Browser, the desktop builder and the seven service images
+- A cooldown before a new release is adopted; security updates are not held by it
+- `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **Enhanced security analysis configuration**:
@@ -88,6 +97,14 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 # Runs on:
 - push: [main, develop]
 - pull_request: [main, develop]
+- workflow_dispatch: # Manual trigger
+```
+
+### Gateway Crate Advisories
+```yaml
+# Runs on:
+- pull_request: # changes to apps/gateway's Cargo.toml, Cargo.lock or deny.toml, or the workflow
+- schedule: "0 6 * * *" # Daily 6 AM UTC: the advisory database changes without a commit
 - workflow_dispatch: # Manual trigger
 ```
 

@@ -25,6 +25,7 @@ on the plane.
 | `cargo test` (this crate) | The runners for the shared case tables ([tests/tables.rs](../tests/tables.rs)): the principals and the knowledge base's resource identifier, as core and the launcher compute them |
 | `npm run lint:gateway-environment`, `lint:service-role` | The environment it reads is exactly [variables.json](../../../specs/src/gateway-environment/variables.json)'s; its role names are the launcher's and core's |
 | `scripts/lint/check-gateway-crates.mjs` | Every crate it links is under a permitted licence, and credited in the image's NOTICE; every crate that compiles native code in says what, and a library under a licence of its own is credited too |
+| `cargo deny` ([deny.toml](../deny.toml); the Gateway Crate Advisories workflow, on every change to what it links and daily) | No crate it links has a RustSec advisory, except those ignored with a reason, and an ignore that stops matching fails; no crate is yanked; every crate comes from crates.io, named by a version, not a wildcard |
 | `scripts/container/check-gateway-image.sh` | The built image carries no source and serves `/api/health` within its start bound |
 
 ## Running it

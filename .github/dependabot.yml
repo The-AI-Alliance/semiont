@@ -167,6 +167,49 @@ updates:
       prefix: "gateway"
       include: "scope"
 
+  # The gateway's Rust toolchain (apps/gateway/rust-toolchain.toml). Its channel
+  # is also the builder image's tag, rust:<channel>-alpine, which local-build.sh,
+  # publish-service-images.yml and build-images.js read from that file, so one
+  # bump moves the compiler everywhere; the cooldown gives the official image
+  # time to be published.
+  - package-ecosystem: "rust-toolchain"
+    directory: "/apps/gateway"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "gateway"
+    commit-message:
+      prefix: "gateway"
+      include: "scope"
+
+  # The desktop app's crates (apps/desktop/src-tauri, Tauri). One grouped PR,
+  # as for the gateway: Tauri's crates move together.
+  - package-ecosystem: "cargo"
+    directory: "/apps/desktop/src-tauri"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "desktop"
+    groups:
+      desktop-crates:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "desktop"
+      include: "scope"
+
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -223,7 +266,7 @@ updates:
   # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
   # the sidecars share a base image, so an ungrouped bump opens six PRs for one
   # upgrade. The gateway's runtime base is alpine; its builder's Rust tag comes
-  # from apps/gateway/rust-toolchain.toml, which no updater reads. Major node updates are ignored because node 26's undici breaks
+  # from apps/gateway/rust-toolchain.toml, which the rust-toolchain entry updates. Major node updates are ignored because node 26's undici breaks
   # the qdrant client's undici@6; drop the ignore when qdrant ships a fix.
   # apps/browser has its own entry and stays on node:26 — it never dials Qdrant.
   - package-ecosystem: "docker"
@@ -234,6 +277,7 @@ updates:
       - "/apps/weaver"
       - "/apps/archivist"
       - "/apps/librarian"
+      - "/apps/dispatcher"
     schedule:
       interval: "weekly"
       day: "monday"
