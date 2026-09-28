@@ -8,7 +8,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { connect, type NatsConnection } from 'nats';
-import { JOBS_STREAM_SUBJECTS } from '@semiont/jobs';
+import { JOBS_STREAM_SUBJECTS } from '@semiont/core';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { operationFor } from '../harness/spec';
 import { eachPlane } from '../harness/world';
