@@ -1,0 +1,26 @@
+{
+  "description": "An ErrorResponse that names, in `code`, the limit the request met.",
+  "allOf": [
+    {
+      "$ref": "./ErrorResponse.json"
+    },
+    {
+      "type": "object",
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "enum": [
+            "streams",
+            "emit-rate",
+            "unanswered-requests",
+            "capacity"
+          ],
+          "description": "`streams`: the principal already holds as many streams as `x-semiont-limits.streamsPerPerson` allows. `emit-rate`: the principal's emits have used its bucket (`x-semiont-limits.emitsPerSecond`, `emitBurst`). `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can."
+        }
+      }
+    }
+  ]
+}

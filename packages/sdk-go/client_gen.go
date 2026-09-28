@@ -1104,6 +1104,30 @@ func (e JobType) Valid() bool {
 	}
 }
 
+// Defines values for LimitRefusalCode.
+const (
+	Capacity           LimitRefusalCode = "capacity"
+	EmitRate           LimitRefusalCode = "emit-rate"
+	Streams            LimitRefusalCode = "streams"
+	UnansweredRequests LimitRefusalCode = "unanswered-requests"
+)
+
+// Valid indicates whether the value is a known member of the LimitRefusalCode enum.
+func (e LimitRefusalCode) Valid() bool {
+	switch e {
+	case Capacity:
+		return true
+	case EmitRate:
+		return true
+	case Streams:
+		return true
+	case UnansweredRequests:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ListResourcesResponseMatchKind.
 const (
 	Lexical  ListResourcesResponseMatchKind = "lexical"
@@ -3636,6 +3660,22 @@ type KnowledgeGraph_Nodes_Item struct {
 	union json.RawMessage
 }
 
+// LimitRefusal defines model for LimitRefusal.
+type LimitRefusal struct {
+	// Code `streams`: the principal already holds as many streams as `x-semiont-limits.streamsPerPerson` allows. `emit-rate`: the principal's emits have used its bucket (`x-semiont-limits.emitsPerSecond`, `emitBurst`). `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
+	Code    LimitRefusalCode `json:"code"`
+	Details interface{}      `json:"details,omitempty"`
+
+	// Error What went wrong, in a sentence.
+	Error string `json:"error"`
+
+	// Hint What the caller can do about it, when there is something to say.
+	Hint *string `json:"hint,omitempty"`
+}
+
+// LimitRefusalCode `streams`: the principal already holds as many streams as `x-semiont-limits.streamsPerPerson` allows. `emit-rate`: the principal's emits have used its bucket (`x-semiont-limits.emitsPerSecond`, `emitBurst`). `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
+type LimitRefusalCode string
+
 // ListResourcesResponse defines model for ListResourcesResponse.
 type ListResourcesResponse struct {
 	Limit float32 `json:"limit"`
@@ -4992,6 +5032,9 @@ type YieldUpdateOk struct {
 	} `json:"response"`
 }
 
+// AtCapacity An ErrorResponse that names, in `code`, the limit the request met.
+type AtCapacity = LimitRefusal
+
 // InternalError The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type InternalError = ErrorResponse
 
@@ -5000,6 +5043,9 @@ type PayloadTooLarge = ErrorResponse
 
 // ServiceUnavailable The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type ServiceUnavailable = ErrorResponse
+
+// TooManyRequests An ErrorResponse that names, in `code`, the limit the request met.
+type TooManyRequests = LimitRefusal
 
 // Unauthorized The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type Unauthorized = ErrorResponse
@@ -12675,7 +12721,7 @@ type PostBusEmitResponse struct {
 	JSON401      *Unauthorized
 	JSON409      *ErrorResponse
 	JSON413      *PayloadTooLarge
-	JSON429      *ErrorResponse
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
 	JSON503      *ErrorResponse
 }
@@ -12702,7 +12748,9 @@ type PostBusSubscribeResponse struct {
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
 	JSON413      *PayloadTooLarge
+	JSON429      *TooManyRequests
 	JSON500      *InternalError
+	JSON503      *AtCapacity
 }
 
 // Status returns HTTPResponse.Status
@@ -13377,7 +13425,7 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
-		var dest ErrorResponse
+		var dest TooManyRequests
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
@@ -13437,12 +13485,26 @@ func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeRespons
 		}
 		response.JSON413 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest TooManyRequests
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON429 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}
 		response.JSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest AtCapacity
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON503 = &dest
 
 	}
 

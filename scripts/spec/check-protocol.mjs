@@ -17,6 +17,8 @@
 //   - an operation that takes a JSON body and states no
 //     `x-semiont-limits.maxBodyBytes`, or declares no 413 (an unbounded body is
 //     memory the caller chooses);
+//   - a 429 without a `Retry-After` header: a refused caller is told when to
+//     come back, not left to guess;
 //   - a stream whose event names, frame or id formats no schema names;
 //   - a declared header with no schema;
 //   - a limit that is not a positive integer.
@@ -177,6 +179,10 @@ for (const ROOT_FILE of ROOT_FILES) {
         if (status === '401') {
           const headers = Object.keys(response.headers ?? {}).map((h) => h.toLowerCase());
           if (!headers.includes('www-authenticate')) fail(label, 'carries no WWW-Authenticate header');
+        }
+        if (status === '429') {
+          const headers = Object.keys(response.headers ?? {}).map((h) => h.toLowerCase());
+          if (!headers.includes('retry-after')) fail(label, 'carries no Retry-After header');
         }
 
         const code = Number(status);

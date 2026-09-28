@@ -58,14 +58,7 @@
         "$ref": "../components/responses/PayloadTooLarge.json"
       },
       "429": {
-        "description": "The client already has as many unanswered requests as it may.",
-        "content": {
-          "application/json": {
-            "schema": {
-              "$ref": "../components/schemas/ErrorResponse.json"
-            }
-          }
-        }
+        "$ref": "../components/responses/TooManyRequests.json"
       },
       "500": {
         "$ref": "../components/responses/InternalError.json"

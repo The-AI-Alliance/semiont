@@ -1,0 +1,19 @@
+{
+  "description": "A limit on the caller was met; the body's `code` names which. `Retry-After` is the number of seconds after which the refusal will have lifted. For `unanswered-requests` that is when the client's oldest unanswered request expires; a reply to any of them frees a slot sooner.",
+  "headers": {
+    "Retry-After": {
+      "description": "Seconds to wait before trying again.",
+      "schema": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      }
+    }
+  },
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../schemas/LimitRefusal.json"
+      }
+    }
+  }
+}

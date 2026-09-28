@@ -47,8 +47,14 @@
       "413": {
         "$ref": "../components/responses/PayloadTooLarge.json"
       },
+      "429": {
+        "$ref": "../components/responses/TooManyRequests.json"
+      },
       "500": {
         "$ref": "../components/responses/InternalError.json"
+      },
+      "503": {
+        "$ref": "../components/responses/AtCapacity.json"
       }
     },
     "x-semiont-limits": {

@@ -255,7 +255,8 @@ pub fn json_response(status: StatusCode, body: &Value) -> Response {
 pub struct ApiError {
     status: StatusCode,
     body: Value,
-    challenge: Option<String>,
+    /// Headers the refusal carries: a 401's challenge, a limit's `Retry-After`.
+    headers: Vec<(header::HeaderName, String)>,
 }
 
 impl ApiError {
@@ -263,7 +264,23 @@ impl ApiError {
         ApiError {
             status,
             body: json!({ "error": message.into() }),
-            challenge: None,
+            headers: Vec::new(),
+        }
+    }
+
+    /// A limit met (LimitRefusal): `code` names it, and `Retry-After` is when
+    /// the refusal will have lifted, in whole seconds rounded up.
+    pub fn limited(
+        status: StatusCode,
+        code: &str,
+        message: impl Into<String>,
+        retry_after: std::time::Duration,
+    ) -> ApiError {
+        let seconds = retry_after.as_secs() + u64::from(retry_after.subsec_nanos() > 0);
+        ApiError {
+            status,
+            body: json!({ "error": message.into(), "code": code }),
+            headers: vec![(header::RETRY_AFTER, seconds.to_string())],
         }
     }
 
@@ -288,10 +305,10 @@ impl ApiError {
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let mut response = json_response(self.status, &self.body);
-        if let Some(challenge) = self.challenge.and_then(|c| HeaderValue::from_str(&c).ok()) {
-            response
-                .headers_mut()
-                .insert(header::WWW_AUTHENTICATE, challenge);
+        for (name, value) in self.headers {
+            if let Ok(value) = HeaderValue::from_str(&value) {
+                response.headers_mut().insert(name, value);
+            }
         }
         response
     }
@@ -399,7 +416,7 @@ pub fn missing_credential(headers: &HeaderMap) -> ApiError {
             "error": "Unauthorized",
             "hint": "Authentication required: send an `Authorization: Bearer <token>` header. A raw browser navigation to a protected resource is unauthenticated.",
         }),
-        challenge: Some(challenge(headers, false)),
+        headers: vec![(header::WWW_AUTHENTICATE, challenge(headers, false))],
     }
 }
 
@@ -408,7 +425,7 @@ pub fn refused(headers: &HeaderMap, message: &str) -> ApiError {
     ApiError {
         status: StatusCode::UNAUTHORIZED,
         body: json!({ "error": message }),
-        challenge: Some(challenge(headers, true)),
+        headers: vec![(header::WWW_AUTHENTICATE, challenge(headers, true))],
     }
 }
 

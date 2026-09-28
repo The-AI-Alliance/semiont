@@ -117,6 +117,11 @@ eachPlane('emitting', (world, plane) => {
     const over = await world().emit(token, { channel: REQUEST, payload: { resourceId: 'over' }, correlationId: randomUUID(), clientId });
     expect(over.status).toBe(429);
     expect(nonConformance('post', '/bus/emit', over)).toEqual([]);
+    // Retry-After is when the oldest unanswered claim expires: all were just made.
+    const claimSeconds = spec().limits('post', '/bus/emit')['claimSeconds']!;
+    const retryAfter = Number(over.headers.get('retry-after'));
+    expect(retryAfter).toBeGreaterThan(claimSeconds - 30);
+    expect(retryAfter).toBeLessThanOrEqual(claimSeconds);
     // Refused, not made room for: the oldest claim still stands.
     const oldest = await world().emit(token, { channel: REQUEST, payload: { resourceId: 'r-1' }, correlationId: cids[1], clientId });
     expect(oldest.status).toBe(409);
