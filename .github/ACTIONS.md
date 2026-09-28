@@ -57,11 +57,13 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 ## 🔧 Configuration Files
 
 ### Dependabot (`dependabot.yml`)
-**Automated dependency updates**:
-- Weekly dependency updates for all npm packages
-- Separate configurations for browser, gateway, CDK, scripts
-- Security-focused updates with proper labeling
-- Automatic PR creation for dependency updates
+**Automated dependency updates**, weekly, each ecosystem with its own entry:
+- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/gateway-conformance`
+- Go modules: `apps/launcher`, `packages/sdk-go`
+- Cargo: `apps/gateway`, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `apps/gateway/rust-toolchain.toml`
+- GitHub Actions, and the Docker base images of the Browser, the desktop builder and the seven service images
+- A cooldown before a new release is adopted; security updates are not held by it
+- `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
 
 ### CodeQL Config (`codeql/codeql-config.yml`)
 **Enhanced security analysis configuration**:
