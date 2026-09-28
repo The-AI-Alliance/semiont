@@ -13,6 +13,7 @@
  * "Clone tokens produce new resources — that's yield."
  */
 
+import { randomBytes } from 'crypto';
 import { promises as fs } from 'fs';
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
@@ -107,9 +108,8 @@ export class CloneTokenManager {
         return;
       }
 
-      // Generate token
-      const tokenStr = `clone_${Math.random().toString(36).substring(2, 11)}_${Date.now()}`;
-      const token = makeCloneToken(tokenStr);
+      // A bearer credential: 128 bits from the cryptographic generator.
+      const token = makeCloneToken(`clone_${randomBytes(16).toString('hex')}`);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
       this.tokens.set(token, { resourceId: resourceId(event.resourceId), expiresAt });
