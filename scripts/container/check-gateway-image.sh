@@ -21,7 +21,9 @@ RT="${2:-docker}"
 # the TypeScript gateway's median.
 START_BOUND_MS=300
 
-found=$("$RT" run --rm --entrypoint /bin/sh "$IMAGE" -c '
+# As root: the promise covers the whole image, including what the image's own
+# user cannot read (as that user, find stops at /root).
+found=$("$RT" run --rm --user 0 --entrypoint /bin/sh "$IMAGE" -c '
   find / \( -path /proc -o -path /sys -o -path /dev \) -prune -o \
     \( -name "*.rs" -o -name "Cargo.toml" -o -name "Cargo.lock" -o -name "*.ts" -o -name "*.js" -o -name "*.mjs" -o -name "*.cjs" \
        -o \( -type d \( -name target -o -name node_modules -o -name specs \) \) \) -print')
