@@ -770,8 +770,9 @@ image_signature() {
   df="$REPO_ROOT/$(image_dockerfile "$1")"
   # Install lines only — comments mention packages that are not installed.
   # Those seed a walk over each package's @semiont/* dependencies, because the
-  # install line names the root of a tree, not the tree.
-  { grep 'npm install' "$df" || true; } | grep -ohE '@semiont/[a-z-]+' | sort -u \
+  # install line names the root of a tree, not the tree. The gateway's
+  # Dockerfile installs none, and under pipefail an empty grep ends the run.
+  { grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' || true; } | sort -u \
     | REGISTRY="$REGISTRY" DOCKERFILE="$df" REPO_ROOT="$REPO_ROOT" python3 -c '
 import hashlib, json, os, sys, urllib.parse, urllib.request
 
