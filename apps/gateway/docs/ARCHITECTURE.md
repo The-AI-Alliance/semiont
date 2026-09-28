@@ -1,98 +1,128 @@
 # Gateway Architecture
 
-This document describes the architectural patterns and design principles that govern the Semiont gateway.
+How the gateway is put together. What it serves is the spec's
+([specs/src/openapi.json](../../../specs/src/openapi.json)); this is the code
+that serves it.
 
-## Composition Root
+## Built against the spec
 
-**All long-lived state is created once at startup in [src/index.ts](../src/index.ts); routes construct nothing.**
+The gateway is a Rust binary, and the spec is compiled into it.
+[build.rs](../build.rs) reads `specs/src` — the bundles in `specs/` are
+gitignored build output — and writes three documents the binary embeds: the
+gateway's OpenAPI document, the Archivist's, and the component schemas as JSON
+Schema draft 7 (OpenAPI 3.0's `nullable` made a type). It compiles every schema
+while it builds, so a malformed spec fails the build, never a boot or a request.
+The binary also embeds the bus registry and
+[src/bus-classification.json](../src/bus-classification.json), which
+`scripts/bus/generate-ts.mjs` derives from the registry beside core's TypeScript
+table. [src/spec.rs](../src/spec.rs) reads them: validators by schema name, each
+channel's schema, the registry's operations, which channels are replies and
+which write, and the limits (`x-semiont-limits`, `maxItems`).
 
-Startup builds four things, and refuses rather than degrades when any is missing — and then refuses to listen unless its routes are exactly the spec's operations (below):
+## Boot
 
-1. **Config** — `readGatewayConfig` ([src/config.ts](../src/config.ts)): one JSON document at `~/.semiontconfig`, a `GatewayConfig` from `specs/`, validated against the spec's schema. The launcher writes it resolved — the KB's committed name and domain, the port and public URL, the issuer, the Archivist's address, the signal plane, the log level — so the gateway neither parses TOML nor resolves or defaults anything.
-2. **Identity** — two halves. `configureTrustedIssuer` ([src/identity/trusted-issuer.ts](../src/identity/trusted-issuer.ts)) names the issuer whose published keys verify every bearer this process accepts; people and service accounts alike obtain their tokens there, and the gateway keeps no account, no session and no row. `requireJwtSecret` ([src/auth/jwt.ts](../src/auth/jwt.ts)) checks the key ring the gateway signs its own two token kinds with — agent tokens minted at `POST /api/tokens/agent` and media tokens — the only credentials that originate here. The document's `kb.domain` — the KB's committed `[site] domain` — is the audience tokens must carry, the authority people and agents are named under, and the issuer of the tokens the gateway signs.
-3. **Archivist access** — the document's `archivist` address and this process's own service account (`requireServiceAccount`, [src/boot-requirements.ts](../src/boot-requirements.ts)), resolved once into the `archivist` context value every proxying route uses. Checked at boot so a misconfigured record fails once, loudly, rather than on the first content read.
-4. **EventBus + Signal Plane** — the per-process RxJS bus, composed with the fan-out driver by `compositionFor(eventBus, plane?)` ([src/signal/](../src/signal/)): plane plus the correlation ledger. A `signal.type` of `nats` seeds it with the NATS driver; `in-process` composes the in-process one. See [The Signal Plane](#the-signal-plane).
+[src/app.rs](../src/app.rs), in order, refusing rather than degrading at each
+step — the process exits non-zero, saying what is missing and never a secret:
 
-**The route table is the spec's.** Once every route is registered, and before `serve()`, `routeMismatches` ([src/spec-routes.ts](../src/spec-routes.ts)) compares `app.routes` with the operations in the OpenAPI document the build ships beside the entry point. A route the spec does not declare, a declared operation nothing serves, or middleware on a path the spec does not name stops the process, naming each. The conformance suite probes every operation the spec declares from outside; this is the half it cannot see.
+1. **The document** — `~/.semiontconfig`, validated against `GatewayConfig`
+   ([src/config.rs](../src/config.rs)); a failing field is named by its JSON
+   pointer.
+2. **The key ring** (`JWT_SECRET`) and **the service account**
+   (`SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET`).
+3. **Logging and telemetry**, as the document and the environment say.
+4. **The Archivist's operations it calls** must be in the Archivist's spec.
+5. **The signal plane** — `in-process`, or NATS with the credentials the
+   document names — composed with the ledger, whose shared tables must open
+   (under NATS, a broker with JetStream); then, under NATS, one round trip
+   through the broker so every subscription made so far is registered before a
+   frame can be missed. Each is bounded at ten seconds.
+6. **The route table** must be exactly the spec's operations
+   ([src/routes/mod.rs](../src/routes/mod.rs)): a route the spec does not
+   declare, or a declared operation nothing serves, stops the process.
+7. **Listen** on `0.0.0.0:<port>`, on its own accept loop
+   ([src/http.rs](../src/http.rs)), which lets a stream close its connection
+   from the gateway's side.
 
-Routes read `eventBus` and `archivist` from Hono context (auth middleware adds the caller's `principal`) and reach everything KB-shaped remotely. The gateway makes no bus request of its own: an upload, content bytes, a JSON-LD description and a replay are HTTP calls to the archivist through [src/lib/archivist.ts](../src/lib/archivist.ts), and every other domain read is a client's own bus request, which the gateway only relays:
+`SIGTERM` and `SIGINT` stop accepting connections, flush the plane under the
+same bound — frames already written reach the broker — export what telemetry is
+buffered, and exit 0.
 
-```typescript
-// The pipe: bytes proxied from the archivist
-const { body, mediaType } = await getContent(c.get('archivist'), id);
-```
+## Serving
 
-Graph, vectors, embedding, inference, the event store, the working tree, and the job queue belong to other services. [package.json](../package.json) enforces the store half: `@semiont/graph`, `@semiont/vectors`, `@semiont/inference`, and `@semiont/event-sourcing` are not dependencies, so a route cannot import a store client at all. The conformance suite enforces the queue half: a `job:*` request gets no answer from the gateway.
+Every response goes through the edge (`edge` in http.rs): CORS for any origin
+and never credentials, the security headers, an `X-Request-ID`, and a log line
+each way. Every error is an `ErrorResponse`. Handlers:
 
-## Process Split
+| File | Routes |
+|---|---|
+| [routes/meta.rs](../src/routes/meta.rs) | `GET /api/health`, `GET /`, `GET /api/openapi.json`, `GET /.well-known/oauth-protected-resource`, `GET /api/status`, `GET /api/users/me` |
+| [routes/tokens.rs](../src/routes/tokens.rs) | `POST /api/tokens/agent`, `POST /api/tokens/media` |
+| [routes/content.rs](../src/routes/content.rs) | `POST /resources`, `GET /resources/{id}`, `GET /api/resources/{id}`, `GET /resources/{id}/jsonld` |
+| [routes/bus.rs](../src/routes/bus.rs) | `POST /bus/emit` |
+| [routes/stream.rs](../src/routes/stream.rs) | `POST /bus/subscribe` |
 
-The gateway is one process among eight service containers (see [CONTAINER-TOPOLOGY.md](../../../docs/system/CONTAINER-TOPOLOGY.md)). It hosts **no actors** and **no handlers**: the archivist runs the record actors (Stower, Browser, CloneTokenManager), the librarian the LLM-bound ones (Gatherer, Matcher), the smelter and weaver the vector and graph projections, and the dispatcher owns the job queue and answers every `job:*` command. What remains here is HTTP/SSE termination, identity (verification against the issuer; the agent and media tokens it signs), bus-frame validation and relay, the correlation ledger, and the content proxy. Every other service connects over the same bus the Browser uses; a sidecar can crash and restart without affecting the gateway or connected clients.
+Authentication is per route: [AUTHENTICATION.md](AUTHENTICATION.md).
 
-### Where the job queue went
+## The signal plane
 
-It was the last non-routing work in this process, and it left with the dispatcher. `job:create` and its kin are frames the gateway validates and routes like any other; the dispatcher subscribes to them, answers them, and dials JetStream itself. The gateway's one remaining part in a claim is the `_roles` it stamps onto every emitted frame from the caller's token — set or cleared on every emit, never taken from the payload — which is what the dispatcher authorizes a `job:claim` by. See [apps/dispatcher](../../dispatcher/README.md).
+[src/signal/](../src/signal/) is the hub's fan-out behind one interface
+(`SignalPlane`), implemented twice: [in_process.rs](../src/signal/in_process.rs),
+where the fabric is the process and the count of subscribers at dispatch is
+exact; and [nats.rs](../src/signal/nats.rs), where frames ride core subjects
+and are never stored, and the shared tables are JetStream key-value buckets.
+The plane moves frames and never reads one: `scope` is the one routing fact it
+interprets, and a frame's `meta` — its correlation id, its trace — is carried
+verbatim. Under a broker outage an emit is refused with 503, never accepted and
+lost; the client reconnects on its own.
 
-## The Signal Plane
+Entitlement is gateway policy, above the plane, in the **ledger**
+([src/ledger.rs](../src/ledger.rs)): an emit on a request claims its
+correlation id for (client, principal) in a table every replica shares, before
+it is published; a reply reaches only the claim's owner, and a replica that has
+not seen a claim yet reads the table rather than refusing the reply; the first
+reply to each claim is retained for `replyRetentionSeconds` for recovery from
+any replica. [src/composition.rs](../src/composition.rs) opens the ledger over
+the plane and holds its standing tap — one subscription over every reply
+channel for the life of the process.
 
-`src/signal/` is the hub's fan-out behind a driver interface ([interface.ts](../src/signal/interface.ts)) — the plane moves frames and honors reply addresses; it never inspects a payload or decides entitlement. Two drivers implement it, and the conformance suite runs the gateway on each:
+## The stream
 
-- **in-process** ([in-process.ts](../src/signal/in-process.ts)) — the per-process EventBus; the permanent local default.
-- **NATS** ([nats.ts](../src/signal/nats.ts)) — frames ride core subjects and are never stored; the ledger's tables are JetStream KV buckets on the same server, which also holds the dispatcher's queue. This driver is what lets the gateway run as N replicas.
-
-Entitlement is gateway policy, kept above the seam in the **correlation ledger** ([ledger.ts](../src/signal/ledger.ts)): it records a claim at each request emit, decides who may see a reply, and retains replies for reconnect recovery. `compositionFor` ([composition.ts](../src/signal/composition.ts)) wires plane + ledger as one unit — a standing tap feeds the ledger from the plane. Claims, and the replies retained for reconnect recovery, live in tables every replica shares — JetStream KV buckets under NATS, so the broker must run with JetStream — and each replica keeps a projection of the claims; a replica that has not caught up with a claim reads the table rather than refusing the reply, so a replica that starts, restarts or lags still delivers to the claim's owner, and recovery answers from any replica, across restarts. The driver never learns the correlation vocabulary: the correlationId rides the frame's envelope, ferried unread, and a correlationId inside a payload is the caller's data and routes nothing. The gateway does not listen until its claims table is open. With the driver remote, startup flushes the plane before listening, so the ledger's standing tap and every early `/bus/subscribe` interest are registered with the broker before the first frame can be missed; shutdown drains it under a deadline for the same reason in reverse. Under a broker outage emits are refused with 503 — the NATS client discards whatever is published while it is disconnected, so the plane reports itself unavailable rather than accept a frame it would lose — and the driver retries forever; recovery is a broker restart, breadcrumbed `[signal BROKER-DOWN]`/`[signal BROKER-RECONNECTED]`.
-
-## Domain Traffic Rides the Bus
-
-Domain reads and commands have no per-route HTTP faces: clients emit bus operations (`POST /bus/emit`, replies over the SSE subscription) via the SDK, and the answering actors live in other containers — the archivist's Browser answers `browse:*`, the librarian's Matcher and Gatherer answer `bind:*` and `gather:*`, the dispatcher answers `job:*`. The gateway makes no bus request of its own: `GET /resources/:id/jsonld`, the linked-data description for machine clients arriving over plain HTTP, is read from the Archivist over HTTP like the bytes.
-
-### The Content Plane
-
-| Route | Behavior |
-|-------|----------|
-| `GET /resources/:id` | The pipe: stored bytes, verbatim, stored media type in `Content-Type`. The `Accept` header is never read — no negotiation, no transcoding — so byte fidelity holds on every response. A `Link: rel="describedby"` header points at the JSON-LD description. |
-| `GET /resources/:id/jsonld` | The JSON-LD description (descriptor + annotations + inbound references), read from the archivist. |
-| `GET /api/resources/:id` | Browser-friendly alias of the pipe; exists only as the `?token=` auth affordance for `<img>`, PDF.js, and download links. |
-| `POST /resources` | Multipart upload, streamed untouched to the archivist, which stores the bytes and records the resource. |
-
-The gateway holds no bytes — both directions stream through the archivist's HTTP byte surface.
-
-### What Stays HTTP-Only
-
-- **Bus bridge** — `POST /bus/emit`, `POST /bus/subscribe` (SSE): the transport every domain command and reply rides
-- **Content plane** — the four routes above
-- **Auth routes** — token verification against the trusted issuer's keys, and the agent and media
-  tokens the gateway itself signs (orthogonal to knowledge domain)
-- **Resource metadata** — `/.well-known/oauth-protected-resource`, naming this KB's issuer for clients that discover it
-- **Health/Status** — infrastructure monitoring
+`POST /bus/subscribe` ([routes/stream.rs](../src/routes/stream.rs)) subscribes
+first, then replays each watermarked scope's events from the Archivist and the
+replies named in `pendingReplies`, buffering live frames meanwhile, and only
+then drains the buffer and goes live, with a ping every `heartbeatSeconds`. Its
+frames wait in a queue the response body drains; the bytes not yet taken are
+what `pendingWriteBytes` bounds. Past it, or past `replayBufferEvents` during a
+replay, the connection is closed from the gateway's side and its queue freed.
+Opening and closing are presence: `session:joined`, `session:left`.
 
 ## Calls to the Archivist
 
-The Archivist holds the knowledge base's files and event log. Requests reach it two ways.
-
-**HTTP, for bytes and a few reads of the record.** The gateway calls it on a client's behalf:
+The Archivist holds the knowledge base's bytes and event log;
+[src/archivist.rs](../src/archivist.rs) is how the gateway reaches it, as itself
+— a token from the issuer's client-credentials grant, kept until shortly before
+it expires:
 
 | Client calls the gateway | The gateway calls the Archivist |
 |---|---|
-| `POST /resources` | `POST /resources` with the multipart body unchanged, naming the caller in `Semiont-Principal` and `Semiont-Roles`: the archivist stores the bytes and records the resource |
-| `GET /resources/:id`, `GET /api/resources/:id` | `GET /resources/:id/content`, streamed back unchanged |
-| `GET /resources/:id/jsonld` | `GET /resources/:id/jsonld` |
-| `POST /bus/subscribe` with `Last-Event-ID` | `GET /events/:resourceId?fromSequence=N` for the events the client missed |
+| `POST /resources` | `POST /resources`, the multipart body streamed unchanged, naming the caller in `Semiont-Principal` and `Semiont-Roles` |
+| `GET /resources/{id}`, `GET /api/resources/{id}` | `GET /resources/{id}/content`, streamed back unchanged |
+| `GET /resources/{id}/jsonld` | `GET /resources/{id}/jsonld` |
+| `POST /bus/subscribe` with a watermark | `GET /events/{resourceId}?fromSequence=N`, held to `ArchivistEventsResponse` |
 
-The gateway authenticates with its own service account: a token from the knowledge base's identity provider carrying the `semiont-service` role. Browsers never reach the Archivist; their tokens lack that role.
+Everything else the Archivist answers, it answers over the bus the gateway
+relays. The gateway makes no bus request of its own.
 
-The Librarian, the Smelter and the workers call `GET /resources/:id/content` directly, each with its own service account. Only the gateway's own calls pass through the gateway.
+## Telemetry
 
-**The bus, for everything else.** The Archivist is a client of the gateway's `POST /bus/subscribe` and `POST /bus/emit`, so every command it handles and every `browse:*` read it answers passes through the gateway, under either signal driver. It never connects to NATS.
-
-The Archivist's side of this, including what it means for a worker run outside the stack: [apps/archivist/README.md](../../archivist/README.md#how-requests-reach-it).
+[src/telemetry.rs](../src/telemetry.rs) exports over OTLP/HTTP (protobuf) the
+spans and metrics [specs/src/gateway-telemetry/telemetry.json](../../../specs/src/gateway-telemetry/telemetry.json)
+lists, and nothing else. It reads its variables itself and configures the SDK
+from them; nothing lets a library read the environment on its own behalf.
 
 ## Related Documentation
 
-- [Dispatcher](../../dispatcher/README.md) - the job queue and the `job:*` handlers this process used to host
-- [Jobs Package](../../../packages/jobs/) - `JobQueue`, its drivers, and the worker
 - [Container Topology](../../../docs/system/CONTAINER-TOPOLOGY.md) - what runs where
+- [Dispatcher](../../dispatcher/README.md) - the job queue, which the gateway only relays
 - [AUTHENTICATION.md](AUTHENTICATION.md) - the identity plane
-
----
-
-**Last Updated**: 2026-09-25
+- [TESTING.md](TESTING.md) - what checks the gateway

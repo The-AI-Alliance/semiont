@@ -39,7 +39,7 @@ over HTTP+SSE or stay in-process.
 | `RECV` | HttpTransport's wire-parse (SSE-side fan-in inside actor-state-unit) |
 | `RECV` | `LocalTransport.bridgeInto` subscriber callback              |
 | `EMIT` | Gateway `/bus/emit` HTTP route                               |
-| `SSE`  | Gateway `writeBusEvent()` in `apps/gateway/src/routes/bus.ts`|
+| `SSE`  | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs`|
 | `PUT`  | `HttpContentTransport.putBinary()` + matching gateway route  |
 | `GET`  | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 | `GET`  | `LocalContentTransport.getBinary()` / `getBinaryStream()` (in-process)            |
@@ -60,9 +60,10 @@ window.__SEMIONT_BUS_LOG__ = true;
 
 Clears on refresh.
 
-### Node (gateway, worker, smelter, MCP, tests)
+### Processes (gateway, worker, smelter, MCP, tests)
 
-Process-env toggle, read once at module load:
+Process-env toggle, read once at start (in Node, at module load); the
+gateway writes its lines to stderr:
 
 ```bash
 SEMIONT_BUS_LOG=1 <command>

@@ -1,11 +1,13 @@
 /**
- * An OTLP/HTTP receiver: collects the spans a gateway exports as JSON, and for
- * each metric the instrument it arrived as and the attributes and values its
- * data points carried, so a case can hold the gateway to the telemetry the spec
- * lists (specs/src/gateway-telemetry/telemetry.json).
+ * An OTLP/HTTP receiver: collects the spans a gateway exports, and for each
+ * metric the instrument it arrived as and the attributes and values its data
+ * points carried, so a case can hold the gateway to the telemetry the spec
+ * lists (specs/src/gateway-telemetry/telemetry.json). It reads either
+ * encoding OTLP/HTTP has, by `Content-Type`, as a collector does.
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { metricsRequest, traceRequest } from './otlp-protobuf';
 
 export interface ReceivedSpan {
   name: string;
@@ -36,10 +38,11 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 const list = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
 
-/** OTLP's AnyValue, reduced to the scalar it carries. */
+/** OTLP's AnyValue, reduced to the scalar it carries; an int64, which JSON may carry as a string, as a number. */
 function valueOf(v: unknown): unknown {
   if (!isObject(v)) return undefined;
-  return v['stringValue'] ?? v['intValue'] ?? v['boolValue'] ?? v['doubleValue'];
+  if (v['intValue'] !== undefined) return Number(v['intValue']);
+  return v['stringValue'] ?? v['boolValue'] ?? v['doubleValue'];
 }
 
 function attributes(kvs: unknown): Record<string, unknown> {
@@ -56,7 +59,13 @@ export async function startOtlp(): Promise<OtlpReceiver> {
     req.on('data', (c: Buffer) => chunks.push(c));
     req.on('end', () => {
       try {
-        const body: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        const bytes = Buffer.concat(chunks);
+        const protobuf = (req.headers['content-type'] ?? '').split(';')[0]!.trim() === 'application/x-protobuf';
+        const body: unknown = !protobuf
+          ? JSON.parse(bytes.toString('utf8'))
+          : req.url === '/v1/traces'
+            ? traceRequest(bytes)
+            : metricsRequest(bytes);
         if (!isObject(body)) throw new Error('not an OTLP body');
         if (req.url === '/v1/traces') {
           for (const rs of list(body['resourceSpans'])) {

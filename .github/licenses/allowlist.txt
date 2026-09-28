@@ -1,8 +1,9 @@
 # Permissive SPDX license allowlist for the published service images.
 #
-# The license-policy gate (.github/scripts/check-licenses.mjs) checks every
-# bundled npm dependency's SPDX license against this list and fails the publish
-# if anything is unlisted. Approved (permissive) licenses pass silently;
+# The license-policy gates check every bundled npm dependency's SPDX license
+# (.github/scripts/check-licenses.mjs, over an image's SBOM) and every crate
+# the gateway binary links (scripts/lint/check-gateway-crates.mjs) against this
+# list, and fail if anything is unlisted. Approved (permissive) licenses pass silently;
 # copyleft / unknown / unusual licenses trip CI and get a human review — at
 # which point either the dependency is dropped or, if the license is genuinely
 # permissive, its SPDX ID is added here with a note.
@@ -34,6 +35,16 @@ BlueOak-1.0.0
 # spdx-exceptions (attribution only). Added 2026-07-15.
 Artistic-2.0
 CC-BY-3.0
+
+# The Rust gateway's crates (scripts/lint/check-gateway-crates.mjs holds every
+# crate it links to this list). Three licenses are new with it, all permissive:
+# Unicode-3.0 — the Unicode data licence, on the icu_* crates behind URL
+# parsing; Zlib — foldhash, the hasher the standard maps default to;
+# CDLA-Permissive-2.0 — the Mozilla root-certificate data in webpki-roots.
+# Added 2026-09-27.
+Unicode-3.0
+Zlib
+CDLA-Permissive-2.0
 
 # Deliberately NOT wildcarded to `BSD-*`: BSD-4-Clause carries the advertising
 # clause and should trip a review rather than pass silently. Add BSD-2/3-Clause

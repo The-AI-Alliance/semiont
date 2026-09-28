@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import { GATEWAY_COMMAND } from './harness/paths';
 
 export default defineConfig({
   test: {
-    include: ['cases/**/*.test.ts'],
+    include: ['cases/**/*.test.ts', 'harness/**/*.test.ts'],
+    provide: { gatewayCommand: GATEWAY_COMMAND },
     globalSetup: ['harness/global-setup.ts'],
     // Every file boots its own gateways, issuer, Archivist and broker on
     // ports of its own, so files run in parallel; the cases inside a file

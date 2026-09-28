@@ -9,7 +9,7 @@ Eight services run Semiont code. Each is a published container image; see [Conta
 | Service | Port | What runs | Bundled package | Docs |
 |---|---|---|---|---|
 | **browser** | 3000 | Static server for the Semiont Browser SPA | `semiont-browser` | [README](../../../apps/browser/README.md) |
-| **gateway** | 4000 | Auth, the bus hub, and the content proxy. **Hosts no actors** | `semiont-gateway` | [README](../../../apps/gateway/README.md) |
+| **gateway** | 4000 | Auth, the bus hub, and the content proxy. **Hosts no actors**. Rust | compiled from `apps/gateway` | [README](../../../apps/gateway/README.md) |
 | **archivist** | 24103 | Keeps the system of record — Stower, Browser, CloneTokenManager | `@semiont/make-meaning` | [README](../../../apps/archivist/README.md) |
 | **librarian** | 24104 | Searches it — Gatherer, Matcher | `@semiont/make-meaning` | [README](../../../apps/librarian/README.md) |
 | **worker** | 24100 | Annotation/generation worker pool | `@semiont/jobs` | [README](../../../apps/worker/README.md) |

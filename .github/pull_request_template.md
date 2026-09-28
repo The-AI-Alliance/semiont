@@ -87,7 +87,7 @@ cd apps/browser && npm run test:security
 ### Gateway Security Tests
 
 ```bash
-cd apps/gateway && npm run test:security
+cd tests/gateway-conformance && npm test
 # Paste results here
 ```
 

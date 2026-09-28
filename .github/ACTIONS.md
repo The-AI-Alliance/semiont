@@ -36,7 +36,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 ### Continuous Integration (`ci.yml`)
 **General testing and building workflow**:
 - Browser: Tests, linting, type-checking, building
-- Gateway: Tests, type-checking, building with PostgreSQL
+- Gateway (Rust): formatting, clippy, the shared-table runners, the crate licence gate, and the conformance suite against the built binary
 - CDK: Infrastructure tests and synthesis
 - Scripts: TypeScript compilation and validation
 
@@ -118,8 +118,7 @@ knowledge base's issuer, never at the gateway.
 NODE_OPTIONS=--max-old-space-size=4096
 
 # Gateway
-NODE_OPTIONS=--max-old-space-size=4096
-JWT_SECRET=test-secret-key-for-testing-32char   # requireJwtSecret() rejects < 32 chars
+JWT_SECRET=test-secret-key-for-testing-32char   # the gateway refuses a key under 32 characters
 ```
 
 ### Security Verification Commands
@@ -178,7 +177,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd apps/browser && npm run test:security
-   cd apps/gateway && npm run test:security
+   (cd apps/gateway && cargo build --release) && (cd tests/gateway-conformance && npm test)
    ```
 
 2. **Check admin route behavior** manually:

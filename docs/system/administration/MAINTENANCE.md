@@ -84,7 +84,7 @@ For archive export and restore, see [BACKUP.md](BACKUP.md). PostgreSQL holds Key
 
 Three secrets matter, and rotating them is not free:
 
-**`JWT_SECRET`** — signs the tokens the gateway itself mints: software-agent and media tokens. It does NOT sign people's, which are the issuer's and verify against its published keys. Rotating it invalidates every agent and media token already issued, including ones held by running workers; people are unaffected. Rotate through the comma-separated ring rather than replacing the value outright ([Authentication](AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars)). The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`auth/jwt.ts`](../../../apps/gateway/src/auth/jwt.ts)).
+**`JWT_SECRET`** — signs the tokens the gateway itself mints: software-agent and media tokens. It does NOT sign people's, which are the issuer's and verify against its published keys. Rotating it invalidates every agent and media token already issued, including ones held by running workers; people are unaffected. Rotate through the comma-separated ring rather than replacing the value outright ([Authentication](AUTHENTICATION.md#rotating-jwt_secret-without-cutting-off-the-sidecars)). The symptom of a rotation nobody re-authenticated after is `Invalid token signature` in the gateway log, and jobs that never start. Plan a rotation as "every client must re-authenticate," and restart the whole stack rather than one service. Minimum 32 characters, enforced at startup ([`tokens.rs`](../../../apps/gateway/src/tokens.rs)).
 
 **`SEMIONT_OIDC_CLIENT_SECRET_<SERVICE>`** — each service's own credential at the knowledge base's issuer, generated and persisted per root on first use. They do not have to match each other; separate credentials are the point. Rotating one means changing it at the issuer and in that root's state, and restarting only that service. The realm imports **only on first boot**, so a client added after a realm already exists will not appear in it.
 
@@ -130,13 +130,15 @@ Review on symptom, not on a schedule. When something is wrong, [Troubleshooting]
 
 ## Authentication notes
 
-Auth is applied **per router**, not globally with a public-endpoint allowlist. Each router that needs it installs `authMiddleware` itself:
+Auth is applied **per route**, not globally with a public-endpoint allowlist. Each handler names the credential it needs ([`routes/`](../../../apps/gateway/src/routes/), extractors in [`http.rs`](../../../apps/gateway/src/http.rs)):
 
-| Router | Protected paths |
+| Routes | Credential |
 |---|---|
-| `resources` | `/api/resources/*`, `/resources/*` ([`routes/resources/shared.ts`](../../../apps/gateway/src/routes/resources/shared.ts)) |
-| `status` | `/api/status` |
-| `bus` | `/bus/*` ([`routes/bus.ts`](../../../apps/gateway/src/routes/bus.ts)) |
+| `/api/users/me`, `/api/status`, `POST /api/tokens/media`, `POST /resources`, `GET /resources/{id}`, `GET /resources/{id}/jsonld`, `POST /bus/emit`, `POST /bus/subscribe` | a verified bearer (`Authenticated`) |
+| `GET /api/resources/{id}` | a verified bearer, or that resource's media token (`MediaOrBearer`) |
+| `POST /api/tokens/agent` | an issuer token carrying `semiont-service` |
+
+A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that matches no declared operation is authenticated before it is answered 404.
 
 The spec declares four operations public: `GET /api/health`, `GET /`,
 `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. The
@@ -148,7 +150,7 @@ with the spec it ships and refuses to start on any difference — a route the
 spec does not declare, or a declared operation nothing serves. A new route is
 declared in the spec first.
 
-The maintenance consequence: **a new router is unauthenticated until you say otherwise.** Adding one means deciding its auth explicitly, and reviewing that decision belongs in the PR review — there is no global default to fall back on.
+The maintenance consequence: **a new route is unauthenticated until its handler takes a credential.** Adding one means deciding its auth explicitly, and reviewing that decision belongs in the PR review — there is no global default to fall back on.
 
 Who may authenticate is decided at the trusted issuer, not here. The gateway accepts any subject the issuer vouches for.
 

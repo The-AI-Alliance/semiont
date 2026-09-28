@@ -1,6 +1,6 @@
 # Package Architecture
 
-Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; consumers (`apps/gateway`, `apps/browser`) sit on top. The other service images (archivist, librarian, worker, smelter, weaver) run entry points that live inside the packages themselves — `@semiont/make-meaning`'s `*-main` modules and `@semiont/jobs`' worker; their `apps/<svc>/` directories hold only the Dockerfile.
+Semiont is a monorepo. Workspace packages are organized in layers from low-level primitives to high-level application logic; the Browser (`apps/browser`) sits on top. The gateway (`apps/gateway`) is a Rust binary and depends on none of them: it is built against [`specs/`](../../specs/src/openapi.json), the protocol they implement from the other side. The other service images (archivist, librarian, worker, smelter, weaver) run entry points that live inside the packages themselves — `@semiont/make-meaning`'s `*-main` modules and `@semiont/jobs`' worker; their `apps/<svc>/` directories hold only the Dockerfile.
 
 For the per-package descriptions and npm metadata, see **[../../packages/README.md](../../packages/README.md)** — alphabetized table with one-line descriptions of every published `@semiont/*` package.
 
@@ -9,7 +9,7 @@ For the per-package descriptions and npm metadata, see **[../../packages/README.
 ```mermaid
 graph BT
     %% Layer 5: Application Consumers
-    gateway["apps/gateway<br/><i>Hono API server</i>"]
+    gateway["apps/gateway<br/><i>Rust; built against specs/</i>"]
     browser["apps/browser<br/><i>Vite + React SPA</i>"]
 
     %% Layer 4: Application Logic
@@ -37,10 +37,6 @@ graph BT
     obs["@semiont/observability<br/><i>OTel helpers (withSpan,<br/>traceparent, Node/Web init)</i>"]
 
     %% Application dependencies
-    gateway --> meaning
-    gateway --> jobs
-    gateway --> obs
-    gateway --> core
     Browser --> react
     Browser --> sdk
     Browser --> api
@@ -121,7 +117,7 @@ Edges in the graph reflect the actual `package.json` `dependencies` field for ea
 
 3. **Layered Dependencies.** Packages can only depend on packages in lower layers. No circular dependencies.
 
-4. **Single-Owner Initialization.** Infrastructure components are created once by `startMakeMeaning()` and passed to consumers as function arguments or via Hono context — never re-created or re-instantiated by callers.
+4. **Single-Owner Initialization.** Infrastructure components are created once by `startMakeMeaning()` and passed to consumers as function arguments — never re-created or re-instantiated by callers.
 
 5. **Platform Independence.** Foundation and domain packages work in both browser and Node.js. Infrastructure packages (event-sourcing, graph, inference, jobs, make-meaning) are Node-only.
 

@@ -68,10 +68,13 @@ job:reference-annotation                        [worker handleJob]
 
 ## Configuring an exporter
 
-### Gateway / worker / smelter (Node)
+### Gateway / worker / smelter
 
 Standard OTel env vars. Set them on the process — for local dev,
 inherit from your shell; for containers, add to compose / ECS task env.
+The gateway reads the ones its environment table lists
+([`variables.json`](../../../specs/src/gateway-environment/variables.json))
+and configures its SDK from them; the table below is the sidecars'.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -158,10 +161,9 @@ process has exported spans. Most likely causes:
 1. `OTEL_EXPORTER_OTLP_ENDPOINT` is set but unreachable — verify with
    `container exec semiont-gateway wget -qO- http://...:4318` from
    inside the gateway container.
-2. `@semiont/observability` isn't installed in the running gateway.
-   Verify: `container exec semiont-gateway ls /home/semiont/.local/share/semiont/node_modules/@semiont/`.
-3. Gateway image was built before observability was bumped — rebuild
-   with `--no-cache`.
+2. `OTEL_SDK_DISABLED=true` is set on the process, or neither
+   `OTEL_EXPORTER_OTLP_ENDPOINT` nor `OTEL_CONSOLE_EXPORTER=true` is: check
+   with `container exec semiont-gateway env | grep OTEL_`.
 
 If services appear but every trace is single-service (no cross-service
 propagation), the W3C trace-context propagator likely isn't
@@ -181,14 +183,14 @@ implicitly) — see `packages/observability/src/node.ts`.
 
 ## Relationship to the structured logger and `busLog`
 
-- **Structured logger** (`getLogger()` on gateway,
+- **Structured logger** (the gateway's own, in `apps/gateway/src/logging.rs`;
   `createProcessLogger()` in workers/smelter) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-
   tagged with the active span's `trace_id` / `span_id` when one
   exists — operators can jump from a log line in CloudWatch / Loki /
   Datadog to the trace in Tempo / Jaeger / X-Ray.
-- **`busLog`** — grep-text, opt-in via `SEMIONT_BUS_LOG=1` (Node) or
+- **`busLog`** — grep-text, opt-in via `SEMIONT_BUS_LOG=1` (a service process) or
   `window.__SEMIONT_BUS_LOG__ = true` (browser). One line per
   cross-process bus event. Targets developer terminal / stderr / e2e
   fixture capture. The `cid` it prints is the first 8 hex of the
@@ -238,9 +240,9 @@ metric snapshots also print to stderr at each export interval.
 
 ## Log correlation (Tier 3)
 
-Every structured log line emitted by the gateway Winston logger
-(`getLogger()`) and the worker/smelter Winston loggers
-(`createProcessLogger()`) is now tagged with `trace_id` and `span_id`
+Every structured log line the gateway writes (in the `json` format its
+configuration document selects) and the worker/smelter Winston loggers
+(`createProcessLogger()`) write is tagged with `trace_id` and `span_id`
 when an active span exists. Log queries in CloudWatch / Loki / Datadog
 can be filtered by `trace_id` and joined with the trace UI.
 

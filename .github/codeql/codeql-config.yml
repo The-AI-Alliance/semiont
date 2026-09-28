@@ -10,6 +10,7 @@ queries:
 
 paths:
   - apps/browser/src
+  # The gateway — Rust
   - apps/gateway/src
   # Go launcher — module root, not a src/ dir (main.go + internal/)
   - apps/launcher
@@ -31,7 +32,6 @@ paths:
 paths-ignore:
   - apps/launcher/testdata
   - apps/browser/node_modules
-  - apps/gateway/node_modules
   - "**/node_modules"
   - "**/*.test.ts"
   - "**/*.test.tsx"

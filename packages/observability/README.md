@@ -64,7 +64,7 @@ Configuration is via the standard `OTEL_*` env vars:
 
 ## Process logger (Node)
 
-For long-lived Node entry points (gateway, workers, smelter), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
+For long-lived Node entry points (workers, smelter, the other sidecars), the package exposes a winston-based structured logger that auto-correlates each line with the active span:
 
 ```ts
 // worker-main.ts (or smelter-main.ts, etc.)

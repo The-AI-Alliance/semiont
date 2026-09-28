@@ -13,6 +13,7 @@ import { call } from '../harness/http';
 import { startIssuer, type IssuerServer } from '../harness/issuer';
 import { startBroker } from '../harness/nats';
 import { freePort } from '../harness/net';
+import { startHoldingProxy } from '../harness/proxy';
 import { SERVICE_ROLE } from '../harness/roles';
 import { kbIdentity } from '../harness/spec';
 import { subscribe } from '../harness/stream';
@@ -134,6 +135,37 @@ describe('starting a gateway', () => {
       await broker.stop();
     }
   });
+
+  it('serves nothing until the broker has confirmed what it registered: held after its handshake, it does not answer; released, it does', async () => {
+    const broker = await startBroker();
+    const proxy = await startHoldingProxy(broker.port);
+    try {
+      proxy.hold();
+      const s = await settings((x) => void (x.signal = { type: 'nats', servers: proxy.url }));
+      const starting = startGateway({ settings: s, env: env() });
+      await new Promise((r) => setTimeout(r, 3_000));
+      const early = await fetch(`http://127.0.0.1:${s.port}/api/health`).then((r) => r.status, () => undefined);
+      expect(early, 'the gateway answered before the broker had seen its subscriptions').toBeUndefined();
+      proxy.release();
+      const gateway = await starting;
+      try {
+        const token = await issuer.person('ready');
+        const opened = await subscribe(gateway.origin, token, { clientId: randomUUID(), global: ['beckon:focus'] });
+        const stream = opened.stream!;
+        await stream.next('the first ping', (m) => m.event === 'ping');
+        const mark = randomUUID();
+        expect((await call(gateway.origin, 'POST', '/bus/emit', { token, json: { channel: 'beckon:focus', payload: { annotationId: mark } } })).status).toBe(202);
+        await stream.frame('beckon:focus', (f) => f.payload['annotationId'] === mark);
+        stream.close();
+        expect(stream.violations).toEqual([]);
+      } finally {
+        await gateway.stop();
+      }
+    } finally {
+      await proxy.close();
+      await broker.stop();
+    }
+  }, 60_000);
 
   it('signs with the first key of JWT_SECRET and accepts a token — agent or media — signed by any key of it, whitespace around the keys ignored', async () => {
     const [oldKey, newKey] = [randomBytes(32).toString('hex'), randomBytes(32).toString('hex')];

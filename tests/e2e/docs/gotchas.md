@@ -16,10 +16,9 @@ persisted ids built in `@semiont/core` — comes from that package's
 which is available in every context. So the suite needs no polyfill and
 none exists.
 
-(The gateway still calls `crypto.randomUUID` in a few Node-only places —
-request ids, SSE connection ids. That is fine and deliberately left
-alone: Node always has it, and "secure context" is a browser notion with
-no Node equivalent. Only browser-reachable code is constrained here.)
+(Server-side code — the Rust gateway's request and connection ids, Node's
+`crypto.randomUUID` in the sidecars — is not constrained: "secure context"
+is a browser notion. Only browser-reachable code is constrained here.)
 
 If a "crypto.randomUUID is not a function" error ever appears in a test
 run, someone added a direct call to browser-reachable code; route it

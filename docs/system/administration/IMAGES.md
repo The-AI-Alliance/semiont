@@ -67,16 +67,20 @@ session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-The seven service images are published as runtime images that
+The seven service images are published as runtime images. The six sidecars
 **bundle the published `@semiont/*` npm packages** at the requested version —
-the publish workflow refuses to build until every published `@semiont/*`
+the publish workflow refuses to build them until every published `@semiont/*`
 package at that version is installable — its tarball fetchable, not merely
 listed in the registry metadata — so an image version always equals the npm
-version it carries. All seven run `node:24-alpine` (the Browser runs `node:26-alpine`).
+version it carries; they run `node:24-alpine` (the Browser runs `node:26-alpine`).
+The gateway is Rust: its image compiles `apps/gateway` from the commit the
+workflow runs on, with the toolchain `apps/gateway/rust-toolchain.toml` pins,
+and ships the binary on `alpine` — no source, no toolchain, and nothing built
+or fetched when it starts.
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
-| `semiont-gateway` | API server + bus gateway | `@semiont/gateway` | 4000 | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
+| `semiont-gateway` | API server + bus gateway | none — compiled from `apps/gateway` | 4000 | [apps/gateway/Dockerfile](../../../apps/gateway/Dockerfile) |
 | `semiont-archivist` | KB record actor (tree single-writer, byte authority) | `@semiont/make-meaning` | 24103 | [apps/archivist/Dockerfile](../../../apps/archivist/Dockerfile) |
 | `semiont-librarian` | search/match actor (Gatherer + Matcher) | `@semiont/make-meaning` | 24104 | [apps/librarian/Dockerfile](../../../apps/librarian/Dockerfile) |
 | `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 24100 | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
@@ -121,14 +125,20 @@ Two workflows publish the images, both triggered manually with the desired
 version: [`publish-browser.yml`](../../../.github/workflows/publish-browser.yml)
 (the Browser) and
 [`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml)
-(a matrix over gateway, worker, smelter, weaver). Each run, per image:
+(a matrix over the seven services). Each run, per image:
 
-1. Verifies the matching `@semiont/*` npm package version(s) exist —
-   the image bundles published packages, never the working tree.
-2. Builds the multi-platform image from the service's Dockerfile.
+1. For an image that bundles npm packages, verifies the matching
+   `@semiont/*` version(s) exist — it bundles published packages, never the
+   working tree. The gateway image compiles the checkout instead, so it is
+   published from the release tag.
+2. Builds the multi-platform image from the service's Dockerfile. For the
+   gateway, checks the built image carries no source and serves
+   `/api/health` within its start bound (`scripts/container/check-gateway-image.sh`).
 3. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs (and, for
    the service images, license-policy violations) and fails the run
-   on any unfixed finding.
+   on any unfixed finding. The gateway's binary records the crates it links
+   (`cargo auditable`), so the scan sees them; their licences are held to the
+   same policy before the image exists (`scripts/lint/check-gateway-crates.mjs`).
 4. Pushes the image to GHCR with three tags: the version, a
    `sha-{COMMIT}` tag, and (optionally) `latest`.
 5. Generates an SPDX SBOM and publishes both build-provenance and

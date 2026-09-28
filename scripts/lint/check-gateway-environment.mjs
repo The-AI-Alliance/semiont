@@ -3,13 +3,11 @@
  * lint:gateway-environment — the gateway reads exactly the environment
  * specs/src/gateway-environment/variables.json lists.
  *
- * 1. Reads, both directions. Every environment read in the code the gateway's
- *    process runs is a row with `readBy: gateway`, and every such row is read.
- *    That code is the gateway's source plus @semiont/core and
- *    @semiont/observability, less the modules named in NOT_RUN: each names the
- *    functions its reads run through, and holds only while the gateway's source
- *    names none of them. A read by a computed name is allowed only where
- *    DYNAMIC says why; taking the whole environment is never allowed.
+ * 1. Reads, both directions. Every environment read in the gateway's source
+ *    is a row with `readBy: gateway`, and every such row is read — by literal
+ *    name (`env::var`, `env::var_os`). A computed name is allowed only where
+ *    DYNAMIC says why; `env::vars()` and `EnvFilter::from_default_env` never
+ *    are.
  * 2. Provision. A `launcher` row is passed on the gateway's line of the
  *    launcher's default boot golden; an `image` row is set by the gateway's
  *    Dockerfile or exported by the supervisor.
@@ -21,8 +19,7 @@ import { fileURLToPath } from 'node:url';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TABLE = 'specs/src/gateway-environment/variables.json';
-const SOURCES = ['apps/gateway/src', 'packages/core/src', 'packages/observability/src'];
-const GATEWAY_SOURCE = 'apps/gateway/src';
+const SOURCE = 'apps/gateway/src';
 const BOOT_GOLDEN = 'apps/launcher/testdata/golden/start-default-boot.argv';
 const DOCKERFILE = 'apps/gateway/Dockerfile';
 const SUPERVISOR = 'scripts/container/supervise.sh';
@@ -31,36 +28,14 @@ const CASES = 'tests/gateway-conformance/cases';
 const READERS = new Set(['gateway', 'opentelemetry', 'runtime']);
 const PROVIDERS = new Set(['launcher', 'image', 'runtime', 'operator']);
 
-/** Modules the gateway loads or could, whose reads it never runs: file → the functions they run in. */
-const NOT_RUN = {
-  'packages/observability/src/process-logger.ts': ['createProcessLogger'],
-  'packages/core/src/project.ts': ['SemiontProject', 'SemiontState', 'stateDirFor'],
-  'packages/core/src/config/env-placeholders.ts': ['evaluateEnvPlaceholders'],
-  'packages/core/src/config/toml-loader.ts': ['createTomlConfigLoader', 'resolveEnvVars'],
-  'packages/core/src/config/node-config-loader.ts': ['loadEnvironmentConfig'],
-};
-
-/** Reads by a computed name, and why each is bounded. */
+/** Files that read by a computed name, and why each is bounded. */
 const DYNAMIC = {
-  'apps/gateway/src/config.ts': 'fromEnvironment reads the broker variables the document names (signal.userEnv, signal.passwordEnv)',
+  'apps/gateway/src/config.rs': 'from_environment reads the broker variables the document names (signal.userEnv, signal.passwordEnv)',
 };
 
 const failures = [];
 const fail = (message) => failures.push(message);
 const read = (path) => readFileSync(join(ROOT, path), 'utf8');
-
-function sourceFiles(dir) {
-  const out = [];
-  for (const entry of readdirSync(join(ROOT, dir))) {
-    const path = join(dir, entry);
-    if (statSync(join(ROOT, path)).isDirectory()) {
-      if (entry !== '__tests__' && entry !== 'node_modules') out.push(...sourceFiles(path));
-    } else if (/\.tsx?$/.test(entry) && !/\.(test|spec)\.tsx?$/.test(entry) && !entry.endsWith('.d.ts')) {
-      out.push(path);
-    }
-  }
-  return out;
-}
 
 // ── the table ───────────────────────────────────────────────────────────────
 const table = JSON.parse(read(TABLE));
@@ -79,40 +54,45 @@ for (const row of rows) {
 }
 
 // ── 1. reads, both directions ───────────────────────────────────────────────
-const gatewayText = sourceFiles(GATEWAY_SOURCE).map(read).join('\n');
-for (const [file, symbols] of Object.entries(NOT_RUN)) {
-  for (const symbol of symbols) {
-    if (new RegExp(`\\b${symbol}\\b`).test(gatewayText)) {
-      fail(`${GATEWAY_SOURCE} names ${symbol}, so the reads in ${file} are the gateway's: take ${file} out of NOT_RUN and list what it reads`);
-    }
+function sourceFiles(dir) {
+  const out = [];
+  for (const entry of readdirSync(join(ROOT, dir))) {
+    const path = join(dir, entry);
+    if (statSync(join(ROOT, path)).isDirectory()) out.push(...sourceFiles(path));
+    else if (entry.endsWith('.rs')) out.push(path);
   }
+  return out;
 }
+/** A line comment runs from `//` preceded by nothing or whitespace — never a URL's `://`. */
+const withoutComments = (text) => text.split('\n').map((line) => line.replace(/(^|\s)\/\/.*$/, '$1')).join('\n');
 
-const NAMED = /process\.env(?:\?\.|\.)([A-Z_][A-Z0-9_]*)|process\.env(?:\?\.)?\[\s*(['"])([A-Z_][A-Z0-9_]*)\2\s*\]/g;
-const COMPUTED = /process\.env(?:\?\.)?\[\s*(?!['"])/g;
-const WHOLE = /process\.env(?![\w.?[])/g;
+const NAMED = /\benv::var(?:_os)?\(\s*"([A-Z_][A-Z0-9_]*)"\s*\)/g;
+const COMPUTED = /\benv::var(?:_os)?\(\s*(?!")/g;
+const WHOLE = /\benv::vars(?:_os)?\s*\(/g;
+const IMPLICIT = /\bfrom_default_env\b/g;
 
 const reads = new Map(); // name → files
-for (const dir of SOURCES) {
-  for (const file of sourceFiles(dir)) {
-    if (file in NOT_RUN) continue;
-    const text = read(file);
-    for (const m of text.matchAll(NAMED)) {
-      const name = m[1] ?? m[3];
-      reads.set(name, [...(reads.get(name) ?? []), file]);
-    }
-    if (COMPUTED.test(text) && !(file in DYNAMIC)) fail(`${file} reads the environment by a computed name; the gateway reads only the variables ${TABLE} lists`);
-    COMPUTED.lastIndex = 0;
-    if (WHOLE.test(text)) fail(`${file} takes the whole environment; the gateway reads only the variables ${TABLE} lists`);
-    WHOLE.lastIndex = 0;
-  }
+for (const file of sourceFiles(SOURCE)) {
+  const text = withoutComments(read(file));
+  for (const m of text.matchAll(NAMED)) reads.set(m[1], [...(reads.get(m[1]) ?? []), file]);
+  if (COMPUTED.test(text) && !(file in DYNAMIC)) fail(`${file} reads the environment by a computed name; the gateway reads only the variables ${TABLE} lists`);
+  COMPUTED.lastIndex = 0;
+  if (WHOLE.test(text)) fail(`${file} takes the whole environment; the gateway reads only the variables ${TABLE} lists`);
+  WHOLE.lastIndex = 0;
+  if (IMPLICIT.test(text)) fail(`${file} lets a library read the environment for it (from_default_env); the gateway reads only the variables ${TABLE} lists`);
+  IMPLICIT.lastIndex = 0;
 }
+for (const file of Object.keys(DYNAMIC)) {
+  COMPUTED.lastIndex = 0;
+  if (!COMPUTED.test(withoutComments(read(file)))) fail(`DYNAMIC names ${file}, which reads no variable by a computed name: remove it`);
+}
+COMPUTED.lastIndex = 0;
 const readByGateway = new Set(rows.filter((r) => r.readBy === 'gateway').map((r) => r.name));
 for (const [name, files] of reads) {
   if (!readByGateway.has(name)) fail(`${[...new Set(files)].join(', ')} read ${name}, which ${TABLE} does not list as read by the gateway`);
 }
 for (const name of readByGateway) {
-  if (!reads.has(name)) fail(`${TABLE} lists ${name} as read by the gateway, and nothing it runs reads it`);
+  if (!reads.has(name)) fail(`${TABLE} lists ${name} as read by the gateway, and nothing in ${SOURCE} reads it`);
 }
 
 // ── 2. provision ────────────────────────────────────────────────────────────

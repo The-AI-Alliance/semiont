@@ -4,7 +4,7 @@ package bus
 // request/reply convention. Hand-written; the vocabulary it speaks
 // (channels, operations) is generated from specs/src/bus/registry.json.
 //
-// Wire shape, as the gateway implements it (apps/gateway/src/routes/bus.ts):
+// Wire shape, as the gateway implements it (apps/gateway/src/routes/bus.rs, stream.rs):
 //   POST /bus/emit          {channel, payload, clientId, scope?}
 //   POST /bus/subscribe     the generated semiont.BusSubscribeRequest — this
 //     file marshals that type rather than restating its fields, so a schema

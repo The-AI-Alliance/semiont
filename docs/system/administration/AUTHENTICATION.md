@@ -74,8 +74,8 @@ row against the literal, not against another document:
 | Token | Minted at | Literal |
 |---|---|---|
 | Access | the realm the launcher imports, [`apps/launcher/internal/launcher/identity.go`](../../../apps/launcher/internal/launcher/identity.go) | `keycloakAccessTokenLifespan`, written into the realm as `accessTokenLifespan`. A knowledge base overrides it with `accessTokenLifespan` in its `[identity]` section. **Applied only on first boot** — import skips an existing realm, so a deployment older than the change keeps what it was created with, and `semiont start` warns when the realm's actual lifespan disagrees with the config. |
-| Agent | [`apps/gateway/src/routes/auth.ts`](../../../apps/gateway/src/routes/auth.ts) | `AGENT_TOKEN_TTL_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
-| Media | [`apps/gateway/src/auth/jwt.ts:189`](../../../apps/gateway/src/auth/jwt.ts#L189) | `expiresIn: '5m'` |
+| Agent | [`apps/gateway/src/tokens.rs`](../../../apps/gateway/src/tokens.rs) | `AGENT_TOKEN_SECONDS`, the one named constant; holders read `exp` off the token rather than restating it |
+| Media | [`apps/gateway/src/tokens.rs`](../../../apps/gateway/src/tokens.rs) | `MEDIA_TOKEN_SECONDS` (five minutes) |
 
 ### Revocation
 
@@ -197,24 +197,17 @@ Agents and media only — a person's token is the issuer's, and its claims are w
 }
 ```
 
-`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification by `JWTPayloadSchema`.
+`did` is the identity everything downstream keys on — the bus stamps it on every event, resource creation attributes to it, the signal ledger claims under it. There is no `isAdmin` claim and no `provider` claim; the shape is enforced at verification (`agent_claims` in `apps/gateway/src/tokens.rs`).
 
 ## Implementation Details
 
-### Bearer validation (`apps/gateway/src/middleware/auth.ts`)
+### Bearer validation (`apps/gateway/src/http.rs`)
 
-The middleware accepts a media token via `?token=` for `GET /api/resources/:id`, otherwise an `Authorization: Bearer` header; a missing token returns the actionable 401 above. On a valid token it resolves the principal (`principalFromToken` in `apps/gateway/src/identity/`) and sets `c.get('principal')`.
+A protected route takes the `Authenticated` extractor, which runs before its body is read: it takes the token from an `Authorization: Bearer` header — a missing one returns the actionable 401 above — and resolves the principal (`principal_from_token` in `apps/gateway/src/principal.rs`). `GET /api/resources/{id}` takes `MediaOrBearer` instead, which accepts that resource's media token in `?token=` before falling back to the header.
 
-### Route protection (`apps/gateway/src/routes/resources/shared.ts`)
+### Route protection (`apps/gateway/src/routes/mod.rs`)
 
-```typescript
-import { authMiddleware } from '../../middleware/auth';
-
-export function initResourcesRouter(router: Hono) {
-  router.use('/api/resources/*', authMiddleware);
-  router.use('/resources/*', authMiddleware); // W3C IRI endpoints also require auth
-}
-```
+Every route is one row of the route table, and its handler names the credential it needs: `Authenticated`, `MediaOrBearer`, or — for `POST /api/tokens/agent` — the issuer token carrying `semiont-service` it checks itself. A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that matches no declared operation is authenticated before it is answered 404.
 
 ## Environment Configuration
 

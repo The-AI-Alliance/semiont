@@ -3,11 +3,12 @@ name: Publish Service Container Images
 run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-run)' || '' }}"
 
 # Builds and publishes the seven Semiont service images
-# (gateway · worker · smelter · weaver · archivist · librarian · dispatcher) from
-# the published @semiont/* packages,
-# mirroring publish-browser.yml's verify-npm → scan → multi-arch push → SBOM →
-# attest spine, with an added license-policy gate. Config is runtime (bind-mount);
-# the images ship config-free.
+# (gateway · worker · smelter · weaver · archivist · librarian · dispatcher):
+# the gateway compiled from this checkout (apps/gateway, the Rust gateway,
+# reporting version.json's version), the other six from the published
+# @semiont/* packages, mirroring publish-browser.yml's verify-npm → scan →
+# multi-arch push → SBOM → attest spine, with an added license-policy gate.
+# Config is runtime (bind-mount); the images ship config-free.
 
 on:
   workflow_dispatch:
@@ -42,33 +43,43 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # `installs`: the image installs @semiont/* packages from npm, so it
+          # waits for them to be installable. `refusal`: what the image says,
+          # run bare, when it reaches its own configuration.
           - service: gateway
             dockerfile: apps/gateway/Dockerfile
-            verify_packages: '@semiont/gateway'
+            refusal: "Cannot read the gateway's configuration document"
           - service: worker
             dockerfile: apps/worker/Dockerfile
-            verify_packages: '@semiont/jobs'
+            installs: npm
+            refusal: No environment selected
           - service: smelter
             dockerfile: apps/smelter/Dockerfile
-            verify_packages: '@semiont/make-meaning'
+            installs: npm
+            refusal: No environment selected
           - service: weaver
             dockerfile: apps/weaver/Dockerfile
-            verify_packages: '@semiont/make-meaning'
+            installs: npm
+            refusal: No environment selected
           - service: archivist
             dockerfile: apps/archivist/Dockerfile
-            verify_packages: '@semiont/make-meaning'
+            installs: npm
+            refusal: No environment selected
           - service: librarian
             dockerfile: apps/librarian/Dockerfile
-            verify_packages: '@semiont/make-meaning'
+            installs: npm
+            refusal: No environment selected
           - service: dispatcher
             dockerfile: apps/dispatcher/Dockerfile
-            verify_packages: '@semiont/make-meaning'
+            installs: npm
+            refusal: No environment selected
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
       - name: Verify packages are installable from npm
+        if: matrix.installs == 'npm'
         # A just-published version is not installable for minutes afterwards,
         # even though npmjs.com shows it instantly, so a single probe right
         # after publish fails on a package that is genuinely there. Poll.
@@ -130,6 +141,21 @@ jobs:
           done
           echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
 
+      # The gateway compiles with the toolchain apps/gateway/rust-toolchain.toml
+      # pins; the others install the version this run publishes.
+      - name: Build arguments
+        id: args
+        run: |
+          {
+            echo "args<<EOF"
+            if [ "${{ matrix.service }}" = gateway ]; then
+              echo "RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' apps/gateway/rust-toolchain.toml)"
+            else
+              echo "SEMIONT_VERSION=${{ inputs.version }}"
+            fi
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.4.1
 
@@ -167,8 +193,7 @@ jobs:
           platforms: linux/amd64
           load: true
           tags: semiont-${{ matrix.service }}:scan
-          build-args: |
-            SEMIONT_VERSION=${{ inputs.version }}
+          build-args: ${{ steps.args.outputs.args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -222,14 +247,20 @@ jobs:
             echo "::error::${{ matrix.service }} image died at module load — the entry point or a dependency is missing from the image."
             exit 1
           fi
-          # The refusal @semiont/core's config loader raises when no environment
-          # is staged. Every service in this matrix reaches it; a change to that
-          # message should fail here loudly rather than pass silently.
-          if ! echo "$out" | grep -q "No environment selected"; then
-            echo "::error::${{ matrix.service }} image did not reach config resolution. Expected the loader's \"No environment selected\" refusal; see the output above for where it stopped instead."
+          # The refusal each service raises when it has no configuration: for the
+          # sidecars @semiont/core's loader with no environment staged, for the
+          # gateway its own with no document. A change to either message should
+          # fail here loudly rather than pass silently.
+          if ! echo "$out" | grep -qF "${{ matrix.refusal }}"; then
+            echo "::error::${{ matrix.service }} image did not reach config resolution. Expected \"${{ matrix.refusal }}\"; see the output above for where it stopped instead."
             exit 1
           fi
           echo "${{ matrix.service }}: entry point and imports resolved, reached config resolution"
+
+      # The gateway image carries no source and starts within its bound.
+      - name: Check the gateway image
+        if: matrix.service == 'gateway'
+        run: scripts/container/check-gateway-image.sh semiont-${{ matrix.service }}:scan docker
 
       - name: Build and push Docker image
         id: build-push
@@ -244,8 +275,7 @@ jobs:
           # came from one, unattested. Negate the boolean, as the attest steps do.
           push: ${{ !inputs.dry_run }}
           tags: ${{ steps.tags.outputs.tags }}
-          build-args: |
-            SEMIONT_VERSION=${{ inputs.version }}
+          build-args: ${{ steps.args.outputs.args }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -274,7 +304,7 @@ jobs:
         run: |
           echo "## semiont-${{ matrix.service }} Container Image" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Bundled @semiont/* version:** ${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Version:** ${{ inputs.version }}${{ matrix.installs != 'npm' && ' (built from this commit)' || '' }}" >> $GITHUB_STEP_SUMMARY
           echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
           echo "**Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

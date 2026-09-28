@@ -2,7 +2,7 @@
 
 The gateway logs structured lines to stdout, which is the container's contract:
 `semiont logs` reads the runtime's stream, and anything that ships logs reads
-the same.
+the same. Its code is [src/logging.rs](../src/logging.rs).
 
 ## Level and format
 
@@ -12,6 +12,9 @@ the same.
 - **Format** — `logFormat` in the same document: `json` (one JSON object per
   line) or `simple` (`<timestamp> [LEVEL] message {fields}`, for reading at a
   terminal). The launcher writes `json`.
+
+`SEMIONT_BUS_LOG` lines (`[bus EMIT] …`) and a fatal error's `[fatal] …` go to
+stderr, so stdout stays one format.
 
 ## What every line carries
 
@@ -31,8 +34,8 @@ the same.
 One line as a request arrives and one as its response leaves:
 
 ```json
-{ "level": "info", "message": "Incoming request", "type": "request_incoming", "method": "POST", "path": "/bus/emit", "requestId": "…" }
-{ "level": "info", "message": "Outgoing response", "type": "request_outgoing", "method": "POST", "path": "/bus/emit", "status": 202, "durationMs": 4, "requestId": "…" }
+{ "level": "info", "message": "Incoming request", "type": "request_incoming", "method": "POST", "path": "/bus/emit", "requestId": "…", "timestamp": "…" }
+{ "level": "info", "message": "Outgoing response", "type": "request_outgoing", "method": "POST", "path": "/bus/emit", "status": 202, "durationMs": 4, "requestId": "…", "timestamp": "…" }
 ```
 
 ### Authentication failures (`warn`)
@@ -46,11 +49,10 @@ successful authentication is logged at `debug`.
 
 ### Unhandled errors (`error`)
 
-Logged by the app's `onError` handler, which answers the caller a 500
-`ErrorResponse` that carries none of this:
+Answered with a 500 `ErrorResponse` that carries none of this:
 
 ```json
-{ "level": "error", "message": "Unhandled error during request processing", "type": "unhandled_error", "method": "POST", "path": "/resources", "error": "…", "stack": "…", "name": "TypeError", "requestId": "…" }
+{ "level": "error", "message": "Unhandled error during request processing", "type": "unhandled_error", "during": "…", "error": "…", "requestId": "…" }
 ```
 
 ### The bus (`component: "bus"`)
@@ -61,10 +63,12 @@ correlationId), every SSE connection and disconnection with its reason, and a
 prefix — `[bus CLAIM-CONFLICT]`, `[bus CLAIM-EXPIRED]`, `[bus CLAIM-EVICTED]`,
 `[bus CLAIM-READ-FAILED]`, `[bus REPLY-UNCLAIMED]`, `[bus REPLY-RETAIN-FAILED]`,
 `[bus UNANSWERABLE]` among them — and the disconnection of a stalled subscriber
-(`SSE pending-write overflow`, `SSE replay-buffer overflow`).
+(`SSE pending-write overflow`, `SSE replay-buffer overflow`). The broker's
+connection is `component: "signal"`: `[signal BROKER-DOWN]`,
+`[signal BROKER-RECONNECTED]`, `[signal BROKER-REFUSED]`.
 
-### The event loop (`component: "event-loop-monitor"`)
+### The runtime (`component: "event-loop-monitor"`)
 
-Every 30 seconds: the loop's mean, 99th-percentile and maximum delay, at `warn`
-when the 99th percentile passes 100 ms — the signal that requests are waiting in
-the TCP backlog rather than being handled.
+Every 30 seconds: the mean, 99th-percentile and maximum of how late the runtime
+woke a task that slept 10 ms, at `warn` when the 99th percentile passes 100 ms
+— the signal that requests are waiting rather than being handled.

@@ -77,7 +77,7 @@ The dotted edges are identity, and they come first: nobody reaches the gateway w
 
 Two mechanisms behind the gateway hub are selected by config, not drawn as edges:
 
-- **The Signal Plane** is the fan-out behind those two bus endpoints — a driver seam. By default (`[signal] type = "in-process"`) it is the gateway's own per-process RxJS bus; `[signal] type = "nats"` moves fan-out onto core NATS subjects so the gateway can run as multiple replicas. The bus contract above is identical either way; clients never see the choice.
+- **The Signal Plane** is the fan-out behind those two bus endpoints — a driver seam. By default (`[signal] type = "in-process"`) it is the gateway's own process; `[signal] type = "nats"` moves fan-out onto core NATS subjects so the gateway can run as multiple replicas. The bus contract above is identical either way; clients never see the choice.
 - **The job queue** the dispatcher owns is likewise driver-backed (`[jobs] type`): `jetstream` (NATS JetStream — what the launcher template ships, and the only driver the mountless dispatcher can run) or `fs` (a filesystem queue kept as the reference implementation; it needs a writable state tree). Jobs are created at the dispatcher, announced on `job:queued`, and claimed by exactly one worker over the bus — a claim the dispatcher admits only from a token carrying the worker role.
 
 The second diagram draws the NATS `messaging` daemon the two share (`[jobs] = "jetstream"`, `[signal] = "nats"` — what the launcher template ships). Select neither and it is absent: the in-process bus and one gateway — though an `fs` queue then needs a state tree the launcher's dispatcher does not mount, so a launcher-run stack selects `jetstream`.

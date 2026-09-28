@@ -1,51 +1,42 @@
-FROM node:24-alpine AS installer
-ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG SEMIONT_VERSION=latest
-RUN --mount=type=cache,target=/root/.npm \
-    npm config set registry $NPM_REGISTRY && \
-    npm install -g npm@12.0.1 && \
-    npm install @semiont/gateway@${SEMIONT_VERSION} \
-      --prefix /home/semiont/.local/share/semiont
-
-FROM node:24-alpine
-ARG SEMIONT_VERSION=latest
-RUN apk upgrade --no-cache
-
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 semiont
-
-COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=installer /usr/local/bin /usr/local/bin
-COPY --from=installer --chown=semiont:nodejs /home/semiont/.local/share/semiont /home/semiont/.local/share/semiont
-
-# Strip npm/npx (re-introduced by the COPY above). Nothing at runtime runs them:
-# the CMD is `node` on the built server.
+# The gateway image: the binary, built here from the repository, and nothing
+# of its source — no .rs, no Cargo files, no target/, no toolchain, no specs/
+# (the spec is compiled into the binary). Nothing is built, installed or
+# fetched when the container starts: the entrypoint execs the binary.
 #
-# DO NOT delete a prune here because the package is absent from the monorepo
-# lockfile. This image does not build from the monorepo -- the installer stage
-# runs `npm install @semiont/gateway@$SEMIONT_VERSION` against npm, so its tree
-# is whatever the PUBLISHED gateway depends on, which lags main by a release.
-# Doing exactly that once failed the Trivy gate with two HIGH CVEs. Verify with
-# `npm view @semiont/gateway dependencies`, not with the lockfile.
+# Built from the repository root, with the toolchain
+# apps/gateway/rust-toolchain.toml names — the one place it is written:
 #
-# Absence from a published image's SBOM is NOT evidence a prune is dead: a prune
-# removes, so absence is what a working prune looks like. (A patch that replaces
-# a version in place is different -- there, absence does mean nothing pulls it.)
+#   --build-arg RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' apps/gateway/rust-toolchain.toml)
 #
-# mysql2 by -path, not -name: -name would also delete studio-core's data/mysql2 shim.
-RUN rm -rf /usr/local/lib/node_modules/npm \
-           /usr/local/bin/npm \
-           /usr/local/bin/npx && \
-    find /usr/local/lib/node_modules /home/semiont/.local/share/semiont \
-      -type d \( -name typescript -o -name '@typescript' -o -name elkjs \
-                 -o -path '*/node_modules/mysql2' \) \
-      -prune -exec rm -rf {} +
+# There is no default: without it the first FROM names no image and the build
+# stops, rather than building with a toolchain nothing pinned.
+ARG RUST_TOOLCHAIN
 
+FROM rust:${RUST_TOOLCHAIN}-alpine AS builder
+# cargo-auditable writes the crates the binary links into the binary itself,
+# which is how the image scan (Trivy) sees them in an image with no Cargo.lock.
+RUN cargo install cargo-auditable --locked --version 0.7.6
+WORKDIR /build
+COPY version.json ./
+COPY specs/src specs/src
+COPY apps/gateway/Cargo.toml apps/gateway/Cargo.lock apps/gateway/build.rs apps/gateway/
+COPY apps/gateway/src apps/gateway/src
+WORKDIR /build/apps/gateway
+# A spec that does not compile fails here, in build.rs, never at boot.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/apps/gateway/target \
+    cargo auditable build --release --locked && \
+    cp target/release/semiont-gateway /semiont-gateway
+
+FROM alpine:3.24
+RUN apk upgrade --no-cache && apk add --no-cache tini
+
+# The uid the launcher's state mount is written as, as in every service image.
+RUN addgroup --system --gid 1001 semiont && \
+    adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
+
+COPY --from=builder /semiont-gateway /usr/local/bin/semiont-gateway
 COPY LICENSE apps/gateway/NOTICE /home/semiont/
-
-# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
-# /usr/local/bin refuses writes once USER drops privileges below.
-RUN apk add --no-cache tini
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 
@@ -54,17 +45,9 @@ USER semiont
 EXPOSE 4000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:4000/api/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
-
-ENV GATEWAY_DIR=/home/semiont/.local/share/semiont/node_modules/@semiont/gateway
-
-# The image publishes ONE binary and nothing execs it by name: CMD is `node` on
-# an absolute path. No `.bin` on PATH, and nothing to assert but the file CMD
-# runs.
-RUN test -f "$GATEWAY_DIR/dist/index.js" \
-      || { echo "GATEWAY_DIR does not contain dist/index.js: $GATEWAY_DIR"; exit 1; }
+  CMD wget -q -O /dev/null http://localhost:4000/api/health || exit 1
 
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/home/semiont/.local/share/semiont/node_modules/@semiont/gateway/dist/index.js"]
+CMD ["/usr/local/bin/semiont-gateway"]

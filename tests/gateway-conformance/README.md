@@ -6,7 +6,8 @@ states it — the OpenAPI document, the bus registry — and as
 [docs/protocol/TRANSPORT-HTTP.md](../../docs/protocol/TRANSPORT-HTTP.md)
 states the semantics a schema cannot hold. It imports nothing from the
 gateway: the one line that names an implementation is `GATEWAY_COMMAND` in
-[harness/paths.ts](harness/paths.ts).
+[harness/paths.ts](harness/paths.ts), which [vitest.config.ts](vitest.config.ts)
+provides to the cases: the Rust gateway's binary, built in `apps/gateway`.
 
 Every case runs against a gateway on each signal plane — in-process, and NATS
 with a real `nats-server` — except the ones that need a broker (replicas, a
@@ -42,7 +43,9 @@ configured another way).
   a broker outage, boot refusals (broker credentials among them) and the
   signing key ring, and the headers on every response.
 - **Telemetry** (`cases/observability.test.ts`): each plane exports to its own
-  receiver, and its last case holds everything received to
+  receiver — which reads OTLP/HTTP as JSON or protobuf, as a collector does,
+  held to OpenTelemetry's own serializers by `harness/otlp.test.ts` — and its
+  last case holds everything received to
   [`specs/src/gateway-telemetry/telemetry.json`](../../specs/src/gateway-telemetry/telemetry.json)
   in both directions — every span and metric a listed row of the listed kind,
   carrying listed attributes, and every row the cases' traffic can produce arrived.
@@ -66,8 +69,8 @@ require credentials and be taken down and brought back, and an OTLP receiver.
 It needs a built gateway and `nats-server` (2.10 or later) on `PATH`:
 
 ```bash
+(cd apps/gateway && cargo build --release)
 npm run build:packages
-npm run build -w semiont-gateway
 cd tests/gateway-conformance
 npm ci
 npm test

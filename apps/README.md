@@ -6,21 +6,22 @@ Deployable applications for the Semiont platform.
 
 | Package | Version | Source | Description |
 | ------- | ------- | ------ | ----------- |
-| [@semiont/gateway](https://www.npmjs.com/package/@semiont/gateway) | [![npm](https://img.shields.io/npm/v/@semiont/gateway)](https://www.npmjs.com/package/@semiont/gateway) | [gateway](./gateway/) | Hono API server + event-bus gateway |
 | [@semiont/browser](https://www.npmjs.com/package/@semiont/browser) | [![npm](https://img.shields.io/npm/v/@semiont/browser)](https://www.npmjs.com/package/@semiont/browser) | [browser](./browser/) | Vite + React SPA — the Semiont Browser |
 
-The gateway and Browser also ship as published, attested container images
-(`ghcr.io/the-ai-alliance/semiont-{gateway,browser}`) that bundle these
-packages — see [Container Images](../docs/system/administration/IMAGES.md).
+The Browser also ships as a published, attested container image
+(`ghcr.io/the-ai-alliance/semiont-browser`) that bundles its package — see
+[Container Images](../docs/system/administration/IMAGES.md).
 
 ## Container images only
 
-These ship as attested images and are **not** published to npm — their code lives in
-`@semiont/make-meaning` (the actors) and `@semiont/jobs` (the processors), and each app
-directory is the container entry point plus its Dockerfile.
+These ship as attested images and are **not** published to npm. The gateway is a Rust
+binary its image compiles from [gateway](./gateway/); the others' code lives in
+`@semiont/make-meaning` (the actors) and `@semiont/jobs` (the processors), and each of
+their app directories is the container entry point plus its Dockerfile.
 
 | Service | Source | Port | What it runs |
 | --- | --- | --- | --- |
+| `semiont-gateway` | [gateway](./gateway/README.md) | 4000 | **The front door** — authenticates callers, validates and relays the bus, keeps the reply records, and pipes bytes to and from the Archivist. Rust, built against `specs/` |
 | `semiont-archivist` | [archivist](./archivist/README.md) | 24103 | **Keeps the system of record** — Stower (writes events + projections), Browser (serves `browse:*` reads), CloneTokenManager. The only service that mounts the working tree |
 | `semiont-librarian` | [librarian](./librarian/README.md) | 24104 | **Searches the record** — Gatherer (context assembly) and Matcher (candidate search + scoring) |
 | `semiont-smelter` | [smelter](./smelter/README.md) | 24101 | Chunks and embeds content into the vector store; owns anchored-text extraction |
@@ -28,7 +29,7 @@ directory is the container entry point plus its Dockerfile.
 | `semiont-worker` | [worker](./worker/README.md) | 24100 | Claims queued jobs (detection, generation) and runs inference |
 | `semiont-dispatcher` | [dispatcher](./dispatcher/README.md) | 24105 | **Hands out the work** — owns the job queue and answers the `job:*` lifecycle commands; a control plane through which no content flows |
 
-All seven service images (the six above plus the gateway) are built by
+All seven service images are built by
 [`publish-service-images.yml`](../.github/workflows/publish-service-images.yml).
 
 **The Archivist and the Librarian are a deliberate pair.** The Archivist holds the record

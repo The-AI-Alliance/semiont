@@ -1,0 +1,47 @@
+[package]
+name = "semiont-gateway"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "The Semiont gateway: authenticates, validates and relays the knowledge base's protocol as specs/ states it."
+
+[lib]
+name = "semiont_gateway"
+path = "src/lib.rs"
+
+[[bin]]
+name = "semiont-gateway"
+path = "src/main.rs"
+
+[dependencies]
+async-nats = { version = "0.50.0", default-features = false, features = ["ring", "kv", "server_2_10", "nuid"] }
+axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio", "query"] }
+base64 = "0.23.1"
+bytes = "1.12.1"
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+futures = "0.3.34"
+http-body = "1.1.0"
+hyper = { version = "1.11.1", features = ["server", "http1"] }
+hyper-util = { version = "0.1.21", features = ["tokio"] }
+jsonschema = { version = "0.58.1", default-features = false }
+jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] }
+opentelemetry = { version = "0.33.0", default-features = false, features = ["trace", "metrics"] }
+opentelemetry_sdk = { version = "0.33.0", default-features = false, features = ["trace", "metrics"] }
+opentelemetry-otlp = { version = "0.33.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics"] }
+opentelemetry-stdout = { version = "0.33.0", default-features = false, features = ["trace", "metrics"] }
+percent-encoding = "2.3.2"
+reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream", "json"] }
+rustls = { version = "0.23.45", default-features = false, features = ["ring", "std"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "time", "signal", "sync", "io-util", "fs"] }
+tower = { version = "0.5.3", features = ["util"] }
+uuid = { version = "1.26.1", features = ["v4"] }
+
+[build-dependencies]
+jsonschema = { version = "0.58.1", default-features = false }
+serde_json = { version = "1.0.151", features = ["preserve_order"] }
+
+[profile.release]
+strip = true
+lto = "thin"

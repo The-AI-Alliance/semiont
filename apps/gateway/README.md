@@ -2,7 +2,8 @@
 
 The HTTP entry point to a Semiont knowledge base. It is the one address clients
 and sidecar services dial, and in almost every deployment it runs as the
-`semiont-gateway` container on port 4000.
+`semiont-gateway` container on port 4000. It is a Rust binary built against
+[`specs/`](../../specs/src/openapi.json), which is compiled into it.
 
 Its job is narrow on purpose: **authenticate callers, run the bus hub, and proxy
 content bytes.** It holds no part of the knowledge base. The five actors that
@@ -67,20 +68,23 @@ database.
 The container entrypoint (`tini` as PID 1, exec'ing the shared `boot.sh`) runs
 one step:
 
-1. **`node dist/index.js`** — the image CMD, exec'd by the shared `boot.sh`:
-   directly when `SEMIONT_SUPERVISE` is unset (the container exits when the
-   server dies), under the shared supervisor when the launcher sets it for
-   local runs. `tini` forwards `SIGTERM` either way.
+1. **`/usr/local/bin/semiont-gateway`** — the image CMD, exec'd by the shared
+   `boot.sh`: directly when `SEMIONT_SUPERVISE` is unset (the container exits
+   when the server dies), under the shared supervisor when the launcher sets it
+   for local runs. `tini` forwards `SIGTERM` either way. Nothing is built,
+   installed or fetched at start; the image carries the binary and no source.
 
 Startup then refuses rather than degrades. A configuration document that does
 not validate, an absent or short `JWT_SECRET`, no service account, a broker that
 does not answer or runs without JetStream, or routes that are not exactly the
-spec's operations each stop the process before it listens — a gateway that
+spec's operations each stop the process before it listens (the order is in
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#boot)) — a gateway that
 accepts connections it cannot authenticate, or serves a route no one declared,
 is the failure mode these checks exist to prevent.
 
 `SIGTERM`/`SIGINT` close the listener, drain the signal plane under a deadline
-so in-flight frames reach the broker, tear down the bus, and exit.
+so in-flight frames reach the broker, export what telemetry is buffered, and
+exit.
 
 ## Configuration
 
@@ -131,8 +135,8 @@ schema cannot hold.
 | `GET /api/users/me` | The principal the bearer token names |
 | `POST /api/tokens/agent`, `POST /api/tokens/media` | The tokens the gateway mints. People sign in at the issuer, not here |
 | `GET /api/status` | The gateway's status and version |
-| `POST /bus/emit`, `POST /bus/subscribe` | The bus hub, over the selected signal driver (`src/signal/`) |
-| `POST /resources` | Upload: the bytes go to the Archivist, then `yield:create` records the resource |
+| `POST /bus/emit`, `POST /bus/subscribe` | The bus hub, over the selected signal plane (`src/signal/`) |
+| `POST /resources` | Upload: streamed to the Archivist, which stores the bytes and records the resource |
 | `GET /resources/{id}`, `GET /api/resources/{id}` | The stored bytes, streamed from the Archivist; the second takes a `?token=` media token |
 | `GET /resources/{id}/jsonld` | The resource's JSON-LD description |
 
@@ -143,25 +147,33 @@ downstream.
 
 ## Development
 
+The toolchain is the one [rust-toolchain.toml](rust-toolchain.toml) pins; run
+it in its image (`rust:<channel>-alpine`) as the rest of the repository runs
+its tools:
+
 ```bash
-npm run dev            # watch mode (needs ~/.semiontconfig; see docs/DEVELOPMENT.md)
-npm run typecheck
-npm test               # the manifest census
+cargo fmt --check
+cargo clippy --all-targets -- -D warnings
+cargo test               # the shared-table runners: the only Rust tests
+cargo build --release    # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../tests/gateway-conformance/README.md), run against a
-built gateway on both signal planes; see [TESTING.md](docs/TESTING.md).
+[conformance suite](../../tests/gateway-conformance/README.md), run against the
+built binary on both signal planes; see [TESTING.md](docs/TESTING.md). To run
+one by hand, write a `GatewayConfig` to `~/.semiontconfig` and set `JWT_SECRET`,
+`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 
-The package publishes as [`@semiont/gateway`](https://www.npmjs.com/package/@semiont/gateway);
-the container image installs that package and runs it directly, with no CLI
-layer in between.
+The image ([Dockerfile](Dockerfile)) compiles the crate from the repository
+with that toolchain — pass `--build-arg RUST_TOOLCHAIN=<channel>`, as
+`scripts/ci/local-build.sh` and the publish workflow do — and is held to
+[`scripts/container/check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh):
+no source in it, and `/api/health` served within its start bound.
 
 ## Further reading
 
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — internal structure
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) — how it is built: the embedded spec, boot, the signal plane, the ledger, the stream
 - [AUTHENTICATION.md](docs/AUTHENTICATION.md) — tokens, agents, sign-in
-- [DEVELOPMENT.md](docs/DEVELOPMENT.md) — working on the gateway
 - [TESTING.md](docs/TESTING.md) — the conformance suite and what each check covers
 - [LOGGING.md](docs/LOGGING.md) — log shape and levels
 - [Services overview](../../docs/system/services/OVERVIEW.md) — where the gateway sits among the services
