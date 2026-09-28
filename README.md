@@ -37,11 +37,13 @@ Every step below runs from inside the knowledge base — not from this repo.
 
 ### 3. Start it
 
+One command starts the whole stack and ensures the Semiont browser is running at **http://localhost:3000**:
+
 ```bash
 semiont start
 ```
 
-One command starts the whole stack and ensures the Semiont browser is running at **http://localhost:3000**. `semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
+`semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
 
 ### 4. Connect
 
@@ -67,9 +69,11 @@ For local-network access notes, supply-chain verification, and the native [deskt
 
 ### 5. Ingest content
 
-Upload a document with the session you just created — the file must live under the KB root, since its storage URI is repo-relative:
+Pull down a well-known paper and upload it with the session from step 4. The storage URI is repo-relative, so the file has to land under the KB root first:
 
 ```bash
+mkdir -p papers
+curl -L -o papers/attention-is-all-you-need.pdf https://arxiv.org/pdf/1706.03762
 semiont yield --upload papers/attention-is-all-you-need.pdf
 ```
 
