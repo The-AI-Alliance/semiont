@@ -5,6 +5,7 @@
 //   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
 //   packages/core/src/bus-operations.ts      (BUS_OPERATIONS)
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/delivery)
+//   apps/gateway-rs/src/bus-classification.json (the same attributes, for the Rust gateway)
 //
 // Byte-identical output is the CUTOVER PROOF: regenerate over the committed
 // files and `git diff` must be empty, which is what makes "the extraction was
@@ -22,6 +23,7 @@ const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
+const CLASSIFICATION_JSON = resolve(ROOT, 'apps/gateway-rs/src/bus-classification.json');
 
 const CHECK = process.argv.includes('--check');
 const registryText = readFileSync(REGISTRY, 'utf8');
@@ -244,7 +246,8 @@ for (const ch of [...commandSet, ...declaredSet, ...inProcessSet]) {
 const writesSet = new Set(reg.effect.writes);
 const emittableSet = new Set([...requestSet, ...commandSet]);
 
-const attrLines = reg.channelOrder.eventMap.map((ch) => {
+/** Each channel's attributes, derived once: the TypeScript table and the JSON the Rust gateway embeds both print these. */
+const attrs = reg.channelOrder.eventMap.map((ch) => {
   const c = channelOr(ch, 'eventMap');
   const recorded = Boolean(c.event);
   const delivery = deliveryOf.get(ch);
@@ -262,10 +265,30 @@ const attrLines = reg.channelOrder.eventMap.map((ch) => {
   // Absent rather than false off the emittable set: "nobody emits this" is a
   // different answer from "emitting this changes nothing", and collapsing them
   // would let a reply channel read as a deliberate read.
-  const effect = emittableSet.has(ch) ? `, writes: ${writesSet.has(ch)}` : '';
-  const tail = delivery ? `, delivery: '${delivery}'` : '';
-  return pad(`  '${ch}':`, VALUE_COL_SCHEMAS) + `{ recorded: ${recorded}, direction: '${direction}'${effect}${tail} },`;
+  return {
+    channel: ch,
+    recorded,
+    direction,
+    ...(emittableSet.has(ch) ? { writes: writesSet.has(ch) } : {}),
+    ...(delivery ? { delivery } : {}),
+  };
 });
+
+const attrLines = attrs.map(({ channel, recorded, direction, writes, delivery }) => {
+  const effect = writes === undefined ? '' : `, writes: ${writes}`;
+  const tail = delivery ? `, delivery: '${delivery}'` : '';
+  return pad(`  '${channel}':`, VALUE_COL_SCHEMAS) + `{ recorded: ${recorded}, direction: '${direction}'${effect}${tail} },`;
+});
+
+const classificationJson =
+  JSON.stringify(
+    {
+      $comment: 'GENERATED from specs/src/bus/registry.json by scripts/bus/generate-ts.mjs — do not edit. Each channel\'s attributes, as packages/core/src/bus-classification.ts states them; the Rust gateway embeds this file.',
+      channels: Object.fromEntries(attrs.map(({ channel, ...rest }) => [channel, rest])),
+    },
+    null,
+    2,
+  ) + '\n';
 
 const classification =
   BANNER +
@@ -318,6 +341,7 @@ const outputs = [
   [OPERATIONS, operations],
   [BRIDGED, bridged],
   [CLASSIFICATION, classification],
+  [CLASSIFICATION_JSON, classificationJson],
 ];
 
 // Alignment-insensitive comparison: the proof that matters is that no

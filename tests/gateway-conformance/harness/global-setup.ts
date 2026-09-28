@@ -13,19 +13,25 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
-import { GATEWAY_COMMAND, REPO_ROOT } from './paths';
+import { REPO_ROOT } from './paths';
 
 declare module 'vitest' {
   export interface ProvidedContext {
+    /** How a gateway is started: the configuration provides it. */
+    gatewayCommand: readonly string[];
     specPath: string;
     archivistSpecPath: string;
   }
 }
 
 export default function setup(project: TestProject): () => void {
-  const entry = GATEWAY_COMMAND[GATEWAY_COMMAND.length - 1]!;
+  const command = project.getProvidedContext().gatewayCommand;
+  const entry = command[command.length - 1]!;
   if (!existsSync(entry)) {
-    throw new Error(`The gateway is not built: ${entry} does not exist. Run \`npm run build -w semiont-gateway\` at the repository root.`);
+    throw new Error(
+      `The gateway is not built: ${entry} does not exist. Build the one this configuration starts: ` +
+        '`npm run build -w semiont-gateway` at the repository root, or `cargo build --release` in apps/gateway-rs.',
+    );
   }
   try {
     execFileSync('nats-server', ['--version'], { stdio: 'ignore' });

@@ -7,9 +7,15 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "pretest": "npm run typecheck",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:rust": "vitest run --config vitest.rust.config.ts"
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/otlp-transformer": "^0.222.0",
+    "@opentelemetry/resources": "^2.11.0",
+    "@opentelemetry/sdk-metrics": "^2.11.0",
+    "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@semiont/core": "file:../../packages/core",
     "@semiont/jobs": "file:../../packages/jobs",
     "@types/node": "^26.0.0",

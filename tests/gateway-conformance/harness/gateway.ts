@@ -13,7 +13,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { components } from '@semiont/core';
-import { GATEWAY_COMMAND } from './paths';
+import { inject } from 'vitest';
 import { freePort } from './net';
 import { gatewayEnvironment } from './spec';
 
@@ -72,6 +72,8 @@ export interface GatewayProcess {
   readonly stdout: string[];
   /** Resolves with the exit code once the process has exited. */
   readonly exited: Promise<number | null>;
+  /** Milliseconds from spawning it to its first `/api/health` 200. */
+  readonly servedAfterMs: number;
   stop(): Promise<void>;
 }
 
@@ -100,7 +102,7 @@ function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output
   writeConfiguration(dir, settings);
   const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: dir };
   for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
-  const [command, ...args] = GATEWAY_COMMAND;
+  const [command, ...args] = inject('gatewayCommand');
   const child = spawn(command!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   const stdout: string[] = [];
@@ -133,6 +135,7 @@ export async function defaultSettings(parts: {
 
 /** Start a gateway and wait until it answers. Fails with its output when it exits instead. */
 export async function startGateway(options: LaunchOptions): Promise<GatewayProcess> {
+  const spawned = Date.now();
   const { child, output, stdout, exited, dir } = launch(options);
   const origin = `http://127.0.0.1:${options.settings.port}`;
   let gone = false;
@@ -157,6 +160,7 @@ export async function startGateway(options: LaunchOptions): Promise<GatewayProce
     }
     await new Promise((r) => setTimeout(r, 50));
   }
+  const servedAfterMs = Date.now() - spawned;
   return {
     origin,
     port: options.settings.port,
@@ -164,6 +168,7 @@ export async function startGateway(options: LaunchOptions): Promise<GatewayProce
     output,
     stdout,
     exited,
+    servedAfterMs,
     async stop() {
       if (child.exitCode === null && child.signalCode === null) {
         child.kill('SIGTERM');

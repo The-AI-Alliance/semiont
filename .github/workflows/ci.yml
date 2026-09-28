@@ -133,6 +133,78 @@ jobs:
         env:
           CI: true
 
+  gateway-rs:
+    name: Rust Gateway
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # rustup installs the toolchain apps/gateway-rs/rust-toolchain.toml names,
+      # with rustfmt and clippy.
+      - name: Install the pinned Rust toolchain
+        run: |
+          cd apps/gateway-rs
+          rustup toolchain install
+          cargo --version
+
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/gateway-rs/target
+          key: ${{ runner.os }}-gateway-rs-${{ hashFiles('apps/gateway-rs/Cargo.lock', 'apps/gateway-rs/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-rs-
+
+      - name: Format, lint, and run the shared-table runners
+        run: |
+          cd apps/gateway-rs
+          cargo fmt --check
+          cargo clippy --all-targets --locked -- -D warnings
+          cargo test --locked
+
+      - name: Build the gateway
+        run: |
+          cd apps/gateway-rs
+          cargo build --release --locked
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/gateway-conformance/package-lock.json
+
+      # The suite imports @semiont/core's test issuer and bundles the spec with
+      # the root's redocly.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # The cases the port has claimed (tests/gateway-conformance/vitest.rust.config.ts).
+      - name: Run the conformance suite against the Rust gateway
+        run: |
+          cd tests/gateway-conformance
+          npm ci
+          npm run typecheck
+          npm run test:rust
+        env:
+          CI: true
+
   test-comprehensive:
     name: Comprehensive Test Suite
     runs-on: ubuntu-latest
