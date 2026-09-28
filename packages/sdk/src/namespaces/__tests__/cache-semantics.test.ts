@@ -1,7 +1,7 @@
 /**
  * Cache-semantics contract tests.
  *
- * Enumerates behaviors B1–B16 from
+ * Enumerates behaviors B1–B16 and B19 from
  * `packages/sdk/docs/CACHE-SEMANTICS.md` against `BrowseNamespace`.
  *
  * Each `describe` block is tagged with the behavior number it verifies.
@@ -14,7 +14,7 @@ import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { BrowseNamespace } from '../browse';
+import { BrowseNamespace, INVALIDATION_WINDOW_MS } from '../browse';
 import { isReady, readyValue } from '../../cache';
 import type { IContentTransport } from '@semiont/core';
 
@@ -56,6 +56,19 @@ function fakeMarkAdded(rId: ResourceId, annIdStr: string): StoredEvent<EventOfTy
     version: 1,
     timestamp: '2026-01-01T00:00:00Z',
     payload: { annotation: mockAnnotation(annIdStr) },
+    metadata: TEST_METADATA,
+  };
+}
+
+function fakeYieldCreated(rId: ResourceId): StoredEvent<EventOfType<'yield:created'>> {
+  return {
+    id: `evt-created-${rId}`,
+    type: 'yield:created',
+    resourceId: rId,
+    userId: TEST_USER_ID,
+    version: 1,
+    timestamp: '2026-01-01T00:00:00Z',
+    payload: { name: `Imported ${rId}`, format: 'text/plain', contentChecksum: 'sha256-test' },
     metadata: TEST_METADATA,
   };
 }
@@ -577,18 +590,24 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
   describe('B12 — bus-event handlers are additive', () => {
     it('mark:added + mark:removed are independent events on annotationList', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
-      await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, emitSpy } = createHarness();
+        await firstDefined(browse.annotations(RID));
+        expect(emitSpy).toHaveBeenCalledTimes(1);
 
-      eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
-      await flush();
-      expect(emitSpy).toHaveBeenCalledTimes(3); // annotations + events refetched
+        eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(emitSpy).toHaveBeenCalledTimes(3); // annotations + events refetched
 
-      eventBus.emit('mark:removed', fakeMarkRemoved(RID, AID));
-      await flush();
-      // Each is independent; mark:removed also fires annotations + events refetch.
-      expect(emitSpy).toHaveBeenCalledTimes(5);
+        eventBus.emit('mark:removed', fakeMarkRemoved(RID, AID));
+        // Each is independent; mark:removed also fires annotations + events
+        // refetch — owed to the window mark:added opened on those keys (B19).
+        await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
+        expect(emitSpy).toHaveBeenCalledTimes(5);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 
@@ -686,6 +705,102 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       expect(listFetches()).toBeGreaterThan(before);
       sub.unsubscribe();
+    });
+  });
+
+  describe('B19 — bus-driven invalidations of one key coalesce', () => {
+    // Another principal writing at the baseline emit rate — 100 a second for
+    // ten seconds — while this session watches.
+    const STORM_EVENTS = 1_000;
+    const STORM_SPACING_MS = 10;
+    // At most once per window while the storm lasts, and once after it.
+    const BOUND = Math.ceil((STORM_EVENTS * STORM_SPACING_MS) / INVALIDATION_WINDOW_MS) + 1;
+    const requests = (emitSpy: ReturnType<typeof createHarness>['emitSpy'], channel: string) =>
+      emitSpy.mock.calls.filter(([ch]) => ch === channel).length;
+
+    it('a bulk import refetches an observed resource list at most once per window, and after its last event', async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, emitSpy } = createHarness();
+        const sub = browse.resources().subscribe(() => {});
+        await firstDefined(browse.resources());
+        const before = requests(emitSpy, 'browse:resources-requested');
+        let beforeLast = before;
+        for (let i = 0; i < STORM_EVENTS; i++) {
+          if (i === STORM_EVENTS - 1) beforeLast = requests(emitSpy, 'browse:resources-requested');
+          eventBus.emit('yield:created', fakeYieldCreated(resourceId(`imported-${i}`)));
+          await vi.advanceTimersByTimeAsync(STORM_SPACING_MS);
+        }
+        await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
+        const after = requests(emitSpy, 'browse:resources-requested');
+        expect(after - before, `list refetches during a ${STORM_EVENTS}-event import`).toBeLessThanOrEqual(BOUND);
+        expect(after, 'a refetch after the last event, so the list shows it').toBeGreaterThan(beforeLast);
+        sub.unsubscribe();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('a stream of marks on the open resource refetches its annotations at most once per window, and ends showing the last', async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, emitSpy, state } = createHarness();
+        let shown: Annotation[] = [];
+        const sub = browse.annotations(RID).subscribe((s) => {
+          if (isReady(s)) shown = s.value;
+        });
+        await firstDefined(browse.annotations(RID));
+        const before = requests(emitSpy, 'browse:annotations-requested');
+        for (let i = 0; i < STORM_EVENTS; i++) {
+          state.annotationCount = i + 2; // the server's list grows with each mark
+          eventBus.emit('mark:added', fakeMarkAdded(RID, `ann-storm-${i}`));
+          await vi.advanceTimersByTimeAsync(STORM_SPACING_MS);
+        }
+        await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
+        expect(requests(emitSpy, 'browse:annotations-requested') - before, `annotation refetches during ${STORM_EVENTS} marks`).toBeLessThanOrEqual(BOUND);
+        expect(shown, 'the list ends with every mark').toHaveLength(STORM_EVENTS + 1);
+        sub.unsubscribe();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('one event refetches at once: an isolated write is seen without waiting for a window', async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, emitSpy } = createHarness();
+        const sub = browse.annotations(RID).subscribe(() => {});
+        await firstDefined(browse.annotations(RID));
+        const before = requests(emitSpy, 'browse:annotations-requested');
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-single'));
+        await vi.advanceTimersByTimeAsync(0);
+        expect(requests(emitSpy, 'browse:annotations-requested')).toBe(before + 1);
+        sub.unsubscribe();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('disposal closes every window, dropping what they still owed (B16)', async () => {
+      vi.useFakeTimers();
+      try {
+        const { browse, eventBus, emitSpy } = createHarness();
+        const sub = browse.annotations(RID).subscribe(() => {});
+        await firstDefined(browse.annotations(RID));
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-a'));
+        eventBus.emit('mark:added', fakeMarkAdded(RID, 'ann-b'));
+        await vi.advanceTimersByTimeAsync(0);
+        const settled = emitSpy.mock.calls.length;
+        sub.unsubscribe();
+        browse.dispose();
+        // An open window is a live timer: left running, it would hold a Node
+        // process open and fire into caches that no longer exist.
+        expect(vi.getTimerCount(), 'timers left running after disposal').toBe(0);
+        await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS * 2);
+        expect(emitSpy.mock.calls.length, 'nothing is requested after disposal').toBe(settled);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

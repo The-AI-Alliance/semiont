@@ -373,6 +373,32 @@ effect of any existing mapping. This is a structural rule: each
 only if we can read one handler at a time and understand its full
 effect.
 
+### B19 — Bus-driven invalidations of one key coalesce
+
+Every invalidation a bus event asks for goes through its key's
+**window** (`INVALIDATION_WINDOW_MS`, 1 s):
+
+1. The first invalidation of a key runs at once and opens the window.
+   An isolated write is seen without delay.
+2. Any more for that key inside the window are **owed**. When the
+   window closes, the owed invalidation runs once, and opens the next
+   window.
+3. Disposal closes every window and drops what it owed (B16).
+
+Why: each refetch is a `browse:*` request, an emit counted against
+this session's principal (`emitsPerPrincipal`, 100 a second at the
+baseline). Every write by anyone invalidates the keys a session
+observes, so another principal's bulk import used to cost each viewer
+one refetch per event per observed key. Measured: a 1,000-event
+storm, 100 a second, refetched an observed key 1,000 times. The
+window caps it at one per key per window, and the owed run means the
+last event is always reflected.
+
+This is coalescing at the **source**, not in the cache: B7–B9 hold
+unchanged for every `invalidate` call, and the public `invalidate*`
+methods stay immediate for direct callers. B9's in-flight guard is not
+trusted, and the owed invalidation starts a fresh fetch like any other.
+
 ### B13a — Remove is distinct from invalidate
 
 Some bus events signal that the underlying entity no longer exists
@@ -441,7 +467,8 @@ network work is wasted, not UX.
 
 The current subscription table in `BrowseNamespace.subscribeToEvents()`.
 Updating this table is an API-impact change; keep it in sync with the
-code.
+code. Every invalidation below goes through its key's window (B19);
+removes and in-place updates do not.
 
 | Bus event | Effect |
 |---|---|
@@ -667,3 +694,10 @@ background request per observed key.
   per-scope subscribe-matrix watermarks (multi-resource scope), and B9/B14
   notes record that correlated-reply retention makes
   the lost-reply paths defense-in-depth rather than the common case.
+- 2026-09-28 — **B19 added: bus-driven invalidations of one key
+  coalesce** (leading edge at once, the rest owed to a 1 s window). A
+  per-principal emit limit made the cost of uncoalesced refetches
+  visible: a 1,000-event import refetched each observed key 1,000
+  times. B12's additivity test now waits out the window for its second
+  event's refetches: the count it asserts is unchanged, only its timing.
+
