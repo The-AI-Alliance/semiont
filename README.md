@@ -2,11 +2,11 @@
 
 **Semiont is an open, source-grounded semantic knowledge platform for building and maintaining trusted AI knowledge bases and context layers. It gives humans and AI agents a shared workspace and architecture to annotate, connect, enrich, and govern domain knowledge for accurate applications, agents, and workflows.**
 
-![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
-
 ## Quick Start
 
-Four steps: install → get a knowledge base → start it → connect.
+### 0. Prerequisites
+
+You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected.
 
 ### 1. Install
 
@@ -16,54 +16,42 @@ The `semiont` launcher is a single static binary — no npm, no Node.js:
 brew install the-ai-alliance/semiont/semiont
 ```
 
-### 2. Get a knowledge base
+### 2. Configure inference
 
-You'll need a container runtime — [Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/), auto-detected.
+A knowledge base needs a model to reason with. Either a hosted one or a local one — pick now, because the next step records the choice.
 
-**Pick one** — not this repo. Steps 3 and 4 run from inside whichever you choose.
-
-#### Option A — Clone a demo
-
-[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb), public-domain literature from Project Gutenberg:
-
-```bash
-git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
-cd semiont-gutenberg-kb
-```
-
-The full catalog — seven demo KBs across different domains, plus community
-knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
-
----
-
-#### Option B — Start your own
-
-Register your [Anthropic](https://www.anthropic.com/) key once — only the pointer is stored, read fresh on every start and passed to the containers, written nowhere:
+**Hosted** — register your [Anthropic](https://www.anthropic.com/) key once. Only the pointer is stored, read fresh on every start and passed to the containers, written nowhere:
 
 ```bash
 semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 ```
 
-Then `semiont init` births a KB in place, synthesizing a config it validates before writing:
+**Local** — [Ollama](https://ollama.com/) runs a small model on your own machine instead. There is no key to register and nothing to configure here; you select it in the next step, and no content leaves your machine.
+
+### 3. Create a knowledge base
+
+`semiont init` births a KB in place, synthesizing a config it validates before writing:
 
 ```bash
 mkdir my-kb && cd my-kb
 semiont init --yes --domain example.com:my-kb --inference anthropic
 ```
 
-**Change `--domain`** — it is the KB's permanent identity, stamped into the committed event log, and has no default. `--inference ollama` runs a small model locally through [Ollama](https://ollama.com/) instead, and needs no key.
+**Change `--domain`** — it is the KB's permanent identity, stamped into the committed event log, and has no default. Use `--inference ollama` instead if you chose the local model above.
 
-### 3. Start it
+Every step below runs from inside the knowledge base — not from this repo.
 
-From inside the knowledge base:
+### 4. Start it
+
+One command starts the whole stack and ensures the Semiont browser is running at **http://localhost:3000**:
 
 ```bash
 semiont start
 ```
 
-One command starts the whole stack and ensures the Semiont browser is running at **http://localhost:3000**. `semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
+`semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
 
-### 4. Connect
+### 5. Connect
 
 Create your first user. A fresh stack has none — the account is created at the knowledge base's identity provider, which is what Semiont trusts to authenticate people:
 
@@ -75,35 +63,45 @@ Then open **http://localhost:3000**. The Semiont browser's Knowledge Bases panel
 
 ![Connect to knowledge base](website/assets/images/connect-kb.png)
 
+Sign the launcher in as well — it holds a session of its own, which the next step needs:
+
+```bash
+semiont login          # approve in a browser; only tokens come back
+```
+
+No password reaches the launcher, and the session renews itself; `semiont logout` ends it. It is the CLI's own session — an SDK app signs in separately.
+
 For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
+
+### 6. Ingest content
+
+Pull down a well-known paper and upload it with the session from step 5. The storage URI is repo-relative, so the file has to land under the KB root first:
+
+```bash
+mkdir -p papers
+curl -L -o papers/attention-is-all-you-need.pdf https://arxiv.org/pdf/1706.03762
+semiont yield --upload papers/attention-is-all-you-need.pdf
+```
+
+### 7. Annotate
+
+![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
+
+Open the document you just ingested and start marking it up — highlight a passage, tag an entity, link a claim to the source that supports it. You are not doing it alone: AI agents reach the same document over the same bus, proposing references and entity types for you to accept, refine, or throw out. Every annotation records who made it, human or agent, and the two are the same kind of participant here.
 
 ## Automate
 
 Everything the Semiont browser does travels over one event bus, spoken as
 **[eight verbs](docs/protocol/flows/README.md)**: browse, bind, yield, mark,
-frame, gather, match, beckon. Two ways in — your shell, or your code.
-
-### CLI
-
-The launcher speaks those verbs itself, and it is the shortest way in:
-
-```bash
-semiont login          # approve in a browser; only tokens come back
-semiont browse --help  # then any of the eight verbs
-```
-
-No password reaches the launcher, and the session renews itself; `semiont logout` ends it. It is the CLI's own session — an SDK app signs in separately.
-
-Ingest a document with the same session — the file must live under the KB root,
-since its storage URI is repo-relative:
-
-```bash
-semiont yield --upload papers/attention-is-all-you-need.pdf
-```
-
-### SDK
+frame, gather, match, beckon. You have been speaking them already — `semiont yield`
+was one. The launcher speaks all eight (`semiont browse --help`, and so on), and so does
+your code.
 
 The **[Semiont SDK](packages/sdk/README.md)** (`@semiont/sdk`) is how your code speaks the same bus — a type-safe TypeScript client whose namespaces are those eight verbs. Your app never calls the gateway's HTTP API directly; the SDK is the boundary.
+
+```bash
+npm install @semiont/sdk
+```
 
 Here is a grounded answer — gather context by traversing the graph, then generate from it, with each claim cited back to its source:
 
@@ -114,8 +112,8 @@ const { client } = await SemiontSession.signInDevice({ kb, storage, onCode });
 
 const context = await client.gather.resource(questionId, { excludeEntityTypes: ['Question'] });
 
-const answer = await client.yield.fromResource(questionId, {
-  title: question, storageUri: 'file://generated/answer.md', context,
+const answer = await client.yield.fromContext(context, {
+  title: question, storageUri: 'file://generated/answer.md',
   task: 'answer', structure: 'prose', cite: true,   // cite → linking annotations from claim to source
 }).run((e) => { if (e.kind === 'progress') showProgress(e.data); });
 ```
@@ -123,6 +121,20 @@ const answer = await client.yield.fromResource(questionId, {
 New here? **[INTRODUCTION](packages/sdk/docs/INTRODUCTION.md)** is the orientation chapter — read it first, then the **[Developer Guide](packages/sdk/docs/DEVELOPER-GUIDE.md)** to build, with **[Usage](packages/sdk/docs/Usage.md)** open as the reference.
 
 Built on the SDK: **[@semiont/react-ui](packages/react-ui/README.md)** embeds the resource viewer and annotation UI in your own app, and **[Agent Skills](docs/protocol/skills/)** are ready-made definitions for agentic coding assistants. A **[Go SDK](packages/sdk-go/README.md)** exists; more languages are planned — the contract is specified independently of any of them in **[docs/protocol/](docs/protocol/README.md)**.
+
+## Demo and Community KBs
+
+Rather than starting empty, clone a knowledge base that already carries content. [semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb) holds public-domain literature from Project Gutenberg:
+
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+cd semiont-gutenberg-kb
+```
+
+It arrives with its identity and config already set, so skip step 3 — there is nothing to create. The rest of the Quick Start carries you the same way, and it ships with content, so step 6 is optional too.
+
+The full catalog — seven demo KBs across different domains, plus community
+knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
 
 ## Contributing
 

@@ -3,11 +3,12 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "SAFE-DOCS fixture: compile-checks the sdk docs' code fences against dist through the exports map, the way an external consumer resolves them",
+  "description": "SAFE-DOCS fixture: compile-checks the sdk docs' and the two SDK-bearing READMEs' code fences against dist through the exports map, the way an external consumer resolves them",
   "scripts": {
     "check": "node check.mjs"
   },
   "devDependencies": {
+    "@semiont/make-meaning": "*",
     "@semiont/react-ui": "*",
     "@semiont/sdk": "*",
     "@types/react": "^19.3.0",

@@ -1,8 +1,14 @@
 #!/usr/bin/env node
 // SAFE-DOCS gate: every ```ts / ```tsx / ```typescript fence in the sdk docs
-// must type-check against the BUILT packages, resolved through the exports map
-// the way an external consumer resolves them. Doc rot fails here instead of
-// waiting for a reader to paste a dead snippet.
+// AND in the two READMEs that carry SDK code must type-check against the BUILT
+// packages, resolved through the exports map the way an external consumer
+// resolves them. Doc rot fails here instead of waiting for a reader to paste a
+// dead snippet.
+//
+// The READMEs are in scope because they are the FIRST sdk code most readers
+// see and the least likely to be revisited when a signature moves — both had
+// rotted by the time they were folded in. They sit outside DOCS_DIR, so they
+// are named explicitly rather than found by a directory walk.
 //
 // What a green run does and does not claim:
 //   - Shape, not meaning: a method whose semantics changed but whose signature
@@ -30,15 +36,22 @@ import { createRequire } from 'node:module';
 import {
   readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync,
 } from 'node:fs';
-import { dirname, join, resolve, basename } from 'node:path';
+import { dirname, join, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const ts = require('typescript');
 
+const REPO_ROOT = resolve(__dirname, '../../../..');
 const DOCS_DIR = process.argv[2] ? resolve(process.argv[2]) : resolve(__dirname, '..');
 const OUT_DIR = join(__dirname, '.generated');
+
+// Checked docs that live outside DOCS_DIR. An explicit argv override means
+// "just that directory", so the extras are skipped there.
+const EXTRA_DOCS = process.argv[2]
+  ? []
+  : ['README.md', 'packages/sdk/README.md'].map((f) => join(REPO_ROOT, f));
 
 // ── extract ─────────────────────────────────────────────────────────────
 const FENCE_OPEN = /^(\s*)```(ts|tsx|typescript)\b(.*)$/;
@@ -48,14 +61,21 @@ let exempted = 0;
 rmSync(OUT_DIR, { recursive: true, force: true });
 mkdirSync(OUT_DIR, { recursive: true });
 
-const docFiles = readdirSync(DOCS_DIR)
-  .filter((f) => f.endsWith('.md'))
-  .sort()
-  .map((f) => join(DOCS_DIR, f));
+const docFiles = [
+  ...readdirSync(DOCS_DIR)
+    .filter((f) => f.endsWith('.md'))
+    .sort()
+    .map((f) => join(DOCS_DIR, f)),
+  ...EXTRA_DOCS,
+];
 
 for (const docPath of docFiles) {
   const lines = readFileSync(docPath, 'utf8').split('\n');
-  const base = basename(docPath, '.md');
+  // Repo-relative, NOT the basename: the two READMEs share one, so a basename
+  // key would collide their generated files and make a failure's location
+  // ambiguous. The full path also makes the reported location clickable.
+  const docRel = relative(REPO_ROOT, docPath);
+  const slug = docRel.replace(/\.md$/, '').replace(/[^\w.-]/g, '_');
   for (let i = 0; i < lines.length; i++) {
     const open = FENCE_OPEN.exec(lines[i]);
     if (!open) continue;
@@ -75,21 +95,21 @@ for (const docPath of docFiles) {
       continue;
     }
     const ext = lang === 'tsx' ? 'tsx' : 'ts';
-    const genPath = join(OUT_DIR, `${base}.L${fenceLine}.${ext}`);
+    const genPath = join(OUT_DIR, `${slug}.L${fenceLine}.${ext}`);
     // Footer (never a header): generated line N maps to doc line
     // fenceLine + N with no offset bookkeeping.
     writeFileSync(genPath, `${body.join('\n')}\nexport {};\n`);
     snippets.push({
       genPath,
       docPath,
-      docRel: `${base}.md`,
+      docRel,
       fenceLine,
     });
   }
 }
 
 if (snippets.length === 0) {
-  console.error(`doc-snippets: no checkable fences found under ${DOCS_DIR}`);
+  console.error(`doc-snippets: no checkable fences found under ${DOCS_DIR} or the READMEs`);
   process.exit(1);
 }
 

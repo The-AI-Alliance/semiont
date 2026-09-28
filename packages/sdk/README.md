@@ -146,8 +146,8 @@ import { startMakeMeaning, LocalTransport, LocalContentTransport } from '@semion
 
 const ks = await startMakeMeaning(project, config, eventBus, logger);
 const client = new SemiontClient(
-  new LocalTransport({ knowledgeSystem: ks.knowledgeSystem, eventBus, userId }),
-  new LocalContentTransport(ks.knowledgeSystem),
+  new LocalTransport({ eventBus, userId }),
+  new LocalContentTransport(ks.knowledgeSystem.kb),
 );
 ```
 
