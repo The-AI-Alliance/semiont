@@ -114,8 +114,8 @@ const { client } = await SemiontSession.signInDevice({ kb, storage, onCode });
 
 const context = await client.gather.resource(questionId, { excludeEntityTypes: ['Question'] });
 
-const answer = await client.yield.fromResource(questionId, {
-  title: question, storageUri: 'file://generated/answer.md', context,
+const answer = await client.yield.fromContext(context, {
+  title: question, storageUri: 'file://generated/answer.md',
   task: 'answer', structure: 'prose', cite: true,   // cite → linking annotations from claim to source
 }).run((e) => { if (e.kind === 'progress') showProgress(e.data); });
 ```

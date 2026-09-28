@@ -14,14 +14,16 @@ set -euo pipefail
 #     legal TS); the checker's await-thenable walk covers that class.
 #   - Fences marked `no-check` are exempt (genuine pseudocode / display-only
 #     shapes); the run prints the exemption census — hold it flat or shrink it.
+#   - Scope is the sdk docs PLUS the repo-root and packages/sdk READMEs, which
+#     carry the first sdk code a reader meets and rot unobserved otherwise.
 #
-# POST-BUILD gate: requires dist for core/http-transport/sdk/react-ui and an
+# POST-BUILD gate: requires dist for core/http-transport/sdk/react-ui/make-meaning and an
 # installed workspace tree (the fixture at packages/sdk/docs/__snippets__).
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 FIXTURE="$REPO_ROOT/packages/sdk/docs/__snippets__"
 
-for pkg in core http-transport sdk react-ui; do
+for pkg in core http-transport sdk react-ui make-meaning; do
   if [ ! -f "$REPO_ROOT/packages/$pkg/dist/index.d.ts" ]; then
     echo "❌ doc-snippets: packages/$pkg/dist is missing — run 'npm run build:packages' first (this is a post-build gate)."
     exit 1
