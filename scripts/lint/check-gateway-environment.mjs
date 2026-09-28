@@ -16,6 +16,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TABLE = 'specs/src/gateway-environment/variables.json';
@@ -63,8 +64,6 @@ function sourceFiles(dir) {
   }
   return out;
 }
-/** A line comment runs from `//` preceded by nothing or whitespace — never a URL's `://`. */
-const withoutComments = (text) => text.split('\n').map((line) => line.replace(/(^|\s)\/\/.*$/, '$1')).join('\n');
 
 const NAMED = /\benv::var(?:_os)?\(\s*"([A-Z_][A-Z0-9_]*)"\s*\)/g;
 const COMPUTED = /\benv::var(?:_os)?\(\s*(?!")/g;

@@ -79,6 +79,24 @@ interprets, and a frame's `meta` — its correlation id, its trace — is carrie
 verbatim. Under a broker outage an emit is refused with 503, never accepted and
 lost; the client reconnects on its own.
 
+**Where the interface stands.** It is the boundary to the broker, and it is
+held: `npm run lint:broker-boundary` fails when the `async_nats` crate is named
+outside `nats.rs`, when the NATS plane is named outside `app.rs` (where the
+plane is chosen), or when the `nats` npm client is imported outside the
+dispatcher's JetStream job queue, whose `JobQueue` interface is the same
+boundary on the Node side. The subjects, the bucket names and the readiness
+flush are private to `nats.rs`. Another broker would take an implementation of
+`SignalPlane` and `SharedTable` meeting the contract in
+[signal/mod.rs](../src/signal/mod.rs) — delivery at most once, in order per
+channel and scope; tables with an atomic insert-if-absent, a TTL per table, and
+a watch that delivers what is present and then everything after, with no gap; a
+flush that resolves once the fabric has processed everything sent before it —
+and, around it, a `JobQueue` for the dispatcher, a `signal.type` in
+GatewayConfig, the launcher's container and config, and a plane in the
+conformance suite's harness. It is done when the whole suite passes on that
+plane. No second broker is planned; the in-process plane is the interface's
+second implementation.
+
 Entitlement is gateway policy, above the plane, in the **ledger**
 ([src/ledger.rs](../src/ledger.rs)): an emit on a request claims its
 correlation id for (client, principal) in a table every replica shares, before
