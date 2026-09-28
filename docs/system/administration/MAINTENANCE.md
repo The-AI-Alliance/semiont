@@ -19,7 +19,9 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 
 ## Dependencies and CVEs
 
-[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across four ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher` and `packages/sdk-go`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the seven service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, and `opentelemetry`.
+[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across five ecosystems: npm (repo root and `tests/e2e`), Go modules (`apps/launcher` and `packages/sdk-go`), Cargo (`apps/gateway`), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the seven service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, `opentelemetry`, and `gateway-crates`.
+
+The gateway's crates are also held to RustSec's advisory database by [Gateway Crate Advisories](../../../.github/workflows/gateway-advisories.yml) (`cargo deny`), on every PR that changes what the gateway links and daily, since the database changes without a commit. An advisory judged not to reach the gateway is ignored in [`apps/gateway/deny.toml`](../../../apps/gateway/deny.toml) with its reason, and an ignore that stops matching fails the run.
 
 Two things to know when reviewing those PRs:
 
@@ -31,7 +33,7 @@ Two things to know when reviewing those PRs:
 
 Image publishing enforces this rather than trusting it. [`publish-service-images.yml`](../../../.github/workflows/publish-service-images.yml), per image:
 
-1. Verifies the matching `@semiont/*` npm package version exists — an image always bundles published packages, never a working tree
+1. For an image that installs `@semiont/*` npm packages, verifies the matching version exists — such an image always bundles published packages, never a working tree. The gateway's image compiles the gateway from the repository instead
 2. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs and fails on any unfixed finding
 3. Checks license policy against [`.github/licenses/exceptions.txt`](../../../.github/licenses/exceptions.txt)
 4. Pushes with version, `sha-<commit>`, and optionally `latest` tags

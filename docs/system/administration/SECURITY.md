@@ -134,7 +134,10 @@ Every published Semiont container image — `semiont-browser` and the service
 images alike — is Trivy-scanned for HIGH/CRITICAL CVEs before push and signed
 with Sigstore-backed build-provenance + SBOM attestations stored as OCI
 artifacts in GHCR. The service images additionally pass a license-policy gate
-over the same SBOM. These gates fail the publish, not just the report.
+over the same SBOM. These gates fail the publish, not just the report. The
+gateway's binary carries the list of crates it links (`cargo auditable`), which
+is what the scan reads, and those crates are also checked against RustSec's
+advisory database daily and on every change to them.
 Operators pulling an image should verify the attestations before running it in
 production. See
 [Supply-chain verification](./IMAGES.md#supply-chain-verification)

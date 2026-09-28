@@ -1,0 +1,63 @@
+name: Gateway Crate Advisories
+
+# The crates the gateway links, held to RustSec's advisory database, and to
+# where they may come from and which versions they may be named by — cargo-deny's
+# advisories, sources and bans checks, as apps/gateway/deny.toml configures
+# them. Their licences are the Gateway Tests job's (check-gateway-crates.mjs).
+#
+# It runs when what the gateway links changes, and daily: the database changes
+# without a commit here, so an advisory published today fails tomorrow's run,
+# on the default branch, where a scheduled run reports to whoever last changed
+# the schedule.
+
+on:
+  pull_request:
+    paths:
+      - apps/gateway/Cargo.toml
+      - apps/gateway/Cargo.lock
+      - apps/gateway/deny.toml
+      - .github/workflows/gateway-advisories.yml
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deny:
+    name: Gateway Crate Advisories
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names.
+      - name: Install the pinned Rust toolchain
+        run: |
+          cd apps/gateway
+          rustup toolchain install
+          cargo --version
+
+      # Keyed by this file, which pins cargo-deny's version, and by the
+      # toolchain that compiles it.
+      - name: Cache cargo-deny
+        id: cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cargo/bin/cargo-deny
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'apps/gateway/rust-toolchain.toml') }}
+
+      - name: Install cargo-deny
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          cd apps/gateway
+          cargo install cargo-deny --locked --version 0.20.2
+
+      # -D advisory-not-detected: an ignore that no longer matches anything
+      # fails the run, so none outlives the crate it was about.
+      - name: Check advisories, bans and sources
+        run: |
+          cd apps/gateway
+          cargo deny --locked check -D advisory-not-detected advisories bans sources
