@@ -16,7 +16,6 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-trace-base": "^2.11.0",
     "@semiont/core": "file:../../packages/core",
-    "@semiont/jobs": "file:../../packages/jobs",
     "@types/node": "^26.0.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",

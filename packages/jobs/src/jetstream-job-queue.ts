@@ -39,7 +39,7 @@
 import { connect, NatsError, RetentionPolicy, AckPolicy, DeliverPolicy, nanos } from 'nats';
 import type { NatsConnection, JetStreamClient, JetStreamManager, JsMsg, KV, ConsumerMessages } from 'nats';
 import type { AnyJob, PendingJob, RunningJob, FailedJob, CompleteJob, CancelledJob } from './types';
-import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
+import { jobId as toJobId, JOBS_STREAM_SUBJECTS, JOBS_SUBJECT_ROOT, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
 import { TERMINAL_JOB_RETENTION_MS, TERMINAL_JOB_SWEEP_INTERVAL_MS, type JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
@@ -82,15 +82,6 @@ interface JobEnvelope {
   lastProgressAt: string;
 }
 
-/**
- * The JOBS stream's capture filter — exported as the ONE home of the fact.
- * A JetStream stream is a server-side subscription: anything published under
- * these subjects is persisted regardless of which client API produced it.
- * The signal plane's disjointness gate derives from this export instead of
- * restating it (SIGNAL-PLANE D3 gate 3).
- */
-export const JOBS_STREAM_SUBJECTS = ['jobs.>'] as const;
-
 export interface JetStreamJobQueueOptions {
   /** NATS server address(es), e.g. "192.168.64.42:4222". */
   servers: string | string[];
@@ -117,7 +108,7 @@ function categoryOf(type: string): 'annotation' | 'generation' {
 }
 
 function subjectFor(job: AnyJob): string {
-  return `jobs.${categoryOf(job.metadata.type)}.${job.metadata.type}`;
+  return `${JOBS_SUBJECT_ROOT}.${categoryOf(job.metadata.type)}.${job.metadata.type}`;
 }
 
 export class JetStreamJobQueue implements JobQueue {
@@ -608,7 +599,7 @@ export class JetStreamJobQueue implements JobQueue {
       }
     }
     // Undelivered messages for the category die with the state change.
-    await this.jsm.streams.purge(STREAM, { filter: `jobs.${category}.>` });
+    await this.jsm.streams.purge(STREAM, { filter: `${JOBS_SUBJECT_ROOT}.${category}.>` });
     return cancelled;
   }
 

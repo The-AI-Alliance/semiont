@@ -143,7 +143,10 @@ head_ "Container images"
 # Dockerfiles on disk decide which ones can. Disagreement means a service is
 # building nothing or is missing from the release, so treat it as a failure
 # rather than picking one list and hoping.
-matrix_services=$(grep -oE '^\s+- service: [a-z]+' "$ROOT/.github/workflows/publish-service-images.yml" | awk '{print $3}' | sort)
+# `sort -u`: the matrix has one row per (service, architecture) since the
+# gateway's arm64 half moved to a native runner, so `gateway` appears twice.
+# The question here is which services get images, not how many legs build them.
+matrix_services=$(grep -oE '^\s+- service: [a-z]+' "$ROOT/.github/workflows/publish-service-images.yml" | awk '{print $3}' | sort -u)
 dockerfile_apps=$(ls -d "$ROOT"/apps/*/Dockerfile 2>/dev/null | awk -F/ '{print $(NF-1)}' | grep -v '^browser$' | sort)
 if [ "$matrix_services" = "$dockerfile_apps" ]; then
   ok "service matrix matches apps/*/Dockerfile ($(echo "$matrix_services" | tr '\n' ' '))"

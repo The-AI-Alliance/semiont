@@ -62,6 +62,10 @@ jobs:
           rustup toolchain install
           cargo --version
 
+      # Its own key: this job builds the dev profile (clippy, tests) and
+      # Gateway Conformance the release one. A cache key is saved once, by
+      # whichever job finishes first, so a shared key left the other restoring
+      # the wrong profile and compiling every crate, every run.
       - name: Cache cargo
         uses: actions/cache@v6.1.0
         with:
@@ -69,9 +73,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             apps/gateway/target
-          key: ${{ runner.os }}-gateway-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-
+            ${{ runner.os }}-gateway-dev-
 
       # The gateway's behaviour is the Gateway Conformance job's; what runs
       # here is the code's own hygiene and the runners for the shared case
@@ -110,6 +114,7 @@ jobs:
           cd apps/gateway
           rustup toolchain install
 
+      # Its own key, for the release profile: see Gateway Tests.
       - name: Cache cargo
         uses: actions/cache@v6.1.0
         with:
@@ -117,9 +122,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             apps/gateway/target
-          key: ${{ runner.os }}-gateway-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-
+            ${{ runner.os }}-gateway-release-
 
       - name: Build the gateway
         run: |
@@ -135,12 +140,13 @@ jobs:
             package-lock.json
             tests/gateway-conformance/package-lock.json
 
-      # The suite imports @semiont/core's test issuer and bundles the spec with
-      # the root's redocly.
+      # The suite imports @semiont/core — its test issuer, and the job stream's
+      # subjects — and bundles the spec with the root's redocly. Core is the one
+      # package it builds.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build:packages
+          npm run build --workspace=@semiont/core
 
       # The suite runs every case on the NATS plane too, against a real broker
       # with JetStream, and spawns it from PATH.
