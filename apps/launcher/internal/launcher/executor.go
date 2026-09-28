@@ -1110,37 +1110,14 @@ func (x *liveExec) stateMounts(role, image, root string) ([]string, bool) {
 	}
 	spec := stateStores[role]
 	dir := stateRootDir(root)
-	sd := spec.storeDir(root)
 	meta := loadRootMeta(dir)
 	// A full start has already resolved the stamp in preflight (this re-check
 	// no-ops on the emptied dir); single-service starts resolve here.
 	if !x.resolveStoreStamp(role, image, root) {
 		return nil, false
 	}
-	for _, m := range spec.mounts {
-		mp := filepath.Join(sd, m.sub)
-		if err := os.MkdirAll(mp, 0o755); err != nil {
-			x.u.Fail("cannot create state dir %s: %v", mp, err)
-			return nil, false
-		}
-		if spec.mode != 0 {
-			// MkdirAll perms pass through the umask; the virtiofs gate needs
-			// the literal mode, so stamp it explicitly.
-			if err := os.Chmod(mp, spec.mode); err != nil {
-				x.u.Fail("cannot chmod state dir %s: %v", mp, err)
-				return nil, false
-			}
-		}
-	}
-	if spec.mode != 0 {
-		// The mount dirs carry a permissive mode for the container's own
-		// gate — clamp their UNMOUNTED parent to owner-only so other local
-		// users can't traverse to them. The container never sees the
-		// parent; only the mount dirs cross the boundary.
-		if err := os.Chmod(sd, 0o700); err != nil {
-			x.u.Fail("cannot chmod state dir %s: %v", sd, err)
-			return nil, false
-		}
+	if !x.openStoreDirs(spec, root) {
+		return nil, false
 	}
 	meta.KBRoot = root
 	meta.Did = loadKBIdentity(root).didWeb()
@@ -1172,15 +1149,42 @@ func (x *liveExec) stateMountsShared(role, root string) ([]string, bool) {
 	if len(args) == 0 {
 		return nil, true
 	}
-	spec := stateStores[role]
-	sd := spec.storeDir(root)
-	for _, m := range spec.mounts {
-		if err := os.MkdirAll(filepath.Join(sd, m.sub), 0o755); err != nil {
-			x.u.Fail("cannot create state dir %s: %v", filepath.Join(sd, m.sub), err)
-			return nil, false
-		}
+	if !x.openStoreDirs(stateStores[role], root) {
+		return nil, false
 	}
 	return args, true
+}
+
+// openStoreDirs creates a store's mount dirs with the store's mode and clamps
+// the root's state dir to owner-only. Both mount paths run it, because
+// whichever service mounts a store first creates it — in startOrder that is
+// often a sharer (the gateway mounts `state` before the Archivist that owns
+// it) — so the mode belongs to the store, not to its owner's prep.
+func (x *liveExec) openStoreDirs(spec stateStoreSpec, root string) bool {
+	sd := spec.storeDir(root)
+	for _, m := range spec.mounts {
+		mp := filepath.Join(sd, m.sub)
+		if err := os.MkdirAll(mp, 0o755); err != nil {
+			x.u.Fail("cannot create state dir %s: %v", mp, err)
+			return false
+		}
+		if spec.mode != 0 {
+			// MkdirAll perms pass through the umask; stamp the literal mode.
+			if err := os.Chmod(mp, spec.mode); err != nil {
+				x.u.Fail("cannot chmod state dir %s: %v", mp, err)
+				return false
+			}
+		}
+	}
+	// A mount dir may be open to every uid. The root's state dir is the
+	// unmounted parent of all of them — no container sees it — so owner-only
+	// here keeps other local users from traversing to any store.
+	dir := stateRootDir(root)
+	if err := os.Chmod(dir, 0o700); err != nil {
+		x.u.Fail("cannot chmod state dir %s: %v", dir, err)
+		return false
+	}
+	return true
 }
 
 func (x *liveExec) val(live, _ string) string { return live }

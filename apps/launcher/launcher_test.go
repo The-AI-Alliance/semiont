@@ -1020,12 +1020,13 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 			t.Errorf("neo4j %s dir mode = %o, want 777 (neo4j's entrypoint gates on test -w)", sub, perm)
 		}
 	}
-	// ...while their UNMOUNTED parent is clamped owner-only, so the 0777
-	// leaves nothing traversable by other local users.
-	if fi, err := os.Stat(filepath.Join(dir, "neo4j")); err != nil {
-		t.Fatalf("neo4j store dir: %v", err)
+	// ...while the root's state dir — the UNMOUNTED parent of every store —
+	// is clamped owner-only, so the 0777 leaves nothing traversable by other
+	// local users.
+	if fi, err := os.Stat(dir); err != nil {
+		t.Fatalf("root state dir: %v", err)
 	} else if perm := fi.Mode().Perm(); perm != 0o700 {
-		t.Errorf("neo4j store dir mode = %o, want 700 (owner-only parent clamp)", perm)
+		t.Errorf("root state dir mode = %o, want 700 (owner-only parent clamp)", perm)
 	}
 }
 

@@ -98,7 +98,7 @@ type stateStoreSpec struct {
 	dir    string       // the store's subdir under the root's state dir
 	mounts []stateMount // bind mounts within it
 	env    []string     // extra env the mount shape requires
-	mode   os.FileMode  // non-zero: host-side perms on the mount dirs (virtiofs test -w gate)
+	mode   os.FileMode  // non-zero: host-side perms on the mount dirs (see the rows that set it)
 	// projection: this store derives from the event log — an image mismatch
 	// auto-cleans and rebuilds instead of refusing. False = system of
 	// record (database): existing data is never auto-deleted.
@@ -155,9 +155,14 @@ var stateStores = map[string]stateStoreSpec{
 	//
 	// projection: reproducible from the resource's bytes, so an image change
 	// clears rather than refuses — and `clean --store anchored-text` is safe.
+	//
+	// mode: the Smelter runs as uid 1001. On a Linux Docker host the invoker
+	// is some other uid, so a 0755 dir is unwritable inside (macOS runtimes
+	// map ownership and hide it).
 	"anchored-text": {
 		dir:        "anchored-text",
 		mounts:     []stateMount{{"", "/anchored-text"}},
+		mode:       0o777,
 		projection: true,
 		owner:      "smelter",
 	},
@@ -180,9 +185,13 @@ var stateStores = map[string]stateStoreSpec{
 	// The XDG state tree, shared across the Archivist (projection writer —
 	// owns the stamp) and the librarian (reads views). The gateway mounts it
 	// only for its supervisor's events log.
+	//
+	// mode: all three run as uid 1001 — the same Linux ownership gap as
+	// anchored-text. The Archivist died with EACCES in a codespace (uid 1000).
 	"state": {
 		dir:        "state",
 		mounts:     []stateMount{{"", "/semiont-state"}},
+		mode:       0o777,
 		projection: true,
 		owner:      "archivist",
 	},
