@@ -131,10 +131,16 @@ version: [`publish-browser.yml`](../../../.github/workflows/publish-browser.yml)
    `@semiont/*` version(s) exist — it bundles published packages, never the
    working tree. The gateway image compiles the checkout instead, so it is
    published from the release tag.
-2. Builds the multi-platform image from the service's Dockerfile. For the
-   gateway, checks the built image carries no source and serves
-   `/api/health` within its start bound (`scripts/container/check-gateway-image.sh`).
-3. Trivy-scans the amd64 build for `HIGH`/`CRITICAL` CVEs (and, for
+2. Builds the multi-platform image from the service's Dockerfile. The six
+   npm images build both platforms on one amd64 runner, arm64 under
+   emulation. The gateway compiles Rust, which emulation makes take over an
+   hour, so each of its platforms builds on a runner of its own architecture,
+   passes every check below there, and is pushed by digest; a final job
+   (`gateway-manifest`) joins the two under the tags and attests the result.
+   For the gateway, checks the built image carries no source, serves
+   `/api/health` within its start bound, and passes its own HEALTHCHECK
+   (`scripts/container/check-gateway-image.sh`).
+3. Trivy-scans the build for the runner's platform for `HIGH`/`CRITICAL` CVEs (and, for
    the service images, license-policy violations) and fails the run
    on any unfixed finding. The gateway's binary records the crates it links
    (`cargo auditable`), so the scan sees them; their licences are held to the

@@ -10,6 +10,7 @@ No npm is required on the host for local builds.
 | `build.sh` | Install deps + build packages and apps |
 | `publish.sh` | Version stamp + stage + publish to a registry |
 | `publish-npm-apps.mjs` | Stage gateway/browser into `.npm-stage/` for publishing |
+| `image-tags.sh` | The image a service publishes to and its tags (version, `sha-<commit>`, optionally `latest`), for every job of `publish-service-images.yml` that names one |
 | `local-build.sh` | Host-side wrapper: start Verdaccio + build + publish in a container + build the `:local` service/browser images, fanned out to every container engine on the machine |
 | `verdaccio.yaml` | Verdaccio config for local registry (proxies non-@semiont packages to npmjs.com) |
 
