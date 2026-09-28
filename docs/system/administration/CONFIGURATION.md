@@ -417,6 +417,14 @@ issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"  # exactly the token's `i
 subjectClaim = "sub"                                    # the issuer claim a person's DID is built from
 ```
 
+`${KEYCLOAK_HOST}` is the launcher's to inject, and it has to name one host that the laptop's
+Browser and every container reach alike: a token's `iss` is the URL it was requested from, and
+the gateway verifies it. Under Apple `container` that is the host's bridge address. Under Docker
+and Podman the host address (`host.docker.internal`, `host.containers.internal`) resolves only
+inside containers, so the issuer is named `keycloak.localhost` instead: the laptop resolves every
+`*.localhost` to itself, where Keycloak's port is published, and each container that dials the
+issuer gets a host entry sending that name to the host.
+
 All three keys are required — the gateway, every sidecar and `semiont start` refuse a config
 missing any of them, naming the key. There is no `audience` key: the audience is the knowledge
 base's own resource identifier, derived from its committed `did:web` domain.

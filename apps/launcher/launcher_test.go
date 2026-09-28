@@ -496,6 +496,21 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
+	// Docker's host address resolves only inside containers, so the issuer is
+	// named where the laptop's Browser reaches it too — and every container
+	// that holds a credential at it can resolve that name. A service builder
+	// that forgot either half would fail sign-in or its own start.
+	for _, line := range strings.Split(s.argv(t), "\n") {
+		if !strings.Contains(line, "SEMIONT_OIDC_CLIENT_ID=") {
+			continue
+		}
+		if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
+			t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
+		}
+		if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
+			t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
+		}
+	}
 }
 
 func TestStartNoObserveBoot(t *testing.T) {
@@ -7375,6 +7390,16 @@ func TestStartKeycloakIdentityBoot(t *testing.T) {
 		t.Fatalf("no exec stdin recorded — the keycloak database was never created: %v", err)
 	}
 	mustContain(t, "create database", string(in), "CREATE DATABASE keycloak", "WHERE NOT EXISTS", `\gexec`)
+	// Keycloak's admin was opened to this machine, and the bootstrap password
+	// reached kcadm through the runtime's environment — the golden above shows
+	// argv naming it without a value.
+	pw, err := os.ReadFile(filepath.Join(s.fakertDir, "kc-cli-password.txt"))
+	if err != nil {
+		t.Fatalf("no KC_CLI_PASSWORD reached an exec — Keycloak's admin was never opened to this machine: %v", err)
+	}
+	if string(pw) != "test-keycloak-admin" {
+		t.Errorf("kcadm received KC_CLI_PASSWORD %q, want the bootstrap admin's", pw)
+	}
 	// The identity preflight ran. Without this, a start that silently SKIPPED
 	// the check would pass every assertion above: the preflight issues no
 	// container command, so the argv golden cannot see it either way.

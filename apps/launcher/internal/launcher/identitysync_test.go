@@ -23,14 +23,15 @@ import (
 // stubAdmin: Keycloak's admin surface, holding whatever clients `existing`
 // names. Records every request path so a test can assert what was NOT touched.
 type stubAdmin struct {
-	srv      *httptest.Server
-	mu       sync.Mutex
-	paths    []string
-	created  []map[string]any
-	updated  map[string]map[string]any // clientId -> the patch PUT to it
-	mappers  map[string]map[string]any // clientId -> the mapper PUT to /clients/<uuid>/protocol-mappers/models/<id>
-	realmCfg map[string]any            // realm-level settings this realm reports
-	badLogin bool
+	srv       *httptest.Server
+	mu        sync.Mutex
+	paths     []string
+	created   []map[string]any
+	updated   map[string]map[string]any // clientId -> the patch PUT to it
+	mappers   map[string]map[string]any // clientId -> the mapper PUT to /clients/<uuid>/protocol-mappers/models/<id>
+	realmCfg  map[string]any            // realm-level settings this realm reports
+	badLogin  bool
+	httpsOnly bool // the master realm's sslRequired refusing this caller's address
 }
 
 // clientReps: the minimal representation Keycloak returns for clients that
@@ -61,11 +62,19 @@ func newStubAdmin(t *testing.T, realm string, existing []map[string]any) *stubAd
 		func(w http.ResponseWriter, r *http.Request) {
 			s.mu.Lock()
 			s.paths = append(s.paths, r.Method+" "+r.URL.Path)
-			bad := s.badLogin
+			bad, httpsOnly := s.badLogin, s.httpsOnly
 			s.mu.Unlock()
+			// As Keycloak 26.7.4 answers, measured: a wrong password is 400
+			// invalid_grant, and plain HTTP from an address the master realm
+			// does not count as private is 403 invalid_request.
+			if httpsOnly {
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"error":"invalid_request","error_description":"HTTPS required"}`)
+				return
+			}
 			if bad {
-				w.WriteHeader(http.StatusUnauthorized)
-				fmt.Fprint(w, `{"error":"invalid_grant"}`)
+				w.WriteHeader(http.StatusBadRequest)
+				fmt.Fprint(w, `{"error":"invalid_grant","error_description":"Invalid user credentials"}`)
 				return
 			}
 			w.Header().Set("content-type", "application/json")
@@ -245,6 +254,38 @@ func TestIdentitySyncReportsAnAdminLoginFailure(t *testing.T) {
 	}
 	if len(s.created) != 0 {
 		t.Fatal("nothing may be created when the admin login failed")
+	}
+}
+
+// The two refusals read differently: only Keycloak's `invalid_grant` is the
+// password, and "HTTPS required" — the master realm refusing plain HTTP from an
+// address it does not count as private, as Docker Desktop delivers this
+// machine's connections — must not send the operator hunting for a password.
+func TestAdminLoginRefusalsSayWhichRefusal(t *testing.T) {
+	s := newStubAdmin(t, "semiont", nil)
+	s.httpsOnly = true
+	_, err := adminToken(s.srv.URL, "admin", "right")
+	if err == nil {
+		t.Fatal("want an error when the master realm demands HTTPS")
+	}
+	for _, want := range []string{"HTTPS required", "semiont start"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("an HTTPS refusal should say %q, got: %v", want, err)
+		}
+	}
+	if strings.Contains(err.Error(), "KC_BOOTSTRAP_ADMIN_PASSWORD") {
+		t.Errorf("an HTTPS refusal is not a password problem, but the error says it is: %v", err)
+	}
+
+	s.httpsOnly, s.badLogin = false, true
+	_, err = adminToken(s.srv.URL, "admin", "wrong")
+	if err == nil {
+		t.Fatal("want an error when the password is refused")
+	}
+	for _, want := range []string{"Invalid user credentials", "KC_BOOTSTRAP_ADMIN_PASSWORD"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("a credential refusal should say %q, got: %v", want, err)
+		}
 	}
 }
 

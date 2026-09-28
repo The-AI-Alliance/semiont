@@ -15,7 +15,9 @@ use crate::signal::nats::NatsPlane;
 use crate::tokens::{KeyRing, require_jwt_secret};
 use crate::{archivist, bus_log, identity, logging, routes, telemetry};
 use serde_json::json;
+use socket2::{Domain, Protocol, Socket, Type};
 use std::future::Future;
+use std::net::{Ipv6Addr, SocketAddr};
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
@@ -205,9 +207,7 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
         emit_rates: EmitRates::default(),
         queued_bytes: AtomicUsize::new(0),
     });
-    let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
-        .await
-        .map_err(|e| format!("cannot listen on port {port}: {e}"))?;
+    let listener = listen(port).map_err(|e| format!("cannot listen on port {port}: {e}"))?;
     logging::info(
         "Semiont Gateway ready",
         json!({
@@ -251,6 +251,18 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
     }
     logging::info("Shutdown complete", json!({}));
     Ok(0)
+}
+
+/// Every address the host has, IPv4 and IPv6 alike: one IPv6 socket that also
+/// takes IPv4 as mapped addresses, whatever the host's own `IPV6_V6ONLY` default.
+fn listen(port: u16) -> std::io::Result<tokio::net::TcpListener> {
+    let socket = Socket::new(Domain::IPV6, Type::STREAM, Some(Protocol::TCP))?;
+    socket.set_only_v6(false)?;
+    socket.set_reuse_address(true)?;
+    socket.set_nonblocking(true)?;
+    socket.bind(&SocketAddr::from((Ipv6Addr::UNSPECIFIED, port)).into())?;
+    socket.listen(1024)?;
+    tokio::net::TcpListener::from_std(socket.into())
 }
 
 async fn stop_signal() -> &'static str {

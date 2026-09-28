@@ -279,6 +279,19 @@ func runWithStdinCaptured(name, input string, args ...string) (string, error) {
 	return buf.String(), err
 }
 
+// runCapturedWithEnv runs a command with variables added to its environment,
+// output held for the caller: a secret named in argv as `--env NAME` reaches a
+// container through the runtime's own environment, never as a value any process
+// on the machine could read via ps.
+func runCapturedWithEnv(env []string, name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	cmd.Env = append(os.Environ(), env...)
+	var buf strings.Builder
+	cmd.Stdout, cmd.Stderr = &buf, &buf
+	err := cmd.Run()
+	return buf.String(), err
+}
+
 // indentLines prefixes every line, so captured child output reads as quoted
 // evidence rather than as this program's own words.
 func indentLines(s, prefix string) string {

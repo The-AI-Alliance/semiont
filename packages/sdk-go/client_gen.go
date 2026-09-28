@@ -2646,7 +2646,7 @@ type GatewayConfig struct {
 	// LogLevel The least severe level written.
 	LogLevel GatewayConfigLogLevel `json:"logLevel"`
 
-	// Port The port the gateway listens on.
+	// Port The port the gateway listens on, on every address the host has: IPv4 and IPv6.
 	Port int `json:"port"`
 
 	// PublicUrl The URL clients reach this gateway at: the `servers` entry of the OpenAPI document it serves.

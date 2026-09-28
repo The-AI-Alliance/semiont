@@ -336,7 +336,18 @@ func adminToken(base, user, pass string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("the bootstrap admin login was refused (HTTP %d) — is KC_BOOTSTRAP_ADMIN_PASSWORD the one this realm's database was created with?", resp.StatusCode)
+		// Keycloak says why; only `invalid_grant` is the credentials. "HTTPS
+		// required" (403) is the master realm refusing plain HTTP from an
+		// address it does not count as private — see openAdminToThisMachine.
+		var refusal struct {
+			Error       string `json:"error"`
+			Description string `json:"error_description"`
+		}
+		_ = json.NewDecoder(resp.Body).Decode(&refusal)
+		if refusal.Error == "invalid_grant" {
+			return "", fmt.Errorf("the bootstrap admin login was refused (%s) — is KC_BOOTSTRAP_ADMIN_PASSWORD the one this realm's database was created with?", refusal.Description)
+		}
+		return "", fmt.Errorf("the bootstrap admin login was refused: HTTP %d %s (%s) — `semiont start` opens Keycloak's admin to this machine; start the stack again with this launcher", resp.StatusCode, refusal.Error, refusal.Description)
 	}
 	var body struct {
 		AccessToken string `json:"access_token"`

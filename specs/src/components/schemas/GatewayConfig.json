@@ -27,7 +27,7 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 65535,
-      "description": "The port the gateway listens on."
+      "description": "The port the gateway listens on, on every address the host has: IPv4 and IPv6."
     },
     "publicUrl": {
       "type": "string",

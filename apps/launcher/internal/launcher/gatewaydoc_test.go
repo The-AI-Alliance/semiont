@@ -88,6 +88,25 @@ func TestGatewayDocumentIsResolved(t *testing.T) {
 	}
 }
 
+// The issuer is ONE URL — a token's `iss` is the URL it was asked from, and the
+// gateway verifies it — so it must be one the laptop's Browser and every
+// container reach alike. Docker's host address resolves only inside containers,
+// so there the issuer is named on keycloak.localhost; the other dependencies
+// keep the host address, which only containers dial.
+func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
+	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "host.docker.internal", 4000, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := documentFrom(t, b)
+	if doc.Identity.Issuer != "http://keycloak.localhost:8080/realms/semiont" {
+		t.Errorf("issuer %q, want one the laptop resolves as well as the containers", doc.Identity.Issuer)
+	}
+	if doc.Signal.Servers == nil || *doc.Signal.Servers != "host.docker.internal:4222" {
+		t.Errorf("signal = %+v, want the broker on the host address", doc.Signal)
+	}
+}
+
 // Secrets are named, never carried: a broker credential is a ${NAME} in the
 // KB config, and the document names NAME.
 func TestGatewayDocumentNamesSecretsAndNeverCarriesThem(t *testing.T) {

@@ -466,6 +466,18 @@ func publicClient(clientID, name, audience string) map[string]any {
 	}
 }
 
+// masterRealmOverHTTP: the kcadm command, run inside the Keycloak container,
+// that lets the master realm's admin answer plain HTTP from any address. One-shot
+// authentication (--no-config) as the bootstrap admin, whose password kcadm reads
+// from KC_CLI_PASSWORD.
+func masterRealmOverHTTP() []string {
+	return []string{
+		"/opt/keycloak/bin/kcadm.sh", "update", "realms/master", "-s", "sslRequired=NONE",
+		"--no-config", "--server", fmt.Sprintf("http://localhost:%d", descriptorFor("identity", "keycloak").ports[0].port),
+		"--realm", "master", "--user", keycloakAdminUser,
+	}
+}
+
 // identityRunExtras: what a launched Keycloak needs beyond its plan row —
 // its database on the [database] PostgreSQL (created there when the launcher
 // runs that PostgreSQL), the realm file to import, and the bootstrap admin
@@ -487,7 +499,7 @@ func serviceClientSecrets(x keeper, root string) (map[string]string, bool) {
 	return secrets, true
 }
 
-func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, bool) {
+func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[string]string, string, bool) {
 	rp := fc.plan.Roles["identity"]
 	db := fc.plan.Roles["database"]
 	dbHost := db.Address
@@ -497,7 +509,7 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	if mayConfigure(db) {
 		dbHost = addr
 		if !x.createDatabase(envValue(rp.Env, "KC_DB_USERNAME"), keycloakDatabase) {
-			return nil, nil, false
+			return nil, nil, "", false
 		}
 	} else {
 		x.say(sayLog, "identity — PostgreSQL at %s is not launcher-run; the %q database must already exist there", dbHost, keycloakDatabase)
@@ -510,19 +522,19 @@ func identityRunExtras(x executor, fc flowCtx, addr string) ([]string, map[strin
 	// preflight checks these same values against the realm that imports them.
 	secrets, ok := serviceClientSecrets(x, fc.root)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, "", false
 	}
 	realmFile, ok := x.stageRealm(realm, keycloakRealmJSON(realm, committedResource(fc.root), addr, browserPort(fc.opts), rp.AccessTokenLifespan, secrets))
 	if !ok {
-		return nil, nil, false
+		return nil, nil, "", false
 	}
 	password, ok := x.identityAdminPassword(fc.root)
 	if !ok {
-		return nil, nil, false
+		return nil, nil, "", false
 	}
 	return []string{
 		"-v", realmFile + ":/opt/keycloak/data/import/" + realm + ".json:ro",
 		"-e", fmt.Sprintf("KC_DB_URL=jdbc:postgresql://%s:%d/%s", dbHost, db.Port, keycloakDatabase),
 		"--env", "KC_BOOTSTRAP_ADMIN_PASSWORD=" + password,
-	}, secrets, true
+	}, secrets, password, true
 }

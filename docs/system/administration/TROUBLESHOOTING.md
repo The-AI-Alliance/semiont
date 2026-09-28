@@ -79,6 +79,13 @@ A realm predating the web-origin fix refuses the token exchange from `http://loc
 
 Needs the bootstrap admin password (`$KC_BOOTSTRAP_ADMIN_PASSWORD`, else the one persisted for this root). If sync reports a named client *already correct* rather than *created*, it exists with a different secret — delete it in the admin console and sync again. Launcher-run realms only; for your own issuer the refusal names the clients to create.
 
+### `semiont useradd` or `semiont identity sync` is refused at the admin login
+
+Both sign in to Keycloak's own admin, in its `master` realm, from this machine. The error carries Keycloak's reason:
+
+- **`Invalid user credentials`** — the bootstrap admin password is not the one the realm's database was created with. Keycloak creates that admin on its first boot only; the launcher persists the password per root, and `$KC_BOOTSTRAP_ADMIN_PASSWORD` overrides it.
+- **`HTTPS required`** — the master realm accepts plain HTTP only from an address it counts as private, and some runtimes deliver this machine's connections from one it does not (Docker Desktop does). `semiont start` lets the master realm answer plain HTTP, from inside the Keycloak container, every time it starts one; start the stack again with a current launcher.
+
 ### Workers, smelter, or weaver never pick up work
 
 These three authenticate at the knowledge base's issuer as their own service accounts (client credentials), then exchange that issuer token at `POST /api/tokens/agent` for a JWT carrying a typed Software-agent DID. Either leg can fail and leave them idle: the issuer may refuse the grant (wrong or missing `SEMIONT_OIDC_CLIENT_SECRET`, or a realm that never imported the client), or the gateway may refuse the exchange because the token carries no `semiont-service` role in its flat `roles` claim.
