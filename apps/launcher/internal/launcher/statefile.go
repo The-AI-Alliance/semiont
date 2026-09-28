@@ -76,8 +76,8 @@ type StackState struct {
 }
 
 // codespacePlacement: where a codespace stack is and how this machine
-// reaches it. Runtime stays empty on one of these — compose owns the
-// services inside, so there is no container runtime of ours to name.
+// reaches it. Runtime stays empty on one of these — the codespace's own
+// launcher runs the services inside, so this machine has no runtime to name.
 type codespacePlacement struct {
 	Name        string `json:"name"`                  // the instance name (a PID — never user input)
 	Repo        string `json:"repo"`                  // owner/name slug (the user-facing identity)

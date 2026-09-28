@@ -7,8 +7,9 @@ import (
 	"testing"
 )
 
-// The creation-log window renders compose output, which is full of
-// box-drawing runes and CR-rewritten progress lines. These pin the two
+// The creation-log window renders the codespace's creation log, which is
+// full of multi-byte runes and CR-rewritten progress lines (compose's, on the
+// first live run). These pin the two
 // display bugs the first live run surfaced (LAUNCHER session 2026-07-23):
 // byte-sliced truncation broke a rune in half (─────? …), and \n-only
 // splitting stitched CR fragments into mega-lines.
@@ -31,7 +32,7 @@ func TestTruncateLineRuneSafe(t *testing.T) {
 }
 
 func TestSplitCRLines(t *testing.T) {
-	// Compose progress: CR-rewritten fragments, then a real newline.
+	// Pull progress: CR-rewritten fragments, then a real newline.
 	in := "pulling 1%\rpulling 50%\rpulling 100%\n ✔ gateway Pulled\r\n"
 	sc := bufio.NewScanner(strings.NewReader(in))
 	sc.Split(splitCRLines)

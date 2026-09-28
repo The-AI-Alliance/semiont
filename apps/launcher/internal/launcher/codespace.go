@@ -21,15 +21,16 @@ import (
 // the codespace NAME is a PID (shown by status, input only via the
 // --codespace disambiguation corner). The launcher keeps at most ONE
 // codespace per repo: it resumes what exists, and creates only when nothing
-// does. Inside the codespace the stack stays on compose — the launcher
-// orchestrates the outside only (create, wait, forward, lifecycle) by shelling
-// out to `gh`, which owns auth and the tunnel client.
+// does. Inside the codespace its own launcher runs the stack (`semiont start
+// --runtime docker`, from the KB's post-start hook); this one orchestrates the
+// outside only (create, wait, forward, lifecycle) by shelling out to `gh`,
+// which owns auth and the tunnel client.
 
 // The KB (gateway, remote port 4000) is the ONLY port a codespace stack
 // forwards: the browser's Knowledge Bases panel connects to KBs by
 // host/port, so one browser works N codespace KBs at once — each stack gets
 // its own local port, canonical 4000 when free, else the lowest free above
-// it. Browser, sidecars, and infra stay inside the codespace (compose).
+// it. Everything else stays inside the codespace, run by its own launcher.
 const kbRemotePort = 4000
 
 // allocateKBPort picks this stack's local KB port: 4000, or the lowest
@@ -252,8 +253,9 @@ func startCodespace(u *UI, opts startOptions) int {
 	}
 	// The record binds the stack to its executor before the health gate —
 	// belief, verified by status; a failed wait leaves an honest record.
-	// No Runtime: compose owns the services inside a codespace, so there is
-	// no container runtime of ours to name. The placement IS the platform.
+	// No Runtime: the codespace's own launcher runs the services inside it,
+	// so this machine has no container runtime to name. The placement IS the
+	// platform.
 	newSt := &StackState{
 		Codespace: &codespacePlacement{Name: name, Repo: repo, ForwardPID: pid, ForwardPort: kbPort},
 		Ports:     []int{kbPort},
@@ -729,7 +731,7 @@ func waitCodespaceAvailable(u *UI, repo, name string) int {
 }
 
 // creationLogTail streams `gh codespace logs --follow` (the devcontainer
-// creation log — compose pulls, hook output) alongside the health wait. On
+// creation log — image pulls, hook output) alongside the health wait. On
 // a terminal the last few lines render as a dimmed sliding window, redrawn
 // in place and cleared when the wait ends; piped, a 30s heartbeat carries
 // the newest line instead. Decoration, never a gate: if gh cannot stream
@@ -786,8 +788,8 @@ func startCreationLogTail(u *UI, name string) *creationLogTail {
 	lt := &creationLogTail{u: u, cmd: cmd, lastBeat: time.Now()}
 	go func() {
 		sc := bufio.NewScanner(out)
-		// Compose rewrites progress with bare \r; \n-only splitting
-		// stitched those fragments into mega-lines (observed live).
+		// Pull progress rewrites lines with bare \r; \n-only splitting
+		// stitched those fragments into mega-lines (compose's, observed live).
 		sc.Split(splitCRLines)
 		for sc.Scan() {
 			line := strings.TrimRight(sc.Text(), " \t")
@@ -852,8 +854,9 @@ func (lt *creationLogTail) tick(elapsed time.Duration) {
 }
 
 // truncateLine keeps a line to at most max runes plus an ellipsis. Rune
-// units, not bytes: compose output is full of box-drawing characters, and
-// a byte slice cut one in half on the first live run (─────? …).
+// units, not bytes: the log is full of multi-byte characters (compose's box
+// drawing, the launcher's own glyphs), and a byte slice cut one in half on
+// the first live run (─────? …).
 func truncateLine(s string, max int) string {
 	if len(s) <= max { // byte length ≤ max implies rune count ≤ max
 		return s
@@ -869,7 +872,7 @@ func truncateLine(s string, max int) string {
 }
 
 // splitCRLines is a bufio.SplitFunc treating \r and \n alike as line ends —
-// compose progress rewrites lines with bare \r, and \n-only splitting
+// progress output rewrites lines with bare \r, and \n-only splitting
 // stitched those fragments together.
 func splitCRLines(data []byte, atEOF bool) (int, []byte, error) {
 	if atEOF && len(data) == 0 {
@@ -1054,7 +1057,7 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 		return 1
 	}
 	if service != "" {
-		u.Fail("--service does not apply to a codespace stack (compose owns the services inside).")
+		u.Fail("--service does not apply to a codespace stack (the codespace's own launcher runs its services).")
 		return 1
 	}
 	if dryRun {
@@ -1218,7 +1221,7 @@ func statusCodespace(u *UI, st *StackState, refresh bool) int {
 		mark = u.Wrap(AnsiRed, "unreachable")
 	}
 	fmt.Printf("  KB          %s  %s\n", mark, u.Dim(url))
-	fmt.Printf("  %s\n", u.Dim("(browser, sidecars, and infra run inside the codespace via compose)"))
+	fmt.Printf("  %s\n", u.Dim("(the codespace's own launcher runs the stack inside it; only the KB is forwarded)"))
 
 	fmt.Printf("  %s\n", u.Dim(fmt.Sprintf("(connect at Host localhost, Port %d — semiont useradd --repo %s creates a user)", st.Codespace.ForwardPort, st.Codespace.Repo)))
 

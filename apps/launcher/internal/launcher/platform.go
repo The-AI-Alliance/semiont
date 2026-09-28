@@ -21,8 +21,9 @@ const (
 	// platformLocal: containers on this machine, through a runtime.
 	platformLocal platform = "local"
 	// platformCodespace: a GitHub-hosted machine. The launcher provisions it
-	// and forwards a port; compose owns the services INSIDE it, which is why
-	// so many local flags have nothing to act on there.
+	// and forwards a port; the codespace's own launcher runs the services
+	// INSIDE it, which is why so many local flags have nothing to act on
+	// from here.
 	platformCodespace platform = "codespace"
 )
 

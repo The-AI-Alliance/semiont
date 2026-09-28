@@ -15,8 +15,8 @@ machine with no scheduler running. It is not the only way to run Semiont, and
 it is not a dependency of the service images.
 
 The published images are standalone artifacts. They run against whatever
-PostgreSQL, Neo4j, Qdrant and inference you already have, under docker compose,
-Kubernetes, ECS or Nomad, with no launcher involved — see
+PostgreSQL, Neo4j, Qdrant and inference you already have, under Kubernetes, ECS
+or Nomad, with no launcher involved — see
 [DEPLOYMENT.md](../../docs/system/administration/DEPLOYMENT.md) for the
 supported paths and the contract each one must satisfy.
 
@@ -126,9 +126,10 @@ semiont stop
   The repo selection is a **union**, never a replacement, so pushing for one
   repo can't silently revoke the secret from others already using it.
 - **`semiont start --runtime codespace` runs the same stack on a
-  GitHub-hosted machine** (the KB's devcontainer + compose own the inside;
-  the launcher orchestrates the outside via `gh`, which is required on PATH
-  for this placement only). The REPO is the identity — derived from the KB
+  GitHub-hosted machine** (inside, the codespace's own launcher runs the
+  stack — `semiont start --runtime docker`, from the KB's post-start hook;
+  this one orchestrates the outside via `gh`, which is required on PATH for
+  this placement only). The REPO is the identity — derived from the KB
   clone's origin, or `--repo owner/name` from anywhere, needed only at
   creation: the stack record carries it afterwards, so a bare `semiont
   start` resumes the recorded codespace from any directory, and `status` /
@@ -612,12 +613,12 @@ visible, not buried under restarts. `semiont.process.restarts` carries the
 count, so a service that is quietly flapping shows up in metrics instead of
 only in logs.
 
-This is local-only, deliberately. **Codespace stacks do not get it**: compose
-owns the services inside a codespace, and its `restart:` policy does the job.
-Nor do the images supervise themselves — a container that restarts its own
-process never exits, so a compose `restart:` policy, a Kubernetes liveness
-probe or an ECS task policy would all be defeated by it, and a crash-looping
-process would read as perfectly healthy from outside.
+Every stack the launcher starts gets it, **codespace stacks included**: inside
+a codespace, its own launcher starts the stack locally, exactly as on a
+laptop. Nor do the images supervise themselves — a container that restarts
+its own process never exits, so an orchestrator's restart policy, a Kubernetes
+liveness probe or an ECS task policy would all be defeated by it, and a
+crash-looping process would read as perfectly healthy from outside.
 
 **The limit worth knowing:** the supervisor restarts a dead *process*, never a
 dead *container*. If the runtime or the host VM kills the container itself,

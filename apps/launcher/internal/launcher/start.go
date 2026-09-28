@@ -684,8 +684,8 @@ func dependencyHostEnv(rt, addr string) []string {
 // superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
 // D3): boot.sh wraps the image CMD in the shared supervisor only when this is
 // set. Local placement is the one place with no orchestrator restart policy,
-// so every service builder passes it; compose and user manifests never do —
-// their platform restarts. Defined once because five call sites spelling the
+// so every service builder passes it; user manifests never do — their
+// platform restarts. Defined once because five call sites spelling the
 // same pair is five chances to update four of them.
 func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
@@ -873,7 +873,7 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	// containers run with NO restart policy; a crashed service stays down —
 	// and, with no --rm, stays VISIBLE: status shows it exited and its logs
 	// survive for diagnosis until the next start or stop sweeps it
-	// (fail-fast is the design; the compose path adds restart: on-failure).
+	// (fail-fast is the design; recovery is the in-container supervisor's).
 	u.Stamp("semiont start: containers ready")
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 Semiont stack is up"), u.Dim("("+took(time.Since(t0))+")"))

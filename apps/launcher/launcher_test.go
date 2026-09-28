@@ -3144,7 +3144,7 @@ func TestCodespaceStatus(t *testing.T) {
 		"CODESPACE", "fake-cs-1", csRepo, "state: Available",
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
-		"run inside the codespace via compose",
+		"the codespace's own launcher runs the stack inside it; only the KB is forwarded",
 		// No credentials: status reports where to connect and how to make a
 		// user, never an account it cannot vouch for.
 		"connect at Host localhost, Port 4000", "semiont useradd --repo "+csRepo)
@@ -3223,7 +3223,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if _, stderr, code := s2.run(t, "stop", "--service", "worker"); code != 1 {
 		t.Error("stop --service on codespace should fail")
 	} else {
-		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack")
+		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack (the codespace's own launcher runs its services)")
 	}
 
 	// Flag scoping: codespace-only flags need the placement; contradictions
@@ -3236,7 +3236,8 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 		{[]string{"start", "--repo", "a/b"}, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace"},
 		{[]string{"start", "--machine", "basicLinux"}, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace"},
 		{[]string{"start", "--runtime", "codespace", "--root", "x", "--repo", "a/b"}, "--root and --repo are contradictory"},
-		{[]string{"start", "--runtime", "codespace", "--service", "worker"}, "--service does not apply to --runtime codespace"},
+		{[]string{"start", "--runtime", "codespace", "--service", "worker"}, "--service does not apply to --runtime codespace (the codespace's own launcher runs its services)"},
+		{[]string{"start", "--runtime", "codespace", "--no-observe"}, "--no-observe does not apply to --runtime codespace (the codespace's post-start hook decides how its own launcher starts the stack)"},
 		{[]string{"start", "--runtime", "codespace", "--config", "anthropic"}, "--config does not apply to --runtime codespace"},
 	} {
 		_, stderr, code := s3.run(t, tc.args...)
@@ -6357,9 +6358,9 @@ func templateFixture(t *testing.T, includeBad bool) string {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"devcontainer.json":  `{"name": "Semiont Template KB", "dockerComposeFile": "docker-compose.yml"}`,
-		"docker-compose.yml": "services:\n  gateway:\n    image: x\n",
-		"post-create.sh":     "#!/bin/sh\necho hi\n",
+		"devcontainer.json": `{"name": "Semiont Template KB", "postStartCommand": ".devcontainer/post-start.sh"}`,
+		"post-create.sh":    "#!/bin/sh\necho hi\n",
+		"post-start.sh":     "#!/bin/sh\nsemiont start --runtime docker\n",
 	}
 	for n, c := range files {
 		if err := os.WriteFile(filepath.Join(dc, n), []byte(c), 0o644); err != nil {
@@ -6449,7 +6450,7 @@ func TestInitDevcontainerCopy(t *testing.T) {
 	if strings.Contains(string(dj), "Semiont Template KB") {
 		t.Errorf("template display name survived:\n%s", dj)
 	}
-	for _, n := range []string{"docker-compose.yml", "post-create.sh"} {
+	for _, n := range []string{"post-create.sh", "post-start.sh"} {
 		got, err := os.ReadFile(filepath.Join(s.cwd, ".devcontainer", n))
 		if err != nil {
 			t.Errorf("%s not copied: %v", n, err)
