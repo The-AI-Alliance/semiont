@@ -46,6 +46,46 @@ type ResourceListFilters = {
 };
 
 /** Sentinel key for the singleton entity-types cache. */
+/**
+ * B19 — how long bus-driven invalidations of one key fold together. The first
+ * fires at once; any more inside the window become one refetch at its end.
+ * Every refetch is a `browse:*` request, an emit this session's principal pays
+ * for, and another principal's bulk write invalidates the keys this session
+ * observes once per event: a window caps a storm at one refetch per observed
+ * key per window, however fast the events come, and an isolated write is
+ * still seen at once.
+ */
+export const INVALIDATION_WINDOW_MS = 1_000;
+
+/**
+ * B19 — per key, the first invalidation runs at once and opens a window; any
+ * more inside it are owed, and run as one when it closes, which opens the next.
+ */
+class InvalidationWindows {
+  private readonly open = new Map<string, { owed: (() => void) | null; timer: ReturnType<typeof setTimeout> }>();
+
+  run(key: string, invalidate: () => void): void {
+    const window = this.open.get(key);
+    if (window) {
+      window.owed = invalidate;
+      return;
+    }
+    invalidate();
+    const timer = setTimeout(() => {
+      const owed = this.open.get(key)?.owed;
+      this.open.delete(key);
+      if (owed) this.run(key, owed);
+    }, INVALIDATION_WINDOW_MS);
+    this.open.set(key, { owed: null, timer });
+  }
+
+  /** B16: an owed invalidation dies with the namespace. */
+  dispose(): void {
+    for (const { timer } of this.open.values()) clearTimeout(timer);
+    this.open.clear();
+  }
+}
+
 const ENTITY_TYPES_KEY = '_';
 
 /** Sentinel key for the singleton tag-schemas cache. */
@@ -119,6 +159,23 @@ export class BrowseNamespace implements IBrowseNamespace {
    * by refetching into disposed caches (B16).
    */
   private readonly busSubs: Array<{ unsubscribe(): void }> = [];
+
+  private readonly invalidationWindows = new InvalidationWindows();
+
+  /**
+   * B19 — the invalidations bus events ask for, each through its key's window.
+   * The public `invalidate*` methods stay immediate for direct callers.
+   */
+  private readonly onBus = {
+    annotations: (rId: ResourceId) => this.invalidationWindows.run(`annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
+    resource: (rId: ResourceId) => this.invalidationWindows.run(`resource/${rId}`, () => this.invalidateResourceDetail(rId)),
+    events: (rId: ResourceId) => this.invalidationWindows.run(`events/${rId}`, () => this.invalidateResourceEvents(rId)),
+    referencedBy: (rId: ResourceId) => this.invalidationWindows.run(`referenced-by/${rId}`, () => this.invalidateReferencedBy(rId)),
+    resourceLists: () => this.invalidationWindows.run('resource-lists', () => this.invalidateResourceLists()),
+    entityTypes: () => this.invalidationWindows.run('entity-types', () => this.invalidateEntityTypes()),
+    tagSchemas: () => this.invalidationWindows.run('tag-schemas', () => this.invalidateTagSchemas()),
+    agents: () => this.invalidationWindows.run('agents', () => this.invalidateAgents()),
+  };
 
   /**
    * B17-Q — the persisted caches, registered at construction, for the
@@ -623,6 +680,7 @@ export class BrowseNamespace implements IBrowseNamespace {
   dispose(): void {
     for (const sub of this.busSubs) sub.unsubscribe();
     this.busSubs.length = 0;
+    this.invalidationWindows.dispose();
     this.resourceCache.dispose();
     this.resourceListCache.dispose();
     this.annotationListCache.dispose();
@@ -645,9 +703,9 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private onEntityTagChanged = (stored: { resourceId?: ResourceId }): void => {
     if (!stored.resourceId) return;
-    this.invalidateAnnotationList(stored.resourceId);
-    this.invalidateResourceDetail(stored.resourceId);
-    this.invalidateResourceEvents(stored.resourceId);
+    this.onBus.annotations(stored.resourceId);
+    this.onBus.resource(stored.resourceId);
+    this.onBus.events(stored.resourceId);
   };
 
   /**
@@ -657,8 +715,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private onArchiveToggled = (stored: { resourceId?: ResourceId }): void => {
     if (!stored.resourceId) return;
-    this.invalidateResourceDetail(stored.resourceId);
-    this.invalidateResourceLists();
+    this.onBus.resource(stored.resourceId);
+    this.onBus.resourceLists();
   };
 
   /**
@@ -668,8 +726,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private invalidateMutatedResource = (resourceId: string): void => {
     const rId = makeResourceId(resourceId);
-    this.invalidateResourceDetail(rId);
-    this.invalidateResourceLists();
+    this.onBus.resource(rId);
+    this.onBus.resourceLists();
   };
 
   private subscribeToEvents(): void {
@@ -691,24 +749,24 @@ export class BrowseNamespace implements IBrowseNamespace {
       const gapScope = event.scope;
       if (gapScope) {
         const rId = gapScope as ResourceId;
-        this.invalidateAnnotationList(rId);
-        this.invalidateResourceDetail(rId);
-        this.invalidateResourceEvents(rId);
-        this.invalidateReferencedBy(rId);
+        this.onBus.annotations(rId);
+        this.onBus.resource(rId);
+        this.onBus.events(rId);
+        this.onBus.referencedBy(rId);
       } else {
-        this.invalidateResourceLists();
-        for (const rId of this.annotationListCache.keys()) this.invalidateAnnotationList(rId);
-        for (const rId of this.resourceCache.keys()) this.invalidateResourceDetail(rId);
-        for (const rId of this.resourceEventsCache.keys()) this.invalidateResourceEvents(rId);
-        for (const rId of this.referencedByCache.keys()) this.invalidateReferencedBy(rId);
+        this.onBus.resourceLists();
+        for (const rId of this.annotationListCache.keys()) this.onBus.annotations(rId);
+        for (const rId of this.resourceCache.keys()) this.onBus.resource(rId);
+        for (const rId of this.resourceEventsCache.keys()) this.onBus.events(rId);
+        for (const rId of this.referencedByCache.keys()) this.onBus.referencedBy(rId);
       }
       // Entity-types, tag-schemas, and the collaborator directory are KB-wide
       // lists — always refetch on any gap. (For the directory, a gap is its one
       // real staleness signal: a roster change means a gateway restart, which
       // presents as an SSE gap.)
-      this.invalidateEntityTypes();
-      this.invalidateTagSchemas();
-      this.invalidateAgents();
+      this.onBus.entityTypes();
+      this.onBus.tagSchemas();
+      this.onBus.agents();
     });
 
     this.on('mark:delete-ok', (event) => {
@@ -717,15 +775,15 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.on('mark:added', (stored) => {
       if (stored.resourceId) {
-        this.invalidateAnnotationList(stored.resourceId);
-        this.invalidateResourceEvents(stored.resourceId);
+        this.onBus.annotations(stored.resourceId);
+        this.onBus.events(stored.resourceId);
       }
     });
 
     this.on('mark:removed', (stored) => {
       if (stored.resourceId) {
-        this.invalidateAnnotationList(stored.resourceId);
-        this.invalidateResourceEvents(stored.resourceId);
+        this.onBus.annotations(stored.resourceId);
+        this.onBus.events(stored.resourceId);
       }
       this.removeAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
     });
@@ -737,10 +795,10 @@ export class BrowseNamespace implements IBrowseNamespace {
         // Unenriched: the view no longer held the annotation when the
         // EventStore enriched this event, so there is nothing to write
         // through. Revalidate both caches rather than keep the old body.
-        this.invalidateAnnotationList(event.resourceId);
+        this.onBus.annotations(event.resourceId);
         this.removeAnnotationDetail(event.payload.annotationId);
       }
-      this.invalidateResourceEvents(event.resourceId);
+      this.onBus.events(event.resourceId);
     });
 
     this.on('mark:entity-tag-added', this.onEntityTagChanged);
@@ -748,7 +806,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
     this.on('replay-window-exceeded', (event) => {
       if (event.resourceId) {
-        this.invalidateAnnotationList(event.resourceId as ResourceId);
+        this.onBus.annotations(event.resourceId as ResourceId);
       }
     });
 
@@ -766,7 +824,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.on('mark:archived', this.onArchiveToggled);
     this.on('mark:unarchived', this.onArchiveToggled);
 
-    this.on('frame:entity-type-added', () => this.invalidateEntityTypes());
-    this.on('frame:tag-schema-added', () => this.invalidateTagSchemas());
+    this.on('frame:entity-type-added', () => this.onBus.entityTypes());
+    this.on('frame:tag-schema-added', () => this.onBus.tagSchemas());
   }
 }
