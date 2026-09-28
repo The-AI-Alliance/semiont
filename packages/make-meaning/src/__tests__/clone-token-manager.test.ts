@@ -1,5 +1,10 @@
 /**
- * CloneTokenManager — format selection on clone-create.
+ * CloneTokenManager — the tokens it issues, and format selection on
+ * clone-create.
+ *
+ * A clone token is a bearer credential for fifteen minutes: whoever holds it
+ * can clone the resource. So it carries 128 bits from a cryptographic
+ * generator, never a guessable value.
  *
  * A clone opens in the compose editor, so the format gate is the registry's
  * `authorable` capability (MEDIA-TYPES.md Phase 5): authorable sources keep
@@ -18,6 +23,7 @@ import { tmpdir } from 'os';
 import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { startMakeMeaning, ResourceContext, type MakeMeaningConfig } from '..';
+import { CloneTokenManager, type CloneTokenStores } from '../clone-token-manager';
 import { ResourceOperations } from '@semiont/core';
 import { stubEmbeddingProbeFetch } from './helpers/smelter-harness';
 
@@ -32,6 +38,50 @@ const mockLogger: Logger = {
 };
 
 let fileCounter = 0;
+
+describe('CloneTokenManager tokens', () => {
+  it('is 128 bits from a cryptographic generator, and never the same twice', async () => {
+    const file = join(tmpdir(), `semiont-ctm-token-${uuidv4()}.txt`);
+    await fs.writeFile(file, 'source');
+    const rid = makeResourceId('res-token');
+    const stores = {
+      views: {
+        get: vi.fn().mockResolvedValue({
+          resource: {
+            '@id': String(rid),
+            name: 'Source',
+            representations: [{ mediaType: 'text/plain', checksum: 'c1', storageUri: `file://${file}` }],
+          },
+          annotations: { resourceId: rid, version: 1, updatedAt: 't', annotations: [] },
+        }),
+      },
+      content: { resolveUri: vi.fn(() => file) },
+    } satisfies CloneTokenStores;
+    const bus = new EventBus();
+    const ctm = new CloneTokenManager(stores, bus, mockLogger);
+    await ctm.initialize();
+    try {
+      const tokens: string[] = [];
+      for (const correlationId of ['token-1', 'token-2']) {
+        const generated = firstValueFrom(
+          bus.frames('yield:clone-token-generated').pipe(
+            filter((frame) => frame.correlationId === correlationId),
+            map((frame) => frame.payload.response.token),
+            timeout(5000),
+          ),
+        );
+        bus.emit('yield:clone-token-requested', { resourceId: String(rid) }, { correlationId });
+        tokens.push(await generated);
+      }
+      for (const token of tokens) expect(token).toMatch(/^clone_[0-9a-f]{32}$/);
+      expect(tokens[0]).not.toBe(tokens[1]);
+    } finally {
+      await ctm.stop();
+      bus.destroy();
+      await fs.rm(file, { force: true });
+    }
+  });
+});
 
 describe('CloneTokenManager format selection', () => {
   let testDir: string;
