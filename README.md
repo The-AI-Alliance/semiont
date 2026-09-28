@@ -16,26 +16,32 @@ The `semiont` launcher is a single static binary — no npm, no Node.js:
 brew install the-ai-alliance/semiont/semiont
 ```
 
-### 2. Create a knowledge base
+### 2. Configure inference
 
-Register your [Anthropic](https://www.anthropic.com/) key once — only the pointer is stored, read fresh on every start and passed to the containers, written nowhere:
+A knowledge base needs a model to reason with. Either a hosted one or a local one — pick now, because the next step records the choice.
+
+**Hosted** — register your [Anthropic](https://www.anthropic.com/) key once. Only the pointer is stored, read fresh on every start and passed to the containers, written nowhere:
 
 ```bash
 semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 ```
 
-Then `semiont init` births a KB in place, synthesizing a config it validates before writing:
+**Local** — [Ollama](https://ollama.com/) runs a small model on your own machine instead. There is no key to register and nothing to configure here; you select it in the next step, and no content leaves your machine.
+
+### 3. Create a knowledge base
+
+`semiont init` births a KB in place, synthesizing a config it validates before writing:
 
 ```bash
 mkdir my-kb && cd my-kb
 semiont init --yes --domain example.com:my-kb --inference anthropic
 ```
 
-**Change `--domain`** — it is the KB's permanent identity, stamped into the committed event log, and has no default. `--inference ollama` runs a small model locally through [Ollama](https://ollama.com/) instead, and needs no key.
+**Change `--domain`** — it is the KB's permanent identity, stamped into the committed event log, and has no default. Use `--inference ollama` instead if you chose the local model above.
 
 Every step below runs from inside the knowledge base — not from this repo.
 
-### 3. Start it
+### 4. Start it
 
 One command starts the whole stack and ensures the Semiont browser is running at **http://localhost:3000**:
 
@@ -45,7 +51,7 @@ semiont start
 
 `semiont logs` follows it, `semiont stop` tears it down, and `semiont start --help` lists the options.
 
-### 4. Connect
+### 5. Connect
 
 Create your first user. A fresh stack has none — the account is created at the knowledge base's identity provider, which is what Semiont trusts to authenticate people:
 
@@ -67,9 +73,9 @@ No password reaches the launcher, and the session renews itself; `semiont logout
 
 For local-network access notes, supply-chain verification, and the native [desktop app](https://github.com/The-AI-Alliance/semiont/releases) alternative, see **[docs/browser/](docs/browser/README.md)**.
 
-### 5. Ingest content
+### 6. Ingest content
 
-Pull down a well-known paper and upload it with the session from step 4. The storage URI is repo-relative, so the file has to land under the KB root first:
+Pull down a well-known paper and upload it with the session from step 5. The storage URI is repo-relative, so the file has to land under the KB root first:
 
 ```bash
 mkdir -p papers
@@ -77,7 +83,7 @@ curl -L -o papers/attention-is-all-you-need.pdf https://arxiv.org/pdf/1706.03762
 semiont yield --upload papers/attention-is-all-you-need.pdf
 ```
 
-### 6. Annotate
+### 7. Annotate
 
 ![Semiont screenshot](website/assets/images/semiont-2026-03-10.png)
 
@@ -125,7 +131,7 @@ git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
 cd semiont-gutenberg-kb
 ```
 
-It arrives with its identity and config already set, so steps 0, 1, 3 and 4 above carry you the rest of the way — there is nothing to create.
+It arrives with its identity and config already set, so skip step 3 — there is nothing to create. The rest of the Quick Start carries you the same way, and it ships with content, so step 6 is optional too.
 
 The full catalog — seven demo KBs across different domains, plus community
 knowledge bases and the empty [template](https://github.com/The-AI-Alliance/semiont-template-kb) — is in **[docs/KNOWLEDGE-BASES.md](docs/KNOWLEDGE-BASES.md)**.
