@@ -11,6 +11,10 @@
 # and the gateway's peak resident memory across all of them. Any answer that is
 # not a 2xx fails the run: a benchmark of refusals measures nothing.
 #
+# Then what a stream costs: streams.mjs opens STREAMS streams at once, each
+# read and each with its own clientId, and the second table reports the
+# gateway's resident memory before and with them open, and the cost per stream.
+#
 #   health   GET /api/health: the accept loop and the router, nothing else
 #   emit     POST /bus/emit, an empty beckon:focus: a token checked, a body read
 #            and validated, a frame published
@@ -24,12 +28,14 @@ CONNECTIONS=256
 DURATION=10s
 WARMUP=3s
 RUNS=3
+STREAMS="1000 10000"
 PORT=4000
 DOMAIN=bench.example
 
 [ "$#" -gt 0 ] || { echo "usage: load.sh <label>=<gateway binary>..." >&2; exit 2; }
 [ "$(nproc)" -ge 12 ] || { echo "load.sh needs 12 CPUs (the gateway's eight and wrk's four); this container has $(nproc)" >&2; exit 2; }
-apk add --no-cache wrk openssl util-linux-misc >/dev/null
+apk add --no-cache wrk openssl util-linux-misc nodejs >/dev/null 2>&1
+BENCH=$(dirname "$0")
 
 WORK=$(mktemp -d)
 trap 'kill "$GATEWAY" 2>/dev/null || true; rm -rf "$WORK"' EXIT
@@ -40,14 +46,17 @@ mkdir -p "$WORK/home"
 cat > "$WORK/home/.semiontconfig" <<DOC
 {"kb":{"name":"Load","domain":"$DOMAIN"},"port":$PORT,"publicUrl":"http://127.0.0.1:$PORT",
  "identity":{"issuer":"http://127.0.0.1:1","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
- "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json"}
+ "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json",
+ "capacity":{"queuedBytes":1073741824,"connections":52428}}
 DOC
 
 # An agent token the gateway signed, as far as it can tell: HS256 under its key.
+# It holds semiont-worker, whose coefficients are unlimited (x-semiont-limits),
+# so the benchmark measures the gateway rather than a principal's bucket.
 b64url() { base64 | tr -d '\n=' | tr '/+' '_-'; }
 now=$(date +%s)
 header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
-claims=$(printf '{"did":"did:web:%s:agents:bench:load","email":"load@agents.%s","name":"bench load","domain":"%s","iat":%s,"exp":%s,"iss":"%s"}' \
+claims=$(printf '{"did":"did:web:%s:agents:bench:load","email":"load@agents.%s","name":"bench load","domain":"%s","iat":%s,"exp":%s,"iss":"%s","roles":["semiont-worker"]}' \
   "$DOMAIN" "$DOMAIN" "$DOMAIN" "$now" "$((now + 36000))" "$DOMAIN" | b64url)
 signature=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
 TOKEN="$header.$claims.$signature"
@@ -85,7 +94,10 @@ run() {
   echo "$rps $(ms "$p50") $(ms "$p99")"
 }
 
+rss_kib() { awk '/^VmRSS:/ { print $2 }' "/proc/$GATEWAY/status"; }
+
 printf '%-12s %-8s %12s %9s %9s %10s\n' binary scenario 'req/s' 'p50 ms' 'p99 ms' 'peak RSS'
+STREAM_LINES=""
 for pair in "$@"; do
   label=${pair%%=*}
   binary=${pair#*=}
@@ -113,10 +125,29 @@ for pair in "$@"; do
 "
   done
   peak=$(awk '/^VmHWM:/ { printf "%.0f MiB", $2 / 1024 }' "/proc/$GATEWAY/status")
+  for streams in $STREAMS; do
+    before=$(rss_kib)
+    taskset -c "$WRK_CPUS" node "$BENCH/streams.mjs" "http://127.0.0.1:$PORT" "$TOKEN" "$streams" >"$WORK/streams.out" 2>&1 &
+    holder=$!
+    until grep -q '^open' "$WORK/streams.out"; do sleep 0.2; done
+    grep -q 'failed 0$' "$WORK/streams.out" || { echo "streams: $(cat "$WORK/streams.out")" >&2; exit 1; }
+    sleep 3
+    with=$(rss_kib)
+    kill "$holder"
+    wait "$holder" 2>/dev/null || true
+    sleep 3
+    STREAM_LINES="$STREAM_LINES$label $streams $before $with
+"
+  done
   kill "$GATEWAY"
   wait "$GATEWAY" 2>/dev/null || true
   GATEWAY=
   printf '%s' "$lines" | while read -r scenario rps p50 p99; do
     printf '%-12s %-8s %12.0f %9s %9s %10s\n' "$label" "$scenario" "$rps" "$p50" "$p99" "$peak"
   done
+done
+
+printf '\n%-12s %8s %12s %12s %14s\n' binary streams 'RSS before' 'RSS with' 'per stream'
+printf '%s' "$STREAM_LINES" | while read -r label streams before with; do
+  printf '%-12s %8s %9s MiB %9s MiB %10s KiB\n' "$label" "$streams" "$((before / 1024))" "$((with / 1024))" "$(( (with - before) / streams ))"
 done

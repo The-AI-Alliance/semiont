@@ -56,7 +56,8 @@ a built gateway against the spec on every pull request:
 
 - **Environment Variables**: Sensitive configuration stored in environment variables
 - **HTTPS in Production**: TLS encryption for all production traffic (when deployed behind a reverse proxy)
-- **Input Validation**: Zod schemas for request/response validation
+- **Input Validation**: every JSON body is validated against its schema in `specs/`, and bounded by its operation's `maxBodyBytes`
+- **Limits**: the streams and emits one principal may take — people and agents alike, a role changing the coefficient — and the queued bytes and connections one gateway process holds; a refusal is a 429 or 503 with `Retry-After` ([TRANSPORT-HTTP.md § Limits](../../protocol/TRANSPORT-HTTP.md#limits))
 - **SQL Injection Prevention**: not applicable — the gateway issues no SQL and holds no database
 
 #### Storage
@@ -152,7 +153,7 @@ The following security features are **not yet implemented** and are planned for 
 - End-to-end encryption for stored documents
 - Comprehensive audit logging UI
 - Data loss prevention (DLP) policies
-- Rate limiting per user/IP
+- Rate limiting per IP address before a token is read (an ingress's; the gateway limits per principal)
 - IP allowlisting/blocklisting
 - An operator-facing API to revoke another caller's session. A person can revoke
   their own refresh token by signing out; cutting off someone else means
@@ -165,7 +166,6 @@ realm without any change here.
 ## Roadmap
 
 ### Short-term
-- Rate limiting middleware
 - Enhanced audit logging with queryable interface
 
 ### Medium-term

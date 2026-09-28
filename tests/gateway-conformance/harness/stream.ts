@@ -8,6 +8,8 @@
  * came as `text/event-stream`. A case reads `violations` at the end; any
  * entry is a failure whatever the case was about.
  */
+import { request, type IncomingMessage } from 'node:http';
+import type { Reply } from './http';
 import { errorsOf, spec } from './spec';
 
 export interface BusFrame {
@@ -229,4 +231,55 @@ export async function subscribe(origin: string, token: string | undefined, body:
   const type = res.headers.get('content-type') ?? '';
   if (type.split(';')[0]!.trim() !== 'text/event-stream') stream.violations.push(`a stream that came as ${JSON.stringify(type)}, not text/event-stream`);
   return { status: res.status, headers: res.headers, stream, text: undefined };
+}
+
+/** A refused subscribe, read as a reply the spec can judge. */
+export function asReply(result: SubscribeResult): Reply {
+  const text = result.text ?? '';
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = undefined;
+  }
+  return { status: result.status, headers: result.headers, text, json, bytes: Buffer.from(text) };
+}
+
+/**
+ * A subscriber that opens the stream and stops reading. `resume()` starts
+ * reading again; `drain()` does, and resolves once the stream has ended — a
+ * socket that is not being read cannot see its peer close it; `close()` ends
+ * it from this side.
+ */
+export function stalledSubscriber(origin: string, token: string, body: unknown): { resume(): void; drain(): Promise<void>; close(): void } {
+  const url = new URL('/bus/subscribe', origin);
+  let ended: () => void;
+  const end = new Promise<void>((resolve) => {
+    ended = resolve;
+  });
+  let response: IncomingMessage | undefined;
+  const req = request(
+    { host: url.hostname, port: url.port, path: url.pathname, method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' } },
+    (res) => {
+      response = res;
+      res.pause();
+      res.on('end', () => ended());
+      res.on('close', () => ended());
+      res.on('error', () => ended());
+    },
+  );
+  req.on('error', () => ended());
+  req.end(JSON.stringify(body));
+  return {
+    resume() {
+      response?.resume();
+    },
+    drain() {
+      response?.resume();
+      return end;
+    },
+    close() {
+      req.destroy();
+    },
+  };
 }

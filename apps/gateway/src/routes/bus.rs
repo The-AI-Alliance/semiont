@@ -76,6 +76,16 @@ pub async fn emit(
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
+    // Before the body is read, and before any correlation claim: a refused
+    // emit costs little and claims nothing, so its retry is no conflict.
+    if let Err(retry_after) = app.emit_rates.admit(&principal) {
+        return Err(ApiError::limited(
+            StatusCode::TOO_MANY_REQUESTS,
+            "emit-rate",
+            "This principal's emits have used its bucket",
+            retry_after,
+        ));
+    }
     let request = json_body(body, "POST /bus/emit").await?;
     let channel = text(&request, "channel")?.to_owned();
     let scope = request["scope"].as_str().map(str::to_owned);
@@ -153,11 +163,13 @@ pub async fn emit(
                     format!("correlationId {cid} is already claimed"),
                 ));
             }
-            ClaimOutcome::AtCapacity => {
+            ClaimOutcome::AtCapacity { retry_after } => {
                 let max = spec().limits().pending_replies_max;
-                return Err(ApiError::new(
+                return Err(ApiError::limited(
                     StatusCode::TOO_MANY_REQUESTS,
+                    "unanswered-requests",
                     format!("client has {max} unanswered requests; retry when one settles"),
+                    retry_after,
                 ));
             }
         }

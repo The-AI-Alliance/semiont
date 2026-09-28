@@ -43,6 +43,10 @@ class FakeXHR {
   status = 0;
   statusText = '';
   responseText = '';
+  /** A real XMLHttpRequest answers for any header; this fake's responses carry none. */
+  getResponseHeader(_name: string): string | null {
+    return null;
+  }
 
   // Captured by the fake so tests can assert on them.
   openCalls: Array<{ method: string; url: string }> = [];

@@ -22,8 +22,9 @@ export type Plane = 'in-process' | 'nats';
 type Document = components['schemas']['GatewayConfig'];
 
 /** Everything a gateway is configured with: the document, with the fields a case may delete optional. */
-export interface GatewaySettings extends Omit<Document, 'kb' | 'identity' | 'archivist'> {
+export interface GatewaySettings extends Omit<Document, 'kb' | 'identity' | 'archivist' | 'capacity'> {
   kb: Partial<Document['kb']>;
+  capacity?: Document['capacity'];
   identity: Partial<Document['identity']>;
   archivist: Partial<Document['archivist']>;
   /** Fields written into the document as given, over the settings: for the cases that check what is refused. */
@@ -79,6 +80,8 @@ export interface GatewayProcess {
   /** Milliseconds from spawning it to its first `/api/health` 200. */
   readonly servedAfterMs: number;
   stop(): Promise<void>;
+  /** Kill it without its shutdown: nothing it would release on the way out is released. */
+  crash(): Promise<void>;
 }
 
 export interface LaunchOptions {
@@ -131,6 +134,8 @@ export async function defaultSettings(parts: {
     kb: { ...parts.kb },
     port,
     publicUrl: `http://127.0.0.1:${port}`,
+    // Generous: a case that means to meet the gateway's capacity sets its own.
+    capacity: { queuedBytes: 1024 * 1024 * 1024, connections: 50_000 },
     identity: { issuer: parts.issuer, subjectClaim: 'sub' },
     archivist: { ...parts.archivist },
     signal: parts.plane === 'nats' ? { type: 'nats', servers: parts.natsUrl! } : { type: 'in-process' },
@@ -181,6 +186,13 @@ export async function startGateway(options: LaunchOptions): Promise<GatewayProce
         const timer = setTimeout(() => child.kill('SIGKILL'), 15_000);
         await exited;
         clearTimeout(timer);
+      }
+      rmSync(dir, { recursive: true, force: true });
+    },
+    async crash() {
+      if (child.exitCode === null && child.signalCode === null) {
+        child.kill('SIGKILL');
+        await exited;
       }
       rmSync(dir, { recursive: true, force: true });
     },

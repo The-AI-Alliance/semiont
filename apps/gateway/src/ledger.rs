@@ -92,6 +92,9 @@ impl<V> Ordered<V> {
     fn contains(&self, key: &str) -> bool {
         self.entries.contains_key(key)
     }
+    fn values(&self) -> impl Iterator<Item = &V> {
+        self.entries.values().map(|(_, v)| v)
+    }
     fn first(&self) -> Option<(String, &V)> {
         let key = self.order.values().next()?;
         Some((key.clone(), self.get(key)?))
@@ -138,7 +141,11 @@ pub struct RetainedReply {
 pub enum ClaimOutcome {
     Ok,
     Conflict,
-    AtCapacity,
+    /// The client awaits as many replies as it may; `retry_after` is when its
+    /// oldest unanswered claim expires, the latest a slot frees.
+    AtCapacity {
+        retry_after: Duration,
+    },
 }
 
 #[derive(PartialEq)]
@@ -211,15 +218,15 @@ impl Ledger {
         let adopt = weak.clone();
         let claims_watch = claims
             .watch(Arc::new(move |cid, value| {
-                if let Some(ledger) = adopt.upgrade() {
+                if let (Some(ledger), Some(value)) = (adopt.upgrade(), value) {
                     ledger.adopt(&cid, &value);
                 }
             }))
             .await?;
         let mark = weak;
         let answered_watch = answered
-            .watch(Arc::new(move |cid, _| {
-                if let Some(ledger) = mark.upgrade() {
+            .watch(Arc::new(move |cid, value| {
+                if let (Some(ledger), Some(_)) = (mark.upgrade(), value) {
                     ledger.mark_answered(&cid);
                 }
             }))
@@ -361,7 +368,17 @@ impl Ledger {
                 return Ok(ClaimOutcome::Conflict);
             }
             if state.per_client.get(client_id).copied().unwrap_or(0) >= self.pending_replies_max {
-                return Ok(ClaimOutcome::AtCapacity);
+                let now = now_ms();
+                let expires = state
+                    .claims
+                    .values()
+                    .filter(|c| c.client_id == client_id && !c.answered)
+                    .map(|c| c.claimed_at + self.claim_ms)
+                    .min()
+                    .unwrap_or(now);
+                return Ok(ClaimOutcome::AtCapacity {
+                    retry_after: Duration::from_millis(expires.saturating_sub(now)),
+                });
             }
             StoredClaim {
                 client_id: client_id.to_owned(),

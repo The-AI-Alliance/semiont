@@ -1,0 +1,19 @@
+{
+  "description": "The gateway holds as much as it can: the bytes queued for its streams have reached its capacity (GatewayConfig `capacity`). The body's `code` is `capacity`. Nothing about the caller is at fault; `Retry-After` is the number of seconds to wait before trying again.",
+  "headers": {
+    "Retry-After": {
+      "description": "Seconds to wait before trying again.",
+      "schema": {
+        "type": "string",
+        "pattern": "^[0-9]+$"
+      }
+    }
+  },
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../schemas/LimitRefusal.json"
+      }
+    }
+  }
+}

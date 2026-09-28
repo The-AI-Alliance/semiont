@@ -109,7 +109,11 @@ The numbers live in the spec, not here:
 | A JSON request body | each operation's `x-semiont-limits.maxBodyBytes` | 413, unread when its Content-Length says so |
 | Scopes on one connection | `BusSubscribeRequest.scoped.maxItems` | 400 |
 | Pending replies named on subscribe | `BusSubscribeRequest.pendingReplies.maxItems` | 400 |
-| Unanswered requests per client | the same `maxItems` | 429 on the next emit |
+| Unanswered requests per client | the same `maxItems` | 429 `unanswered-requests` on the next emit; `Retry-After` is when the oldest expires |
+| Streams one principal holds, across replicas | `/bus/subscribe` `x-semiont-limits.streamsPerPrincipal` | 429 `streams` |
+| Emits one principal makes, per gateway process | `/bus/emit` `x-semiont-limits.emitsPerPrincipal` (a rate and a burst) | 429 `emit-rate` |
+| Bytes queued for all of one gateway's streams | GatewayConfig `capacity.queuedBytes` | 503 `capacity` on the next `/bus/subscribe` |
+| Connections one gateway holds open | GatewayConfig `capacity.connections` | the connection is closed unanswered |
 | How long a claim lasts unanswered | `/bus/emit` `x-semiont-limits.claimSeconds` | the claim expires; its reply is no longer routed |
 | How long a reply is retained | `/bus/subscribe` `x-semiont-limits.replyRetentionSeconds` | `pendingReplies` no longer recovers it |
 | Heartbeat interval | `x-semiont-limits.heartbeatSeconds` | — |
@@ -119,6 +123,12 @@ The numbers live in the spec, not here:
 A closed connection is not an error the client handles: it reconnects
 with its watermarks and `pendingReplies` and loses nothing either
 covers.
+
+A limit on a principal does not ask whether it is a person or an agent. It
+states a baseline and a coefficient per role, and a role changes the
+coefficient whoever holds it: `semiont-service` and `semiont-worker` are
+unlimited. A refusal by a limit names it in the body's `code` and says in
+`Retry-After` how many seconds to wait; the clients wait at least that long.
 
 ## Authentication and authorization
 

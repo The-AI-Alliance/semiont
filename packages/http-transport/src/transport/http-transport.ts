@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
+import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -245,6 +245,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                 response.status,
                 response.statusText,
                 body,
+                retryAfterMs(response.headers.get('retry-after')),
               );
               this.errorsSubject.next(apiError);
               throw apiError;

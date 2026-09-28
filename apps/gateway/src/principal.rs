@@ -4,7 +4,7 @@
 
 use crate::identity;
 use crate::issuer::IssuerVerifier;
-use crate::roles::{SERVICE_ROLE, WORKER_ROLE, has_role};
+use crate::roles::{SERVICE_ROLE, WORKER_ROLE, has_role, roles_of};
 use crate::tokens::KeyRing;
 use serde_json::Value;
 
@@ -84,7 +84,7 @@ async fn person(
             .and_then(Value::as_str)
             .map(str::to_owned),
         domain: domain.to_owned(),
-        roles: None,
+        roles: roles_of(&claims),
     })
 }
 

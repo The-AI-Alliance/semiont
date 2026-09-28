@@ -52,11 +52,12 @@ class APIError extends SemiontError {
   code: TransportErrorCode;
   status: number;
   statusText: string;
+  retryAfterMs: number | undefined;
   details?: { status: number; statusText: string; body?: unknown };
 }
 ```
 
-Thrown for non-2xx HTTP responses from the REST methods on `HttpTransport`. `status` and `statusText` are the HTTP-level fields; `code` is the `TransportErrorCode` classification derived from the status; `details.body` is the parsed response body when available. `SemiontError` and `TransportErrorCode` come from `@semiont/core`.
+Thrown for non-2xx HTTP responses from the REST methods on `HttpTransport`. `status` and `statusText` are the HTTP-level fields; `code` is the `TransportErrorCode` classification derived from the status (a 429 is `rate-limited`); `details.body` is the parsed response body when available. `retryAfterMs` is the wait the response's `Retry-After` stated, as a limit's 429 or a capacity 503 does: an emit's retries, and a refused stream's reconnect, wait at least that long. `SemiontError` and `TransportErrorCode` come from `@semiont/core`.
 
 ## Composing with `SemiontClient`
 

@@ -91,7 +91,7 @@ describe('discoverIssuer', () => {
   });
 
   it('names a KB that trusts no issuer', async () => {
-    metadata.mockRejectedValue(new APIError('Not Found', 404, 'Not Found'));
+    metadata.mockRejectedValue(new APIError('Not Found', 404, 'Not Found', undefined, undefined));
 
     await expect(discoverIssuer(TARGET)).rejects.toMatchObject({ code: 'no-issuer' });
   });

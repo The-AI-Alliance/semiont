@@ -162,6 +162,13 @@ export class Spec {
     if (isObject(limits)) for (const [k, v] of Object.entries(limits)) if (typeof v === 'number') out[k] = v;
     return out;
   }
+
+  /** A limit on a principal: its baseline, and a coefficient per role (`'unlimited'`, or the baseline's shape). */
+  principalLimit<C>(method: Method, path: string, key: string): { baseline: C; roles: Record<string, C | 'unlimited'> } {
+    const limit = (this.operation(method, path)['x-semiont-limits'] as Record<string, unknown> | undefined)?.[key];
+    if (!isObject(limit) || !('baseline' in limit)) throw new Error(`${method.toUpperCase()} ${path} states no principal limit ${key}`);
+    return { baseline: limit['baseline'] as C, roles: (limit['roles'] ?? {}) as Record<string, C | 'unlimited'> };
+  }
 }
 
 let cached: Spec | undefined;

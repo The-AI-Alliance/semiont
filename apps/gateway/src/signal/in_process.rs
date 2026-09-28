@@ -4,7 +4,7 @@
 
 use super::{
     ClientSubscription, Frame, IngestReceipt, Meta, OnFrame, SharedTable, SignalPlane,
-    Subscription, Unavailable,
+    Subscription, TableWatcher, Unavailable,
 };
 use futures::FutureExt;
 use futures::future::BoxFuture;
@@ -157,8 +157,6 @@ impl SignalPlane for InProcessPlane {
     }
 }
 
-type Watcher = Arc<dyn Fn(String, String) + Send + Sync>;
-
 /// A shared table in one process: every handle on a name is this one map,
 /// insertion-ordered so the expired entries are a prefix a sweep walks.
 struct MemoryTable {
@@ -170,7 +168,7 @@ struct MemoryTable {
 struct TableState {
     order: VecDeque<(String, Instant)>,
     entries: HashMap<String, (String, Instant)>,
-    watchers: Vec<(u64, Watcher)>,
+    watchers: Vec<(u64, TableWatcher)>,
     next_watcher: u64,
 }
 
@@ -201,25 +199,56 @@ impl TableState {
     }
 }
 
-impl SharedTable for MemoryTable {
-    fn create(&self, key: String, value: String) -> BoxFuture<'_, Result<bool, String>> {
-        let watchers: Option<Vec<Watcher>> = {
+impl MemoryTable {
+    /// Write `key` and tell every watcher, when `write` says to.
+    fn write(&self, key: &str, value: &str, write: impl FnOnce(&TableState) -> bool) -> bool {
+        let watchers: Option<Vec<TableWatcher>> = {
             let mut state = locked(&self.state);
             state.sweep(self.ttl);
-            if state.entries.contains_key(&key) {
-                None
-            } else {
+            if write(&state) {
                 let now = Instant::now();
-                state.entries.insert(key.clone(), (value.clone(), now));
-                state.order.push_back((key.clone(), now));
+                state
+                    .entries
+                    .insert(key.to_owned(), (value.to_owned(), now));
+                state.order.push_back((key.to_owned(), now));
                 Some(state.watchers.iter().map(|(_, w)| w.clone()).collect())
+            } else {
+                None
             }
         };
-        let created = watchers.is_some();
+        let written = watchers.is_some();
         for watcher in watchers.unwrap_or_default() {
-            watcher(key.clone(), value.clone());
+            watcher(key.to_owned(), Some(value.to_owned()));
         }
+        written
+    }
+}
+
+impl SharedTable for MemoryTable {
+    fn create(&self, key: String, value: String) -> BoxFuture<'_, Result<bool, String>> {
+        let created = self.write(&key, &value, |state| !state.entries.contains_key(&key));
         async move { Ok(created) }.boxed()
+    }
+
+    fn put(&self, key: String, value: String) -> BoxFuture<'_, Result<(), String>> {
+        self.write(&key, &value, |_| true);
+        async { Ok(()) }.boxed()
+    }
+
+    fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>> {
+        let watchers: Vec<TableWatcher> = {
+            let mut state = locked(&self.state);
+            state.sweep(self.ttl);
+            if state.entries.remove(&key).is_some() {
+                state.watchers.iter().map(|(_, w)| w.clone()).collect()
+            } else {
+                Vec::new()
+            }
+        };
+        for watcher in watchers {
+            watcher(key.clone(), None);
+        }
+        async { Ok(()) }.boxed()
     }
 
     fn read(&self, key: String) -> BoxFuture<'_, Result<Option<String>, String>> {
@@ -231,7 +260,7 @@ impl SharedTable for MemoryTable {
         async move { Ok(value) }.boxed()
     }
 
-    fn watch(&self, on_entry: Watcher) -> BoxFuture<'_, Result<Subscription, String>> {
+    fn watch(&self, on_entry: TableWatcher) -> BoxFuture<'_, Result<Subscription, String>> {
         let (present, id) = {
             let mut state = locked(&self.state);
             state.sweep(self.ttl);
@@ -252,7 +281,7 @@ impl SharedTable for MemoryTable {
             (present, id)
         };
         for (key, value) in present {
-            on_entry(key, value);
+            on_entry(key, Some(value));
         }
         let state = Arc::downgrade(&self.state);
         let handle = Subscription::new(move || {

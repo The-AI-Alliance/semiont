@@ -9,7 +9,9 @@
 import { randomUUID } from 'node:crypto';
 import { beforeAll, expect, it } from 'vitest';
 import type { GatewayProcess } from '../harness/gateway';
+import { eventually } from '../harness/net';
 import { operationFor, spec } from '../harness/spec';
+import { subscribe } from '../harness/stream';
 import { eachPlane } from '../harness/world';
 
 const REQUEST = 'browse:resource-requested';
@@ -40,6 +42,40 @@ eachPlane('two replicas on one broker', (world) => {
 
   const answer = (correlationId: string, name = 'r', origin = b.origin) =>
     world().emit(participant, { channel: result, payload: { response: { ...described.response, resource: { ...described.response.resource, name } } }, correlationId }, origin);
+
+  it('the streams one principal holds are counted across replicas', async () => {
+    const { baseline } = spec().principalLimit<number>('post', '/bus/subscribe', 'streamsPerPrincipal');
+    const carol = await world().person('carol-streams');
+    for (let i = 0; i < baseline; i++) {
+      await world().subscribe(carol, { clientId: randomUUID(), global: ['beckon:focus'] }, i % 2 === 0 ? world().origin : b.origin);
+    }
+    for (const origin of [world().origin, b.origin]) {
+      const over = await eventually(`${origin} refuses past the limit`, 10_000, async () => {
+        const reply = await subscribe(origin, carol, { clientId: randomUUID(), global: ['beckon:focus'] });
+        reply.stream?.close();
+        return reply.status === 429 ? reply : undefined;
+      });
+      expect(over.status).toBe(429);
+    }
+  });
+
+  it('the streams a replica held stop counting once their lease ends, when the replica died without releasing them', async () => {
+    const { baseline } = spec().principalLimit<number>('post', '/bus/subscribe', 'streamsPerPrincipal');
+    const heartbeat = spec().limits('post', '/bus/subscribe')['heartbeatSeconds']!;
+    const c = await world().replica();
+    const dave = await world().person('dave-streams');
+    for (let i = 0; i < baseline; i++) await world().subscribe(dave, { clientId: randomUUID(), global: ['beckon:focus'] }, c.origin);
+    const probe = async (status: number) => {
+      const reply = await subscribe(world().origin, dave, { clientId: randomUUID(), global: ['beckon:focus'] });
+      reply.stream?.close();
+      return reply.status === status ? reply : undefined;
+    };
+    await eventually('the other replica counts them', 10_000, () => probe(429));
+    await c.crash();
+    const died = Date.now();
+    await eventually('a stream admitted once the dead replica\'s leases end', (2 * heartbeat + 15) * 1000, () => probe(200));
+    expect(Date.now() - died, 'not before the lease could have ended').toBeGreaterThan(heartbeat * 1000);
+  });
 
   it('a request made through one replica is answered to its requester through that replica, and to no one on the other', async () => {
     const alice = await world().person('alice');

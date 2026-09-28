@@ -137,7 +137,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
   });
 
   it('surfaces SessionExpiredModal when getMe AND refresh both fail with 401', async () => {
-    getMeSpy.mockRejectedValue(new APIError('Unauthorized', 401, 'Unauthorized'));
+    getMeSpy.mockRejectedValue(new APIError('Unauthorized', 401, 'Unauthorized', undefined, undefined));
     // The issuer refuses the refresh grant — the stub's default.
 
     const { browser } = renderShell(
@@ -156,7 +156,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
   });
 
   it('does NOT surface SessionExpiredModal when getMe fails with 500', async () => {
-    getMeSpy.mockRejectedValue(new APIError('Server error', 500, 'Internal Server Error'));
+    getMeSpy.mockRejectedValue(new APIError('Server error', 500, 'Internal Server Error', undefined, undefined));
 
     const { browser } = renderShell(
       <div data-testid="protected-content">protected</div>
@@ -176,7 +176,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
   it('recovers transparently when getMe returns 401 but refresh succeeds', async () => {
     const newAccess = makeFakeJwt();
     getMeSpy
-      .mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized'))
+      .mockRejectedValueOnce(new APIError('Unauthorized', 401, 'Unauthorized', undefined, undefined))
       .mockResolvedValueOnce({ email: 'alice@example.com' } as any);
     fetchMock.mockImplementation(async (url: string) =>
       url === TOKEN_ENDPOINT ? issuerReply({ access_token: newAccess }) : issuerReply({ error: 'invalid_grant' }, 400));

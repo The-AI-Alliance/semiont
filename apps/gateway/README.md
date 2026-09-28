@@ -104,12 +104,16 @@ naming each failing field by its JSON pointer — when it does not match.
   "archivist": { "host": "archivist", "port": 24103 },
   "signal": { "type": "nats", "servers": "nats:4222" },
   "logLevel": "info",
-  "logFormat": "json"
+  "logFormat": "json",
+  "capacity": { "queuedBytes": 1073741824, "connections": 52428 }
 }
 ```
 
 `signal.type` is `in-process` (one gateway) or `nats` (the fabric replicas
-share, which needs `servers` and a broker with JetStream). A gateway started
+share, which needs `servers` and a broker with JetStream). `capacity` is what
+the process can hold: the bytes queued for all its streams, and the
+connections it holds open. The launcher derives both from the memory it gives
+the container — half for queued bytes, the other half at 20 KiB a connection. A gateway started
 without the launcher is given the same document.
 
 Secrets are never in it. The gateway's own are environment variables —

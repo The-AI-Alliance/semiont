@@ -79,6 +79,15 @@
       },
       "ServiceUnavailable": {
         "$ref": "components/responses/ServiceUnavailable.json"
+      },
+      "PayloadTooLarge": {
+        "$ref": "components/responses/PayloadTooLarge.json"
+      },
+      "TooManyRequests": {
+        "$ref": "components/responses/TooManyRequests.json"
+      },
+      "AtCapacity": {
+        "$ref": "components/responses/AtCapacity.json"
       }
     },
     "schemas": {
@@ -801,6 +810,9 @@
       },
       "RepresentationNotFound": {
         "$ref": "components/schemas/RepresentationNotFound.json"
+      },
+      "LimitRefusal": {
+        "$ref": "components/schemas/LimitRefusal.json"
       }
     }
   }

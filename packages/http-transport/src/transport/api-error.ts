@@ -18,6 +18,7 @@ function classifyApiCode(status: number): TransportErrorCode {
   if (status === 403) return 'forbidden';
   if (status === 404) return 'not-found';
   if (status === 409) return 'conflict';
+  if (status === 429) return 'rate-limited';
   if (status >= 500) return 'unavailable';
   return 'error';
 }
@@ -27,11 +28,14 @@ export class APIError extends SemiontError {
   readonly status: number;
   readonly statusText: string;
 
-  constructor(message: string, status: number, statusText: string, body?: unknown) {
+  readonly retryAfterMs: number | undefined;
+
+  constructor(message: string, status: number, statusText: string, body: unknown, retryAfterMs: number | undefined) {
     super(message, classifyApiCode(status), { status, statusText, body });
     this.name = 'APIError';
     this.status = status;
     this.statusText = statusText;
+    this.retryAfterMs = retryAfterMs;
   }
 }
 
@@ -46,5 +50,5 @@ export class APIError extends SemiontError {
  * simply answers `false`. **A silent loss of retry is exactly the failure this
  * plan exists to prevent**, so it is pinned by the compiler rather than by a test.
  */
-const _conformsToRetryContract: HttpStatusError = new APIError('', 0, '');
+const _conformsToRetryContract: HttpStatusError = new APIError('', 0, '', undefined, undefined);
 void _conformsToRetryContract;

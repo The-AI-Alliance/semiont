@@ -146,6 +146,23 @@ func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
 	}
 }
 
+// The gateway's capacity follows from the memory its container is given: for
+// the 2G gateway, a gibibyte of bytes queued to its streams, and connections at
+// 20 KiB each of the other half.
+func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
+	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "192.168.64.1", 4000, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := documentFrom(t, b)
+	if got := semiontDescriptor("gateway").mem; got != "2G" {
+		t.Fatalf("the gateway's container is given %s; this test states the capacity for 2G", got)
+	}
+	if doc.Capacity.QueuedBytes != 1<<30 || doc.Capacity.Connections != 52428 {
+		t.Errorf("capacity = %+v, want 1 GiB queued and 52428 connections", doc.Capacity)
+	}
+}
+
 // A KB that declares no identity gets no fabricated one: the launcher refuses
 // to write a document the gateway would refuse.
 func TestGatewayDocumentRefusesAnUndeclaredDomain(t *testing.T) {

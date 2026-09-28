@@ -47,8 +47,14 @@
       "413": {
         "$ref": "../components/responses/PayloadTooLarge.json"
       },
+      "429": {
+        "$ref": "../components/responses/TooManyRequests.json"
+      },
       "500": {
         "$ref": "../components/responses/InternalError.json"
+      },
+      "503": {
+        "$ref": "../components/responses/AtCapacity.json"
       }
     },
     "x-semiont-limits": {
@@ -56,7 +62,14 @@
       "heartbeatSeconds": 15,
       "replyRetentionSeconds": 60,
       "pendingWriteBytes": 16777216,
-      "replayBufferEvents": 1000
+      "replayBufferEvents": 1000,
+      "streamsPerPrincipal": {
+        "baseline": 64,
+        "roles": {
+          "semiont-service": "unlimited",
+          "semiont-worker": "unlimited"
+        }
+      }
     }
   }
 }

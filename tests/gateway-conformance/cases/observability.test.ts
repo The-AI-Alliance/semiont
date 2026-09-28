@@ -12,7 +12,7 @@ import { storedEvent } from '../harness/archivist';
 import { call } from '../harness/http';
 import { eventually } from '../harness/net';
 import { startOtlp, type OtlpReceiver } from '../harness/otlp';
-import { metricName, operationFor, spanName, spanPattern, telemetry, type TelemetryRow } from '../harness/spec';
+import { metricName, operationFor, spanName, spanPattern, spec, telemetry, type TelemetryRow } from '../harness/spec';
 import { eachPlane, PLANES } from '../harness/world';
 import type { Plane } from '../harness/gateway';
 
@@ -155,6 +155,14 @@ eachPlane(
 
       // A request nothing answers: counted where the plane can count subscribers.
       await world().emit(token, { channel: 'browse:kb-requested', payload: {}, correlationId: randomUUID(), clientId: randomUUID() });
+
+      // A burst past one principal's emit bucket: a refusal, counted by its reason.
+      const { baseline } = spec().principalLimit<{ perSecond: number; burst: number }>('post', '/bus/emit', 'emitsPerPrincipal');
+      const hasty = await world().person('hasty');
+      await eventually('an emit refused past its bucket', 15_000, async () => {
+        const replies = await Promise.all(Array.from({ length: baseline.burst }, () => world().emit(hasty, { channel: 'beckon:focus', payload: {} })));
+        return replies.some((r) => r.status === 429) ? true : undefined;
+      });
 
       for (const row of expectedOn(telemetry().metrics, plane).filter((r) => r.when === 'traffic')) {
         const seen = await eventually(`the ${row.name} metric`, 15_000, () => otlp().metrics.get(metricName(row.name)));
