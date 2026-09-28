@@ -336,6 +336,12 @@ func (x *liveExec) recordPorts(ports []portNeed) {
 	saveStack(x.st)
 }
 
+// stageDir makes a fresh directory per run, mode 0700 (MkdirTemp): that is
+// what keeps the secrets staged in it — the realm's client secrets, the
+// broker's credentials — from other users. The files inside stay 0644 because
+// Docker on Linux and rootless Podman present a bind-mounted file with its host
+// owner and mode, and the containers read them as their own users (Keycloak as
+// uid 1000); a 0600 file would be readable only when the uids happen to match.
 func (x *liveExec) stageDir() (string, bool) {
 	stage, err := os.MkdirTemp("/tmp", "semiont-config.")
 	if err != nil {

@@ -1,6 +1,8 @@
 package launcher
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -14,6 +16,26 @@ environment = "local"
 platform = "container"
 port = 4000
 `
+
+// The staged realm carries every service's client secret. What keeps it from
+// other users is the directory it is staged in, not the file's own mode (see
+// stageDir).
+func TestStagedRealmIsReachableOnlyByItsOwner(t *testing.T) {
+	x := &liveExec{u: NewUI(true)}
+	p, ok := x.stageRealm("probe", []byte(`{"clients":[{"secret":"probe"}]}`))
+	if !ok {
+		t.Fatal("stageRealm failed")
+	}
+	dir := filepath.Dir(p)
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+	fi, err := os.Stat(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if perm := fi.Mode().Perm(); perm&0o077 != 0 {
+		t.Fatalf("the realm is staged in %s, mode %v: other users can reach the client secrets in it", dir, perm)
+	}
+}
 
 func TestPatchArchivistTopologyAppends(t *testing.T) {
 	out := patchArchivistTopology([]byte(stagingFixture), "local", "192.168.64.1")
