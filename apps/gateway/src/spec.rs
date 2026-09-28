@@ -38,6 +38,16 @@ pub struct Spec {
     correlated: HashSet<String>,
     writes: HashSet<String>,
     limits: Limits,
+    /// "METHOD path" → what that operation's JSON body must be.
+    json_bodies: HashMap<String, JsonBody>,
+}
+
+/// What an operation that takes JSON accepts: the component schema its body
+/// must match, and its `x-semiont-limits.maxBodyBytes`.
+#[derive(Debug)]
+pub struct JsonBody {
+    pub schema: String,
+    pub max_bytes: usize,
 }
 
 /// The limits the spec states: each operation's `x-semiont-limits`, and `maxItems`.
@@ -124,6 +134,7 @@ impl Spec {
         }
 
         let limits = Limits::of(&document)?;
+        let json_bodies = JsonBody::of_each(&document)?;
         Ok(Spec {
             document,
             archivist,
@@ -133,6 +144,7 @@ impl Spec {
             correlated,
             writes,
             limits,
+            json_bodies,
         })
     }
 
@@ -174,6 +186,11 @@ impl Spec {
         self.limits
     }
 
+    /// What `operation` ("POST /bus/emit") accepts as its JSON body, if it takes one.
+    pub fn json_body(&self, operation: &str) -> Option<&JsonBody> {
+        self.json_bodies.get(operation)
+    }
+
     /// Every operation `document` declares, as (method, path).
     pub fn operations_of(document: &Value) -> Vec<(String, String)> {
         let mut out = Vec::new();
@@ -188,6 +205,36 @@ impl Spec {
             }
         }
         out
+    }
+}
+
+impl JsonBody {
+    /// Every operation in `document` that takes a JSON body.
+    fn of_each(document: &Value) -> Result<HashMap<String, JsonBody>, String> {
+        let mut out = HashMap::new();
+        for (method, path) in Spec::operations_of(document) {
+            let op = &document["paths"][&path][method.to_lowercase()];
+            let json = &op["requestBody"]["content"]["application/json"];
+            if json.is_null() {
+                continue;
+            }
+            let operation = format!("{method} {path}");
+            let schema = json["schema"]["$ref"]
+                .as_str()
+                .and_then(|r| r.strip_prefix("#/components/schemas/"))
+                .ok_or_else(|| format!("{operation}'s JSON body is not a component schema"))?;
+            let max_bytes = op["x-semiont-limits"]["maxBodyBytes"]
+                .as_u64()
+                .ok_or_else(|| format!("{operation} states no x-semiont-limits.maxBodyBytes"))?;
+            out.insert(
+                operation,
+                JsonBody {
+                    schema: schema.to_owned(),
+                    max_bytes: max_bytes as usize,
+                },
+            );
+        }
+        Ok(out)
     }
 }
 

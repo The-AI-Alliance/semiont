@@ -15,6 +15,7 @@ use crate::tokens::{KeyRing, require_jwt_secret};
 use crate::{archivist, bus_log, identity, logging, routes, telemetry};
 use serde_json::json;
 use std::future::Future;
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -90,7 +91,12 @@ fn boot() -> Result<i32, String> {
     logging::initialize(config.log_level, config.log_format);
     bus_log::configure();
     telemetry::initialize()?;
+    // One worker per CPU the process may use (its cgroup quota and affinity),
+    // stated here so tokio never reads TOKIO_WORKER_THREADS: the container's
+    // CPU limit is the one thing that sizes the gateway.
+    let workers = std::thread::available_parallelism().map_or(1, NonZeroUsize::get);
     let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(workers)
         .enable_all()
         .build()
         .map_err(|e| format!("cannot start the runtime: {e}"))?;

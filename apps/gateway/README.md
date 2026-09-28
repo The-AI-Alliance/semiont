@@ -119,6 +119,10 @@ broker credential is named by the variable holding it (`signal.userEnv`,
 sets it and what it changes, is in
 [`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json).
 
+It runs one worker thread per CPU it may use — its container's CPU limit and
+affinity — so that limit is what sizes it. No variable does: not even
+`TOKIO_WORKER_THREADS`, which its runtime would otherwise read.
+
 ## HTTP surface
 
 The OpenAPI document in [specs/src](../../specs/src/openapi.json) is the contract:

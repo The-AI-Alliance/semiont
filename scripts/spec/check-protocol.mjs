@@ -14,6 +14,9 @@
 //     ErrorResponse (or an `allOf` refinement of it);
 //   - an operation with no 500 (every route can fail, and the failure has a
 //     body like any other error), or with a request body and no 400;
+//   - an operation that takes a JSON body and states no
+//     `x-semiont-limits.maxBodyBytes`, or declares no 413 (an unbounded body is
+//     memory the caller chooses);
 //   - a stream whose event names, frame or id formats no schema names;
 //   - a declared header with no schema;
 //   - a limit that is not a positive integer.
@@ -159,6 +162,9 @@ for (const ROOT_FILE of ROOT_FILES) {
       const responses = op.responses ?? {};
       if (!responses['500']) fail(where, 'declares no 500');
       if (op.requestBody && !responses['400']) fail(where, 'takes a request body and declares no 400');
+      const takesJson = op.requestBody && 'application/json' in (deref(op.requestBody, file).node.content ?? {});
+      if (takesJson && op['x-semiont-limits']?.maxBodyBytes === undefined) fail(where, 'takes a JSON body and states no x-semiont-limits.maxBodyBytes');
+      if (takesJson && !responses['413']) fail(where, 'takes a JSON body and declares no 413');
       if (!isPublic && !responses['401']) fail(where, 'is protected and declares no 401');
 
       for (const [status, responseRef] of Object.entries(responses)) {

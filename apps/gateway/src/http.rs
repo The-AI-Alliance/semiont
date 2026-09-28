@@ -11,6 +11,7 @@ use axum::http::request::Parts;
 use axum::http::{HeaderMap, HeaderValue, Method, StatusCode, header};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use futures::StreamExt;
 use futures::task::AtomicWaker;
 use hyper_util::rt::{TokioIo, TokioTimer};
 use serde_json::{Value, json};
@@ -296,15 +297,42 @@ impl IntoResponse for ApiError {
     }
 }
 
-/// A JSON body, whatever its content type: refused with 400 when it is not
-/// JSON or does not match `schema`.
-pub async fn json_body(body: Body, schema: &str) -> Result<Value, ApiError> {
-    let bytes = axum::body::to_bytes(body, usize::MAX)
-        .await
-        .map_err(|_| ApiError::bad_request("The body is not JSON"))?;
+/// The JSON body of `operation` ("POST /bus/emit"), whatever its content
+/// type: refused with 413 when it is larger than the operation's
+/// maxBodyBytes (unread, when its Content-Length says so), and with 400 when
+/// it is not JSON or does not match the operation's schema.
+pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
+    let Some(accepts) = crate::spec::spec().json_body(operation) else {
+        return Err(ApiError::internal(
+            "reading a request body",
+            format!("the spec gives {operation} no JSON body"),
+        ));
+    };
+    let too_large = || {
+        ApiError::new(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            format!(
+                "The body is larger than {} bytes, this operation's maxBodyBytes",
+                accepts.max_bytes
+            ),
+        )
+    };
+    let declared = http_body::Body::size_hint(&body).lower();
+    if declared > accepts.max_bytes as u64 {
+        return Err(too_large());
+    }
+    let mut bytes = Vec::with_capacity(declared as usize);
+    let mut data = body.into_data_stream();
+    while let Some(chunk) = data.next().await {
+        let chunk = chunk.map_err(|_| ApiError::bad_request("The body is not JSON"))?;
+        if bytes.len() + chunk.len() > accepts.max_bytes {
+            return Err(too_large());
+        }
+        bytes.extend_from_slice(&chunk);
+    }
     let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| ApiError::bad_request("The body is not JSON"))?;
-    if let Some(problems) = crate::spec::problems(schema, &value) {
+    if let Some(problems) = crate::spec::problems(&accepts.schema, &value) {
         return Err(ApiError::bad_request(problems));
     }
     Ok(value)

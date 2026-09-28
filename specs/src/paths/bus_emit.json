@@ -54,6 +54,9 @@
           }
         }
       },
+      "413": {
+        "$ref": "../components/responses/PayloadTooLarge.json"
+      },
       "429": {
         "description": "The client already has as many unanswered requests as it may.",
         "content": {
@@ -79,6 +82,7 @@
       }
     },
     "x-semiont-limits": {
+      "maxBodyBytes": 1048576,
       "claimSeconds": 900
     }
   }
