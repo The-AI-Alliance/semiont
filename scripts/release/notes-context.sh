@@ -47,8 +47,19 @@ NEXT="$CURRENT"
 # emptied the entire PR section on 0.5.38. Fetch raw JSON and filter locally, once.
 PR_RAW="$(mktemp)"; PR_FILT="$(mktemp)"
 trap 'rm -f "$PR_RAW" "$PR_FILT"' EXIT
-gh pr list -R "$REPO" --state merged --limit 100 \
-  --json number,title,author,mergedAt,url,body,files,mergeCommit > "$PR_RAW"
+#
+# gh itself fails intermittently on this query -- it printed "unexpected end of
+# JSON input" on 2026-09-28 and the script carried on, emitting a context file
+# with a correct header, a plans section and NO PRs. That is indistinguishable
+# from a quiet release. Retry, and refuse to write a partial window.
+for attempt in 1 2 3; do
+  gh pr list -R "$REPO" --state merged --limit 100 \
+    --json number,title,author,mergedAt,url,body,files,mergeCommit > "$PR_RAW"
+  jq -e 'type == "array" and length > 0' "$PR_RAW" >/dev/null && break
+  echo "gh pr list returned nothing usable (attempt $attempt/3); retrying" >&2
+  [ "$attempt" = 3 ] && { echo "could not fetch merged PRs -- refusing to write a partial window" >&2; exit 2; }
+  sleep 5
+done
 
 # The previous tag sits ON the merge commit of that release's last PR, and that
 # PR's mergedAt lands a hair after the commit's own timestamp — so a purely
