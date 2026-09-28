@@ -17,17 +17,23 @@ title: Semiont - Trusted AI Knowledge Bases
 
 ## Get Started
 
-Three steps — no npm or Node.js required. Install the `semiont` launcher (a single static binary) and a container runtime ([Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/)):
+No npm, no Node.js — the `semiont` launcher is a single static binary. You'll need a container runtime ([Apple Container](https://github.com/apple/container), [Docker](https://www.docker.com/), or [Podman](https://podman.io/)), auto-detected:
 
 ```bash
 brew install the-ai-alliance/semiont/semiont
 ```
 
-Clone a knowledge-base repo — the empty template for a new project (or birth one in place with `semiont init`), or a pre-populated demo — and start it:
+Point it at a model. Register an [Anthropic](https://www.anthropic.com/) key once — only the pointer is stored, read fresh on every start and written nowhere — or skip this entirely and run a small model on your own machine with [Ollama](https://ollama.com/):
 
 ```bash
-git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
-cd semiont-gutenberg-kb
+semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
+```
+
+Birth a knowledge base in place and start it. Change `--domain` — it is the KB's permanent identity, stamped into the committed event log — and use `--inference ollama` if you chose the local model:
+
+```bash
+mkdir my-kb && cd my-kb
+semiont init --yes --domain example.com:my-kb --inference anthropic
 semiont start
 ```
 
@@ -37,13 +43,21 @@ One command brings up the whole stack from published, attested container images 
 semiont useradd --email admin@example.com   # prompts for the password
 ```
 
-Explore the knowledge bases:
+From there you ingest a document and start marking it up alongside AI agents working the same corpus. The **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** carries it through end to end.
 
-- **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** — Empty template; start here for a new project
+### Or start with content already in place
+
+Clone a knowledge base instead of creating one — it arrives with its identity and config set, so `semiont init` is not needed:
+
+```bash
+git clone https://github.com/The-AI-Alliance/semiont-gutenberg-kb.git
+cd semiont-gutenberg-kb
+semiont start
+```
+
 - **[semiont-gutenberg-kb](https://github.com/The-AI-Alliance/semiont-gutenberg-kb)** — Public-domain literature from Project Gutenberg
+- **[semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb)** — Empty template, if you would rather fork than `init`
 - **[Full catalog](https://github.com/The-AI-Alliance/semiont/blob/main/docs/KNOWLEDGE-BASES.md)** — seven demo KBs across different domains, plus community knowledge bases
-
-See the **[Quick Start](https://github.com/The-AI-Alliance/semiont#quick-start)** for full setup instructions.
 
 ## How it works
 
