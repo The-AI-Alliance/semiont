@@ -400,13 +400,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			extra = append(extra, "-v", conf+":"+natsConfPath+":ro")
 		}
 		var svcSecrets map[string]string
+		var adminPassword string
 		if role == "identity" {
-			kc, secrets, ok := identityRunExtras(x, fc, addr)
+			kc, secrets, password, ok := identityRunExtras(x, fc, addr)
 			if !ok {
 				return 1
 			}
 			extra = append(extra, kc...)
-			svcSecrets = secrets
+			svcSecrets, adminPassword = secrets, password
 		}
 		args := providedRunArgs(role, rp, extra...)
 		id, ok := x.runDetached(args)
@@ -424,6 +425,7 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 				return 1
 			}
 			x.say(sayOK, "identity — %s at %s %s", disp, identityEndpoint(rp), x.dim("("+took(d)+")"))
+			x.openAdminToThisMachine(adminPassword)
 			// The realm is up and imported; prove it honours the credentials
 			// this start is about to inject, BEFORE the first process that
 			// holds one. `identityEndpoint` is the realm as THIS host reaches
@@ -687,7 +689,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := gatewayArgs(stage, addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")

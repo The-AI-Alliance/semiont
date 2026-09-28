@@ -632,7 +632,7 @@ const kbMountTarget = "/kb"
 // that document, the state mount its supervisor keeps its events on, its
 // secrets, and the user's variables (the document names its broker
 // credentials by variable).
-func gatewayArgs(stage, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+func gatewayArgs(stage, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
 		"--volume", stage + "/" + gatewayDocumentFile + ":/home/semiont/.semiontconfig:ro"}
@@ -641,6 +641,7 @@ func gatewayArgs(stage, clientSecret, jwt, version string, port int, userEnv, ot
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
+	a = append(a, identityHostArgs(addr)...)
 	a = append(a,
 		// The gateway's own account at the realm. It dials the Archivist for
 		// content, events and the branch, and proves who it is like any caller.
@@ -667,6 +668,19 @@ func gatewayHostEnv(addr string) []string {
 	return []string{"--env", "GATEWAY_HOST=" + addr, "--env", "BACKEND_HOST=" + addr}
 }
 
+// dependencyHostEnv: the host variables a service's staged config may
+// interpolate — every dependency on the host address, the issuer on
+// identityHost — with the host entry that makes the issuer's name resolve.
+func dependencyHostEnv(addr string) []string {
+	return append(identityHostArgs(addr),
+		"--env", "OLLAMA_HOST="+addr,
+		"--env", "NEO4J_HOST="+addr,
+		"--env", "NATS_HOST="+addr,
+		"--env", "KEYCLOAK_HOST="+identityHost(addr),
+		"--env", "QDRANT_HOST="+addr,
+		"--env", "POSTGRES_HOST="+addr)
+}
+
 // superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
 // D3): boot.sh wraps the image CMD in the shared supervisor only when this is
 // set. Local placement is the one place with no orchestrator restart policy,
@@ -687,13 +701,8 @@ func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(addr)...)
 	a = append(a,
-		"--env", "OLLAMA_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+addr,
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "POSTGRES_HOST="+addr,
 		// This process's own credential at the realm. It buys an agent token
 		// from the gateway; it is not the agent identity, which is per
 		// (provider, model) and named in the request.
@@ -723,13 +732,8 @@ func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, o
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(addr)...)
 	a = append(a,
-		"--env", "OLLAMA_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+addr,
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
@@ -756,13 +760,8 @@ func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []st
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(addr)...)
 	a = append(a,
-		"--env", "OLLAMA_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+addr,
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "POSTGRES_HOST="+addr,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
@@ -786,13 +785,8 @@ func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []s
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(addr)...)
 	a = append(a,
-		"--env", "OLLAMA_HOST="+addr,
-		"--env", "NEO4J_HOST="+addr,
-		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+addr,
-		"--env", "QDRANT_HOST="+addr,
-		"--env", "POSTGRES_HOST="+addr,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
 	a = append(a, superviseEnv()...)
@@ -943,13 +937,48 @@ func promptShareCache(home string) bool {
 	return answer != "n" && answer != "N"
 }
 
+// The host as containers name it under Docker and Podman. Each resolves inside
+// a container and nowhere else: the laptop's own resolver has never heard of it.
+const (
+	dockerHostAlias = "host.docker.internal"
+	podmanHostAlias = "host.containers.internal"
+)
+
+// identityHostName: the issuer's host where the host address is one of those
+// aliases. An issuer is ONE URL — a token's `iss` is the URL it was requested
+// from, and the gateway verifies it — so the laptop's Browser and every
+// container must reach it by the same name. `*.localhost` is loopback on the
+// laptop (RFC 6761: its resolver and every browser answer 127.0.0.1, where
+// Keycloak's port is published), and `--add-host …:host-gateway` makes it the
+// host inside each container that dials the issuer.
+const identityHostName = "keycloak.localhost"
+
+// identityHost: KEYCLOAK_HOST. The host address itself when the laptop reaches
+// it too (Apple container's bridge address, a Linux bridge IP); identityHostName
+// when only containers do.
+func identityHost(addr string) string {
+	if addr == dockerHostAlias || addr == podmanHostAlias {
+		return identityHostName
+	}
+	return addr
+}
+
+// identityHostArgs: the `run` arguments that make identityHost resolve inside a
+// container that dials the issuer; none when it is the host address itself.
+func identityHostArgs(addr string) []string {
+	if identityHost(addr) == addr {
+		return nil
+	}
+	return []string{"--add-host", identityHostName + ":host-gateway"}
+}
+
 func resolveHostAddr(rt string) string {
 	alias := ""
 	switch rt {
 	case "docker":
-		alias = "host.docker.internal"
+		alias = dockerHostAlias
 	case "podman":
-		alias = "host.containers.internal"
+		alias = podmanHostAlias
 	}
 	if alias != "" && runSilent(rt, "run", "--rm", "busybox:1.38.0", "nslookup", alias) == nil {
 		return alias

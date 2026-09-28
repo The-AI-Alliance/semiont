@@ -64,9 +64,10 @@ func secretName(field, value string) (*string, error) {
 // publicURL takes its default, as it always has.
 func gatewayVars(addr string, userEnv []string) map[string]string {
 	vars := map[string]string{}
-	for _, name := range []string{"POSTGRES_HOST", "NEO4J_HOST", "NATS_HOST", "KEYCLOAK_HOST", "QDRANT_HOST", "OLLAMA_HOST"} {
+	for _, name := range []string{"POSTGRES_HOST", "NEO4J_HOST", "NATS_HOST", "QDRANT_HOST", "OLLAMA_HOST"} {
 		vars[name] = addr
 	}
+	vars["KEYCLOAK_HOST"] = identityHost(addr)
 	for i := 0; i+1 < len(userEnv); i += 2 {
 		if userEnv[i] == "--env" {
 			if name, value, ok := strings.Cut(userEnv[i+1], "="); ok {

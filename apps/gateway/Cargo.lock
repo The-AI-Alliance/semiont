@@ -2067,6 +2067,7 @@ dependencies = [
  "rustls",
  "serde",
  "serde_json",
+ "socket2",
  "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",

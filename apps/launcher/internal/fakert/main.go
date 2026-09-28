@@ -769,6 +769,16 @@ func runtimeCmd(base string, args []string) {
 				_ = os.WriteFile(filepath.Join(dir, "exec-stdin.txt"), in, 0o600)
 			}
 		}
+		// A secret named `--env NAME`, with no value, crosses through the
+		// runtime's own environment: record what arrived, so a test proves it
+		// did without argv ever holding it.
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--env" && args[i+1] == "KC_CLI_PASSWORD" {
+				if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+					_ = os.WriteFile(filepath.Join(dir, "kc-cli-password.txt"), []byte(os.Getenv("KC_CLI_PASSWORD")), 0o600)
+				}
+			}
+		}
 		// FAKERT_EXEC_FAIL models the in-container CLI failing.
 		if os.Getenv("FAKERT_EXEC_FAIL") != "" {
 			fmt.Fprintln(os.Stderr, "Error: useradd failed")

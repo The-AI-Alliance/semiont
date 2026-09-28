@@ -87,6 +87,17 @@ describe('starting a gateway', () => {
     });
   }
 
+  it('listens on every address the host has: the IPv4 and the IPv6 loopback both answer', async () => {
+    const gateway = await startGateway({ settings: await settings(), env: env() });
+    try {
+      for (const host of ['127.0.0.1', '[::1]']) {
+        expect((await call(`http://${host}:${gateway.port}`, 'GET', '/api/health')).status, host).toBe(200);
+      }
+    } finally {
+      await gateway.stop();
+    }
+  });
+
   it('reads no variable the table does not list, even one its runtime would read for itself: TOKIO_WORKER_THREADS=0, which tokio refuses, changes nothing', async () => {
     const gateway = await startGateway({ settings: await settings(), env: env(), unlisted: { TOKIO_WORKER_THREADS: '0' } });
     try {

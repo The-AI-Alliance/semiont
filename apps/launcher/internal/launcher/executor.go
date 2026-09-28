@@ -87,6 +87,7 @@ type keeper interface {
 type admitter interface {
 	preflightIdentity(issuerBase, audience string, secrets map[string]string, wantLifespan int, managed bool) bool // the realm honours every service credential AND the clients people sign in through, before anything holds one. `managed` = this launcher runs the realm, so `semiont identity sync` is the repair
 	preflightBrowserMove(issuerBase string, port int) bool                                                         // the realm will redirect to, and accept a token exchange from, the port the Browser is moving to
+	openAdminToThisMachine(password string)                                                                        // Keycloak's own admin answers this machine over plain HTTP, whatever address the runtime delivers its connections from
 }
 
 // storer: durable state on disk: which mounts a role gets, whose image stamped them, and the
@@ -839,6 +840,31 @@ func (x *liveExec) preflightBrowserMove(issuerBase string, port int) bool {
 	return true
 }
 
+// openAdminToThisMachine: Keycloak's own admin lives in its master realm, which
+// keeps Keycloak's default `sslRequired: external` — plain HTTP only from a
+// private address. Which address this machine's connections arrive from is the
+// runtime's affair: Docker Desktop delivers them from one that is not private,
+// and there every admin call `identity sync` and `useradd` make from here is
+// refused "HTTPS required". From inside the container the connection is local,
+// and the change is allowed. The password crosses as the runtime's own environment:
+// named in argv, never valued there.
+//
+// Warns rather than refusing: the stack runs without the admin, and only those
+// two commands need it — but they will be refused, and this says why first.
+func (x *liveExec) openAdminToThisMachine(password string) {
+	args := append([]string{"exec", "--env", "KC_CLI_PASSWORD", roleContainer("identity")}, masterRealmOverHTTP()...)
+	x.u.EchoCmd(x.rt, args...)
+	out, err := runCapturedWithEnv([]string{"KC_CLI_PASSWORD=" + password}, x.rt, args...)
+	if err != nil {
+		x.say(sayWarn, "Keycloak's admin is not reachable from this machine, so `semiont useradd` and `semiont identity sync` will be refused: %v", err)
+		if s := strings.TrimSpace(out); s != "" {
+			fmt.Fprintln(os.Stderr, indentLines(s, "    "))
+		}
+		return
+	}
+	x.say(sayLog, "Keycloak admin: %s", x.dim("reachable from this machine over HTTP"))
+}
+
 // preflightIdentity refuses the start when the realm will not honour the
 // credentials this run is about to inject, or when nobody would be able to
 // sign in through it.
@@ -1426,6 +1452,11 @@ func (x *planExec) preflightIdentity(issuerBase, audience string, _ map[string]s
 		x.c("compare `exp - iat` on those tokens against the configured %ds — warn if the realm was imported with another", wantLifespan)
 	}
 	return true
+}
+
+func (x *planExec) openAdminToThisMachine(string) {
+	x.c("open Keycloak's admin to this machine over HTTP: %s exec --env KC_CLI_PASSWORD %s %s",
+		x.rt, roleContainer("identity"), strings.Join(masterRealmOverHTTP(), " "))
 }
 
 func (x *planExec) preflightBrowserMove(issuerBase string, port int) bool {
