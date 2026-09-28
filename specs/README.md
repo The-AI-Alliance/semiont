@@ -87,7 +87,8 @@ gateway and Browser import from core
    instead: an operation that does not say whether it is public, a 401 with no
    challenge header, a response with no body schema, an error whose body is not
    `ErrorResponse`, an operation with no 500 (or with a request body and no
-   400), a stream whose event names, frame or id formats no schema names, or a
+   400), an operation that takes a JSON body with no `maxBodyBytes` limit or no
+   413, a stream whose event names, frame or id formats no schema names, or a
    limit in `x-semiont-limits` that is not a positive integer.
 
 3. **Regenerate types** (happens automatically during build):

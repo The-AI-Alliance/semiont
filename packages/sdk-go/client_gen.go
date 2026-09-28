@@ -4995,6 +4995,9 @@ type YieldUpdateOk struct {
 // InternalError The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type InternalError = ErrorResponse
 
+// PayloadTooLarge The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
+type PayloadTooLarge = ErrorResponse
+
 // ServiceUnavailable The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.
 type ServiceUnavailable = ErrorResponse
 
@@ -12594,6 +12597,7 @@ type PostApiTokensAgentResponse struct {
 	JSON200      *AgentTokenResponse
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
+	JSON413      *PayloadTooLarge
 	JSON500      *InternalError
 }
 
@@ -12619,6 +12623,7 @@ type PostApiTokensMediaResponse struct {
 	JSON200      *MediaTokenResponse
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
+	JSON413      *PayloadTooLarge
 	JSON500      *InternalError
 }
 
@@ -12669,6 +12674,7 @@ type PostBusEmitResponse struct {
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
 	JSON409      *ErrorResponse
+	JSON413      *PayloadTooLarge
 	JSON429      *ErrorResponse
 	JSON500      *InternalError
 	JSON503      *ErrorResponse
@@ -12695,6 +12701,7 @@ type PostBusSubscribeResponse struct {
 	HTTPResponse *http.Response
 	JSON400      *ErrorResponse
 	JSON401      *Unauthorized
+	JSON413      *PayloadTooLarge
 	JSON500      *InternalError
 }
 
@@ -13207,6 +13214,13 @@ func ParsePostApiTokensAgentResponse(rsp *http.Response) (*PostApiTokensAgentRes
 		}
 		response.JSON401 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -13253,6 +13267,13 @@ func ParsePostApiTokensMediaResponse(rsp *http.Response) (*PostApiTokensMediaRes
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError
@@ -13348,6 +13369,13 @@ func ParsePostBusEmitResponse(rsp *http.Response) (*PostBusEmitResponse, error) 
 		}
 		response.JSON409 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
+
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
 		var dest ErrorResponse
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
@@ -13401,6 +13429,13 @@ func ParsePostBusSubscribeResponse(rsp *http.Response) (*PostBusSubscribeRespons
 			return nil, err
 		}
 		response.JSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 413:
+		var dest PayloadTooLarge
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON413 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest InternalError

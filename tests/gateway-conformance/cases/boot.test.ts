@@ -86,6 +86,15 @@ describe('starting a gateway', () => {
     });
   }
 
+  it('reads no variable the table does not list, even one its runtime would read for itself: TOKIO_WORKER_THREADS=0, which tokio refuses, changes nothing', async () => {
+    const gateway = await startGateway({ settings: await settings(), env: env(), unlisted: { TOKIO_WORKER_THREADS: '0' } });
+    try {
+      expect((await call(gateway.origin, 'GET', '/api/health')).status).toBe(200);
+    } finally {
+      await gateway.stop();
+    }
+  });
+
   it('reaches a broker that requires credentials through the variables the document names — and refuses without them', async () => {
     const [USER, PASSWORD] = ['CONFORMANCE_BROKER_USER', 'CONFORMANCE_BROKER_PASSWORD'];
     const broker = await startBroker({ user: 'gateway', password: 'the-password' });

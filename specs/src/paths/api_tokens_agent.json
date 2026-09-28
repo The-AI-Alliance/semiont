@@ -44,9 +44,15 @@
       "401": {
         "$ref": "../components/responses/Unauthorized.json"
       },
+      "413": {
+        "$ref": "../components/responses/PayloadTooLarge.json"
+      },
       "500": {
         "$ref": "../components/responses/InternalError.json"
       }
+    },
+    "x-semiont-limits": {
+      "maxBodyBytes": 1048576
     }
   }
 }

@@ -106,6 +106,7 @@ The numbers live in the spec, not here:
 
 | Limit | Where | Past it |
 |---|---|---|
+| A JSON request body | each operation's `x-semiont-limits.maxBodyBytes` | 413, unread when its Content-Length says so |
 | Scopes on one connection | `BusSubscribeRequest.scoped.maxItems` | 400 |
 | Pending replies named on subscribe | `BusSubscribeRequest.pendingReplies.maxItems` | 400 |
 | Unanswered requests per client | the same `maxItems` | 429 on the next emit |

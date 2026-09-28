@@ -76,7 +76,7 @@ pub async fn emit(
     headers: HeaderMap,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let request = json_body(body, "BusEmitRequest").await?;
+    let request = json_body(body, "POST /bus/emit").await?;
     let channel = text(&request, "channel")?.to_owned();
     let scope = request["scope"].as_str().map(str::to_owned);
     let correlation_id = request["correlationId"].as_str().map(str::to_owned);

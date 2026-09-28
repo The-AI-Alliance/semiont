@@ -53,12 +53,16 @@ function writeConfiguration(dir: string, s: GatewaySettings): void {
  * listed in specs/src/gateway-environment/variables.json or named by the
  * document, except PATH, which finds the gateway's command.
  */
-function checkEnvironment(env: GatewayEnvironment, settings: GatewaySettings): void {
+function checkEnvironment(env: GatewayEnvironment, settings: GatewaySettings, unlisted: Record<string, string>): void {
   const named = [settings.signal.userEnv, settings.signal.passwordEnv].filter((n): n is string => n !== undefined);
   const listed = new Set([...gatewayEnvironment(), ...named, 'PATH']);
-  const unlisted = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
-  if (unlisted.length > 0) {
-    throw new Error(`the suite set ${unlisted.join(', ')}, which specs/src/gateway-environment/variables.json does not list and the document does not name`);
+  const strays = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
+  if (strays.length > 0) {
+    throw new Error(`the suite set ${strays.join(', ')}, which specs/src/gateway-environment/variables.json does not list and the document does not name`);
+  }
+  const read = Object.keys(unlisted).filter((name) => listed.has(name));
+  if (read.length > 0) {
+    throw new Error(`the suite passed ${read.join(', ')} as unlisted, and the gateway reads it`);
   }
 }
 
@@ -80,6 +84,8 @@ export interface GatewayProcess {
 export interface LaunchOptions {
   settings: GatewaySettings;
   env: GatewayEnvironment;
+  /** Variables the table does not list, set only by a case showing that they change nothing. */
+  unlisted?: Record<string, string>;
 }
 
 /** Appends each complete line of a stream to every list in `into`; a line split across chunks is kept whole. */
@@ -96,11 +102,11 @@ function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
   stream.on('end', () => push(partial));
 }
 
-function launch({ settings, env }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
-  checkEnvironment(env, settings);
+function launch({ settings, env, unlisted = {} }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
+  checkEnvironment(env, settings, unlisted);
   const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-home-'));
   writeConfiguration(dir, settings);
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: dir };
+  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: dir, ...unlisted };
   for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
   const [command, ...args] = inject('gatewayCommand');
   const child = spawn(command!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });

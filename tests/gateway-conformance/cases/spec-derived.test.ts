@@ -4,8 +4,9 @@
  * here without anyone writing a case for it.
  */
 import { randomUUID } from 'node:crypto';
+import { request } from 'node:http';
 import { expect, it } from 'vitest';
-import { call, nonConformance } from '../harness/http';
+import { call, nonConformance, type Reply } from '../harness/http';
 import { METHODS, spec, type Method } from '../harness/spec';
 import { SERVICE_ROLE } from '../harness/roles';
 import { eachPlane } from '../harness/world';
@@ -17,6 +18,66 @@ const operations = () => spec().operations();
 const isPublic = (op: Record<string, unknown>) => Array.isArray(op['security']) && op['security'].length === 0;
 const takesJson = (op: Record<string, unknown>) =>
   'application/json' in ((op['requestBody'] as { content?: Record<string, unknown> } | undefined)?.content ?? {});
+
+/**
+ * A body of `size` bytes — `[]` then spaces, JSON at any size, and never the
+ * operation's schema — sent with its length or in chunks without one. With its
+ * length, the request asks to continue first and sends the body only if the
+ * gateway asks for it; `askedForBody` says whether it did.
+ */
+function sized(
+  origin: string,
+  path: string,
+  token: string,
+  size: number,
+  framing: 'length' | 'chunked',
+): Promise<{ reply: Reply; askedForBody: boolean }> {
+  const body = Buffer.alloc(size, ' ');
+  body.write('[]');
+  const url = new URL(path, origin);
+  const headers: Record<string, string | number> = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
+  if (framing === 'length') {
+    headers['content-length'] = size;
+    headers['expect'] = '100-continue';
+  }
+  return new Promise((resolve, reject) => {
+    let askedForBody = false;
+    let answered = false;
+    const req = request({ host: url.hostname, port: url.port, path: url.pathname, method: 'POST', headers }, (res) => {
+      answered = true;
+      const chunks: Buffer[] = [];
+      res.on('data', (chunk: Buffer) => chunks.push(chunk));
+      res.on('error', reject);
+      res.on('end', () => {
+        req.destroy();
+        const bytes = Buffer.concat(chunks);
+        const text = bytes.toString('utf8');
+        let json: unknown;
+        try {
+          json = JSON.parse(text);
+        } catch {
+          json = undefined;
+        }
+        const replyHeaders = new Headers();
+        for (const [name, value] of Object.entries(res.headers)) if (typeof value === 'string') replyHeaders.set(name, value);
+        resolve({ reply: { status: res.statusCode ?? 0, headers: replyHeaders, text, json, bytes }, askedForBody });
+      });
+    });
+    req.on('error', (error) => {
+      if (!answered) reject(error);
+    });
+    if (framing === 'length') {
+      req.on('continue', () => {
+        askedForBody = true;
+        req.end(body);
+      });
+      req.flushHeaders();
+    } else {
+      for (let at = 0; at < size; at += 64 * 1024) req.write(body.subarray(at, at + 64 * 1024));
+      req.end();
+    }
+  });
+}
 
 eachPlane('every operation the spec declares', (world) => {
   const metadata = () => `resource_metadata="${world().origin}/.well-known/oauth-protected-resource"`;
@@ -100,6 +161,30 @@ eachPlane('every operation the spec declares', (world) => {
         const reply = await call(world().origin, method, concrete(path), { token, json });
         if (reply.status !== 400) problems.push(`${method.toUpperCase()} ${path} with ${label}: ${reply.status}`);
         else problems.push(...nonConformance(method as Method, path, reply).map((p) => `${method.toUpperCase()} ${path} with ${label}: ${p}`));
+      }
+    }
+    expect(problems).toEqual([]);
+  });
+
+  it('a JSON body larger than maxBodyBytes is a 413 ErrorResponse — unread when its length says so — and one of exactly maxBodyBytes is read', async () => {
+    const token = await world().person('body-limit', { roles: [SERVICE_ROLE] });
+    const problems: string[] = [];
+    for (const { method, path, op } of operations()) {
+      if (!takesJson(op)) continue;
+      const where = `${method.toUpperCase()} ${path}`;
+      const limit = spec().limits(method as Method, path)['maxBodyBytes'];
+      if (limit === undefined) {
+        problems.push(`${where} takes a JSON body and the spec states no maxBodyBytes`);
+        continue;
+      }
+      for (const framing of ['length', 'chunked'] as const) {
+        const over = await sized(world().origin, concrete(path), token, limit + 1, framing);
+        if (over.reply.status !== 413) problems.push(`${where}, ${limit + 1} bytes by ${framing}: ${over.reply.status}`);
+        else problems.push(...nonConformance(method as Method, path, over.reply).map((p) => `${where}, ${limit + 1} bytes by ${framing}: ${p}`));
+        if (over.askedForBody) problems.push(`${where}, ${limit + 1} bytes by length: the gateway asked for the body its Content-Length already ruled out`);
+
+        const at = await sized(world().origin, concrete(path), token, limit, framing);
+        if (at.reply.status !== 400) problems.push(`${where}, ${limit} bytes by ${framing}: ${at.reply.status}, where reading it finds an array`);
       }
     }
     expect(problems).toEqual([]);

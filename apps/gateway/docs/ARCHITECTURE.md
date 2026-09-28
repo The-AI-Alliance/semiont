@@ -17,7 +17,11 @@ The binary also embeds the bus registry and
 `scripts/bus/generate-ts.mjs` derives from the registry beside core's TypeScript
 table. [src/spec.rs](../src/spec.rs) reads them: validators by schema name, each
 channel's schema, the registry's operations, which channels are replies and
-which write, and the limits (`x-semiont-limits`, `maxItems`).
+which write, and the limits (`x-semiont-limits`, `maxItems`). An operation that
+takes JSON names its body's schema and `maxBodyBytes` in the spec, and
+[src/http.rs](../src/http.rs)'s `json_body` reads both from there: a body its
+Content-Length already puts over the limit is refused with 413 unread, and one
+without a length once it passes the limit.
 
 ## Boot
 

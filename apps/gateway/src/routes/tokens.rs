@@ -34,7 +34,7 @@ pub async fn agent(
             logging::warn("Agent token refused", json!({ "reason": refusal.reason }));
             refused(&headers, &refusal.message)
         })?;
-    let request = json_body(body, "AgentTokenRequest").await?;
+    let request = json_body(body, "POST /api/tokens/agent").await?;
     let (provider, model) = (text(&request, "provider")?, text(&request, "model")?);
     let domain = app.keys.domain();
     let did = identity::agent_did(domain, provider, model);
@@ -62,7 +62,7 @@ pub async fn media(
     Authenticated(_): Authenticated,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let request = json_body(body, "MediaTokenRequest").await?;
+    let request = json_body(body, "POST /api/tokens/media").await?;
     let resource = text(&request, "resourceId")?;
     Ok(json_response(
         StatusCode::OK,

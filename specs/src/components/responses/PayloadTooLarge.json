@@ -1,0 +1,10 @@
+{
+  "description": "The body is larger than the operation's `x-semiont-limits.maxBodyBytes`. A body whose Content-Length says so is refused before any of it is read; one sent without a length is refused once more than that has arrived.",
+  "content": {
+    "application/json": {
+      "schema": {
+        "$ref": "../schemas/ErrorResponse.json"
+      }
+    }
+  }
+}

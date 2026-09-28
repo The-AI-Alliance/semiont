@@ -72,7 +72,7 @@ pub async fn subscribe(
     Extension(abort): Extension<ConnectionAbort>,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let request = json_body(body, "BusSubscribeRequest").await?;
+    let request = json_body(body, "POST /bus/subscribe").await?;
     let client_id = text(&request, "clientId")?.to_owned();
     let global = strings(&request["global"]);
     let mut scoped = Vec::new();

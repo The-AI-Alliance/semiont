@@ -3,6 +3,8 @@
 //! records, replays missed events from the Archivist, and pipes bytes to and
 //! from it. Everything it serves is what specs/ declares.
 
+#![forbid(unsafe_code)]
+
 pub mod alloc;
 pub mod app;
 pub mod archivist;

@@ -13,6 +13,8 @@
 ARG RUST_TOOLCHAIN
 
 FROM rust:${RUST_TOOLCHAIN}-alpine AS builder
+# make builds jemalloc, the allocator tikv-jemalloc-sys compiles into the binary.
+RUN apk add --no-cache make
 # cargo-auditable writes the crates the binary links into the binary itself,
 # which is how the image scan (Trivy) sees them in an image with no Cargo.lock.
 RUN cargo install cargo-auditable --locked --version 0.7.6

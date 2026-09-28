@@ -180,6 +180,9 @@ components:
     subtle - BSD-3-Clause
     sync_wrapper - Apache-2.0
     thiserror - MIT OR Apache-2.0
+    tikv-jemalloc-ctl - MIT OR Apache-2.0
+    tikv-jemalloc-sys - MIT OR Apache-2.0
+    tikv-jemallocator - MIT OR Apache-2.0
     time - MIT OR Apache-2.0
     time-core - MIT OR Apache-2.0
     tinystr - Unicode-3.0
@@ -215,5 +218,9 @@ components:
     zerovec - Unicode-3.0
     zmij - MIT
 
-Each crate's license text is part of its published source on crates.io; the
-image carries the binary alone.
+  Native code those crates compile into the binary:
+    jemalloc - BSD-2-Clause (compiled in by tikv-jemalloc-sys)
+
+Each crate's license text is part of its published source on crates.io, and so
+is the license of the native code a crate compiles in; the image carries the
+binary alone.
