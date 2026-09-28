@@ -17,6 +17,7 @@ use crate::ledger::DeliveryGate;
 use crate::logging;
 use crate::signal::{ClientSubscription, Frame, ScopedChannels, Subscription};
 use crate::spec::{Limits, spec};
+use crate::stream_counts::StreamLease;
 use crate::telemetry;
 use axum::Extension;
 use axum::body::Body;
@@ -109,12 +110,30 @@ pub async fn subscribe(
         );
     }
 
+    let limits = spec().limits();
+    if app.queued_bytes.load(Ordering::SeqCst) >= app.config.capacity.queued_bytes {
+        return Err(ApiError::limited(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "capacity",
+            "The gateway holds as many queued bytes as it can",
+            Duration::from_secs(limits.heartbeat_seconds),
+        ));
+    }
+    let lease = app.bus.streams.admit(&principal).map_err(|retry_after| {
+        ApiError::limited(
+            StatusCode::TOO_MANY_REQUESTS,
+            "streams",
+            "This principal holds as many streams as it may",
+            retry_after,
+        )
+    })?;
     let connection = Connection::new(
         app,
         principal.did,
         client_id,
         abort,
         !scoped.iter().all(|e| e.last_event_id.is_none()),
+        lease,
     );
     let body = Body::from_stream(Outgoing {
         connection: connection.clone(),
@@ -162,7 +181,7 @@ struct Connection {
     id: String,
     did: String,
     client_id: String,
-    limits: Limits,
+    limits: &'static Limits,
     abort: ConnectionAbort,
     outbox: Mutex<Outbox>,
     delivery: Mutex<Delivery>,
@@ -171,6 +190,8 @@ struct Connection {
     ended: Notify,
     subscription: Mutex<Option<Subscription>>,
     gate: Arc<DeliveryGate>,
+    /// This stream's place in its principal's count, renewed each heartbeat.
+    lease: Mutex<Option<StreamLease>>,
 }
 
 /// The response body: whatever the connection has written, as the client takes it.
@@ -192,7 +213,12 @@ impl futures::Stream for Outgoing {
         let mut outbox = locked(&connection.outbox);
         match outbox.queue.pop_front() {
             Some(chunk) => {
-                outbox.pending = outbox.pending.saturating_sub(chunk.len());
+                let taken = chunk.len().min(outbox.pending);
+                outbox.pending -= taken;
+                connection
+                    .app
+                    .queued_bytes
+                    .fetch_sub(taken, Ordering::SeqCst);
                 Poll::Ready(Some(Ok(chunk)))
             }
             None => {
@@ -239,6 +265,7 @@ impl Connection {
         client_id: String,
         abort: ConnectionAbort,
         buffering: bool,
+        lease: Option<StreamLease>,
     ) -> Arc<Connection> {
         let gate = app.bus.ledger.gate(&client_id, Some(&did));
         Arc::new(Connection {
@@ -263,6 +290,7 @@ impl Connection {
             ended: Notify::new(),
             subscription: Mutex::new(None),
             gate,
+            lease: Mutex::new(lease),
         })
     }
 
@@ -291,16 +319,20 @@ impl Connection {
             message.push_str(&format!("id: {id}\n"));
         }
         message.push('\n');
+        let message = Bytes::from(message);
         let overflow = {
             let mut outbox = locked(&self.outbox);
             if self.torn_down() {
                 return;
             }
-            outbox.pending += data.len();
+            outbox.pending += message.len();
+            self.app
+                .queued_bytes
+                .fetch_add(message.len(), Ordering::SeqCst);
             if outbox.pending > self.limits.pending_write_bytes {
                 Some(outbox.pending)
             } else {
-                outbox.queue.push_back(Bytes::from(message));
+                outbox.queue.push_back(message);
                 if let Some(waker) = outbox.waker.take() {
                     waker.wake();
                 }
@@ -459,6 +491,7 @@ impl Connection {
         if let Some(subscription) = locked(&self.subscription).take() {
             subscription.close();
         }
+        drop(locked(&self.lease).take());
         self.gate.close();
         telemetry::subscriber_disconnected();
         tokio::spawn(Self::announce(
@@ -473,7 +506,9 @@ impl Connection {
             if let Some(waker) = outbox.waker.take() {
                 waker.wake();
             }
-            std::mem::take(&mut outbox.pending)
+            let pending = std::mem::take(&mut outbox.pending);
+            self.app.queued_bytes.fetch_sub(pending, Ordering::SeqCst);
+            pending
         };
         logging::info(
             "SSE disconnect",
@@ -655,6 +690,9 @@ impl Connection {
 
         let heartbeat = Duration::from_secs(self.limits.heartbeat_seconds);
         while !self.torn_down() {
+            if let Some(lease) = locked(&self.lease).as_ref() {
+                lease.renew();
+            }
             self.write("ping", "", None);
             tokio::select! {
                 () = tokio::time::sleep(heartbeat) => {}

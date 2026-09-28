@@ -1,4 +1,4 @@
-import { SemiontError } from '@semiont/core';
+import { SemiontError, type HttpStatusError } from '@semiont/core';
 
 /**
  * A refused SSE connect — `POST /bus/subscribe` answered non-2xx (or 2xx
@@ -19,11 +19,14 @@ import { SemiontError } from '@semiont/core';
  * machinery, so it moves rather than earning that gate its first exception.
  * A leaf module importing only core also keeps the cycle shut.
  */
-export class SseConnectError extends SemiontError {
+export class SseConnectError extends SemiontError implements HttpStatusError {
   readonly status: number;
-  constructor(status: number) {
+  /** The wait the refusal's `Retry-After` stated: the reconnect waits at least this long. */
+  readonly retryAfterMs: number | undefined;
+  constructor(status: number, retryAfterMs: number | undefined) {
     super(`SSE connect failed: ${status}`, 'SSE_CONNECT_FAILED', { status });
     this.name = 'SseConnectError';
     this.status = status;
+    this.retryAfterMs = retryAfterMs;
   }
 }

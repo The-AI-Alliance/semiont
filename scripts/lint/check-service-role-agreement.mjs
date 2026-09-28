@@ -22,8 +22,13 @@
  * gateway gates `/api/tokens/agent` on it and the Archivist gates its read path.
  * `semiont-worker` (WORKER_ROLE): the grant only the worker client carries — the
  * dispatcher authorizes a `job:claim` by it (EXTRACT-JOBS P0).
+ *
+ * The spec names roles too: a limit on a principal states a coefficient per
+ * role (`x-semiont-limits`, `roles`). A role named there that is none of these
+ * would bind no one, silently, so every one must be an agreed role.
  */
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync } from 'fs';
+import { join } from 'path';
 
 const ROLES = [
   {
@@ -79,6 +84,7 @@ const ROLES = [
 ];
 
 let failed = false;
+const agreed = [];
 
 for (const role of ROLES) {
   const found = [];
@@ -128,6 +134,26 @@ for (const role of ROLES) {
   }
 
   console.log(`✅ ${role.label}: ${found.length} sites agree on "${values[0]}"`);
+  agreed.push(values[0]);
+}
+
+const PATHS = 'specs/src/paths';
+const named = [];
+for (const file of readdirSync(PATHS).filter((f) => f.endsWith('.json'))) {
+  const item = JSON.parse(readFileSync(join(PATHS, file), 'utf8'));
+  for (const op of Object.values(item)) {
+    for (const [key, limit] of Object.entries(op?.['x-semiont-limits'] ?? {})) {
+      for (const role of Object.keys(limit?.roles ?? {})) named.push({ role, where: `${join(PATHS, file)} x-semiont-limits.${key}` });
+    }
+  }
+}
+const unknown = named.filter((n) => !agreed.includes(n.role));
+if (unknown.length > 0) {
+  failed = true;
+  console.error(`\n✖ the spec's limits name roles the realm does not know (${agreed.join(', ')}):\n`);
+  for (const n of unknown) console.error(`  ${n.role.padEnd(24)} ${n.where}`);
+} else if (named.length > 0) {
+  console.log(`✅ the spec's limits name only agreed roles (${named.length} coefficients)`);
 }
 
 if (failed) process.exit(1);

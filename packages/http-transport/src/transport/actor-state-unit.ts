@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -301,6 +301,25 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const lingerTimers = new Set<ReturnType<typeof setTimeout>>();
 
   /**
+   * The connect whose fetch has not answered yet. Reconnects asked for
+   * meanwhile wait for it and are served by ONE follow-up once it opens —
+   * which reads the channel set then, so it carries every change — rather
+   * than each opening a stream of its own: the streams one session holds at
+   * once stay bounded (the live one, one connecting, and a superseded one
+   * lingering), and a principal's stream limit counts them. A connect that
+   * fails leaves the follow-up to the backoff retry, which reads the same set.
+   */
+  let connecting: AbortController | null = null;
+  let reconnectOwed = false;
+  const settleConnect = (controller: AbortController, opened: boolean) => {
+    if (connecting !== controller) return;
+    connecting = null;
+    const owed = reconnectOwed;
+    reconnectOwed = false;
+    if (opened && owed && running) reconnect();
+  };
+
+  /**
    * Recently-delivered event ids, to dedup the make-before-break overlap: the
    * brief window where the old and new connection both deliver the same live
    * event during a scope-change handoff. Persisted ids (`p-<scope>-<seq>`) are
@@ -467,6 +486,9 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
     const controller = new AbortController();
     inflightControllers.add(controller);
+    connecting = controller;
+    /** The wait a refusal's `Retry-After` stated: the backoff retry waits at least this long. */
+    let statedWait: number | undefined;
 
     try {
       const headers: Record<string, string> = {
@@ -478,7 +500,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
-        throw new SseConnectError(response.status);
+        throw new SseConnectError(response.status, retryAfterMs(response.headers.get('retry-after')));
       }
 
       // Stopped/disposed while the fetch was in flight — don't proceed to open
@@ -513,6 +535,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       transition('open');
       retryAttempt = 0; // a success resets the backoff ladder
       refreshBurned = false; // …and re-arms the refresh-once (P4)
+      settleConnect(controller, true);
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -660,6 +683,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // network failure, a dropped stream — has no status to carry and
       // stays off errors$.
       if (err instanceof SseConnectError) {
+        statedWait = err.retryAfterMs;
         errors$.next(err);
         // 401: re-sending THIS bearer is deterministic, so park instead of
         // retrying (P3). The gate re-admits the actor the moment the getter
@@ -695,6 +719,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       }
     } finally {
       inflightControllers.delete(controller);
+      settleConnect(controller, false);
     }
 
     // If we reached here without an AbortError, the connection dropped
@@ -705,12 +730,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     // of the live stream, and must not restart the reconnect machinery.
     if (running && !superseded.has(controller)) {
       transition('reconnecting');
-      scheduleRetry(backoffDelay());
+      scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0));
     }
   };
 
   const reconnect = () => {
     if (!running) return;
+    if (connecting) {
+      reconnectOwed = true;
+      return;
+    }
     // Transition to `reconnecting` BEFORE aborting the current
     // connection. This matches the pre-state-machine contract where
     // gap-detection relied on seeing a "dropped" signal before a
@@ -873,6 +902,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             attempt.status,
             attempt.statusText,
             detail || undefined,
+            retryAfterMs(attempt.headers.get('retry-after')),
           );
         }
         return attempt;

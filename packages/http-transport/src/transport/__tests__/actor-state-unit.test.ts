@@ -224,7 +224,7 @@ describe('createActorStateUnit', () => {
   // P1's gate instead (handoff note 6).
 
   it('a refused connect surfaces its status as structured data — 401 distinguishable from 500', async () => {
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 401, body: null });
+    mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 401, body: null });
     const rejected = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'expired-but-real-tok',
@@ -237,7 +237,7 @@ describe('createActorStateUnit', () => {
     expect(seen401[0]!.status).toBe(401);
     rejected.dispose();
 
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 500, body: null });
+    mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 500, body: null });
     const erroring = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'fine-tok',
@@ -261,7 +261,7 @@ describe('createActorStateUnit', () => {
   it('a refused credential is asked about a bounded number of times, then the actor waits — and recovers when a DIFFERENT token appears', async () => {
     vi.useFakeTimers();
     let token = 'revoked-tok';
-    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => token,
@@ -295,7 +295,7 @@ describe('createActorStateUnit', () => {
 
   it('a downed gateway (503) is retried on a GROWING interval — and still recovers (D1a: backoff is not auth-specific)', async () => {
     vi.useFakeTimers();
-    mockFetch.mockImplementation(async () => ({ ok: false, status: 503, body: null }));
+    mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 503, body: null }));
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'fine-tok',
@@ -341,7 +341,7 @@ describe('createActorStateUnit', () => {
     mockFetch.mockImplementation(async (_url: string, opts: { headers: Record<string, string> }) =>
       opts.headers['Authorization'] === 'Bearer fresh-tok'
         ? { ok: true, status: 200, body: sse.stream }
-        : { ok: false, status: 401, body: null },
+        : { ok: false, headers: new Headers(), status: 401, body: null },
     );
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
@@ -373,7 +373,7 @@ describe('createActorStateUnit', () => {
     // case; P0 made session.refresh() non-throwing, but the hook is
     // caller-supplied and the actor must not inherit an unhandled rejection.
     const refresher = vi.fn(async () => { throw new Error('ECONNREFUSED'); });
-    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: 'revoked-tok',
@@ -398,7 +398,7 @@ describe('createActorStateUnit', () => {
     vi.useFakeTimers();
     let token = 'expired-tok';
     const refresher = vi.fn(async () => { token = 'also-bad-tok'; return 'also-bad-tok'; });
-    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
     const stateUnit = createActorStateUnit({
       baseUrl: 'http://localhost:4000',
       token: () => token,
@@ -480,6 +480,7 @@ describe('createActorStateUnit', () => {
     // requires the transport to reject.
     mockFetch.mockResolvedValueOnce({
       ok: false,
+      headers: new Headers(),
       status: 400,
       text: async () => '{"error":"Bus emit validation failed"}',
     });
@@ -501,7 +502,7 @@ describe('createActorStateUnit', () => {
     // sidecars treat a failed boot emit as fatal, so one rate-limit refusal
     // killed a projector outright (2026-09-07 weaver incident). Retry is
     // compliance with the gateway's own instruction, not optimism.
-    mockFetch.mockResolvedValueOnce({ ok: false, status: 429, statusText: 'Too Many Requests', text: async () => 'retry when one settles' });
+    mockFetch.mockResolvedValueOnce({ ok: false, headers: new Headers(), status: 429, statusText: 'Too Many Requests', text: async () => 'retry when one settles' });
     mockFetch.mockResolvedValueOnce({ ok: true });
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
@@ -517,7 +518,7 @@ describe('createActorStateUnit', () => {
     // 429 and 401 both mean "the gateway answered", and only one of them is an
     // invitation to try again. Retrying auth failures would burn the budget and
     // delay a real error reaching the caller.
-    mockFetch.mockResolvedValue({ ok: false, status: 401, statusText: 'Unauthorized', text: async () => 'token expired' });
+    mockFetch.mockResolvedValue({ ok: false, headers: new Headers(), status: 401, statusText: 'Unauthorized', text: async () => 'token expired' });
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
@@ -531,7 +532,7 @@ describe('createActorStateUnit', () => {
     // D1. A predicate that recovered the status by parsing it back out of prose
     // would be a second statement of the same fact, in the fragile direction —
     // and `isRetryableRequestError` reads the field.
-    mockFetch.mockResolvedValue({ ok: false, status: 403, statusText: 'Forbidden', text: async () => 'nope' });
+    mockFetch.mockResolvedValue({ ok: false, headers: new Headers(), status: 403, statusText: 'Forbidden', text: async () => 'nope' });
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 

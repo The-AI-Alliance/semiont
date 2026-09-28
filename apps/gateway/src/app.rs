@@ -8,6 +8,7 @@ use crate::config::{
     GatewayConfig, SignalConfig, config_path, from_environment, read_gateway_config,
 };
 use crate::issuer::IssuerVerifier;
+use crate::rates::EmitRates;
 use crate::signal::SignalPlane;
 use crate::signal::in_process::InProcessPlane;
 use crate::signal::nats::NatsPlane;
@@ -17,6 +18,7 @@ use serde_json::json;
 use std::future::Future;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
 use std::time::Duration;
 
 /// What the routes share.
@@ -26,6 +28,9 @@ pub struct App {
     pub issuer: IssuerVerifier,
     pub archivist: Archivist,
     pub bus: Composition,
+    pub emit_rates: EmitRates,
+    /// The bytes queued for every stream this process holds: what `capacity.queuedBytes` bounds.
+    pub queued_bytes: AtomicUsize,
 }
 
 /// Bound on a round trip to the broker, at boot and at shutdown: one
@@ -197,13 +202,21 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
         issuer,
         archivist,
         bus,
+        emit_rates: EmitRates::default(),
+        queued_bytes: AtomicUsize::new(0),
     });
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", port))
         .await
         .map_err(|e| format!("cannot listen on port {port}: {e}"))?;
     logging::info(
         "Semiont Gateway ready",
-        json!({ "url": format!("http://localhost:{port}/api") }),
+        json!({
+            "url": format!("http://localhost:{port}/api"),
+            "capacity": {
+                "queuedBytes": app.config.capacity.queued_bytes,
+                "connections": app.config.capacity.connections,
+            },
+        }),
     );
     logging::info(
         "Auth posture: bearer-only, open CORS",
@@ -215,9 +228,14 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
         let _ = tx.send(stop_signal().await);
     });
     let mut received = "";
-    crate::http::serve(listener, routes::router(app.clone()), async {
-        received = rx.await.unwrap_or("SIGTERM");
-    })
+    crate::http::serve(
+        listener,
+        routes::router(app.clone()),
+        app.config.capacity.connections,
+        async {
+            received = rx.await.unwrap_or("SIGTERM");
+        },
+    )
     .await;
     logging::info("Shutting down", json!({ "signal": received }));
     // Drain what this connection already wrote before it goes with the

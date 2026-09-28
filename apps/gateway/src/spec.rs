@@ -51,7 +51,7 @@ pub struct JsonBody {
 }
 
 /// The limits the spec states: each operation's `x-semiont-limits`, and `maxItems`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 pub struct Limits {
     pub heartbeat_seconds: u64,
     pub reply_retention_seconds: u64,
@@ -60,6 +60,59 @@ pub struct Limits {
     pub claim_seconds: u64,
     pub pending_replies_max: usize,
     pub scoped_max: usize,
+    pub streams_per_principal: PrincipalLimit<u64>,
+    pub emits_per_principal: PrincipalLimit<EmitRate>,
+}
+
+/// A limit on a principal: a baseline, and a coefficient per role (`None`:
+/// unlimited). Human or agent makes no difference; only a role does.
+#[derive(Debug)]
+pub struct PrincipalLimit<C> {
+    baseline: C,
+    roles: HashMap<String, Option<C>>,
+}
+
+/// An emit bucket's coefficient: its refill rate and its depth.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EmitRate {
+    pub per_second: u64,
+    pub burst: u64,
+}
+
+/// A coefficient that can be compared for generosity.
+pub trait Coefficient: Copy {
+    fn most_generous(self, other: Self) -> Self;
+}
+
+impl Coefficient for u64 {
+    fn most_generous(self, other: Self) -> Self {
+        self.max(other)
+    }
+}
+
+impl Coefficient for EmitRate {
+    fn most_generous(self, other: Self) -> Self {
+        EmitRate {
+            per_second: self.per_second.max(other.per_second),
+            burst: self.burst.max(other.burst),
+        }
+    }
+}
+
+impl<C: Coefficient> PrincipalLimit<C> {
+    /// The coefficient for a principal holding `roles`, `None` when unlimited:
+    /// the baseline when it holds none the limit names, else the most
+    /// generous of the ones it holds.
+    pub fn for_roles(&self, roles: &[String]) -> Option<C> {
+        let mut held = roles.iter().filter_map(|role| self.roles.get(role));
+        let Some(first) = held.next() else {
+            return Some(self.baseline);
+        };
+        held.fold(*first, |best, next| match (best, *next) {
+            (Some(best), Some(next)) => Some(best.most_generous(next)),
+            _ => None,
+        })
+    }
 }
 
 static SPEC: OnceLock<Spec> = OnceLock::new();
@@ -148,6 +201,10 @@ impl Spec {
         })
     }
 
+    pub fn limits(&self) -> &Limits {
+        &self.limits
+    }
+
     /// The validator of a component schema; a name the spec does not declare
     /// is a programming error.
     pub fn validator(&self, schema: &str) -> &Validator {
@@ -180,10 +237,6 @@ impl Spec {
     /// Emitting `channel` changes the knowledge base.
     pub fn writes(&self, channel: &str) -> bool {
         self.writes.contains(channel)
-    }
-
-    pub fn limits(&self) -> Limits {
-        self.limits
     }
 
     /// What `operation` ("POST /bus/emit") accepts as its JSON body, if it takes one.
@@ -238,6 +291,27 @@ impl JsonBody {
     }
 }
 
+impl<C> PrincipalLimit<C> {
+    fn parse(limit: &Value, coefficient: impl Fn(&Value) -> Option<C>) -> Result<Self, String> {
+        let baseline = coefficient(&limit["baseline"])
+            .ok_or_else(|| format!("a principal limit's baseline is malformed: {limit}"))?;
+        let mut roles = HashMap::new();
+        if let Some(named) = limit["roles"].as_object() {
+            for (role, value) in named {
+                let parsed = if value == "unlimited" {
+                    None
+                } else {
+                    Some(coefficient(value).ok_or_else(|| {
+                        format!("a principal limit's coefficient for {role} is malformed: {value}")
+                    })?)
+                };
+                roles.insert(role.clone(), parsed);
+            }
+        }
+        Ok(PrincipalLimit { baseline, roles })
+    }
+}
+
 impl Limits {
     fn of(document: &Value) -> Result<Limits, String> {
         let limit = |path: &str, method: &str, key: &str| -> Result<u64, String> {
@@ -249,6 +323,16 @@ impl Limits {
                         method.to_uppercase()
                     )
                 })
+        };
+        let principal = |path: &str, method: &str, key: &str| -> Result<&Value, String> {
+            let limit = &document["paths"][path][method]["x-semiont-limits"][key];
+            if limit["baseline"].is_null() {
+                return Err(format!(
+                    "{} {path} states no x-semiont-limits.{key} baseline",
+                    method.to_uppercase()
+                ));
+            }
+            Ok(limit)
         };
         let max_items = |property: &str| -> Result<usize, String> {
             document["components"]["schemas"]["BusSubscribeRequest"]["properties"][property]["maxItems"]
@@ -264,6 +348,19 @@ impl Limits {
             claim_seconds: limit("/bus/emit", "post", "claimSeconds")?,
             pending_replies_max: max_items("pendingReplies")?,
             scoped_max: max_items("scoped")?,
+            streams_per_principal: PrincipalLimit::parse(
+                principal("/bus/subscribe", "post", "streamsPerPrincipal")?,
+                |v| v.as_u64(),
+            )?,
+            emits_per_principal: PrincipalLimit::parse(
+                principal("/bus/emit", "post", "emitsPerPrincipal")?,
+                |v| {
+                    Some(EmitRate {
+                        per_second: v["perSecond"].as_u64()?,
+                        burst: v["burst"].as_u64()?,
+                    })
+                },
+            )?,
         })
     }
 }

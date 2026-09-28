@@ -1430,7 +1430,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     // same path HttpTransport hits in its `beforeError` ky hook. No refresh
     // is stubbed, so recovery exhausts.
     const subj = (session!.client.transport as any).errorsSubject;
-    subj.next(new APIError('token expired', 401, 'Unauthorized'));
+    subj.next(new APIError('token expired', 401, 'Unauthorized', undefined, undefined));
     await new Promise((r) => setTimeout(r, 0));
 
     expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
@@ -1454,7 +1454,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     expect(signals.permissionDeniedAt$.getValue()).toBeNull();
 
     const subj = (session!.client.transport as any).errorsSubject;
-    subj.next(new APIError('not allowed', 403, 'Forbidden'));
+    subj.next(new APIError('not allowed', 403, 'Forbidden', undefined, undefined));
 
     expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
     expect(signals.permissionDeniedMessage$.getValue()).toBe('not allowed');
@@ -1472,8 +1472,8 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     const signals = browser.activeSignals$.getValue()!;
 
     const subj = (session!.client.transport as any).errorsSubject;
-    subj.next(new APIError('boom', 500, 'Internal Server Error'));
-    subj.next(new APIError('not found', 404, 'Not Found'));
+    subj.next(new APIError('boom', 500, 'Internal Server Error', undefined, undefined));
+    subj.next(new APIError('not found', 404, 'Not Found', undefined, undefined));
 
     expect(signals.sessionExpiredAt$.getValue()).toBeNull();
     expect(signals.permissionDeniedAt$.getValue()).toBeNull();

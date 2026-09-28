@@ -62,6 +62,7 @@ describe('starting a gateway', () => {
     ['no subject claim', async () => ({ settings: await settings((s) => delete s.identity.subjectClaim), env: env() }), /\/identity\b.*\bsubjectClaim\b/],
     ['a field the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { corsOrigin: '*' })), env: env() }), /corsOrigin/],
     ['a log format the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { logFormat: 'text' })), env: env() }), /\/logFormat\b/],
+    ['no capacity', async () => ({ settings: await settings((s) => delete s.capacity), env: env() }), /capacity/],
     ['no configuration document in HOME', async () => ({ settings: await settings(), env: env({ HOME: join(tmpdir(), `gateway-conformance-no-home-${randomUUID()}`) }) }), /\.semiontconfig/],
     ['a NATS plane with no servers', async () => ({ settings: await settings((s) => void (s.signal = { type: 'nats' })), env: env() }), /servers/],
     [

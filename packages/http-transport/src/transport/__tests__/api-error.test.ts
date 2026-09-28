@@ -24,35 +24,35 @@ describe('APIError', () => {
       [503, 'unavailable'],
       [504, 'unavailable'],
       [418, 'error'], // not specifically classified
-      [429, 'error'],
+      [429, 'rate-limited'],
     ];
 
     it.each(cases)('status %d maps to %s', (status, expectedCode) => {
-      const err = new APIError('msg', status, 'Status Text');
+      const err = new APIError('msg', status, 'Status Text', undefined, undefined);
       expect(err.code).toBe(expectedCode);
     });
   });
 
   describe('shape', () => {
     it('exposes status and statusText as readonly fields', () => {
-      const err = new APIError('Not Found', 404, 'Not Found');
+      const err = new APIError('Not Found', 404, 'Not Found', undefined, undefined);
       expect(err.status).toBe(404);
       expect(err.statusText).toBe('Not Found');
     });
 
     it('preserves message', () => {
-      const err = new APIError('the message', 500, 'Internal Server Error');
+      const err = new APIError('the message', 500, 'Internal Server Error', undefined, undefined);
       expect(err.message).toBe('the message');
     });
 
     it('sets name to APIError', () => {
-      const err = new APIError('m', 400, 'Bad Request');
+      const err = new APIError('m', 400, 'Bad Request', undefined, undefined);
       expect(err.name).toBe('APIError');
     });
 
     it('packs status, statusText, and body into `details`', () => {
       const body = { error: 'denied', detail: 'token expired' };
-      const err = new APIError('Unauthorized', 401, 'Unauthorized', body);
+      const err = new APIError('Unauthorized', 401, 'Unauthorized', body, undefined);
       expect(err.details).toEqual({
         status: 401,
         statusText: 'Unauthorized',
@@ -61,7 +61,7 @@ describe('APIError', () => {
     });
 
     it('omits body in details when not provided', () => {
-      const err = new APIError('m', 500, 'Internal Server Error');
+      const err = new APIError('m', 500, 'Internal Server Error', undefined, undefined);
       expect(err.details).toEqual({
         status: 500,
         statusText: 'Internal Server Error',
@@ -72,7 +72,7 @@ describe('APIError', () => {
 
   describe('hierarchy', () => {
     it('extends SemiontError', () => {
-      const err = new APIError('m', 401, 'Unauthorized');
+      const err = new APIError('m', 401, 'Unauthorized', undefined, undefined);
       expect(err).toBeInstanceOf(APIError);
       expect(err).toBeInstanceOf(SemiontError);
       expect(err).toBeInstanceOf(Error);
@@ -80,7 +80,7 @@ describe('APIError', () => {
 
     it('catches as SemiontError', () => {
       try {
-        throw new APIError('m', 403, 'Forbidden');
+        throw new APIError('m', 403, 'Forbidden', undefined, undefined);
       } catch (err) {
         if (!(err instanceof SemiontError)) throw err;
         expect(err.code).toBe('forbidden');

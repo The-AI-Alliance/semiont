@@ -22,6 +22,7 @@
  *  - `not-found`    — resource missing (HTTP 404)
  *  - `conflict`     — concurrent modification, duplicate, etc. (HTTP 409)
  *  - `bad-request`  — request malformed (HTTP 400)
+ *  - `rate-limited` — a limit refused it (HTTP 429); `retryAfterMs` says when to return
  *  - `unavailable`  — gateway unreachable, network error, 5xx
  *  - `error`        — unclassified fallback
  */
@@ -31,6 +32,7 @@ export type TransportErrorCode =
   | 'not-found'
   | 'conflict'
   | 'bad-request'
+  | 'rate-limited'
   | 'unavailable'
   | 'error';
 

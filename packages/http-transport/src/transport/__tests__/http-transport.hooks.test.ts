@@ -39,7 +39,7 @@ import { APIError } from '../api-error';
 
 const testBaseUrl = baseUrl('http://localhost:4000');
 
-type ResponseLike = { status: number; statusText: string; json: () => Promise<unknown> };
+type ResponseLike = { status: number; statusText: string; headers: Headers; json: () => Promise<unknown> };
 
 /** An object that passes `instanceof HTTPError` and carries a `.response`. */
 function httpError(response: ResponseLike): Error {
@@ -70,6 +70,7 @@ describe('HttpTransport ky hooks', () => {
     type State = Parameters<typeof beforeError>[0];
 
     const error = httpError({
+      headers: new Headers(),
       status: 404,
       statusText: 'Not Found',
       json: async () => ({ message: 'Resource missing' }),
@@ -101,6 +102,7 @@ describe('HttpTransport ky hooks', () => {
     type State = Parameters<typeof beforeError>[0];
 
     const error = httpError({
+      headers: new Headers(),
       status: 503,
       statusText: 'Service Unavailable',
       json: async () => ({}),
@@ -195,7 +197,7 @@ describe('HttpTransport shouldRetry — the transport retry rule', () => {
 
   /** Ask the gate about a request of `method` that failed with `status`. */
   function verdict(method: string, status: number) {
-    const error = Object.assign(httpError({ status, statusText: 'x', json: async () => ({}) }), {
+    const error = Object.assign(httpError({ status, statusText: 'x', headers: new Headers(), json: async () => ({}) }), {
       request: { method },
     });
     return shouldRetry({ error, retryCount: 1 });
@@ -272,7 +274,7 @@ describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed'
     const beforeRetry = hooks.beforeRetry![0]!;
     type State = Parameters<typeof beforeRetry>[0];
     const request = { method: 'POST', headers: new Headers() } as unknown as State['request'];
-    const error = httpError({ status: 401, statusText: 'x', json: async () => ({}) });
+    const error = httpError({ status: 401, statusText: 'x', headers: new Headers(), json: async () => ({}) });
     return {
       request,
       error,
@@ -323,7 +325,7 @@ import { mockFetch } from './helpers/mock-conn';
 describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
   test('a refused SSE connect surfaces on the transport errors$ as a SseConnectError', async () => {
     mockFetch.mockReset();
-    mockFetch.mockImplementation(async () => ({ ok: false, status: 401, body: null }));
+    mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
 
     const transport = new HttpTransport({
       baseUrl: testBaseUrl,

@@ -21,7 +21,8 @@
 //     come back, not left to guess;
 //   - a stream whose event names, frame or id formats no schema names;
 //   - a declared header with no schema;
-//   - a limit that is not a positive integer.
+//   - a limit that is not a positive integer, or a principal's limit that is
+//     not a baseline with coefficients by role (below).
 //
 // It reads the SOURCE files and resolves `$ref`s itself, so it needs no bundle
 // and cannot pass on a stale one.
@@ -87,10 +88,36 @@ let current = '';
 const fail = (where, message) => failures.push(`${current} ${where}: ${message}`);
 
 // ── Limits ────────────────────────────────────────────────────────────────
+// A limit is a positive integer, or — for a limit on a principal — a baseline
+// with coefficients by role: `{ "baseline": C, "roles": { "<role>": C | "unlimited" } }`,
+// where a coefficient C is a positive integer or an object of them, and every
+// coefficient has the baseline's shape. A principal holding none of the roles
+// gets the baseline; one holding several, the most generous of theirs.
+const positive = (v) => Number.isInteger(v) && v > 0;
+const plainObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
+const shapeOf = (c) => (positive(c) ? 'integer' : plainObject(c) && Object.keys(c).length > 0 && Object.values(c).every(positive) ? Object.keys(c).sort().join(',') : undefined);
+
 function checkLimits(where, limits) {
   if (limits === undefined) return;
   for (const [key, value] of Object.entries(limits)) {
-    if (!Number.isInteger(value) || value <= 0) fail(where, `x-semiont-limits.${key} is ${JSON.stringify(value)}, not a positive integer`);
+    const label = `x-semiont-limits.${key}`;
+    if (positive(value)) continue;
+    if (!plainObject(value) || !('baseline' in value)) {
+      fail(where, `${label} is ${JSON.stringify(value)}, not a positive integer or a baseline with coefficients by role`);
+      continue;
+    }
+    const extra = Object.keys(value).filter((k) => k !== 'baseline' && k !== 'roles');
+    if (extra.length > 0) fail(where, `${label} has ${extra.join(', ')} beside its baseline and roles`);
+    const shape = shapeOf(value.baseline);
+    if (!shape) {
+      fail(where, `${label}.baseline is ${JSON.stringify(value.baseline)}, not a positive integer or an object of them`);
+      continue;
+    }
+    for (const [role, coefficient] of Object.entries(value.roles ?? {})) {
+      if (coefficient !== 'unlimited' && shapeOf(coefficient) !== shape) {
+        fail(where, `${label}.roles.${role} is ${JSON.stringify(coefficient)}, neither "unlimited" nor shaped like the baseline`);
+      }
+    }
   }
 }
 

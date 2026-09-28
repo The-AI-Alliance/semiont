@@ -18,7 +18,7 @@ use serde_json::{Value, json};
 use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 use std::time::Instant;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
@@ -107,18 +107,31 @@ impl AsyncWrite for Abortable {
 }
 
 /// Serve `router` on `listener` until `stop` resolves; then accept nothing more.
+/// A connection past `connections` open at once is closed unanswered (capacity).
 pub async fn serve(
     listener: TcpListener,
     router: axum::Router,
+    connections: usize,
     stop: impl std::future::Future<Output = ()>,
 ) {
     tokio::pin!(stop);
+    let open = Arc::new(AtomicUsize::new(0));
     loop {
         tokio::select! {
             accepted = listener.accept() => {
                 let Ok((stream, _)) = accepted else { continue };
+                if open.load(Ordering::SeqCst) >= connections {
+                    drop(stream);
+                    crate::telemetry::record_refused("connections");
+                    continue;
+                }
+                open.fetch_add(1, Ordering::SeqCst);
                 let _ = stream.set_nodelay(true);
-                tokio::spawn(connection(stream, router.clone()));
+                let (open, router) = (open.clone(), router.clone());
+                tokio::spawn(async move {
+                    connection(stream, router).await;
+                    open.fetch_sub(1, Ordering::SeqCst);
+                });
             }
             () = &mut stop => break,
         }
@@ -277,6 +290,7 @@ impl ApiError {
         retry_after: std::time::Duration,
     ) -> ApiError {
         let seconds = retry_after.as_secs() + u64::from(retry_after.subsec_nanos() > 0);
+        crate::telemetry::record_refused(code);
         ApiError {
             status,
             body: json!({ "error": message.into(), "code": code }),

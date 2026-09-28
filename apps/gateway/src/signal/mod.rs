@@ -92,20 +92,27 @@ pub struct IngestReceipt {
     pub observers: Option<usize>,
 }
 
-/// A table every replica on one fabric shares. Entries live for the table's
-/// TTL and are then gone. Keys and values are opaque strings.
+/// A table every replica on one fabric shares. An entry lives for the table's
+/// TTL from when it was last written, and is then gone. Keys and values are
+/// opaque strings.
 pub trait SharedTable: Send + Sync {
     /// Insert `key` unless present: true once the fabric holds it, false when it was there.
     fn create(&self, key: String, value: String) -> BoxFuture<'_, Result<bool, String>>;
+    /// Set `key` whether or not it is present, its TTL starting again.
+    fn put(&self, key: String, value: String) -> BoxFuture<'_, Result<(), String>>;
+    /// Remove `key`, if present.
+    fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>>;
     /// The authoritative value, if present.
     fn read(&self, key: String) -> BoxFuture<'_, Result<Option<String>, String>>;
-    /// Every entry present, then every one created after. Resolves once the
+    /// Every entry present, then every change after: `Some(value)` for an
+    /// entry written, `None` for one deleted. An entry that expires is not
+    /// reported; a watcher that cares keeps its own clock. Resolves once the
     /// present ones have been delivered.
-    fn watch(
-        &self,
-        on_entry: Arc<dyn Fn(String, String) + Send + Sync>,
-    ) -> BoxFuture<'_, Result<Subscription, String>>;
+    fn watch(&self, on_change: TableWatcher) -> BoxFuture<'_, Result<Subscription, String>>;
 }
+
+/// What a table's watch calls with each change: the key, and its value or `None` when deleted.
+pub type TableWatcher = Arc<dyn Fn(String, Option<String>) + Send + Sync>;
 
 pub trait SignalPlane: Send + Sync {
     /// Whether a frame ingested now would reach the fabric.

@@ -125,6 +125,25 @@
         "simple"
       ],
       "description": "How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON."
+    },
+    "capacity": {
+      "type": "object",
+      "description": "What this gateway process can hold, from the memory its deployment gives it. `queuedBytes`: the bytes queued for all its streams together; at it, a new stream is refused with 503 (`AtCapacity`, code `capacity`) until the queues drain — each stream's own bound is `x-semiont-limits.pendingWriteBytes`. `connections`: the connections it holds open at once; one past it is closed unanswered. The launcher derives both from the memory it gives the gateway's container.",
+      "properties": {
+        "queuedBytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "connections": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "queuedBytes",
+        "connections"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
@@ -135,7 +154,8 @@
     "archivist",
     "signal",
     "logLevel",
-    "logFormat"
+    "logFormat",
+    "capacity"
   ],
   "additionalProperties": false
 }

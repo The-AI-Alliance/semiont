@@ -18,7 +18,7 @@
             "unanswered-requests",
             "capacity"
           ],
-          "description": "`streams`: the principal already holds as many streams as `x-semiont-limits.streamsPerPerson` allows. `emit-rate`: the principal's emits have used its bucket (`x-semiont-limits.emitsPerSecond`, `emitBurst`). `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can."
+          "description": "`streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can."
         }
       }
     }

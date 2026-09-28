@@ -118,6 +118,32 @@ what `pendingWriteBytes` bounds. Past it, or past `replayBufferEvents` during a
 replay, the connection is closed from the gateway's side and its queue freed.
 Opening and closing are presence: `session:joined`, `session:left`.
 
+## Limits
+
+What one principal may take and what one process can hold
+([TRANSPORT-HTTP.md § Limits](../../../docs/protocol/TRANSPORT-HTTP.md#limits)).
+Nothing here asks whether a principal is a person or an agent: a limit's
+coefficient comes from the principal's roles ([src/spec.rs](../src/spec.rs)
+`PrincipalLimit`) — the baseline when it holds none the limit names, and
+unlimited for `semiont-service` and `semiont-worker`.
+
+- **Emits** ([src/rates.rs](../src/rates.rs)): a token bucket per DID in this
+  process, checked before the body is read and before any correlation claim, so
+  a refused emit claims nothing and its retry is no conflict.
+- **Streams** ([src/stream_counts.rs](../src/stream_counts.rs)): each stream a
+  limited principal holds is a lease in `streams_held`, a table every replica
+  shares; its connection renews it each heartbeat and deletes it at teardown,
+  and a lease its replica stopped renewing lapses two heartbeats later. Each
+  replica counts against its projection, so near the limit two replicas may
+  each admit one more.
+- **Capacity** (GatewayConfig `capacity`): the bytes queued for every stream
+  together — at the budget a new stream is refused 503 before it subscribes —
+  and the connections the accept loop holds; one past them is closed
+  unanswered.
+
+Every refusal names its limit in `code`, carries `Retry-After`, and counts in
+`semiont.gateway.refused`.
+
 ## Calls to the Archivist
 
 The Archivist holds the knowledge base's bytes and event log;

@@ -20,6 +20,16 @@ pub struct GatewayConfig {
     pub signal: SignalConfig,
     pub log_level: LogLevel,
     pub log_format: LogFormat,
+    pub capacity: Capacity,
+}
+
+/// What this process can hold (`capacity`): the bytes queued for all its
+/// streams, and the connections it holds open.
+#[derive(Debug, Clone, Copy, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Capacity {
+    pub queued_bytes: usize,
+    pub connections: usize,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -80,6 +90,7 @@ struct Document {
     signal: SignalDocument,
     log_level: LogLevel,
     log_format: LogFormat,
+    capacity: Capacity,
 }
 
 #[derive(Deserialize)]
@@ -150,6 +161,7 @@ pub fn read_gateway_config(path: &Path) -> Result<GatewayConfig, String> {
         signal,
         log_level: document.log_level,
         log_format: document.log_format,
+        capacity: document.capacity,
     })
 }
 

@@ -33,7 +33,7 @@ eachPlane('emitting', (world, plane) => {
     else expect(typeof body.subscribers).toBe('number');
   });
 
-  it('the gateway stamps the verified emitter as _userId and its roles as _roles, over whatever the caller wrote', async () => {
+  it('the gateway stamps the verified emitter as _userId and its token\'s roles as _roles, whoever issued the token, over whatever the caller wrote', async () => {
     const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] });
     const person = await world().person('stamped');
     const worker = await world().agent('ollama', 'stamp-model', [SERVICE_ROLE, WORKER_ROLE]);
@@ -50,6 +50,14 @@ eachPlane('emitting', (world, plane) => {
     const fromWorker = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker2);
     expect(fromWorker.payload['_userId']).toBe(worker.did);
     expect(fromWorker.payload['_roles']).toEqual([WORKER_ROLE]);
+
+    // A person may hold a role as an agent may; the issuer's token carries it.
+    const roled = await world().person('stamped-roled', { roles: [WORKER_ROLE] });
+    const marker3 = randomUUID();
+    await world().emit(roled, { channel: BROADCAST, payload: { annotationId: marker3, ...forged } });
+    const fromRoled = await watcher.frame(BROADCAST, (f) => f.payload['annotationId'] === marker3);
+    expect(fromRoled.payload['_userId']).toBe(world().personDid('stamped-roled'));
+    expect(fromRoled.payload['_roles']).toEqual([WORKER_ROLE]);
   });
 
   it('concurrent emits by different principals are each stamped with their own', async () => {

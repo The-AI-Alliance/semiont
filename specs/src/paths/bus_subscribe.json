@@ -62,7 +62,14 @@
       "heartbeatSeconds": 15,
       "replyRetentionSeconds": 60,
       "pendingWriteBytes": 16777216,
-      "replayBufferEvents": 1000
+      "replayBufferEvents": 1000,
+      "streamsPerPrincipal": {
+        "baseline": 64,
+        "roles": {
+          "semiont-service": "unlimited",
+          "semiont-worker": "unlimited"
+        }
+      }
     }
   }
 }

@@ -77,6 +77,10 @@ func gatewayVars(addr string, userEnv []string) map[string]string {
 	return vars
 }
 
+// connectionAllowance: the memory a gateway's capacity sets aside for each open
+// connection — about twice what an idle stream measured (apps/gateway/bench).
+const connectionAllowance = 20 << 10
+
 // gatewayDocument renders the document from the selected environment, the
 // KB's committed identity, the address the launcher computed, the port it
 // publishes, and the user's variables. The absent-section decisions live here
@@ -139,5 +143,12 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, addr string, port int, us
 		doc.LogLevel = semiont.GatewayConfigLogLevel(env.LogLevel)
 	}
 	doc.LogFormat = semiont.Json
+
+	// Its capacity follows from the memory its container is given: half for
+	// the bytes queued to its streams, and the other half at a connection
+	// allowance each.
+	memory := int(memCeilingGB(semiontDescriptor("gateway").mem) * (1 << 30))
+	doc.Capacity.QueuedBytes = memory / 2
+	doc.Capacity.Connections = memory / 2 / connectionAllowance
 	return json.MarshalIndent(doc, "", "  ")
 }

@@ -46,14 +46,17 @@ mkdir -p "$WORK/home"
 cat > "$WORK/home/.semiontconfig" <<DOC
 {"kb":{"name":"Load","domain":"$DOMAIN"},"port":$PORT,"publicUrl":"http://127.0.0.1:$PORT",
  "identity":{"issuer":"http://127.0.0.1:1","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
- "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json"}
+ "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json",
+ "capacity":{"queuedBytes":1073741824,"connections":52428}}
 DOC
 
 # An agent token the gateway signed, as far as it can tell: HS256 under its key.
+# It holds semiont-worker, whose coefficients are unlimited (x-semiont-limits),
+# so the benchmark measures the gateway rather than a principal's bucket.
 b64url() { base64 | tr -d '\n=' | tr '/+' '_-'; }
 now=$(date +%s)
 header=$(printf '{"alg":"HS256","typ":"JWT"}' | b64url)
-claims=$(printf '{"did":"did:web:%s:agents:bench:load","email":"load@agents.%s","name":"bench load","domain":"%s","iat":%s,"exp":%s,"iss":"%s"}' \
+claims=$(printf '{"did":"did:web:%s:agents:bench:load","email":"load@agents.%s","name":"bench load","domain":"%s","iat":%s,"exp":%s,"iss":"%s","roles":["semiont-worker"]}' \
   "$DOMAIN" "$DOMAIN" "$DOMAIN" "$now" "$((now + 36000))" "$DOMAIN" | b64url)
 signature=$(printf '%s.%s' "$header" "$claims" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
 TOKEN="$header.$claims.$signature"

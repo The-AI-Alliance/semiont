@@ -299,7 +299,7 @@ An operator federating a **different** issuer owes Semiont the following. Everyt
 
 ### API
 
-1. Routes explicitly apply `authMiddleware`. 2. Rate-limit per IP/user (edge rate-limiting is your deployment platform's concern). 3. Validate inputs with Zod. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
+1. Every route requires a bearer token unless the spec declares it public (`security: []`). 2. What one principal may take — the streams it holds, the emits it makes — is limited alike for people and agents, by a baseline and a coefficient per role ([TRANSPORT-HTTP.md § Limits](../../protocol/TRANSPORT-HTTP.md#limits)); limits per address, before a token is read, are an ingress's. 3. Every JSON body is validated against its schema in `specs/`. 4. Log auth events; the startup log records the bearer-only / open-CORS posture.
 
 > **MCP programmatic access** — MCP `login` is not available. The gateway serves no MCP token route; a per-KB grant handshake is a deferred decision.
 

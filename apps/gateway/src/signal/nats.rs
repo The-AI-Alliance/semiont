@@ -12,7 +12,7 @@
 
 use super::{
     ClientSubscription, Frame, IngestReceipt, Meta, SharedTable, SignalPlane, Subscription,
-    Unavailable,
+    TableWatcher, Unavailable,
 };
 use crate::logging;
 use async_nats::connection::State;
@@ -275,6 +275,27 @@ impl SharedTable for NatsTable {
         .boxed()
     }
 
+    fn put(&self, key: String, value: String) -> BoxFuture<'_, Result<(), String>> {
+        async move {
+            self.store
+                .put(b64url(&key), Bytes::from(value))
+                .await
+                .map(|_| ())
+                .map_err(|e| logging::chain(&e))
+        }
+        .boxed()
+    }
+
+    fn delete(&self, key: String) -> BoxFuture<'_, Result<(), String>> {
+        async move {
+            self.store
+                .delete(b64url(&key))
+                .await
+                .map_err(|e| logging::chain(&e))
+        }
+        .boxed()
+    }
+
     fn read(&self, key: String) -> BoxFuture<'_, Result<Option<String>, String>> {
         async move {
             let value = self
@@ -287,10 +308,7 @@ impl SharedTable for NatsTable {
         .boxed()
     }
 
-    fn watch(
-        &self,
-        on_entry: Arc<dyn Fn(String, String) + Send + Sync>,
-    ) -> BoxFuture<'_, Result<Subscription, String>> {
+    fn watch(&self, on_entry: TableWatcher) -> BoxFuture<'_, Result<Subscription, String>> {
         async move {
             // Everything after the bucket's last sequence arrives on the watch;
             // everything up to it is read key by key. An entry both see is
@@ -311,10 +329,15 @@ impl SharedTable for NatsTable {
             let live = on_entry.clone();
             let pump = tokio::spawn(async move {
                 while let Some(Ok(entry)) = entries.next().await {
-                    if entry.operation == kv::Operation::Put
-                        && let Some(key) = from_b64url(&entry.key)
-                    {
-                        live(key, String::from_utf8_lossy(&entry.value).into_owned());
+                    let Some(key) = from_b64url(&entry.key) else {
+                        continue;
+                    };
+                    match entry.operation {
+                        kv::Operation::Put => live(
+                            key,
+                            Some(String::from_utf8_lossy(&entry.value).into_owned()),
+                        ),
+                        kv::Operation::Delete | kv::Operation::Purge => live(key, None),
                     }
                 }
             });
@@ -328,7 +351,7 @@ impl SharedTable for NatsTable {
                     .map_err(|e| logging::chain(&e))?
                     && let Some(decoded) = from_b64url(&key)
                 {
-                    on_entry(decoded, String::from_utf8_lossy(&value).into_owned());
+                    on_entry(decoded, Some(String::from_utf8_lossy(&value).into_owned()));
                 }
             }
             Ok(Subscription::new(move || pump.abort()))

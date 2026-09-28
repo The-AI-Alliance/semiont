@@ -3,6 +3,7 @@ package bus
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -386,5 +387,35 @@ func TestTwoClientsAreTwoAddresses(t *testing.T) {
 	}
 	if first == second {
 		t.Fatalf("two clients shared one address %q", first)
+	}
+}
+
+// A limit's refusal says when to come back (Retry-After, GATEWAY-LIMITS P5);
+// the client never retries on its own, so it hands the wait to its caller.
+func TestARefusalCarriesTheGatewaysRetryAfter(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Retry-After", "7")
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"error":"refused","code":"emit-rate"}`)
+	}))
+	defer srv.Close()
+	c := NewClient(srv.URL, "tok")
+
+	_, err := c.Emit(context.Background(), Channel("beckon:focus"), map[string]any{}, "")
+	var se *StatusError
+	if !errors.As(err, &se) {
+		t.Fatalf("emit: %v, want a *StatusError", err)
+	}
+	if se.Status != http.StatusTooManyRequests || se.RetryAfter != 7*time.Second {
+		t.Errorf("emit refusal = %+v, want 429 with a 7s wait", se)
+	}
+	if !strings.Contains(se.Error(), "retry after 7s") {
+		t.Errorf("emit refusal says %q, which does not name the wait", se.Error())
+	}
+
+	_, err = c.Subscribe(context.Background(), []Channel{"beckon:focus"}, nil, "")
+	if !errors.As(err, &se) || se.RetryAfter != 7*time.Second {
+		t.Errorf("subscribe: %v, want a *StatusError with a 7s wait", err)
 	}
 }

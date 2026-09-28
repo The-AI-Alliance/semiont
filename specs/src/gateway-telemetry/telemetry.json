@@ -165,6 +165,24 @@
       "attributes": []
     },
     {
+      "name": "semiont.gateway.refused",
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Requests a limit refused — a principal's streams or emit bucket, a client's unanswered requests, the process's queued bytes — and connections closed at its connection cap.",
+      "attributes": [
+        {
+          "key": "refused.reason",
+          "values": [
+            "streams",
+            "emit-rate",
+            "unanswered-requests",
+            "capacity",
+            "connections"
+          ]
+        }
+      ]
+    },
+    {
       "name": "semiont.bus.correlation.size",
       "instrument": "gauge",
       "when": "export",

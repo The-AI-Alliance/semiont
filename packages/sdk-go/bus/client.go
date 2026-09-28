@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,7 +135,7 @@ func (c *Client) emitWith(ctx context.Context, ch Channel, payload any, scope st
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
-		return -1, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode}
+		return -1, &StatusError{Op: "emit " + string(ch), Status: resp.StatusCode, RetryAfter: retryAfter(resp.Header)}
 	}
 	var accepted semiont.BusEmitAccepted
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
@@ -203,7 +204,7 @@ func (c *Client) Subscribe(ctx context.Context, channels, scoped []Channel, scop
 	if resp.StatusCode != http.StatusOK {
 		resp.Body.Close()
 		cancel()
-		return nil, &StatusError{Op: "subscribe", Status: resp.StatusCode}
+		return nil, &StatusError{Op: "subscribe", Status: resp.StatusCode, RetryAfter: retryAfter(resp.Header)}
 	}
 
 	events := make(chan Event, 64)
@@ -277,9 +278,27 @@ func readSSE(r interface{ Read([]byte) (int, error) }, out chan<- Event) error {
 type StatusError struct {
 	Op     string // what was attempted: "emit <channel>" or "subscribe"
 	Status int
+	// RetryAfter is the wait the refusal's Retry-After stated — a limit's 429
+	// or a capacity 503 carries one; zero when it stated none. The client never
+	// retries on its own, so the wait is its caller's to keep.
+	RetryAfter time.Duration
 }
 
-func (e *StatusError) Error() string { return fmt.Sprintf("%s: HTTP %d", e.Op, e.Status) }
+func (e *StatusError) Error() string {
+	if e.RetryAfter > 0 {
+		return fmt.Sprintf("%s: HTTP %d, retry after %s", e.Op, e.Status, e.RetryAfter)
+	}
+	return fmt.Sprintf("%s: HTTP %d", e.Op, e.Status)
+}
+
+// retryAfter reads a Retry-After header's wait in seconds, the form the gateway sends.
+func retryAfter(h http.Header) time.Duration {
+	seconds, err := strconv.Atoi(strings.TrimSpace(h.Get("Retry-After")))
+	if err != nil || seconds < 0 {
+		return 0
+	}
+	return time.Duration(seconds) * time.Second
+}
 
 // RequestError is a reply on an operation's failure channel.
 type RequestError struct {

@@ -46,7 +46,8 @@ ms=$("$RT" run --rm --entrypoint /bin/sh \
   cat > "$HOME/.semiontconfig" <<DOC
 {"kb":{"name":"Image check","domain":"image-check.example"},"port":4000,"publicUrl":"http://localhost:4000",
  "identity":{"issuer":"http://127.0.0.1:1","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
- "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json"}
+ "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json",
+ "capacity":{"queuedBytes":1073741824,"connections":52428}}
 DOC
   read spawned _ < /proc/uptime
   /usr/local/bin/boot.sh /usr/local/bin/semiont-gateway >/tmp/gateway.log 2>&1 &

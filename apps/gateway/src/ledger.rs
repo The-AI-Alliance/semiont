@@ -218,15 +218,15 @@ impl Ledger {
         let adopt = weak.clone();
         let claims_watch = claims
             .watch(Arc::new(move |cid, value| {
-                if let Some(ledger) = adopt.upgrade() {
+                if let (Some(ledger), Some(value)) = (adopt.upgrade(), value) {
                     ledger.adopt(&cid, &value);
                 }
             }))
             .await?;
         let mark = weak;
         let answered_watch = answered
-            .watch(Arc::new(move |cid, _| {
-                if let Some(ledger) = mark.upgrade() {
+            .watch(Arc::new(move |cid, value| {
+                if let (Some(ledger), Some(_)) = (mark.upgrade(), value) {
                     ledger.mark_answered(&cid);
                 }
             }))

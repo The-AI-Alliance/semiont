@@ -2616,6 +2616,12 @@ type GatewayConfig struct {
 		Port int    `json:"port"`
 	} `json:"archivist"`
 
+	// Capacity What this gateway process can hold, from the memory its deployment gives it. `queuedBytes`: the bytes queued for all its streams together; at it, a new stream is refused with 503 (`AtCapacity`, code `capacity`) until the queues drain — each stream's own bound is `x-semiont-limits.pendingWriteBytes`. `connections`: the connections it holds open at once; one past it is closed unanswered. The launcher derives both from the memory it gives the gateway's container.
+	Capacity struct {
+		Connections int `json:"connections"`
+		QueuedBytes int `json:"queuedBytes"`
+	} `json:"capacity"`
+
 	// Identity The issuer this knowledge base trusts.
 	Identity struct {
 		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
@@ -3662,7 +3668,7 @@ type KnowledgeGraph_Nodes_Item struct {
 
 // LimitRefusal defines model for LimitRefusal.
 type LimitRefusal struct {
-	// Code `streams`: the principal already holds as many streams as `x-semiont-limits.streamsPerPerson` allows. `emit-rate`: the principal's emits have used its bucket (`x-semiont-limits.emitsPerSecond`, `emitBurst`). `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
+	// Code `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
 	Code    LimitRefusalCode `json:"code"`
 	Details interface{}      `json:"details,omitempty"`
 
@@ -3673,7 +3679,7 @@ type LimitRefusal struct {
 	Hint *string `json:"hint,omitempty"`
 }
 
-// LimitRefusalCode `streams`: the principal already holds as many streams as `x-semiont-limits.streamsPerPerson` allows. `emit-rate`: the principal's emits have used its bucket (`x-semiont-limits.emitsPerSecond`, `emitBurst`). `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
+// LimitRefusalCode `streams`: the principal already holds as many streams as its coefficient of `x-semiont-limits.streamsPerPrincipal` allows. `emit-rate`: the principal's emits have used its bucket, whose rate and burst are its coefficient of `x-semiont-limits.emitsPerPrincipal`, per gateway process. `unanswered-requests`: the client already awaits as many replies as `BusSubscribeRequest.pendingReplies` may name. `capacity`: the gateway holds as many queued bytes as it can.
 type LimitRefusalCode string
 
 // ListResourcesResponse defines model for ListResourcesResponse.

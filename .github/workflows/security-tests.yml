@@ -172,7 +172,8 @@ jobs:
             '  "archivist": { "host": "localhost", "port": 24103 },' \
             '  "signal": { "type": "in-process" },' \
             '  "logLevel": "info",' \
-            '  "logFormat": "json"' \
+            '  "logFormat": "json",' \
+            '  "capacity": { "queuedBytes": 1073741824, "connections": 52428 }' \
             '}' \
             > ~/.semiontconfig
 

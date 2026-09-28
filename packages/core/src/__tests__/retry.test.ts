@@ -10,6 +10,7 @@ import {
   isTransientFetchError,
   isRetryableRequestError,
   isPeerUnavailable,
+  retryAfterMs,
   retryBudgetMs,
   STARTUP_FETCH_RETRY,
   type RetryAttemptInfo,
@@ -149,7 +150,7 @@ describe('isRetryableRequestError (SIDECAR-BOOT-RESILIENCE P1)', () => {
   /** What a status-carrying transport error looks like to this predicate. The
    *  real one is http-transport's `APIError`, which already carries `status`. */
   const withStatus = (status: number): HttpStatusError =>
-    Object.assign(new Error(`/bus/emit ${status}`), { status });
+    Object.assign(new Error(`/bus/emit ${status}`), { status, retryAfterMs: undefined });
 
   it('accepts 429 — the gateway is UP and asking us to wait', () => {
     // The whole reason this predicate exists. `isTransientFetchError` refuses
@@ -293,3 +294,27 @@ describe('STARTUP_FETCH_RETRY', () => {
       .toBe(delaysOnly + 5_000 * STARTUP_FETCH_RETRY.attempts);
   });
 });
+
+describe('a wait the server states (GATEWAY-LIMITS P5)', () => {
+  it('reads Retry-After in seconds, the form the gateway sends, and nothing else', () => {
+    expect(retryAfterMs('3')).toBe(3_000);
+    expect(retryAfterMs(' 12 ')).toBe(12_000);
+    expect(retryAfterMs('0')).toBe(0);
+    expect(retryAfterMs('Wed, 21 Oct 2015 07:28:00 GMT')).toBeUndefined();
+    expect(retryAfterMs(null)).toBeUndefined();
+  });
+
+  it('retryWithBackoff waits at least the stated wait before the next attempt', async () => {
+    vi.useFakeTimers();
+    const refused: HttpStatusError = Object.assign(new Error('/bus/emit 429'), { status: 429, retryAfterMs: 5_000 });
+    const fn = vi.fn().mockRejectedValueOnce(refused).mockResolvedValueOnce('done');
+    const result = retryWithBackoff(fn, isRetryableRequestError, { attempts: 3, initialDelayMs: 100, maxDelayMs: 1_000 });
+    await vi.advanceTimersByTimeAsync(4_900);
+    expect(fn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(200);
+    await expect(result).resolves.toBe('done');
+    expect(fn).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+});
+
