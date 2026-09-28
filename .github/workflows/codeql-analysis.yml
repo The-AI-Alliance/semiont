@@ -27,7 +27,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ 'javascript-typescript', 'go' ]
+        language: [ 'javascript-typescript', 'go', 'rust' ]
 
     steps:
     - name: Checkout repository
@@ -66,6 +66,7 @@ jobs:
       continue-on-error: true
 
     # Go is a compiled language: the CodeQL extractor needs a real build to trace.
+    # Rust (the gateway) is extracted from source, with no build.
     - name: Build launcher for CodeQL extraction
       if: matrix.language == 'go'
       run: cd apps/launcher && go build ./...

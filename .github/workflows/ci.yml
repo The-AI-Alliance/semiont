@@ -54,98 +54,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
-
-      - name: Cache TypeScript incremental build info
-        uses: actions/cache@v6.1.0
-        with:
-          path: apps/gateway/.tscache
-          key: ${{ runner.os }}-gateway-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
-          restore-keys: |
-            ${{ runner.os }}-gateway-tsc-
-
-      - name: Install dependencies
-        run: |
-          npm ci --include=optional
-          npm run build:packages
-
-      - name: Run gateway type check
-        run: |
-          echo "Running gateway TypeScript type check..."
-          cd apps/gateway
-          npm run typecheck
-        env:
-          CI: true
-          NODE_OPTIONS: "--max-old-space-size=8192"
-
-      # The gateway's behaviour is the Gateway Conformance job's; what runs
-      # here is the manifest census, which guards its dependency boundary.
-      - name: Run the gateway manifest census
-        run: |
-          cd apps/gateway
-          npm test
-        env:
-          CI: true
-
-  gateway-conformance:
-    name: Gateway Conformance
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            tests/gateway-conformance/package-lock.json
-
-      - name: Install dependencies and build the gateway
-        run: |
-          npm ci --include=optional
-          npm run build:packages
-          npm run build -w semiont-gateway
-
-      # The suite runs every case on the NATS plane too, against a real broker
-      # with JetStream, and spawns it from PATH.
-      - name: Install nats-server
-        run: |
-          NATS_VERSION=v2.14.0
-          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
-          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
-          nats-server --version
-
-      # Black-box: it starts gateway processes and checks them against specs/.
-      - name: Run the gateway conformance suite
-        run: |
-          cd tests/gateway-conformance
-          npm ci
-          npm test
-        env:
-          CI: true
-
-  gateway-rs:
-    name: Rust Gateway
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7.0.1
-
-      # rustup installs the toolchain apps/gateway-rs/rust-toolchain.toml names,
+      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names,
       # with rustfmt and clippy.
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway-rs
+          cd apps/gateway
           rustup toolchain install
           cargo --version
 
@@ -155,21 +68,62 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway-rs/target
-          key: ${{ runner.os }}-gateway-rs-${{ hashFiles('apps/gateway-rs/Cargo.lock', 'apps/gateway-rs/rust-toolchain.toml') }}
+            apps/gateway/target
+          key: ${{ runner.os }}-gateway-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-rs-
+            ${{ runner.os }}-gateway-
 
+      # The gateway's behaviour is the Gateway Conformance job's; what runs
+      # here is the code's own hygiene and the runners for the shared case
+      # tables, its only Rust tests.
       - name: Format, lint, and run the shared-table runners
         run: |
-          cd apps/gateway-rs
+          cd apps/gateway
           cargo fmt --check
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --locked
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      # Every crate the binary links, on each platform the image is built for,
+      # is under a permitted licence and credited in the image's NOTICE.
+      - name: Check the crates the gateway links
+        run: |
+          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+            (cd apps/gateway && cargo metadata --format-version 1 --locked --filter-platform "$target") > "$RUNNER_TEMP/metadata-$target.json"
+          done
+          node scripts/lint/check-gateway-crates.mjs "$RUNNER_TEMP"/metadata-*.json
+
+  gateway-conformance:
+    name: Gateway Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          cd apps/gateway
+          rustup toolchain install
+
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/gateway/target
+          key: ${{ runner.os }}-gateway-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-
+
       - name: Build the gateway
         run: |
-          cd apps/gateway-rs
+          cd apps/gateway
           cargo build --release --locked
 
       - name: Setup Node.js
@@ -188,6 +142,8 @@ jobs:
           npm ci --include=optional
           npm run build:packages
 
+      # The suite runs every case on the NATS plane too, against a real broker
+      # with JetStream, and spawns it from PATH.
       - name: Install nats-server
         run: |
           NATS_VERSION=v2.14.0
@@ -195,13 +151,12 @@ jobs:
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
 
-      # The cases the port has claimed (tests/gateway-conformance/vitest.rust.config.ts).
-      - name: Run the conformance suite against the Rust gateway
+      # Black-box: it starts gateway processes and checks them against specs/.
+      - name: Run the gateway conformance suite
         run: |
           cd tests/gateway-conformance
           npm ci
-          npm run typecheck
-          npm run test:rust
+          npm test
         env:
           CI: true
 
@@ -231,7 +186,6 @@ jobs:
           # One subshell per suite: `bash -e` ignores non-final failures
           # inside a bare `&&` chain, but honors a subshell's exit status.
           (cd apps/browser && npm test)
-          (cd apps/gateway && npm test)
 
           echo "All tests completed successfully"
         env:
@@ -337,9 +291,10 @@ jobs:
         with:
           go-version-file: apps/launcher/go.mod
 
-      # Authority: specs/src/bus/registry.json → TypeScript (packages/core)
-      # and Go (packages/sdk-go/bus). Either language drifting means the two
-      # sides can disagree about channels at runtime.
+      # Authority: specs/src/bus/registry.json → TypeScript (packages/core),
+      # the gateway's channel classification (apps/gateway/src), and Go
+      # (packages/sdk-go/bus). Any of them drifting means two sides can disagree
+      # about channels at runtime.
       - name: Bus registry vs generated code
         run: |
           node scripts/bus/generate-ts.mjs --check

@@ -75,6 +75,17 @@ if [[ -z "$GO_TOOLCHAIN" ]]; then
 fi
 GO_IMAGE="golang:${GO_TOOLCHAIN}"
 
+# --- Rust toolchain (derived, not restated) ---
+#
+# The gateway image compiles its binary with the toolchain
+# apps/gateway/rust-toolchain.toml pins, passed to its Dockerfile as
+# RUST_TOOLCHAIN. No fallback, as for Go.
+RUST_TOOLCHAIN="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$REPO_ROOT/apps/gateway/rust-toolchain.toml")"
+if [[ -z "$RUST_TOOLCHAIN" ]]; then
+  fail "No channel in apps/gateway/rust-toolchain.toml — cannot choose a Rust image."
+  exit 1
+fi
+
 # --- Failure cleanup trap ---
 # On failure, stop and remove the Verdaccio container so the next run starts
 # clean. Disabled at the end of the happy path so Verdaccio keeps running for
@@ -182,11 +193,12 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
       echo "  code change ONLY if that package was republished. Change package source"
-      echo "  and you want a full run (or --package <pkg>) first."
+      echo "  and you want a full run (or --package <pkg>) first. The gateway image is"
+      echo "  the exception: it compiles apps/gateway from the working tree every time."
       echo ""
       echo "Build order:"
       echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
-      echo "  jobs, make-meaning, react-ui, gateway, browser"
+      echo "  jobs, make-meaning, react-ui, browser"
       exit 0
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;
@@ -730,8 +742,9 @@ fanout_all() {
 }
 
 # --- Skip unchanged images ---
-# An image is a function of its Dockerfile and the @semiont/* packages it
-# installs — DIRECTLY OR TRANSITIVELY. "Unchanged" is decided by package
+# An image is a function of its Dockerfile, the files it COPYs from the
+# repository (the gateway's crate and the spec, the shared supervisor, the
+# NOTICE), and the @semiont/* packages it installs — DIRECTLY OR TRANSITIVELY. "Unchanged" is decided by package
 # INTEGRITY against the freshly-published Verdaccio — versions and mtimes are
 # useless because every run republishes (check-semiont-drift.mjs reasons the
 # same way) — plus the Dockerfile hash. Third-party deps and the base tag are
@@ -758,8 +771,8 @@ image_signature() {
   # Install lines only — comments mention packages that are not installed.
   # Those seed a walk over each package's @semiont/* dependencies, because the
   # install line names the root of a tree, not the tree.
-  grep 'npm install' "$df" | grep -ohE '@semiont/[a-z-]+' | sort -u \
-    | REGISTRY="$REGISTRY" DOCKERFILE="$df" python3 -c '
+  { grep 'npm install' "$df" || true; } | grep -ohE '@semiont/[a-z-]+' | sort -u \
+    | REGISTRY="$REGISTRY" DOCKERFILE="$df" REPO_ROOT="$REPO_ROOT" python3 -c '
 import hashlib, json, os, sys, urllib.parse, urllib.request
 
 registry = os.environ["REGISTRY"].rstrip("/")
@@ -787,10 +800,30 @@ except Exception:
     print("")
     sys.exit(0)
 
-digest = hashlib.sha256(open(os.environ["DOCKERFILE"], "rb").read()).hexdigest()
+dockerfile = open(os.environ["DOCKERFILE"], "rb").read()
+digest = hashlib.sha256(dockerfile).hexdigest()
+
+# What the Dockerfile COPYs from the build context (not from another stage),
+# every file under each source, in order: a changed crate, spec or supervisor
+# is a changed image.
+root = os.environ["REPO_ROOT"]
+sources = hashlib.sha256()
+text = dockerfile.decode().replace("\\\n", " ")
+for line in text.splitlines():
+    words = line.split()
+    if not words or words[0].upper() != "COPY" or any(w.startswith("--from") for w in words):
+        continue
+    for source in [w for w in words[1:-1] if not w.startswith("--")]:
+        path = os.path.join(root, source)
+        files = [path] if os.path.isfile(path) else sorted(
+            os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs)
+        for f in files:
+            sources.update(os.path.relpath(f, root).encode())
+            sources.update(open(f, "rb").read())
+
 # Sorted: the walk order is not stable, and an unstable signature would rebuild
 # everything forever while looking like a cache.
-parts = ["dockerfile:" + digest] + [n + ":" + integrity[n] for n in sorted(integrity)]
+parts = ["dockerfile:" + digest, "sources:" + sources.hexdigest()] + [n + ":" + integrity[n] for n in sorted(integrity)]
 print(" ".join(parts))
 '
 }
@@ -842,8 +875,9 @@ fi
 # Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
 # (10s "transferring" round-trips for byte-sized payloads), which overlapping
 # absorbs. Three, not six: the builder VM has 2G, and the default image order
-# splits the two npm-heavy builds (gateway, browser) across batches. Build
-# output goes to a per-image log; a failure tails it and stops the run.
+# splits the two heavy builds (the gateway's compile, the browser's npm) across
+# batches. Build output goes to a per-image log; a failure tails it and stops
+# the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
 i=0
 while [ $i -lt ${#BUILD_IMGS[@]} ]; do
@@ -856,8 +890,15 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
     TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
     LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
     step "Building ${TAG} from ${DF}..."
-    $RT build --no-cache --tag "$TAG" \
-      --build-arg NPM_REGISTRY="$BUILD_REGISTRY" \
+    # The gateway compiles from the repository with the pinned toolchain, and
+    # its layers are keyed by what it copies, so a cached one is never stale.
+    # Every other image installs from Verdaccio, where --no-cache is what keeps
+    # a republished same-version package from being reused stale (above).
+    case "$img" in
+      gateway) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
+      *)       BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
+    esac
+    $RT build "${BUILD_FLAGS[@]}" --tag "$TAG" \
       --file "$REPO_ROOT/$DF" \
       "$REPO_ROOT" > "$LOG" 2>&1 &
     PIDS+=($!)
@@ -901,6 +942,14 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
       ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
       beat=$(date +%s)
       rm -f "${LOGS[$j]}"
+      # The gateway image carries no source and starts quickly, or it is not built.
+      if [[ "${NAMES[$j]}" == gateway ]] && ! "$REPO_ROOT/scripts/container/check-gateway-image.sh" "${TAGS[$j]}" "$RT"; then
+        fail "${TAGS[$j]} does not keep the gateway image's promises (above)"
+        for k in "${!PIDS[@]}"; do
+          [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
+        done
+        exit 1
+      fi
       idx=${IMGS[$j]}
       if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
         state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"

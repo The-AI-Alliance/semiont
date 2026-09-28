@@ -11,9 +11,9 @@ set -euo pipefail
 #
 # A process is its own source PLUS the workspace packages it imports, so the
 # reads are collected over the dependency closure. Scoped to `$tree/src`
-# alone, this gate called a live requirement dead: apps/gateway needs
-# SEMIONT_OIDC_CLIENT_ID because `archivistEndpoint` reads it on the
-# gateway's behalf, and that function lives in @semiont/core.
+# alone, this gate called a live requirement dead: the TypeScript gateway
+# needed SEMIONT_OIDC_CLIENT_ID because `archivistEndpoint`, in
+# @semiont/core, read it on the gateway's behalf.
 #
 # Scoped to SEMIONT_* — the deployment-contract namespace. Test knobs like
 # NODE_ENV or VITEST_* are not deployment facts and stay out of scope.
@@ -26,8 +26,8 @@ cd "$REPO_ROOT"
 FAIL=0
 is_test_file() { echo "$1" | grep -qE '__tests__|test-setup|\.test\.ts$|vitest\.setup'; }
 
-# Reads per workspace directory, computed once. apps/gateway's closure is most
-# of packages/*, and every package computes its own closure, so without this
+# Reads per workspace directory, computed once. A closure can be most of
+# packages/*, and every package computes its own closure, so without this
 # the same trees get re-scanned a dozen times.
 READS_CACHE=$(mktemp -d)
 trap 'rm -rf "$READS_CACHE"' EXIT
@@ -75,7 +75,7 @@ for (const dir of seen) console.log(dir);
 ' "$1"
 }
 
-for tree in apps/gateway apps/browser packages/*; do
+for tree in apps/browser packages/*; do
   [ -d "$tree/src" ] || continue
 
   # Writes: this tree's own tests. Fabricating env for a package you merely

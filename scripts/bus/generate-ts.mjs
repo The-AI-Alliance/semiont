@@ -5,7 +5,7 @@
 //   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
 //   packages/core/src/bus-operations.ts      (BUS_OPERATIONS)
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/delivery)
-//   apps/gateway-rs/src/bus-classification.json (the same attributes, for the Rust gateway)
+//   apps/gateway/src/bus-classification.json (the same attributes, for the Rust gateway)
 //
 // Byte-identical output is the CUTOVER PROOF: regenerate over the committed
 // files and `git diff` must be empty, which is what makes "the extraction was
@@ -23,7 +23,7 @@ const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
-const CLASSIFICATION_JSON = resolve(ROOT, 'apps/gateway-rs/src/bus-classification.json');
+const CLASSIFICATION_JSON = resolve(ROOT, 'apps/gateway/src/bus-classification.json');
 
 const CHECK = process.argv.includes('--check');
 const registryText = readFileSync(REGISTRY, 'utf8');

@@ -7,8 +7,7 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "pretest": "npm run typecheck",
-    "test": "vitest run",
-    "test:rust": "vitest run --config vitest.rust.config.ts"
+    "test": "vitest run"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",

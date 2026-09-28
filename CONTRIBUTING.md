@@ -157,8 +157,11 @@ git checkout -b docs/improve-api-reference
 npm test
 
 # Run one workspace's tests
-npm test -w semiont-gateway
 npm test -w semiont-browser
+
+# The gateway (Rust): its own checks, then the conformance suite
+(cd apps/gateway && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo build --release)
+(cd tests/gateway-conformance && npm test)
 
 # Type check
 npm run typecheck
@@ -318,7 +321,7 @@ npm test
 **Run service-specific tests:**
 ```bash
 cd apps/browser && npm test                 # Browser suite
-cd tests/gateway-conformance && npm test    # The gateway, black-box (needs a built gateway and nats-server)
+cd tests/gateway-conformance && npm test    # The gateway, black-box (needs `cargo build --release` in apps/gateway, and nats-server)
 ```
 
 ### Test Requirements for PRs

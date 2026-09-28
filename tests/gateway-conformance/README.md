@@ -7,10 +7,7 @@ states it — the OpenAPI document, the bus registry — and as
 states the semantics a schema cannot hold. It imports nothing from the
 gateway: the one line that names an implementation is `GATEWAY_COMMAND` in
 [harness/paths.ts](harness/paths.ts), which [vitest.config.ts](vitest.config.ts)
-provides to the cases. While the gateway is ported to Rust,
-[vitest.rust.config.ts](vitest.rust.config.ts) runs the cases the port has
-claimed against `apps/gateway-rs` (`npm run test:rust`); it goes when the Rust
-gateway replaces this one.
+provides to the cases: the Rust gateway's binary, built in `apps/gateway`.
 
 Every case runs against a gateway on each signal plane — in-process, and NATS
 with a real `nats-server` — except the ones that need a broker (replicas, a
@@ -72,8 +69,8 @@ require credentials and be taken down and brought back, and an OTLP receiver.
 It needs a built gateway and `nats-server` (2.10 or later) on `PATH`:
 
 ```bash
+(cd apps/gateway && cargo build --release)
 npm run build:packages
-npm run build -w semiont-gateway
 cd tests/gateway-conformance
 npm ci
 npm test

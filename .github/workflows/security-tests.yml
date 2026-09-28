@@ -139,26 +139,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-          cache: 'npm'
-          cache-dependency-path: 'package-lock.json'
+      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names.
+      - name: Install the pinned Rust toolchain
+        run: rustup toolchain install
 
-      - name: Cache TypeScript incremental build info
+      - name: Cache cargo
         uses: actions/cache@v6.1.0
         with:
-          path: apps/gateway/.tscache
-          key: ${{ runner.os }}-gateway-tsc-${{ hashFiles('apps/gateway/src/**/*.ts', 'apps/gateway/tsconfig.json', 'packages/*/src/**/*.ts') }}
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/gateway/target
+          key: ${{ runner.os }}-gateway-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-tsc-
+            ${{ runner.os }}-gateway-
 
-      - name: Install dependencies and build packages
-        run: |
-          cd ../..
-          npm ci --include=optional
-          npm run build:packages
+      - name: Build the gateway
+        run: cargo build --release --locked
 
       - name: Write the gateway's configuration document
         run: |
@@ -179,18 +176,9 @@ jobs:
             '}' \
             > ~/.semiontconfig
 
-      - name: Run TypeScript type checking
-        run: npm run typecheck
-        env:
-          NODE_OPTIONS: "--max-old-space-size=8192"
-
-      - name: Build application (fast)
-        run: npm run build:fast
-
       - name: Start gateway for API security verification
         run: |
           # Start the gateway on the configuration document written above.
-          cd ../..
           export JWT_SECRET=test-secret-key-for-testing-32char
           # The gateway's own service account; boot refuses without it. Nothing
           # here presents it to an issuer.
@@ -198,8 +186,7 @@ jobs:
           export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
 
           echo "Starting gateway in the ci environment..."
-          cd apps/gateway
-          nohup npm start > gateway.log 2>&1 &
+          nohup target/release/semiont-gateway > gateway.log 2>&1 &
           APP_PID=$!
           echo "GATEWAY_PID=$APP_PID" >> $GITHUB_ENV
 
@@ -234,7 +221,7 @@ jobs:
           # Final check
           if ! curl -f http://localhost:4000/api/health 2>/dev/null; then
             echo "Gateway never became healthy. Process status:"
-            ps aux | grep -E "node|npm" || true
+            ps aux | grep -E "semiont-gateway" || true
             echo "Gateway logs:"
             cat gateway.log
             exit 1
@@ -269,7 +256,7 @@ jobs:
 
           # Test 2: Verify error responses don't leak sensitive data
           response=$(curl -s http://localhost:4000/api/status)
-          if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.js:[0-9]+"; then
+          if echo "$response" | grep -qE "postgresql://|secret|jwt.*key|password|database.*connection|stack.*trace|\.(js|rs):[0-9]+"; then
             echo "❌ SECURITY FAILURE: Sensitive data leaked in API error response!"
             echo "Response: $response"
             exit 1
@@ -291,8 +278,7 @@ jobs:
           if [ ! -z "$GATEWAY_PID" ]; then
             kill $GATEWAY_PID || true
           fi
-          # Kill any remaining Node.js processes
-          pkill -f "node.*dist/index.js" || true
+          pkill -f "target/release/semiont-gateway" || true
 
   security-report:
     name: Security Test Report

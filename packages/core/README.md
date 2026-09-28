@@ -366,7 +366,7 @@ Apache-2.0
 
 - [`@semiont/sdk`](../sdk/) - The Semiont SDK (`SemiontClient`) - use this for application development
 - [`@semiont/http-transport`](../http-transport/) - HTTP implementations of core's transport contract
-- [`@semiont/gateway`](../../apps/gateway/) - Gateway API server
+- [gateway](../../apps/gateway/) - the gateway (Rust), which serves this protocol
 - [`@semiont/browser`](../../apps/browser/) - Web application
 
 ## Learn More

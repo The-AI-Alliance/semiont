@@ -1,217 +1,70 @@
-# Gateway Authentication Guide
+# Gateway Authentication
 
-Gateway developer's guide to implementing and debugging authentication in the Semiont gateway.
+How the gateway authenticates a request, and where each part of it lives. For
+the whole bearer-only model — the issuer, sign-in, rotation — read the
+[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)
+first; the `bearerAuth` and `mediaToken` schemes in
+[specs/src/openapi.json](../../../specs/src/openapi.json) are the contract.
 
-**Related Documentation:**
-- **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - **Read this first!** The complete bearer-only authentication model, flows, and diagrams
-- [Main README](../README.md) - Gateway overview
-- [Semiont Protocol](../../../docs/protocol/README.md) - The eight verbs and the bus
-- [Development Guide](./DEVELOPMENT.md) - Local setup
+## The model
 
-**Scope**: This document is a practical guide for gateway developers. For the complete authentication architecture and flow diagrams, see the [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
+- **Bearer only.** `Authorization: Bearer <JWT>` on every protected request —
+  the scheme matched in any case; another scheme, no header, or a cookie is no
+  credential. `GET /api/resources/{id}` also takes that resource's media token
+  in `?token=`, for the links that cannot send a header.
+- **Two kinds of token, told apart by `iss`.** A token from the trusted issuer
+  (`identity.issuer`) is a person or a service account, verified RS256 against
+  the keys the issuer publishes. Any other is one the gateway signed itself — an
+  agent token — verified HS256 against its key ring, `JWT_SECRET`.
+- **No admission of its own.** A token the issuer signed, for this knowledge
+  base, within its times, is admitted. Nothing reads a role to decide access and
+  no route answers 403; a refusal is always a 401.
+- **The spec decides what is public.** Four operations are: `GET /api/health`,
+  `GET /`, `GET /api/openapi.json`, `GET /.well-known/oauth-protected-resource`.
+  The [conformance suite](../../../tests/gateway-conformance/README.md) probes
+  every declared operation without a credential and with a bad one.
 
-## Quick Reference
+## Where it lives
 
-### Security Model
+| Part | File |
+|---|---|
+| The `Authenticated` and `MediaOrBearer` extractors, the challenge, the 401 bodies | [src/http.rs](../src/http.rs) |
+| Which token it is, and the principal it names | [src/principal.rs](../src/principal.rs) |
+| The issuer's keys: discovery, the key set, the refetch cooldown | [src/issuer.rs](../src/issuer.rs) |
+| The key ring, agent and media tokens | [src/tokens.rs](../src/tokens.rs) |
+| How a person and an agent are named | [src/identity.rs](../src/identity.rs), held to [specs/src/principals/cases.json](../../../specs/src/principals/cases.json) |
+| The role names | [src/roles.rs](../src/roles.rs), held to the launcher's and core's by `npm run lint:service-role` |
 
-- **Router-level authentication** - Each router applies auth middleware to its routes
-- **JWT Bearer token authentication** - All protected routes require valid JWT
-- **OpenAPI spec as source of truth** - Public vs protected routes documented in OpenAPI spec
-- **Conformance-tested** - every operation the spec declares is probed for its authentication by the [conformance suite](../../../tests/gateway-conformance/README.md) in CI
+A protected handler takes `Authenticated` (or `MediaOrBearer`), which runs
+before its body is read, so an unauthenticated request never reaches a parser.
+`POST /api/tokens/agent` checks its own caller: an issuer token carrying
+`semiont-service`.
 
-### Authentication Pattern
+## What a request goes through
 
-Routes are protected at the router level using Hono's `router.use()` middleware:
+1. **The token** — from the `Authorization` header; none is a 401 with a
+   `WWW-Authenticate: Bearer resource_metadata="…"` challenge and a `hint`
+   naming the header.
+2. **Its issuer** — read, unverified, to choose the verifier.
+3. **Its signature and times** — an issuer token against the key its `kid`
+   names in the issuer's set (fetched on first use, refetched when ten minutes
+   old, and on a `kid` it does not hold no more than every thirty seconds), with
+   `iss` equal to the issuer, `aud` carrying this knowledge base's resource
+   identifier, and `exp` and `nbf` held with no leeway. An agent token against
+   each key of the ring in turn; expired or not yet valid ends the walk.
+4. **The principal** — built from the claims, with no lookup: a person is
+   `did:web:<domain>:users:<the claim identity.subjectClaim names>`, and needs
+   `email`, with `email_verified` not `false`; an agent is the DID its token
+   carries.
 
-```typescript
-// The resources router protects its whole route group
-export function createResourceRouter(): ResourcesRouterType {
-  const router = new Hono<{ Variables: ResourceVariables }>();
-  router.use('/api/resources/*', authMiddleware);
-  router.use('/resources/*', authMiddleware);
-  return router;
-}
-```
+Any failure is `401 {"error":"Invalid token"}` with the `invalid_token`
+challenge; the reason goes to the log (`auth_failed`), never to the caller.
 
-### Public Endpoints
+## The tokens the gateway mints
 
-The OpenAPI spec declares these public with `"security": []`:
-
-- `GET /api/health` and `GET /` - Health check for load balancer monitoring
-- `GET /api/openapi.json` - The OpenAPI document
-- `GET /.well-known/oauth-protected-resource` - Which issuer this gateway trusts (RFC 9728)
-
-Every other operation declares `bearerAuth` (and `GET /api/resources/{id}` also
-`mediaToken`). `POST /api/tokens/agent` is not public: the caller presents its own
-service-account token from the trusted issuer, carrying `semiont-service` in a flat
-`roles` claim. The `bearerAuth` scheme's description in the spec is the claims
-contract.
-
-## Adding Authentication to New Routes
-
-### Create a New Protected Router
-
-When creating a new router, apply auth middleware to protect all routes:
-
-```typescript
-// src/routes/my-feature.ts
-import { Hono } from 'hono';
-import type { Principal } from '../identity/principal';
-import { authMiddleware } from '../middleware/auth';
-
-export const myFeatureRouter = new Hono<{ Variables: { principal: Principal } }>();
-
-// Apply auth middleware to all routes under /api/my-feature/*
-myFeatureRouter.use('/api/my-feature/*', authMiddleware);
-
-// All routes below are now protected
-myFeatureRouter.get('/api/my-feature/items', async (c) => {
-  const principal = c.get('principal'); // derived from the token's own claims
-  const who = principal.did;            // did:web:<domain>:users:<email>
-
-  // Your protected logic here
-  return c.json({ data: 'protected' });
-});
-```
-
-### Add Routes to Protected Router
-
-If adding routes to an existing protected router (like the resources router), they automatically inherit authentication:
-
-```typescript
-// routes/resources/routes/my-new-route.ts
-import { ResourcesRouterType } from '../shared';
-
-export function registerMyNewRoute(router: ResourcesRouterType) {
-  // This route is AUTOMATICALLY protected by router.use() in shared.ts
-  router.post('/api/resources/:id/my-action', async (c) => {
-    const principal = c.get('principal'); // available automatically
-    // Your logic here
-  });
-}
-```
-
-### Making a Route Public
-
-To make a route public, either:
-
-1. **Create a separate router without auth middleware** (for grouped public routes)
-2. **Update the OpenAPI spec** to mark the route public (`"security": []`)
-
-```typescript
-// Example: Public routes router (no auth middleware)
-export const publicRouter = new Hono();
-
-// These routes are public
-publicRouter.get('/api/health', async (c) => {
-  return c.json({ status: 'healthy' });
-});
-
-```
-
-**IMPORTANT**: Mark public routes in OpenAPI spec:
-
-```json
-// specs/src/paths/health.json
-{
-  "get": {
-    "summary": "Health check",
-    "security": [],
-    "responses": { ... }
-  }
-}
-```
-
-### Role Gates
-
-The gateway has exactly one authorization gate: `authMiddleware`, which answers
-401 or admits the request. Nothing in the gateway reads a role to decide access,
-and no route returns 403.
-
-The principal carries no admission flags. It is derived from the token's own
-claims — DID, email, name, image, domain, and the `roles` the token carries —
-so there is no admission opinion for the gateway to hold. `roles` gates nothing
-here: `POST /bus/emit` stamps it onto the payload as `_roles`, and the dispatcher
-authorizes a `job:claim` by it.
-Accounts are administered at the knowledge base's identity provider, and a
-token's lifetime is the revocation window: disabling an account there stops the
-issuer minting and refreshing, and a token already issued works until it expires.
-
-## Gateway Authentication Flow
-
-### 1. Token Reception
-
-```bash
-# Client sends JWT in Authorization header
-curl -H "Authorization: Bearer eyJhbGc..." \
-  http://localhost:4000/api/documents
-```
-
-### 2. Automatic Validation
-
-The auth middleware automatically:
-- Extracts the token from the `Authorization: Bearer` header (or the `?token=` media token on `GET /api/resources/:id`)
-- Dispatches on the token's `iss`: a token from the trusted issuer is verified
-  against that issuer's published keys (JWKS), issuer and audience checked; a
-  gateway-minted agent token is verified against the gateway's own key ring
-- Checks token expiration
-- Builds the principal from the verified claims — no lookup, because there is
-  no directory here to look in
-- Attaches the principal to the request context
-
-### 3. Route Access
-
-```typescript
-// Principal available in all protected routes
-app.get('/api/documents', async (c) => {
-  const principal = c.get('principal');
-  // principal.did    - who this is, and what their events are attributed to
-  // principal.email  - from the token's claims
-  // principal.domain - the email's domain for a person; the deployment's for an agent
-});
-```
-
-## Token & Session Endpoints
-
-People sign in at the trusted issuer and refresh there; the gateway mints only the
-tokens below. Align behavior to the canonical
-[System Authentication](../../../docs/system/administration/AUTHENTICATION.md).
-
-### `POST /api/tokens/media`
-
-Mint a short-lived, resource-scoped **media token** for header-less fetches
-(`<img>`, `<iframe>`, PDF.js) that can't send an `Authorization` header.
-
-- **Auth**: Requires a valid access token
-- **Body**: `{ resourceId: string }`
-- **Returns**: `{ token: string }` — a 5-minute token scoped to that one resource,
-  presented as `GET /api/resources/:id?token=…` and verified by the auth
-  middleware's media path
-
-### Signing out
-
-The gateway has no logout endpoint, because it never issued the session. A client
-signs out by forgetting its stored session and revoking the refresh token at the
-issuer (RFC 7009), which is what stops a new access token from being minted. The
-access token already in hand stays valid until it expires, minutes later. Nothing
-server-side has to be consulted per request to make that true, which is what lets
-the gateway run N replicas without a shared revocation table.
-
-> **MCP clients.** The previous browser-mediated MCP token-provisioning flow has been
-> **removed**. Today `packages/mcp-server` runs single-gateway with a **static**
-> `SEMIONT_ACCESS_TOKEN` (from env) that does **not** refresh — so it stops working
-> once the access token expires. A refreshing provisioning flow is being rebuilt;
-> this guide will document it once it lands.
-
-## JWT Token Structure
-
-A person's token is the issuer's: its claims are the issuer's, and the gateway
-reads the claim `[identity] subjectClaim` names, `email`, `email_verified`,
-`name` and `picture` from it. A gateway-minted token carries the claim set
-validated by `JWTPayloadSchema` in
-[src/types/jwt-types.ts](../src/types/jwt-types.ts).
-
-### Agent Token
+**Agent tokens** — `POST /api/tokens/agent`. A service account presents its
+issuer token and names a (provider, model); the gateway answers a token for
+that agent, signed with the first key of `JWT_SECRET`, for an hour:
 
 ```json
 {
@@ -220,184 +73,35 @@ validated by `JWTPayloadSchema` in
   "name": "anthropic claude-sonnet-5",
   "domain": "example.github.io:my-kb",
   "roles": ["semiont-worker"],
-  "iss": "example.github.io:my-kb",
   "iat": 1698765432,
-  "exp": 1698769032
+  "exp": 1698769032,
+  "iss": "example.github.io:my-kb"
 }
 ```
 
-`iss` is the knowledge base's own domain. `roles` is present only when the service
-account that asked for the token carried `semiont-worker`, which lets the agent
-claim jobs. The DID is the whole identity: there is no row id beside it.
-The lifetime IS the revocation window — an hour — because no account exists
-anywhere to disable. That is the price of agents having no issuer accounts, and
-it is why the exchange is the gateway's only minting surface.
+`roles` is there only when the service account carried `semiont-worker`. The
+hour is the revocation window: an agent has no account anywhere to disable.
 
-## Security Implementation
+**Media tokens** — `POST /api/tokens/media` with `{ "resourceId": … }`: a
+token naming that one resource (`purpose: "media"`, `sub`) for five minutes,
+accepted only by `GET /api/resources/{id}` for that id.
 
-### JWT Validation Layers
+**Signing out** needs nothing here: the gateway never issued the session. A
+client forgets its session and revokes its refresh token at the issuer; the
+access token in hand lapses minutes later.
 
-The gateway validates tokens through these layers:
+## Debugging
 
-1. **Signature verification** - RS256 against the issuer's published keys (JWKS)
-   for a token from the trusted issuer; HMAC SHA256 against the gateway's own
-   key ring for an agent token it minted itself
-2. **Issuer and audience** - `iss` names the trusted issuer, `aud` carries this
-   knowledge base's derived resource identity
-3. **Payload structure** - Zod schema validation
-4. **Expiration checking** - Token not expired
-
-There is no fifth layer. Verification once ended with a database lookup that
-confirmed the account existed and was active, and with an email-domain
-allowlist; both are gone. Admission belongs to the issuer, so a token the
-issuer signed and has not expired is admitted.
-
-### Security Features
-
-- **Router-level protection** - Routes protected via router.use() middleware
-- **Conformance-tested** - see below
-- **Environment validation** - each key in JWT_SECRET must be 32+ characters (it may be a comma-separated rotation ring)
-- **Request validation** - every JSON body validated against its schema in the spec, by validators generated from it
-- **SQL injection prevention** - not applicable; the gateway issues no SQL and holds no database
-- **CORS** - open (`origin: '*'`, no credentials); safe because auth is bearer-only, not cookie-based
-
-### Security Test Coverage
-
-The [conformance suite](../../../tests/gateway-conformance/README.md) runs a
-built gateway and probes every operation the spec declares:
-
-- **No credential** - every protected operation answers 401 with the challenge and a hint, before reading its body; another scheme, or a cookie, is no credential
-- **A refused credential** - every protected operation answers 401 `invalid_token` to a token it cannot verify, and says nothing of why
-- **Public operations** - answer without a credential, and never challenge
-- **Undeclared methods and paths** - answer 404
-- **Tokens** - wrong audience, issuer, key, expiry or claims; forged gateway-signed tokens; media tokens out of scope; key rotation
-
-A route registered in code and absent from the spec never reaches it: the
-gateway refuses to start when its routes are not exactly the spec's operations.
-Declare the route in the spec first, and the probes cover it.
-
-## Debugging Authentication Issues
-
-### Common Gateway Issues
-
-**"Unauthorized" Error (401)**:
-
-```bash
-# JWT_SECRET is an ordered, comma-separated KEY RING: the first key signs,
-# every key verifies. Check each key's length, not the joined string.
-echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print NR": "length($0)" chars" }'  # each must be 32+
-
-# Test a token manually against every key in the ring (prints the payload
-# from whichever one accepts it).
-node -e '
-  const jwt = require("jsonwebtoken");
-  const token = process.argv[1];
-  for (const secret of process.env.JWT_SECRET.split(",").map(s => s.trim())) {
-    try { console.log(jwt.verify(token, secret)); process.exit(0); } catch {}
-  }
-  console.error("no key in JWT_SECRET verifies this token");
-  process.exit(1);
-' "TOKEN"
-```
-
-Verifying against `process.env.JWT_SECRET` directly only works when the ring holds a
-single key — with a rotation in progress it passes the whole comma-joined string as one
-secret and always fails. See
-[Rotating `JWT_SECRET`](../../../docs/system/administration/AUTHENTICATION.md#rotating-jwt_secret-without-signing-everyone-out)
-for the rotation procedure.
-
-**Unexpected 401**:
-
-No route answers 403 — the gateway reads no role to decide access, so a refusal
-is always a failure to authenticate. Inspect the resolved principal:
-
-```typescript
-app.get('/api/debug-principal', async (c) => {
-  const principal = c.get('principal');
-  return c.json({ principal });
-});
-```
-
-**Token Validation Fails**:
-
-```env
-# Enable debug logging in .env
-DEBUG=hono:*
-LOG_LEVEL=debug
-```
-
-**Issuer Token Rejected**:
-
-- The token's `iss` must equal the configured identity `issuer` exactly (scheme, host, port, path)
-- The token's `aud` must carry the configured `audience`
-- The issuer's JWKS must be reachable from the gateway; a signing key the gateway has not seen triggers one re-fetch
-
-### Gateway Debugging Tools
-
-**1. Log Authentication Attempts**:
-
-```typescript
-// In auth middleware
-console.log('Auth attempt:', {
-  hasHeader: !!authHeader,
-  tokenLength: token?.length,
-  userId: payload?.sub
-});
-```
-
-**2. Verify JWT Secret**:
-
-```bash
-# In development — per key, since JWT_SECRET may be a rotation ring
-echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print "key "NR": "length($0)" chars" }'
-```
-
-**3. Check User Context**:
-
-```typescript
-// Add debug endpoint
-app.get('/api/debug/whoami', async (c) => {
-  const principal = c.get('principal');
-  return c.json({
-    authenticated: !!principal,
-    did: principal?.did,
-    email: principal?.email,
-    domain: principal?.domain
-  });
-});
-```
-
-## Implementation Reference
-
-For complete implementation details including:
-- Complete authentication flow diagrams
-- OAuth provider setup
-- Environment variable configuration
-- Security best practices
-
-See [System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md).
-
-## Related Documentation
-
-- **[System Authentication Architecture](../../../docs/system/administration/AUTHENTICATION.md)** - Complete auth flows and implementation
-- [@semiont/http-transport Reference](../../../packages/http-transport/docs/API-Reference.md) - How clients carry the bearer token and refresh it
-- [Development Guide](./DEVELOPMENT.md) - Setting up OAuth credentials locally
-- [Testing Guide](./TESTING.md) - Testing authenticated endpoints
-
-## Architecture Summary
-
-**Current Implementation (Since August 2025)**:
-- Router-level authentication via `router.use()`
-- No global authentication middleware
-- No PUBLIC_ENDPOINTS array
-- OpenAPI spec defines public vs protected routes
-- Every declared operation's authentication probed by the conformance suite
-
-**Implementation Files**:
-- [src/middleware/auth.ts](../src/middleware/auth.ts) - JWT validation middleware
-- [src/routes/resources/shared.ts](../src/routes/resources/shared.ts) - Resources router with auth
-
----
-
-**Last Updated**: 2026-06-20
-**Scope**: Gateway authentication implementation and debugging
+- **Every 401 is logged** at `warn` with `type: "auth_failed"`, a `reason`
+  (`missing_token`, `invalid_token`, `invalid_media_token`) and the verifier's
+  error; `logLevel: debug` also logs each success with the DID it resolved.
+- **`JWT_SECRET` is a ring**: the first key signs, every key verifies, and each
+  must be 32 characters or more — check them one by one:
+  `echo "$JWT_SECRET" | tr ',' '\n' | awk '{ print NR": "length($0)" chars" }'`.
+- **An issuer token refused**: `iss` must equal `identity.issuer` exactly
+  (scheme, host, port, path); `aud` must carry the knowledge base's resource
+  identifier (`/.well-known/oauth-protected-resource` publishes it as
+  `resource`); the issuer's discovery document and key set must be reachable
+  from the gateway.
+- **Who does a token name?** `GET /api/users/me` with it answers the DID,
+  address, name and domain the gateway resolved.

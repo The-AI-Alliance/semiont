@@ -44,7 +44,7 @@ semiont status
 
 Read which service is unhealthy before anything else. The Browser has no health probe — it is a static file server — so a "Browser problem" is usually a gateway problem seen through the browser.
 
-If the gateway shows `exited`, read its logs — it starts no subprocesses of its own and has no database to reach, so the cause is in the server's own startup. Its `CMD` is `node` on the built server and nothing else: no migration step, and nothing that can fail before the process begins.
+If the gateway shows `exited`, read its logs — it starts no subprocesses of its own and has no database to reach, so the cause is in the server's own startup. Its `CMD` is the gateway binary and nothing else: no migration step, and nothing that can fail before the process begins.
 
 ```bash
 semiont logs --service gateway
@@ -61,7 +61,7 @@ Its startup contract is strict: each unmet requirement stops it before it listen
 | `JWT_SECRET`, or a key in it under 32 characters | `JWT_SECRET is not set …` / `JWT_SECRET must be at least 32 characters long …` |
 | `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | `… not set — this gateway has no service account …` — see below |
 | A broker credential variable the document names (`signal.userEnv`, `signal.passwordEnv`) | `/signal/userEnv names the environment variable …, which is not set` |
-| The broker, under `signal.type = "nats"` | `The broker is unreachable …`, or `… it must run with JetStream enabled.` |
+| The broker, under `signal.type = "nats"` | `cannot connect to the NATS broker at …`, `The broker is unreachable …`, or `… it must run with JetStream enabled.` |
 | Routes and spec in agreement (a build defect, not configuration) | `The gateway's routes are not its spec's operations:` followed by each difference |
 
 See [CONFIGURATION.md](CONFIGURATION.md) for where each of these comes from.

@@ -469,8 +469,7 @@ func ghCodespace(args []string, joined string) {
 		// several lines above the devcontainer's own announcement, which is
 		// why the launcher must print the run-up and not just the marker.
 		if os.Getenv("FAKERT_GH_HOOKS_FAIL") != "" {
-			fmt.Println("semiont-gateway  | Error: JWT_SECRET is not set. `semiont start` generates one per knowledge base and injects it")
-			fmt.Println("semiont-gateway  |     at requireJwtSecret (file:///home/semiont/.local/share/semiont/node_modules/@semiont/gateway/dist/index.js:219:11)")
+			fmt.Println("semiont-gateway  | JWT_SECRET is not set. `semiont start` generates one per knowledge base and injects it; set JWT_SECRET explicitly to override.")
 			fmt.Println("2026-01-01 00:00:02.000Z: Retry after fixing with:  bash .devcontainer/post-start.sh")
 			fmt.Println("2026-01-01 00:00:02.100Z: postStartCommand from devcontainer.json failed with exit code 1. Skipping any further user-provided commands.")
 			fmt.Println("2026-01-01 00:00:02.200Z: devcontainer process exited with exit code 1")

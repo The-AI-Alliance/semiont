@@ -9,6 +9,6 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..
  * the environment, and talks to it over HTTP. vitest.config.ts provides it to
  * the cases as `gatewayCommand`.
  */
-export const GATEWAY_COMMAND: readonly string[] = ['node', join(REPO_ROOT, 'apps/gateway/dist/index.js')];
+export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'apps/gateway/target/release/semiont-gateway')];
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

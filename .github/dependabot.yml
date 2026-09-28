@@ -144,6 +144,29 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
+  # The gateway's crates (apps/gateway, Rust). One grouped PR: the crates move
+  # together (the OpenTelemetry and hyper families especially), and every bump
+  # runs the conformance suite and the crate licence gate.
+  - package-ecosystem: "cargo"
+    directory: "/apps/gateway"
+    cooldown:
+      default-days: 5
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "gateway"
+    groups:
+      gateway-crates:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "gateway"
+      include: "scope"
+
   # GitHub Actions dependencies
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -198,8 +221,9 @@ updates:
       include: "scope"
 
   # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
-  # they share a base image, so an ungrouped bump opens six PRs for one
-  # upgrade. Major node updates are ignored because node 26's undici breaks
+  # the sidecars share a base image, so an ungrouped bump opens six PRs for one
+  # upgrade. The gateway's runtime base is alpine; its builder's Rust tag comes
+  # from apps/gateway/rust-toolchain.toml, which no updater reads. Major node updates are ignored because node 26's undici breaks
   # the qdrant client's undici@6; drop the ignore when qdrant ships a fix.
   # apps/browser has its own entry and stays on node:26 — it never dials Qdrant.
   - package-ecosystem: "docker"

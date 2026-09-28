@@ -9,13 +9,14 @@ This guide covers how Semiont's test suites are organized, configured and run: t
 - **The SDK's test doubles** (`@semiont/sdk/testing`, `@semiont/core/testing`) stand in for a knowledge base: a real `SemiontClient` over a scriptable in-memory transport. Unit tests make no network requests.
 - **Playwright** drives the live Browser in the end-to-end suite.
 - **Go's `testing` package** covers the launcher and `packages/sdk-go`.
+- **Cargo's test harness** runs the gateway's shared-table runners (`apps/gateway/tests`).
 
 ## Test Suites
 
 | Suite | Where | What it exercises | Needs |
 |---|---|---|---|
-| Workspace suites | every workspace in `apps/*` and `packages/*` with a `test` script, the gateway aside | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
-| Gateway manifest census | `apps/gateway` (`npm test`) | The gateway's `package.json`: its runtime dependencies are exactly what its source imports | Nothing |
+| Workspace suites | every workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
+| Gateway table runners | `apps/gateway` (`cargo test`) | The gateway's DID, address, name and resource-identifier functions against the shared case tables (`specs/src/principals`, `specs/src/kb-identity`) | The toolchain `apps/gateway/rust-toolchain.toml` names |
 | Gateway conformance | [`tests/gateway-conformance`](../../tests/gateway-conformance/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway and `nats-server` 2.10 or later on `PATH` |
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start/stop lifecycles; the Go bus client's wire contract | The Go toolchain named in each `go.mod` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user in its issuer |
@@ -52,7 +53,7 @@ Each workspace's `vitest.config.*` merges it with `mergeConfig` and adds only wh
 | `packages/content` | a global setup that regenerates the gitignored PDF fixtures before every run |
 | `packages/event-sourcing`, `packages/make-meaning` | a setup file that points `XDG_STATE_HOME` into the OS temp directory; make-meaning's also sets a 10-second test timeout |
 | `packages/mcp-server` | test files limited to `src/**/*.test.ts`; a coverage `include` of `src/**/*.ts`, less `src/index.ts`, which boots a stdio server on import and is tested as a process |
-| `apps/gateway`, and `packages/` `graph`, `http-transport`, `inference`, `jobs`, `observability`, `ontology`, `sdk`, `vectors` | nothing |
+| `packages/` `graph`, `http-transport`, `inference`, `jobs`, `observability`, `ontology`, `sdk`, `vectors` | nothing |
 
 A coverage `include` also reports the files it matches that no test loads; without one, a report covers only the files the tests load.
 
@@ -79,7 +80,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### The gateway conformance suite
 
-[`tests/gateway-conformance/vitest.config.ts`](../../tests/gateway-conformance/vitest.config.ts) is its own config, not derived from the shared one: test files `cases/**/*.test.ts`; the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. Its global setup refuses to start without a built gateway (`apps/gateway/dist/index.js`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
+[`tests/gateway-conformance/vitest.config.ts`](../../tests/gateway-conformance/vitest.config.ts) is its own config, not derived from the shared one: test files `cases/**/*.test.ts` and the harness's own `harness/**/*.test.ts`; the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. It provides the command a gateway is started with, `GATEWAY_COMMAND` in `harness/paths.ts`; its global setup refuses to start without that gateway built (`apps/gateway/target/release/semiont-gateway`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
 
 Each gateway the suite starts gets a fresh temporary `HOME` holding `~/.semiontconfig` — the `GatewayConfig` document — and an environment of `PATH`, `HOME`, and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
 
@@ -319,7 +320,7 @@ test('manual highlight persists', async ({ signedInPage: page, bus }) => {
 });
 ```
 
-The same bus log works in Node — set `SEMIONT_BUS_LOG=1` and every gateway / worker / smelter emit gets logged. Useful well beyond e2e; covered in [`tests/e2e/docs/bus-logging.md`](../../tests/e2e/docs/bus-logging.md).
+The same bus log works in the services — set `SEMIONT_BUS_LOG=1` and every gateway / worker / smelter emit gets logged (the gateway writes it to stderr). Useful well beyond e2e; covered in [`tests/e2e/docs/bus-logging.md`](../../tests/e2e/docs/bus-logging.md).
 
 ### Required environment
 
@@ -517,11 +518,11 @@ npm run test:ui             # Vitest UI
 
 `test`, `test:coverage` and `test:security` first run `scripts/merge-translations.js`, which generates the gitignored `messages/` directory the i18n mock reads; the other scripts expect it to exist.
 
-Gateway (`apps/gateway/`): `npm test` runs only the manifest census. The gateway's behaviour is the conformance suite's, run against a built gateway:
+Gateway (`apps/gateway/`, Rust): `cargo test` runs only the shared-table runners. The gateway's behaviour is the conformance suite's, run against a built gateway:
 
 ```bash
+(cd apps/gateway && cargo build --release)
 npm run build:packages
-npm run build -w semiont-gateway
 cd tests/gateway-conformance
 npm ci
 npm test
@@ -624,9 +625,9 @@ Node 24, with these jobs:
 | Job | What it covers |
 |---|---|
 | `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
-| `test-gateway` | `npm run typecheck` + the manifest census for `apps/gateway` |
+| `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for `apps/gateway`; the crates it links held to the licence policy and its image's NOTICE |
 | `gateway-conformance` | Builds the gateway, installs `nats-server`, runs `tests/gateway-conformance` |
-| `test-comprehensive` | The Browser suite and the gateway census again, one subshell each |
+| `test-comprehensive` | The Browser suite again |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
 | `build-all` | `npm run build`, after `test-browser` and `test-gateway` pass |
@@ -652,7 +653,7 @@ everything — CI runs the full matrix.
 ### Workspace Testing Guides
 - [Browser Testing](../../apps/browser/docs/TESTING.md) - Browser test layout and scripts
 - [react-ui Testing](../../packages/react-ui/docs/TESTING.md) - Component testing by composition, test utilities
-- [Gateway Testing](../../apps/gateway/docs/TESTING.md) - What checks the gateway: the spec lint, the conformance suite, the boot, the census
+- [Gateway Testing](../../apps/gateway/docs/TESTING.md) - What checks the gateway: the spec lint, the conformance suite, the boot, the table runners
 - [Gateway Conformance Suite](../../tests/gateway-conformance/README.md) - What the black-box suite checks and how to run it
 
 ### End-to-End Testing

@@ -22,13 +22,13 @@ The claim is a flat array of strings under `roles`, deliberately **not**
 Keycloak's nested `realm_access.roles`. Nothing in the verification path carries
 a vendor name, so an operator federating a different issuer maps their own groups
 into the same claim. It is checked in
-[`agent-minter.ts`](../../apps/gateway/src/identity/agent-minter.ts) and
+[`principal.rs`](../../apps/gateway/src/principal.rs) and
 [`archivist-read-path.ts`](../../packages/make-meaning/src/archivist-read-path.ts).
 
 ### There are no human roles
 
 The gateway reads no role, flag, or group to decide what a person may do. The
-[`Principal`](../../apps/gateway/src/identity/principal.ts) built from a verified
+[`Principal`](../../apps/gateway/src/principal.rs) built from a verified
 token carries no role field at all.
 
 Admin and moderator **realm** roles are a deferred decision, not pending work.

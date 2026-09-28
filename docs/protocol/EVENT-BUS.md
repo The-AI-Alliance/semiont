@@ -115,13 +115,12 @@ pattern: TS gets it free from the `never` default; Go needs its census extended.
 
 Commands that mutate state need to know who is making them. The convention: clients **never** set `_userId` or `_roles` themselves. The `/bus/emit` gateway verifies the bearer token, builds the principal from its claims, and stamps both onto the payload before forwarding it onto the bus — clearing whatever a caller wrote there first:
 
-```ts
-// apps/gateway/src/routes/bus.ts
-const principal = c.get('principal');
-delete payload._roles;
-if (principal) {
-  payload._userId = principal.did;
-  if (principal.roles?.length) payload._roles = principal.roles;
+```rust
+// apps/gateway/src/routes/bus.rs
+payload.remove("_roles");
+payload.insert("_userId".to_owned(), json!(principal.did));
+if let Some(roles) = principal.roles.as_ref().filter(|r| !r.is_empty()) {
+    payload.insert("_roles".to_owned(), json!(roles));
 }
 ```
 
@@ -290,7 +289,7 @@ Five operations, all logged at transport-contract choke points (not in the SDK's
 |---|---|
 | `EMIT` | `HttpTransport.emit()`, `LocalTransport.emit()`, gateway `/bus/emit` route |
 | `RECV` | HttpTransport SSE-side fan-in, `LocalTransport.bridgeInto` callback |
-| `SSE` | Gateway `writeBusEvent()` in `apps/gateway/src/routes/bus.ts` |
+| `SSE` | Gateway `Connection::deliver` in `apps/gateway/src/routes/stream.rs` (on stderr) |
 | `PUT` | `HttpContentTransport.putBinary()` + matching gateway route |
 | `GET` | `HttpContentTransport.getBinary()` / `getBinaryStream()` + matching gateway route |
 

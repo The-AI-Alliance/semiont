@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Stage gateway and browser apps for npm publishing.
+ * Stage the browser app for npm publishing.
  *
- * Creates staging directories with pre-built artifacts and publish-ready
- * package.json files. The staged directories can then be published with
- * `npm publish` from within each staging dir.
+ * Creates a staging directory with the pre-built artifacts and a publish-ready
+ * package.json, which can then be published with `npm publish` from within it.
+ * (The gateway is not an npm package: its image compiles it from the
+ * repository.)
  *
  * Usage:
- *   node scripts/ci/publish-npm-apps.mjs                # Stage both apps
+ *   node scripts/ci/publish-npm-apps.mjs                # Stage the browser
  *   node scripts/ci/publish-npm-apps.mjs --dry-run      # Show what would be staged
  */
 
@@ -30,97 +31,6 @@ function getVersion() {
 
 function log(msg) {
   console.log(msg);
-}
-
-/**
- * Curated source `devDependencies` that the *published* gateway needs at
- * runtime even though source treats them as dev-only.
- *
- * Nothing currently needs promoting. `prisma` was the only entry — the gateway
- * ran migrations at startup — and the gateway holds no database now. The hook
- * stays because the next runtime devDependency would otherwise have to
- * rediscover the problem; the throw below guards whatever is added here.
- */
-const GATEWAY_RUNTIME_DEVDEPS = [];
-
-/**
- * Derive the published gateway's `dependencies` from source — the single source
- * of truth for external runtime version ranges. This mirrors stampInternalDeps
- * (which owns the internal `@semiont/*` pins): instead of hand-maintaining a
- * second copy of the dep ranges in `package.publish.json` (which silently
- * drifted), we read them straight from `apps/gateway/package.json` so they can
- * never diverge. External ranges and the internal `@semiont/*` set both come
- * verbatim from source; runtime deps that source keeps as devDependencies
- * (GATEWAY_RUNTIME_DEVDEPS) are folded in. The internal `"*"` ranges are pinned
- * to the exact release version afterwards by stampInternalDeps.
- *
- * @param {string} gatewayDir absolute path to apps/gateway
- * @returns {Record<string,string>} the staged manifest's `dependencies`
- */
-function deriveGatewayRuntimeDeps(gatewayDir) {
-  const src = JSON.parse(readFileSync(resolve(gatewayDir, 'package.json'), 'utf-8'));
-  const deps = { ...src.dependencies };
-  for (const name of GATEWAY_RUNTIME_DEVDEPS) {
-    const range = src.devDependencies?.[name];
-    if (!range) {
-      throw new Error(
-        `Cannot promote '${name}' to a runtime dependency: not found in apps/gateway/package.json devDependencies`
-      );
-    }
-    deps[name] = range;
-  }
-  // Stable alphabetical ordering for a clean, diffable staged manifest.
-  return Object.fromEntries(Object.keys(deps).sort().map((k) => [k, deps[k]]));
-}
-
-function stageGateway(version) {
-  log('\n=== Staging @semiont/gateway ===\n');
-
-  const gatewayDir = resolve(rootDir, 'apps/gateway');
-  const stageDir = resolve(STAGE_DIR, 'gateway');
-
-  if (DRY_RUN) {
-    log(`  Would stage to: ${stageDir}`);
-    log(`  Would copy: dist/`);
-    log(`  Would use: package.publish.json with version ${version}`);
-    log(`  Would derive dependencies from apps/gateway/package.json (promoted: ${GATEWAY_RUNTIME_DEVDEPS.join(', ')})`);
-    return stageDir;
-  }
-
-  // Verify built artifacts exist
-  const distIndex = resolve(gatewayDir, 'dist/index.js');
-  if (!existsSync(distIndex)) {
-    throw new Error(`Gateway not built: ${distIndex} not found. Run 'npm run build' in apps/gateway first.`);
-  }
-
-  // Clean and create staging directory
-  if (existsSync(stageDir)) rmSync(stageDir, { recursive: true });
-  mkdirSync(stageDir, { recursive: true });
-
-  // Copy built artifacts
-  execFileSync('cp', ['-r', resolve(gatewayDir, 'dist'), resolve(stageDir, 'dist')]);
-
-  // Copy and update publish package.json. `package.publish.json` holds only the
-  // publish metadata that differs from source (name, bin, files, …) — NOT deps.
-  const publishPkg = JSON.parse(readFileSync(resolve(gatewayDir, 'package.publish.json'), 'utf-8'));
-  publishPkg.version = version;
-
-  // Derive runtime deps from source (single source of truth for external
-  // ranges), then pin internal @semiont/* cross-deps to the exact release
-  // version (single stamper).
-  publishPkg.dependencies = deriveGatewayRuntimeDeps(gatewayDir);
-  stampInternalDeps(publishPkg, version);
-
-  writeFileSync(resolve(stageDir, 'package.json'), JSON.stringify(publishPkg, null, 2) + '\n');
-
-  // Copy README for npm listing
-  execFileSync('cp', [resolve(gatewayDir, 'README.npm.md'), resolve(stageDir, 'README.md')]);
-
-  log(`  Derived ${Object.keys(publishPkg.dependencies).length} runtime deps from source (promoted: ${GATEWAY_RUNTIME_DEVDEPS.join(', ')})`);
-  log(`  Staged @semiont/gateway@${version} to ${stageDir}`);
-  log(`  Files: dist/, package.json, README.md`);
-
-  return stageDir;
 }
 
 function stageBrowser(version) {
@@ -178,10 +88,8 @@ const version = getVersion();
 log(`Version: ${version}`);
 if (DRY_RUN) log('(dry run)\n');
 
-const gatewayStage = stageGateway(version);
 const browserStage = stageBrowser(version);
 
 log('\n=== Staging complete ===\n');
 log('To publish:');
-log(`  cd ${gatewayStage} && npm publish --access public`);
 log(`  cd ${browserStage} && npm publish --access public`);

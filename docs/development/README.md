@@ -38,7 +38,7 @@ semiont/
 │   └── docs/                   # API and W3C annotation documentation
 ├── apps/                       # Application packages
 │   ├── browser/               # Vite + React Browser SPA
-│   ├── gateway/                # Hono gateway API server
+│   ├── gateway/                # Rust gateway, built against specs/
 │   ├── launcher/               # Go `semiont` launcher (brew-installed)
 │   └── desktop/                # Desktop app
 ├── packages/                   # Shared workspace packages (see packages/README.md)

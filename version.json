@@ -71,12 +71,6 @@
       "version": "0.6.5",
       "publish": false
     },
-    "semiont-gateway": {
-      "dir": "apps/gateway",
-      "stage": ".npm-stage/gateway",
-      "version": "0.6.5",
-      "publish": true
-    },
     "semiont-browser": {
       "dir": "apps/browser",
       "stage": ".npm-stage/browser",

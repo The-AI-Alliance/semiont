@@ -88,7 +88,7 @@ That is the whole list. There are **no** OAuth client credentials here: the gate
 
 ### One gateway, everywhere
 
-The gateway has no development mode: it reads no `NODE_ENV` and behaves the same wherever it runs.
+The gateway has no development mode: it reads no variable that selects one, and behaves the same wherever it runs.
 
 - **Authentication** is always required, against the trusted issuer.
 - **Error bodies** never carry internals — a stack frame, a source path or a secret's name — anywhere; the conformance suite checks every one. The cause goes to the log.

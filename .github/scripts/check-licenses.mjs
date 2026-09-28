@@ -8,14 +8,13 @@
 //
 // Usage: node check-licenses.mjs <sbom.spdx.json> <allowlist.txt> [exceptions.txt]
 //
-// SPDX license expressions are evaluated properly: `A OR B` passes if either
-// side is allowed, `A AND B` needs both, `A WITH exc` is judged on `A`, and
-// parentheses group as written. NOASSERTION / NONE / LicenseRef-* (an
-// undetermined or non-standard license) fails as "unknown" so a human reviews —
-// unless the package is listed in exceptions.txt with a human-verified SPDX id
-// (which is itself still checked against the allowlist).
+// The policy — the allowlist, the exceptions, and how an SPDX expression is
+// judged — is license-policy.mjs's. An undetermined license fails as "unknown"
+// so a human reviews, unless exceptions.txt lists the package with a
+// human-verified SPDX id (itself still checked against the allowlist).
 
 import { readFileSync } from 'node:fs';
+import { loadPolicy } from './license-policy.mjs';
 
 const [sbomPath, allowlistPath, exceptionsPath] = process.argv.slice(2);
 if (!sbomPath || !allowlistPath) {
@@ -23,91 +22,7 @@ if (!sbomPath || !allowlistPath) {
   process.exit(2);
 }
 
-// --- Allowlist -------------------------------------------------------------
-
-const exact = new Set();
-const prefixes = [];
-for (const raw of readFileSync(allowlistPath, 'utf8').split('\n')) {
-  const line = raw.replace(/#.*/, '').trim();
-  if (!line) continue;
-  if (line.endsWith('*')) prefixes.push(line.slice(0, -1).toLowerCase());
-  else exact.add(line.toLowerCase());
-}
-
-// --- Exceptions (package name → human-verified SPDX id) --------------------
-//
-// A trailing `*` is a prefix wildcard, same as the allowlist above. It exists
-// for generators that name their output with a content hash, where the name
-// changes whenever the source does and an exact entry would silently go stale.
-// (Prisma 7 was the case this was built for; the gateway no longer uses it.)
-
-const exceptions = new Map();
-const exceptionPrefixes = [];
-if (exceptionsPath) {
-  for (const raw of readFileSync(exceptionsPath, 'utf8').split('\n')) {
-    const line = raw.replace(/#.*/, '').trim();
-    if (!line) continue;
-    const [name, spdx] = line.split(/\s+/);
-    if (!name || !spdx) continue;
-    if (name.endsWith('*')) exceptionPrefixes.push([name.slice(0, -1), spdx]);
-    else exceptions.set(name, spdx);
-  }
-}
-
-// The verified SPDX id for a package with no license of its own, or undefined.
-// Exact entries win over prefixes; the result is still checked against the
-// allowlist by the caller, so an exception can only ever rescue a package TO a
-// permissive license, never past the policy.
-function exceptionFor(pkgName) {
-  if (exceptions.has(pkgName)) return exceptions.get(pkgName);
-  const hit = exceptionPrefixes.find(([p]) => pkgName.startsWith(p));
-  return hit?.[1];
-}
-
-// True if a single SPDX license id is permitted by the allowlist.
-function idAllowed(id) {
-  let s = id.trim().toLowerCase().replace(/\+$/, ''); // drop "or-later" '+'
-  if (!s || s === 'noassertion' || s === 'none') return false;
-  if (s.startsWith('licenseref-')) return false; // non-standard → review
-  if (exact.has(s)) return true;
-  return prefixes.some((p) => s.startsWith(p));
-}
-
-// --- SPDX expression evaluator (recursive descent) -------------------------
-
-function tokenize(expr) {
-  return expr.replace(/\(/g, ' ( ').replace(/\)/g, ' ) ').split(/\s+/).filter(Boolean);
-}
-
-function evalExpr(expr) {
-  const toks = tokenize(expr);
-  let i = 0;
-  const peek = () => toks[i];
-  const isOp = (t, op) => t && t.toUpperCase() === op;
-
-  function parseOr() {
-    let v = parseAnd();
-    while (isOp(peek(), 'OR')) { i++; v = parseAnd() || v; }
-    return v;
-  }
-  function parseAnd() {
-    let v = parseWith();
-    while (isOp(peek(), 'AND')) { i++; v = parseWith() && v; }
-    return v;
-  }
-  function parseWith() {
-    const v = parseAtom();
-    if (isOp(peek(), 'WITH')) { i++; i++; } // consume WITH and its exception id
-    return v;
-  }
-  function parseAtom() {
-    if (peek() === '(') { i++; const v = parseOr(); if (peek() === ')') i++; return v; }
-    return idAllowed(toks[i++] ?? '');
-  }
-
-  const result = parseOr();
-  return { allowed: result, consumedAll: i >= toks.length };
-}
+const policy = loadPolicy(allowlistPath, exceptionsPath);
 
 // --- Walk the SBOM ---------------------------------------------------------
 
@@ -143,7 +58,7 @@ for (const pkg of packages) {
   // a real detected license (even a bad one) is never masked.
   let viaException = false;
   if (license === null) {
-    const verified = exceptionFor(pkg.name);
+    const verified = policy.exceptionFor(pkg.name);
     if (verified !== undefined) {
       license = verified;
       viaException = true;
@@ -154,14 +69,13 @@ for (const pkg of packages) {
     unknown.push({ name, license: pkg.licenseDeclared ?? 'NOASSERTION' });
     continue;
   }
-  const { allowed } = evalExpr(license);
-  if (!allowed) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
+  if (!policy.allows(license)) disallowed.push({ name, license: viaException ? `${license} (exception)` : license });
   else if (viaException) excepted.push({ name, license });
 }
 
 // --- Report ----------------------------------------------------------------
 
-console.log(`Scanned ${scanned} npm dependencies against ${exact.size + prefixes.length} allowlist entries.`);
+console.log(`Scanned ${scanned} npm dependencies against ${policy.size} allowlist entries.`);
 
 for (const e of excepted) {
   console.log(`ℹ️  ${e.name}: no license in metadata; using verified exception → ${e.license}`);

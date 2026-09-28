@@ -3,9 +3,9 @@ FROM node:26-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_BROWSER_VERSION=latest
 WORKDIR /app
-# Cache mount, same shape and rationale as apps/gateway/Dockerfile: persists
-# across --no-cache builds, never enters the image, republished @semiont/*
-# still fetch fresh. No `npm cache clean` — the cache never reaches a layer.
+# Cache mount: persists across --no-cache builds, never enters the image, and
+# republished @semiont/* still fetch fresh. No `npm cache clean` — the cache
+# never reaches a layer.
 RUN --mount=type=cache,target=/root/.npm \
     npm config set registry $NPM_REGISTRY && \
     npm init -y && \

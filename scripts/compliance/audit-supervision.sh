@@ -7,8 +7,9 @@ set -euo pipefail
 # The image half of a split gate. Supervision is decided per RUN by the
 # launcher (SEMIONT_SUPERVISE), so this gate can only prove an image is
 # CAPABLE of it: tini as PID 1, a boot entrypoint that branches on the flag,
-# the shared supervisor on board, and a conventional exec-form `node` CMD —
-# the single statement of what the image runs, in both modes. The launcher
+# the shared supervisor on board, and a conventional exec-form CMD (`node`
+# on an entry module, or the gateway's binary) — the single statement of
+# what the image runs, in both modes. The launcher
 # half (launcher_test.go) proves local runs actually pass the flag; landing
 # one half without the other is silent unsupervised operation.
 #
@@ -51,17 +52,16 @@ for df in apps/*/Dockerfile; do
   grep -q "$BOOT" "$df"   || { echo "❌ supervision: $df does not COPY $BOOT"; FAIL=1; }
   grep -qE 'apk add [^&|;]*tini' "$df" || { echo "❌ supervision: $df does not install tini"; FAIL=1; }
 
-  # PID 1 is tini, exec'ing a boot script (boot.sh, or a service-specific
-  # *-boot.sh that ends by exec'ing the shared one — the gateway's shape).
-  if ! grep -qE '^ENTRYPOINT \["/sbin/tini", "--", "/usr/local/bin/[a-z-]*boot\.sh"\]' "$df"; then
+  # PID 1 is tini, exec'ing the shared boot script.
+  if ! grep -qE '^ENTRYPOINT \["/sbin/tini", "--", "/usr/local/bin/boot\.sh"\]$' "$df"; then
     echo "❌ supervision: $df has no tini→boot ENTRYPOINT"
     FAIL=1
   fi
 
   # CMD is the conventional exec form a Kubernetes user expects to see, and
   # the ONLY statement of the entry path (D4).
-  if ! grep -qE '^CMD \["node", "/[^"]+\.js"\]$' "$df"; then
-    echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\"]"
+  if ! grep -qE '^CMD \[("node", "/[^"]+\.js"|"/usr/local/bin/[a-z-]+")\]$' "$df"; then
+    echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\"] or [\"/usr/local/bin/<binary>\"]"
     FAIL=1
   fi
   if sed -n '/^CMD/,$p' "$df" | grep -q "supervise.sh"; then

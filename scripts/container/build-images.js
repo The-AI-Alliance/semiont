@@ -15,7 +15,7 @@
  */
 
 const { spawn } = require('child_process');
-const { existsSync } = require('fs');
+const { existsSync, readFileSync } = require('fs');
 const { join } = require('path');
 
 const PROJECT_ROOT = join(__dirname, '..', '..');
@@ -115,8 +115,11 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
   }
 }
 
+/** The gateway compiles with the toolchain apps/gateway/rust-toolchain.toml pins. */
 async function buildGateway(runtime) {
-  await buildImage('gateway', 'apps/gateway/Dockerfile', '.', [], runtime);
+  const toolchain = /^channel = "(.*)"$/m.exec(readFileSync('apps/gateway/rust-toolchain.toml', 'utf-8'))?.[1];
+  if (!toolchain) throw new Error('apps/gateway/rust-toolchain.toml names no channel');
+  await buildImage('gateway', 'apps/gateway/Dockerfile', '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
 }
 
 async function buildBrowser(runtime) {

@@ -11,7 +11,7 @@ through that lifecycle.
 | Container | What's inside | Where it comes from |
 |---|---|---|
 | `semiont-browser` | Vite-built SPA served on `:3000` | published image, or `:local` via `scripts/ci/local-build.sh` |
-| `semiont-gateway` | `@semiont/gateway` on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
+| `semiont-gateway` | the gateway (Rust, `apps/gateway`) on `:4000` | published image, or `:local` via `scripts/ci/local-build.sh` |
 | `semiont-archivist`, `semiont-librarian`, `semiont-dispatcher`, `semiont-worker`, `semiont-smelter`, `semiont-weaver` | The services behind the gateway: the record, search, the job queue, inference jobs, and the two projection pipelines | published images, or `:local` via `scripts/ci/local-build.sh` |
 | plus: `semiont-neo4j`, `semiont-qdrant`, `semiont-ollama`, `semiont-postgres`, `semiont-nats`, `semiont-keycloak`, `semiont-jaeger` | Storage, inference, messaging, identity, traces | started by `semiont start` |
 

@@ -10,8 +10,8 @@
  * every job:claim (worker role) against a realm that looks correct in the
  * console. That is the failure this gate makes loud.
  *
- * The TypeScript readers live in core, so they cannot drift. Go and Rust cannot
- * import that module, and a fake runtime importing the production package to
+ * The TypeScript readers live in core, so they cannot drift. Go and Rust (the
+ * gateway) cannot import that module, and a fake runtime importing the production package to
  * borrow a literal would be a worse coupling than this check — so the remaining
  * sites are held together here.
  *
@@ -45,7 +45,7 @@ const ROLES = [
         pattern: /SERVICE_ROLE\s*=\s*'([^']+)'/,
       },
       {
-        file: 'apps/gateway-rs/src/roles.rs',
+        file: 'apps/gateway/src/roles.rs',
         what: 'the value the Rust gateway gates /api/tokens/agent on',
         pattern: /SERVICE_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },
@@ -70,7 +70,7 @@ const ROLES = [
         pattern: /WORKER_ROLE\s*=\s*'([^']+)'/,
       },
       {
-        file: 'apps/gateway-rs/src/roles.rs',
+        file: 'apps/gateway/src/roles.rs',
         what: 'the grant the Rust gateway delegates to a worker\'s agent token',
         pattern: /WORKER_ROLE:\s*&str\s*=\s*"([^"]+)"/,
       },

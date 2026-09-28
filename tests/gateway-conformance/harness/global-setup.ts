@@ -28,10 +28,7 @@ export default function setup(project: TestProject): () => void {
   const command = project.getProvidedContext().gatewayCommand;
   const entry = command[command.length - 1]!;
   if (!existsSync(entry)) {
-    throw new Error(
-      `The gateway is not built: ${entry} does not exist. Build the one this configuration starts: ` +
-        '`npm run build -w semiont-gateway` at the repository root, or `cargo build --release` in apps/gateway-rs.',
-    );
+    throw new Error(`The gateway is not built: ${entry} does not exist. Run \`cargo build --release\` in apps/gateway.`);
   }
   try {
     execFileSync('nats-server', ['--version'], { stdio: 'ignore' });
