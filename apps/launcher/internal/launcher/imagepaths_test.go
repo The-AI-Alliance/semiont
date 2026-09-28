@@ -99,12 +99,12 @@ func TestExactlyOneContainerMountsTheKB(t *testing.T) {
 	// now — the others cannot mount it because they are not given it, which is
 	// the property expressed in the signatures themselves.
 	fleet := map[string][]string{
-		"gateway":   gatewayArgs("/stage", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
-		"archivist": archivistArgs(kbRoot, "/stage", "1.2.3.4", "client-secret", "v", nil, nil),
-		"librarian": librarianArgs("/stage", "1.2.3.4", "client-secret", "v", nil, nil),
-		"worker":    sidecarArgs("worker", 24100, "/stage", "1.2.3.4", "client-secret", "v", nil, nil),
-		"smelter":   sidecarArgs("smelter", 24101, "/stage", "1.2.3.4", "client-secret", "v", nil, nil),
-		"weaver":    sidecarArgs("weaver", 24102, "/stage", "1.2.3.4", "client-secret", "v", nil, nil),
+		"gateway":   gatewayArgs("/stage", "container", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil),
+		"archivist": archivistArgs(kbRoot, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"librarian": librarianArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"smelter":   sidecarArgs("smelter", 24101, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
+		"weaver":    sidecarArgs("weaver", 24102, "/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil),
 	}
 
 	var mounters []string

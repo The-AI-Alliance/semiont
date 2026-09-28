@@ -62,12 +62,12 @@ func secretName(field, value string) (*string, error) {
 // variables. The gateway-host variables are absent on purpose: the gateway
 // never received them (gatewayArgs), so a ${GATEWAY_HOST:-…} in its
 // publicURL takes its default, as it always has.
-func gatewayVars(addr string, userEnv []string) map[string]string {
+func gatewayVars(rt, addr string, userEnv []string) map[string]string {
 	vars := map[string]string{}
 	for _, name := range []string{"POSTGRES_HOST", "NEO4J_HOST", "NATS_HOST", "QDRANT_HOST", "OLLAMA_HOST"} {
 		vars[name] = addr
 	}
-	vars["KEYCLOAK_HOST"] = identityHost(addr)
+	vars["KEYCLOAK_HOST"] = identityHost(rt, addr)
 	for i := 0; i+1 < len(userEnv); i += 2 {
 		if userEnv[i] == "--env" {
 			if name, value, ok := strings.Cut(userEnv[i+1], "="); ok {
@@ -88,14 +88,14 @@ const connectionAllowance = 20 << 10
 // and nowhere else: no [signal] is the in-process plane, no logLevel is info,
 // the log format is JSON (a KB config names none), no publicURL is the local
 // address, and a hand-written archivist section wins over the launcher's.
-func gatewayDocument(env *envConfig, kbName, kbDomain, addr string, port int, userEnv []string) ([]byte, error) {
+func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, port int, userEnv []string) ([]byte, error) {
 	if kbDomain == "" {
 		return nil, fmt.Errorf("the knowledge base declares no [site] domain in its .semiont/config: the gateway has no identity to run under")
 	}
 	if env.Identity == nil {
 		return nil, fmt.Errorf("the environment declares no [identity]: the gateway has no issuer to trust")
 	}
-	vars := gatewayVars(addr, userEnv)
+	vars := gatewayVars(rt, addr, userEnv)
 	var doc semiont.GatewayConfig
 	var err error
 	doc.Kb.Name, doc.Kb.Domain = kbName, kbDomain

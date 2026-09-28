@@ -377,7 +377,7 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		env, _, _, err := loadConfig(fc.configFile)
 		if err == nil {
 			var doc []byte
-			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), addr, fc.plan.GatewayPort, fc.userEnv); err == nil {
+			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), x.rt, addr, fc.plan.GatewayPort, fc.userEnv); err == nil {
 				err = os.WriteFile(filepath.Join(stage, gatewayDocumentFile), doc, 0o644)
 			}
 		}

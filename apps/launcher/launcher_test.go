@@ -496,19 +496,54 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
-	// Docker's host address resolves only inside containers, so the issuer is
-	// named where the laptop's Browser reaches it too — and every container
-	// that holds a credential at it can resolve that name. A service builder
-	// that forgot either half would fail sign-in or its own start.
-	for _, line := range strings.Split(s.argv(t), "\n") {
-		if !strings.Contains(line, "SEMIONT_OIDC_CLIENT_ID=") {
-			continue
-		}
-		if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
-			t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
-		}
-		if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
-			t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
+}
+
+// Under Docker and Podman the issuer is named keycloak.localhost, whatever the
+// host-address probe answers. An issuer is one URL — the Browser and every
+// container must reach it by the same name — and the Browser is never on the
+// Docker host's bridge: in docker-in-docker (a codespace) the alias does not
+// resolve, the probe falls back to the bridge gateway, and a laptop cannot
+// reach 172.17.0.1. The probe still decides every other dependency host.
+func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
+	for _, rt := range []string{"docker", "podman"} {
+		for _, probe := range []struct {
+			name string
+			env  []string
+			addr string
+		}{
+			{"alias", []string{"FAKERT_NSLOOKUP=ok"}, map[string]string{"docker": "host.docker.internal", "podman": "host.containers.internal"}[rt]},
+			{"bridge", []string{"FAKERT_GATEWAY=172.17.0.1"}, "172.17.0.1"},
+		} {
+			t.Run(rt+"/"+probe.name, func(t *testing.T) {
+				s := newScenario(t, "container", "docker", "podman")
+				s.extraEnv = append(s.extraEnv, probe.env...)
+				stdout, stderr, code := s.run(t, "start", "--runtime", rt)
+				if code != 0 {
+					t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+				}
+				// Every container that holds a credential at the realm must
+				// resolve the issuer's name; a builder that forgot either half
+				// would fail sign-in or its own start.
+				dialers := 0
+				for _, line := range strings.Split(s.argv(t), "\n") {
+					if !strings.Contains(line, "SEMIONT_OIDC_CLIENT_ID=") {
+						continue
+					}
+					dialers++
+					if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
+						t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
+					}
+					if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
+						t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
+					}
+					if strings.Contains(line, "NEO4J_HOST=") && !strings.Contains(line, "NEO4J_HOST="+probe.addr) {
+						t.Errorf("the probe's answer %s no longer decides the other dependency hosts:\n%s", probe.addr, line)
+					}
+				}
+				if dialers == 0 {
+					t.Fatal("no container carries SEMIONT_OIDC_CLIENT_ID — the scan matched nothing, so it proved nothing")
+				}
+			})
 		}
 	}
 }

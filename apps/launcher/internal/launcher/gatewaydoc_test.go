@@ -60,7 +60,7 @@ func documentFrom(t *testing.T, b []byte) semiont.GatewayConfig {
 // the launcher's address, and GATEWAY_HOST, which the gateway never receives,
 // takes its default.
 func TestGatewayDocumentIsResolved(t *testing.T) {
-	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "192.168.64.1", 4000, nil)
+	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 4000, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,20 +90,29 @@ func TestGatewayDocumentIsResolved(t *testing.T) {
 
 // The issuer is ONE URL — a token's `iss` is the URL it was asked from, and the
 // gateway verifies it — so it must be one the laptop's Browser and every
-// container reach alike. Docker's host address resolves only inside containers,
-// so there the issuer is named on keycloak.localhost; the other dependencies
-// keep the host address, which only containers dial.
+// container reach alike. Under Docker and Podman the laptop is never promised
+// the host address — an alias that resolves only inside containers, or in
+// docker-in-docker a bridge gateway on another machine — so there the issuer
+// is named on keycloak.localhost; the other dependencies keep the host
+// address, which only containers dial.
 func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
-	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "host.docker.internal", 4000, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	doc := documentFrom(t, b)
-	if doc.Identity.Issuer != "http://keycloak.localhost:8080/realms/semiont" {
-		t.Errorf("issuer %q, want one the laptop resolves as well as the containers", doc.Identity.Issuer)
-	}
-	if doc.Signal.Servers == nil || *doc.Signal.Servers != "host.docker.internal:4222" {
-		t.Errorf("signal = %+v, want the broker on the host address", doc.Signal)
+	for _, c := range []struct{ rt, addr string }{
+		{"docker", "host.docker.internal"},
+		{"docker", "172.17.0.1"},
+		{"podman", "host.containers.internal"},
+		{"podman", "172.17.0.1"},
+	} {
+		b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", c.rt, c.addr, 4000, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := documentFrom(t, b)
+		if doc.Identity.Issuer != "http://keycloak.localhost:8080/realms/semiont" {
+			t.Errorf("%s at %s: issuer %q, want one the laptop resolves as well as the containers", c.rt, c.addr, doc.Identity.Issuer)
+		}
+		if doc.Signal.Servers == nil || *doc.Signal.Servers != c.addr+":4222" {
+			t.Errorf("%s at %s: signal = %+v, want the broker on the host address", c.rt, c.addr, doc.Signal)
+		}
 	}
 }
 
@@ -112,7 +121,7 @@ func TestGatewayDocumentNamesAnIssuerTheLaptopReaches(t *testing.T) {
 func TestGatewayDocumentNamesSecretsAndNeverCarriesThem(t *testing.T) {
 	text := gatewayDocFixture + "user = \"${NATS_USER}\"\npassword = \"${NATS_PASSWORD}\"\n"
 	userEnv := []string{"--env", "NATS_USER=the-user-value", "--env", "NATS_PASSWORD=the-password-value"}
-	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "192.168.64.1", 4000, userEnv)
+	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 4000, userEnv)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +138,7 @@ func TestGatewayDocumentNamesSecretsAndNeverCarriesThem(t *testing.T) {
 
 func TestGatewayDocumentRefusesALiteralSecret(t *testing.T) {
 	text := gatewayDocFixture + "password = \"hunter2\"\n"
-	_, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "192.168.64.1", 4000, nil)
+	_, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 4000, nil)
 	if err == nil || !strings.Contains(err.Error(), "signal") || !strings.Contains(err.Error(), "${") {
 		t.Fatalf("want a refusal naming the field and the ${VAR} form, got %v", err)
 	}
@@ -146,7 +155,7 @@ func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
 	text := strings.Replace(gatewayDocFixture, "[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n", "", 1)
 	text = strings.Replace(text, "logLevel = \"debug\"\n", "", 1)
 	text += "\n[environments.local.archivist]\nhost = \"archivist.internal\"\nport = 9999\n"
-	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "192.168.64.1", 4000, nil)
+	b, err := gatewayDocument(envFrom(t, text), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 4000, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -169,7 +178,7 @@ func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
 // the 2G gateway, a gibibyte of bytes queued to its streams, and connections at
 // 20 KiB each of the other half.
 func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
-	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "192.168.64.1", 4000, nil)
+	b, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "example.github.io:example-kb", "container", "192.168.64.1", 4000, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -185,7 +194,7 @@ func TestGatewayDocumentStatesTheCapacityItsMemoryAllows(t *testing.T) {
 // A KB that declares no identity gets no fabricated one: the launcher refuses
 // to write a document the gateway would refuse.
 func TestGatewayDocumentRefusesAnUndeclaredDomain(t *testing.T) {
-	if _, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "", "192.168.64.1", 4000, nil); err == nil || !strings.Contains(err.Error(), "domain") {
+	if _, err := gatewayDocument(envFrom(t, gatewayDocFixture), "Example KB", "", "container", "192.168.64.1", 4000, nil); err == nil || !strings.Contains(err.Error(), "domain") {
 		t.Fatalf("want a refusal naming the domain, got %v", err)
 	}
 }
