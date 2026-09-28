@@ -9,6 +9,12 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 # @semiont/* packages, mirroring publish-browser.yml's verify-npm → scan →
 # multi-arch push → SBOM → attest spine, with an added license-policy gate.
 # Config is runtime (bind-mount); the images ship config-free.
+#
+# The gateway compiles Rust, and its arm64 half took over an hour under
+# emulation (2026-09-28), so each of its platforms builds on a runner of its
+# own architecture and pushes by digest, and gateway-manifest joins the two
+# under the tags. The other six only `npm install` in their images, which
+# emulation handles in minutes, so each publishes both platforms from one leg.
 
 on:
   workflow_dispatch:
@@ -36,40 +42,73 @@ permissions:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
 
     strategy:
       # One service's failure must not cancel the others' publishes.
       fail-fast: false
       matrix:
         include:
+          # `runner`: the machine the leg runs on. `scan`: the platform its gates
+          # build and run, the runner's own. `platforms`: what it publishes.
+          # `arch`: a leg that publishes one architecture by digest, for
+          # gateway-manifest to join; a leg without one publishes tagged.
           # `installs`: the image installs @semiont/* packages from npm, so it
           # waits for them to be installable. `refusal`: what the image says,
           # run bare, when it reaches its own configuration.
           - service: gateway
+            arch: amd64
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64
+            dockerfile: apps/gateway/Dockerfile
+            refusal: "Cannot read the gateway's configuration document"
+          - service: gateway
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            scan: linux/arm64
+            platforms: linux/arm64
             dockerfile: apps/gateway/Dockerfile
             refusal: "Cannot read the gateway's configuration document"
           - service: worker
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64,linux/arm64
             dockerfile: apps/worker/Dockerfile
             installs: npm
             refusal: No environment selected
           - service: smelter
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64,linux/arm64
             dockerfile: apps/smelter/Dockerfile
             installs: npm
             refusal: No environment selected
           - service: weaver
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64,linux/arm64
             dockerfile: apps/weaver/Dockerfile
             installs: npm
             refusal: No environment selected
           - service: archivist
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64,linux/arm64
             dockerfile: apps/archivist/Dockerfile
             installs: npm
             refusal: No environment selected
           - service: librarian
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64,linux/arm64
             dockerfile: apps/librarian/Dockerfile
             installs: npm
             refusal: No environment selected
           - service: dispatcher
+            runner: ubuntu-latest
+            scan: linux/amd64
+            platforms: linux/amd64,linux/arm64
             dockerfile: apps/dispatcher/Dockerfile
             installs: npm
             refusal: No environment selected
@@ -77,6 +116,13 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
+
+      # The license gate and the npm probe run node; an arm64 runner's image
+      # need not carry it.
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
 
       - name: Verify packages are installable from npm
         if: matrix.installs == 'npm'
@@ -168,29 +214,20 @@ jobs:
 
       - name: Determine tags
         id: tags
-        run: |
-          COMMIT_SHA=$(git rev-parse --short HEAD)
-          IMAGE="ghcr.io/the-ai-alliance/semiont-${{ matrix.service }}"
-          TAGS="$IMAGE:${{ inputs.version }}"
-          TAGS="$TAGS,$IMAGE:sha-$COMMIT_SHA"
-          if [ "${{ inputs.tag_latest }}" = "true" ]; then
-            TAGS="$TAGS,$IMAGE:latest"
-          fi
-          echo "tags=$TAGS" >> $GITHUB_OUTPUT
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
-          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+        run: scripts/ci/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
 
-      # Single-platform build for scanning + SBOM. amd64 OS-package CVEs cover
-      # arm64 too since base layers share package versions, and OS/library
-      # licenses are platform-independent, so one build feeds both gates. Both
-      # builds share the GHA cache; the multi-arch rebuild below is a near-instant
-      # cache hit on amd64.
-      - name: Build image (amd64, for scan + SBOM)
+      # Single-platform build for scanning + SBOM, on the runner's own platform.
+      # For an emulated multi-arch leg, amd64 OS-package CVEs cover arm64 too
+      # since base layers share package versions, and OS/library licenses are
+      # platform-independent, so one build feeds both gates. Both builds share
+      # the GHA cache; the publishing build below is a near-instant cache hit on
+      # the scanned platform.
+      - name: Build image (${{ matrix.scan }}, for scan + SBOM)
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./${{ matrix.dockerfile }}
-          platforms: linux/amd64
+          platforms: ${{ matrix.scan }}
           load: true
           tags: semiont-${{ matrix.service }}:scan
           build-args: ${{ steps.args.outputs.args }}
@@ -264,11 +301,12 @@ jobs:
 
       - name: Build and push Docker image
         id: build-push
+        if: ${{ !matrix.arch }}
         uses: docker/build-push-action@v7
         with:
           context: .
           file: ./${{ matrix.dockerfile }}
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platforms }}
           # `dry_run` is a boolean input. Comparing it to the STRING 'true' coerces
           # both sides to numbers (true → 1, 'true' → NaN), so `!= 'true'` is true
           # for every value and a dry run pushed — five :latest tags on 2026-09-20
@@ -279,12 +317,55 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # One architecture, untagged: gateway-manifest names it. The push rides
+      # the same negated boolean as the tagged build above.
+      - name: Build and push this architecture by digest
+        id: push-digest
+        if: ${{ matrix.arch }}
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./${{ matrix.dockerfile }}
+          platforms: ${{ matrix.platforms }}
+          outputs: type=image,name=${{ steps.tags.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ !inputs.dry_run }}
+          build-args: ${{ steps.args.outputs.args }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Record this architecture's digest
+        if: ${{ matrix.arch && !inputs.dry_run }}
+        run: |
+          mkdir -p digests
+          digest="${{ steps.push-digest.outputs.digest }}"
+          touch "digests/${digest#sha256:}"
+
+      - name: Hand the digest to gateway-manifest
+        if: ${{ matrix.arch && !inputs.dry_run }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.service }}-digest-${{ matrix.arch }}
+          path: digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+      # The joined image is attested with the amd64 SBOM, as a tagged multi-arch
+      # build is below.
+      - name: Hand the SBOM to gateway-manifest
+        if: ${{ matrix.arch == 'amd64' && !inputs.dry_run }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.service }}-sbom
+          path: sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 1
+
       # SLSA build provenance via GitHub's OIDC + Sigstore, stored as an OCI
       # attestation alongside the image in GHCR. Verify with:
       #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-<svc>:VERSION \
       #     --owner The-AI-Alliance
+      # A leg with an `arch` is attested once joined, by gateway-manifest.
       - name: Attest build provenance
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && !matrix.arch }}
         uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-name: ${{ steps.tags.outputs.image }}
@@ -292,7 +373,7 @@ jobs:
           push-to-registry: true
 
       - name: Attest SBOM
-        if: ${{ !inputs.dry_run }}
+        if: ${{ !inputs.dry_run && !matrix.arch }}
         uses: actions/attest-sbom@v4
         with:
           subject-name: ${{ steps.tags.outputs.image }}
@@ -302,19 +383,95 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## semiont-${{ matrix.service }} Container Image" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Version:** ${{ inputs.version }}${{ matrix.installs != 'npm' && ' (built from this commit)' || '' }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ steps.tags.outputs.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Pull with:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "docker pull ${{ steps.tags.outputs.image }}:${{ inputs.version }}" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Verify supply-chain attestations:" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
-          echo "gh attestation verify oci://${{ steps.tags.outputs.image }}:${{ inputs.version }} \\" >> $GITHUB_STEP_SUMMARY
-          echo "  --owner The-AI-Alliance" >> $GITHUB_STEP_SUMMARY
-          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## semiont-${{ matrix.service }} Container Image"
+            echo ""
+            echo "**Version:** ${{ inputs.version }}${{ matrix.installs != 'npm' && ' (built from this commit)' || '' }}"
+            echo "**Commit:** ${{ steps.tags.outputs.sha }}"
+            echo "**Dry run:** ${{ inputs.dry_run }}"
+            echo ""
+            echo "### Pull with:"
+            echo "\`\`\`bash"
+            echo "docker pull ${{ steps.tags.outputs.image }}:${{ inputs.version }}"
+            echo "\`\`\`"
+            echo ""
+            echo "### Verify supply-chain attestations:"
+            echo "\`\`\`bash"
+            echo "gh attestation verify oci://${{ steps.tags.outputs.image }}:${{ inputs.version }} \\"
+            echo "  --owner The-AI-Alliance"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # The gateway's two architectures, each built on its own runner and pushed by
+  # digest, joined into one image under the tags, then attested.
+  gateway-manifest:
+    needs: publish
+    # Each leg of publish succeeds or fails alone (fail-fast is off), so a
+    # failure elsewhere must not hold the gateway back. A gateway leg that
+    # failed leaves no digest, and its download below fails on it.
+    if: ${{ !cancelled() && !inputs.dry_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      - name: Determine tags
+        id: tags
+        run: scripts/ci/image-tags.sh gateway "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
+
+      - name: Collect the amd64 digest
+        uses: actions/download-artifact@v8
+        with:
+          name: gateway-digest-amd64
+          path: digests
+
+      - name: Collect the arm64 digest
+        uses: actions/download-artifact@v8
+        with:
+          name: gateway-digest-arm64
+          path: digests
+
+      - name: Collect the SBOM
+        uses: actions/download-artifact@v8
+        with:
+          name: gateway-sbom
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4.4.1
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Join the architectures under the tags
+        id: join
+        env:
+          IMAGE: ${{ steps.tags.outputs.image }}
+          TAGS: ${{ steps.tags.outputs.tags }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          tag_args=$(echo "$TAGS" | tr ',' '\n' | sed 's/^/-t /' | tr '\n' ' ')
+          sources=$(cd digests && for d in *; do printf '%s@sha256:%s ' "$IMAGE" "$d"; done)
+          # shellcheck disable=SC2086 # both lists split on spaces by design
+          docker buildx imagetools create $tag_args $sources
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+          echo "digest=$(docker buildx imagetools inspect "$IMAGE:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v4.2.2
+        with:
+          subject-name: ${{ steps.tags.outputs.image }}
+          subject-digest: ${{ steps.join.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@v4
+        with:
+          subject-name: ${{ steps.tags.outputs.image }}
+          subject-digest: ${{ steps.join.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
