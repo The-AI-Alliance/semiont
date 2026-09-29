@@ -97,7 +97,10 @@ for (const name of readByGateway) {
 // ── 2. provision ────────────────────────────────────────────────────────────
 const gatewayLine = read(BOOT_GOLDEN).split('\n').find((line) => line.includes('--name semiont-gateway'));
 if (!gatewayLine) fail(`${BOOT_GOLDEN} has no semiont-gateway line`);
-const passed = new Set([...(gatewayLine ?? '').matchAll(/(?:--env|-e) ([A-Z_][A-Z0-9_]*)=/g)].map((m) => m[1]));
+// Passed either with its value (`--env NAME=value`) or, for a secret, by name alone: the value
+// crosses through the runtime command's own environment, never the command line
+// (SECRET-DELIVERY P6), so the golden shows `--env NAME`.
+const passed = new Set([...(gatewayLine ?? '').matchAll(/(?:--env|-e) ([A-Z_][A-Z0-9_]*)(?=[=\s]|$)/g)].map((m) => m[1]));
 
 const imageSet = new Set();
 let inEnv = false;

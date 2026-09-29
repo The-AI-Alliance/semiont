@@ -28,6 +28,10 @@ var injectedVars = map[string]bool{
 // referenceRe: a value that is exactly one required reference, ${NAME}.
 var referenceRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
 
+// referenceTo is referenceName's inverse: the text of exactly one reference to
+// name, for the references the launcher stages into a service's config copy.
+func referenceTo(name string) string { return "${" + name + "}" }
+
 // referenceName is NAME when value is exactly ${NAME}, and "" when it is
 // anything else — a literal, a default, or a reference inside other text.
 func referenceName(value string) string {

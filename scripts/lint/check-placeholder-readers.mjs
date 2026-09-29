@@ -31,6 +31,7 @@ const ALLOWED = {
     "the Go pattern: resolveRefs resolves the gateway's document by it, and the extractor (placeholderRefs) reads a config's references by it; both held to the case table",
   ],
   'apps/launcher/internal/launcher/config.go': [
+    'renders exactly one reference, ${NAME} (referenceTo), for what the launcher stages into a service config',
     'a value that is exactly one reference, ${NAME} (referenceName)',
   ],
   'apps/launcher/internal/launcher/identity.go': [

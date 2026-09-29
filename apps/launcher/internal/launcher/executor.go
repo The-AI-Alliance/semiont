@@ -430,10 +430,10 @@ func patchDaemonCredentials(cfg []byte, svc string, plan *launchPlan) []byte {
 	keys := map[string]map[string]string{}
 	sections := serviceConfigSections[svc]
 	if plan.Roles["graph"].Presence == presenceLauncher && contains(sections, "graph") {
-		keys["graph"] = map[string]string{"password": "${" + daemonPasswords["graph"].env + "}"}
+		keys["graph"] = map[string]string{"password": referenceTo(daemonPasswords["graph"].env)}
 	}
 	if plan.Roles["messaging"].Presence == presenceLauncher && contains(sections, "jobs") {
-		keys["jobs"] = map[string]string{"user": "${NATS_USER}", "password": "${" + daemonPasswords["messaging"].env + "}"}
+		keys["jobs"] = map[string]string{"user": referenceTo("NATS_USER"), "password": referenceTo(daemonPasswords["messaging"].env)}
 	}
 	if len(keys) == 0 {
 		return cfg
