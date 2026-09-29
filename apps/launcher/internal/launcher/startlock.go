@@ -32,7 +32,8 @@ const startLockBudget = 30 * time.Minute
 
 // heldStartLock keeps the lock's file open for the life of the process: an
 // *os.File that is garbage-collected closes its descriptor and so releases
-// the lock mid-start.
+// the lock mid-start. Read-only: flock needs no write access, and the holder
+// note is written through its own handle, whose errors are reported.
 var heldStartLock *os.File
 
 func startLockPath(root string) string {
@@ -54,7 +55,7 @@ func acquireStartLock(u *UI, root string) bool {
 		u.Fail("cannot create state dir %s: %v", filepath.Dir(p), err)
 		return false
 	}
-	f, err := os.OpenFile(p, os.O_RDWR|os.O_CREATE, 0o600)
+	f, err := os.OpenFile(p, os.O_RDONLY|os.O_CREATE, 0o600)
 	if err != nil {
 		u.Fail("cannot open the start lock %s: %v", p, err)
 		return false
@@ -64,8 +65,13 @@ func acquireStartLock(u *UI, root string) bool {
 	for {
 		err := syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
 		if err == nil {
-			_ = f.Truncate(0)
-			_, _ = f.WriteAt([]byte(fmt.Sprintf("pid %d since %s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339))), 0)
+			// Who holds it, for a waiting start's message and for `status`.
+			// Not the lock itself: a start that cannot record it still runs,
+			// and the others read "holder unknown".
+			note := fmt.Sprintf("pid %d since %s\n", os.Getpid(), time.Now().UTC().Format(time.RFC3339))
+			if err := os.WriteFile(p, []byte(note), 0o600); err != nil {
+				u.Warn("Could not record this start as the holder of %s: %v", p, err)
+			}
 			heldStartLock = f
 			return true
 		}
@@ -96,7 +102,7 @@ func startInProgress(root string) (holder string, busy bool) {
 	if p == "" {
 		return "", false
 	}
-	f, err := os.OpenFile(p, os.O_RDWR, 0)
+	f, err := os.Open(p)
 	if err != nil {
 		return "", false // never started here
 	}
