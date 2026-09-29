@@ -1,8 +1,9 @@
 //! The gateway's configuration: one document, `GatewayConfig` in the spec,
-//! read once at boot from `~/.semiontconfig` and validated against the spec's
-//! own schema before anything in it is used. Nothing in it is resolved or
-//! defaulted here; a document that does not validate stops the process before
-//! it serves, naming each failing field by its JSON pointer.
+//! read once at boot from the JSON file `SEMIONT_GATEWAY_CONFIG` names, and
+//! validated against the spec's own schema before anything in it is used.
+//! Nothing in it is resolved or defaulted here; a document that does not
+//! validate stops the process before it serves, naming each failing field by
+//! its JSON pointer.
 
 use crate::spec::spec;
 use jsonschema::error::ValidationErrorKind;
@@ -103,11 +104,17 @@ struct SignalDocument {
     password_env: Option<String>,
 }
 
-/// `~/.semiontconfig`, home being the runtime's.
+/// The path `SEMIONT_GATEWAY_CONFIG` names; the image sets it to
+/// `/etc/semiont/gateway.json`, where the launcher mounts the document. There
+/// is no default: a path the gateway guessed would hide the drift between
+/// where a deployment put the document and where the gateway looks.
 pub fn config_path() -> Result<PathBuf, String> {
-    std::env::home_dir()
-        .map(|home| home.join(".semiontconfig"))
-        .ok_or_else(|| "The gateway has no home directory, so it has no configuration document at ~/.semiontconfig.".to_owned())
+    std::env::var_os("SEMIONT_GATEWAY_CONFIG")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .ok_or_else(|| {
+            "SEMIONT_GATEWAY_CONFIG is not set, so the gateway has no configuration document to read. The image sets it to /etc/semiont/gateway.json, where the launcher mounts the document (GatewayConfig in specs/); a gateway started another way sets it to the document's path.".to_owned()
+        })
 }
 
 pub fn read_gateway_config(path: &Path) -> Result<GatewayConfig, String> {

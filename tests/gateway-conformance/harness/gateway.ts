@@ -41,12 +41,15 @@ export interface GatewayEnvironment {
 
 /**
  * Renders the settings as the gateway's configuration document
- * (`GatewayConfig` in the spec) at `~/.semiontconfig`. A setting a case
- * deleted is absent from the document.
+ * (`GatewayConfig` in the spec) and answers its path, which the gateway is
+ * given as SEMIONT_GATEWAY_CONFIG. A setting a case deleted is absent from
+ * the document.
  */
-function writeConfiguration(dir: string, s: GatewaySettings): void {
+function writeConfiguration(dir: string, s: GatewaySettings): string {
   const { verbatim, ...fields } = s;
-  writeFileSync(join(dir, '.semiontconfig'), JSON.stringify({ ...fields, ...verbatim }, null, 2) + '\n');
+  const path = join(dir, 'gateway.json');
+  writeFileSync(path, JSON.stringify({ ...fields, ...verbatim }, null, 2) + '\n');
+  return path;
 }
 
 /**
@@ -107,10 +110,14 @@ function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
 
 function launch({ settings, env, unlisted = {} }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
   checkEnvironment(env, settings, unlisted);
-  const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-home-'));
-  writeConfiguration(dir, settings);
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', HOME: dir, ...unlisted };
-  for (const [k, v] of Object.entries(env)) if (v !== undefined) childEnv[k] = v;
+  const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-'));
+  const document = writeConfiguration(dir, settings);
+  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', SEMIONT_GATEWAY_CONFIG: document, ...unlisted };
+  // A variable a case sets to undefined is one it withholds, the document's included.
+  for (const [k, v] of Object.entries(env)) {
+    if (v === undefined) delete childEnv[k];
+    else childEnv[k] = v;
+  }
   const [command, ...args] = inject('gatewayCommand');
   const child = spawn(command!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];

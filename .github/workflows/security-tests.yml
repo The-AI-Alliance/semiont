@@ -175,11 +175,12 @@ jobs:
             '  "logFormat": "json",' \
             '  "capacity": { "queuedBytes": 1073741824, "connections": 52428 }' \
             '}' \
-            > ~/.semiontconfig
+            > "$RUNNER_TEMP/gateway.json"
 
       - name: Start gateway for API security verification
         run: |
           # Start the gateway on the configuration document written above.
+          export SEMIONT_GATEWAY_CONFIG="$RUNNER_TEMP/gateway.json"
           export JWT_SECRET=test-secret-key-for-testing-32char
           # The gateway's own service account; boot refuses without it. Nothing
           # here presents it to an issuer.

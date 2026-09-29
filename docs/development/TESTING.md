@@ -82,7 +82,7 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 [`tests/gateway-conformance/vitest.config.ts`](../../tests/gateway-conformance/vitest.config.ts) is its own config, not derived from the shared one: test files `cases/**/*.test.ts` and the harness's own `harness/**/*.test.ts`; the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. It provides the command a gateway is started with, `GATEWAY_COMMAND` in `harness/paths.ts`; its global setup refuses to start without that gateway built (`apps/gateway/target/release/semiont-gateway`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
 
-Each gateway the suite starts gets a fresh temporary `HOME` holding `~/.semiontconfig` — the `GatewayConfig` document — and an environment of `PATH`, `HOME`, and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
+Each gateway the suite starts gets a fresh temporary directory holding `gateway.json` — the `GatewayConfig` document — and an environment of `PATH`, `SEMIONT_GATEWAY_CONFIG` naming that document, and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
 
 ### The end-to-end suite
 

@@ -51,5 +51,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health
+# Where the launcher mounts the gateway's document. On a line of its own: the
+# launcher's census (TestContainerPathsMatchTheImage) reads single ENV lines.
+ENV SEMIONT_GATEWAY_CONFIG=/etc/semiont/gateway.json
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
 CMD ["/usr/local/bin/semiont-gateway"]

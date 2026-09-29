@@ -63,7 +63,8 @@ describe('starting a gateway', () => {
     ['a field the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { corsOrigin: '*' })), env: env() }), /corsOrigin/],
     ['a log format the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { logFormat: 'text' })), env: env() }), /\/logFormat\b/],
     ['no capacity', async () => ({ settings: await settings((s) => delete s.capacity), env: env() }), /capacity/],
-    ['no configuration document in HOME', async () => ({ settings: await settings(), env: env({ HOME: join(tmpdir(), `gateway-conformance-no-home-${randomUUID()}`) }) }), /\.semiontconfig/],
+    ['no SEMIONT_GATEWAY_CONFIG: there is no default path to fall back on', async () => ({ settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: undefined }) }), /SEMIONT_GATEWAY_CONFIG/],
+    ['a SEMIONT_GATEWAY_CONFIG naming no file', async () => ({ settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: join(tmpdir(), `gateway-conformance-no-document-${randomUUID()}.json`) }) }), /gateway-conformance-no-document-/],
     ['a NATS plane with no servers', async () => ({ settings: await settings((s) => void (s.signal = { type: 'nats' })), env: env() }), /servers/],
     [
       'a broker nobody answers at',

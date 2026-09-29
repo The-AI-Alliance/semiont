@@ -7,6 +7,8 @@
 #   2. It starts quickly: from spawning the image's command to its first
 #      /api/health 200, inside the container, under START_BOUND_MS. The same
 #      span the conformance harness records; the runtime's own start is not in it.
+#      Its document is mounted where the image says the gateway reads it (the
+#      Dockerfile's SEMIONT_GATEWAY_CONFIG), as the launcher mounts it.
 #   3. Its HEALTHCHECK passes against the serving gateway: the command
 #      apps/gateway/Dockerfile declares, read from there rather than restated,
 #      so this check cannot probe an address the healthcheck does not.
@@ -21,6 +23,11 @@ DOCKERFILE="$(cd "$(dirname "$0")/../.." && pwd)/apps/gateway/Dockerfile"
 HEALTHCHECK=$(sed -n '/^HEALTHCHECK/,/CMD /s/^.*CMD //p' "$DOCKERFILE")
 if [ -z "$HEALTHCHECK" ]; then
   echo "✗ $DOCKERFILE declares no HEALTHCHECK CMD"
+  exit 1
+fi
+DOCUMENT=$(sed -n 's/^ENV SEMIONT_GATEWAY_CONFIG=//p' "$DOCKERFILE")
+if [ -z "$DOCUMENT" ]; then
+  echo "✗ $DOCKERFILE declares no ENV SEMIONT_GATEWAY_CONFIG line"
   exit 1
 fi
 
@@ -45,21 +52,28 @@ echo "✓ $IMAGE carries no source"
 
 # A document for one gateway on its own plane. Its issuer and Archivist are
 # never dialled before the first request that needs them, so none is running.
-# The script runs, and expands, inside the container.
-# shellcheck disable=SC2016
-set +e
-ms=$("$RT" run --rm --entrypoint /bin/sh \
-  -e JWT_SECRET=image-check-image-check-image-check-image-check \
-  -e SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
-  -e SEMIONT_OIDC_CLIENT_SECRET=image-check \
-  -e HEALTHCHECK="$HEALTHCHECK" \
-  "$IMAGE" -c '
-  cat > "$HOME/.semiontconfig" <<DOC
+# Written on the host and readable by the image's user, whatever uid that is.
+STAGE=$(mktemp -d /tmp/gateway-image-check.XXXXXX)
+trap 'rm -rf "$STAGE"' EXIT
+cat > "$STAGE/gateway.json" <<DOC
 {"kb":{"name":"Image check","domain":"image-check.example"},"port":4000,"publicUrl":"http://localhost:4000",
  "identity":{"issuer":"http://127.0.0.1:1","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
  "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json",
  "capacity":{"queuedBytes":1073741824,"connections":52428}}
 DOC
+chmod 0755 "$STAGE"
+chmod 0644 "$STAGE/gateway.json"
+
+# The script runs, and expands, inside the container.
+# shellcheck disable=SC2016
+set +e
+ms=$("$RT" run --rm --entrypoint /bin/sh \
+  -v "$STAGE/gateway.json:$DOCUMENT:ro" \
+  -e JWT_SECRET=image-check-image-check-image-check-image-check \
+  -e SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
+  -e SEMIONT_OIDC_CLIENT_SECRET=image-check \
+  -e HEALTHCHECK="$HEALTHCHECK" \
+  "$IMAGE" -c '
   read spawned _ < /proc/uptime
   /usr/local/bin/boot.sh /usr/local/bin/semiont-gateway >/tmp/gateway.log 2>&1 &
   tries=0

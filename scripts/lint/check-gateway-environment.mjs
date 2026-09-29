@@ -26,8 +26,8 @@ const DOCKERFILE = 'apps/gateway/Dockerfile';
 const SUPERVISOR = 'scripts/container/supervise.sh';
 const CASES = 'tests/gateway-conformance/cases';
 
-const READERS = new Set(['gateway', 'opentelemetry', 'runtime']);
-const PROVIDERS = new Set(['launcher', 'image', 'runtime', 'operator']);
+const READERS = new Set(['gateway', 'opentelemetry']);
+const PROVIDERS = new Set(['launcher', 'image', 'operator']);
 
 /** Files that read by a computed name, and why each is bounded. */
 const DYNAMIC = {

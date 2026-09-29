@@ -44,7 +44,7 @@ whole deployment contract:
 ```
 container run -d --name semiont-gateway \
   --publish 4000:4000 \
-  --volume <config-stage>/gateway.json:/home/semiont/.semiontconfig:ro \
+  --volume <config-stage>/gateway.json:/etc/semiont/gateway.json:ro \
   --volume <state>:/semiont-state \
   --env SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   --env SEMIONT_OIDC_CLIENT_SECRET=<secret> \
@@ -88,9 +88,11 @@ exit.
 
 ## Configuration
 
-One document: `~/.semiontconfig`, a JSON `GatewayConfig`
-([schema](../../specs/src/components/schemas/GatewayConfig.json)), bind-mounted
-read-only. The launcher writes it resolved from the knowledge base's config and
+One document: a JSON `GatewayConfig`
+([schema](../../specs/src/components/schemas/GatewayConfig.json)) at the path
+`SEMIONT_GATEWAY_CONFIG` names, bind-mounted read-only. The image sets that
+variable to `/etc/semiont/gateway.json`, where the launcher mounts the document;
+unset, the gateway refuses to start. The launcher writes it resolved from the knowledge base's config and
 committed identity: no `${VAR}` is left in it, and the gateway defaults nothing.
 The gateway validates it against the schema at boot, and refuses to serve —
 naming each failing field by its JSON pointer — when it does not match.
@@ -169,8 +171,8 @@ cargo build --release    # target/release/semiont-gateway
 The gateway's behavioural contract is the black-box
 [conformance suite](../../tests/gateway-conformance/README.md), run against the
 built binary on both signal planes; see [TESTING.md](docs/TESTING.md). To run
-one by hand, write a `GatewayConfig` to `~/.semiontconfig` and set `JWT_SECRET`,
-`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
+one by hand, write a `GatewayConfig` to a file, point `SEMIONT_GATEWAY_CONFIG` at
+it, and set `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 
 The image ([Dockerfile](Dockerfile)) compiles the crate from the repository
 with that toolchain — pass `--build-arg RUST_TOOLCHAIN=<channel>`, as

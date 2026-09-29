@@ -2,7 +2,7 @@
  * What each variable in specs/src/gateway-environment/variables.json changes,
  * seen from outside, and what the document's logFormat changes. Each case runs
  * a gateway of its own with the environment it is about. JWT_SECRET,
- * SEMIONT_OIDC_CLIENT_ID, SEMIONT_OIDC_CLIENT_SECRET and HOME are boot.test.ts's,
+ * SEMIONT_OIDC_CLIENT_ID, SEMIONT_OIDC_CLIENT_SECRET and SEMIONT_GATEWAY_CONFIG are boot.test.ts's,
  * and observability.test.ts exports to OTEL_EXPORTER_OTLP_ENDPOINT throughout.
  */
 import { randomUUID } from 'node:crypto';
