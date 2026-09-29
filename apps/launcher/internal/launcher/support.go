@@ -191,45 +191,58 @@ func (u *UI) Stamp(event string) {
 // name fail until it is classified here.
 var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true}
 
-// echoShown: an --env value safe to show in an echoed command — an injected
-// non-credential, or the OTel endpoint, which the launcher sets but no config
-// interpolates. Derived from injectedVars rather than restating it: a
-// hand-kept copy missed KEYCLOAK_PORT and hid the one number a moved issuer is
-// about. Everything else — JWT_SECRET, the per-root custody values, every
-// user-supplied config var (API keys) — is redacted in the ECHO ONLY; the real
-// argv is untouched. Terminal scrollback and CI logs are not places for
-// credentials. (Infra `-e` values like NEO4J_AUTH=neo4j/localpass stay
-// visible: fixed, well-known local-dev values the summary table prints anyway.)
-func echoShown(name string) bool {
-	return name == "OTEL_EXPORTER_OTLP_ENDPOINT" || (injectedVars[name] && !injectedCredentials[name])
+// publicEnv: launcher-set variables whose values are not secrets — paths,
+// switches, database and user names — beyond the injected hosts and ports.
+// Listing one keeps its value on the command line, where a golden pins it and
+// an echoed command shows it; leaving one out only hides its value.
+var publicEnv = map[string]bool{
+	"OTEL_EXPORTER_OTLP_ENDPOINT": true, "SEMIONT_SUPERVISE": true, "XDG_STATE_HOME": true,
+	"PGDATA": true, "POSTGRES_DB": true, "POSTGRES_USER": true,
+	"KC_DB": true, "KC_DB_URL": true, "KC_DB_USERNAME": true, "KC_BOOTSTRAP_ADMIN_USERNAME": true,
+	"NEO4J_ACCEPT_LICENSE_AGREEMENT": true,
 }
 
-// redactEnvArgs blanks secret --env VALUES for display. It no longer special-
-// cases a password argument: useradd sends the password down stdin, so no
-// command the launcher echoes has one to hide. Redaction was only ever a
-// display fix for a secret that was still in argv where `ps` could read it.
-func redactEnvArgs(args []string) []string {
-	out := make([]string, len(args))
-	copy(out, args)
-	for i := 0; i < len(out)-1; i++ {
-		if out[i] != "--env" {
+// onCommandLine: whether a variable's value may ride a container's command
+// line. Default deny: anything not known to be public — every custody value,
+// every user-forwarded value, every daemon credential — crosses through the
+// runtime's own environment instead (SECRET-DELIVERY P6). Derived from
+// injectedVars rather than restating it: a hand-kept copy missed
+// KEYCLOAK_PORT and hid the one number a moved issuer is about.
+func onCommandLine(name string) bool {
+	return publicEnv[name] || (injectedVars[name] && !injectedCredentials[name])
+}
+
+// offCommandLine splits a runtime command: every `--env`/`-e NAME=value` whose
+// value is not onCommandLine becomes `--env NAME` in argv, with NAME=value in
+// env for the runtime command's own environment. Both runtimes copy a bare
+// name from their caller (probed 2026-09-29: Apple container live, Docker's CLI
+// against a recording daemon), so the value arrives and no process on the
+// machine can read it with ps. `inspect` still shows it; delivering secrets
+// as environment means that.
+func offCommandLine(args []string) (argv, env []string) {
+	argv = make([]string, len(args))
+	copy(argv, args)
+	for i := 0; i+1 < len(argv); i++ {
+		if argv[i] != "--env" && argv[i] != "-e" {
 			continue
 		}
-		if name, _, ok := strings.Cut(out[i+1], "="); ok && !echoShown(name) {
-			out[i+1] = name + "=<redacted>"
+		if name, _, ok := strings.Cut(argv[i+1], "="); ok && !onCommandLine(name) {
+			env = append(env, argv[i+1])
+			argv[i+1] = name
 		}
 	}
-	return out
+	return argv, env
 }
 
 // echoCmd mirrors the scripts' run_cmd prefix: show the exact command before
-// running it (the in-terminal legibility half of the --dry-run story) —
-// minus secret env values.
+// running it (the in-terminal legibility half of the --dry-run story). A
+// secret is never in it: offCommandLine keeps secret values off the command
+// line itself.
 func (u *UI) EchoCmd(name string, args ...string) {
 	if u.quiet {
 		return
 	}
-	fmt.Printf("  %s\n", u.Dim("$ "+name+" "+strings.Join(redactEnvArgs(args), " ")))
+	fmt.Printf("  %s\n", u.Dim("$ "+name+" "+strings.Join(args, " ")))
 }
 
 // --- Subprocess helpers ---
@@ -261,8 +274,9 @@ func runVisible(name string, args ...string) error {
 // runDetached runs a `run -d` service start: stdout — the container
 // identifier the runtime prints — is captured and returned (recorded in
 // stack.json); stderr stays visible so a failed start is diagnosable.
-func runDetached(name string, args ...string) (string, error) {
+func runDetached(name string, env []string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
+	cmd.Env = append(os.Environ(), env...)
 	var out strings.Builder
 	cmd.Stdout, cmd.Stderr = &out, os.Stderr
 	err := cmd.Run()

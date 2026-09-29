@@ -294,6 +294,20 @@ func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, cod
 	return out.String(), errb.String(), code
 }
 
+// containerEnv: the value a container started with for name — whether it rode
+// the command line or crossed through the runtime's own environment, which
+// fakert records per container (env-<container>) as `inspect` would show it.
+func (s *scenario) containerEnv(t *testing.T, container, name string) (string, bool) {
+	t.Helper()
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "env-"+container))
+	for _, l := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(l, name+"="); ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 var stageRe = regexp.MustCompile(`/tmp/semiont-config\.[A-Za-z0-9]+`)
 
 // argv returns the recorded invocation log with run-specific paths
@@ -435,14 +449,13 @@ func TestStartDefaultBoot(t *testing.T) {
 		"semiont logs",
 		"semiont stop",
 	)
-	// A service credential must never reach the terminal: echoed commands
-	// redact secret-valued envs (the real argv, in the argv log, keeps it).
-	// Six of them now, one per service account, so the allowlist doing the
-	// work matters more than it did with one shared string.
-	if strings.Contains(stdout, "test-gateway-client-secret") {
-		t.Error("a service-account secret leaked into stdout")
+	// A service credential must never reach the terminal, or the command line
+	// the terminal echoes: it crosses through the runtime's environment
+	// (SECRET-DELIVERY P6). Six of them, one per service account.
+	if strings.Contains(stdout, "test-gateway-client-secret") || strings.Contains(s.argv(t), "test-gateway-client-secret") {
+		t.Error("a service-account secret reached stdout or a command line")
 	}
-	mustContain(t, "stdout", stdout, "SEMIONT_OIDC_CLIENT_SECRET=<redacted>")
+	mustContain(t, "stdout", stdout, "--env SEMIONT_OIDC_CLIENT_SECRET ")
 }
 
 // The launcher half of the split supervision gate (ORCHESTRATOR-NATIVE-IMAGES
@@ -2380,6 +2393,43 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 		"semiont secret push ANTHROPIC_API_KEY --repo "+csRepo)
 }
 
+// A secret value never rides a container's command line, where any process on
+// the machine can read it with ps; it crosses through the runtime's own
+// environment and still arrives (SECRET-DELIVERY P6, D3: "keep secret values
+// off the command line"). Custody values, a user's forwarded value and the
+// daemons' credentials alike.
+func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	secrets := []string{"ANTHROPIC_API_KEY", "JWT_SECRET", "SEMIONT_OIDC_CLIENT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "POSTGRES_PASSWORD", "KC_DB_PASSWORD"}
+	for _, l := range strings.Split(s.argv(t), "\n") {
+		if !strings.HasPrefix(l, "container run") {
+			continue
+		}
+		for _, name := range secrets {
+			if strings.Contains(l, " "+name+"=") {
+				t.Errorf("%s's value is on the command line:\n%s", name, l)
+			}
+		}
+	}
+	for _, c := range []struct{ container, name, want string }{
+		{"semiont-worker", "ANTHROPIC_API_KEY", "test-key"},
+		{"semiont-gateway", "JWT_SECRET", ""},
+		{"semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		{"semiont-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
+		{"semiont-keycloak", "KC_DB_PASSWORD", ""},
+		{"semiont-postgres", "POSTGRES_PASSWORD", ""},
+	} {
+		got, _ := s.containerEnv(t, c.container, c.name)
+		if got == "" || (c.want != "" && got != c.want) {
+			t.Errorf("%s did not receive %s through the runtime's environment (got %q)", c.container, c.name, got)
+		}
+	}
+}
+
 // Each service is handed only the variables its own config sections
 // reference (SECRET-DELIVERY P5, D2: "send each service only the secrets it
 // uses"). The anthropic config names ANTHROPIC_API_KEY in [inference], which
@@ -2401,12 +2451,12 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 		return ""
 	}
 	for _, svc := range []string{"archivist", "librarian", "worker"} {
-		if !strings.Contains(runLine(svc), "--env ANTHROPIC_API_KEY=") {
+		if v, _ := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); v != "test-key" {
 			t.Errorf("%s reads [inference] but was not handed ANTHROPIC_API_KEY", svc)
 		}
 	}
 	for _, svc := range []string{"gateway", "dispatcher", "weaver", "smelter"} {
-		if strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
+		if _, handed := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); handed || strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
 			t.Errorf("%s reads no section naming ANTHROPIC_API_KEY but was handed it", svc)
 		}
 	}
@@ -2456,7 +2506,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 		t.Fatalf("unset: exit %d\n%s", code, stderr)
 	}
 	log, _ := os.ReadFile(s.log)
-	if strings.Contains(string(log), "SD_OPTIONAL") {
+	if _, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
 		t.Errorf("forwarded an optional reference nobody set:\n%s", log)
 	}
 
@@ -2471,8 +2521,9 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
 		t.Fatalf("registered: exit %d\n%s", code, stderr)
 	}
-	log, _ = os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--env SD_OPTIONAL=fake-op-secret")
+	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "fake-op-secret" {
+		t.Errorf("the registered source's value did not arrive (got %q)", v)
+	}
 
 	// Set to the empty string is set, and wins over both the source and the
 	// default (the shared table's rule), so it is forwarded empty.
@@ -2484,9 +2535,8 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
 		t.Fatalf("set empty: exit %d\n%s", code, stderr)
 	}
-	log, _ = os.ReadFile(s.log)
-	if !regexp.MustCompile(`--env SD_OPTIONAL=(\s|$)`).MatchString(string(log)) {
-		t.Errorf("an optional variable set to the empty string was not forwarded empty:\n%s", log)
+	if v, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); !handed || v != "" {
+		t.Errorf("an optional variable set to the empty string was not forwarded empty (got %q, handed %v)", v, handed)
 	}
 
 	// The environment wins over the source.
@@ -2498,8 +2548,10 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
 		t.Fatalf("set: exit %d\n%s", code, stderr)
 	}
+	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "from-env" {
+		t.Errorf("the exported value did not win (got %q)", v)
+	}
 	log, _ = os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--env SD_OPTIONAL=from-env")
 	if strings.Contains(string(log), "op read") {
 		t.Errorf("read the source although the environment set the variable:\n%s", log)
 	}
@@ -2521,9 +2573,11 @@ func TestStartResolvesSecret(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"ANTHROPIC_API_KEY: reading from 1Password (op read op://OSS/Anthropic/credential)",
 		"expect an authorization prompt")
+	if v, _ := s.containerEnv(t, "semiont-worker", "ANTHROPIC_API_KEY"); v != "fake-op-secret" {
+		t.Errorf("the worker did not receive the resolved secret (got %q)", v)
+	}
 	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=fake-op-secret")
-	if strings.Contains(stdout, "fake-op-secret") {
+	if strings.Contains(stdout, "fake-op-secret") || strings.Contains(string(log), "fake-op-secret") {
 		t.Errorf("resolved secret leaked into the echoed output:\n%s", stdout)
 	}
 
@@ -2538,7 +2592,7 @@ func TestStartResolvesSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	mustContain(t, "dry-run stdout", stdout, "--env ANTHROPIC_API_KEY ")
 	log, _ = os.ReadFile(s.log)
 	if strings.Contains(string(log), "op read") {
 		t.Errorf("dry-run reached into the vault:\n%s", log)
@@ -2563,8 +2617,10 @@ func TestStartResolvesSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("env-wins start: exit %d\nstderr:\n%s", code, stderr)
 	}
+	if v, _ := s.containerEnv(t, "semiont-worker", "ANTHROPIC_API_KEY"); v != "from-env" {
+		t.Errorf("the worker did not receive the exported value (got %q)", v)
+	}
 	log, _ = os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=from-env")
 	if strings.Contains(string(log), "op read") {
 		t.Errorf("op invoked although the environment provided the value:\n%s", log)
 	}
@@ -4579,14 +4635,14 @@ func TestConfigStickiness(t *testing.T) {
 		"Config: anthropic", "this KB's recorded config; override with --config")
 
 	// --dry-run reads the preference (only the anthropic config references
-	// ${ANTHROPIC_API_KEY}, so its placeholder appearing proves which config
+	// ${ANTHROPIC_API_KEY}, so its name appearing proves which config
 	// drove the plan) but never writes the registry.
 	before, _ := os.ReadFile(rootsPathFor(s.home))
 	stdout, stderr, code = s.run(t, "start", "--dry-run")
 	if code != 0 {
 		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	mustContain(t, "dry-run stdout", stdout, "--env ANTHROPIC_API_KEY ")
 	after, _ := os.ReadFile(rootsPathFor(s.home))
 	if !bytes.Equal(before, after) {
 		t.Errorf("dry-run mutated the registry:\n%s", after)
@@ -5205,7 +5261,7 @@ func TestStartNamesWhereTheJWTSecretCameFrom(t *testing.T) {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "provenance", stdout, "Token-signing key", "generated")
-	secret := jwtSecretFromArgv(t, s.argv(t))
+	secret := gatewayJWTSecret(t, s)
 	if strings.Contains(stdout+stderr, secret) {
 		t.Error("the provenance line leaked the key itself")
 	}
@@ -5254,7 +5310,7 @@ func TestStartCarriesAJWTSecretRing(t *testing.T) {
 	}
 	// Verbatim: re-joining or trimming would change what signs and what
 	// verifies, and the gateway is the only component entitled to split it.
-	if got := jwtSecretFromArgv(t, s.argv(t)); got != newKey+","+oldKey {
+	if got := gatewayJWTSecret(t, s); got != newKey+","+oldKey {
 		t.Errorf("ring was not passed through verbatim:\ngot  %q\nwant %q", got, newKey+","+oldKey)
 	}
 	// Rotation is a state worth naming — and the count is safe to print.
@@ -5296,7 +5352,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 	}
 
 	argv := s.argv(t)
-	first := jwtSecretFromArgv(t, argv)
+	first := gatewayJWTSecret(t, s)
 	if len(first) < 32 {
 		t.Errorf("JWT_SECRET must be >= 32 chars (the gateway rejects shorter); got %d", len(first))
 	}
@@ -5340,7 +5396,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("start --service gateway: exit %d\nstdout:\n%s\nstderr:\n%s", code, out2, err2)
 	}
-	if second := jwtSecretFromArgv(t, s.argv(t)); second != first {
+	if second := gatewayJWTSecret(t, s); second != first {
 		t.Errorf("JWT_SECRET changed on restart — every previously issued token is now invalid\nfirst:  %s\nsecond: %s", first, second)
 	}
 }
@@ -5354,7 +5410,7 @@ func TestStartJWTSecretEnvWins(t *testing.T) {
 	if _, _, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("want exit 0, got %d", code)
 	}
-	if got := jwtSecretFromArgv(t, s.argv(t)); got != "an-operator-supplied-secret-of-sufficient-length" {
+	if got := gatewayJWTSecret(t, s); got != "an-operator-supplied-secret-of-sufficient-length" {
 		t.Errorf("env JWT_SECRET ignored; got %q", got)
 	}
 }
@@ -5368,7 +5424,7 @@ func TestStartDryRunDoesNotMintJWTSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d", code)
 	}
-	mustContain(t, "stdout", stdout, "JWT_SECRET=<jwt-secret>")
+	mustContain(t, "stdout", stdout, "--env JWT_SECRET ")
 	if found := findFile(t, s.home, "jwt-secret"); found != "" {
 		t.Errorf("--dry-run minted a secret at %s", found)
 	}
@@ -5401,22 +5457,19 @@ func TestStartJWTSecretKeyedToResolvedRoot(t *testing.T) {
 	}
 }
 
-// jwtSecretFromArgv extracts the value the gateway container was given.
-func jwtSecretFromArgv(t *testing.T, argv string) string {
+// gatewayJWTSecret: the value the gateway container was given. It crosses
+// through the runtime's environment, never its command line (SECRET-DELIVERY
+// P6), so it is read from what the container received.
+func gatewayJWTSecret(t *testing.T, s *scenario) string {
 	t.Helper()
-	for _, line := range strings.Split(argv, "\n") {
-		if !strings.Contains(line, "--name semiont-gateway") {
-			continue
-		}
-		for _, f := range strings.Fields(line) {
-			if v, ok := strings.CutPrefix(f, "JWT_SECRET="); ok {
-				return v
-			}
-		}
-		t.Fatalf("gateway run carries no JWT_SECRET:\n%s", line)
+	v, ok := s.containerEnv(t, "semiont-gateway", "JWT_SECRET")
+	if !ok {
+		t.Fatalf("the gateway was given no JWT_SECRET:\n%s", s.argv(t))
 	}
-	t.Fatalf("no gateway run in argv:\n%s", argv)
-	return ""
+	if strings.Contains(s.argv(t), "JWT_SECRET="+v) {
+		t.Errorf("the gateway's JWT_SECRET rode its command line")
+	}
+	return v
 }
 
 // findFile returns the first path under dir whose basename matches, else "".
@@ -5463,7 +5516,7 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting Worker Pool",
 		"OTel collector detected — export enabled",
-		"SEMIONT_OIDC_CLIENT_SECRET=<redacted>",
+		"--env SEMIONT_OIDC_CLIENT_SECRET ",
 		"🚀 worker is up",
 		"semiont status",
 	)

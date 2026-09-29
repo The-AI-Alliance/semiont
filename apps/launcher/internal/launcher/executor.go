@@ -562,9 +562,9 @@ func (x *liveExec) pull(img string) bool {
 }
 
 func (x *liveExec) runDetached(args []string) (string, bool) {
-	args = withLogOpts(x.rt, args)
-	x.u.EchoCmd(x.rt, args...)
-	id, err := runDetached(x.rt, args...)
+	argv, env := offCommandLine(withLogOpts(x.rt, args))
+	x.u.EchoCmd(x.rt, argv...)
+	id, err := runDetached(x.rt, env, argv...)
 	if err != nil {
 		return "", false
 	}
@@ -1328,7 +1328,8 @@ func (x *planExec) pull(img string) bool {
 }
 
 func (x *planExec) runDetached(args []string) (string, bool) {
-	x.p(withLogOpts(x.rt, args)...)
+	argv, _ := offCommandLine(withLogOpts(x.rt, args))
+	x.p(argv...)
 	return "", true
 }
 

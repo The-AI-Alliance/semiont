@@ -675,6 +675,30 @@ func ghCodespace(args []string, joined string) {
 	}
 }
 
+// recordContainerEnv writes FAKERT_DIR/env-<name>: the environment the
+// container starts with, one NAME=value per line — what `inspect` would show.
+// A bare `--env NAME` is copied from this process's own environment, as both
+// real runtimes do, and absent when that is unset: the argv log alone cannot
+// show a value that crossed through the runtime's environment.
+func recordContainerEnv(name string, args []string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" || name == "" {
+		return
+	}
+	var lines []string
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] != "--env" && args[i] != "-e" {
+			continue
+		}
+		if strings.Contains(args[i+1], "=") {
+			lines = append(lines, args[i+1])
+		} else if v, ok := os.LookupEnv(args[i+1]); ok {
+			lines = append(lines, args[i+1]+"="+v)
+		}
+	}
+	_ = os.WriteFile(filepath.Join(dir, "env-"+name), []byte(strings.Join(lines, "\n")+"\n"), 0o600)
+}
+
 // holdIfNamed parks while FAKERT_RUN_HOLD names name, until the test writes
 // FAKERT_DIR/release-<name>; FAKERT_DIR/holding-<name> tells it the hold began.
 func holdIfNamed(name string) {
@@ -997,6 +1021,7 @@ func run(args []string) {
 		fmt.Fprintf(os.Stderr, "fakert run: unscripted foreground run %v\n", args)
 		os.Exit(64)
 	}
+	recordContainerEnv(name, args)
 	// A start held mid-flight: this container's run parks until the test
 	// releases it, so a second start can be begun while the first is busy.
 	holdIfNamed(name)
