@@ -16,7 +16,15 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	t.Setenv("XDG_DATA_HOME", "")
 	root := t.TempDir()
-	x := &liveExec{u: NewUI(true)}
+	// A runtime that accepts the store clear. What the clear removes is the
+	// root package's to assert (TestStateProjectionAutoCleans, through
+	// fakert); this test is about the stamp.
+	shim := t.TempDir()
+	if err := os.WriteFile(filepath.Join(shim, "container"), []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", shim)
+	x := &liveExec{u: NewUI(true), rt: "container"}
 
 	dir := stateRootDir(root)
 	sd := stateStores["state"].storeDir(root)
@@ -32,9 +40,6 @@ func TestResolveStoreStampRestampsOnResolution(t *testing.T) {
 
 	if !x.resolveStoreStamp("state", "img:new", root) {
 		t.Fatal("a projection mismatch must resolve, not refuse")
-	}
-	if _, err := os.Stat(filepath.Join(sd, "stale")); err == nil {
-		t.Error("stale contents survived the clear")
 	}
 	if got := loadRootMeta(dir).Stores["state"].Image; got != "img:new" {
 		t.Errorf("stamp after resolution = %q, want %q — an unstamped resolution re-fires at the owner's prep and clears what sharers wrote in between", got, "img:new")

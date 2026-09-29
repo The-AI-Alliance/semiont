@@ -1065,6 +1065,8 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 		t.Fatalf("meta.json after start: %v", err)
 	}
 	mustContain(t, "meta.json restamp", string(newMeta), "neo4j:5.26.28-community")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, "neo4j")))
 	// The neo4j mount dirs must exist again (and 0777 for the virtiofs
 	// test -w gate its entrypoint runs).
 	for _, sub := range []string{"data", "logs"} {
@@ -1181,6 +1183,13 @@ func seedStateDir(t *testing.T, s *scenario) string {
 	return dir
 }
 
+// storeClear: the run that empties a store dir. A container wrote what is
+// in it — as neo4j 7474, postgres 70, qdrant and nats root, Semiont 1001 —
+// and on Linux only a container's root can remove it (CODESPACE-IDENTITY F1).
+func storeClear(sd string) string {
+	return "container run --rm -v " + sd + ":/store busybox:1.38.0 find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+}
+
 func TestCleanDryRunListsAndKeeps(t *testing.T) {
 	s := newScenario(t)
 	dir := seedStateDir(t, s)
@@ -1192,10 +1201,13 @@ func TestCleanDryRunListsAndKeeps(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "postgres", "pgdata", "PG_VERSION")); err != nil {
 		t.Error("--dry-run removed data")
 	}
+	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "find /store") {
+		t.Errorf("--dry-run ran a store clear:\n%s", log)
+	}
 }
 
 func TestCleanRemovesRootState(t *testing.T) {
-	s := newScenario(t)
+	s := newScenario(t, "container")
 	dir := seedStateDir(t, s)
 	stdout, stderr, code := s.run(t, "clean")
 	if code != 0 {
@@ -1205,10 +1217,19 @@ func TestCleanRemovesRootState(t *testing.T) {
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Errorf("state dir survived clean: %v", err)
 	}
+	// Every store is emptied by a container; the root dir itself — its
+	// secrets and meta.json are the invoker's — is never mounted.
+	log, _ := os.ReadFile(s.log)
+	for _, sub := range []string{"postgres", "qdrant", "neo4j"} {
+		mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, sub)))
+	}
+	if strings.Contains(string(log), "-v "+dir+":") {
+		t.Errorf("the root dir, secrets and all, was mounted into a container:\n%s", log)
+	}
 }
 
 func TestCleanStoreScopes(t *testing.T) {
-	s := newScenario(t)
+	s := newScenario(t, "container")
 	dir := seedStateDir(t, s)
 	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
 	if code != 0 {
@@ -1236,6 +1257,11 @@ func TestCleanStoreScopes(t *testing.T) {
 		t.Error("vectors stamp survived its store's clean")
 	}
 	mustContain(t, "meta.json keeps other stamps", string(meta), `"database"`, `"graph"`)
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, "qdrant")))
+	if strings.Count(string(log), "find /store") != 1 {
+		t.Errorf("a scoped clean emptied more than its one store:\n%s", log)
+	}
 }
 
 func TestCleanRefusesRunningStack(t *testing.T) {
@@ -1262,7 +1288,7 @@ func TestCleanRefusesRunningStack(t *testing.T) {
 }
 
 func TestCleanOrphanKeyTarget(t *testing.T) {
-	s := newScenario(t)
+	s := newScenario(t, "container")
 	// State whose KB no longer exists anywhere: targetable by its literal
 	// key, exactly as status names it.
 	orphan := stateRootFor(s.home, "gone.example.org-old-kb")

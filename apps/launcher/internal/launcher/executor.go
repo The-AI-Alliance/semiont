@@ -1061,7 +1061,7 @@ func (x *liveExec) resolveStoreStamp(role, image, root string) bool {
 		}
 		x.u.Log("%s state at %s was written by %s; this config launches %s — projections rebuild, so clearing it.",
 			role, sd, prev, image)
-		if err := clearStoreContents(sd); err != nil {
+		if err := clearStoreContents(x.rt, sd); err != nil {
 			x.u.Fail("cannot clear %s state %s: %v", role, sd, err)
 			return false
 		}

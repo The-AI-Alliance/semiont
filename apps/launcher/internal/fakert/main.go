@@ -1086,6 +1086,26 @@ func handleName(arg string) string {
 
 func busybox(args []string, joined string) {
 	switch {
+	case strings.Contains(joined, "find /store"):
+		// The store clear: empty the host dir mounted at /store, keeping the
+		// dir itself, as the real `find … -exec rm -rf {} +` does.
+		host := ""
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "-v" && strings.HasSuffix(args[i+1], ":/store") {
+				host = strings.TrimSuffix(args[i+1], ":/store")
+			}
+		}
+		entries, err := os.ReadDir(host)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "fakert busybox: store clear: %v\n", err)
+			os.Exit(1)
+		}
+		for _, e := range entries {
+			if err := os.RemoveAll(filepath.Join(host, e.Name())); err != nil {
+				fmt.Fprintf(os.Stderr, "fakert busybox: store clear: %v\n", err)
+				os.Exit(1)
+			}
+		}
 	case strings.Contains(joined, "nslookup"):
 		if os.Getenv("FAKERT_NSLOOKUP") == "ok" {
 			return
