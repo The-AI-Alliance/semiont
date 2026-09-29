@@ -707,14 +707,9 @@ func ensureCodespaceAvailable(u *UI, repo, name string) int {
 		fmt.Fprintln(os.Stderr, "  Then create fresh:  semiont start --runtime codespace --repo "+repo)
 		return 1
 	}
-	if state == "Shutdown" {
-		u.Log("Codespace is stopped — waking it %s", u.Dim("(connecting is what resumes a codespace; ~20s)"))
-		if err := runSilent("gh", "codespace", "ssh", "-c", name, "--", "true"); err != nil {
-			u.Fail("Could not wake codespace %s.", name)
-			fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
-			return 1
-		}
-	}
+	// Waking is the wait's decision, not this one's: a start right after a
+	// stop sees ShuttingDown here and Shutdown only later, and a wake decided
+	// once, up front, never happened (live 2026-09-29).
 	return waitCodespaceAvailable(u, repo, name)
 }
 
@@ -729,12 +724,26 @@ func waitCodespaceAvailable(u *UI, repo, name string) int {
 	t0 := time.Now()
 	lastBeat := t0
 	state := ""
+	woke := false
 	for i := 0; i < 300; i++ {
 		instances, err := ghCodespaceList(repo)
 		// Never print a state that was not observed: the old seed of
 		// "Provisioning" had this wait narrating a ghost for ten minutes
 		// when the codespace was already reaped.
 		state = classifyCodespaceState(instances, err, true, name)
+		// THE wake decision: a stopped codespace is woken the moment the wait
+		// sees it stopped — at the first look, or once a stop still in
+		// progress (ShuttingDown) finishes. Connecting is what resumes one.
+		if state == "Shutdown" && !woke {
+			u.Log("Codespace is stopped — waking it %s", u.Dim("(connecting is what resumes a codespace; ~20s)"))
+			if err := runSilent("gh", "codespace", "ssh", "-c", name, "--", "true"); err != nil {
+				u.Fail("Could not wake codespace %s.", name)
+				fmt.Fprintln(os.Stderr, "  Check it:  gh codespace list")
+				return 1
+			}
+			woke = true
+			continue
+		}
 		if state == "Available" {
 			if u.color {
 				fmt.Print("\r\033[K")
@@ -750,7 +759,7 @@ func waitCodespaceAvailable(u *UI, repo, name string) int {
 			return 1
 		}
 		if i == 0 {
-			u.Log("Waiting for the codespace VM %s", u.Dim("(GitHub reports Provisioning until the machine is up)"))
+			u.Log("Waiting for the codespace VM %s", u.Dim("(GitHub reports "+state+")"))
 		}
 		if u.color {
 			fmt.Printf("\r  %s\033[K", u.Dim(state+"… ("+took(time.Since(t0))+")"))
@@ -1955,9 +1964,20 @@ func loopbackHost(host string) bool {
 func restartRemoteStack(u *UI, name string, port int) int {
 	remote := fmt.Sprintf("cd /workspaces/* && KEYCLOAK_PORT=%d semiont start", port)
 	u.EchoCmd("gh", "codespace", "ssh", "-c", name, "--", remote)
-	if err := runVisible("gh", "codespace", "ssh", "-c", name, "--", remote); err != nil {
-		u.Fail("The codespace's launcher could not restart the stack on port %d (see output above).", port)
+	// Captured, not streamed: the inner launcher's summary is the codespace's
+	// own view, and its URLs (localhost:4000) are wrong from this machine,
+	// whose summary follows with the right ones. Its output is shown only when
+	// it is the diagnosis.
+	out, err := captureBoth("gh", "codespace", "ssh", "-c", name, "--", remote)
+	if err != nil {
+		u.Fail("The codespace's launcher could not restart the stack on port %d.", port)
+		lines := strings.Split(strings.TrimRight(out, "\n"), "\n")
+		fmt.Fprintln(os.Stderr, "  Its output, last lines:")
+		for _, l := range lines[max(0, len(lines)-20):] {
+			fmt.Fprintln(os.Stderr, "    "+l)
+		}
 		return 1
 	}
+	u.Ok("The codespace restarted its stack with the issuer on %d", port)
 	return 0
 }

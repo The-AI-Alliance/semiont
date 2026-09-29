@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/The-AI-Alliance/semiont/apps/launcher/internal/harness"
 )
 
 // The realm's ACCOUNT surface (WHO-RUNS-USERADD P2). `identitysync.go` already
@@ -261,6 +263,51 @@ func TestUseraddInactiveCreatesDisabled(t *testing.T) {
 	}
 	if s.posted["enabled"] != false {
 		t.Error("--inactive did not reach the create")
+	}
+}
+
+// --generate-password: the launcher that administers the realm makes the
+// password, sets it, and shows it once. Found live 2026-09-29: the flag was
+// parsed and never read, so every such call refused with "Password required"
+// (bugs/useradd-generate-password-is-ignored.md).
+func TestUseraddGeneratesAPasswordForACreate(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{})
+	code := 0
+	out := harness.CaptureStdout(t, func() {
+		code = applyAgainst(t, s, useraddOpts{email: "sam@x.co", generate: true}, "")
+	})
+	if code != 0 {
+		t.Fatalf("create --generate-password: exit %d\n%s", code, out)
+	}
+	creds, _ := s.posted["credentials"].([]any)
+	if len(creds) != 1 {
+		t.Fatalf("credentials = %v, want the generated password", s.posted["credentials"])
+	}
+	pw, _ := creds[0].(map[string]any)["value"].(string)
+	if len(pw) != 16 {
+		t.Fatalf("generated password %q: want 16 characters", pw)
+	}
+	if n := strings.Count(out, pw); n != 1 {
+		t.Errorf("the generated password is shown %d times, want exactly once:\n%s", n, out)
+	}
+}
+
+func TestUseraddGeneratesAPasswordForAnUpdate(t *testing.T) {
+	s := newStubUsers(t, "semiont", []map[string]any{{"id": "abc-123", "email": "sam@x.co"}})
+	code := 0
+	out := harness.CaptureStdout(t, func() {
+		code = applyAgainst(t, s, useraddOpts{email: "sam@x.co", update: true, generate: true}, "")
+	})
+	if code != 0 {
+		t.Fatalf("update --generate-password: exit %d\n%s", code, out)
+	}
+	body, _ := s.puts["/admin/realms/semiont/users/abc-123/reset-password"].(map[string]any)
+	pw, _ := body["value"].(string)
+	if len(pw) != 16 {
+		t.Fatalf("reset-password body %v: want a generated 16-character value", body)
+	}
+	if n := strings.Count(out, pw); n != 1 {
+		t.Errorf("the generated password is shown %d times, want exactly once:\n%s", n, out)
 	}
 }
 

@@ -183,19 +183,25 @@ func (u *UI) Stamp(event string) {
 	fmt.Println(u.Dim(fmt.Sprintf("[%s] %s", time.Now().Format("2006-01-02 15:04:05"), event)))
 }
 
-// echoEnvAllowlist: the --env values safe to show in echoed commands. Names
-// off this list — the per-service client secrets and every user-supplied config
-// var (API keys) — are redacted in the ECHO ONLY; the real argv is untouched.
-// Terminal scrollback and CI logs are not places for credentials. (Infra
-// `-e` values like NEO4J_AUTH=neo4j/localpass stay visible: fixed,
-// well-known local-dev values the summary table prints anyway.)
-var echoEnvAllowlist = map[string]bool{
-	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true,
-	"OTEL_EXPORTER_OTLP_ENDPOINT": true,
-	// Not a credential, and seeing WHICH client a service presented is the
-	// first thing anyone diagnosing an authentication failure wants.
-	"SEMIONT_OIDC_CLIENT_ID": true,
+// injectedCredentials: the launcher-injected variables (config.go's
+// injectedVars) whose values are credentials. Every other injected value is a
+// host, a port or a client id — seeing WHICH client a service presented is the
+// first thing anyone diagnosing an authentication failure wants. A census
+// (TestInjectedCredentialsAreClassified) makes a credential-looking injected
+// name fail until it is classified here.
+var injectedCredentials = map[string]bool{"SEMIONT_OIDC_CLIENT_SECRET": true}
+
+// echoShown: an --env value safe to show in an echoed command — an injected
+// non-credential, or the OTel endpoint, which the launcher sets but no config
+// interpolates. Derived from injectedVars rather than restating it: a
+// hand-kept copy missed KEYCLOAK_PORT and hid the one number a moved issuer is
+// about. Everything else — JWT_SECRET, the per-root custody values, every
+// user-supplied config var (API keys) — is redacted in the ECHO ONLY; the real
+// argv is untouched. Terminal scrollback and CI logs are not places for
+// credentials. (Infra `-e` values like NEO4J_AUTH=neo4j/localpass stay
+// visible: fixed, well-known local-dev values the summary table prints anyway.)
+func echoShown(name string) bool {
+	return name == "OTEL_EXPORTER_OTLP_ENDPOINT" || (injectedVars[name] && !injectedCredentials[name])
 }
 
 // redactEnvArgs blanks secret --env VALUES for display. It no longer special-
@@ -209,7 +215,7 @@ func redactEnvArgs(args []string) []string {
 		if out[i] != "--env" {
 			continue
 		}
-		if name, _, ok := strings.Cut(out[i+1], "="); ok && !echoEnvAllowlist[name] {
+		if name, _, ok := strings.Cut(out[i+1], "="); ok && !echoShown(name) {
 			out[i+1] = name + "=<redacted>"
 		}
 	}
@@ -337,6 +343,20 @@ func capture(name string, args ...string) (string, error) {
 	cmd.Stdout, cmd.Stderr = &out, io.Discard
 	err := cmd.Run()
 	return strings.TrimSpace(out.String()), err
+}
+
+// captureWhy is capture that keeps the command's account of a failure: stdout
+// is the answer, stderr (else the exit error) is why there is none.
+func captureWhy(name string, args ...string) (out, why string) {
+	cmd := exec.Command(name, args...)
+	var stdout, stderr strings.Builder
+	cmd.Stdout, cmd.Stderr = &stdout, &stderr
+	if err := cmd.Run(); err != nil {
+		if why = strings.TrimSpace(stderr.String()); why == "" {
+			why = err.Error()
+		}
+	}
+	return strings.TrimSpace(stdout.String()), why
 }
 
 // --- Runtime selection ---

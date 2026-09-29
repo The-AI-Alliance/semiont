@@ -602,18 +602,39 @@ func (x *liveExec) gatewayReachable(addr string, port int) bool {
 	return false
 }
 
+// hostProbeBudget bounds the wait for a runtime whose daemon answers but which
+// cannot run a container yet — docker-in-docker seconds after dockerd starts,
+// which is exactly when a codespace's post-start runs on resume (live
+// 2026-09-29: eight seconds was not enough). A daemon that does not answer at
+// all is not waited for; that is daemonDownFixit's case.
+const hostProbeBudget = 30 * time.Second
+
 func (x *liveExec) resolveAddr() (string, bool) {
-	addr := resolveHostAddr(x.rt)
-	if addr == "" {
-		x.u.Fail("Could not determine host address for container networking.")
-		if fixit := daemonDownFixit(x.rt); fixit != "" {
-			fmt.Fprintln(os.Stderr, "  "+fixit)
-		} else {
-			fmt.Fprintln(os.Stderr, "  Neither the runtime's host alias nor the default-gateway probe returned a result.")
+	t0 := time.Now()
+	announced := false
+	for {
+		addr, why := resolveHostAddr(x.rt)
+		if addr != "" {
+			return addr, true
 		}
-		return "", false
+		if fixit := daemonDownFixit(x.rt); fixit != "" {
+			x.u.Fail("Could not determine host address for container networking.")
+			fmt.Fprintln(os.Stderr, "  "+fixit)
+			return "", false
+		}
+		if time.Since(t0) >= hostProbeBudget {
+			x.u.Fail("Could not determine host address for container networking: the runtime answers, but its probe container did not run within %s.", took(hostProbeBudget))
+			if why != "" {
+				fmt.Fprintln(os.Stderr, "  "+x.rt+" said: "+why)
+			}
+			return "", false
+		}
+		if !announced {
+			x.u.Log("The runtime answers but cannot run a container yet — waiting %s", x.u.Dim("(up to "+took(hostProbeBudget)+"; a daemon that just started)"))
+			announced = true
+		}
+		time.Sleep(2 * time.Second)
 	}
-	return addr, true
 }
 
 // daemonDownFixit: an empty host-address probe usually isn't networking at

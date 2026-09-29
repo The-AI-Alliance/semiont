@@ -998,7 +998,11 @@ func identityHostArgs(rt, addr string) []string {
 	return []string{"--add-host", identityHostName + ":host-gateway"}
 }
 
-func resolveHostAddr(rt string) string {
+// resolveHostAddr: the host as containers reach it — the runtime's alias when
+// it resolves, else the default gateway a probe container sees. The empty
+// answer comes with the runtime's own account of why: the probe container
+// failing is the one failure the launcher cannot explain for itself.
+func resolveHostAddr(rt string) (addr, why string) {
 	alias := ""
 	switch rt {
 	case "docker":
@@ -1007,10 +1011,13 @@ func resolveHostAddr(rt string) string {
 		alias = podmanHostAlias
 	}
 	if alias != "" && runSilent(rt, "run", "--rm", "busybox:1.38.0", "nslookup", alias) == nil {
-		return alias
+		return alias, ""
 	}
-	out, _ := capture(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c", "ip route | awk '/default/{print $3}'")
-	return strings.Join(strings.Fields(out), "")
+	out, why := captureWhy(rt, "run", "--rm", "busybox:1.38.0", "sh", "-c", "ip route | awk '/default/{print $3}'")
+	if addr = strings.Join(strings.Fields(out), ""); addr != "" {
+		return addr, ""
+	}
+	return "", why
 }
 
 // removeStagedConfigs sweeps /tmp/semiont-config.* — shared by start's
