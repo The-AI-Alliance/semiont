@@ -8082,6 +8082,12 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 	if !ok || len(graphPw) < 32 {
 		t.Fatalf("Neo4j was not given a generated password: NEO4J_AUTH=%q", neo)
 	}
+	// Where KB skills are told to read it (FLEET-P4-DAEMON-PASSWORDS): the
+	// layout is a contract with them, so a move breaks this first.
+	kept, err := os.ReadFile(filepath.Join(stateRootFor(s.home, testKBKey), "neo4j-password"))
+	if err != nil || strings.TrimSpace(string(kept)) != graphPw {
+		t.Errorf("roots/<key>/neo4j-password does not hold Neo4j's password (read %q, %v)", kept, err)
+	}
 	for _, svc := range []string{"archivist", "librarian", "weaver"} {
 		if v, _ := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); v != graphPw {
 			t.Errorf("%s reads [graph] but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)

@@ -59,7 +59,9 @@ func custodyOwned(name string) bool {
 // password it was initialized with. The variable names are the launcher's,
 // machine-wide (ruled 2026-09-29: "names are fine") — `semiont secret`
 // registrations are machine-wide while a daemon's presence is per-KB config,
-// so no config may borrow one.
+// so no config may borrow one. The files, under roots/<key>/, are also where KB
+// skills that connect to a daemon directly are told to read its password
+// (FLEET-P4-DAEMON-PASSWORDS): keep the names and the layout stable.
 var daemonPasswords = map[string]struct {
 	env, file, display string
 	// kept: the daemon writes the password into its store at initialization,
