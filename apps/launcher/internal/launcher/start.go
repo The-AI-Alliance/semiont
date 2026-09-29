@@ -324,7 +324,11 @@ func Start(args []string) int {
 			u.Fail("%v", err)
 			return 1
 		}
-		plan.ServiceVars = refs.ByService
+		plan.ServiceVars = withDaemonCredentialVars(refs.ByService, plan, envCfg.Signal != nil && envCfg.Signal.Type == "nats")
+		if err := refuseDaemonCredentialNames(refs, plan, opts.configName); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 		if strings.Contains(envCfg.Identity.Issuer, "${KEYCLOAK_PORT}") {
 			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
 		} else if kcFromEnv {
@@ -947,7 +951,13 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	fmt.Println()
 	fmt.Printf("  Semiont Browser    %s\n", u.Bold("http://localhost:3000"))
 	fmt.Println("  Semiont KB         http://localhost:4000")
-	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", u.Dim("(neo4j / localpass)"))
+	neo4jLogin := ""
+	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
+		// The password is the launcher's (SECRET-DELIVERY P4): say where it is
+		// kept, never print it.
+		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + filepath.Join(stateRootDir(root), daemonPasswords["graph"].file) + ")")
+	}
+	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
@@ -1164,4 +1174,34 @@ func describeProcs(pids []string) string {
 		procs = append(procs, fmt.Sprintf("%s (%s)", p, comm))
 	}
 	return strings.Join(procs, ", ")
+}
+
+// refuseDaemonCredentialNames: the daemon-credential names are the launcher's
+// (SECRET-DELIVERY P4). A config may not reference one — `semiont secret`
+// registrations are machine-wide, so a name cannot be the launcher's in one KB
+// and the user's in another — and an exported one is refused, not honoured,
+// for a daemon the launcher runs (ruled 2026-09-29: "refuse exported daemon
+// passwords"): it could only disagree with the store it was meant for.
+func refuseDaemonCredentialNames(refs configRefs, plan *launchPlan, config string) error {
+	for _, name := range append(append([]string{}, refs.Required...), refs.Optional...) {
+		if daemonCredentialVar(name) {
+			return fmt.Errorf("config '%s' references ${%s}, which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", config, name)
+		}
+	}
+	for _, role := range []string{"graph", "database", "messaging"} {
+		if plan.Roles[role].Presence != presenceLauncher {
+			continue
+		}
+		d := daemonPasswords[role]
+		names := []string{d.env}
+		if role == "messaging" {
+			names = append(names, "NATS_USER")
+		}
+		for _, name := range names {
+			if _, exported := os.LookupEnv(name); exported {
+				return fmt.Errorf("%s is exported, but the launcher generates and keeps the credentials of the %s it runs. Unset it; to rotate, delete %s in this root's state dir and run semiont clean --store %s", name, d.display, d.file, role)
+			}
+		}
+	}
+	return nil
 }

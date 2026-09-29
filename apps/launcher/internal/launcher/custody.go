@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,7 +50,97 @@ func custodyOwned(name string) bool {
 	case "JWT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "SEMIONT_OIDC_CLIENT_SECRET":
 		return true
 	}
-	return strings.HasPrefix(name, "SEMIONT_OIDC_CLIENT_SECRET_")
+	return daemonCredentialVar(name) || strings.HasPrefix(name, "SEMIONT_OIDC_CLIENT_SECRET_")
+}
+
+// daemonPasswords: the daemons the launcher runs and keeps a password for
+// (SECRET-DELIVERY P4, D1 RULED: "B for daemons the launcher runs"). Each is
+// generated once per root and kept, because a data directory keeps the
+// password it was initialized with. The variable names are the launcher's,
+// machine-wide (ruled 2026-09-29: "names are fine") — `semiont secret`
+// registrations are machine-wide while a daemon's presence is per-KB config,
+// so no config may borrow one.
+var daemonPasswords = map[string]struct {
+	env, file, display string
+	// kept: the daemon writes the password into its store at initialization,
+	// so a store with data and no kept password predates custody.
+	kept bool
+}{
+	"graph":     {"NEO4J_PASSWORD", "neo4j-password", "Neo4j", true},
+	"database":  {"POSTGRES_PASSWORD", "postgres-password", "PostgreSQL", true},
+	"messaging": {"NATS_PASSWORD", "nats-password", "the broker", false},
+}
+
+// brokerUser: the user of the broker the launcher runs. Not a secret; the
+// pair travels together all the same.
+const brokerUser = "semiont"
+
+// daemonCredentialVar: one of the launcher's daemon-credential names.
+func daemonCredentialVar(name string) bool {
+	if name == "NATS_USER" {
+		return true
+	}
+	for _, d := range daemonPasswords {
+		if d.env == name {
+			return true
+		}
+	}
+	return false
+}
+
+// loadOrCreateDaemonPassword: the kept password of a daemon the launcher runs
+// for this root, generated and persisted on first use. A store that already
+// holds data with no kept password was initialized with one the launcher does
+// not have — the old literal from a config, or custody lost with the store
+// kept — and a daemon started over it rejects every login, so that refuses,
+// naming the clean. It never wipes a store itself.
+func loadOrCreateDaemonPassword(u *UI, root, role string) (string, bool) {
+	d := daemonPasswords[role]
+	dir := stateRootDir(root)
+	if dir == "" {
+		u.Fail("No home directory resolvable, so %s's password cannot be persisted.", d.display)
+		return "", false
+	}
+	p := filepath.Join(dir, d.file)
+	if s := readPersistedSecret(p); s != "" {
+		return s, true
+	}
+	if spec, ok := stateStores[role]; ok && d.kept && storeHoldsData(spec.storeDir(root)) {
+		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(root))
+		fmt.Fprintln(os.Stderr, "  It was initialized with a password the launcher does not have (a config's literal, or one whose file was lost),")
+		fmt.Fprintln(os.Stderr, "  and the daemon would reject every login. Clear it — the launcher then generates and keeps a new one:")
+		fmt.Fprintf(os.Stderr, "    semiont clean --store %s\n", role)
+		return "", false
+	}
+	secret, ok := generateHexSecret(u, 16, d.display+"'s password")
+	if !ok {
+		return "", false
+	}
+	if !persistSecret(u, p, secret) {
+		return "", false
+	}
+	u.Log("%s password: %s", d.display, u.Dim("generated and persisted at "+p))
+	return secret, true
+}
+
+// storeHoldsData: anything but empty directories under dir. What the daemon
+// wrote may be owned by its own uid and unreadable here; that counts as data.
+func storeHoldsData(dir string) bool {
+	found := false
+	_ = filepath.WalkDir(dir, func(p string, e fs.DirEntry, err error) error {
+		if err != nil {
+			if p != dir {
+				found = true
+			}
+			return filepath.SkipDir
+		}
+		if !e.IsDir() {
+			found = true
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return found
 }
 
 // jwtSecretPath: <stateRootDir>/jwt-secret. A VALUE, so deliberately not in

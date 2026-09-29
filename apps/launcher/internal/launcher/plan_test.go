@@ -43,7 +43,6 @@ platform = "external"
 type = "neo4j"
 uri = "bolt://${NEO4J_HOST}:7687"
 username = "neo4j"
-password = "localpass"
 `,
 		"vectors": `[environments.local.vectors]
 type = "qdrant"
@@ -56,7 +55,6 @@ host = "${POSTGRES_HOST}"
 port = 5432
 name = "semiont"
 user = "postgres"
-password = "localpass"
 `,
 		"embedding": `[environments.local.embedding]
 platform = "external"
@@ -121,6 +119,9 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	if got.Driver != want.Driver {
 		t.Errorf("%s driver: got %q want %q", role, got.Driver, want.Driver)
 	}
+	if got.User != want.User {
+		t.Errorf("%s user: got %q want %q", role, got.User, want.User)
+	}
 	if got.Image != want.Image {
 		t.Errorf("%s image: got %q want %q", role, got.Image, want.Image)
 	}
@@ -157,7 +158,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			checkRole(t, plan, "graph", rolePlan{
 				Presence: presenceLauncher, Driver: "neo4j",
 				Image: "neo4j:5.26.28-community", Port: 7687,
-				Env: []string{"NEO4J_AUTH=neo4j/localpass", "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"},
+				User: "neo4j", Env: []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"},
 			})
 			checkRole(t, plan, "vectors", rolePlan{
 				Presence: presenceLauncher, Driver: "qdrant",
@@ -183,7 +184,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			checkRole(t, plan, "database", rolePlan{
 				Presence: presenceLauncher, Driver: "postgres",
 				Image: "postgres:15.18-alpine", Port: 5432,
-				Env: []string{"POSTGRES_PASSWORD=localpass", "POSTGRES_DB=semiont"},
+				Env: []string{"POSTGRES_DB=semiont"},
 			})
 			// Both templates use ollama embedding, so inference is needed in
 			// both — host-process preferred with container fallback (the
@@ -265,7 +266,6 @@ host = "${POSTGRES_HOST}"
 port = 5433
 name = "semiont"
 user = "postgres"
-password = "localpass"
 `})
 	plan := mustDerive(t, p)
 	if got := plan.Roles["database"]; got.Port != 5433 || got.Presence != presenceLauncher {
@@ -376,7 +376,6 @@ func TestDerivePlanMissingRequiredKey(t *testing.T) {
 	p := variantConfig(t, map[string]string{"graph": `[environments.local.graph]
 type = "neo4j"
 username = "neo4j"
-password = "localpass"
 `})
 	env, envName, _, err := loadConfig(p)
 	if err != nil {
@@ -414,7 +413,6 @@ apiKey = "${ANTHROPIC_API_KEY}"
 type = "neo4j"
 uri = "bolt://${NEO4J_HOST}:7687"
 username = "neo4j"
-password = "localpass"
 
 [environments.other.database]
 host = "${OTHER_ENV_VAR}"
@@ -437,13 +435,11 @@ func TestDerivePlanImageOverride(t *testing.T) {
 type = "neo4j"
 uri = "bolt://${NEO4J_HOST}:7687"
 username = "neo4j"
-password = "localpass"
 image = "neo4j:6.0.1-community"
 `,
 		"database": `[environments.local.database]
 host = "${POSTGRES_HOST}"
 name = "semiont"
-password = "localpass"
 image = "postgres:17.2-alpine"
 `,
 	})
@@ -538,24 +534,20 @@ user = "semiont"
 password = "broker-pw"
 `
 
-func TestBrokerCredentialsReachTheDaemonAsItsOwnEnvironment(t *testing.T) {
-	plan, err := planForBroker(t, brokerSignal, brokerJobs)
-	if err != nil {
-		t.Fatalf("derivePlan: %v", err)
-	}
-	rp := plan.Roles["messaging"]
-	if !slices.Contains(rp.Env, "NATS_USER=semiont") || !slices.Contains(rp.Env, "NATS_PASSWORD=broker-pw") {
-		t.Fatalf("messaging env = %v, want the broker credentials", rp.Env)
-	}
-	// And the daemon is pointed at the authorization block that reads them.
-	if !slices.Contains(rp.CmdExtra, "-c") || !slices.Contains(rp.CmdExtra, natsConfPath) {
-		t.Fatalf("CmdExtra = %v, want -c %s", rp.CmdExtra, natsConfPath)
+// The broker the launcher runs has the pair the launcher keeps
+// (SECRET-DELIVERY P4); a config naming one is a second place deciding it.
+// That the pair reaches the daemon and both clients is proven end to end
+// (TestLauncherRunBrokerIsAuthenticated).
+func TestConfigNamedPairIsRefusedForTheLauncherRunBroker(t *testing.T) {
+	_, err := planForBroker(t, brokerSignal, brokerJobs)
+	if err == nil || !strings.Contains(err.Error(), "the launcher generates") {
+		t.Fatalf("a config naming the launcher-run broker's pair was not refused: %v", err)
 	}
 }
 
-// The control: no credentials configured means nothing added, so an
-// unauthenticated broker keeps working byte-for-byte as before.
-func TestNoBrokerCredentialsLeavesTheDaemonUntouched(t *testing.T) {
+// With no pair configured, the launcher-run broker is authenticated all the
+// same: pointed at the authorization block, its pair added at launch.
+func TestLauncherRunBrokerIsAlwaysAuthenticated(t *testing.T) {
 	plan, err := planForBroker(t,
 		"[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n",
 		"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n")
@@ -563,12 +555,19 @@ func TestNoBrokerCredentialsLeavesTheDaemonUntouched(t *testing.T) {
 		t.Fatalf("derivePlan: %v", err)
 	}
 	rp := plan.Roles["messaging"]
-	if len(rp.Env) != 0 || len(rp.CmdExtra) != 0 {
-		t.Fatalf("env=%v cmdExtra=%v, want both empty", rp.Env, rp.CmdExtra)
+	if !slices.Contains(rp.CmdExtra, "-c") || !slices.Contains(rp.CmdExtra, natsConfPath) {
+		t.Fatalf("CmdExtra = %v, want -c %s", rp.CmdExtra, natsConfPath)
+	}
+	if len(rp.Env) != 0 {
+		t.Fatalf("the plan carries a credential (%v); the pair is added at launch", rp.Env)
 	}
 }
 
+// For a broker somebody else runs, the config supplies the pair, and the two
+// sections naming one daemon must agree.
 func TestBrokerCredentialsMustAgreeAcrossSections(t *testing.T) {
+	external := func(section string) string { return strings.ReplaceAll(section, "${NATS_HOST}", "nats.example.com") }
+	brokerSignal, brokerJobs := external(brokerSignal), external(brokerJobs)
 	_, err := planForBroker(t, brokerSignal,
 		strings.Replace(brokerJobs, `password = "broker-pw"`, `password = "a-different-one"`, 1))
 	if err == nil {

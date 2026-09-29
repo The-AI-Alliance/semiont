@@ -57,7 +57,7 @@ func TestDerivePlanIdentityKeycloakProvided(t *testing.T) {
 	checkRole(t, plan, "identity", rolePlan{
 		Presence: presenceLauncher, Driver: "keycloak",
 		Image: "quay.io/keycloak/keycloak:26.7.4", Port: 8080,
-		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_DB_PASSWORD=localpass", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
+		Env: []string{"KC_DB=postgres", "KC_DB_USERNAME=postgres", "KC_BOOTSTRAP_ADMIN_USERNAME=admin"},
 	})
 	rp := plan.Roles["identity"]
 	if rp.Issuer != "http://${KEYCLOAK_HOST}:8080/realms/semiont" {

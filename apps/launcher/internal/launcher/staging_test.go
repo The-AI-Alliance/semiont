@@ -168,7 +168,7 @@ func TestStagedConfigPerService(t *testing.T) {
 		// The Archivist IS the record — it holds the mount and dials nobody.
 		{"archivist", false, false},
 	} {
-		out := x.stagedConfig(tc.svc, []byte(stagingFixture), "local", "192.168.64.1")
+		out := x.stagedConfig(tc.svc, []byte(stagingFixture), &launchPlan{EnvName: "local"}, "192.168.64.1")
 
 		var doc map[string]any
 		if err := toml.Unmarshal(out, &doc); err != nil {

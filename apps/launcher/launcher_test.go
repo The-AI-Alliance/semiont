@@ -1123,6 +1123,11 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// What that earlier stack also kept: the password its data was
+	// initialized with (SECRET-DELIVERY P4).
+	if err := os.WriteFile(filepath.Join(dir, "postgres-password"), []byte("kept-by-an-earlier-start\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	stdout, stderr, code := s.run(t, "start")
 	if code == 0 {
 		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
@@ -1236,6 +1241,11 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	}
 	meta := `{"kbRoot":"` + s.kb + `","stores":{"graph":{"image":"neo4j:5.20.0-community"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// What that earlier stack also kept: the password its data was
+	// initialized with (SECRET-DELIVERY P4).
+	if err := os.WriteFile(filepath.Join(dir, "neo4j-password"), []byte("kept-by-an-earlier-start\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	stdout, stderr, code := s.run(t, "start")
@@ -4308,8 +4318,8 @@ const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer 
 // the section.
 const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
 const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\n\n"
-const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n"
-const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\npassword = \"localpass\"\n\n"
+const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
+const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n\n"
 
 func TestStartExternalGraphBoot(t *testing.T) {
 	// graph at a literal address: verify reachability, launch no container,
@@ -4368,7 +4378,7 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "moved-db",
 		stdGraph+stdVectors+stdEmbedding+
-			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n")
+			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\n\n")
 	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -8039,6 +8049,168 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	// Active stacks stay scannable in the slim section, addressed exactly
 	// as their rows in `semiont roots` — find one there in one glance.
 	mustContain(t, "active line", stdout, "active: file://"+other)
+}
+
+// --- SECRET-DELIVERY P4: the passwords of the daemons the launcher runs are
+// the launcher's (D1, RULED: "B for daemons the launcher runs, and A's
+// resolver for ones it doesn't") ---
+
+// stagedFile reads a file the last start staged for its containers.
+func stagedFile(t *testing.T, s *scenario, name string) string {
+	t.Helper()
+	log, _ := os.ReadFile(s.log)
+	stages := stageRe.FindAllString(string(log), -1)
+	if len(stages) == 0 {
+		t.Fatalf("no staging dir in the argv log")
+	}
+	b, err := os.ReadFile(filepath.Join(stages[len(stages)-1], name))
+	if err != nil {
+		t.Fatalf("reading staged %s: %v", name, err)
+	}
+	return string(b)
+}
+
+// Each launcher-run daemon and every service that dials it get the same
+// generated value, kept per root so a second start presents it again.
+func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	neo, _ := s.containerEnv(t, "semiont-neo4j", "NEO4J_AUTH")
+	graphPw, ok := strings.CutPrefix(neo, "neo4j/")
+	if !ok || len(graphPw) < 32 {
+		t.Fatalf("Neo4j was not given a generated password: NEO4J_AUTH=%q", neo)
+	}
+	for _, svc := range []string{"archivist", "librarian", "weaver"} {
+		if v, _ := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); v != graphPw {
+			t.Errorf("%s reads [graph] but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)
+		}
+	}
+	if _, handed := s.containerEnv(t, "semiont-smelter", "NEO4J_PASSWORD"); handed {
+		t.Error("the smelter reads no [graph] but was handed its password")
+	}
+	if staged := stagedFile(t, s, "archivist.toml"); !regexp.MustCompile(`password = ['"]\$\{NEO4J_PASSWORD\}['"]`).MatchString(staged) {
+		t.Errorf("the archivist's staged [graph] does not read ${NEO4J_PASSWORD}:\n%s", staged)
+	}
+	pg, _ := s.containerEnv(t, "semiont-postgres", "POSTGRES_PASSWORD")
+	if len(pg) < 32 {
+		t.Fatalf("PostgreSQL was not given a generated password: %q", pg)
+	}
+	if v, _ := s.containerEnv(t, "semiont-keycloak", "KC_DB_PASSWORD"); v != pg {
+		t.Errorf("Keycloak dials PostgreSQL with %q, want PostgreSQL's own password", v)
+	}
+
+	// Kept, not regenerated: a data directory keeps the password it was
+	// initialized with, so a second start must present the same one.
+	s.killServes()
+	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
+		t.Fatalf("second start: exit %d\n%s", code, stderr)
+	}
+	if again, _ := s.containerEnv(t, "semiont-neo4j", "NEO4J_AUTH"); again != neo {
+		t.Errorf("the Neo4j password changed across starts: %q then %q", neo, again)
+	}
+}
+
+// The launcher-run broker is always authenticated, and its pair reaches the
+// two clients: the dispatcher through its staged [jobs], the gateway through
+// the variables its document names.
+func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
+	s := newScenario(t, "container")
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "broker.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--config", "broker"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	pw, _ := s.containerEnv(t, "semiont-nats", "NATS_PASSWORD")
+	if len(pw) < 32 {
+		t.Fatalf("the broker was not given a generated password: %q", pw)
+	}
+	mustContain(t, "argv log", s.argv(t), "-c /etc/nats/semiont.conf")
+	for _, c := range []string{"semiont-nats", "semiont-dispatcher", "semiont-gateway"} {
+		if u, _ := s.containerEnv(t, c, "NATS_USER"); u != "semiont" {
+			t.Errorf("%s: NATS_USER=%q, want semiont", c, u)
+		}
+		if v, _ := s.containerEnv(t, c, "NATS_PASSWORD"); v != pw {
+			t.Errorf("%s: NATS_PASSWORD=%q, want the broker's", c, v)
+		}
+	}
+	if staged := stagedFile(t, s, "dispatcher.toml"); !regexp.MustCompile(`password = ['"]\$\{NATS_PASSWORD\}['"]`).MatchString(staged) {
+		t.Errorf("the dispatcher's staged [jobs] does not read ${NATS_PASSWORD}:\n%s", staged)
+	}
+	mustContain(t, "the gateway's document", stagedFile(t, s, "gateway.json"), `"passwordEnv": "NATS_PASSWORD"`)
+}
+
+// A config key naming a launcher-run daemon's credential is refused, naming
+// its owner: two places deciding one password is the thing we do not do.
+func TestConfigNamingALauncherRunDaemonPasswordIsRefused(t *testing.T) {
+	s := newScenario(t, "container")
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	named := strings.Replace(string(b), "username = \"neo4j\"\n", "username = \"neo4j\"\npassword = \"localpass\"\n", 1)
+	if named == string(b) {
+		t.Fatal("the fixture's [graph] has no username line to anchor on")
+	}
+	if err := os.WriteFile(p, []byte(named), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
+	if code == 0 {
+		t.Fatal("started with a config naming the password of a Neo4j the launcher runs")
+	}
+	mustContain(t, "stderr", stderr, "[environments.local.graph]", "password", "the launcher generates")
+}
+
+// Ruled: an exported daemon password is refused, not honoured — it would only
+// disagree with the store it was meant for.
+func TestExportedDaemonPasswordIsRefused(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "NEO4J_PASSWORD=mine")
+	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
+	if code == 0 {
+		t.Fatal("started with an exported NEO4J_PASSWORD")
+	}
+	mustContain(t, "stderr", stderr, "NEO4J_PASSWORD", "the launcher generates")
+}
+
+// A store that holds data but no kept password was initialized with one the
+// launcher does not have (the old literal, or custody lost): refuse, naming
+// the clean, rather than start a daemon that rejects every login.
+func TestStoreWithoutItsPasswordRefusesNamingTheClean(t *testing.T) {
+	s := newScenario(t, "container")
+	data := filepath.Join(stateRootFor(s.home, testKBKey), "neo4j", "data", "databases")
+	if err := os.MkdirAll(data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "store_lock"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
+	if code == 0 {
+		t.Fatal("started Neo4j over a store initialized with a password the launcher does not hold")
+	}
+	mustContain(t, "stderr", stderr, "semiont clean --store graph")
+}
+
+// The daemon names are the launcher's: `semiont secret set` refuses them, as
+// it refuses the other values custody owns.
+func TestSecretSetRefusesADaemonPassword(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	_, stderr, code := s.run(t, "secret", "set", "NEO4J_PASSWORD", "op://OSS/Neo4j/password")
+	if code == 0 {
+		t.Fatal("registered a source for a password the launcher generates")
+	}
+	mustContain(t, "stderr", stderr, "NEO4J_PASSWORD")
 }
 
 // JOB-QUEUE-DRIVER P2 (launcher lane): a config whose [environments.*.jobs]

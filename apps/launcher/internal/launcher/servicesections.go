@@ -63,3 +63,30 @@ func serviceVars(doc any, envName string, env *envConfig) map[string][]string {
 	}
 	return out
 }
+
+// withDaemonCredentialVars adds, to each service's variables, the credential
+// names of the daemons the launcher runs that the service dials
+// (SECRET-DELIVERY P4): a [graph] reader the Neo4j password, a [jobs] reader
+// the broker pair, and the gateway the pair when its signal plane is that
+// broker.
+func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, signalOnBroker bool) map[string][]string {
+	out := map[string][]string{}
+	for svc, names := range byService {
+		out[svc] = append([]string{}, names...)
+	}
+	graphRun := plan.Roles["graph"].Presence == presenceLauncher
+	brokerRun := plan.Roles["messaging"].Presence == presenceLauncher
+	pair := []string{"NATS_USER", daemonPasswords["messaging"].env}
+	for svc, sections := range serviceConfigSections {
+		if graphRun && contains(sections, "graph") {
+			out[svc] = append(out[svc], daemonPasswords["graph"].env)
+		}
+		if brokerRun && contains(sections, "jobs") {
+			out[svc] = append(out[svc], pair...)
+		}
+	}
+	if brokerRun && signalOnBroker {
+		out["gateway"] = append(out["gateway"], pair...)
+	}
+	return out
+}
