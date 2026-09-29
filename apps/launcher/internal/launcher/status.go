@@ -229,6 +229,14 @@ func Status(args []string) int {
 			u.Fail("The local stack belongs to %s, not %s.", st.KBRoot, want)
 			return 1
 		}
+		// A stack mid-start is not ready, whatever its recorded services
+		// report so far: the gateway answers long before the sidecars do.
+		// This is the question a laptop asks a codespace before moving its
+		// issuer (askRemoteKB).
+		if holder, busy := startInProgress(want); busy {
+			u.Fail("A semiont start is running for this KB (%s) — its stack is not ready yet.", holder)
+			return 1
+		}
 	}
 
 	if service == "" {

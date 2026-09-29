@@ -16,6 +16,10 @@
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
+//	FAKERT_RUN_HOLD          a container name: its `run -d` parks until FAKERT_DIR/release-<name>
+//	                         exists, after writing FAKERT_DIR/holding-<name> — a start held mid-flight
+//	FAKERT_REMOTE_STACK_READY_AFTER  the nth ssh stack-readiness probe is the first to answer READY,
+//	                         while the codespace's gateway already answers through its forward
 //	FAKERT_BUSYBOX_FAIL_FIRST  the first n busybox probe containers fail with a runtime error
 //	                         while the daemon answers — docker-in-docker just after dockerd starts
 //	FAKERT_GATEWAY_UNREACHABLE  "1" fails the busybox wget probe of :4000
@@ -607,7 +611,7 @@ func ghCodespace(args []string, joined string) {
 				body = `{"email":"admin@example.com","password":"fake-admin-pw"}`
 			}
 			fmt.Println(body)
-		case strings.Contains(joined, "api/health"):
+		case strings.Contains(joined, "SEMIONT_KB_READY"):
 			// The readiness probe that does NOT go through the tunnel — the
 			// only way to ask "is the stack up?" without destroying the
 			// forward while it is still coming up. Each call is tallied so a
@@ -617,6 +621,12 @@ func ghCodespace(args []string, joined string) {
 			// sentinel is how it detects that ssh itself failed.
 			bumpRemoteProbe()
 			if remoteDown() {
+				fmt.Println("SEMIONT_KB_WAIT")
+				return
+			}
+			// The gateway can answer while the codespace's own start is still
+			// bringing up the rest: only its launcher can say the STACK is up.
+			if n, _ := strconv.Atoi(os.Getenv("FAKERT_REMOTE_STACK_READY_AFTER")); n > 0 && bumpCounter("stack-probes") < n {
 				fmt.Println("SEMIONT_KB_WAIT")
 				return
 			}
@@ -966,6 +976,19 @@ func run(args []string) {
 	if !detached {
 		fmt.Fprintf(os.Stderr, "fakert run: unscripted foreground run %v\n", args)
 		os.Exit(64)
+	}
+	// A start held mid-flight: this container's run parks until the test
+	// releases it, so a second start can be begun while the first is busy.
+	if hold := os.Getenv("FAKERT_RUN_HOLD"); hold != "" && hold == name {
+		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+			_ = os.WriteFile(filepath.Join(dir, "holding-"+name), nil, 0o644)
+			for i := 0; i < 600; i++ {
+				if _, err := os.Stat(filepath.Join(dir, "release-"+name)); err == nil {
+					break
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
 	}
 	// NAME-HOLDING: real runtimes refuse `run --name X` while a container
 	// named X exists IN ANY STATE — stopped included (no --rm keeps them).

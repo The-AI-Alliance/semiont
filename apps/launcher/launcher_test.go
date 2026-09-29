@@ -513,6 +513,84 @@ func TestHostProbeRefusalQuotesTheRuntime(t *testing.T) {
 	mustContain(t, "the runtime's own words", stderr, "network bridge not found")
 }
 
+// Two starts on one KB root at once — live 2026-09-29, a codespace's post-start
+// and the laptop's issuer move — interleaved: each swept containers the other was
+// about to use, and the stack ended half on each issuer port
+// (bugs/codespace-issuer-move-races-post-start.md P1). The second now waits for
+// the first, then runs its own whole sequence.
+func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
+	type result struct {
+		out  string
+		code int
+	}
+	first, second := make(chan result, 1), make(chan result, 1)
+	go func() { o, e, c := s.run(t, "start"); first <- result{o + e, c} }()
+	held := filepath.Join(s.fakertDir, "holding-semiont-archivist")
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(held); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	go func() { o, e, c := s.run(t, "start"); second <- result{o + e, c} }()
+	time.Sleep(3 * time.Second) // time enough to interleave, if it can
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-archivist"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r1, r2 := <-first, <-second
+	if r1.code != 0 || r2.code != 0 {
+		t.Fatalf("both starts must succeed: first %d, second %d\nfirst:\n%s\nsecond:\n%s", r1.code, r2.code, r1.out, r2.out)
+	}
+	mustContain(t, "the second start says what it waits for", r2.out, "Another semiont start is running for this KB")
+	// No interleaving: the second start's first container command (the host
+	// probe) comes after the first start has run its last service.
+	lines := strings.Split(s.argv(t), "\n")
+	firstWeaver, secondProbe, probes := -1, -1, 0
+	for i, l := range lines {
+		if firstWeaver < 0 && strings.Contains(l, "--name semiont-weaver") {
+			firstWeaver = i
+		}
+		if strings.Contains(l, "ip route") {
+			if probes++; probes == 2 {
+				secondProbe = i
+			}
+		}
+	}
+	if firstWeaver < 0 || secondProbe < 0 || secondProbe < firstWeaver {
+		t.Errorf("the second start ran while the first was mid-flight (second's host probe at line %d, first's weaver at %d):\n%s", secondProbe, firstWeaver, s.argv(t))
+	}
+}
+
+// status --root is what a laptop asks a codespace before moving its issuer:
+// "is the stack up?" A stack mid-start is not, however healthy its gateway
+// already is — the record lists only what has started so far.
+func TestStatusRootSaysNotReadyWhileAStartRuns(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
+	done := make(chan int, 1)
+	go func() { _, _, c := s.run(t, "start"); done <- c }()
+	held := filepath.Join(s.fakertDir, "holding-semiont-archivist")
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(held); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	_, stderr, code := s.run(t, "status", "--root", s.kb)
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-archivist"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if c := <-done; c != 0 {
+		t.Fatalf("the held start failed: exit %d", c)
+	}
+	if code == 0 {
+		t.Fatal("status --root reported a stack ready while its start was still running")
+	}
+	mustContain(t, "status names the start in progress", stderr, "A semiont start is running for this KB")
+}
+
 func TestStartRuntimeDockerBoot(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
@@ -2481,7 +2559,7 @@ func TestCodespaceWaitsForRemoteBeforeForwarding(t *testing.T) {
 	}
 	// The readiness question was asked over ssh, before any forward existed.
 	log := s.argv(t)
-	sshAt := strings.Index(log, "api/health")
+	sshAt := strings.Index(log, "SEMIONT_KB_READY") // the stack-readiness probe
 	fwdAt := strings.Index(log, "ports forward")
 	if sshAt < 0 {
 		t.Fatalf("readiness was never asked over ssh:\n%s", log)
@@ -3388,6 +3466,44 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 			t.Errorf("recorded an issuer port for an issuer this codespace does not run:\n%s", record(t, s))
 		}
 	})
+}
+
+// The laptop moves a codespace's issuer only once the codespace's OWN start has
+// finished — not when its gateway first answers. Live 2026-09-29, ssh could not
+// answer yet, readiness was proven by the forward (the gateway), and the move's
+// rerun collided with post-start's start still bringing up the rest
+// (bugs/codespace-issuer-move-races-post-start.md P2).
+func TestCodespaceMovesOnlyAfterItsOwnStartFinishes(t *testing.T) {
+	s := newCodespaceScenario(t)
+	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SSH_FAIL_FIRST=1", "FAKERT_REMOTE_STACK_READY_AFTER=3")
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	lines := strings.Split(s.argv(t), "\n")
+	move, stackProbes, lastProbe := -1, 0, -1
+	for i, l := range lines {
+		if strings.Contains(l, "semiont status") && strings.Contains(l, "SEMIONT_KB_READY") {
+			stackProbes++
+			lastProbe = i
+		}
+		if move < 0 && strings.Contains(l, "KEYCLOAK_PORT=8081 semiont start") {
+			move = i
+		}
+	}
+	if stackProbes < 3 {
+		t.Fatalf("the laptop asked the codespace's own launcher %d times, want until it said ready (3):\n%s", stackProbes, s.argv(t))
+	}
+	if move < 0 || move < lastProbe {
+		t.Errorf("the issuer moved (line %d) before the codespace's start was done (last stack probe line %d)", move, lastProbe)
+	}
 }
 
 // A start right after a stop meets GitHub still shutting the codespace down.

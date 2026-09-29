@@ -506,6 +506,12 @@ func Start(args []string) int {
 		}
 		return 0
 	}
+	// One start per KB root at a time (startlock.go), taken before the first
+	// side effect: a second start waits for the first rather than sweeping
+	// its containers out from under it.
+	if root != "" && !acquireStartLock(u, root) {
+		return 1
+	}
 	// A codespace KB forward may squat on a port this start claims (a
 	// forward is a view, not a stack — dropping one stops nothing in the
 	// cloud). Only colliding forwards drop; concurrent KBs on allocated
