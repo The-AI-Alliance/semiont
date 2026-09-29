@@ -583,6 +583,27 @@ func TestStartHostOllamaBoot(t *testing.T) {
 	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
 }
 
+// CODESPACE-IDENTITY B6: a re-run start over a live stack took its OWN Ollama
+// container for a host install — "using host Ollama at http://localhost:11434"
+// on the spike's second run, with semiont-ollama left running and recorded as
+// the host's. B4 reruns start over a live stack, so this is the normal path.
+func TestRerunStartReplacesItsOwnOllama(t *testing.T) {
+	s := newScenario(t, "container")
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	before := len(s.argv(t))
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if strings.Contains(stdout, "using host Ollama") {
+		t.Errorf("the re-run took the stack's own semiont-ollama for a host install:\n%s", stdout)
+	}
+	second := s.argv(t)[before:]
+	mustContain(t, "second run's argv", second, "rm semiont-ollama", "--name semiont-ollama")
+}
+
 func TestStartLocalVersionBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "SEMIONT_VERSION=local")

@@ -24,8 +24,8 @@ func configFreeService(svc string) bool {
 // preflightNames: the containers start's stop-then-rm sweep removes. A
 // sweep is a teardown, so it runs in teardown order — dependents first.
 //
-// `inference` is exempt: it is handled in the Ollama section, where a host
-// instance may make a container unnecessary. `browser` is exempt because the
+// `inference` is exempt: flowOllama removes semiont-ollama itself, ahead of
+// its host probe, for both walks (--service inference has no preflight). `browser` is exempt because the
 // Browser is not a stack member (BROWSER-LIFECYCLE.md) — its keep-or-refresh
 // lifecycle lives in flowBrowser, and the preflight must not sweep a viewer
 // the user keeps open across stacks. Both exemptions are gated by

@@ -613,6 +613,15 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		title = depRoleTitles[role]
 	}
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
+	// Our own container goes BEFORE the probe: a semiont-ollama left by the
+	// last start publishes the same port and answers the same /api/version,
+	// so probing first took the stack's own Ollama for a host install (the
+	// B-spike's re-run, 2026-09-28). This is also the only removal it gets —
+	// the preflight sweep exempts inference, and --service inference has no
+	// preflight at all.
+	if x.stopRm("semiont-ollama") {
+		x.settle(rp.Port)
+	}
 	x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
 	x.note(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), addr, rp.Port)
 	return x.either(probeHostOllama(rp.Port),
@@ -627,12 +636,6 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		},
 		func() int {
 			x.say(sayLog, "No host Ollama detected — starting container...")
-			// Same stop+rm rule as the Browser: --service inference has no
-			// preflight rm ahead of it, so a stopped semiont-ollama would
-			// hold the name (latent since the --rm removal; surfaced by the
-			// same review).
-			x.stopRm("semiont-ollama")
-			x.settle(rp.Port)
 			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1
 			}

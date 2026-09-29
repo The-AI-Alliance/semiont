@@ -150,12 +150,12 @@ container run -d --name semiont-neo4j --memory 2G -p 7474:7474 -p 7687:7687 -v <
 # vectors state: <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant (created if absent; reused across restarts)
 container run -d --name semiont-qdrant --memory 2G -p 6333:6333 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/qdrant:/qdrant/storage qdrant/qdrant:v1.19.1
 # wait: http://localhost:6333/readyz (15s)
+container stop semiont-ollama
+container rm semiont-ollama
 # probe: host Ollama at http://localhost:11434/api/version
 # if present — probe: container run --rm busybox:1.38.0 sh -c "wget -q -O- http://<host-addr>:11434/api/version" — and use it
 # ensure inference, embedding models present at http://localhost:11434 (pull each missing one): gemma4:26b, gemma4:e2b, nomic-embed-text
 # else:
-container stop semiont-ollama
-container rm semiont-ollama
 # require free port: 11434
 container run -d --name semiont-ollama --memory 24G -p 11434:11434 -v <ollama-volume>:/root/.ollama ollama/ollama
 # wait: http://localhost:11434/api/version (30s)
