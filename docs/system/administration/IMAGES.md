@@ -72,7 +72,9 @@ The seven service images are published as runtime images. The six sidecars
 the publish workflow refuses to build them until every published `@semiont/*`
 package at that version is installable — its tarball fetchable, not merely
 listed in the registry metadata — so an image version always equals the npm
-version it carries; they run `node:24-alpine` (the Browser runs `node:26-alpine`).
+version it carries. The five that bundle `@semiont/make-meaning` run `node:24-alpine`,
+held there by the qdrant client they carry; the worker and the Browser carry no
+qdrant client and run `node:26-alpine`.
 The gateway is Rust: its image compiles `apps/gateway` from the commit the
 workflow runs on, with the toolchain `apps/gateway/rust-toolchain.toml` pins,
 and ships the binary on `alpine` — no source, no toolchain, and nothing built
