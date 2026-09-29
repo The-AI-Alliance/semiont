@@ -69,6 +69,10 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 			"SEMIONT_ROOT", kbMountTarget},
 		{"smelter", []string{"..", "..", "..", "smelter", "Dockerfile"},
 			"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
+		// The gateway's configuration is a resolved JSON document, not a copy
+		// of the KB's TOML — so it has its own path, and the image says where.
+		{"gateway", []string{"..", "..", "..", "gateway", "Dockerfile"},
+			"SEMIONT_GATEWAY_CONFIG", gatewayDocumentTarget},
 	} {
 		declared := declaredEnv(t, c.file...)
 		got, ok := declared[c.env]
@@ -204,6 +208,24 @@ func TestServiceHealthPortsAgreeAcrossAllHomes(t *testing.T) {
 		}
 		if m := probeURL.FindSubmatch(df); m == nil || string(m[1]) != fmt.Sprint(want) {
 			t.Errorf("%s: Dockerfile SUPERVISE_PROBE disagrees with launcher portNeed %d — the supervisor would probe the wrong port and kill a healthy child", svc, want)
+		}
+	}
+}
+
+// The census row above proves the image and the constant agree; this proves
+// the gateway is actually mounted there — and that no sidecar is, since theirs
+// is TOML at ~/.semiontconfig.
+func TestGatewayDocumentMountsOntoItsOwnPath(t *testing.T) {
+	want := ":" + gatewayDocumentTarget + ":ro"
+	if args := strings.Join(gatewayArgs("/stage", "container", "1.2.3.4", "secret", "jwt", "v", 4000, nil, nil), " "); !strings.Contains(args, want) {
+		t.Errorf("the gateway's document is not mounted onto %s:\n%s", gatewayDocumentTarget, args)
+	}
+	for name, args := range map[string][]string{
+		"archivist": archivistArgs("/kb", "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
+		"worker":    sidecarArgs("worker", 24100, "/stage", "container", "1.2.3.4", 8080, "client-secret", "v", nil, nil),
+	} {
+		if strings.Contains(strings.Join(args, " "), gatewayDocumentTarget) {
+			t.Errorf("%s mounts the gateway's document path", name)
 		}
 	}
 }

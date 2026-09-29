@@ -657,7 +657,7 @@ const kbMountTarget = "/kb"
 func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
-		"--volume", stage + "/" + gatewayDocumentFile + ":/home/semiont/.semiontconfig:ro"}
+		"--volume", stage + "/" + gatewayDocumentFile + ":" + gatewayDocumentTarget + ":ro"}
 	// The gateway writes nothing to disk; supervise.sh keeps its events log on
 	// the state mount so a death record outlives the container.
 	a = append(a, state...)
