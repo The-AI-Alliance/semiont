@@ -45,17 +45,15 @@ func resolveRefs(field, value string, vars map[string]string) (string, error) {
 
 // secretName: a credential's value in the KB config must be exactly ${NAME};
 // the document names NAME and the value never leaves the environment.
-var secretRefRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
-
 func secretName(field, value string) (*string, error) {
 	if value == "" {
 		return nil, nil
 	}
-	m := secretRefRe.FindStringSubmatch(value)
-	if m == nil {
+	name := referenceName(value)
+	if name == "" {
 		return nil, fmt.Errorf("%s must be a ${VAR} reference: the gateway's configuration document carries no secret value — set it in the environment and write %s = \"${NAME}\"", field, field)
 	}
-	return &m[1], nil
+	return &name, nil
 }
 
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the

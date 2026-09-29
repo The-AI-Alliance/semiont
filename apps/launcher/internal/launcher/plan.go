@@ -388,7 +388,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	// Until that word means one thing in both places, the address shape is
 	// the authority. See GO-LAUNCHER.md follow-ups.
 	classify := func(host, injectedVar string) presence {
-		if host == "${"+injectedVar+"}" {
+		if referenceName(host) == injectedVar {
 			return presenceLauncher
 		}
 		return presenceExternal
@@ -714,7 +714,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			}
 			rp.Env = []string{"KC_DB=postgres", "KC_DB_USERNAME=" + user, "KC_DB_PASSWORD=" + d.Password,
 				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser}
-		case strings.HasPrefix(host, "${"):
+		case referenceName(host) != "":
 			return nil, secErr("identity", "issuer %q names a launcher-injected host, which only type = \"keycloak\" on ${KEYCLOAK_HOST} can be", id.Issuer)
 		default:
 			rp.Presence = presenceExternal
@@ -754,7 +754,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		switch {
 		case host == "" && e.Type == "voyage":
 			host = "api.voyageai.com"
-		case strings.HasPrefix(host, "${"):
+		case referenceName(host) != "":
 			host = "localhost"
 		case host == "":
 			return nil, secErr("embedding", "missing required key %q", "baseURL")

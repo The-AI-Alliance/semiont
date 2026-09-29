@@ -25,7 +25,19 @@ var injectedVars = map[string]bool{
 	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
 
-var envRefRe = regexp.MustCompile(`\$\{[A-Z_][A-Z0-9_]*\}`)
+var envRefRe = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`)
+
+// referenceRe: a value that is exactly one required reference, ${NAME}.
+var referenceRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
+
+// referenceName is NAME when value is exactly ${NAME}, and "" when it is
+// anything else — a literal, a default, or a reference inside other text.
+func referenceName(value string) string {
+	if m := referenceRe.FindStringSubmatch(value); m != nil {
+		return m[1]
+	}
+	return ""
+}
 
 // requiredVars walks every string value in the parsed document for required
 // ${VAR} references, minus the launcher-injected set. Deliberately the WHOLE
@@ -39,9 +51,8 @@ func requiredVars(doc any) []string {
 	walk = func(v any) {
 		switch t := v.(type) {
 		case string:
-			for _, m := range envRefRe.FindAllString(t, -1) {
-				name := strings.TrimSuffix(strings.TrimPrefix(m, "${"), "}")
-				if !injectedVars[name] {
+			for _, m := range envRefRe.FindAllStringSubmatch(t, -1) {
+				if name := m[1]; !injectedVars[name] {
 					set[name] = true
 				}
 			}

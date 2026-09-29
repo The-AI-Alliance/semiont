@@ -400,7 +400,6 @@ export {
   type Environment,
 } from './config/environment-validator';
 export { ConfigurationError } from './config/configuration-error';
-export { evaluateEnvPlaceholders } from './config/env-placeholders';
 export {
   type PlatformType,
   isValidPlatformType,

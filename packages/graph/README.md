@@ -114,7 +114,7 @@ const graphConfig: GraphServiceConfig = {
 };
 ```
 
-`uri`, `username`, `password`, and `database` support `${ENV_VAR}` placeholders, evaluated at startup.
+`uri`, `username`, `password`, and `database` are values, used as given. A `${ENV_VAR}` in a KB's config is resolved once, by the config loader, before these fields are built; a value that still contains `${…}` is taken literally.
 
 ### AWS Neptune
 Managed graph database supporting Gremlin.
