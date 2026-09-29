@@ -6,8 +6,12 @@
   },
   "private": true,
   "scripts": {
-    "dev": "cargo tauri dev",
-    "build": "cargo tauri build",
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build",
     "build:container": "./build.sh"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.0"
   }
 }

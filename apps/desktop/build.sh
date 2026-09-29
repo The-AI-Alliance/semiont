@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the Semiont desktop app (.dmg) in a container.
-# No Rust or Tauri CLI required on the host.
+# Build the Semiont desktop app's Linux bundles in containers.
+# No Node, Rust or Tauri CLI required on the host. A .dmg needs a macOS
+# host; see README.md.
 #
 # This script:
 #   1. Builds the browser SPA (apps/browser/dist/)
-#   2. Compiles the Tauri desktop shell
-#   3. Produces a .dmg (macOS) in apps/desktop/src-tauri/target/release/bundle/
+#   2. Builds the Tauri builder image for the Tauri CLI version that
+#      package-lock.json pins for apps/desktop (once per version)
+#   3. Compiles the Tauri desktop shell into
+#      apps/desktop/src-tauri/target/release/bundle/
 #
 # Prerequisites:
 #   - Container runtime (Apple Container, Docker, or Podman)
@@ -46,11 +49,20 @@ $RT run --rm \
 
 # --- Ensure builder image exists ---
 
-BUILDER_IMAGE="semiont-tauri-builder"
+TAURI_CLI_VERSION=$($RT run --rm \
+  -v "$REPO_ROOT":/workspace \
+  -w /workspace \
+  node:24-alpine \
+  node -p "require('./package-lock.json').packages['node_modules/@tauri-apps/cli'].version")
+
+# Tagged by CLI version, so a version bump builds a new image.
+BUILDER_IMAGE="semiont-tauri-builder:$TAURI_CLI_VERSION"
 if ! $RT image inspect "$BUILDER_IMAGE" > /dev/null 2>&1; then
   echo ""
-  echo "Building Tauri builder image (one-time)..."
-  $RT build --tag "$BUILDER_IMAGE" --file "$SCRIPT_DIR/Dockerfile.builder" "$REPO_ROOT"
+  echo "Building Tauri builder image for Tauri CLI $TAURI_CLI_VERSION (one-time)..."
+  $RT build --tag "$BUILDER_IMAGE" \
+    --build-arg TAURI_CLI_VERSION="$TAURI_CLI_VERSION" \
+    --file "$SCRIPT_DIR/Dockerfile.builder" "$REPO_ROOT"
 fi
 
 # --- Build Tauri desktop app ---

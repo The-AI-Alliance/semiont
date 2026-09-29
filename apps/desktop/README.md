@@ -20,11 +20,15 @@ Then open the DMG and drag Semiont.app to Applications. Without this step you'll
 
 ### Linux
 
-Two x86_64 artifacts are published:
+Three x86_64 artifacts are published:
 
 - **`.deb`** — Debian, Ubuntu, and derivatives:
   ```bash
   sudo apt install ./Semiont_*_amd64.deb
+  ```
+- **`.rpm`** — Fedora, RHEL, and derivatives:
+  ```bash
+  sudo dnf install ./Semiont-*.x86_64.rpm
   ```
 - **`.AppImage`** — portable, runs on most distributions:
   ```bash
@@ -42,7 +46,7 @@ Most users only need the installers above. To build locally:
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) and the Tauri CLI (`cargo install tauri-cli`)
+- [Rust](https://rustup.rs/) and Node.js 24+. The Tauri CLI is a dev dependency of this workspace, installed by `npm install` at the repo root
 - Xcode Command Line Tools (macOS)
 - Or, for the containerized path: just a container runtime (Apple Container, Docker, or Podman)
 
@@ -55,7 +59,7 @@ Run the browser dev server, then open the desktop shell against it:
 cd apps/browser && npm run dev
 
 # Terminal 2: desktop shell
-cd apps/desktop && cargo tauri dev
+cd apps/desktop && npm run dev
 ```
 
 The window points at the Vite dev server, so hot reload works.
@@ -67,13 +71,13 @@ The bundler emits installers for the platform it runs on:
 - **macOS** (Rust on host) → `.dmg`
   ```bash
   npm run build -w semiont-browser
-  cd apps/desktop && cargo tauri build
+  cd apps/desktop && npm run build
   # → src-tauri/target/release/bundle/dmg/Semiont_x.y.z_aarch64.dmg
   ```
-- **Linux** → `.deb` and `.AppImage`, from the same two commands on a Linux host, or without Rust via the containerized build:
+- **Linux** → `.deb`, `.rpm` and `.AppImage`, from the same two commands on a Linux host. Without Rust or Node, the containerized build produces the `.deb` and `.rpm` for the host's CPU architecture:
   ```bash
   apps/desktop/build.sh
-  # → src-tauri/target/release/bundle/{deb,appimage}/
+  # → src-tauri/target/release/bundle/{deb,rpm}/
   ```
 
 Official multi-platform builds — both Mac architectures and Linux — come from CI and land on the Releases page.
@@ -91,6 +95,7 @@ apps/desktop/
 │   ├── src/main.rs         # entry point: opens the window + native menu, loads the SPA
 │   └── icons/              # app icons (.icns, .ico, .png)
 ├── build.sh                # containerized Linux build
-├── package.json
+├── Dockerfile.builder      # builder image: Rust, GTK/WebKit, the pinned Tauri CLI
+├── package.json            # the pinned Tauri CLI and its scripts
 └── README.md
 ```
