@@ -169,10 +169,8 @@ interface EnvironmentSection {
   jobs?: {
     type?: 'fs' | 'jetstream';
     servers?: string;
-  };
-  signal?: {
-    type?: 'in-process' | 'nats';
-    servers?: string;
+    user?: string;
+    password?: string;
   };
   identity?: {
     type?: 'keycloak' | 'oidc';
@@ -623,36 +621,18 @@ export function loadTomlConfig(
         `[environments.${resolvedEnvironment}.jobs] names no type — add type = "fs" or "jetstream". Semiont selects the job queue driver from config; nothing is inferred.`,
       );
     }
+    // The broker pair, when the section names one: the dispatcher's JetStream
+    // queue presents it (SECRET-DELIVERY F2).
     services.jobs = {
       type: resolved.jobs.type,
       ...(resolved.jobs.servers ? { servers: resolved.jobs.servers } : {}),
-    };
-  }
-
-  // The Signal Plane driver selection (SIGNAL-PLANE P2): the gateway reads
-  // services.signal. Same missing-middle failure shape as [jobs] above, and
-  // one refusal MORE (D6): typed-but-INCOMPLETE refuses too — a
-  // type = "nats" with no servers would select a driver that cannot connect
-  // and surface as a hang instead of a config error.
-  if (resolved.signal) {
-    if (!resolved.signal.type) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.signal] names no type — add type = "in-process" or "nats". Semiont selects the Signal Plane driver from config; nothing is inferred.`,
-      );
-    }
-    if (resolved.signal.type === 'nats' && !resolved.signal.servers) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.signal] type = "nats" names no servers — add servers = "\${NATS_HOST}:4222". A typed-but-incomplete section refuses at load, never falls through.`,
-      );
-    }
-    services.signal = {
-      type: resolved.signal.type,
-      ...(resolved.signal.servers ? { servers: resolved.signal.servers } : {}),
+      ...(resolved.jobs.user ? { user: resolved.jobs.user } : {}),
+      ...(resolved.jobs.password ? { password: resolved.jobs.password } : {}),
     };
   }
 
   // The identity provider the gateway trusts (EXTERNAL-IDENTITY D5). Same
-  // refusal discipline as [signal]: a section that names no type, or a typed
+  // refusal discipline as [jobs]: a section that names no type, or a typed
   // section missing the issuer the verifier needs, refuses at load — a
   // verifier configured without one would reject every token and surface as
   // "everyone is logged out" instead of a config error.
