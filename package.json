@@ -82,6 +82,9 @@
     "esbuild": "^0.28.1",
     "@redocly/openapi-core": {
       "js-yaml": "^4.3.2"
+    },
+    "@qdrant/js-client-rest": {
+      "undici": "^7.29.1"
     }
   },
   "devDependencies": {
