@@ -81,6 +81,9 @@ type launchPlan struct {
 	// EMBEDDING failure. Output must name the role, not the section it
 	// happened to be printed under.
 	OllamaModels []modelNeed
+	// ServiceVars: the user variables each stack service is handed — only
+	// those its own config sections reference (SECRET-DELIVERY P5).
+	ServiceVars map[string][]string
 }
 
 // The two roles a model can be asked to serve. Providers vary (ollama,

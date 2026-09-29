@@ -1059,17 +1059,6 @@
             "additionalProperties": true
           }
         },
-        "logLevel": {
-          "type": "string",
-          "enum": [
-            "error",
-            "warn",
-            "info",
-            "http",
-            "debug"
-          ],
-          "description": "Logging verbosity level"
-        },
         "deployment": {
           "type": "object",
           "properties": {

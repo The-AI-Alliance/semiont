@@ -25,6 +25,21 @@ type flowCtx struct {
 	restart bool
 }
 
+// envFor: the user variables svc is handed — the --env pairs of userEnv whose
+// names its own config sections reference (launchPlan.ServiceVars). userEnv
+// itself keeps every resolved value: the launcher's own reads (the gateway's
+// document, the remote-model check) need them.
+func (fc flowCtx) envFor(svc string) []string {
+	var out []string
+	for i := 0; i+1 < len(fc.userEnv); i += 2 {
+		name, _, _ := strings.Cut(fc.userEnv[i+1], "=")
+		if contains(fc.plan.ServiceVars[svc], name) {
+			out = append(out, fc.userEnv[i], fc.userEnv[i+1])
+		}
+	}
+	return out
+}
+
 // roleBanner and startBanner: the heading a role's flow prints, in the voice
 // of the verb that reached it. Every flow announces itself — that is what
 // makes a flow callable from both walks, and what kept `start --service
@@ -692,7 +707,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, port, fc.envFor("gateway"), otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -736,7 +751,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -775,7 +790,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -807,7 +822,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, state...)
+	args := librarianArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -838,7 +853,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")

@@ -218,10 +218,11 @@ semanticFloor = 0.75
     expect(actors?.gatherer?.apiKey).toBe('sk-secret');
   });
 
+  // The reference sits in the gatherer's inference, so the refusal fires where
+  // that section is read (SECRET-DELIVERY P5), not at load.
   it('throws when ${VAR} references a missing env var', () => {
-    expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), {})
-    ).toThrow('Environment variable MY_API_KEY is not set');
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), {});
+    expect(() => config._metadata?.actors).toThrow('Environment variable MY_API_KEY is not set');
   });
 
   it('resolves from the project config when the global config file is absent', () => {
@@ -373,7 +374,7 @@ ${MINIMAL_TOML}`;
 [environments.local.jobs]
 servers = "nats.internal:4222"
 ${MINIMAL_TOML}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.jobs)
       .toThrow(/\[environments\.local\.jobs\].*type/);
   });
 
@@ -445,7 +446,7 @@ ${MINIMAL_NO_IDENTITY}`;
         : null,
     };
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', raw, {}),
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', raw, {}).services.identity,
     ).toThrow(/names no identity section/);
   });
 
@@ -454,7 +455,7 @@ ${MINIMAL_NO_IDENTITY}`;
 [environments.local.identity]
 issuer = "https://login.example.com/realms/acme"
 ${MINIMAL_NO_IDENTITY}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.identity)
       .toThrow(/\[environments\.local\.identity\].*type/);
   });
 
@@ -464,7 +465,7 @@ ${MINIMAL_NO_IDENTITY}`;
 type = "keycloak"
 audience = "semiont-gateway"
 ${MINIMAL_NO_IDENTITY}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.identity)
       .toThrow(/\[environments\.local\.identity\].*issuer/);
   });
 
@@ -478,7 +479,7 @@ ${MINIMAL_NO_IDENTITY}`;
 type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
 ${MINIMAL_NO_IDENTITY}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.identity)
       .toThrow(/\[environments\.local\.identity\].*subjectClaim/);
   });
 
@@ -586,7 +587,7 @@ ${MINIMAL_TOML}`;
   it('refuses a config naming no vector store, config-actionably (MANDATORY-EMBEDDING D1)', () => {
     const noVectors = MINIMAL_TOML.replace(/\[environments\.local\.vectors\][^[]*/, '');
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noVectors), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noVectors), {}).services.vectors
     ).toThrow(/names no vector store/);
   });
 
@@ -595,7 +596,7 @@ ${MINIMAL_TOML}`;
     // longer ends with [embedding] now that identity follows it.
     const noEmbedding = MINIMAL_TOML.replace(/\[environments\.local\.embedding\][\s\S]*?(?=\n\[|$)/, '');
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noEmbedding), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noEmbedding), {}).services.embedding
     ).toThrow(/names no embedding provider/);
   });
 
@@ -660,7 +661,7 @@ port = 4001
 type = "memory"
 ${SERVICES_LOCAL}`;
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(both), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(both), {}).services.gateway
     ).toThrow(/both \[gateway\] and \[backend\]/);
   });
 
@@ -674,5 +675,34 @@ type = "memory"
 ${SERVICES_LOCAL}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(neither), {});
     expect(config.services?.gateway).toBeUndefined();
+  });
+});
+
+// SECRET-DELIVERY P5, as ruled: a section's ${VAR}s resolve when a service
+// reads that section ("Loader resolves lazily"), and a service reads only the
+// sections specs/src/service-config/sections.json lists for it ("Spec file,
+// enforced lazily"). That is what lets the launcher forward each service only
+// the variables its own sections reference.
+describe('sections resolve when read, and a service reads only what it declares', () => {
+  const UNREAD_SECRET = `
+[environments.local.inference.anthropic]
+platform = "external"
+apiKey = "\${UNSET_P5_KEY}"
+`;
+
+  it('an unset variable in a section nothing reads does not refuse the load', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(`${MINIMAL_TOML}${UNREAD_SECRET}`), {});
+    expect(cfg.services.identity.issuer).toBe('http://localhost:8080/realms/semiont');
+  });
+
+  it('reading that section refuses, naming the variable', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(`${MINIMAL_TOML}${UNREAD_SECRET}`), {});
+    expect(() => cfg.inference).toThrow(/UNSET_P5_KEY/);
+  });
+
+  it('a service reading a section it does not declare refuses, naming the section and the spec', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'dispatcher');
+    expect(cfg.services.identity.type).toBe('keycloak');
+    expect(() => cfg.services.vectors).toThrow(/dispatcher.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
   });
 });

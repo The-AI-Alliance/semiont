@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { createTomlConfigLoader, DEFAULT_ARCHIVIST_PORT } from './toml-loader.js';
+import type { ConfigService } from '../generated/service-config-sections.js';
 import type { ArchivistServiceConfig, EnvironmentConfig } from './config.types.js';
 
 export { SemiontProject, SemiontState, stateDirFor } from '../project.js';
@@ -23,17 +24,20 @@ const nodeTomlFileReader = {
  * `[defaults] environment` from the committed config — so entry points call this
  * without selecting one; one config selects the environment for the gateway the
  * same way the launcher selects it. There is no environment-variable override.
+ * A service names itself, and may then read only the sections
+ * specs/src/service-config/sections.json lists for it; a tool names none.
  */
 export function loadEnvironmentConfig(
   projectRoot: string | null,
-  environment?: string
+  options: { environment?: string; service?: ConfigService } = {},
 ): EnvironmentConfig {
   const globalConfigPath = path.join(os.homedir(), '.semiontconfig');
   return createTomlConfigLoader(
     nodeTomlFileReader,
     globalConfigPath,
-    process.env
-  )(projectRoot, environment);
+    process.env,
+    options.service,
+  )(projectRoot, options.environment);
 }
 
 /**

@@ -48,19 +48,19 @@ describe('makeMeaningConfigFrom', () => {
   it('refuses a config that bypassed the loader — no gather bound', () => {
     // Defaulting here would create a SECOND owner of settleTimeoutMs, and the
     // two would disagree the first time either moved.
-    expect(() => makeMeaningConfigFrom(loaded({ gather: undefined })))
+    expect(() => makeMeaningConfigFrom(loaded({ gather: undefined })).gather)
       .toThrow(/gather config missing.*loadEnvironmentConfig/s);
   });
 
   it('refuses a config that bypassed the loader — no search floor', () => {
-    expect(() => makeMeaningConfigFrom(loaded({ search: undefined })))
+    expect(() => makeMeaningConfigFrom(loaded({ search: undefined })).search)
       .toThrow(/search config missing.*loadEnvironmentConfig/s);
   });
 
   it('refuses when `_metadata` is absent entirely', () => {
     // The shape a hand-built config takes — the failure names the loader
     // rather than a missing property, because that is the actionable fact.
-    expect(() => makeMeaningConfigFrom({ services: SERVICES } as unknown as EnvironmentConfig))
+    expect(() => makeMeaningConfigFrom({ services: SERVICES } as unknown as EnvironmentConfig).gather)
       .toThrow(/loadEnvironmentConfig/);
   });
 });

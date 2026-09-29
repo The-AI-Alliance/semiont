@@ -29,7 +29,7 @@ async function rebuildProjections(rId?: string, environment?: string) {
   // environment: an explicit --environment flag, else the loader resolves it from
   // `[defaults] environment`. No local 'development' default — that disagreed with
   // the gateway's 'local' and hid the wrong-section load.
-  const config = loadEnvironmentConfig(projectRoot, environment);
+  const config = loadEnvironmentConfig(projectRoot, { environment });
 
   logger.info('Rebuilding annotation projections from events');
 

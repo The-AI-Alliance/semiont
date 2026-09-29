@@ -101,41 +101,51 @@ export function requireKBName(config: EnvironmentConfig): string {
   return name;
 }
 
+/**
+ * The make-meaning view of a loaded config. Every part DELEGATES to the loaded
+ * config at its read rather than copying at construction: a service reads only
+ * the sections specs/src/service-config/sections.json lists for it, so copying
+ * a part it never uses (the dispatcher's graph, the Librarian's workers) would
+ * be a read of a section it does not declare (SECRET-DELIVERY P5).
+ */
 export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningConfig {
-  const meta = config._metadata as (EnvironmentConfig['_metadata'] & {
+  const meta = () => config._metadata as (EnvironmentConfig['_metadata'] & {
     actors?: MakeMeaningConfig['actors'];
     workers?: MakeMeaningConfig['workers'];
     gather?: MakeMeaningConfig['gather'];
     search?: MakeMeaningConfig['search'];
   }) | undefined;
 
-  // The TOML loader always sets _metadata.gather (it owns the one default —
-  // D5). A missing value means this config bypassed the loader: fail loudly
-  // rather than default here.
-  const gather = meta?.gather;
-  if (!gather) {
-    throw new Error('make-meaning gather config missing — load config via loadEnvironmentConfig (the TOML loader owns the settleTimeoutMs default)');
-  }
-  const search = meta?.search;
-  if (!search) {
-    throw new Error('make-meaning search config missing — load config via loadEnvironmentConfig (the TOML loader owns the semanticFloor default)');
-  }
-
   return {
-    gather,
-    search,
+    // The TOML loader always sets _metadata.gather and .search (it owns the one
+    // default — D5). A missing value means this config bypassed the loader:
+    // fail loudly rather than default here.
+    get gather() {
+      const gather = meta()?.gather;
+      if (!gather) {
+        throw new Error('make-meaning gather config missing — load config via loadEnvironmentConfig (the TOML loader owns the settleTimeoutMs default)');
+      }
+      return gather;
+    },
+    get search() {
+      const search = meta()?.search;
+      if (!search) {
+        throw new Error('make-meaning search config missing — load config via loadEnvironmentConfig (the TOML loader owns the semanticFloor default)');
+      }
+      return search;
+    },
     services: {
       // vectors/embedding are required on both sides (MANDATORY-EMBEDDING P3):
-      // core's ServicesConfig requires the pair, so a config missing either
-      // already refused at the TOML loader — nothing to re-check here.
-      graph: config.services.graph,
-      jobs: config.services.jobs,
-      vectors: config.services.vectors,
-      embedding: config.services.embedding,
-      archivist: config.services.archivist,
+      // core's ServicesConfig requires the pair, and the loader refuses a
+      // config missing either at their read — nothing to re-check here.
+      get graph() { return config.services.graph; },
+      get jobs() { return config.services.jobs; },
+      get vectors() { return config.services.vectors; },
+      get embedding() { return config.services.embedding; },
+      get archivist() { return config.services.archivist; },
     },
-    actors: meta?.actors,
-    workers: meta?.workers,
+    get actors() { return meta()?.actors; },
+    get workers() { return meta()?.workers; },
   };
 }
 

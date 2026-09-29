@@ -324,6 +324,7 @@ func Start(args []string) int {
 			u.Fail("%v", err)
 			return 1
 		}
+		plan.ServiceVars = refs.ByService
 		if strings.Contains(envCfg.Identity.Issuer, "${KEYCLOAK_PORT}") {
 			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
 		} else if kcFromEnv {
@@ -464,12 +465,22 @@ func Start(args []string) int {
 			name     string
 			optional bool
 		}
+		// A Node service started alone reaches only for the variables it is
+		// handed, so no provider prompt asks for a secret it never reads. The
+		// gateway's document is resolved here from every section it reads, so
+		// `--service gateway` still resolves them all.
+		_, scoped := serviceConfigSections[opts.service]
+		wanted := func(v string) bool { return !scoped || contains(userVars.ByService[opts.service], v) }
 		var vars []userVar
 		for _, v := range userVars.Required {
-			vars = append(vars, userVar{v, false})
+			if wanted(v) {
+				vars = append(vars, userVar{v, false})
+			}
 		}
 		for _, v := range userVars.Optional {
-			vars = append(vars, userVar{v, true})
+			if wanted(v) {
+				vars = append(vars, userVar{v, true})
+			}
 		}
 		for _, uv := range vars {
 			v := uv.name

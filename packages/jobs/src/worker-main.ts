@@ -61,6 +61,7 @@ const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,
   process.env,
+  'worker',
 )(null);
 
 const workerInferenceMap = (envConfig._metadata as (EnvironmentConfig['_metadata'] & {

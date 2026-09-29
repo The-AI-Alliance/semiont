@@ -2380,6 +2380,59 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 		"semiont secret push ANTHROPIC_API_KEY --repo "+csRepo)
 }
 
+// Each service is handed only the variables its own config sections
+// reference (SECRET-DELIVERY P5, D2: "send each service only the secrets it
+// uses"). The anthropic config names ANTHROPIC_API_KEY in [inference], which
+// the Archivist, Librarian and Worker read and nothing else does.
+func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	log := s.argv(t)
+	runLine := func(svc string) string {
+		for _, l := range strings.Split(log, "\n") {
+			if strings.HasPrefix(l, "container run") && strings.Contains(l, "--name semiont-"+svc+" ") {
+				return l
+			}
+		}
+		t.Fatalf("no run line for %s:\n%s", svc, log)
+		return ""
+	}
+	for _, svc := range []string{"archivist", "librarian", "worker"} {
+		if !strings.Contains(runLine(svc), "--env ANTHROPIC_API_KEY=") {
+			t.Errorf("%s reads [inference] but was not handed ANTHROPIC_API_KEY", svc)
+		}
+	}
+	for _, svc := range []string{"gateway", "dispatcher", "weaver", "smelter"} {
+		if strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
+			t.Errorf("%s reads no section naming ANTHROPIC_API_KEY but was handed it", svc)
+		}
+	}
+}
+
+// A Node service started alone reaches only for its own sections' variables:
+// the smelter reads no [inference], so restarting it raises no provider
+// prompt for ANTHROPIC_API_KEY (SECRET-DELIVERY P5).
+func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\n%s", code, stderr)
+	}
+	// `secret set` verifies the source with one read of its own.
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--service", "smelter", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("start --service smelter: exit %d\n%s", code, stderr)
+	}
+	if strings.Contains(stdout, "reading from 1Password") || strings.Contains(s.argv(t), "op read") {
+		t.Errorf("the smelter reached for a secret it never reads:\n%s", stdout)
+	}
+}
+
 // A ${NAME:-default} names a variable the operator may set. The container's
 // loader resolves it against the environment the launcher forwards, so an
 // exported NAME that is not forwarded loses to its default
@@ -2391,7 +2444,9 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.WriteString("\n[extras]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+	// In a section the worker reads: a service is handed only its own
+	// sections' variables (SECRET-DELIVERY P5).
+	if _, err := f.WriteString("\n[environments.local.workers.probe]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
 		t.Fatal(err)
 	}
 	f.Close()

@@ -56,6 +56,23 @@ func secretName(field, value string) (*string, error) {
 	return &name, nil
 }
 
+// gatewayNamedVars: the variables the gateway's document names rather than
+// resolves — the broker pair — and so the ones the gateway is handed. A
+// credential that is not exactly ${NAME} names nothing here; writing the
+// document refuses it.
+func gatewayNamedVars(env *envConfig) []string {
+	var names []string
+	if env.Signal == nil || env.Signal.Type != "nats" {
+		return names
+	}
+	for _, v := range []struct{ field, value string }{{"signal.user", env.Signal.User}, {"signal.password", env.Signal.Password}} {
+		if name, err := secretName(v.field, v.value); err == nil && name != nil {
+			names = append(names, *name)
+		}
+	}
+	return names
+}
+
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the
 // dependency hosts the launcher gives every service, and the user's own
 // variables. The gateway-host variables are absent on purpose: the gateway

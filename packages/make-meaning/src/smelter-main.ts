@@ -47,6 +47,7 @@ const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,
   process.env,
+  'smelter',
 )(null);
 
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;

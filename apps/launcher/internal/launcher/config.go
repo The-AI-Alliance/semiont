@@ -66,6 +66,8 @@ func placeholderRefs(value string) (required, optional []string) {
 // default.
 type configRefs struct {
 	Required, Optional []string
+	// ByService: which of them each stack service is handed (serviceVars).
+	ByService map[string][]string
 }
 
 // referencedVars walks every string value in the parsed document for ${VAR}
@@ -330,7 +332,9 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 	if err := resolveGatewaySection(&env, path, envName); err != nil {
 		return nil, "", configRefs{}, err
 	}
-	return &env, envName, referencedVars(doc), nil
+	refs := referencedVars(doc)
+	refs.ByService = serviceVars(doc, envName, &env)
+	return &env, envName, refs, nil
 }
 
 // refuseEnvironmentSites rejects a [site] section in any environment, selected

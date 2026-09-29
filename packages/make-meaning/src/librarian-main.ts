@@ -76,7 +76,7 @@ import { makeMeaningConfigFrom, requireKBName, resolveActorInference } from './c
 
 // No project root: this process has no KB mount, so everything it needs
 // rides the staged config (~/.semiontconfig in the container).
-const envConfig = loadEnvironmentConfig(null);
+const envConfig = loadEnvironmentConfig(null, { service: 'librarian' });
 const kbName = requireKBName(envConfig);
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
 if (!gatewayPublicURL) {
