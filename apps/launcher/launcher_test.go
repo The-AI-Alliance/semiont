@@ -3334,6 +3334,12 @@ func TestStartFailsFastOnReapedCodespace(t *testing.T) {
 	if strings.Contains(all, "Waiting for the codespace VM") {
 		t.Errorf("start polled a ghost instead of failing fast:\n%s", all)
 	}
+	// The record cannot say why: a codespace created with another
+	// --retention-period, adopted from GitHub's UI, or deleted by hand ends
+	// the same way.
+	if strings.Contains(all, "30-day") {
+		t.Errorf("the reason names a retention the launcher cannot know:\n%s", all)
+	}
 	if strings.Contains(string(mustLogOrEmpty(s)), "gh codespace create") {
 		t.Errorf("start auto-created a codespace from a stale record")
 	}

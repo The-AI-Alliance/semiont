@@ -709,11 +709,12 @@ func ensureCodespaceAvailable(u *UI, repo, name string) int {
 	if state == "Available" {
 		return 0
 	}
-	// "deleted" is the NORMAL end of every codespace (the launcher's own
-	// 720h retention) — fail in two seconds with the real reason, never
-	// poll a ghost. No auto-create: a paid VM is an explicit choice.
+	// "deleted" is the NORMAL end of every codespace (its retention period
+	// after stopping, or a delete by hand) — fail in two seconds with the
+	// real reason, never poll a ghost. No auto-create: a paid VM is an
+	// explicit choice.
 	if state == "deleted" {
-		u.Fail("Codespace %s no longer exists — GitHub deleted it under the 30-day retention set at create.", name)
+		u.Fail("Codespace %s no longer exists — deleted by hand, or by GitHub once it stayed stopped past its retention period.", name)
 		fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
 		fmt.Fprintln(os.Stderr, "  Then create fresh:  semiont start --runtime codespace --repo "+repo)
 		return 1
