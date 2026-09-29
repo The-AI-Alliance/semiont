@@ -12,4 +12,5 @@ RUN apt-get update -qq && \
       > /dev/null 2>&1 && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cargo install tauri-cli
+ARG TAURI_CLI_VERSION
+RUN cargo install tauri-cli --version "${TAURI_CLI_VERSION:?build.sh passes the version package-lock.json pins}" --locked
