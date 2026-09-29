@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadTomlConfig } from '../../config/toml-loader';
+import { loadTomlConfig, resolveEnvVars, createTomlConfigLoader } from '../../config/toml-loader';
 
 // Every environment must NAME a vector store and an embedding provider —
 // nothing is defaulted, and the loader refuses without them
@@ -704,5 +704,199 @@ apiKey = "\${UNSET_P5_KEY}"
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'dispatcher');
     expect(cfg.services.identity.type).toBe('keycloak');
     expect(() => cfg.services.vectors).toThrow(/dispatcher.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
+  });
+});
+
+// What each part of the config maps to, read part by part. These paths are
+// the loader's own, built at each part's first read (SECRET-DELIVERY P5).
+describe('each part maps its section', () => {
+  const load = (toml: string, env: Record<string, string> = {}) =>
+    loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), env);
+  const BASE = `
+[environments.local.gateway]
+platform = "posix"
+port = 3001
+`;
+
+  it('workers inherit credentials from the keyed [inference.anthropic]', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference.anthropic]
+platform = "external"
+apiKey = "k"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "m"
+`);
+    const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; endpoint?: string; model?: string }>;
+    expect(workers.default).toMatchObject({ model: 'm', apiKey: 'k' });
+    expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
+    expect(cfg.workers).toEqual({ default: { inference: { type: 'anthropic', model: 'm' } } });
+  });
+
+  it('workers inherit baseURL and maxTokens from a flat [inference] of type ollama', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+type = "ollama"
+platform = "external"
+baseURL = "http://ollama.internal:11434"
+maxTokens = 512
+
+[environments.local.workers.generation.inference]
+type = "ollama"
+model = "gemma"
+`);
+    const workers = cfg._metadata?.workers as Record<string, { baseURL?: string; maxTokens?: number }>;
+    expect(workers.generation).toMatchObject({ baseURL: 'http://ollama.internal:11434', maxTokens: 512 });
+    expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
+  });
+
+  it('a flat [inference] with no type refuses at the read that needs it', () => {
+    for (const type of ['anthropic', 'ollama']) {
+      const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+platform = "external"
+
+[environments.local.workers.default.inference]
+type = "${type}"
+model = "m"
+`);
+      expect(() => cfg._metadata?.workers).toThrow(/inference\] is missing 'type'/);
+    }
+  });
+
+  it('maps a flat anthropic provider and a keyed ollama one, with their defaults', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+type = "anthropic"
+platform = "external"
+apiKey = "k"
+
+[environments.local.inference.ollama]
+platform = "external"
+baseURL = "http://ollama.internal:11434"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "a"
+
+[environments.local.workers.generation.inference]
+type = "ollama"
+model = "o"
+`);
+    expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
+    expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
+    // A flat anthropic section hands its key down; a keyed ollama its baseURL.
+    const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; baseURL?: string }>;
+    expect(workers.default.apiKey).toBe('k');
+    expect(workers.generation.baseURL).toBe('http://ollama.internal:11434');
+  });
+
+  it('a config with no [inference] maps no providers', () => {
+    expect(load(MINIMAL_TOML).inference).toBeUndefined();
+  });
+
+  it('maps the actor maps from [actors] and [make-meaning.actors]', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "g"
+apiKey = "k"
+
+[environments.local.make-meaning.actors.matcher.inference]
+type = "anthropic"
+model = "mm"
+apiKey = "k"
+
+[environments.local.make-meaning.actors.gatherer.inference]
+type = "anthropic"
+model = "mg"
+apiKey = "k"
+`);
+    // [make-meaning.actors] wins over [actors] for the same actor.
+    expect(cfg.actors).toEqual({
+      gatherer: { inference: { type: 'anthropic', model: 'mg' } },
+      matcher: { inference: { type: 'anthropic', model: 'mm' } },
+    });
+  });
+
+  it('maps [graph] and [database], with their defaults', () => {
+    const cfg = load(`${BASE}
+[environments.local.graph]
+platform = "external"
+uri = "bolt://neo4j.internal:7687"
+
+[environments.local.database]
+platform = "external"
+name = "semiont"
+
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(cfg.services.graph).toMatchObject({ type: 'neo4j', uri: 'bolt://neo4j.internal:7687', platform: { type: 'external' } });
+    expect(cfg.services.database).toMatchObject({ type: 'postgres', host: 'localhost', port: 5432, name: 'semiont' });
+  });
+
+  it('a [graph] with no platform refuses at its read', () => {
+    const cfg = load(`${BASE}
+[environments.local.graph]
+type = "neo4j"
+
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(() => cfg.services.graph).toThrow(/platform is required for service 'graph'/);
+  });
+
+  it('vectors default their port, and chunking falls back to [vectors]', () => {
+    const cfg = load(`${BASE}
+[environments.local.vectors]
+type = "qdrant"
+host = "qdrant.internal"
+
+[environments.local.vectors.chunking]
+chunkSize = 256
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(cfg.services.vectors).toMatchObject({ host: 'qdrant.internal', port: 6333 });
+    expect(cfg.services.database).toBeUndefined();
+    expect(cfg.services.embedding?.chunking).toEqual({ chunkSize: 256, overlap: 64 });
+  });
+
+  it('resolves a ${VAR} inside an array', () => {
+    expect(resolveEnvVars({ servers: ['${A}:4222', 'b:4222'] }, { A: 'a' })).toEqual({ servers: ['a:4222', 'b:4222'] });
+  });
+
+  it('merges a nested project section under the user config', () => {
+    const project = `[project]\nname = "p"\n\n[environments.local.graph]\nplatform = "external"\ntype = "neo4j"\nuri = "bolt://project:7687"\ndatabase = "neo4j"\n`;
+    const user = `${BASE}
+[environments.local.graph]
+uri = "bolt://user:7687"
+
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(user, project), {});
+    expect(cfg.services.graph).toMatchObject({ uri: 'bolt://user:7687', database: 'neo4j' });
+  });
+
+  it('createTomlConfigLoader hands its service to the loader', () => {
+    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'dispatcher')('/project', 'local');
+    expect(() => cfg.services.vectors).toThrow(/dispatcher/);
   });
 });

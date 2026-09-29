@@ -16,7 +16,10 @@
  * package through the artifact reports on the last build.
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { archivistAddress, archivistEndpoint } from '../../config/node-config-loader';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { archivistAddress, archivistEndpoint, loadEnvironmentConfig } from '../../config/node-config-loader';
 import type { ServiceAccountCredential } from '../../service-account';
 
 const ISSUER = 'https://issuer.test/realms/semiont';
@@ -120,5 +123,24 @@ describe('archivistEndpoint', () => {
     await expect(archivistEndpoint(configFor(undefined), CREDENTIAL)).rejects.toThrow(
       /services\.archivist\.host/,
     );
+  });
+});
+
+// The node entry point hands the service to the loader, which then refuses a
+// read of a section that service does not declare (SECRET-DELIVERY P5).
+describe('loadEnvironmentConfig', () => {
+  it('passes the environment and the service to the loader', () => {
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'semiont-home-'));
+    fs.writeFileSync(path.join(home, '.semiontconfig'), [
+      '[environments.staging.gateway]', 'platform = "posix"', 'port = 4000', '',
+      '[environments.staging.vectors]', 'type = "memory"', '',
+      '[environments.staging.embedding]', 'type = "ollama"', 'model = "nomic-embed-text"', '',
+      '[environments.staging.identity]', 'type = "keycloak"', 'issuer = "http://localhost:8080/realms/semiont"', 'subjectClaim = "sub"', '',
+    ].join('\n'));
+    vi.stubEnv('HOME', home);
+    const cfg = loadEnvironmentConfig(null, { environment: 'staging', service: 'dispatcher' });
+    expect(cfg._metadata?.environment).toBe('staging');
+    expect(cfg.services.identity.type).toBe('keycloak');
+    expect(() => cfg.services.vectors).toThrow(/dispatcher/);
   });
 });

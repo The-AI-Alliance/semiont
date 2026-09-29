@@ -45,6 +45,29 @@ describe('makeMeaningConfigFrom', () => {
     expect(config.services.embedding).toEqual(SERVICES.embedding);
   });
 
+  // A service reads only the config sections it declares (SECRET-DELIVERY
+  // P5): the view copies nothing at construction, and each part is read from
+  // the loaded config only when the service reads it.
+  it('reads nothing at construction, and delegates each part at its read', () => {
+    const reads: string[] = [];
+    const part = <T>(name: string, value: T) => () => { reads.push(name); return value; };
+    const services = {} as Record<string, unknown>;
+    for (const [name, value] of Object.entries({ graph: SERVICES.graph, jobs: { type: 'fs' }, vectors: SERVICES.vectors, embedding: SERVICES.embedding, archivist: { host: 'a' } })) {
+      Object.defineProperty(services, name, { get: part(name, value), enumerable: true });
+    }
+    const meta = {} as Record<string, unknown>;
+    for (const [name, value] of Object.entries({ gather: { settleTimeoutMs: 1 }, search: { semanticFloor: 0.5 }, actors: { matcher: undefined }, workers: { default: undefined } })) {
+      Object.defineProperty(meta, name, { get: part(name, value), enumerable: true });
+    }
+    const config = makeMeaningConfigFrom({ services, _metadata: meta } as unknown as EnvironmentConfig);
+    expect(reads).toEqual([]);
+    expect(config.services.jobs).toEqual({ type: 'fs' });
+    expect(config.services.archivist).toEqual({ host: 'a' });
+    expect(config.actors).toEqual({ matcher: undefined });
+    expect(config.workers).toEqual({ default: undefined });
+    expect(reads).toEqual(['jobs', 'archivist', 'actors', 'workers']);
+  });
+
   it('refuses a config that bypassed the loader — no gather bound', () => {
     // Defaulting here would create a SECOND owner of settleTimeoutMs, and the
     // two would disagree the first time either moved.
