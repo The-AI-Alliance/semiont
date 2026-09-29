@@ -2380,6 +2380,76 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 		"semiont secret push ANTHROPIC_API_KEY --repo "+csRepo)
 }
 
+// A ${NAME:-default} names a variable the operator may set. The container's
+// loader resolves it against the environment the launcher forwards, so an
+// exported NAME that is not forwarded loses to its default
+// (SECRET-DELIVERY F7). Unset, nothing is demanded.
+func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	cfg := filepath.Join(s.kb, ".semiont", "semiontconfig", "anthropic.toml")
+	f, err := os.OpenFile(cfg, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.WriteString("\n[extras]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("unset: exit %d\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	if strings.Contains(string(log), "SD_OPTIONAL") {
+		t.Errorf("forwarded an optional reference nobody set:\n%s", log)
+	}
+
+	// A registered source sets it, as it would a required one.
+	if _, stderr, code := s.run(t, "secret", "set", "SD_OPTIONAL", "op://OSS/Optional/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\n%s", code, stderr)
+	}
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("registered: exit %d\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--env SD_OPTIONAL=fake-op-secret")
+
+	// Set to the empty string is set, and wins over both the source and the
+	// default (the shared table's rule), so it is forwarded empty.
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=")
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("set empty: exit %d\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	if !regexp.MustCompile(`--env SD_OPTIONAL=(\s|$)`).MatchString(string(log)) {
+		t.Errorf("an optional variable set to the empty string was not forwarded empty:\n%s", log)
+	}
+
+	// The environment wins over the source.
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=from-env")
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("set: exit %d\n%s", code, stderr)
+	}
+	log, _ = os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "--env SD_OPTIONAL=from-env")
+	if strings.Contains(string(log), "op read") {
+		t.Errorf("read the source although the environment set the variable:\n%s", log)
+	}
+}
+
 func TestStartResolvesSecret(t *testing.T) {
 	// A registered source feeds start: announced BEFORE the reach, resolved
 	// fresh, injected into the container argv (redacted in echoes). Dry-run

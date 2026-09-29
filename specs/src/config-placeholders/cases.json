@@ -1,9 +1,15 @@
 {
-  "$comment": "How a ${VAR} in a knowledge base's config resolves \u2014 shared by the TypeScript config loader (packages/core, toml-loader.ts resolveEnvVars) and the Go launcher (apps/launcher, which resolves the gateway's configuration document). Both run every case; a change to the rule changes this table first.",
+  "$comment": "How a ${VAR} in a knowledge base's config resolves, and which variables a template names \u2014 shared by three consumers: the TypeScript config loader (packages/core, toml-loader.ts resolveEnvVars), the Go launcher's resolver (apps/launcher, gatewaydoc.go resolveRefs, which resolves the gateway's configuration document), and the launcher's extractor (config.go placeholderRefs), which decides what start demands (required: ${NAME}) and what it forwards when set (optional: ${NAME:-default}). The resolvers run every case's result or error; the extractor runs every case's references. A change to the rule changes this table first.",
   "cases": [
     {
       "why": "a set variable replaces its reference",
       "template": "http://${KEYCLOAK_HOST}:8080/realms/semiont",
+      "references": {
+        "required": [
+          "KEYCLOAK_HOST"
+        ],
+        "optional": []
+      },
       "env": {
         "KEYCLOAK_HOST": "10.0.0.5"
       },
@@ -12,12 +18,23 @@
     {
       "why": "text without a reference is itself",
       "template": "nats://broker:4222",
+      "references": {
+        "required": [],
+        "optional": []
+      },
       "env": {},
       "result": "nats://broker:4222"
     },
     {
       "why": "every reference in a value is resolved",
       "template": "${HOST}:${PORT}",
+      "references": {
+        "required": [
+          "HOST",
+          "PORT"
+        ],
+        "optional": []
+      },
       "env": {
         "HOST": "h",
         "PORT": "4222"
@@ -27,12 +44,24 @@
     {
       "why": "an unset variable with a default takes the default",
       "template": "http://${GATEWAY_HOST:-localhost}:4000",
+      "references": {
+        "required": [],
+        "optional": [
+          "GATEWAY_HOST"
+        ]
+      },
       "env": {},
       "result": "http://localhost:4000"
     },
     {
       "why": "a set variable wins over its default",
       "template": "http://${GATEWAY_HOST:-localhost}:4000",
+      "references": {
+        "required": [],
+        "optional": [
+          "GATEWAY_HOST"
+        ]
+      },
       "env": {
         "GATEWAY_HOST": "gw"
       },
@@ -41,20 +70,52 @@
     {
       "why": "a variable set to the empty string is set",
       "template": "x${EMPTY:-fallback}y",
+      "references": {
+        "required": [],
+        "optional": [
+          "EMPTY"
+        ]
+      },
       "env": {
         "EMPTY": ""
       },
       "result": "xy"
     },
     {
+      "why": "a name referenced both with and without a default is required",
+      "template": "${A:-x}/${A}",
+      "references": {
+        "required": [
+          "A"
+        ],
+        "optional": []
+      },
+      "env": {
+        "A": "v"
+      },
+      "result": "v/v"
+    },
+    {
       "why": "a default may be empty",
       "template": "a${UNSET:-}b",
+      "references": {
+        "required": [],
+        "optional": [
+          "UNSET"
+        ]
+      },
       "env": {},
       "result": "ab"
     },
     {
       "why": "an unset variable with no default refuses, naming it",
       "template": "${NATS_HOST}:4222",
+      "references": {
+        "required": [
+          "NATS_HOST"
+        ],
+        "optional": []
+      },
       "env": {},
       "error": "NATS_HOST"
     }

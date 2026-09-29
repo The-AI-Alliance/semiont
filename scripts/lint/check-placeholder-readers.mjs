@@ -28,10 +28,9 @@ const ALLOWED = {
     'the TypeScript resolver (resolveEnvVars), held to the case table',
   ],
   'apps/launcher/internal/launcher/gatewaydoc.go': [
-    "the Go resolver (resolveRefs) for the gateway's document, held to the case table",
+    "the Go pattern: resolveRefs resolves the gateway's document by it, and the extractor (placeholderRefs) reads a config's references by it; both held to the case table",
   ],
   'apps/launcher/internal/launcher/config.go': [
-    'the extractor: which variables a config requires (requiredVars)',
     'a value that is exactly one reference, ${NAME} (referenceName)',
   ],
   'apps/launcher/internal/launcher/identity.go': [

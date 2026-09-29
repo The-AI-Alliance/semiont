@@ -17,15 +17,13 @@ import (
 )
 
 // The config TOMLs reference env vars as ${VAR} (required) or ${VAR:-default}
-// (optional); only the required form is matched here. These are the ones the
-// launcher injects itself and never demands from the user.
+// (optional). These are the ones the launcher injects itself, so it neither
+// demands nor forwards them from the user's environment.
 var injectedVars = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
 	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true, "KEYCLOAK_PORT": true,
 	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
-
-var envRefRe = regexp.MustCompile(`\$\{([A-Z_][A-Z0-9_]*)\}`)
 
 // referenceRe: a value that is exactly one required reference, ${NAME}.
 var referenceRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
@@ -39,21 +37,59 @@ func referenceName(value string) string {
 	return ""
 }
 
-// requiredVars walks every string value in the parsed document for required
-// ${VAR} references, minus the launcher-injected set. Deliberately the WHOLE
+// placeholderRefs: the variables a value names, by the resolver's own
+// pattern — required (${NAME}), or optional (${NAME:-default}) when every
+// reference to the name carries a default. In order of first appearance.
+func placeholderRefs(value string) (required, optional []string) {
+	isRequired := map[string]bool{}
+	var names []string
+	for _, m := range placeholderRe.FindAllStringSubmatch(value, -1) {
+		name, _, hasDefault := strings.Cut(m[1], ":-")
+		if _, seen := isRequired[name]; !seen {
+			names = append(names, name)
+		}
+		isRequired[name] = isRequired[name] || !hasDefault
+	}
+	for _, name := range names {
+		if isRequired[name] {
+			required = append(required, name)
+		} else {
+			optional = append(optional, name)
+		}
+	}
+	return required, optional
+}
+
+// configRefs: the variables a config names, minus those the launcher
+// injects. Start demands the required ones and forwards an optional one only
+// when it is set, so the container's loader lets a set variable win over its
+// default.
+type configRefs struct {
+	Required, Optional []string
+}
+
+// referencedVars walks every string value in the parsed document for ${VAR}
+// references, minus the launcher-injected set. A name required anywhere is
+// required. Deliberately the WHOLE
 // document, not the typed model: the containers interpolate refs in keys the
 // launcher doesn't consume (apiKey, custom sections), and refs may live in
 // any environment. Walking parsed VALUES (not raw bytes) means a ${VAR} in a
 // TOML comment no longer creates a phantom requirement.
-func requiredVars(doc any) []string {
-	set := map[string]bool{}
+func referencedVars(doc any) configRefs {
+	isRequired := map[string]bool{}
 	var walk func(v any)
 	walk = func(v any) {
 		switch t := v.(type) {
 		case string:
-			for _, m := range envRefRe.FindAllStringSubmatch(t, -1) {
-				if name := m[1]; !injectedVars[name] {
-					set[name] = true
+			required, optional := placeholderRefs(t)
+			for _, name := range required {
+				if !injectedVars[name] {
+					isRequired[name] = true
+				}
+			}
+			for _, name := range optional {
+				if _, named := isRequired[name]; !named && !injectedVars[name] {
+					isRequired[name] = false
 				}
 			}
 		case map[string]any:
@@ -67,12 +103,17 @@ func requiredVars(doc any) []string {
 		}
 	}
 	walk(doc)
-	names := make([]string, 0, len(set))
-	for n := range set {
-		names = append(names, n)
+	var refs configRefs
+	for name, required := range isRequired {
+		if required {
+			refs.Required = append(refs.Required, name)
+		} else {
+			refs.Optional = append(refs.Optional, name)
+		}
 	}
-	sort.Strings(names)
-	return names
+	sort.Strings(refs.Required)
+	sort.Strings(refs.Optional)
+	return refs
 }
 
 type semiontConfig struct {
@@ -262,34 +303,34 @@ type bindingCfg struct {
 // (the launcher's single reader of the file). ${VAR} values stay verbatim —
 // classification happens at derivation, interpolation stays the containers'
 // job.
-func loadConfig(path string) (*envConfig, string, []string, error) {
+func loadConfig(path string) (*envConfig, string, configRefs, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, "", nil, fmt.Errorf("reading %s: %v", path, err)
+		return nil, "", configRefs{}, fmt.Errorf("reading %s: %v", path, err)
 	}
 	var cfg semiontConfig
 	if err := toml.Unmarshal(b, &cfg); err != nil {
-		return nil, "", nil, fmt.Errorf("%s is not valid TOML: %v", path, err)
+		return nil, "", configRefs{}, fmt.Errorf("%s is not valid TOML: %v", path, err)
 	}
 	var doc any
 	if err := toml.Unmarshal(b, &doc); err != nil {
-		return nil, "", nil, fmt.Errorf("%s is not valid TOML: %v", path, err)
+		return nil, "", configRefs{}, fmt.Errorf("%s is not valid TOML: %v", path, err)
 	}
 	if err := refuseEnvironmentSites(cfg.Environments, path); err != nil {
-		return nil, "", nil, err
+		return nil, "", configRefs{}, err
 	}
 	envName := cfg.Defaults.Environment
 	if envName == "" {
-		return nil, "", nil, fmt.Errorf("%s: [defaults] environment is not set", path)
+		return nil, "", configRefs{}, fmt.Errorf("%s: [defaults] environment is not set", path)
 	}
 	env, ok := cfg.Environments[envName]
 	if !ok {
-		return nil, "", nil, fmt.Errorf("%s: environment %q selected by [defaults] is not defined", path, envName)
+		return nil, "", configRefs{}, fmt.Errorf("%s: environment %q selected by [defaults] is not defined", path, envName)
 	}
 	if err := resolveGatewaySection(&env, path, envName); err != nil {
-		return nil, "", nil, err
+		return nil, "", configRefs{}, err
 	}
-	return &env, envName, requiredVars(doc), nil
+	return &env, envName, referencedVars(doc), nil
 }
 
 // refuseEnvironmentSites rejects a [site] section in any environment, selected

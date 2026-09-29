@@ -423,7 +423,7 @@ host = "${OTHER_ENV_VAR}"
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	got := strings.Join(vars, ",")
+	got := strings.Join(vars.Required, ",")
 	if got != "ANTHROPIC_API_KEY,OTHER_ENV_VAR" {
 		t.Errorf("required vars: got %q — want the real ref and the other-environment ref, minus injected (${NEO4J_HOST}) and comment phantoms (${PHANTOM_KEY})", got)
 	}

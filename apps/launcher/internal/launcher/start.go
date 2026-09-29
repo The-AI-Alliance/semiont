@@ -296,7 +296,7 @@ func Start(args []string) int {
 	}
 	configFile := filepath.Join(configDir, opts.configName+".toml")
 	var plan *launchPlan
-	var userVars []string
+	var userVars configRefs
 	var kcPort int
 	var kcFromEnv bool
 	if configNeeded {
@@ -309,13 +309,12 @@ func Start(args []string) int {
 			printConfigNames()
 			return 1
 		}
-		var uv []string
-		envCfg, envName, uv, err := loadConfig(configFile)
+		envCfg, envName, refs, err := loadConfig(configFile)
 		if err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
-		userVars = uv
+		userVars = refs
 		kcSource := ""
 		var kcOK bool
 		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
@@ -455,16 +454,40 @@ func Start(args []string) int {
 	// will consume the config — never for infra restarts. The environment
 	// always wins; a registered secret source (semiont secret) is consulted
 	// only for vars the environment doesn't provide, with the reach
-	// announced BEFORE it happens. Dry-run reaches for nothing.
+	// announced BEFORE it happens. Dry-run reaches for nothing. An optional
+	// reference (${NAME:-default}) is forwarded only when something sets it;
+	// otherwise the default applies inside the container.
 	var userEnv []string
 	if opts.service == "" || isConfigConsumer(opts.service) {
 		secrets := loadRoots().Secrets
-		for _, v := range userVars {
+		type userVar struct {
+			name     string
+			optional bool
+		}
+		var vars []userVar
+		for _, v := range userVars.Required {
+			vars = append(vars, userVar{v, false})
+		}
+		for _, v := range userVars.Optional {
+			vars = append(vars, userVar{v, true})
+		}
+		for _, uv := range vars {
+			v := uv.name
+			envVal, exported := os.LookupEnv(v)
+			_, registered := secrets[v]
 			if opts.dryRun {
-				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+				if !uv.optional || exported || registered {
+					userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+				}
 				continue
 			}
-			val := os.Getenv(v)
+			if uv.optional && exported {
+				// Set, even empty, wins over the default: the table's rule,
+				// carried across the container boundary.
+				userEnv = append(userEnv, "--env", v+"="+envVal)
+				continue
+			}
+			val := envVal
 			if val == "" {
 				if ref, ok := secrets[v]; ok && custodyOwned(v) {
 					// Registered before the refusal existed, or hand-edited.
@@ -490,6 +513,9 @@ func Start(args []string) int {
 				}
 			}
 			if val == "" {
+				if uv.optional {
+					continue
+				}
 				u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
 				fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
 				return 1
