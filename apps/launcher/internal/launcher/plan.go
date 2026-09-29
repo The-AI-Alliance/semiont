@@ -346,7 +346,9 @@ func parseHostPort(s string) (host string, port int) {
 }
 
 // derivePlan maps the selected environment to each role's presence.
-func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
+// keycloakPort is KEYCLOAK_PORT as this launch resolves it (keycloakPort in
+// root.go) — the value an issuer's ${KEYCLOAK_PORT} names.
+func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launchPlan, error) {
 	plan := &launchPlan{Roles: map[string]rolePlan{}, GatewayPort: 4000, EnvName: envName, OllamaModels: ollamaModels(env)}
 	if env.Gateway != nil && env.Gateway.Port != 0 {
 		plan.GatewayPort = env.Gateway.Port
@@ -653,13 +655,17 @@ func derivePlan(env *envConfig, envName, path string) (*launchPlan, error) {
 			return nil, secErr("identity", "unknown type %q (use \"keycloak\", or \"oidc\")", id.Type)
 		}
 		if id.Issuer == "" {
-			return nil, secErr("identity", "missing required key %q (e.g. \"http://${KEYCLOAK_HOST}:8080/realms/semiont\")", "issuer")
+			return nil, secErr("identity", "missing required key %q (e.g. \"http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont\")", "issuer")
 		}
 		if id.SubjectClaim == "" {
 			return nil, secErr("identity", "missing required key %q (e.g. \"sub\" — the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>)", "subjectClaim")
 		}
 		spec := descriptorFor("identity", id.Type)
-		host, port, path, err := splitIssuer(id.Issuer)
+		// The port is the launcher's to inject, like the host — but unlike the
+		// host it is a NUMBER every planning decision needs (publish, port
+		// checks, the realm's endpoint), so it resolves here. The host stays
+		// a reference: classify reads it as launcher-provided.
+		host, port, path, err := splitIssuer(strings.ReplaceAll(id.Issuer, "${KEYCLOAK_PORT}", strconv.Itoa(keycloakPort)))
 		if err != nil {
 			return nil, secErr("identity", "issuer %q %v", id.Issuer, err)
 		}

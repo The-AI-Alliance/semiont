@@ -207,12 +207,8 @@ func Status(args []string) int {
 
 	// --repo: one remote stack, health-coded for scripting.
 	if repoFlag != "" {
-		target := codespaceStack(ss, repoFlag)
-		if target == nil {
-			u.Fail("No codespace stack recorded for %s.", repoFlag)
-			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
-			}
+		target, ok := repoCodespaceStack(u, ss, repoFlag)
+		if !ok {
 			return 1
 		}
 		return statusCodespace(u, target, refresh)

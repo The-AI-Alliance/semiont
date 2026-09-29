@@ -194,10 +194,8 @@ func exportRemote(u *UI, repo, output string, force, withGit bool) int {
 	if ss.refuseUnreadable(u) {
 		return 1
 	}
-	st := codespaceStack(ss, repo)
-	if st == nil {
-		u.Fail("No codespace stack recorded for %s.", repo)
-		fmt.Fprintln(os.Stderr, "  Start it first:  semiont start --runtime codespace --repo "+repo)
+	st, ok := repoCodespaceStack(u, ss, repo)
+	if !ok {
 		return 1
 	}
 	if output == "" {

@@ -12,8 +12,8 @@ import (
 // services by name. The concrete product behind an infra role (PostgreSQL,
 // Neo4j, …) belongs to its DRIVER, and both live in descriptors.go;
 // container names and config env vars stay at the wire level
-// (semiont-postgres, NEO4J_HOST) — they're shared contracts with compose and
-// the running fleet.
+// (semiont-postgres, NEO4J_HOST) — they're shared contracts with every running
+// stack, local or inside a codespace.
 
 // isConfigConsumer: does this role mount a staged copy of the KB config?
 // Exactly Semiont's own stack services — the same list that is pulled and

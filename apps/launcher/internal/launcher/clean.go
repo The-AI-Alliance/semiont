@@ -143,7 +143,23 @@ func Clean(args []string) int {
 		u.Log("Total: %s %s", humanBytes(total), u.Dim("(dry-run; nothing removed)"))
 		return 0
 	}
+	// The stores' contents were written by containers, so a container empties
+	// them (clearStoreContents); what is left — the store dirs, and for an
+	// unscoped clean the root's own secrets and meta.json — is the invoker's.
+	rt := ""
 	for _, tg := range kept {
+		for _, sd := range storeDirsUnder(tg.path, store) {
+			if rt == "" {
+				var ok bool
+				if rt, ok = cleanRuntime(u); !ok {
+					return 1
+				}
+			}
+			if err := clearStoreContents(rt, sd); err != nil {
+				u.Fail("cannot empty %s: %v", sd, err)
+				return 1
+			}
+		}
 		if err := os.RemoveAll(tg.path); err != nil {
 			u.Fail("cannot remove %s: %v", tg.path, err)
 			return 1
@@ -161,6 +177,34 @@ func Clean(args []string) int {
 		saveRootMeta(dir, meta)
 	}
 	return 0
+}
+
+// storeDirsUnder: the existing store dirs a clean target holds — the one
+// store for a scoped clean, every store under the root for an unscoped one.
+func storeDirsUnder(path, store string) []string {
+	if store != "" {
+		return []string{path}
+	}
+	var out []string
+	for _, role := range slices.Sorted(maps.Keys(stateStores)) {
+		sd := filepath.Join(path, stateStores[role].dir)
+		if fi, err := os.Stat(sd); err == nil && fi.IsDir() {
+			out = append(out, sd)
+		}
+	}
+	return out
+}
+
+// cleanRuntime: the runtime whose container empties the stores — the one the
+// last explicit start recorded (roots.json), else whatever is installed. No
+// stack is running here (clean refused that above), so there is no live
+// record to rejoin.
+func cleanRuntime(u *UI) (string, bool) {
+	requested := loadRoots().Runtime
+	if requested != "" && !onPath(requested) {
+		requested = ""
+	}
+	return SelectRuntime(u, requested)
 }
 
 // cleanTarget resolves which root's state to clean. No --root: the same

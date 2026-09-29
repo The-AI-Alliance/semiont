@@ -56,7 +56,11 @@ func resolveRealmAdmin(u *UI) (realmAdmin, bool) {
 		u.Fail("%v", err)
 		return realmAdmin{}, false
 	}
-	plan, err := derivePlan(envCfg, envName, configFile)
+	kcPort, _, _, ok := keycloakPort(u, root)
+	if !ok {
+		return realmAdmin{}, false
+	}
+	plan, err := derivePlan(envCfg, envName, configFile, kcPort)
 	if err != nil {
 		u.Fail("%v", err)
 		return realmAdmin{}, false

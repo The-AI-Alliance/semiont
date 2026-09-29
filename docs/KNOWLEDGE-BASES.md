@@ -28,21 +28,51 @@ off-switch. Its Knowledge Bases panel discovers launcher-managed stacks
 automatically.
 
 **Or run it on GitHub's machine instead of yours.** The same launcher places
-a KB stack in a **GitHub Codespace** — one command creates (or resumes) the
-codespace, waits for the stack to answer, forwards the KB to your machine,
-and prints the admin credentials generated inside it:
+a KB stack in a **GitHub Codespace**. One command does several things:
+- creates the codespace, or resumes it;
+- waits for the stack to answer;
+- forwards the KB to a local port;
+- starts the browser on this machine, when it has a container runtime.
 
 ```bash
 semiont start --runtime codespace --repo The-AI-Alliance/semiont-template-kb
-semiont start --service browser    # the browser runs locally
 ```
 
-Only the KB is forwarded, each stack on its own local port, so one local
-browser works several cloud KBs at once via its Knowledge Bases panel.
-`semiont status` shows the fleet; `semiont stop --repo <owner/name>` halts
-billing (state persists) and `--delete` destroys the codespace. Prerequisites
-(the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret) are in each
-KB's README; the raw `gh` recipe is kept there too as the no-launcher path.
+The KB is forwarded to its own local port (4000, or the lowest free port
+above it), so one local browser works several cloud KBs at once via its
+Knowledge Bases panel. The summary names the codespace; `semiont status` and
+`gh codespace list` show it too.
+
+**Signing in needs the codespace's Keycloak too, which the launcher does not
+forward.** Forward it yourself and leave it running:
+
+```bash
+gh codespace ports forward 8080:8080 -c <codespace>
+```
+
+The browser is sent to `keycloak.localhost:8080` to sign in, a name that
+resolves to this machine. Every codespace KB's Keycloak is on 8080, so
+this machine signs into one codespace KB at a time. The forward also fails
+while a local stack holds 8080.
+
+**A new codespace KB has no users.** The `semiont useradd` line in the start
+summary refuses for a codespace KB. Create the first account with Keycloak's
+own admin tool inside the codespace; it prompts for the password:
+
+```bash
+gh codespace ssh -c <codespace> -- -t "docker exec -it semiont-keycloak bash -c 'K=/opt/keycloak/bin/kcadm.sh; \$K config credentials --server http://localhost:8080 --realm master --user admin --password \"\$KC_BOOTSTRAP_ADMIN_PASSWORD\" && \$K create users -r semiont -s username=<email> -s email=<email> -s emailVerified=true -s enabled=true && \$K set-password -r semiont --username <email>'"
+```
+
+Then sign in from the browser: the first sign-in asks for your name.
+
+`semiont stop --repo <owner/name>` stops the codespace and the KB forward. It
+does not stop your 8080 forward. Compute stops billing; storage bills until
+GitHub deletes the codespace 30 days after it stopped. `--delete` destroys it
+now. A codespace whose setup failed during `start` is unknown to
+`semiont stop`; delete it with `gh codespace delete -c <codespace>`.
+Prerequisites (the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret)
+are in each KB's README; the raw `gh` recipe is kept there too as the
+no-launcher path.
 
 See [Local Semiont](system/LOCAL-SEMIONT.md) for the full local-run guide
 (inference configs, running from source with `SEMIONT_VERSION=local`, ports,

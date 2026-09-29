@@ -39,6 +39,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -156,6 +157,9 @@ func git(args []string) {
 //	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
 //	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
 //	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
+//	FAKERT_GH_CS_KEYCLOAK_PORT  the port the codespace's Keycloak starts on (default 8080;
+//	                        an ssh `KEYCLOAK_PORT=<n> semiont start` moves it)
+//	FAKERT_GH_CS_ISSUER     an issuer the codespace does NOT run, advertised instead
 //	FAKERT_OLLAMA_TAGS      models the fake Ollama already has (comma separated)
 //	FAKERT_OLLAMA_UNLISTABLE  /api/tags fails — "unknown", which must not pull
 //	FAKERT_OLLAMA_PULL_FAILS  /api/pull answers with an error
@@ -233,6 +237,42 @@ func forwardLocalPort(args []string) string {
 		}
 	}
 	return "0"
+}
+
+// forwardRemotePort: A in `codespace ports forward A:B`.
+func forwardRemotePort(args []string) string {
+	for _, a := range args {
+		if pair := strings.SplitN(a, ":", 2); len(pair) == 2 {
+			if _, err := strconv.Atoi(pair[1]); err == nil {
+				return pair[0]
+			}
+		}
+	}
+	return "0"
+}
+
+// codespaceArg: the -c <name> a gh codespace command targets.
+func codespaceArg(args []string) string {
+	for i, a := range args {
+		if a == "-c" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	return ""
+}
+
+// codespaceKeycloakPort: the port a codespace's Keycloak is on now — where an
+// ssh rerun moved it, else where it started.
+func codespaceKeycloakPort(name string) string {
+	if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+		if b, err := os.ReadFile(filepath.Join(dir, "cs-keycloak-port-"+name)); err == nil {
+			return strings.TrimSpace(string(b))
+		}
+	}
+	if p := os.Getenv("FAKERT_GH_CS_KEYCLOAK_PORT"); p != "" {
+		return p
+	}
+	return "8080"
 }
 
 // `codespace ports forward A:B …` binds the LOCAL port and parks (the fake
@@ -455,7 +495,20 @@ func ghCodespace(args []string, joined string) {
 				[]byte(strconv.Itoa(os.Getpid())), 0o644)
 		}
 		// A codespace forward carries the KB's GATEWAY, so it serves the
-		// gateway's routes — the forward is a tunnel, not a service.
+		// gateway's routes — the forward is a tunnel, not a service. Any
+		// other remote port is the issuer (CODESPACE-IDENTITY B4).
+		if forwardRemotePort(args) != "4000" {
+			serve("semiont-keycloak", ports)
+			return
+		}
+		// The gateway advertises the issuer the codespace runs:
+		// keycloak.localhost on the port its Keycloak is on — never this
+		// tunnel's own origin, which is where the local fake serves its realm.
+		issuer := os.Getenv("FAKERT_GH_CS_ISSUER")
+		if issuer == "" {
+			issuer = "http://keycloak.localhost:" + codespaceKeycloakPort(codespaceArg(args)) + "/realms/semiont"
+		}
+		os.Setenv("FAKERT_ADVERTISED_ISSUER", issuer)
 		serve("semiont-gateway", ports)
 	case "logs":
 		// The creation-log follower the health wait tails. A few plausible
@@ -553,6 +606,15 @@ func ghCodespace(args []string, joined string) {
 				body = "[site]\ndomain = \"example.com:remote-kb\"\n"
 			}
 			fmt.Println(body)
+		case strings.Contains(joined, "semiont start"):
+			// The codespace's own launcher, rerun with the issuer on a new
+			// port: it records it, and the gateway advertises it from now on.
+			if m := regexp.MustCompile(`KEYCLOAK_PORT=(\d+)`).FindStringSubmatch(joined); m != nil {
+				if dir := os.Getenv("FAKERT_DIR"); dir != "" {
+					_ = os.WriteFile(filepath.Join(dir, "cs-keycloak-port-"+codespaceArg(args)), []byte(m[1]), 0o644)
+				}
+			}
+			fmt.Println("🚀 Semiont stack is up")
 		case strings.Contains(joined, "semiont useradd"):
 			// The remote side is a SHELL, so echo back what the shell would
 			// actually receive — that is what proves quoting works.
@@ -1086,6 +1148,26 @@ func handleName(arg string) string {
 
 func busybox(args []string, joined string) {
 	switch {
+	case strings.Contains(joined, "find /store"):
+		// The store clear: empty the host dir mounted at /store, keeping the
+		// dir itself, as the real `find … -exec rm -rf {} +` does.
+		host := ""
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "-v" && strings.HasSuffix(args[i+1], ":/store") {
+				host = strings.TrimSuffix(args[i+1], ":/store")
+			}
+		}
+		entries, err := os.ReadDir(host)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "fakert busybox: store clear: %v\n", err)
+			os.Exit(1)
+		}
+		for _, e := range entries {
+			if err := os.RemoveAll(filepath.Join(host, e.Name())); err != nil {
+				fmt.Fprintf(os.Stderr, "fakert busybox: store clear: %v\n", err)
+				os.Exit(1)
+			}
+		}
 	case strings.Contains(joined, "nslookup"):
 		if os.Getenv("FAKERT_NSLOOKUP") == "ok" {
 			return
@@ -1467,6 +1549,10 @@ func serve(container string, ports []string) {
 				//                             like one imported before RFC 8252 §7.3 was honoured
 				origin := "http://" + r.Host
 				issuer := origin + "/realms/semiont"
+				advertised := issuer
+				if a := os.Getenv("FAKERT_ADVERTISED_ISSUER"); a != "" {
+					advertised = a
+				}
 				jsonOut := func(status int, body any) {
 					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(status)
@@ -1475,7 +1561,7 @@ func serve(container string, ports []string) {
 				if r.URL.Path == "/.well-known/oauth-protected-resource" {
 					jsonOut(200, map[string]any{
 						"resource":                 origin,
-						"authorization_servers":    []string{issuer},
+						"authorization_servers":    []string{advertised},
 						"bearer_methods_supported": []string{"header"},
 						"resource_name":            "fake-kb",
 					})

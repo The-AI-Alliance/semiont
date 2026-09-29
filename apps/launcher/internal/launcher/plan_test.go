@@ -102,7 +102,7 @@ func mustDerive(t *testing.T, path string) *launchPlan {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	plan, err := derivePlan(env, envName, path)
+	plan, err := derivePlan(env, envName, path, 8080)
 	if err != nil {
 		t.Fatalf("derivePlan: %v", err)
 	}
@@ -150,7 +150,7 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 			if err != nil {
 				t.Fatalf("loadConfig: %v", err)
 			}
-			plan, err := derivePlan(env, envName, name)
+			plan, err := derivePlan(env, envName, name, 8080)
 			if err != nil {
 				t.Fatalf("derivePlan: %v", err)
 			}
@@ -282,7 +282,7 @@ func mustRefuse(t *testing.T, path string, want ...string) {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	plan, err := derivePlan(env, envName, path)
+	plan, err := derivePlan(env, envName, path, 8080)
 	if err == nil {
 		t.Fatalf("derivePlan accepted a config the gateway refuses to boot: %+v", plan.Roles)
 	}
@@ -366,7 +366,7 @@ uri = "bolt://${NEO4J_HOST}:7687"
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	_, err = derivePlan(env, envName, p)
+	_, err = derivePlan(env, envName, p, 8080)
 	if err == nil || !strings.Contains(err.Error(), "janusgraph") || !strings.Contains(err.Error(), "neo4j") {
 		t.Errorf("unknown type must name the offender and the known drivers, got: %v", err)
 	}
@@ -382,7 +382,7 @@ password = "localpass"
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	_, err = derivePlan(env, envName, p)
+	_, err = derivePlan(env, envName, p, 8080)
 	if err == nil || !strings.Contains(err.Error(), "graph") || !strings.Contains(err.Error(), "uri") {
 		t.Errorf("missing key must name section and key, got: %v", err)
 	}
@@ -521,7 +521,7 @@ func planForBroker(t *testing.T, signal, jobs string) (*launchPlan, error) {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	return derivePlan(env, envName, p)
+	return derivePlan(env, envName, p, 8080)
 }
 
 const brokerSignal = `[environments.local.signal]
@@ -594,5 +594,31 @@ func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "incomplete") {
 		t.Errorf("error does not name the problem: %v", err)
+	}
+}
+
+// CODESPACE-IDENTITY B4: an issuer names its port by ${KEYCLOAK_PORT}, and the
+// plan carries the number this launch resolved — what Keycloak publishes on,
+// what the port check guards, and what the realm is reached at.
+func TestIssuerPortResolvesFromKeycloakPort(t *testing.T) {
+	p := variantConfig(t, map[string]string{"identity": `[environments.local.identity]
+type = "keycloak"
+issuer = "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont"
+subjectClaim = "sub"
+`})
+	env, envName, _, err := loadConfig(p)
+	if err != nil {
+		t.Fatalf("loadConfig: %v", err)
+	}
+	plan, err := derivePlan(env, envName, p, 8081)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rp := plan.Roles["identity"]
+	if rp.Presence != presenceLauncher || rp.Port != 8081 {
+		t.Errorf("identity = %s on %d, want launcher-run on 8081", rp.Presence, rp.Port)
+	}
+	if rp.Issuer != "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont" {
+		t.Errorf("issuer %q — the plan keeps the config's reference; services resolve it", rp.Issuer)
 	}
 }

@@ -99,9 +99,8 @@ func Logs(args []string) int {
 	rt := ""
 	csName := ""
 	if repoFlag != "" {
-		target := codespaceStack(ss, repoFlag)
-		if target == nil {
-			u.Fail("No codespace stack recorded for %s.", repoFlag)
+		target, ok := repoCodespaceStack(u, ss, repoFlag)
+		if !ok {
 			return 1
 		}
 		if !onPath("gh") {
@@ -122,7 +121,8 @@ func Logs(args []string) int {
 	} else if fwd := forwardedStacks(cs); len(fwd) == 1 && st == nil {
 		// Read-only commands look at what you're looking at: the lone
 		// forwarded codespace stack wins a bare invocation. Logs ride ssh,
-		// by wire-level container name (the shared contract with compose).
+		// by wire-level container name (the codespace's launcher names them
+		// exactly as this one does).
 		if !onPath("gh") {
 			fmt.Fprintln(os.Stderr, "A codespace stack is forwarded but 'gh' is not on PATH.")
 			return 1

@@ -76,13 +76,17 @@ type StackState struct {
 }
 
 // codespacePlacement: where a codespace stack is and how this machine
-// reaches it. Runtime stays empty on one of these — compose owns the
-// services inside, so there is no container runtime of ours to name.
+// reaches it. Runtime stays empty on one of these — the codespace's own
+// launcher runs the services inside, so this machine has no runtime to name.
 type codespacePlacement struct {
 	Name        string `json:"name"`                  // the instance name (a PID — never user input)
 	Repo        string `json:"repo"`                  // owner/name slug (the user-facing identity)
 	ForwardPID  int    `json:"forwardPid,omitempty"`  // the detached `gh codespace ports forward`
 	ForwardPort int    `json:"forwardPort,omitempty"` // this stack's local KB port (4000, or allocated above)
+	// The issuer, forwarded <N>:<N> (CODESPACE-IDENTITY B4). 0 when the KB
+	// trusts an issuer the codespace does not run.
+	KeycloakPort       int `json:"keycloakPort,omitempty"`
+	KeycloakForwardPID int `json:"keycloakForwardPid,omitempty"`
 }
 
 // platform: derived from the record's shape, never stored beside it. A stack

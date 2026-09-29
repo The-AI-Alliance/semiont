@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -66,12 +67,17 @@ func resolveKBRoot() (path, source string, err error) {
 // inside it.
 
 type rootEntry struct {
-	Path        string    `json:"path"`
-	Did         string    `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
-	SiteName    string    `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
-	Config      string    `json:"config,omitempty"`   // sticky --config: the config `init` wrote, then whatever a successful start last used explicitly
-	LastUsed    time.Time `json:"lastUsed"`
-	LastStarted time.Time `json:"lastStarted,omitzero"` // last full-stack start
+	Path     string `json:"path"`
+	Did      string `json:"did,omitempty"`      // did:web identity from .semiont/config [site] domain
+	SiteName string `json:"siteName,omitempty"` // human label — kept here so even a missing root stays identifiable
+	Config   string `json:"config,omitempty"`   // sticky --config: the config `init` wrote, then whatever a successful start last used explicitly
+	// KeycloakPort: sticky KEYCLOAK_PORT — what a successful start last took
+	// from the environment. A codespace's post-start runs a bare start on
+	// every resume, so a port the laptop moved it to must outlive the ssh
+	// that set it.
+	KeycloakPort int       `json:"keycloakPort,omitempty"`
+	LastUsed     time.Time `json:"lastUsed"`
+	LastStarted  time.Time `json:"lastStarted,omitzero"` // last full-stack start
 }
 
 type rootsRegistry struct {
@@ -205,6 +211,50 @@ func recordRuntimePref(rt string) {
 	}
 	reg.Runtime = rt
 	saveRoots(reg)
+}
+
+// keycloakPort: KEYCLOAK_PORT, the issuer's port — one per KB, the same
+// number inside the stack and on the laptop that forwards it
+// (ONE-BROWSER-MANY-ISSUERS D1/D2). The environment wins, then the port this
+// root last started on explicitly, then Keycloak's own. fromEnv says whether
+// a successful start should record it.
+func keycloakPort(u *UI, root string) (port int, source string, fromEnv, ok bool) {
+	if v := os.Getenv("KEYCLOAK_PORT"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n < 1 || n > 65535 {
+			u.Fail("KEYCLOAK_PORT=%q is not a port (1-65535).", v)
+			return 0, "", false, false
+		}
+		return n, "KEYCLOAK_PORT", true, true
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	for _, e := range loadRoots().Roots {
+		if e.Path == root && e.KeycloakPort != 0 {
+			return e.KeycloakPort, "recorded for this KB; override with KEYCLOAK_PORT", false, true
+		}
+	}
+	return descriptorFor("identity", "keycloak").defaultPort, "default", false, true
+}
+
+// recordKeycloakPort stores a root's sticky KEYCLOAK_PORT — callers pass it
+// only after a start SUCCEEDED with the port taken from the environment.
+func recordKeycloakPort(root string, port int) {
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+	reg := loadRoots()
+	for i := range reg.Roots {
+		if reg.Roots[i].Path == root {
+			if reg.Roots[i].KeycloakPort == port {
+				return
+			}
+			reg.Roots[i].KeycloakPort = port
+			saveRoots(reg)
+			return
+		}
+	}
 }
 
 // configForRealm names the config a realm-administering command must read:

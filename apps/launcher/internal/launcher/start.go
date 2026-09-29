@@ -24,8 +24,8 @@ func configFreeService(svc string) bool {
 // preflightNames: the containers start's stop-then-rm sweep removes. A
 // sweep is a teardown, so it runs in teardown order — dependents first.
 //
-// `inference` is exempt: it is handled in the Ollama section, where a host
-// instance may make a container unnecessary. `browser` is exempt because the
+// `inference` is exempt: flowOllama removes semiont-ollama itself, ahead of
+// its host probe, for both walks (--service inference has no preflight). `browser` is exempt because the
 // Browser is not a stack member (BROWSER-LIFECYCLE.md) — its keep-or-refresh
 // lifecycle lives in flowBrowser, and the preflight must not sweep a viewer
 // the user keeps open across stacks. Both exemptions are gated by
@@ -135,6 +135,11 @@ Environment:
                         and kept — Keycloak creates the admin on its first boot
                         only, so the value must outlive the stack). Console
                         user: admin
+  KEYCLOAK_PORT         The issuer's port, for a config whose [identity]
+                        issuer names ${KEYCLOAK_PORT} (as semiont init writes
+                        it). Default 8080; a start that sets it records
+                        it for this KB, so later starts keep it. A codespace
+                        KB's laptop sets it over ssh when 8080 is taken there
 
 Examples:
   # Fully local with Ollama (default, no API key needed)
@@ -292,6 +297,8 @@ func Start(args []string) int {
 	configFile := filepath.Join(configDir, opts.configName+".toml")
 	var plan *launchPlan
 	var userVars []string
+	var kcPort int
+	var kcFromEnv bool
 	if configNeeded {
 		if _, err := os.Stat(configFile); err != nil {
 			u.Fail("Config not found: %s", configFile)
@@ -309,9 +316,21 @@ func Start(args []string) int {
 			return 1
 		}
 		userVars = uv
-		if plan, err = derivePlan(envCfg, envName, configFile); err != nil {
+		kcSource := ""
+		var kcOK bool
+		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
+			return 1
+		}
+		if plan, err = derivePlan(envCfg, envName, configFile, kcPort); err != nil {
 			u.Fail("%v", err)
 			return 1
+		}
+		if strings.Contains(envCfg.Identity.Issuer, "${KEYCLOAK_PORT}") {
+			u.Log("Keycloak port: %d %s", kcPort, u.Dim("("+kcSource+")"))
+		} else if kcFromEnv {
+			// An ineffective setting is neither silent nor remembered.
+			u.Warn("KEYCLOAK_PORT=%d has no effect: this config's [identity] issuer names its port literally. Write ${KEYCLOAK_PORT} there to let it move.", kcPort)
+			kcFromEnv = false
 		}
 	}
 
@@ -518,6 +537,9 @@ func Start(args []string) int {
 		if opts.runtime != "" {
 			recordRuntimePref(opts.runtime)
 		}
+		if kcFromEnv {
+			recordKeycloakPort(root, kcPort)
+		}
 	}
 	return code
 }
@@ -632,7 +654,7 @@ const kbMountTarget = "/kb"
 // that document, the state mount its supervisor keeps its events on, its
 // secrets, and the user's variables (the document names its broker
 // credentials by variable).
-func gatewayArgs(stage, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
+func gatewayArgs(stage, rt, addr, clientSecret, jwt, version string, port int, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-gateway", // no --rm: see providedRunArgs
 		"--publish", fmt.Sprintf("%d:%d", port, port), "--memory", semiontDescriptor("gateway").mem,
 		"--volume", stage + "/" + gatewayDocumentFile + ":/home/semiont/.semiontconfig:ro"}
@@ -641,7 +663,7 @@ func gatewayArgs(stage, addr, clientSecret, jwt, version string, port int, userE
 	a = append(a, state...)
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, identityHostArgs(addr)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		// The gateway's own account at the realm. It dials the Archivist for
 		// content, events and the branch, and proves who it is like any caller.
@@ -670,13 +692,15 @@ func gatewayHostEnv(addr string) []string {
 
 // dependencyHostEnv: the host variables a service's staged config may
 // interpolate — every dependency on the host address, the issuer on
-// identityHost — with the host entry that makes the issuer's name resolve.
-func dependencyHostEnv(addr string) []string {
-	return append(identityHostArgs(addr),
+// identityHost and its port — with the host entry that makes the issuer's
+// name resolve.
+func dependencyHostEnv(rt, addr string, issuerPort int) []string {
+	return append(identityHostArgs(rt, addr),
 		"--env", "OLLAMA_HOST="+addr,
 		"--env", "NEO4J_HOST="+addr,
 		"--env", "NATS_HOST="+addr,
-		"--env", "KEYCLOAK_HOST="+identityHost(addr),
+		"--env", "KEYCLOAK_HOST="+identityHost(rt, addr),
+		"--env", "KEYCLOAK_PORT="+strconv.Itoa(issuerPort),
 		"--env", "QDRANT_HOST="+addr,
 		"--env", "POSTGRES_HOST="+addr)
 }
@@ -684,8 +708,8 @@ func dependencyHostEnv(addr string) []string {
 // superviseEnv is the per-run supervision opt-in (ORCHESTRATOR-NATIVE-IMAGES
 // D3): boot.sh wraps the image CMD in the shared supervisor only when this is
 // set. Local placement is the one place with no orchestrator restart policy,
-// so every service builder passes it; compose and user manifests never do —
-// their platform restarts. Defined once because five call sites spelling the
+// so every service builder passes it; user manifests never do — their
+// platform restarts. Defined once because five call sites spelling the
 // same pair is five chances to update four of them.
 func superviseEnv() []string {
 	return []string{"--env", "SEMIONT_SUPERVISE=1"}
@@ -693,7 +717,7 @@ func superviseEnv() []string {
 
 // sidecarArgs covers the three make-meaning sidecars (worker / smelter /
 // weaver) — identical in shape, differing only in name, port, and memory.
-func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
+func sidecarArgs(svc string, port int, stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, extra ...string) []string {
 	p := strconv.Itoa(port)
 	a := []string{"run", "-d", "--name", "semiont-" + svc, // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor(svc).mem, "--publish", p + ":" + p,
@@ -701,7 +725,7 @@ func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
 	a = append(a,
 		// This process's own credential at the realm. It buys an agent token
 		// from the gateway; it is not the agent identity, which is per
@@ -723,7 +747,7 @@ func sidecarArgs(svc string, port int, stage, addr, clientSecret, version string
 // config interpolates. Deliberately NO JWT_SECRET: it signs nothing. It
 // authenticates as its own service account at the issuer, and admits callers by
 // verifying theirs (the same fact D1's read path relies on).
-func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func archivistArgs(kbRoot, stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-archivist", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("archivist").mem, "--publish", "24103:24103",
 		"--volume", kbRoot + ":" + kbMountTarget,
@@ -732,7 +756,7 @@ func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, o
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
 	a = append(a,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("archivist"),
@@ -752,7 +776,7 @@ func archivistArgs(kbRoot, stage, addr, clientSecret, version string, userEnv, o
 // it reads bytes from the record directly, SINGLE-KB-MOUNT P4). NO
 // JWT_SECRET, and no LIBRARIAN_HOST exists anywhere: nothing dials this
 // service; it dials the gateway for the bus and the Archivist for bytes.
-func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []string, state ...string) []string {
+func librarianArgs(stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string, state ...string) []string {
 	a := []string{"run", "-d", "--name", "semiont-librarian", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("librarian").mem, "--publish", "24104:24104",
 		"--volume", stage + "/librarian.toml:/home/semiont/.semiontconfig:ro"}
@@ -760,7 +784,7 @@ func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []st
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
 	a = append(a,
 		"--env", "XDG_STATE_HOME=/semiont-state",
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("librarian"),
@@ -778,14 +802,14 @@ func librarianArgs(stage, addr, clientSecret, version string, userEnv, otel []st
 // fs-by-omission driver fails loud (stateDirFor) rather than writing to a
 // fabricated home. It carries the full *_HOST eager-interpolation set its staged
 // config may reference, exactly as the other sidecars do.
-func dispatcherArgs(stage, addr, clientSecret, version string, userEnv, otel []string) []string {
+func dispatcherArgs(stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("dispatcher").mem, "--publish", "24105:24105",
 		"--volume", stage + "/dispatcher.toml:/home/semiont/.semiontconfig:ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
 	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(addr)...)
+	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
 	a = append(a,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)
@@ -873,7 +897,7 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	// containers run with NO restart policy; a crashed service stays down —
 	// and, with no --rm, stays VISIBLE: status shows it exited and its logs
 	// survive for diagnosis until the next start or stop sweeps it
-	// (fail-fast is the design; the compose path adds restart: on-failure).
+	// (fail-fast is the design; recovery is the in-container supervisor's).
 	u.Stamp("semiont start: containers ready")
 	fmt.Println()
 	fmt.Printf("%s  %s\n", u.Wrap(AnsiBold+AnsiGreen, "🚀 Semiont stack is up"), u.Dim("("+took(time.Since(t0))+")"))
@@ -944,8 +968,7 @@ const (
 	podmanHostAlias = "host.containers.internal"
 )
 
-// identityHostName: the issuer's host where the host address is one of those
-// aliases. An issuer is ONE URL — a token's `iss` is the URL it was requested
+// identityHostName: the issuer's host under Docker and Podman. An issuer is ONE URL — a token's `iss` is the URL it was requested
 // from, and the gateway verifies it — so the laptop's Browser and every
 // container must reach it by the same name. `*.localhost` is loopback on the
 // laptop (RFC 6761: its resolver and every browser answer 127.0.0.1, where
@@ -953,11 +976,14 @@ const (
 // host inside each container that dials the issuer.
 const identityHostName = "keycloak.localhost"
 
-// identityHost: KEYCLOAK_HOST. The host address itself when the laptop reaches
-// it too (Apple container's bridge address, a Linux bridge IP); identityHostName
-// when only containers do.
-func identityHost(addr string) string {
-	if addr == dockerHostAlias || addr == podmanHostAlias {
+// identityHost: KEYCLOAK_HOST. Under Apple container, the host address itself:
+// its bridge address is the laptop's own. Under Docker and Podman,
+// identityHostName whatever the probe answered — the Browser is never promised
+// the host address there: the alias resolves only inside containers, and in
+// docker-in-docker (a codespace) the probe falls back to a bridge gateway on
+// another machine (172.17.0.1, live 2026-09-28).
+func identityHost(rt, addr string) string {
+	if rt == "docker" || rt == "podman" {
 		return identityHostName
 	}
 	return addr
@@ -965,8 +991,8 @@ func identityHost(addr string) string {
 
 // identityHostArgs: the `run` arguments that make identityHost resolve inside a
 // container that dials the issuer; none when it is the host address itself.
-func identityHostArgs(addr string) []string {
-	if identityHost(addr) == addr {
+func identityHostArgs(rt, addr string) []string {
+	if identityHost(rt, addr) == addr {
 		return nil
 	}
 	return []string{"--add-host", identityHostName + ":host-gateway"}

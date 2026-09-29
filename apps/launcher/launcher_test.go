@@ -496,19 +496,124 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
-	// Docker's host address resolves only inside containers, so the issuer is
-	// named where the laptop's Browser reaches it too — and every container
-	// that holds a credential at it can resolve that name. A service builder
-	// that forgot either half would fail sign-in or its own start.
-	for _, line := range strings.Split(s.argv(t), "\n") {
-		if !strings.Contains(line, "SEMIONT_OIDC_CLIENT_ID=") {
-			continue
+}
+
+// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to inject, like
+// its host — one Keycloak port per KB, the same number on both ends, so a
+// laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
+// launcher's env shape: the environment wins, the root records it, and 8080
+// is the default. The codespace's post-start runs a bare start on every
+// resume, which is why the port a laptop moved it to must stick.
+func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
+		p := filepath.Join(s.kb, ".semiont", "semiontconfig", name)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
-			t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
+		b = []byte(strings.ReplaceAll(string(b), "${KEYCLOAK_HOST}:8080/realms", "${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms"))
+		if err := os.WriteFile(p, b, 0o644); err != nil {
+			t.Fatal(err)
 		}
-		if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
-			t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
+	}
+	keycloakRun := func(t *testing.T, argv string) string {
+		t.Helper()
+		for _, line := range strings.Split(argv, "\n") {
+			if strings.Contains(line, "run -d --name semiont-keycloak") {
+				return line
+			}
+		}
+		t.Fatalf("no Keycloak run in:\n%s", argv)
+		return ""
+	}
+	base := s.extraEnv
+	for _, step := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{"default", nil, "8080"},
+		{"environment wins", []string{"KEYCLOAK_PORT=8081"}, "8081"},
+		{"recorded for the next bare start", nil, "8081"},
+	} {
+		s.extraEnv = append(append([]string{}, base...), step.env...)
+		before := len(s.argv(t))
+		stdout, stderr, code := s.run(t, "start")
+		if code != 0 {
+			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", step.name, code, stdout, stderr)
+		}
+		argv := s.argv(t)[before:]
+		if run := keycloakRun(t, argv); !strings.Contains(run, "-p "+step.want+":8080") {
+			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
+		}
+		dialers := 0
+		for _, line := range strings.Split(argv, "\n") {
+			if !strings.Contains(line, "KEYCLOAK_HOST=") {
+				continue
+			}
+			dialers++
+			if !strings.Contains(line, "--env KEYCLOAK_PORT="+step.want) {
+				t.Errorf("%s: a container that resolves the issuer lacks KEYCLOAK_PORT=%s:\n%s", step.name, step.want, line)
+			}
+		}
+		if dialers == 0 {
+			t.Fatalf("%s: no container carries KEYCLOAK_HOST — the scan proved nothing", step.name)
+		}
+	}
+	roots, err := os.ReadFile(filepath.Join(filepath.Dir(statePathFor(s.home)), "roots.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "roots.json", string(roots), `"keycloakPort": 8081`)
+}
+
+// Under Docker and Podman the issuer is named keycloak.localhost, whatever the
+// host-address probe answers. An issuer is one URL — the Browser and every
+// container must reach it by the same name — and the Browser is never on the
+// Docker host's bridge: in docker-in-docker (a codespace) the alias does not
+// resolve, the probe falls back to the bridge gateway, and a laptop cannot
+// reach 172.17.0.1. The probe still decides every other dependency host.
+func TestDockerAndPodmanNameTheIssuerKeycloakLocalhost(t *testing.T) {
+	for _, rt := range []string{"docker", "podman"} {
+		for _, probe := range []struct {
+			name string
+			env  []string
+			addr string
+		}{
+			{"alias", []string{"FAKERT_NSLOOKUP=ok"}, map[string]string{"docker": "host.docker.internal", "podman": "host.containers.internal"}[rt]},
+			{"bridge", []string{"FAKERT_GATEWAY=172.17.0.1"}, "172.17.0.1"},
+		} {
+			t.Run(rt+"/"+probe.name, func(t *testing.T) {
+				s := newScenario(t, "container", "docker", "podman")
+				s.extraEnv = append(s.extraEnv, probe.env...)
+				stdout, stderr, code := s.run(t, "start", "--runtime", rt)
+				if code != 0 {
+					t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+				}
+				// Every container that holds a credential at the realm must
+				// resolve the issuer's name; a builder that forgot either half
+				// would fail sign-in or its own start.
+				dialers := 0
+				for _, line := range strings.Split(s.argv(t), "\n") {
+					if !strings.Contains(line, "SEMIONT_OIDC_CLIENT_ID=") {
+						continue
+					}
+					dialers++
+					if !strings.Contains(line, "--add-host keycloak.localhost:host-gateway") {
+						t.Errorf("a container holding a realm credential cannot resolve the issuer's name:\n%s", line)
+					}
+					if strings.Contains(line, "KEYCLOAK_HOST=") && !strings.Contains(line, "KEYCLOAK_HOST=keycloak.localhost") {
+						t.Errorf("KEYCLOAK_HOST is not the issuer's name:\n%s", line)
+					}
+					if strings.Contains(line, "NEO4J_HOST=") && !strings.Contains(line, "NEO4J_HOST="+probe.addr) {
+						t.Errorf("the probe's answer %s no longer decides the other dependency hosts:\n%s", probe.addr, line)
+					}
+				}
+				if dialers == 0 {
+					t.Fatal("no container carries SEMIONT_OIDC_CLIENT_ID — the scan matched nothing, so it proved nothing")
+				}
+			})
 		}
 	}
 }
@@ -546,6 +651,27 @@ func TestStartHostOllamaBoot(t *testing.T) {
 	}
 	checkGolden(t, "start-host-ollama-boot.argv", s.argv(t))
 	mustContain(t, "stdout", stdout, "inference — using host Ollama at http://localhost:11434")
+}
+
+// CODESPACE-IDENTITY B6: a re-run start over a live stack took its OWN Ollama
+// container for a host install — "using host Ollama at http://localhost:11434"
+// on the spike's second run, with semiont-ollama left running and recorded as
+// the host's. B4 reruns start over a live stack, so this is the normal path.
+func TestRerunStartReplacesItsOwnOllama(t *testing.T) {
+	s := newScenario(t, "container")
+	if stdout, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("first start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	before := len(s.argv(t))
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	if strings.Contains(stdout, "using host Ollama") {
+		t.Errorf("the re-run took the stack's own semiont-ollama for a host install:\n%s", stdout)
+	}
+	second := s.argv(t)[before:]
+	mustContain(t, "second run's argv", second, "rm semiont-ollama", "--name semiont-ollama")
 }
 
 func TestStartLocalVersionBoot(t *testing.T) {
@@ -1009,6 +1135,8 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 		t.Fatalf("meta.json after start: %v", err)
 	}
 	mustContain(t, "meta.json restamp", string(newMeta), "neo4j:5.26.28-community")
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, "neo4j")))
 	// The neo4j mount dirs must exist again (and 0777 for the virtiofs
 	// test -w gate its entrypoint runs).
 	for _, sub := range []string{"data", "logs"} {
@@ -1020,12 +1148,13 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 			t.Errorf("neo4j %s dir mode = %o, want 777 (neo4j's entrypoint gates on test -w)", sub, perm)
 		}
 	}
-	// ...while their UNMOUNTED parent is clamped owner-only, so the 0777
-	// leaves nothing traversable by other local users.
-	if fi, err := os.Stat(filepath.Join(dir, "neo4j")); err != nil {
-		t.Fatalf("neo4j store dir: %v", err)
+	// ...while the root's state dir — the UNMOUNTED parent of every store —
+	// is clamped owner-only, so the 0777 leaves nothing traversable by other
+	// local users.
+	if fi, err := os.Stat(dir); err != nil {
+		t.Fatalf("root state dir: %v", err)
 	} else if perm := fi.Mode().Perm(); perm != 0o700 {
-		t.Errorf("neo4j store dir mode = %o, want 700 (owner-only parent clamp)", perm)
+		t.Errorf("root state dir mode = %o, want 700 (owner-only parent clamp)", perm)
 	}
 }
 
@@ -1124,6 +1253,13 @@ func seedStateDir(t *testing.T, s *scenario) string {
 	return dir
 }
 
+// storeClear: the run that empties a store dir. A container wrote what is
+// in it — as neo4j 7474, postgres 70, qdrant and nats root, Semiont 1001 —
+// and on Linux only a container's root can remove it (CODESPACE-IDENTITY F1).
+func storeClear(sd string) string {
+	return "container run --rm -v " + sd + ":/store busybox:1.38.0 find /store -mindepth 1 -maxdepth 1 -exec rm -rf {} +"
+}
+
 func TestCleanDryRunListsAndKeeps(t *testing.T) {
 	s := newScenario(t)
 	dir := seedStateDir(t, s)
@@ -1135,10 +1271,13 @@ func TestCleanDryRunListsAndKeeps(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(dir, "postgres", "pgdata", "PG_VERSION")); err != nil {
 		t.Error("--dry-run removed data")
 	}
+	if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "find /store") {
+		t.Errorf("--dry-run ran a store clear:\n%s", log)
+	}
 }
 
 func TestCleanRemovesRootState(t *testing.T) {
-	s := newScenario(t)
+	s := newScenario(t, "container")
 	dir := seedStateDir(t, s)
 	stdout, stderr, code := s.run(t, "clean")
 	if code != 0 {
@@ -1148,10 +1287,19 @@ func TestCleanRemovesRootState(t *testing.T) {
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {
 		t.Errorf("state dir survived clean: %v", err)
 	}
+	// Every store is emptied by a container; the root dir itself — its
+	// secrets and meta.json are the invoker's — is never mounted.
+	log, _ := os.ReadFile(s.log)
+	for _, sub := range []string{"postgres", "qdrant", "neo4j"} {
+		mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, sub)))
+	}
+	if strings.Contains(string(log), "-v "+dir+":") {
+		t.Errorf("the root dir, secrets and all, was mounted into a container:\n%s", log)
+	}
 }
 
 func TestCleanStoreScopes(t *testing.T) {
-	s := newScenario(t)
+	s := newScenario(t, "container")
 	dir := seedStateDir(t, s)
 	stdout, stderr, code := s.run(t, "clean", "--store", "vectors")
 	if code != 0 {
@@ -1179,6 +1327,11 @@ func TestCleanStoreScopes(t *testing.T) {
 		t.Error("vectors stamp survived its store's clean")
 	}
 	mustContain(t, "meta.json keeps other stamps", string(meta), `"database"`, `"graph"`)
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), storeClear(filepath.Join(dir, "qdrant")))
+	if strings.Count(string(log), "find /store") != 1 {
+		t.Errorf("a scoped clean emptied more than its one store:\n%s", log)
+	}
 }
 
 func TestCleanRefusesRunningStack(t *testing.T) {
@@ -1205,7 +1358,7 @@ func TestCleanRefusesRunningStack(t *testing.T) {
 }
 
 func TestCleanOrphanKeyTarget(t *testing.T) {
-	s := newScenario(t)
+	s := newScenario(t, "container")
 	// State whose KB no longer exists anywhere: targetable by its literal
 	// key, exactly as status names it.
 	orphan := stateRootFor(s.home, "gone.example.org-old-kb")
@@ -2382,6 +2535,15 @@ func TestCodespaceHookFailureFailsFastWithTheCause(t *testing.T) {
 	if strings.Contains(both, "did not come up inside") {
 		t.Errorf("a setup failure was reported as a readiness timeout:\n%s", both)
 	}
+	// The advice names this repo, and works as printed: a failed setup leaves
+	// a codespace no record names, and stop finds it the way start did.
+	advice := "semiont stop --repo " + csRepo + " --delete"
+	mustContain(t, "cleanup advice", both, advice)
+	if _, stderr, code := s.run(t, strings.Fields(advice)[1:]...); code != 0 {
+		t.Errorf("the printed cleanup advice fails: exit %d\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace delete -c fake-cs-1 --force")
 	// The stream does NOT stop at the failure — the fake emits 30 trailing
 	// lines, as the real one does — and the readiness loop only looks every
 	// few seconds. Reporting from the LIVE ring would let those lines push the
@@ -2487,7 +2649,7 @@ func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("adopt: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Found existing codespace for "+csRepo+": old-cs", "resuming, not creating")
+	mustContain(t, "stdout", stdout, "Found existing codespace for "+csRepo+": old-cs", "adopting it, not creating one")
 	log, _ := os.ReadFile(s.log)
 	if strings.Contains(string(log), "codespace create") {
 		t.Errorf("adopt created:\n%s", log)
@@ -2766,8 +2928,55 @@ func TestUseraddCodespace(t *testing.T) {
 	if _, stderr, code := s.run(t, "useradd", "--repo", "no/such", "--email", "b@c.co"); code != 1 {
 		t.Error("unknown --repo should fail")
 	} else {
-		mustContain(t, "stderr", stderr, "No codespace stack recorded for no/such")
+		mustContain(t, "stderr", stderr, "no/such has no codespace", "semiont start --runtime codespace --repo no/such")
 	}
+}
+
+// CODESPACE-IDENTITY B5: a codespace can exist with no record on this machine
+// — start adopts one it finds, but writes the record only once the stack
+// answers, so a failed setup leaves a billing codespace nothing else could
+// see. Every --repo verb resolves it the way start does: the record, else
+// what GitHub says the repo has.
+func TestRepoVerbsAdoptAnUnrecordedCodespace(t *testing.T) {
+	const orphan = `FAKERT_GH_CS_LIST=[{"name":"orphan-cs","state":"Available","repository":"` + csRepo + `"}]`
+	for _, c := range []struct {
+		name string
+		args []string
+		want string // in the argv log: the verb reached the adopted codespace
+	}{
+		{"stop --delete", []string{"stop", "--repo", csRepo, "--delete"}, "gh codespace delete -c orphan-cs --force"},
+		{"stop", []string{"stop", "--repo", csRepo}, "gh codespace stop -c orphan-cs"},
+		{"status", []string{"status", "--repo", csRepo}, "-c orphan-cs"},
+		{"logs", []string{"logs", "--repo", csRepo}, "gh codespace ssh -c orphan-cs"},
+		{"export", []string{"export", "--repo", csRepo, "--output", "kb.tar.gz"}, "gh codespace ssh -c orphan-cs"},
+		{"useradd", []string{"useradd", "--repo", csRepo, "--email", "b@c.co", "--generate-password"}, "gh codespace ssh -c orphan-cs"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s := newCodespaceScenario(t)
+			s.cwd = t.TempDir()
+			s.extraEnv = append(s.extraEnv, orphan)
+			_, stderr, _ := s.run(t, c.args...)
+			if strings.Contains(stderr, "No codespace stack recorded") || strings.Contains(stderr, "has no codespace") {
+				t.Fatalf("%s refused a codespace GitHub lists for %s:\n%s", c.name, csRepo, stderr)
+			}
+			log, _ := os.ReadFile(s.log)
+			mustContain(t, "argv log", string(log), c.want)
+		})
+	}
+
+	// A verb that dials the KB needs the forward only start establishes. The
+	// codespace is found, so the answer is how to reach it — not that it is
+	// missing.
+	t.Run("login", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		s.cwd = t.TempDir()
+		s.extraEnv = append(s.extraEnv, orphan)
+		_, stderr, code := s.run(t, "login", "--repo", csRepo)
+		if code != 1 {
+			t.Fatalf("login with no forward: want exit 1, got %d\n%s", code, stderr)
+		}
+		mustContain(t, "stderr", stderr, "orphan-cs", "not forwarded", "semiont start --runtime codespace --repo "+csRepo)
+	})
 }
 
 func TestUseraddAmbiguousStacks(t *testing.T) {
@@ -2965,6 +3174,43 @@ func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
 	}
 }
 
+// The reaped-record advice must work where people actually run it — beside a
+// local stack. Live 2026-09-28: status said a bare `semiont stop --delete`,
+// which a second recorded stack turns into a refusal whose menu dropped
+// --delete, so following it ran `gh codespace stop` against a codespace that
+// no longer exists.
+func TestReapedCodespaceAdviceWorksBesideOtherStacks(t *testing.T) {
+	s := newCodespaceScenario(t)
+	s.cwd = t.TempDir()
+	both := `{"schema":3,"stacks":{` +
+		`"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[4000],"services":{}},` +
+		`"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"ports":[4001],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(both), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	advice := "semiont stop --repo " + csRepo + " --delete"
+
+	// A bare stop cannot choose; its menu must keep the --delete it was given.
+	_, stderr, _ := s.run(t, "stop", "--delete")
+	mustContain(t, "stop's menu", stderr, advice)
+
+	stdout, stderr, _ := s.run(t, "status", "--repo", csRepo)
+	mustContain(t, "status advice", stdout+stderr, "no longer exists", advice)
+	if _, stderr, code := s.run(t, strings.Fields(advice)[1:]...); code != 0 {
+		t.Fatalf("the printed advice fails: exit %d\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), "fake-cs-1") {
+		t.Errorf("the advice left the reaped record:\n%s", b)
+	}
+	if !strings.Contains(string(b), `"local"`) {
+		t.Errorf("forgetting the codespace touched the local stack's record:\n%s", b)
+	}
+}
+
 // Every codespace reaches "reaped": the launcher itself passes
 // --retention-period 720h, so GitHub deletes a stopped codespace after 30
 // days and the record outlives it. start must fail FAST with the real
@@ -3012,6 +3258,103 @@ func TestStopDeleteForgetsReapedCodespace(t *testing.T) {
 func mustLogOrEmpty(s *scenario) []byte {
 	b, _ := os.ReadFile(s.log)
 	return b
+}
+
+// CODESPACE-IDENTITY B4: a codespace KB's issuer is http://keycloak.localhost:<N>
+// — loopback on this machine — so the laptop forwards <N>:<N>, the same
+// number on both ends, one <N> per KB so one Browser can sign in to several.
+func TestCodespaceForwardsItsIssuer(t *testing.T) {
+	record := func(t *testing.T, s *scenario) string {
+		t.Helper()
+		b, err := os.ReadFile(statePathFor(s.home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	t.Run("fresh: 8080, no move", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		mustContain(t, "argv log", string(log), "gh codespace ports forward 8080:8080 -c fake-cs-1")
+		if strings.Contains(string(log), "KEYCLOAK_PORT=") {
+			t.Errorf("moved a codespace already on the port it was given:\n%s", log)
+		}
+		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8080`, `"keycloakForwardPid"`)
+
+		// stop ends both forwards.
+		if _, stderr, code := s.run(t, "stop", "--repo", csRepo); code != 0 {
+			t.Fatalf("stop: exit %d\n%s", code, stderr)
+		}
+		if strings.Contains(record(t, s), `"keycloakForwardPid"`) {
+			t.Errorf("stop left the issuer forward recorded:\n%s", record(t, s))
+		}
+		if c, err := net.DialTimeout("tcp", "127.0.0.1:8080", time.Second); err == nil {
+			c.Close()
+			t.Error("the issuer forward still answers on 8080 after stop")
+		}
+	})
+
+	t.Run("8080 taken: allocate 8081 and move the codespace", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		// A local stack on this machine holds 8080 (its own Keycloak).
+		local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		mustContain(t, "argv log", string(log),
+			"KEYCLOAK_PORT=8081 semiont start",
+			"gh codespace ports forward 8081:8081 -c fake-cs-1")
+		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
+	})
+
+	t.Run("resume keeps its recorded port", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		s.extraEnv = append(s.extraEnv,
+			`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"`+csRepo+`"}]`,
+			"FAKERT_GH_CS_KEYCLOAK_PORT=8082")
+		rec := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo +
+			`","forwardPort":4000,"keycloakPort":8082},"ports":[4000],"services":{}}}}`
+		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePathFor(s.home), []byte(rec), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		mustContain(t, "argv log", string(log), "gh codespace ports forward 8082:8082 -c fake-cs-1")
+		if strings.Contains(string(log), "KEYCLOAK_PORT=") {
+			t.Errorf("a resume on its recorded port rewrote the codespace:\n%s", log)
+		}
+	})
+
+	t.Run("an issuer the codespace does not run is not forwarded", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_ISSUER=https://id.example.com/realms/semiont")
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		if strings.Count(string(log), "codespace ports forward") != 1 {
+			t.Errorf("forwarded something besides the KB for an external issuer:\n%s", log)
+		}
+		if strings.Contains(record(t, s), `"keycloakPort"`) {
+			t.Errorf("recorded an issuer port for an issuer this codespace does not run:\n%s", record(t, s))
+		}
+	})
 }
 
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
@@ -3108,7 +3451,7 @@ func TestCodespaceStatus(t *testing.T) {
 		"CODESPACE", "fake-cs-1", csRepo, "state: Available",
 		"re-establishing",
 		"KB", "healthy", "http://localhost:4000/api/health",
-		"run inside the codespace via compose",
+		"the codespace's own launcher runs the stack inside it; only the KB is forwarded",
 		// No credentials: status reports where to connect and how to make a
 		// user, never an account it cannot vouch for.
 		"connect at Host localhost, Port 4000", "semiont useradd --repo "+csRepo)
@@ -3187,7 +3530,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if _, stderr, code := s2.run(t, "stop", "--service", "worker"); code != 1 {
 		t.Error("stop --service on codespace should fail")
 	} else {
-		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack")
+		mustContain(t, "stderr", stderr, "--service does not apply to a codespace stack (the codespace's own launcher runs its services)")
 	}
 
 	// Flag scoping: codespace-only flags need the placement; contradictions
@@ -3200,7 +3543,8 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 		{[]string{"start", "--repo", "a/b"}, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace"},
 		{[]string{"start", "--machine", "basicLinux"}, "--repo/--codespace/--machine/--idle-timeout/--retention-period only apply to --runtime codespace"},
 		{[]string{"start", "--runtime", "codespace", "--root", "x", "--repo", "a/b"}, "--root and --repo are contradictory"},
-		{[]string{"start", "--runtime", "codespace", "--service", "worker"}, "--service does not apply to --runtime codespace"},
+		{[]string{"start", "--runtime", "codespace", "--service", "worker"}, "--service does not apply to --runtime codespace (the codespace's own launcher runs its services)"},
+		{[]string{"start", "--runtime", "codespace", "--no-observe"}, "--no-observe does not apply to --runtime codespace (the codespace's post-start hook decides how its own launcher starts the stack)"},
 		{[]string{"start", "--runtime", "codespace", "--config", "anthropic"}, "--config does not apply to --runtime codespace"},
 	} {
 		_, stderr, code := s3.run(t, tc.args...)
@@ -6143,6 +6487,18 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 		t.Fatalf("ollama config failed the deriver: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
+	// A newborn names its issuer's port by ${KEYCLOAK_PORT} (CODESPACE-IDENTITY
+	// B4), so the laptop that forwards it can move it.
+	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
+	_ = stderr
+	if !strings.Contains(stdout, "-p 8080:8080") {
+		t.Errorf("the newborn's Keycloak is not on the default port:\n%s", stdout)
+	}
+	s2.extraEnv = append(s2.extraEnv, "KEYCLOAK_PORT=8081")
+	if stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run"); code != 0 {
+		t.Fatalf("moved issuer: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p 8081:8080")
 
 	// voyage embedding refuses: no established key variable exists, and the
 	// launcher never invents environment variables.
@@ -6321,9 +6677,9 @@ func templateFixture(t *testing.T, includeBad bool) string {
 		t.Fatal(err)
 	}
 	files := map[string]string{
-		"devcontainer.json":  `{"name": "Semiont Template KB", "dockerComposeFile": "docker-compose.yml"}`,
-		"docker-compose.yml": "services:\n  gateway:\n    image: x\n",
-		"post-create.sh":     "#!/bin/sh\necho hi\n",
+		"devcontainer.json": `{"name": "Semiont Template KB", "postStartCommand": ".devcontainer/post-start.sh"}`,
+		"post-create.sh":    "#!/bin/sh\necho hi\n",
+		"post-start.sh":     "#!/bin/sh\nsemiont start --runtime docker\n",
 	}
 	for n, c := range files {
 		if err := os.WriteFile(filepath.Join(dc, n), []byte(c), 0o644); err != nil {
@@ -6413,7 +6769,7 @@ func TestInitDevcontainerCopy(t *testing.T) {
 	if strings.Contains(string(dj), "Semiont Template KB") {
 		t.Errorf("template display name survived:\n%s", dj)
 	}
-	for _, n := range []string{"docker-compose.yml", "post-create.sh"} {
+	for _, n := range []string{"post-create.sh", "post-start.sh"} {
 		got, err := os.ReadFile(filepath.Join(s.cwd, ".devcontainer", n))
 		if err != nil {
 			t.Errorf("%s not copied: %v", n, err)

@@ -77,8 +77,8 @@ func TestParseStartRefusals(t *testing.T) {
 		{"bad ollama cache", []string{"--ollama-cache", "nfs"}, "Unknown --ollama-cache"},
 		{"unknown service", []string{"--service", "nosuch"}, "Unknown --service"},
 
-		// Codespace placement: compose owns the inside, so the local knobs
-		// cannot apply and are refused rather than ignored.
+		// Codespace placement: the codespace's own launcher runs the inside,
+		// so the local knobs cannot apply and are refused rather than ignored.
 		{"codespace + service", []string{"--runtime", "codespace", "--service", "gateway"}, "--service does not apply"},
 		{"codespace + config", []string{"--runtime", "codespace", "--config", "cloud"}, "--config does not apply"},
 		{"codespace + no-observe", []string{"--runtime", "codespace", "--no-observe"}, "--no-observe does not apply"},

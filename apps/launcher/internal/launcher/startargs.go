@@ -162,11 +162,11 @@ func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
 	if opts.platform == platformCodespace {
 		switch {
 		case opts.service != "":
-			return opts, false, "--service does not apply to --runtime codespace (compose owns the services inside)."
+			return opts, false, "--service does not apply to --runtime codespace (the codespace's own launcher runs its services)."
 		case opts.configSet:
 			return opts, false, "--config does not apply to --runtime codespace (the codespace runs its committed config)."
 		case opts.noObserveSet:
-			return opts, false, "--no-observe does not apply to --runtime codespace (the observe profile is composed inside)."
+			return opts, false, "--no-observe does not apply to --runtime codespace (the codespace's post-start hook decides how its own launcher starts the stack)."
 		case opts.ollamaCache != "":
 			return opts, false, "--ollama-cache does not apply to --runtime codespace."
 		case opts.cleanOllama:

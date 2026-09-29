@@ -16,8 +16,8 @@ package launcher
 //
 // The platform question (D8): custody's provider is the local filesystem,
 // because the launcher only ever mints for a LOCAL stack. A codespace stack
-// mints nothing here — compose owns the services inside it, and their
-// credentials are the codespace's. An `aws` platform would put these in
+// mints nothing here — the codespace's own launcher mints its credentials,
+// on its own filesystem. An `aws` platform would put these in
 // Secrets Manager; there is no second provider to write until there is a
 // second platform that needs one.
 

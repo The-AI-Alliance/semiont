@@ -184,7 +184,9 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 	var t VerbTarget
 	key := ""
 	if target != nil {
-		t.base = fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort)
+		if t.base, ok = ForwardedBase(u, target, verb); !ok {
+			return VerbTarget{}, false
+		}
 		key = "codespace:" + target.Codespace.Repo
 		t.root = CwdKBRoot()
 	} else {

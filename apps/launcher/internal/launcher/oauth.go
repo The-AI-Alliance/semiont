@@ -45,14 +45,10 @@ type issuerEndpoints struct {
 // the issuer names its endpoints (OIDC discovery). No configuration on this
 // side — a client that knows a gateway's address knows everything.
 func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base string) (issuerEndpoints, error) {
-	meta, err := cli.GetWellKnownOauthProtectedResourceWithResponse(ctx)
+	issuer, err := trustedIssuer(ctx, cli, base)
 	if err != nil {
-		return issuerEndpoints{}, fmt.Errorf("gateway unreachable at %s: %w", base, err)
+		return issuerEndpoints{}, err
 	}
-	if meta.JSON200 == nil || len(meta.JSON200.AuthorizationServers) == 0 {
-		return issuerEndpoints{}, fmt.Errorf("gateway at %s published no authorization server (HTTP %d)", base, meta.HTTPResponse.StatusCode)
-	}
-	issuer := meta.JSON200.AuthorizationServers[0]
 	var ep issuerEndpoints
 	if err := fetchJSON(strings.TrimSuffix(issuer, "/")+"/.well-known/openid-configuration", 15*time.Second, &ep); err != nil {
 		return issuerEndpoints{}, fmt.Errorf("issuer %s: discovery failed: %w", issuer, err)
@@ -67,6 +63,30 @@ func discoverIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base 
 		return issuerEndpoints{}, fmt.Errorf("issuer %s offers no device authorization endpoint — semiont login needs the device grant (RFC 8628) enabled for client %s", issuer, CliClientID)
 	}
 	return ep, nil
+}
+
+// trustedIssuer: the issuer a KB's resource metadata names — the gateway's
+// word, read before anything dials the issuer itself.
+func trustedIssuer(ctx context.Context, cli *semiont.ClientWithResponses, base string) (string, error) {
+	meta, err := cli.GetWellKnownOauthProtectedResourceWithResponse(ctx)
+	if err != nil {
+		return "", fmt.Errorf("gateway unreachable at %s: %w", base, err)
+	}
+	if meta.JSON200 == nil || len(meta.JSON200.AuthorizationServers) == 0 {
+		return "", fmt.Errorf("gateway at %s published no authorization server (HTTP %d)", base, meta.HTTPResponse.StatusCode)
+	}
+	return meta.JSON200.AuthorizationServers[0], nil
+}
+
+// advertisedIssuer: trustedIssuer for a KB at base, on a fresh client.
+func advertisedIssuer(base string) (string, error) {
+	cli, err := semiont.NewClientWithResponses(base)
+	if err != nil {
+		return "", err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	return trustedIssuer(ctx, cli, base)
 }
 
 type deviceAuthorization struct {

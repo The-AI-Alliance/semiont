@@ -15,8 +15,8 @@ machine with no scheduler running. It is not the only way to run Semiont, and
 it is not a dependency of the service images.
 
 The published images are standalone artifacts. They run against whatever
-PostgreSQL, Neo4j, Qdrant and inference you already have, under docker compose,
-Kubernetes, ECS or Nomad, with no launcher involved — see
+PostgreSQL, Neo4j, Qdrant and inference you already have, under Kubernetes, ECS
+or Nomad, with no launcher involved — see
 [DEPLOYMENT.md](../../docs/system/administration/DEPLOYMENT.md) for the
 supported paths and the contract each one must satisfy.
 
@@ -126,16 +126,22 @@ semiont stop
   The repo selection is a **union**, never a replacement, so pushing for one
   repo can't silently revoke the secret from others already using it.
 - **`semiont start --runtime codespace` runs the same stack on a
-  GitHub-hosted machine** (the KB's devcontainer + compose own the inside;
-  the launcher orchestrates the outside via `gh`, which is required on PATH
-  for this placement only). The REPO is the identity — derived from the KB
+  GitHub-hosted machine** (inside, the codespace's own launcher runs the
+  stack — `semiont start --runtime docker`, from the KB's post-start hook;
+  this one orchestrates the outside via `gh`, which is required on PATH for
+  this placement only). The REPO is the identity — derived from the KB
   clone's origin, or `--repo owner/name` from anywhere, needed only at
   creation: the stack record carries it afterwards, so a bare `semiont
   start` resumes the recorded codespace from any directory, and `status` /
   `logs` / `stop` dispatch off the records as always. The launcher keeps at
   most one codespace per repo (it adopts and resumes what exists — the
   codespace *name* is a PID, shown by status, input only via `--codespace`
-  when raw `gh` left several). `semiont stop` maps to `gh codespace stop` —
+  when raw `gh` left several). Every `--repo` verb finds it the same way —
+  the record, else what GitHub lists for the repo — so a codespace whose
+  setup failed before anything was recorded can still be stopped, deleted,
+  inspected, or given users; verbs that dial the KB (`login`, `yield`) need
+  its forward on this machine, and say to `start` it first. `semiont stop` maps
+  to `gh codespace stop` —
   billing halts, state and credentials persist, the record is kept; `semiont
   stop --delete` destroys and forgets. The two long waits narrate
   themselves: the VM wait redraws the polled state with elapsed time, and a
@@ -147,11 +153,17 @@ semiont stop
   own local port.** The record store (`stack.json`, schema 3) is a keyed
   collection: the machine's one local stack (fixed ports and container
   names keep it singleton) plus one entry per codespace repo. Each
-  codespace stack forwards exactly ONE port — its KB (remote 4000) — on
-  local 4000 when free, else the lowest free port above it (4001, …), so a
-  single browser's Knowledge Bases panel works N codespace KBs at once
-  (Host localhost, Port 400x each; browser, sidecars, and infra stay inside
-  the codespace). Forwards are recorded detached processes: `status`
+  codespace stack forwards TWO ports. Its KB (remote 4000) goes on local
+  4000 when free, else the lowest free port above it (4001, …). Its issuer —
+  `http://keycloak.localhost:<N>`, loopback here — goes `<N>:<N>`, the same
+  number on both ends because a token's `iss` must match the one URL the
+  Browser signs in at: 8080 when free, else the lowest free above it. When
+  the codespace's Keycloak is on another port, its own launcher restarts the
+  stack there with `KEYCLOAK_PORT=<N>`, which it records for every later
+  resume. A single browser's Knowledge Bases panel therefore works, and
+  signs in to, N codespace KBs at once (Host localhost, Port 400x each;
+  sidecars and infra stay inside the codespace). An issuer the codespace
+  does not run is not forwarded. Forwards are recorded detached processes: `status`
   re-establishes a dead one, `stop --repo` ends its own, and a LOCAL start
   drops only forwards squatting on ports it actually claims — concurrent
   KBs on allocated ports keep running. With several stacks recorded:
@@ -612,12 +624,12 @@ visible, not buried under restarts. `semiont.process.restarts` carries the
 count, so a service that is quietly flapping shows up in metrics instead of
 only in logs.
 
-This is local-only, deliberately. **Codespace stacks do not get it**: compose
-owns the services inside a codespace, and its `restart:` policy does the job.
-Nor do the images supervise themselves — a container that restarts its own
-process never exits, so a compose `restart:` policy, a Kubernetes liveness
-probe or an ECS task policy would all be defeated by it, and a crash-looping
-process would read as perfectly healthy from outside.
+Every stack the launcher starts gets it, **codespace stacks included**: inside
+a codespace, its own launcher starts the stack locally, exactly as on a
+laptop. Nor do the images supervise themselves — a container that restarts
+its own process never exits, so an orchestrator's restart policy, a Kubernetes
+liveness probe or an ECS task policy would all be defeated by it, and a
+crash-looping process would read as perfectly healthy from outside.
 
 **The limit worth knowing:** the supervisor restarts a dead *process*, never a
 dead *container*. If the runtime or the host VM kills the container itself,

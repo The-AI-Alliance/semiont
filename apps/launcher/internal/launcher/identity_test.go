@@ -28,7 +28,7 @@ func TestDerivePlanRefusesAConfigWithNoIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	if _, err := derivePlan(env, envName, p); err == nil {
+	if _, err := derivePlan(env, envName, p, 8080); err == nil {
 		t.Fatal("a config with no identity section was accepted")
 	} else if !strings.Contains(err.Error(), "every knowledge base trusts an issuer") {
 		t.Errorf("error does not explain why: %v", err)
@@ -45,7 +45,7 @@ func TestDerivePlanRefusesIdentityWithNoSubjectClaim(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	if _, err := derivePlan(env, envName, p); err == nil {
+	if _, err := derivePlan(env, envName, p, 8080); err == nil {
 		t.Fatal("an [identity] section with no subjectClaim was accepted")
 	} else if !strings.Contains(err.Error(), "subjectClaim") {
 		t.Errorf("error does not name the key: %v", err)
@@ -109,7 +109,7 @@ func TestDerivePlanIdentityRefusals(t *testing.T) {
 			if err != nil {
 				t.Fatalf("loadConfig: %v", err)
 			}
-			if _, err = derivePlan(env, envName, "variant.toml"); err == nil {
+			if _, err = derivePlan(env, envName, "variant.toml", 8080); err == nil {
 				t.Fatalf("derivePlan accepted %s", c.name)
 			}
 			for _, w := range c.want {
@@ -126,7 +126,7 @@ func TestDerivePlanKeycloakNeedsDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	if _, err = derivePlan(env, envName, "variant.toml"); err == nil || !strings.Contains(err.Error(), "[database]") {
+	if _, err = derivePlan(env, envName, "variant.toml", 8080); err == nil || !strings.Contains(err.Error(), "[database]") {
 		t.Fatalf("keycloak without [database] accepted, or the refusal does not name it: %v", err)
 	}
 }
@@ -249,7 +249,7 @@ accessTokenLifespan = -5
 			if err != nil {
 				t.Fatalf("loadConfig: %v", err)
 			}
-			if _, err = derivePlan(env, envName, "variant.toml"); err == nil {
+			if _, err = derivePlan(env, envName, "variant.toml", 8080); err == nil {
 				t.Fatalf("accepted %s", c.name)
 			} else if !strings.Contains(err.Error(), c.want) {
 				t.Errorf("error %q missing %q", err, c.want)

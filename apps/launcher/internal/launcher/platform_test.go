@@ -23,7 +23,7 @@ func TestRuntimeFlagSplitsPlatformFromRuntime(t *testing.T) {
 		t.Errorf("platform = %q, want codespace", opts.platform)
 	}
 	if opts.runtime != "" {
-		t.Errorf("runtime = %q — a codespace start has no container runtime of ours; compose owns the services inside", opts.runtime)
+		t.Errorf("runtime = %q — a codespace start has no container runtime of ours; the codespace's own launcher runs the services inside", opts.runtime)
 	}
 
 	opts, _, refusal = parseStart([]string{"--runtime", "docker"})

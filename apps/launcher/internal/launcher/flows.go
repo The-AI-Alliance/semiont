@@ -613,6 +613,15 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		title = depRoleTitles[role]
 	}
 	x.banner(roleBanner(fc, title+" ("+driverDisplay(role, rp.Driver)+")"))
+	// Our own container goes BEFORE the probe: a semiont-ollama left by the
+	// last start publishes the same port and answers the same /api/version,
+	// so probing first took the stack's own Ollama for a host install (the
+	// B-spike's re-run, 2026-09-28). This is also the only removal it gets —
+	// the preflight sweep exempts inference, and --service inference has no
+	// preflight at all.
+	if x.stopRm("semiont-ollama") {
+		x.settle(rp.Port)
+	}
 	x.note("probe: host Ollama at http://localhost:%d/api/version", rp.Port)
 	x.note(`if present — probe: %s run --rm busybox:1.38.0 sh -c "wget -q -O- http://%s:%d/api/version" — and use it`, x.rtName(), addr, rp.Port)
 	return x.either(probeHostOllama(rp.Port),
@@ -627,12 +636,6 @@ func flowOllama(x executor, fc flowCtx, role string, rp rolePlan, addr string) i
 		},
 		func() int {
 			x.say(sayLog, "No host Ollama detected — starting container...")
-			// Same stop+rm rule as the Browser: --service inference has no
-			// preflight rm ahead of it, so a stopped semiont-ollama would
-			// hold the name (latent since the --rm removal; surfaced by the
-			// same review).
-			x.stopRm("semiont-ollama")
-			x.settle(rp.Port)
 			if !x.portCheck(portNeed{rp.Port, "Ollama"}) {
 				return 1
 			}
@@ -689,7 +692,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -733,7 +736,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, addr, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -772,7 +775,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, addr, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -804,7 +807,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, addr, clientSecret, fc.version, fc.userEnv, otel, state...)
+	args := librarianArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -835,7 +838,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, addr, clientSecret, fc.version, fc.userEnv, otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
