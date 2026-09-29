@@ -110,7 +110,7 @@ eachPlane('emitting', (world, plane) => {
 
   it('a client may have as many unanswered requests as pendingReplies may name, and no more until one is answered', async () => {
     // Something must hear the requests and not answer them: a request that
-    // reaches nobody is answered at once on a plane that can count (below).
+    // reaches nobody is answered at once (below).
     const silent = await world().agent('conformance', 'silent');
     await world().subscribe(silent.token, { clientId: randomUUID(), global: [REQUEST] });
     const token = await world().person('busy');
@@ -191,7 +191,7 @@ eachPlane('emitting', (world, plane) => {
     await watcher.quiet('person:profile', 500);
   });
 
-  it('a request that reaches nobody is answered at once — to its requester only — with its operation\'s failure echoing the request, when the plane can count', async () => {
+  it('a request that reaches nobody is answered at once — to its requester only — with its operation\'s failure echoing the request, on either plane', async () => {
     const token = await world().person('lonely');
     const clientId = randomUUID();
     // A request channel nothing in this world answers.
@@ -202,20 +202,37 @@ eachPlane('emitting', (world, plane) => {
     const correlationId = randomUUID();
     const reply = await world().emit(token, { channel: request, payload: { resourceId: 'r-9', annotationId: 'a-9' }, correlationId, clientId });
     expect(reply.status, reply.text).toBe(202);
-    if (plane === 'in-process') {
-      const frame = await stream.frame(failure, (f) => f.correlationId === correlationId);
-      expect(frame.payload).toMatchObject({ resourceId: 'r-9', annotationId: 'a-9', code: 'peer-unavailable' });
-      expect(typeof frame.payload['message']).toBe('string');
-      expect(frame.payload['_userId']).toBeUndefined();
-      expect(frame.payload['_roles']).toBeUndefined();
-    }
+    // Observed on both planes: counted in-process, and a broker's own
+    // no-responders answer on NATS — never a zero nobody saw.
+    expect(reply.json).toEqual({ subscribers: 0 });
+    const frame = await stream.frame(failure, (f) => f.correlationId === correlationId);
+    expect(frame.payload).toMatchObject({ resourceId: 'r-9', annotationId: 'a-9', code: 'peer-unavailable' });
+    expect(typeof frame.payload['message']).toBe('string');
+    expect(frame.payload['_userId']).toBeUndefined();
+    expect(frame.payload['_roles']).toBeUndefined();
     await otherClient.quiet(failure, 500);
 
     // A request with no correlationId has nobody to answer.
     const uncorrelated = await world().emit(token, { channel: request, payload: { resourceId: 'r-10', annotationId: 'a-10' } });
     expect(uncorrelated.status).toBe(202);
     await stream.quiet(failure, 500, (f) => f.payload['resourceId'] === 'r-10');
-    if (plane === 'nats') await stream.quiet(failure, 0);
+  });
+
+  it('a request someone subscribes to is delivered and answered by nobody but them: no failure is synthesized, and a broker plane reports no count it did not observe', async () => {
+    const token = await world().person('requester');
+    const clientId = randomUUID();
+    const request = 'browse:annotation-requested';
+    const { failure } = operationFor(request);
+    const stream = await world().subscribe(token, { clientId, global: [failure] });
+    const participant = await world().agent('conformance', 'server');
+    const server = await world().subscribe(participant.token, { clientId: randomUUID(), global: [request] });
+    const correlationId = randomUUID();
+    const reply = await world().emit(token, { channel: request, payload: { resourceId: 'r-11', annotationId: 'a-11' }, correlationId, clientId });
+    expect(reply.status, reply.text).toBe(202);
+    if (plane === 'nats') expect(reply.json).toEqual({});
+    else expect(reply.json).toEqual({ subscribers: 1 });
+    await server.frame(request, (f) => f.correlationId === correlationId);
+    await stream.quiet(failure, 500);
   });
 
   it('a reply with no correlationId reaches no one', async () => {
@@ -238,13 +255,10 @@ eachPlane('emitting', (world, plane) => {
     const correlationId = randomUUID();
     const reply = await world().emit(token, { channel: 'job:claim', payload: { types: ['generation'] }, correlationId, clientId });
     expect(reply.status, reply.text).toBe(202);
-    if (plane === 'in-process') {
-      // The only answer is the gateway saying nobody is there to give one.
-      const frame = await stream.frame(failure, (f) => f.correlationId === correlationId);
-      expect(frame.payload['code']).toBe('peer-unavailable');
-    }
+    // The only answer is the gateway saying nobody is there to give one.
+    const frame = await stream.frame(failure, (f) => f.correlationId === correlationId);
+    expect(frame.payload['code']).toBe('peer-unavailable');
     await stream.quiet(result, 500);
-    if (plane === 'nats') await stream.quiet(failure, 0);
   });
 
   it('a correlationId key inside a payload is the caller\'s data: delivered unchanged, and it routes nothing', async () => {

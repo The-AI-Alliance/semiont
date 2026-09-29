@@ -202,16 +202,16 @@ Then create a Pull Request from your fork to `The-AI-Alliance/semiont:main` on G
 
 ## 🌍 Deployment Targets
 
-Semiont ships as container images (`semiont-gateway`, `semiont-browser`, `semiont-worker`,
-`semiont-smelter`, `semiont-weaver`) plus the infrastructure containers a stack needs. There is no
+Semiont ships as container images (listed once, in
+[Deployment § What gets deployed](docs/system/administration/DEPLOYMENT.md)) plus the
+infrastructure containers a stack needs. There is no
 per-platform plugin system: the old `(platform × serviceType × command)` handler matrix has been
 removed.
 
-Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md) or by
-`docker compose` against a KB's `.semiont/compose/gateway.yml`. Running the images on another
+Stacks are brought up by the host-installed [`semiont` launcher](apps/launcher/README.md). Running the images on another
 container platform (ECS Fargate, Kubernetes, Nomad) needs no code here — see
 [Running Semiont on AWS](docs/system/platforms/AWS.md) for the integration checklist and
-[Deployment](docs/system/administration/DEPLOYMENT.md) for the supported paths.
+[Deployment](docs/system/administration/DEPLOYMENT.md) for the supported path.
 
 If you want to improve how stacks are launched, the launcher (Go, `apps/launcher/`) is the place.
 

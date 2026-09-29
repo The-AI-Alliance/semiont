@@ -15,6 +15,7 @@ use super::{
     TableWatcher, Unavailable,
 };
 use crate::logging;
+use async_nats::StatusCode;
 use async_nats::connection::State;
 use async_nats::jetstream::{self, kv};
 use base64::Engine;
@@ -118,6 +119,22 @@ impl NatsPlane {
     }
 }
 
+/// A frame's subject and bytes on the broker.
+fn message(
+    channel: &str,
+    payload: Value,
+    scope: Option<&str>,
+    meta: Option<Meta>,
+) -> (String, Bytes) {
+    let subject = match scope {
+        Some(scope) => scoped_subject(scope, channel),
+        None => channel_subject(channel),
+    }
+    .unwrap_or_else(|e| panic!("{e}"));
+    let bytes = serde_json::to_vec(&Wire { meta, payload }).expect("a frame serializes");
+    (subject, Bytes::from(bytes))
+}
+
 fn decode(payload: &[u8]) -> Option<Wire> {
     let wire = serde_json::from_slice::<Wire>(payload).ok();
     if wire.is_none() {
@@ -145,18 +162,57 @@ impl SignalPlane for NatsPlane {
             if !self.available() {
                 return Err(Unavailable);
             }
-            let subject = match &scope {
-                Some(scope) => scoped_subject(scope, &channel),
-                None => channel_subject(&channel),
-            }
-            .unwrap_or_else(|e| panic!("{e}"));
-            let bytes = serde_json::to_vec(&Wire { meta, payload }).expect("a frame serializes");
+            let (subject, bytes) = message(&channel, payload, scope.as_deref(), meta);
             self.client
-                .publish(subject, Bytes::from(bytes))
+                .publish(subject, bytes)
                 .await
                 .map_err(|_| Unavailable)?;
             // A broker cannot count who heard it.
             Ok(IngestReceipt { observers: None })
+        }
+        .boxed()
+    }
+
+    fn ingest_request(
+        &self,
+        channel: String,
+        payload: Value,
+        scope: Option<String>,
+        meta: Option<Meta>,
+    ) -> BoxFuture<'_, Result<IngestReceipt, Unavailable>> {
+        async move {
+            if !self.available() {
+                return Err(Unavailable);
+            }
+            let (subject, bytes) = message(&channel, payload, scope.as_deref(), meta);
+            // The broker answers a publish nobody subscribes to with a
+            // no-responders status on its reply subject. It handles this
+            // connection's writes in order, so once `flush` returns (on its own
+            // no-responders, sent after this one) the status is in the inbox if
+            // it was sent at all. Nothing that receives a frame reads its reply
+            // subject. Every subscription on a request subject is some
+            // replica's client stream, so a zero here is a zero across replicas.
+            let inbox = self.client.new_inbox();
+            let mut replies = self
+                .client
+                .subscribe(inbox.clone())
+                .await
+                .map_err(|_| Unavailable)?;
+            self.client
+                .publish_with_reply(subject, inbox, bytes)
+                .await
+                .map_err(|_| Unavailable)?;
+            // Published either way; a flush that fails leaves the zero unlearned.
+            let learned = self.flush().await.is_ok();
+            let nobody = learned
+                && replies
+                    .next()
+                    .now_or_never()
+                    .flatten()
+                    .is_some_and(|reply| reply.status == Some(StatusCode::NO_RESPONDERS));
+            Ok(IngestReceipt {
+                observers: nobody.then_some(0),
+            })
         }
         .boxed()
     }

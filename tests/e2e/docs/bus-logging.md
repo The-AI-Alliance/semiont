@@ -70,8 +70,9 @@ SEMIONT_BUS_LOG=1 <command>
 ```
 
 The gateway runs in a container, so the variable has to reach the
-container: pass it with `semiont start --env SEMIONT_BUS_LOG=1`, or add it
-to the service's env list in a KB's `.semiont/compose/gateway.yml`.
+container — and the launcher passes a container only the variables its
+config references, so `SEMIONT_BUS_LOG=1 semiont start` does not. The
+launcher has no option to set it.
 
 ## A typical full-trace timeline
 

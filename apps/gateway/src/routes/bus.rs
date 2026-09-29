@@ -185,7 +185,14 @@ pub async fn emit(
         let payload = Value::Object(payload);
         let echo = payload.clone();
         bus_log("EMIT", &channel, &payload, scope.as_deref(), correlation_id.as_deref());
-        let receipt = plane.ingest(channel.clone(), payload, scope.clone(), envelope(correlation_id.as_deref())).await?;
+        // A request the gateway answers for when nobody hears it asks the plane to observe that.
+        let answered_if_unheard = operation.is_some() && correlation_id.is_some();
+        let meta = envelope(correlation_id.as_deref());
+        let receipt = if answered_if_unheard {
+            plane.ingest_request(channel.clone(), payload, scope.clone(), meta).await?
+        } else {
+            plane.ingest(channel.clone(), payload, scope.clone(), meta).await?
+        };
         telemetry::record_bus_emit(&channel, scope.as_deref());
         logging::info(
             "emit",

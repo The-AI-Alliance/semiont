@@ -86,8 +86,9 @@ impl std::fmt::Display for Unavailable {
 }
 
 /// What an ingest learned: how many subscriptions its channel and scope had
-/// at dispatch, when the fabric can count them. A broker cannot, and reports
-/// nothing rather than a zero it never observed.
+/// at dispatch, when the fabric can count them. A broker cannot count, and
+/// reports nothing rather than a number it never observed, save the zero
+/// `ingest_request` observes: the broker's own answer that nothing subscribes.
 pub struct IngestReceipt {
     pub observers: Option<usize>,
 }
@@ -119,6 +120,18 @@ pub trait SignalPlane: Send + Sync {
     fn available(&self) -> bool;
     /// Publish a frame. Refused when `available()` is false.
     fn ingest(
+        &self,
+        channel: String,
+        payload: Value,
+        scope: Option<String>,
+        meta: Option<Meta>,
+    ) -> BoxFuture<'_, Result<IngestReceipt, Unavailable>>;
+    /// Publish a request whose operation fails when nobody receives it: as
+    /// `ingest`, but the receipt reports `Some(0)` wherever the fabric can
+    /// observe that no subscription received the frame, a broker included.
+    /// It costs a broker a round trip, so only a request the gateway answers
+    /// for when it reaches nobody asks for it.
+    fn ingest_request(
         &self,
         channel: String,
         payload: Value,

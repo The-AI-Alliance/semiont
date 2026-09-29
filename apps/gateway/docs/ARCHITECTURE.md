@@ -28,7 +28,8 @@ without a length once it passes the limit.
 [src/app.rs](../src/app.rs), in order, refusing rather than degrading at each
 step — the process exits non-zero, saying what is missing and never a secret:
 
-1. **The document** — `~/.semiontconfig`, validated against `GatewayConfig`
+1. **The document** — the JSON file `SEMIONT_GATEWAY_CONFIG` names
+   (`/etc/semiont/gateway.json` in the image), validated against `GatewayConfig`
    ([src/config.rs](../src/config.rs)); a failing field is named by its JSON
    pointer.
 2. **The key ring** (`JWT_SECRET`) and **the service account**

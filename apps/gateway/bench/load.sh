@@ -42,8 +42,7 @@ trap 'kill "$GATEWAY" 2>/dev/null || true; rm -rf "$WORK"' EXIT
 GATEWAY=
 
 JWT_SECRET=$(openssl rand -hex 32)
-mkdir -p "$WORK/home"
-cat > "$WORK/home/.semiontconfig" <<DOC
+cat > "$WORK/gateway.json" <<DOC
 {"kb":{"name":"Load","domain":"$DOMAIN"},"port":$PORT,"publicUrl":"http://127.0.0.1:$PORT",
  "identity":{"issuer":"http://127.0.0.1:1","subjectClaim":"sub"},"archivist":{"host":"127.0.0.1","port":1},
  "signal":{"type":"in-process"},"logLevel":"warn","logFormat":"json",
@@ -101,7 +100,7 @@ STREAM_LINES=""
 for pair in "$@"; do
   label=${pair%%=*}
   binary=${pair#*=}
-  HOME="$WORK/home" JWT_SECRET="$JWT_SECRET" SEMIONT_OIDC_CLIENT_ID=load SEMIONT_OIDC_CLIENT_SECRET=load \
+  SEMIONT_GATEWAY_CONFIG="$WORK/gateway.json" JWT_SECRET="$JWT_SECRET" SEMIONT_OIDC_CLIENT_ID=load SEMIONT_OIDC_CLIENT_SECRET=load \
     taskset -c "$GATEWAY_CPUS" "$binary" >"$WORK/$label.log" 2>&1 &
   GATEWAY=$!
   tries=0

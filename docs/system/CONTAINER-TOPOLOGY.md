@@ -226,7 +226,7 @@ Services run on different platforms, configured per environment in the KB's `.se
 
 ### How stacks are run
 
-Every Semiont service runs as a **container** — Docker, Podman, or Apple Container. The diagrams above show the layout. A KB stack is brought up either by the host-installed `semiont` launcher (any of the three runtimes, locally or in a GitHub Codespace) or by `docker compose` against the KB's `.semiont/compose/backend.yml`. See [platforms/README.md](platforms/README.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md).
+Every Semiont service runs as a **container** — Docker, Podman, or Apple Container. The diagrams above show the layout. A KB stack is brought up by the host-installed `semiont` launcher, with any of the three runtimes, locally or in a GitHub Codespace. See [platforms/README.md](platforms/README.md) and [LOCAL-SEMIONT.md](LOCAL-SEMIONT.md).
 
 **There is no platform abstraction, and no cloud platform.** A retired CLI once carried a per-platform handler matrix (`posix`, `container`, `aws`, `external`, `mock`) plus `publish`/`update` for AWS; all of it has been deleted, the CLI included. The published images can of course be scheduled by a cloud container platform such as ECS Fargate, but that is your own integration — see [Running Semiont on AWS](platforms/AWS.md).
 
@@ -249,9 +249,9 @@ The constraint is the **port contracts** — the bus (`/bus/emit`, `/bus/subscri
 
 Two layers, easy to conflate:
 
-- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one) — or by `docker compose` against `.semiont/compose/backend.yml`.
-  In **Codespaces both are true at once**, at different layers: `semiont start --runtime codespace` drives the outside (create/resume the VM, wait for health, forward the KB, read credentials, stop or delete), while *inside* the codespace the devcontainer hooks bring the stack up with `docker compose` exactly as above. The launcher never reaches into the container to manage services.
-- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE` for local runs. The gateway image hands straight off to `node dist/index.js` — it derives no database URL and runs no migration step, because it holds no database; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
+- **Operator entry points.** A KB stack is driven by the host-installed [`semiont` launcher](../../apps/launcher/README.md) — `semiont start` / `logs` / `status` / `stop` (runtime-portable, `--runtime` to force one).
+  In **Codespaces the launcher runs at two layers**. On your machine, `semiont start --runtime codespace` drives the outside: create or resume the VM, wait for health, forward the KB and its issuer, stop or delete. *Inside* the codespace, the codespace's own launcher brings the stack up with `semiont start --runtime docker` from the KB's post-start hook, exactly as on a laptop. The outer launcher never reaches into the containers; when something must happen inside — a user created, the issuer moved to another port — it asks the inner launcher over `gh codespace ssh`.
+- **No CLI inside the containers.** Each published image runs `tini` as PID 1, exec'ing its own service — directly by default, or under the shared in-container supervisor when the launcher sets `SEMIONT_SUPERVISE`, as it does for every stack it starts. The gateway image hands straight off to `node dist/index.js` — it derives no database URL and runs no migration step, because it holds no database; the Browser image runs `node node_modules/@semiont/browser/server.js`. Nothing in an image shells out to a Semiont CLI.
 
 See **[the launcher](../../apps/launcher/README.md)** and **[administration/CONFIGURATION.md](administration/CONFIGURATION.md)** for full configuration details.
 

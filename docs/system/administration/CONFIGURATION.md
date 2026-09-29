@@ -448,16 +448,16 @@ Only a small number of environment variables are used:
 | `ANTHROPIC_API_KEY` | Resolved from `${ANTHROPIC_API_KEY}` in config | If using Anthropic (not needed for Ollama-only) |
 | `POSTGRES_PASSWORD` | Resolved from `${POSTGRES_PASSWORD}` in config | If using variable refs |
 | `NATS_HOST` | Resolved from `${NATS_HOST}` in the `[jobs]`/`[signal]` sections; the launcher stages it for its `messaging` container | If a broker-backed driver uses the placeholder |
-| `SEMIONT_SUPERVISE` | Runs the service under an in-container supervisor that restarts a crashed process and kills a hung one. Any non-empty value enables it. | No — **set by the launcher for local runs; do not set it yourself** |
+| `SEMIONT_SUPERVISE` | Runs the service under an in-container supervisor that restarts a crashed process and kills a hung one. Any non-empty value enables it. | No — **set by the launcher on every stack it starts; do not set it yourself** |
 
 `SEMIONT_SUPERVISE` exists because a laptop has no scheduler: `semiont start` brings the stack up and
 exits, so nothing outside a container would restart a service that died. Every other way of running
-these images already has something that does that job — compose's `restart:` policy, a Kubernetes
-`restartPolicy` and liveness probe, an ECS or Nomad task policy — and a container that restarts
-itself defeats them, because it never exits and a crash-looping process reads as healthy. So the
-images run one process and exit by default, and only the launcher's local path opts in. Codespace
-stacks do not set it either: compose owns the services inside. See
-[DEPLOYMENT.md](./DEPLOYMENT.md) for restart ownership on each supported path.
+these images already has something that does that job — a Kubernetes `restartPolicy` and liveness
+probe, an ECS or Nomad task policy — and a container that restarts itself defeats them, because it
+never exits and a crash-looping process reads as healthy. So the images run one process and exit
+by default, and only the launcher opts in: on a laptop and inside a codespace alike, since a
+codespace's stack is launched the same way. See [DEPLOYMENT.md](./DEPLOYMENT.md) for restart
+ownership.
 
 Variable references in the config use `${VAR_NAME}` syntax (`${VAR_NAME:-default}` supplies a default). The launcher leaves them verbatim when it stages a service's copy; interpolation happens inside the container at load time, so the values never pass through your shell history or the launcher's logs. The gateway's document is the exception: the launcher resolves its references when it writes it, by the same rule ([specs/src/config-placeholders/cases.json](../../../specs/src/config-placeholders/cases.json) is the rule's case table, run by both), and credentials stay named rather than resolved.
 

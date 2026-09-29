@@ -72,28 +72,15 @@ container configuration.
 
 ## Deployment Scenarios
 
-### Docker Compose
+### The launcher
 
-```yaml
-services:
-  browser:
-    image: ghcr.io/the-ai-alliance/semiont-browser:0.5.29
-    ports:
-      - "3000:3000"
-
-  gateway:
-    image: ghcr.io/the-ai-alliance/semiont-gateway:0.5.12
-    ports:
-      - "4000:4000"   # must be reachable from the user's browser
-    # ... gateway config (see the gateway image docs)
-```
-
-The two containers never talk to each other, so no proxy sits between them
-and no `depends_on` is needed. The user's browser loads the SPA from
-`http://localhost:3000` and connects to the knowledge base by adding
+`semiont start` runs the Browser on `http://localhost:3000` beside any KB
+stack it starts. The Browser container and a gateway never talk to each
+other, so no proxy sits between them: the user's browser loads the SPA from
+`http://localhost:3000` and connects to a knowledge base by adding
 `http` / `localhost` / `4000` in the app's connection panel. Publishing the
-gateway port to the host is what matters — a browser cannot resolve Compose
-service names like `gateway`.
+gateway port to the host is what matters — a browser cannot resolve
+container-network names like `semiont-gateway`.
 
 ### Kubernetes with Ingress Controller
 
@@ -230,8 +217,8 @@ from the Browser container.
 
 **Solutions**:
 1. Verify the gateway is running and exposed on a browser-reachable address.
-2. Docker Compose: connect to `localhost:4000` (the host-published port).
-   Compose service names like `gateway` do not resolve in a browser.
+2. Local stacks: connect to `localhost:4000` (the host-published port).
+   Container-network names like `semiont-gateway` do not resolve in a browser.
 3. Kubernetes/cloud: give the gateway its own browser-reachable origin
    (Ingress host or load-balancer endpoint), and connect to that.
 
@@ -323,6 +310,6 @@ For issues or questions:
 ---
 
 **Container Runtime**: Apple Container, Docker, or Podman
-**Orchestration**: Compatible with Docker Compose, Kubernetes, ECS
+**Orchestration**: Compatible with Kubernetes, ECS
 **Base Image**: node:26-alpine
 **Platforms**: linux/amd64, linux/arm64

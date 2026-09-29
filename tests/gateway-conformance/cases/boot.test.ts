@@ -4,6 +4,7 @@
  * what is missing. Then the signing key ring, across restarts.
  */
 import { randomBytes, randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -63,7 +64,17 @@ describe('starting a gateway', () => {
     ['a field the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { corsOrigin: '*' })), env: env() }), /corsOrigin/],
     ['a log format the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { logFormat: 'text' })), env: env() }), /\/logFormat\b/],
     ['no capacity', async () => ({ settings: await settings((s) => delete s.capacity), env: env() }), /capacity/],
-    ['no configuration document in HOME', async () => ({ settings: await settings(), env: env({ HOME: join(tmpdir(), `gateway-conformance-no-home-${randomUUID()}`) }) }), /\.semiontconfig/],
+    ['no SEMIONT_GATEWAY_CONFIG: there is no default path to fall back on', async () => ({ settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: undefined }) }), /SEMIONT_GATEWAY_CONFIG/],
+    ['a SEMIONT_GATEWAY_CONFIG naming no file', async () => ({ settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: join(tmpdir(), `gateway-conformance-no-document-${randomUUID()}.json`) }) }), /gateway-conformance-no-document-/],
+    [
+      "a knowledge base's TOML config where the JSON document belongs: the refusal names the format it got",
+      async () => {
+        const path = join(tmpdir(), `gateway-conformance-toml-${randomUUID()}.toml`);
+        writeFileSync(path, '[user]\nname = ""\n\n[environments.local.gateway]\nport = 4000\n');
+        return { settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: path }) };
+      },
+      /gateway-conformance-toml-\S+ .*looks like TOML/,
+    ],
     ['a NATS plane with no servers', async () => ({ settings: await settings((s) => void (s.signal = { type: 'nats' })), env: env() }), /servers/],
     [
       'a broker nobody answers at',

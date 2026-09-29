@@ -88,7 +88,7 @@ exit. A repair pass that fails leaves a store behind; it does not leave the proj
 
 **Graph and vector store connects** take a deadline instead — `withDeadline(what, 60s, …)` in
 all four mains. These are one-shot connects with no transient class worth naming, and an
-unbounded await leaves a container hung where `restart: on-failure` can only rescue a process
+unbounded await leaves a container hung where a restart-on-exit policy can only rescue a process
 that exits.
 
 **The SSE reconnect** is the one unbounded loop, with its own ladder capped at 60s. A dropped
