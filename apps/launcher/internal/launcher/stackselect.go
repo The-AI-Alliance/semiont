@@ -35,15 +35,7 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 	switch {
 	case wantLocal:
 	case repo != "":
-		target := codespaceStack(ss, repo)
-		if target == nil {
-			u.Fail("No codespace stack recorded for %s.", repo)
-			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
-			}
-			return nil, false
-		}
-		return target, true
+		return repoCodespaceStack(u, ss, repo)
 	// Standing in the clone whose stack is running: the cwd says "local" —
 	// demanding --runtime here made the user restate the prompt (same rule
 	// stop and start keep).
@@ -70,4 +62,44 @@ func SelectVerbStack(u *UI, verb string, ss *StackSet, repo string, wantLocal bo
 		return nil, false
 	}
 	return nil, true
+}
+
+// repoCodespaceStack: the stack a --repo names — its record, or, on a miss,
+// the codespace GitHub says the repo has, adopted as start adopts it. THE
+// lookup for every --repo verb: five sites used to refuse a codespace that
+// start would have resumed. Adoption writes nothing; the verbs that change
+// the codespace or forward it (stop, status) record what they did.
+func repoCodespaceStack(u *UI, ss *StackSet, repo string) (*StackState, bool) {
+	if st := codespaceStack(ss, repo); st != nil {
+		return st, true
+	}
+	if !requireGh(u, "Finding "+repo+"'s codespace") {
+		return nil, false
+	}
+	name, found, ok := adoptRepoCodespace(u, repo, "")
+	if !ok {
+		return nil, false
+	}
+	if !found {
+		u.Fail("%s has no codespace.", repo)
+		for _, c := range codespaceStacks(ss) {
+			fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
+		}
+		fmt.Fprintln(os.Stderr, "  Start one:  semiont start --runtime codespace --repo "+repo)
+		return nil, false
+	}
+	return &StackState{Codespace: &codespacePlacement{Name: name, Repo: repo}, Services: map[string]ServiceState{}}, true
+}
+
+// ForwardedBase: the URL a verb dials for a codespace stack's KB — its
+// forward on this machine. An adopted codespace has none until start (or
+// status) establishes it, so refuse with that remedy rather than dial
+// localhost:0.
+func ForwardedBase(u *UI, target *StackState, verb string) (string, bool) {
+	if target.Codespace.ForwardPort == 0 {
+		u.Fail("%s's codespace %s is not forwarded to this machine, so %s cannot reach its KB.", target.Codespace.Repo, target.Codespace.Name, verb)
+		fmt.Fprintln(os.Stderr, "  Resume it and forward the KB:  semiont start --runtime codespace --repo "+target.Codespace.Repo)
+		return "", false
+	}
+	return fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort), true
 }

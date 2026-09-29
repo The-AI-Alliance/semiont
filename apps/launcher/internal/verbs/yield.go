@@ -184,7 +184,9 @@ func Yield(args []string) int {
 	}
 	base, key, root := "", "", ""
 	if target != nil {
-		base = fmt.Sprintf("http://localhost:%d", target.Codespace.ForwardPort)
+		if base, ok = launcher.ForwardedBase(u, target, "yield"); !ok {
+			return 1
+		}
 		key = "codespace:" + target.Codespace.Repo
 		// Storage URIs are repo-relative; for a codespace target the cwd's
 		// clone is the only tree that can anchor them.

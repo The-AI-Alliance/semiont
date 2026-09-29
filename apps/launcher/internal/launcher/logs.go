@@ -99,9 +99,8 @@ func Logs(args []string) int {
 	rt := ""
 	csName := ""
 	if repoFlag != "" {
-		target := codespaceStack(ss, repoFlag)
-		if target == nil {
-			u.Fail("No codespace stack recorded for %s.", repoFlag)
+		target, ok := repoCodespaceStack(u, ss, repoFlag)
+		if !ok {
 			return 1
 		}
 		if !onPath("gh") {

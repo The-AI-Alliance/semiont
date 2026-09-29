@@ -132,13 +132,11 @@ func startCodespace(u *UI, opts startOptions) int {
 	if name == "" {
 		// No record: the cloud is the source of truth — adopt what exists,
 		// create only when the repo truly has no codespace.
-		instances, err := ghCodespaceList(repo)
-		if err != nil {
-			u.Fail("Could not list codespaces (`gh codespace list`): %v", err)
+		var found, ok bool
+		if name, found, ok = adoptRepoCodespace(u, repo, opts.csName); !ok {
 			return 1
 		}
-		switch {
-		case len(instances) == 0:
+		if !found {
 			if !secretOK {
 				u.Fail("ANTHROPIC_API_KEY is not a Codespaces user secret selected for %s — the stack would come up with inference dead, silently.", repo)
 				// A codespace can't reach your local provider, so the
@@ -158,29 +156,6 @@ func startCodespace(u *UI, opts startOptions) int {
 				return code
 			}
 			created = true
-		case len(instances) == 1:
-			name = instances[0].Name
-			u.Log("Found existing codespace for %s: %s %s", repo, u.Bold(name),
-				u.Dim("(state: "+instances[0].State+") — resuming, not creating"))
-		default:
-			if opts.csName != "" {
-				for _, c := range instances {
-					if c.Name == opts.csName {
-						name = c.Name
-					}
-				}
-				if name == "" {
-					u.Fail("--codespace '%s' is not among %s's codespaces.", opts.csName, repo)
-					return 1
-				}
-			} else {
-				u.Fail("%s has %d codespaces — the launcher manages at most one per repo.", repo, len(instances))
-				for _, c := range instances {
-					fmt.Fprintf(os.Stderr, "    %s  (%s)\n", c.Name, c.State)
-				}
-				fmt.Fprintln(os.Stderr, "  Pick one with --codespace <name>, or delete extras:  gh codespace delete -c <name>")
-				return 1
-			}
 		}
 	} else {
 		u.Log("Resuming recorded codespace %s %s", u.Bold(name), u.Dim("("+repo+")"))
@@ -235,7 +210,7 @@ func startCodespace(u *UI, opts startOptions) int {
 	// tunnel, and the tunnel is built only once the answer is yes. On a
 	// resume the first probe usually succeeds, so the fast path stays fast.
 	askable := true
-	if code := waitForRemoteKB(u, name, created); code != 0 {
+	if code := waitForRemoteKB(u, name, repo, created); code != 0 {
 		if code != remoteAskUnavailable {
 			return code
 		}
@@ -505,6 +480,53 @@ func classifyCodespaceState(instances []codespaceInstance, listErr error, ghPres
 		}
 	}
 	return "deleted"
+}
+
+// adoptRepoCodespace: the codespace a repo HAS, asked of GitHub — the answer
+// when this machine holds no record of it. start adopts it rather than create
+// a second; every other --repo verb adopts it rather than refuse (a failed
+// setup leaves a billing codespace that no record names). found=false: the
+// repo has none. ok=false: refused, message printed. pick is start's
+// --codespace, the one way to choose among several.
+func adoptRepoCodespace(u *UI, repo, pick string) (name string, found, ok bool) {
+	instances, err := ghCodespaceList(repo)
+	if err != nil {
+		u.Fail("Could not list codespaces (`gh codespace list`): %v", err)
+		return "", false, false
+	}
+	switch {
+	case len(instances) == 0:
+		return "", false, true
+	case len(instances) == 1:
+		name = instances[0].Name
+	case pick != "":
+		for _, c := range instances {
+			if c.Name == pick {
+				name = c.Name
+			}
+		}
+		if name == "" {
+			u.Fail("--codespace '%s' is not among %s's codespaces.", pick, repo)
+			return "", false, false
+		}
+	default:
+		u.Fail("%s has %d codespaces — the launcher manages at most one per repo.", repo, len(instances))
+		for _, c := range instances {
+			fmt.Fprintf(os.Stderr, "    %s  (%s)\n", c.Name, c.State)
+		}
+		fmt.Fprintf(os.Stderr, "  Pick one:  semiont start --runtime codespace --repo %s --codespace <name>\n", repo)
+		fmt.Fprintln(os.Stderr, "  Or delete extras:  gh codespace delete -c <name>")
+		return "", false, false
+	}
+	state := ""
+	for _, c := range instances {
+		if c.Name == name {
+			state = c.State
+		}
+	}
+	u.Log("Found existing codespace for %s: %s %s", repo, u.Bold(name),
+		u.Dim("(state: "+state+", no record on this machine) — adopting it, not creating one"))
+	return name, true, true
 }
 
 func ghCodespaceList(repo string) ([]codespaceInstance, error) {
@@ -1496,7 +1518,7 @@ func forwardAlive(pid, port int) bool {
 // nothing. Each attempt is a fresh `gh codespace ssh`, so the cadence is slow
 // on purpose — ssh setup dwarfs the request, and a fresh create is a
 // minutes-long wait where seconds of resolution buy nothing.
-func waitForRemoteKB(u *UI, name string, created bool) int {
+func waitForRemoteKB(u *UI, name, repo string, created bool) int {
 	if created {
 		u.Log("Waiting for the stack %s", u.Dim("(a fresh create runs devcontainer hooks — image and model pulls take minutes)"))
 	} else {
@@ -1545,7 +1567,7 @@ func waitForRemoteKB(u *UI, name string, created bool) int {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "\n  Full log:  gh codespace logs -c %s\n", name)
-			fmt.Fprintf(os.Stderr, "  The codespace exists; delete it once fixed:  semiont stop --repo <owner/name> --delete\n")
+			fmt.Fprintf(os.Stderr, "  The codespace exists; delete it once fixed:  semiont stop --repo %s --delete\n", repo)
 			return 1
 		}
 		if !time.Now().Before(deadline) {

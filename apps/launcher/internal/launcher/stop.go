@@ -187,12 +187,8 @@ func Stop(args []string) int {
 	// explicit --runtime keeps its narrow local meaning. --delete means
 	// nothing for local stacks (stop+rm already destroys them).
 	if repo != "" {
-		target := codespaceStack(ss, repo)
-		if target == nil {
-			u.Fail("No codespace stack recorded for %s.", repo)
-			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    recorded: %s\n", c.Codespace.Repo)
-			}
+		target, ok := repoCodespaceStack(u, ss, repo)
+		if !ok {
 			return 1
 		}
 		return stopCodespace(u, target, service, del, dryRun)

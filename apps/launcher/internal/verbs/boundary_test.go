@@ -37,7 +37,7 @@ var allowedLauncherSurface = map[string]bool{
 	// Recorded state, and which stack a verb talks to.
 	"StackSet": true, "StackState": true, "ServiceState": true, "StateDir": true,
 	"LoadStackSet": true, "SelectVerbStack": true, "SelectRuntime": true,
-	"CwdKBRoot": true, "GatewayBase": true,
+	"CwdKBRoot": true, "GatewayBase": true, "ForwardedBase": true,
 	// The Browser a verb hands off to.
 	"BrowserProbe": true, "BrowserTarget": true,
 	// The transport seam the tests drive.

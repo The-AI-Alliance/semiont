@@ -2418,6 +2418,15 @@ func TestCodespaceHookFailureFailsFastWithTheCause(t *testing.T) {
 	if strings.Contains(both, "did not come up inside") {
 		t.Errorf("a setup failure was reported as a readiness timeout:\n%s", both)
 	}
+	// The advice names this repo, and works as printed: a failed setup leaves
+	// a codespace no record names, and stop finds it the way start did.
+	advice := "semiont stop --repo " + csRepo + " --delete"
+	mustContain(t, "cleanup advice", both, advice)
+	if _, stderr, code := s.run(t, strings.Fields(advice)[1:]...); code != 0 {
+		t.Errorf("the printed cleanup advice fails: exit %d\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace delete -c fake-cs-1 --force")
 	// The stream does NOT stop at the failure — the fake emits 30 trailing
 	// lines, as the real one does — and the readiness loop only looks every
 	// few seconds. Reporting from the LIVE ring would let those lines push the
@@ -2523,7 +2532,7 @@ func TestCodespaceAdoptAndDisambiguate(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("adopt: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
-	mustContain(t, "stdout", stdout, "Found existing codespace for "+csRepo+": old-cs", "resuming, not creating")
+	mustContain(t, "stdout", stdout, "Found existing codespace for "+csRepo+": old-cs", "adopting it, not creating one")
 	log, _ := os.ReadFile(s.log)
 	if strings.Contains(string(log), "codespace create") {
 		t.Errorf("adopt created:\n%s", log)
@@ -2802,8 +2811,55 @@ func TestUseraddCodespace(t *testing.T) {
 	if _, stderr, code := s.run(t, "useradd", "--repo", "no/such", "--email", "b@c.co"); code != 1 {
 		t.Error("unknown --repo should fail")
 	} else {
-		mustContain(t, "stderr", stderr, "No codespace stack recorded for no/such")
+		mustContain(t, "stderr", stderr, "no/such has no codespace", "semiont start --runtime codespace --repo no/such")
 	}
+}
+
+// CODESPACE-IDENTITY B5: a codespace can exist with no record on this machine
+// — start adopts one it finds, but writes the record only once the stack
+// answers, so a failed setup leaves a billing codespace nothing else could
+// see. Every --repo verb resolves it the way start does: the record, else
+// what GitHub says the repo has.
+func TestRepoVerbsAdoptAnUnrecordedCodespace(t *testing.T) {
+	const orphan = `FAKERT_GH_CS_LIST=[{"name":"orphan-cs","state":"Available","repository":"` + csRepo + `"}]`
+	for _, c := range []struct {
+		name string
+		args []string
+		want string // in the argv log: the verb reached the adopted codespace
+	}{
+		{"stop --delete", []string{"stop", "--repo", csRepo, "--delete"}, "gh codespace delete -c orphan-cs --force"},
+		{"stop", []string{"stop", "--repo", csRepo}, "gh codespace stop -c orphan-cs"},
+		{"status", []string{"status", "--repo", csRepo}, "-c orphan-cs"},
+		{"logs", []string{"logs", "--repo", csRepo}, "gh codespace ssh -c orphan-cs"},
+		{"export", []string{"export", "--repo", csRepo, "--output", "kb.tar.gz"}, "gh codespace ssh -c orphan-cs"},
+		{"useradd", []string{"useradd", "--repo", csRepo, "--email", "b@c.co", "--generate-password"}, "gh codespace ssh -c orphan-cs"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			s := newCodespaceScenario(t)
+			s.cwd = t.TempDir()
+			s.extraEnv = append(s.extraEnv, orphan)
+			_, stderr, _ := s.run(t, c.args...)
+			if strings.Contains(stderr, "No codespace stack recorded") || strings.Contains(stderr, "has no codespace") {
+				t.Fatalf("%s refused a codespace GitHub lists for %s:\n%s", c.name, csRepo, stderr)
+			}
+			log, _ := os.ReadFile(s.log)
+			mustContain(t, "argv log", string(log), c.want)
+		})
+	}
+
+	// A verb that dials the KB needs the forward only start establishes. The
+	// codespace is found, so the answer is how to reach it — not that it is
+	// missing.
+	t.Run("login", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		s.cwd = t.TempDir()
+		s.extraEnv = append(s.extraEnv, orphan)
+		_, stderr, code := s.run(t, "login", "--repo", csRepo)
+		if code != 1 {
+			t.Fatalf("login with no forward: want exit 1, got %d\n%s", code, stderr)
+		}
+		mustContain(t, "stderr", stderr, "orphan-cs", "not forwarded", "semiont start --runtime codespace --repo "+csRepo)
+	})
 }
 
 func TestUseraddAmbiguousStacks(t *testing.T) {

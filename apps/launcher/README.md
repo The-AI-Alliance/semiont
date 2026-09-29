@@ -136,7 +136,12 @@ semiont stop
   `logs` / `stop` dispatch off the records as always. The launcher keeps at
   most one codespace per repo (it adopts and resumes what exists — the
   codespace *name* is a PID, shown by status, input only via `--codespace`
-  when raw `gh` left several). `semiont stop` maps to `gh codespace stop` —
+  when raw `gh` left several). Every `--repo` verb finds it the same way —
+  the record, else what GitHub lists for the repo — so a codespace whose
+  setup failed before anything was recorded can still be stopped, deleted,
+  inspected, or given users; verbs that dial the KB (`login`, `yield`) need
+  its forward on this machine, and say to `start` it first. `semiont stop` maps
+  to `gh codespace stop` —
   billing halts, state and credentials persist, the record is kept; `semiont
   stop --delete` destroys and forgets. The two long waits narrate
   themselves: the VM wait redraws the polled state with elapsed time, and a
