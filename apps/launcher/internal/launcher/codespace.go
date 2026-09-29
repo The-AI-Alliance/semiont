@@ -1931,6 +1931,12 @@ func forwardIssuer(u *UI, st *StackState) int {
 	if want == 0 || portHeld(want) {
 		want = allocatePort(LoadStackSet(), cs.Repo, descriptorFor("identity", "keycloak").defaultPort)
 	}
+	// Claimed now, not after the move: a move takes minutes, and another
+	// start on this machine allocating meanwhile must see the port as taken.
+	if want != cs.KeycloakPort {
+		cs.KeycloakPort = want
+		saveStack(st)
+	}
 	if port != want {
 		// Never while the codespace's own start is still running: the rerun
 		// would sweep its containers mid-flight (live 2026-09-29). The start

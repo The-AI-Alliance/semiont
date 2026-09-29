@@ -3502,8 +3502,11 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "ports forward 8081:8081") {
 			t.Errorf("forwarded onto a port another process holds:\n%s", log)
 		}
-		if strings.Contains(record(t, s), `"keycloakPort": 8081`) {
-			t.Errorf("recorded an issuer port it could not forward:\n%s", record(t, s))
+		// The codespace moved to 8081, so the record keeps that claim; only
+		// the forward is missing.
+		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
+		if strings.Contains(record(t, s), `"keycloakForwardPid"`) {
+			t.Errorf("recorded an issuer forward it could not make:\n%s", record(t, s))
 		}
 	})
 
@@ -3521,6 +3524,60 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 			t.Errorf("recorded an issuer port for an issuer this codespace does not run:\n%s", record(t, s))
 		}
 	})
+}
+
+// Two codespace KBs created from one laptop at once. Each allocates its issuer
+// port from what is recorded, and a move takes minutes live, so a claim
+// recorded only after the move lets the second allocate the first's port. Both
+// must come up, on different issuer ports.
+func TestSimultaneousCodespaceCreatesTakeDifferentIssuerPorts(t *testing.T) {
+	s := newCodespaceScenario(t)
+	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=fake-cs-1")
+	second := *s
+	second.extraEnv = append(append([]string{}, s.extraEnv...), "FAKERT_GH_CS_NAME=fake-cs-2")
+	type result struct {
+		out  string
+		code int
+	}
+	first, other := make(chan result, 1), make(chan result, 1)
+	go func() {
+		o, e, c := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+		first <- result{o + e, c}
+	}()
+	held := filepath.Join(s.fakertDir, "holding-fake-cs-1")
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(held); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if _, err := os.Stat(held); err != nil {
+		t.Fatal("the first create never moved its issuer")
+	}
+	// The second create runs whole while the first is mid-move.
+	go func() {
+		o, e, c := second.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
+		other <- result{o + e, c}
+	}()
+	r2 := <-other
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-fake-cs-1"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r1 := <-first
+	if r1.code != 0 || r2.code != 0 {
+		t.Fatalf("both creates must succeed: first %d, second %d\nfirst:\n%s\nsecond:\n%s", r1.code, r2.code, r1.out, r2.out)
+	}
+	log := s.argv(t)
+	mustContain(t, "argv log", log,
+		"gh codespace ports forward 8081:8081 -c fake-cs-1",
+		"gh codespace ports forward 8082:8082 -c fake-cs-2")
 }
 
 // The laptop moves a codespace's issuer only once the codespace's OWN start has
