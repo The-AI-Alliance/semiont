@@ -4,6 +4,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -86,5 +87,46 @@ func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 				t.Errorf("the container may still come up, and the wait gave up after %s of its 4s budget", took(elapsed))
 			}
 		})
+	}
+}
+
+// The echo shows what the launcher injects and hides what is a credential.
+// KEYCLOAK_PORT was injected (config.go) but missing from a hand-kept echo
+// allowlist, so the one number a moved issuer is about read <redacted>
+// (bugs/codespace-move-output-misleads.md).
+func TestEchoShowsInjectedValuesAndHidesCredentials(t *testing.T) {
+	got := strings.Join(redactEnvArgs([]string{"run",
+		"--env", "KEYCLOAK_PORT=8081",
+		"--env", "KEYCLOAK_HOST=keycloak.localhost",
+		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-worker",
+		"--env", "SEMIONT_OIDC_CLIENT_SECRET=s3cret",
+		"--env", "JWT_SECRET=jwt-value",
+		"--env", "ANTHROPIC_API_KEY=sk-value",
+	}), " ")
+	for _, shown := range []string{"KEYCLOAK_PORT=8081", "KEYCLOAK_HOST=keycloak.localhost", "SEMIONT_OIDC_CLIENT_ID=semiont-worker"} {
+		if !strings.Contains(got, shown) {
+			t.Errorf("%s was hidden:\n%s", shown, got)
+		}
+	}
+	for _, secret := range []string{"s3cret", "jwt-value", "sk-value"} {
+		if strings.Contains(got, secret) {
+			t.Errorf("a credential reached the echo (%s):\n%s", secret, got)
+		}
+	}
+}
+
+// A census over what the launcher injects: a name that reads like a credential
+// must be classified as one, so a new injected secret cannot start showing in
+// the echo by default.
+func TestInjectedCredentialsAreClassified(t *testing.T) {
+	// Whole underscore-separated words, not substrings: KEYCLOAK_HOST is a
+	// host, API_KEY is a credential.
+	credentialWord := map[string]bool{"SECRET": true, "PASSWORD": true, "TOKEN": true, "KEY": true}
+	for name := range injectedVars {
+		for _, word := range strings.Split(name, "_") {
+			if credentialWord[word] && !injectedCredentials[name] {
+				t.Errorf("%s is injected and reads like a credential, but injectedCredentials does not name it — it would be shown in echoed commands", name)
+			}
+		}
 	}
 }

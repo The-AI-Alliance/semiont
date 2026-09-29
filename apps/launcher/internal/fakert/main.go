@@ -16,6 +16,8 @@
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
+//	FAKERT_BUSYBOX_FAIL_FIRST  the first n busybox probe containers fail with a runtime error
+//	                         while the daemon answers — docker-in-docker just after dockerd starts
 //	FAKERT_GATEWAY_UNREACHABLE  "1" fails the busybox wget probe of :4000
 //	FAKERT_NC_FAIL           "1" fails the busybox `nc -z` postgres probe
 //	FAKERT_VOLUME_ABSENT     "1" makes `volume rm` fail (volume not found)
@@ -157,6 +159,8 @@ func git(args []string) {
 //	FAKERT_GH_HOOKS_FAIL    the devcontainer lifecycle command fails (stack never comes up)
 //	FAKERT_GH_ADMIN         admin.json content for `ssh -- cat .devcontainer/admin.json`
 //	FAKERT_GH_KBCONFIG      .semiont/config content for `ssh -- cat .semiont/config`
+//	FAKERT_GH_CS_SHUTTING_DOWN_LISTS  the first n `codespace list` calls report a Shutdown
+//	                        codespace as ShuttingDown — a stop GitHub has not finished
 //	FAKERT_GH_CS_KEYCLOAK_PORT  the port the codespace's Keycloak starts on (default 8080;
 //	                        an ssh `KEYCLOAK_PORT=<n> semiont start` moves it)
 //	FAKERT_GH_CS_ISSUER     an issuer the codespace does NOT run, advertised instead
@@ -211,6 +215,20 @@ func bumpRemoteProbe() int {
 // sshFailFirst / bumpSSHAttempt model sshd arriving late on a fresh create.
 func sshFailFirst() int {
 	n, _ := strconv.Atoi(os.Getenv("FAKERT_GH_SSH_FAIL_FIRST"))
+	return n
+}
+
+// bumpCounter increments a named per-test counter and returns the new value.
+func bumpCounter(name string) int {
+	dir := os.Getenv("FAKERT_DIR")
+	if dir == "" {
+		return 0
+	}
+	p := filepath.Join(dir, name)
+	b, _ := os.ReadFile(p)
+	n, _ := strconv.Atoi(strings.TrimSpace(string(b)))
+	n++
+	_ = os.WriteFile(p, []byte(strconv.Itoa(n)), 0o644)
 	return n
 }
 
@@ -383,6 +401,12 @@ func ghCodespace(args []string, joined string) {
 		body := os.Getenv("FAKERT_GH_CS_LIST")
 		if body == "" {
 			body = "[" + strings.Join(createdCodespaces(), ",") + "]"
+		}
+		// A stop GitHub is still carrying out: Shutdown reads as ShuttingDown
+		// for the first n lists (live 2026-09-29, the state a start right
+		// after a stop meets).
+		if n, _ := strconv.Atoi(os.Getenv("FAKERT_GH_CS_SHUTTING_DOWN_LISTS")); n > 0 && bumpCounter("cs-list-count") <= n {
+			body = strings.ReplaceAll(body, `"state":"Shutdown"`, `"state":"ShuttingDown"`)
 		}
 		fmt.Println(applyStateEvents(body))
 	case "create":
@@ -614,7 +638,11 @@ func ghCodespace(args []string, joined string) {
 					_ = os.WriteFile(filepath.Join(dir, "cs-keycloak-port-"+codespaceArg(args)), []byte(m[1]), 0o644)
 				}
 			}
-			fmt.Println("🚀 Semiont stack is up")
+			// The real inner start ends with ITS summary — the codespace's own
+			// view, whose ports are wrong from the laptop.
+			fmt.Println("🚀 Semiont stack is up  (70s)")
+			fmt.Println("  Semiont Browser    http://localhost:3000")
+			fmt.Println("  Semiont KB         http://localhost:4000")
 		case strings.Contains(joined, "semiont useradd"):
 			// The remote side is a SHELL, so echo back what the shell would
 			// actually receive — that is what proves quoting works.
@@ -1147,6 +1175,12 @@ func handleName(arg string) string {
 }
 
 func busybox(args []string, joined string) {
+	// A daemon that answers but cannot run a container yet (live 2026-09-29:
+	// dockerd eight seconds old on a codespace resume).
+	if n, _ := strconv.Atoi(os.Getenv("FAKERT_BUSYBOX_FAIL_FIRST")); n > 0 && bumpCounter("busybox-runs") <= n {
+		fmt.Fprintln(os.Stderr, "docker: Error response from daemon: failed to set up container networking: network bridge not found")
+		os.Exit(125)
+	}
 	switch {
 	case strings.Contains(joined, "find /store"):
 		// The store clear: empty the host dir mounted at /store, keeping the

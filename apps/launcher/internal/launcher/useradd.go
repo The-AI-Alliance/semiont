@@ -200,9 +200,10 @@ func Useradd(args []string) int {
 	// already going to be rejected for contradictory flags or a missing
 	// gateway — the prompt would also bury the actual error.
 	//
-	// Who supplies it? The gateway requires one only to CREATE, so an --update
+	// Who supplies it? The realm requires one only to CREATE, so an --update
 	// that isn't explicitly changing the password needs none, and
-	// --generate-password means the gateway invents its own.
+	// --generate-password means the launcher that writes the account invents
+	// it (applyUseradd) — on a codespace, the codespace's own launcher.
 	password := ""
 	if !generate && (!update || wantStdin) {
 		pw, ok := readPassword(u)

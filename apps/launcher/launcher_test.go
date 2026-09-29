@@ -488,6 +488,31 @@ func TestStartDaemonDownAdvisesSystemStart(t *testing.T) {
 	mustContain(t, "daemon-down fix-it", stdout+stderr, "container system start")
 }
 
+// On a codespace resume, post-start's start ran eight seconds after dockerd:
+// the daemon answered, but its first probe container could not run, and start
+// refused — a resumed KB with no stack (bugs/post-start-races-docker-on-resume.md).
+// An answering daemon gets a bounded wait; its own error is quoted if it never
+// comes good.
+func TestHostProbeWaitsForARuntimeThatCannotRunContainersYet(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_BUSYBOX_FAIL_FIRST=3")
+	stdout, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("a runtime that comes good within the budget must not refuse: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "the wait is announced", stdout+stderr, "cannot run a container yet")
+}
+
+func TestHostProbeRefusalQuotesTheRuntime(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_BUSYBOX_FAIL_FIRST=1000")
+	_, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatal("a runtime that never runs the probe must refuse")
+	}
+	mustContain(t, "the runtime's own words", stderr, "network bridge not found")
+}
+
 func TestStartRuntimeDockerBoot(t *testing.T) {
 	s := newScenario(t, "container", "docker", "podman")
 	s.extraEnv = append(s.extraEnv, "FAKERT_NSLOOKUP=ok")
@@ -3308,7 +3333,8 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
 			t.Fatal(err)
 		}
-		if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
+		stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+		if code != 0 {
 			t.Fatalf("exit %d\n%s", code, stderr)
 		}
 		log, _ := os.ReadFile(s.log)
@@ -3316,6 +3342,13 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 			"KEYCLOAK_PORT=8081 semiont start",
 			"gh codespace ports forward 8081:8081 -c fake-cs-1")
 		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
+		// The codespace's own summary names ITS ports, which are wrong from
+		// the laptop whenever the laptop allocated others. Only the outer
+		// summary may print URLs (bugs/codespace-move-output-misleads.md).
+		if strings.Contains(stdout, "Semiont stack is up") || strings.Count(stdout, "Semiont KB  ") != 1 {
+			t.Errorf("the codespace's own summary reached the laptop:\n%s", stdout)
+		}
+		mustContain(t, "the move's one line", stdout, "restarted its stack with the issuer on 8081")
 	})
 
 	t.Run("resume keeps its recorded port", func(t *testing.T) {
@@ -3355,6 +3388,35 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 			t.Errorf("recorded an issuer port for an issuer this codespace does not run:\n%s", record(t, s))
 		}
 	})
+}
+
+// A start right after a stop meets GitHub still shutting the codespace down.
+// Live 2026-09-29: the wake was decided once, for exactly "Shutdown", so a
+// resume that saw "ShuttingDown" waited ten minutes on a codespace nothing
+// would ever wake (bugs/codespace-resume-during-shutdown-never-wakes.md).
+func TestCodespaceResumeWakesAfterAShutdownFinishes(t *testing.T) {
+	s := newCodespaceScenario(t)
+	s.extraEnv = append(s.extraEnv,
+		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Shutdown","repository":"`+csRepo+`"}]`,
+		"FAKERT_GH_CS_SHUTTING_DOWN_LISTS=2")
+	rec := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo +
+		`","forwardPort":4000},"ports":[4000],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(rec), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("resume during a shutdown: exit %d after %s\nstdout:\n%s\nstderr:\n%s", code, time.Since(start).Round(time.Second), stdout, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	mustContain(t, "argv log", string(log), "gh codespace ssh -c fake-cs-1 -- true")
+	if strings.Contains(stdout, "Provisioning") {
+		t.Errorf("the wait narrated Provisioning while GitHub reported ShuttingDown:\n%s", stdout)
+	}
 }
 
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {

@@ -9,7 +9,9 @@ package launcher
 // gateway is involved — it need not even be running.
 
 import (
+	"crypto/rand"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 )
@@ -129,6 +131,17 @@ func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) int {
 		u.Fail("User %s not found. Remove --update to create a new user.", o.email)
 		return 1
 	}
+	// --generate-password: made HERE, by the launcher that writes it to the
+	// realm — after every refusal, so a rejected call invents nothing. On the
+	// codespace path the flag is forwarded and the codespace's own launcher
+	// arrives here, so the password is born where it is used and never crosses
+	// the ssh hop as an argument.
+	if o.generate {
+		if password, err = generatePassword(); err != nil {
+			u.Fail("Cannot generate a password: %v", err)
+			return 1
+		}
+	}
 
 	subject := ""
 	if account != nil {
@@ -163,6 +176,9 @@ func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) int {
 	}
 	fmt.Printf("%s: %s\n", verb, o.email)
 	fmt.Printf("  Subject: %s\n", subject)
+	if o.generate {
+		fmt.Printf("  Password: %s  %s\n", password, u.Dim("(generated — shown this once, stored nowhere)"))
+	}
 	if o.inactive {
 		fmt.Println("  Disabled at the identity provider")
 	}
@@ -170,4 +186,19 @@ func applyUseradd(u *UI, a realmAdmin, o useraddOpts, password string) int {
 		fmt.Println("  Enabled at the identity provider")
 	}
 	return 0
+}
+
+// generatePassword: 16 characters from crypto/rand over [A-Za-z0-9] — about 95
+// bits, typeable, and free of shell metacharacters so it survives a paste.
+func generatePassword() (string, error) {
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+	out := make([]byte, 16)
+	for i := range out {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(alphabet))))
+		if err != nil {
+			return "", err
+		}
+		out[i] = alphabet[n.Int64()]
+	}
+	return string(out), nil
 }
