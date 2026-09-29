@@ -3452,6 +3452,55 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		}
 	})
 
+	t.Run("a holder that takes the port after allocation is refused, named", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// 8081 is free when allocated; the move is held, and something else
+		// takes 8081 before the forward.
+		s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=fake-cs-1")
+		type result struct {
+			stderr string
+			code   int
+		}
+		done := make(chan result, 1)
+		go func() { _, e, c := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); done <- result{e, c} }()
+		held := filepath.Join(s.fakertDir, "holding-fake-cs-1")
+		for i := 0; i < 600; i++ {
+			if _, err := os.Stat(held); err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if _, err := os.Stat(held); err != nil {
+			t.Fatal("the issuer move never ran")
+		}
+		holder, err := net.Listen("tcp", "127.0.0.1:8081")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer holder.Close()
+		if err := os.WriteFile(filepath.Join(s.fakertDir, "release-fake-cs-1"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		r := <-done
+		if r.code == 0 {
+			t.Fatal("started with the issuer's port taken by another process")
+		}
+		mustContain(t, "stderr", r.stderr, "Port 8081 (needed for the issuer (forward)) is held by")
+		if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "ports forward 8081:8081") {
+			t.Errorf("forwarded onto a port another process holds:\n%s", log)
+		}
+		if strings.Contains(record(t, s), `"keycloakPort": 8081`) {
+			t.Errorf("recorded an issuer port it could not forward:\n%s", record(t, s))
+		}
+	})
+
 	t.Run("an issuer the codespace does not run is not forwarded", func(t *testing.T) {
 		s := newCodespaceScenario(t)
 		s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_ISSUER=https://id.example.com/realms/semiont")

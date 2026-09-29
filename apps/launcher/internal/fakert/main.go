@@ -16,8 +16,9 @@
 //	FAKERT_NSLOOKUP          "ok" makes the host-alias probe succeed
 //	FAKERT_GATEWAY           default-gateway probe output (default 192.168.64.1)
 //	FAKERT_OLLAMA_REACHABLE  "1" makes the busybox wget probe of :11434 succeed
-//	FAKERT_RUN_HOLD          a container name: its `run -d` parks until FAKERT_DIR/release-<name>
-//	                         exists, after writing FAKERT_DIR/holding-<name> — a start held mid-flight
+//	FAKERT_RUN_HOLD          a container name, whose `run -d` parks, or a codespace name, whose
+//	                         `semiont start` over ssh parks, until FAKERT_DIR/release-<name> exists,
+//	                         after writing FAKERT_DIR/holding-<name> — a start held mid-flight
 //	FAKERT_REMOTE_STACK_READY_AFTER  the nth ssh stack-readiness probe is the first to answer READY,
 //	                         while the codespace's gateway already answers through its forward
 //	FAKERT_BUSYBOX_FAIL_FIRST  the first n busybox probe containers fail with a runtime error
@@ -643,6 +644,9 @@ func ghCodespace(args []string, joined string) {
 		case strings.Contains(joined, "semiont start"):
 			// The codespace's own launcher, rerun with the issuer on a new
 			// port: it records it, and the gateway advertises it from now on.
+			// Held, it is the window in which the laptop's allocated port can
+			// be taken by something else.
+			holdIfNamed(codespaceArg(args))
 			if m := regexp.MustCompile(`KEYCLOAK_PORT=(\d+)`).FindStringSubmatch(joined); m != nil {
 				if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 					_ = os.WriteFile(filepath.Join(dir, "cs-keycloak-port-"+codespaceArg(args)), []byte(m[1]), 0o644)
@@ -668,6 +672,22 @@ func ghCodespace(args []string, joined string) {
 	default:
 		fmt.Fprintf(os.Stderr, "fakert gh codespace: unscripted %v\n", args)
 		os.Exit(64)
+	}
+}
+
+// holdIfNamed parks while FAKERT_RUN_HOLD names name, until the test writes
+// FAKERT_DIR/release-<name>; FAKERT_DIR/holding-<name> tells it the hold began.
+func holdIfNamed(name string) {
+	dir := os.Getenv("FAKERT_DIR")
+	if hold := os.Getenv("FAKERT_RUN_HOLD"); hold == "" || hold != name || dir == "" {
+		return
+	}
+	_ = os.WriteFile(filepath.Join(dir, "holding-"+name), nil, 0o644)
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(filepath.Join(dir, "release-"+name)); err == nil {
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
@@ -979,17 +999,7 @@ func run(args []string) {
 	}
 	// A start held mid-flight: this container's run parks until the test
 	// releases it, so a second start can be begun while the first is busy.
-	if hold := os.Getenv("FAKERT_RUN_HOLD"); hold != "" && hold == name {
-		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
-			_ = os.WriteFile(filepath.Join(dir, "holding-"+name), nil, 0o644)
-			for i := 0; i < 600; i++ {
-				if _, err := os.Stat(filepath.Join(dir, "release-"+name)); err == nil {
-					break
-				}
-				time.Sleep(100 * time.Millisecond)
-			}
-		}
-	}
+	holdIfNamed(name)
 	// NAME-HOLDING: real runtimes refuse `run --name X` while a container
 	// named X exists IN ANY STATE — stopped included (no --rm keeps them).
 	// A scripted container (FAKERT_STATE_<svc>) holds its name until an
