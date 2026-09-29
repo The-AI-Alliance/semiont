@@ -498,6 +498,76 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
 }
 
+// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to inject, like
+// its host — one Keycloak port per KB, the same number on both ends, so a
+// laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
+// launcher's env shape: the environment wins, the root records it, and 8080
+// is the default. The codespace's post-start runs a bare start on every
+// resume, which is why the port a laptop moved it to must stick.
+func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
+	s := newScenario(t, "container")
+	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
+		p := filepath.Join(s.kb, ".semiont", "semiontconfig", name)
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b = []byte(strings.ReplaceAll(string(b), "${KEYCLOAK_HOST}:8080/realms", "${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms"))
+		if err := os.WriteFile(p, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	keycloakRun := func(t *testing.T, argv string) string {
+		t.Helper()
+		for _, line := range strings.Split(argv, "\n") {
+			if strings.Contains(line, "run -d --name semiont-keycloak") {
+				return line
+			}
+		}
+		t.Fatalf("no Keycloak run in:\n%s", argv)
+		return ""
+	}
+	base := s.extraEnv
+	for _, step := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{"default", nil, "8080"},
+		{"environment wins", []string{"KEYCLOAK_PORT=8081"}, "8081"},
+		{"recorded for the next bare start", nil, "8081"},
+	} {
+		s.extraEnv = append(append([]string{}, base...), step.env...)
+		before := len(s.argv(t))
+		stdout, stderr, code := s.run(t, "start")
+		if code != 0 {
+			t.Fatalf("%s: exit %d\nstdout:\n%s\nstderr:\n%s", step.name, code, stdout, stderr)
+		}
+		argv := s.argv(t)[before:]
+		if run := keycloakRun(t, argv); !strings.Contains(run, "-p "+step.want+":8080") {
+			t.Errorf("%s: Keycloak not published on %s:\n%s", step.name, step.want, run)
+		}
+		dialers := 0
+		for _, line := range strings.Split(argv, "\n") {
+			if !strings.Contains(line, "KEYCLOAK_HOST=") {
+				continue
+			}
+			dialers++
+			if !strings.Contains(line, "--env KEYCLOAK_PORT="+step.want) {
+				t.Errorf("%s: a container that resolves the issuer lacks KEYCLOAK_PORT=%s:\n%s", step.name, step.want, line)
+			}
+		}
+		if dialers == 0 {
+			t.Fatalf("%s: no container carries KEYCLOAK_HOST — the scan proved nothing", step.name)
+		}
+	}
+	roots, err := os.ReadFile(filepath.Join(filepath.Dir(statePathFor(s.home)), "roots.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustContain(t, "roots.json", string(roots), `"keycloakPort": 8081`)
+}
+
 // Under Docker and Podman the issuer is named keycloak.localhost, whatever the
 // host-address probe answers. An issuer is one URL — the Browser and every
 // container must reach it by the same name — and the Browser is never on the
@@ -3151,6 +3221,103 @@ func TestStopDeleteForgetsReapedCodespace(t *testing.T) {
 func mustLogOrEmpty(s *scenario) []byte {
 	b, _ := os.ReadFile(s.log)
 	return b
+}
+
+// CODESPACE-IDENTITY B4: a codespace KB's issuer is http://keycloak.localhost:<N>
+// — loopback on this machine — so the laptop forwards <N>:<N>, the same
+// number on both ends, one <N> per KB so one Browser can sign in to several.
+func TestCodespaceForwardsItsIssuer(t *testing.T) {
+	record := func(t *testing.T, s *scenario) string {
+		t.Helper()
+		b, err := os.ReadFile(statePathFor(s.home))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+
+	t.Run("fresh: 8080, no move", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		mustContain(t, "argv log", string(log), "gh codespace ports forward 8080:8080 -c fake-cs-1")
+		if strings.Contains(string(log), "KEYCLOAK_PORT=") {
+			t.Errorf("moved a codespace already on the port it was given:\n%s", log)
+		}
+		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8080`, `"keycloakForwardPid"`)
+
+		// stop ends both forwards.
+		if _, stderr, code := s.run(t, "stop", "--repo", csRepo); code != 0 {
+			t.Fatalf("stop: exit %d\n%s", code, stderr)
+		}
+		if strings.Contains(record(t, s), `"keycloakForwardPid"`) {
+			t.Errorf("stop left the issuer forward recorded:\n%s", record(t, s))
+		}
+		if c, err := net.DialTimeout("tcp", "127.0.0.1:8080", time.Second); err == nil {
+			c.Close()
+			t.Error("the issuer forward still answers on 8080 after stop")
+		}
+	})
+
+	t.Run("8080 taken: allocate 8081 and move the codespace", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		// A local stack on this machine holds 8080 (its own Keycloak).
+		local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		mustContain(t, "argv log", string(log),
+			"KEYCLOAK_PORT=8081 semiont start",
+			"gh codespace ports forward 8081:8081 -c fake-cs-1")
+		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
+	})
+
+	t.Run("resume keeps its recorded port", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		s.extraEnv = append(s.extraEnv,
+			`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Available","repository":"`+csRepo+`"}]`,
+			"FAKERT_GH_CS_KEYCLOAK_PORT=8082")
+		rec := `{"schema":3,"stacks":{"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo +
+			`","forwardPort":4000,"keycloakPort":8082},"ports":[4000],"services":{}}}}`
+		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePathFor(s.home), []byte(rec), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		mustContain(t, "argv log", string(log), "gh codespace ports forward 8082:8082 -c fake-cs-1")
+		if strings.Contains(string(log), "KEYCLOAK_PORT=") {
+			t.Errorf("a resume on its recorded port rewrote the codespace:\n%s", log)
+		}
+	})
+
+	t.Run("an issuer the codespace does not run is not forwarded", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_ISSUER=https://id.example.com/realms/semiont")
+		if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
+			t.Fatalf("exit %d\n%s", code, stderr)
+		}
+		log, _ := os.ReadFile(s.log)
+		if strings.Count(string(log), "codespace ports forward") != 1 {
+			t.Errorf("forwarded something besides the KB for an external issuer:\n%s", log)
+		}
+		if strings.Contains(record(t, s), `"keycloakPort"`) {
+			t.Errorf("recorded an issuer port for an issuer this codespace does not run:\n%s", record(t, s))
+		}
+	})
 }
 
 func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
@@ -6283,6 +6450,18 @@ func TestInitGeneratesStartableConfig(t *testing.T) {
 		t.Fatalf("ollama config failed the deriver: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "ollama plan", stdout, "host Ollama", "gemma4:26b, nomic-embed-text")
+	// A newborn names its issuer's port by ${KEYCLOAK_PORT} (CODESPACE-IDENTITY
+	// B4), so the laptop that forwards it can move it.
+	stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run")
+	_ = stderr
+	if !strings.Contains(stdout, "-p 8080:8080") {
+		t.Errorf("the newborn's Keycloak is not on the default port:\n%s", stdout)
+	}
+	s2.extraEnv = append(s2.extraEnv, "KEYCLOAK_PORT=8081")
+	if stdout, stderr, code = s2.run(t, "start", "--config", "ollama", "--dry-run"); code != 0 {
+		t.Fatalf("moved issuer: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "a newborn's issuer moves with KEYCLOAK_PORT", stdout, "-p 8081:8080")
 
 	// voyage embedding refuses: no established key variable exists, and the
 	// launcher never invents environment variables.

@@ -153,11 +153,17 @@ semiont stop
   own local port.** The record store (`stack.json`, schema 3) is a keyed
   collection: the machine's one local stack (fixed ports and container
   names keep it singleton) plus one entry per codespace repo. Each
-  codespace stack forwards exactly ONE port — its KB (remote 4000) — on
-  local 4000 when free, else the lowest free port above it (4001, …), so a
-  single browser's Knowledge Bases panel works N codespace KBs at once
-  (Host localhost, Port 400x each; browser, sidecars, and infra stay inside
-  the codespace). Forwards are recorded detached processes: `status`
+  codespace stack forwards TWO ports. Its KB (remote 4000) goes on local
+  4000 when free, else the lowest free port above it (4001, …). Its issuer —
+  `http://keycloak.localhost:<N>`, loopback here — goes `<N>:<N>`, the same
+  number on both ends because a token's `iss` must match the one URL the
+  Browser signs in at: 8080 when free, else the lowest free above it. When
+  the codespace's Keycloak is on another port, its own launcher restarts the
+  stack there with `KEYCLOAK_PORT=<N>`, which it records for every later
+  resume. A single browser's Knowledge Bases panel therefore works, and
+  signs in to, N codespace KBs at once (Host localhost, Port 400x each;
+  sidecars and infra stay inside the codespace). An issuer the codespace
+  does not run is not forwarded. Forwards are recorded detached processes: `status`
   re-establishes a dead one, `stop --repo` ends its own, and a LOCAL start
   drops only forwards squatting on ports it actually claims — concurrent
   KBs on allocated ports keep running. With several stacks recorded:

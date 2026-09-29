@@ -137,7 +137,7 @@ func generateSemiontconfig(p genParams) string {
 	w(``)
 	w(`[environments.local.identity]`)
 	w(`type = "keycloak"`)
-	w(`issuer = "http://${KEYCLOAK_HOST}:8080/realms/semiont"`)
+	w(`issuer = "http://${KEYCLOAK_HOST}:${KEYCLOAK_PORT}/realms/semiont"`)
 	w(`subjectClaim = "sub"`)
 	return b.String()
 }
@@ -174,7 +174,8 @@ func writeVettedConfig(u *UI, root, name, content string) bool {
 	vf.Close()
 	env, envName, _, err := loadConfig(vetPath)
 	if err == nil {
-		_, err = derivePlan(env, envName, vetPath)
+		// Vetting only: any port proves the issuer parses.
+		_, err = derivePlan(env, envName, vetPath, descriptorFor("identity", "keycloak").defaultPort)
 	}
 	if err != nil {
 		u.Fail("The config did not pass the launcher's own deriver — refusing to write it: %v", err)

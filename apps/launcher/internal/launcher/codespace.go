@@ -33,10 +33,11 @@ import (
 // it. Everything else stays inside the codespace, run by its own launcher.
 const kbRemotePort = 4000
 
-// allocateKBPort picks this stack's local KB port: 4000, or the lowest
-// free port above it — skipping every port other recorded stacks claim
-// (local stack's port checks, other codespaces' forwards) and live holders.
-func allocateKBPort(ss *StackSet, repo string) int {
+// allocatePort picks one of this stack's local ports — its KB (from 4000)
+// or its issuer (from 8080): base when free, else the lowest free port above
+// it. It skips every port the local stack claims, every forward other
+// codespace stacks hold, and live holders.
+func allocatePort(ss *StackSet, repo string, base int) int {
 	used := map[int]bool{}
 	if local := ss.Stacks["local"]; local != nil {
 		for _, p := range local.Ports {
@@ -44,11 +45,12 @@ func allocateKBPort(ss *StackSet, repo string) int {
 		}
 	}
 	for _, c := range codespaceStacks(ss) {
-		if c.Codespace.Repo != repo && c.Codespace.ForwardPort != 0 {
+		if c.Codespace.Repo != repo {
 			used[c.Codespace.ForwardPort] = true
+			used[c.Codespace.KeycloakPort] = true
 		}
 	}
-	for port := kbRemotePort; ; port++ {
+	for port := base; ; port++ {
 		if used[port] {
 			continue
 		}
@@ -73,11 +75,12 @@ func startCodespace(u *UI, opts startOptions) int {
 		return 1
 	}
 
-	// A local stack and codespace stacks COEXIST: the only local resource a
-	// codespace needs is its one KB forward port, and allocateKBPort already
-	// skips the local stack's recorded claims and any live holder. So the
-	// local KB keeps 4000, a codespace KB takes 4001, and one browser works
-	// both from its Knowledge Bases panel — the point of per-stack ports.
+	// A local stack and codespace stacks COEXIST: the only local resources a
+	// codespace needs are its two forward ports — its KB and its issuer — and
+	// allocatePort skips the local stack's recorded claims, other codespaces'
+	// forwards, and any live holder. So the local KB keeps 4000 and 8080, a
+	// codespace takes 4001 and 8081, and one browser signs in to both from its
+	// Knowledge Bases panel — the point of per-stack ports.
 	ss := LoadStackSet()
 
 	// Identity ladder, repo-first (the repo IS the identity; many codespace
@@ -168,6 +171,9 @@ func startCodespace(u *UI, opts startOptions) int {
 			_ = syscall.Kill(st.Codespace.ForwardPID, syscall.SIGTERM)
 			time.Sleep(200 * time.Millisecond)
 		}
+		if forwardProcAlive(st.Codespace.KeycloakForwardPID) {
+			retireForward(st.Codespace.KeycloakForwardPID)
+		}
 	}
 
 	// --machine only chooses hardware at creation. Resuming or adopting an
@@ -183,7 +189,7 @@ func startCodespace(u *UI, opts startOptions) int {
 	// One KB port per stack — other codespaces' forwards keep running;
 	// concurrency is the point. Allocation dodges every recorded claim and
 	// live holder, so nothing needs displacing.
-	kbPort := allocateKBPort(ss, repo)
+	kbPort := allocatePort(ss, repo, kbRemotePort)
 	if !requirePortFree(u, kbPort, "KB (forward)") {
 		return 1
 	}
@@ -222,7 +228,7 @@ func startCodespace(u *UI, opts startOptions) int {
 		askable = false
 		u.Log("Cannot check the stack over ssh — probing by connecting instead")
 	}
-	pid, fwdDead, code := establishForward(u, name, kbPort, askable)
+	pid, fwdDead, code := establishForward(u, name, kbRemotePort, kbPort, askable)
 	if code != 0 {
 		return code
 	}
@@ -241,6 +247,10 @@ func startCodespace(u *UI, opts startOptions) int {
 	// one we learned earlier.
 	if newSt.KBDid == "" && st != nil {
 		newSt.KBDid = st.KBDid
+	}
+	// The issuer's port is kept across resumes while it is free (forwardIssuer).
+	if st != nil {
+		newSt.Codespace.KeycloakPort = st.Codespace.KeycloakPort
 	}
 	saveStack(newSt)
 
@@ -271,6 +281,9 @@ func startCodespace(u *UI, opts startOptions) int {
 		return 1
 	}
 	u.Ok("KB healthy %s", u.Dim("("+took(d)+")"))
+	if code := forwardIssuer(u, newSt); code != 0 {
+		return code
+	}
 
 	// The stack is up, so this is the cheapest moment to reach in. Only fires
 	// when nothing is recorded — a --repo-only start (no clone to read) has
@@ -286,6 +299,9 @@ func startCodespace(u *UI, opts startOptions) int {
 	fmt.Println()
 	fmt.Printf("  Semiont KB         %s %s\n", u.Bold(fmt.Sprintf("http://localhost:%d", kbPort)),
 		u.Dim("(add Host localhost, Port "+fmt.Sprintf("%d", kbPort)+" in the browser's Knowledge Bases panel)"))
+	if n := newSt.Codespace.KeycloakPort; n != 0 {
+		fmt.Printf("  Issuer             %s %s\n", fmt.Sprintf("http://keycloak.localhost:%d", n), u.Dim("(forwarded — sign-in goes here)"))
+	}
 	// The browser is NOT forwarded — only the KB is. It runs locally and
 	// views any number of KBs. ANY start ensures it (BROWSER-LIFECYCLE.md
 	// decision 2) — but only when a container runtime exists here: codespace
@@ -945,7 +961,7 @@ func (lt *creationLogTail) stop() {
 // it). Each codespace stack runs its own. The returned channel closes if
 // the forward dies while THIS launcher still runs — the health gate's
 // fail-fast signal.
-func spawnForward(u *UI, name string, kbPort int) (int, <-chan struct{}, int) {
+func spawnForward(u *UI, name string, remote, local int) (int, <-chan struct{}, int) {
 	// Argument order is <codespacePort>:<localPort> — NOT the reverse.
 	// Getting it backwards forwards a port nothing serves onto a local port
 	// something else may already own: gh then fails to bind but the process
@@ -953,7 +969,7 @@ func spawnForward(u *UI, name string, kbPort int) (int, <-chan struct{}, int) {
 	// recipe's symmetric 4000:4000 example hides the order; live testing
 	// found it.
 	args := []string{"codespace", "ports", "forward",
-		fmt.Sprintf("%d:%d", kbRemotePort, kbPort), "-c", name}
+		fmt.Sprintf("%d:%d", remote, local), "-c", name}
 	u.EchoCmd("gh", args...)
 	cmd := exec.Command("gh", args...)
 	// Keep gh's stderr. It was discarded, so a dead forward could be
@@ -1087,6 +1103,9 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 		if st.Codespace.ForwardPID != 0 {
 			fmt.Printf("# kill the recorded port forward (pid %d)\n", st.Codespace.ForwardPID)
 		}
+		if st.Codespace.KeycloakForwardPID != 0 {
+			fmt.Printf("# kill the recorded issuer forward (pid %d)\n", st.Codespace.KeycloakForwardPID)
+		}
 		if del {
 			fmt.Println("gh codespace delete -c " + st.Codespace.Name + " --force")
 			fmt.Println("# forget stack.json (the codespace no longer exists)")
@@ -1102,6 +1121,10 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 	if hadLens {
 		u.Log("Stopping the port forward %s", u.Dim(fmt.Sprintf("(pid %d)", st.Codespace.ForwardPID)))
 		_ = syscall.Kill(st.Codespace.ForwardPID, syscall.SIGTERM)
+	}
+	if forwardProcAlive(st.Codespace.KeycloakForwardPID) {
+		u.Log("Stopping the issuer forward %s", u.Dim(fmt.Sprintf("(pid %d)", st.Codespace.KeycloakForwardPID)))
+		retireForward(st.Codespace.KeycloakForwardPID)
 	}
 	if del {
 		// --delete's goal state is "no codespace, no record". A codespace
@@ -1141,6 +1164,7 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 		return 1
 	}
 	st.Codespace.ForwardPID = 0
+	st.Codespace.KeycloakForwardPID = 0
 	saveStack(st)
 	if hadLens {
 		verifyPortsReleased(u, st.Ports)
@@ -1220,10 +1244,17 @@ func statusCodespace(u *UI, st *StackState, refresh bool) int {
 	if !forwardAlive(st.Codespace.ForwardPID, st.Codespace.ForwardPort) {
 		u.Log("Recorded KB forward is not running — re-establishing")
 		if st.Codespace.ForwardPort == 0 {
-			st.Codespace.ForwardPort = allocateKBPort(LoadStackSet(), st.Codespace.Repo)
+			st.Codespace.ForwardPort = allocatePort(LoadStackSet(), st.Codespace.Repo, kbRemotePort)
 		}
-		if pid, _, code := spawnForward(u, st.Codespace.Name, st.Codespace.ForwardPort); code == 0 {
+		if pid, _, code := spawnForward(u, st.Codespace.Name, kbRemotePort, st.Codespace.ForwardPort); code == 0 {
 			st.Codespace.ForwardPID = pid
+			saveStack(st)
+		}
+	}
+	if n := st.Codespace.KeycloakPort; n != 0 && !forwardAlive(st.Codespace.KeycloakForwardPID, n) {
+		u.Log("Recorded issuer forward is not running — re-establishing")
+		if pid, _, code := spawnForward(u, st.Codespace.Name, n, n); code == 0 {
+			st.Codespace.KeycloakForwardPID = pid
 			saveStack(st)
 		}
 	}
@@ -1288,13 +1319,21 @@ func dropCollidingForwards(u *UI, needs []portNeed) {
 		claimed[p.port] = true
 	}
 	for _, st := range codespaceStacks(LoadStackSet()) {
-		if forwardProcAlive(st.Codespace.ForwardPID) && claimed[st.Codespace.ForwardPort] {
-			u.Warn("Dropping %s's KB forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
-				st.Codespace.Repo, st.Codespace.ForwardPort, st.Codespace.Repo)
-			_ = syscall.Kill(st.Codespace.ForwardPID, syscall.SIGTERM)
-			st.Codespace.ForwardPID = 0
-			saveStack(st)
-			time.Sleep(200 * time.Millisecond) // let the bind release
+		cs := st.Codespace
+		// Both forwards a codespace stack holds: its KB and its issuer. A
+		// local Keycloak claims 8080 just as a local gateway claims 4000.
+		for _, f := range []struct {
+			what string
+			pid  *int
+			port int
+		}{{"KB", &cs.ForwardPID, cs.ForwardPort}, {"issuer", &cs.KeycloakForwardPID, cs.KeycloakPort}} {
+			if forwardProcAlive(*f.pid) && claimed[f.port] {
+				u.Warn("Dropping %s's %s forward on port %d — the local stack needs it; the codespace keeps running (re-attach: semiont start --runtime codespace --repo %s).",
+					cs.Repo, f.what, f.port, cs.Repo)
+				retireForward(*f.pid)
+				*f.pid = 0
+				saveStack(st)
+			}
 		}
 	}
 }
@@ -1716,13 +1755,13 @@ const forwardSettle = time.Second
 //
 // forwardAlive DIALS the port, which is what kills a tunnel whose remote is
 // empty. That is deliberate here: the death is the measurement.
-func tryForward(u *UI, name string, kbPort int) (int, <-chan struct{}, forwardOutcome, string) {
-	pid, dead, code := spawnForward(u, name, kbPort)
+func tryForward(u *UI, name string, remote, local int) (int, <-chan struct{}, forwardOutcome, string) {
+	pid, dead, code := spawnForward(u, name, remote, local)
 	if code != 0 {
 		return 0, nil, forwardDied, ""
 	}
 	for i := 0; i < forwardBindTries; i++ {
-		if forwardAlive(pid, kbPort) {
+		if forwardAlive(pid, local) {
 			// The dial that just succeeded is ALSO what kills a tunnel whose
 			// remote is empty: gh accepts locally, then fails to open the
 			// channel through and exits — so "the dial worked" is not "the
@@ -1780,11 +1819,11 @@ func tryForward(u *UI, name string, kbPort int) (int, <-chan struct{}, forwardOu
 // "not ready" and the answer is to wait and try again — not to fail, and not
 // to assume the stack is up, which is what rebuilt the original bug
 // (live 2026-07-28, semiont-caselaw-kb).
-func establishForward(u *UI, name string, kbPort int, askable bool) (int, <-chan struct{}, int) {
+func establishForward(u *UI, name string, remote, local int, askable bool) (int, <-chan struct{}, int) {
 	deadline := time.Now().Add(remoteReadyBudget)
 	announced := false
 	for {
-		pid, dead, outcome, ghErr := tryForward(u, name, kbPort)
+		pid, dead, outcome, ghErr := tryForward(u, name, remote, local)
 		if outcome == forwardUp {
 			return pid, dead, 0
 		}
@@ -1802,17 +1841,17 @@ func establishForward(u *UI, name string, kbPort int, askable bool) (int, <-chan
 		retireForward(pid)
 		switch outcome {
 		case forwardNeverBound:
-			u.Fail("The port forward did not come up on localhost:%d within %ds.", kbPort, forwardBindTries)
+			u.Fail("The port forward did not come up on localhost:%d within %ds.", local, forwardBindTries)
 		case forwardRemoteEmpty:
-			u.Fail("Nothing is listening on the codespace's port %d — its stack is not up.", kbRemotePort)
+			u.Fail("Nothing is listening on the codespace's port %d — its stack is not up.", remote)
 		default:
-			u.Fail("The port forward exited before it could bind — localhost:%d is probably already in use.", kbPort)
-			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", kbPort)
+			u.Fail("The port forward exited before it could bind — localhost:%d is probably already in use.", local)
+			fmt.Fprintf(os.Stderr, "  See what holds it:  lsof -ti :%d\n", local)
 		}
 		if ghErr != "" {
 			fmt.Fprintf(os.Stderr, "  gh said: %s\n", ghErr)
 		}
-		fmt.Fprintf(os.Stderr, "  Try it directly:  gh codespace ports forward %d:%d -c %s\n", kbRemotePort, kbPort, name)
+		fmt.Fprintf(os.Stderr, "  Try it directly:  gh codespace ports forward %d:%d -c %s\n", remote, local, name)
 		return 0, nil, 1
 	}
 }
@@ -1831,4 +1870,94 @@ func retireForward(pid int) {
 // has nothing listening — the stack is still coming up, not a broken forward.
 func remoteRefused(ghErr string) bool {
 	return strings.Contains(ghErr, "connect failed") || strings.Contains(ghErr, "Connection refused")
+}
+
+// forwardIssuer makes a codespace KB's issuer reachable from this machine
+// (CODESPACE-IDENTITY B4; ONE-BROWSER-MANY-ISSUERS D1/D2). The gateway
+// advertises http://keycloak.localhost:<N>/realms/…, and *.localhost is THIS
+// machine's loopback, so the Browser and `login` reach it only through a
+// forward of <N>:<N> — the same number on both ends, because an issuer is one
+// URL and a token's `iss` must match it. <N> is this stack's: kept while free,
+// else allocated like the KB's port; when the codespace runs Keycloak on
+// another, its own launcher restarts the stack there on <N>.
+func forwardIssuer(u *UI, st *StackState) int {
+	cs := st.Codespace
+	kbBase := fmt.Sprintf("http://localhost:%d", cs.ForwardPort)
+	issuer, err := advertisedIssuer(kbBase)
+	if err != nil {
+		u.Fail("Cannot read the KB's issuer: %v", err)
+		return 1
+	}
+	host, port, _, err := splitIssuer(issuer)
+	if err != nil {
+		u.Fail("The KB advertises an issuer the launcher cannot read (%s): %v", issuer, err)
+		return 1
+	}
+	if !loopbackHost(host) {
+		u.Log("Issuer %s %s", issuer, u.Dim("(not the codespace's — nothing to forward)"))
+		cs.KeycloakPort = 0
+		saveStack(st)
+		return 0
+	}
+	want := cs.KeycloakPort
+	if want == 0 || portHeld(want) {
+		want = allocatePort(LoadStackSet(), cs.Repo, descriptorFor("identity", "keycloak").defaultPort)
+	}
+	if port != want {
+		u.Log("The codespace's issuer is on port %d; this machine forwards it on %d — moving it %s",
+			port, want, u.Dim("(its own launcher restarts the stack)"))
+		if code := restartRemoteStack(u, cs.Name, want); code != 0 {
+			return code
+		}
+		// The restart recreated the gateway behind the KB tunnel; rebuild it
+		// before asking again.
+		retireForward(cs.ForwardPID)
+		pid, _, code := establishForward(u, cs.Name, kbRemotePort, cs.ForwardPort, true)
+		if code != 0 {
+			return code
+		}
+		cs.ForwardPID = pid
+		saveStack(st)
+		if issuer, err = advertisedIssuer(kbBase); err != nil {
+			u.Fail("Cannot read the KB's issuer after the restart: %v", err)
+			return 1
+		}
+		if _, port, _, _ = splitIssuer(issuer); port != want {
+			u.Fail("The codespace still advertises %s after its restart on %d.", issuer, want)
+			fmt.Fprintln(os.Stderr, "  Its config's [identity] issuer names the port literally — write ${KEYCLOAK_PORT} there.")
+			return 1
+		}
+	}
+	if !requirePortFree(u, want, "the issuer (forward)") {
+		return 1
+	}
+	pid, _, code := establishForward(u, cs.Name, want, want, true)
+	if code != 0 {
+		return code
+	}
+	cs.KeycloakPort, cs.KeycloakForwardPID = want, pid
+	st.Ports = append(st.Ports, want)
+	saveStack(st)
+	u.Ok("Issuer forwarded %s", u.Dim(fmt.Sprintf("(%s → codespace:%d)", issuer, want)))
+	return 0
+}
+
+// loopbackHost: a host that names this machine — where an issuer the
+// codespace runs appears once forwarded. Anything else is an issuer on the
+// network, reachable as it is.
+func loopbackHost(host string) bool {
+	return host == "localhost" || strings.HasSuffix(host, ".localhost") || host == "127.0.0.1" || host == "[::1]"
+}
+
+// restartRemoteStack reruns the codespace's own launcher with the issuer on
+// port — the env-wins shape: that launcher records it, so every resume's
+// post-start keeps it. Its sticky runtime and config are the post-start's.
+func restartRemoteStack(u *UI, name string, port int) int {
+	remote := fmt.Sprintf("cd /workspaces/* && KEYCLOAK_PORT=%d semiont start", port)
+	u.EchoCmd("gh", "codespace", "ssh", "-c", name, "--", remote)
+	if err := runVisible("gh", "codespace", "ssh", "-c", name, "--", remote); err != nil {
+		u.Fail("The codespace's launcher could not restart the stack on port %d (see output above).", port)
+		return 1
+	}
+	return 0
 }

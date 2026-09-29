@@ -736,7 +736,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -775,7 +775,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -807,7 +807,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.userEnv, otel, state...)
+	args := librarianArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -838,7 +838,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.userEnv, otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")

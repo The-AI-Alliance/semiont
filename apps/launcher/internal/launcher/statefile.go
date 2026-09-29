@@ -83,6 +83,10 @@ type codespacePlacement struct {
 	Repo        string `json:"repo"`                  // owner/name slug (the user-facing identity)
 	ForwardPID  int    `json:"forwardPid,omitempty"`  // the detached `gh codespace ports forward`
 	ForwardPort int    `json:"forwardPort,omitempty"` // this stack's local KB port (4000, or allocated above)
+	// The issuer, forwarded <N>:<N> (CODESPACE-IDENTITY B4). 0 when the KB
+	// trusts an issuer the codespace does not run.
+	KeycloakPort       int `json:"keycloakPort,omitempty"`
+	KeycloakForwardPID int `json:"keycloakForwardPid,omitempty"`
 }
 
 // platform: derived from the record's shape, never stored beside it. A stack

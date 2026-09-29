@@ -118,7 +118,11 @@ func Identity(args []string) int {
 		u.Fail("%v", err)
 		return 1
 	}
-	plan, err := derivePlan(envCfg, envName, configFile)
+	kcPort, _, _, ok := keycloakPort(u, root)
+	if !ok {
+		return 1
+	}
+	plan, err := derivePlan(envCfg, envName, configFile, kcPort)
 	if err != nil {
 		u.Fail("%v", err)
 		return 1

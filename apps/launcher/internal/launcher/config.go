@@ -21,7 +21,7 @@ import (
 // launcher injects itself and never demands from the user.
 var injectedVars = map[string]bool{
 	"GATEWAY_HOST": true, "BACKEND_HOST": true, "NEO4J_HOST": true, "QDRANT_HOST": true,
-	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true,
+	"OLLAMA_HOST": true, "POSTGRES_HOST": true, "NATS_HOST": true, "KEYCLOAK_HOST": true, "KEYCLOAK_PORT": true,
 	"SEMIONT_OIDC_CLIENT_ID": true, "SEMIONT_OIDC_CLIENT_SECRET": true,
 }
 
