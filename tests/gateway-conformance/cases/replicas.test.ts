@@ -160,8 +160,12 @@ eachPlane('two replicas on one broker', (world) => {
   it('a correlationId claimed on one replica cannot be claimed on the other', async () => {
     const alice = await world().person('alice');
     const correlationId = randomUUID();
-    // Nobody hears this channel, so nothing answers the claim in the meantime.
+    // Something hears this channel and never answers, so nothing settles the
+    // claim in the meantime: a request that reached nobody would be answered
+    // at once with peer-unavailable.
     const channel = 'browse:kb-requested';
+    const silent = await world().agent('conformance', 'silent');
+    await world().subscribe(silent.token, { clientId: randomUUID(), global: [channel] });
     const first = await world().emit(alice, { channel, payload: {}, correlationId, clientId: randomUUID() });
     expect(first.status).toBe(202);
     const second = await world().emit(alice, { channel, payload: {}, correlationId, clientId: randomUUID() }, b.origin);
@@ -172,6 +176,10 @@ eachPlane('two replicas on one broker', (world) => {
     const max = (spec().schema('BusSubscribeRequest') as { properties: { pendingReplies: { maxItems: number } } }).properties.pendingReplies.maxItems;
     const alice = await world().person('alice');
     const clientId = randomUUID();
+    // Heard on one replica and answered by nobody, so every request stays
+    // unanswered: one that reached nobody would be answered at once.
+    const silent = await world().agent('conformance', 'silent');
+    await world().subscribe(silent.token, { clientId: randomUUID(), global: ['browse:kb-requested'] });
     for (let i = 0; i < max; i++) {
       const origin = i % 2 === 0 ? world().origin : b.origin;
       const reply = await world().emit(alice, { channel: 'browse:kb-requested', payload: {}, correlationId: randomUUID(), clientId }, origin);

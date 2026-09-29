@@ -2173,7 +2173,7 @@ type BrowseTagSchemasResult struct {
 
 // BusEmitAccepted Result of publishing one event. `subscribers` is the number of observers attached to the target subject at dispatch — the GLOBAL subject for an unscoped emit, the scoped one when `scope` is set. Zero means the signal reached nobody: /bus/subscribe enforces no channel allowlist and the emit handler publishes unconditionally, so a client can emit a channel no participant subscribes to and otherwise receive a clean 202 with no way to tell. Deliberately NOT named `delivered`: this is the count at dispatch, and a subscriber may still drop the frame downstream, so the field is named after what the server can actually observe.
 type BusEmitAccepted struct {
-	// Subscribers Observers on the target subject when the event was dispatched. ABSENT means the gateway could not count: under a broker signal plane (`[signal] type = "nats"`) the event is published to a fabric whose observers the gateway cannot see. Never defaulted: a zero here is the claim that nobody was listening, and a gateway that did not observe that never makes it.
+	// Subscribers Observers on the target subject when the event was dispatched. ABSENT means the gateway could not count: under a broker signal plane (`[signal] type = "nats"`) the event is published to a fabric whose observers the gateway cannot see. The one zero a broker plane states is a registry operation's request with a `correlationId` that reached nobody, which the broker itself reports (no responders). Never defaulted: a zero here is the claim that nobody was listening, and a gateway that did not observe that never makes it.
 	Subscribers *int `json:"subscribers,omitempty"`
 }
 

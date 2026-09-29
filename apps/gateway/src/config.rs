@@ -117,6 +117,30 @@ pub fn config_path() -> Result<PathBuf, String> {
         })
 }
 
+/// The first line that is TOML and cannot be JSON: a table header (`[user]`,
+/// `[environments.local.gateway]`) or a `key = value` pair. A parse failure
+/// that names it says what the file is, where serde alone says only where it
+/// stopped.
+fn toml_line(text: &str) -> Option<(usize, &str)> {
+    let bare_key = |key: &str| {
+        !key.is_empty()
+            && key
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '"'))
+    };
+    text.lines().enumerate().find_map(|(index, line)| {
+        let trimmed = line.trim();
+        let header = trimmed
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+            .is_some_and(|name| bare_key(name.trim_matches(|c| c == '[' || c == ']').trim()));
+        let pair = trimmed
+            .split_once('=')
+            .is_some_and(|(key, _)| bare_key(key.trim()));
+        (header || pair).then_some((index + 1, trimmed))
+    })
+}
+
 pub fn read_gateway_config(path: &Path) -> Result<GatewayConfig, String> {
     let where_ = path.display();
     let text = std::fs::read_to_string(path).map_err(|e| {
@@ -124,8 +148,12 @@ pub fn read_gateway_config(path: &Path) -> Result<GatewayConfig, String> {
             "Cannot read the gateway's configuration document at {where_} ({e}). The launcher writes it; a gateway started another way is given one (GatewayConfig in specs/)."
         )
     })?;
-    let document: Value =
-        serde_json::from_str(&text).map_err(|e| format!("{where_} is not JSON: {e}"))?;
+    let document: Value = serde_json::from_str(&text).map_err(|e| match toml_line(&text) {
+        Some((number, line)) => format!(
+            "{where_} is not JSON: it looks like TOML (line {number}: `{line}`), a knowledge base's config rather than the gateway's resolved document (GatewayConfig in specs/, which the launcher writes as JSON): {e}"
+        ),
+        None => format!("{where_} is not JSON: {e}"),
+    })?;
     let refusals: Vec<String> = spec()
         .validator("GatewayConfig")
         .iter_errors(&document)

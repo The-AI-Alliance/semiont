@@ -81,6 +81,17 @@ impl SignalPlane for InProcessPlane {
         .boxed()
     }
 
+    fn ingest_request(
+        &self,
+        channel: String,
+        payload: Value,
+        scope: Option<String>,
+        meta: Option<Meta>,
+    ) -> BoxFuture<'_, Result<IngestReceipt, Unavailable>> {
+        // Counting every delivery, it observes the zero already.
+        self.ingest(channel, payload, scope, meta)
+    }
+
     fn subscribe_client(
         &self,
         subscription: ClientSubscription,
