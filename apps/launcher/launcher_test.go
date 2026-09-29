@@ -3174,6 +3174,43 @@ func TestCodespaceDidRefreshConfirmsAndReportsDrift(t *testing.T) {
 	}
 }
 
+// The reaped-record advice must work where people actually run it — beside a
+// local stack. Live 2026-09-28: status said a bare `semiont stop --delete`,
+// which a second recorded stack turns into a refusal whose menu dropped
+// --delete, so following it ran `gh codespace stop` against a codespace that
+// no longer exists.
+func TestReapedCodespaceAdviceWorksBesideOtherStacks(t *testing.T) {
+	s := newCodespaceScenario(t)
+	s.cwd = t.TempDir()
+	both := `{"schema":3,"stacks":{` +
+		`"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[4000],"services":{}},` +
+		`"codespace:` + csRepo + `":{"codespace":{"name":"fake-cs-1","repo":"` + csRepo + `","forwardPort":4001},"ports":[4001],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(both), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	advice := "semiont stop --repo " + csRepo + " --delete"
+
+	// A bare stop cannot choose; its menu must keep the --delete it was given.
+	_, stderr, _ := s.run(t, "stop", "--delete")
+	mustContain(t, "stop's menu", stderr, advice)
+
+	stdout, stderr, _ := s.run(t, "status", "--repo", csRepo)
+	mustContain(t, "status advice", stdout+stderr, "no longer exists", advice)
+	if _, stderr, code := s.run(t, strings.Fields(advice)[1:]...); code != 0 {
+		t.Fatalf("the printed advice fails: exit %d\n%s", code, stderr)
+	}
+	b, _ := os.ReadFile(statePathFor(s.home))
+	if strings.Contains(string(b), "fake-cs-1") {
+		t.Errorf("the advice left the reaped record:\n%s", b)
+	}
+	if !strings.Contains(string(b), `"local"`) {
+		t.Errorf("forgetting the codespace touched the local stack's record:\n%s", b)
+	}
+}
+
 // Every codespace reaches "reaped": the launcher itself passes
 // --retention-period 720h, so GitHub deletes a stopped codespace after 30
 // days and the record outlives it. start must fail FAST with the real

@@ -1223,7 +1223,7 @@ func statusCodespace(u *UI, st *StackState, refresh bool) int {
 		printRootsPointer(u, nil, nil)
 		return 1
 	case "deleted":
-		u.Warn("The recorded codespace no longer exists — forget the record with: semiont stop --delete")
+		u.Warn("The recorded codespace no longer exists — forget the record with: semiont stop --repo %s --delete", st.Codespace.Repo)
 		printRootsPointer(u, nil, nil)
 		return 1
 	case "Available":

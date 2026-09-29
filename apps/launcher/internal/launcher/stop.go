@@ -213,12 +213,19 @@ func Stop(args []string) int {
 					return stopCodespace(u, c, service, del, dryRun)
 				}
 			}
+			// The menu repeats what was asked: a --delete menu that dropped the
+			// flag sent people to a plain stop of a codespace GitHub had
+			// already reaped. The local stack is no --delete target at all.
 			u.Fail("Multiple stacks are recorded — say which:")
-			if st != nil {
+			if st != nil && !del {
 				fmt.Fprintf(os.Stderr, "    semiont stop --runtime %s   (the local stack)\n", st.Runtime)
 			}
+			flag := ""
+			if del {
+				flag = " --delete"
+			}
 			for _, c := range cs {
-				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s\n", c.Codespace.Repo)
+				fmt.Fprintf(os.Stderr, "    semiont stop --repo %s%s\n", c.Codespace.Repo, flag)
 			}
 			return 1
 		}
