@@ -294,6 +294,20 @@ func (s *scenario) run(t *testing.T, args ...string) (stdout, stderr string, cod
 	return out.String(), errb.String(), code
 }
 
+// containerEnv: the value a container started with for name — whether it rode
+// the command line or crossed through the runtime's own environment, which
+// fakert records per container (env-<container>) as `inspect` would show it.
+func (s *scenario) containerEnv(t *testing.T, container, name string) (string, bool) {
+	t.Helper()
+	b, _ := os.ReadFile(filepath.Join(s.fakertDir, "env-"+container))
+	for _, l := range strings.Split(string(b), "\n") {
+		if v, ok := strings.CutPrefix(l, name+"="); ok {
+			return v, true
+		}
+	}
+	return "", false
+}
+
 var stageRe = regexp.MustCompile(`/tmp/semiont-config\.[A-Za-z0-9]+`)
 
 // argv returns the recorded invocation log with run-specific paths
@@ -435,14 +449,13 @@ func TestStartDefaultBoot(t *testing.T) {
 		"semiont logs",
 		"semiont stop",
 	)
-	// A service credential must never reach the terminal: echoed commands
-	// redact secret-valued envs (the real argv, in the argv log, keeps it).
-	// Six of them now, one per service account, so the allowlist doing the
-	// work matters more than it did with one shared string.
-	if strings.Contains(stdout, "test-gateway-client-secret") {
-		t.Error("a service-account secret leaked into stdout")
+	// A service credential must never reach the terminal, or the command line
+	// the terminal echoes: it crosses through the runtime's environment
+	// (SECRET-DELIVERY P6). Six of them, one per service account.
+	if strings.Contains(stdout, "test-gateway-client-secret") || strings.Contains(s.argv(t), "test-gateway-client-secret") {
+		t.Error("a service-account secret reached stdout or a command line")
 	}
-	mustContain(t, "stdout", stdout, "SEMIONT_OIDC_CLIENT_SECRET=<redacted>")
+	mustContain(t, "stdout", stdout, "--env SEMIONT_OIDC_CLIENT_SECRET ")
 }
 
 // The launcher half of the split supervision gate (ORCHESTRATOR-NATIVE-IMAGES
@@ -511,6 +524,84 @@ func TestHostProbeRefusalQuotesTheRuntime(t *testing.T) {
 		t.Fatal("a runtime that never runs the probe must refuse")
 	}
 	mustContain(t, "the runtime's own words", stderr, "network bridge not found")
+}
+
+// Two starts on one KB root at once — live 2026-09-29, a codespace's post-start
+// and the laptop's issuer move — interleaved: each swept containers the other was
+// about to use, and the stack ended half on each issuer port
+// (bugs/codespace-issuer-move-races-post-start.md P1). The second now waits for
+// the first, then runs its own whole sequence.
+func TestConcurrentStartsOnOneRootQueue(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
+	type result struct {
+		out  string
+		code int
+	}
+	first, second := make(chan result, 1), make(chan result, 1)
+	go func() { o, e, c := s.run(t, "start"); first <- result{o + e, c} }()
+	held := filepath.Join(s.fakertDir, "holding-semiont-archivist")
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(held); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	go func() { o, e, c := s.run(t, "start"); second <- result{o + e, c} }()
+	time.Sleep(3 * time.Second) // time enough to interleave, if it can
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-archivist"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r1, r2 := <-first, <-second
+	if r1.code != 0 || r2.code != 0 {
+		t.Fatalf("both starts must succeed: first %d, second %d\nfirst:\n%s\nsecond:\n%s", r1.code, r2.code, r1.out, r2.out)
+	}
+	mustContain(t, "the second start says what it waits for", r2.out, "Another semiont start is running for this KB")
+	// No interleaving: the second start's first container command (the host
+	// probe) comes after the first start has run its last service.
+	lines := strings.Split(s.argv(t), "\n")
+	firstWeaver, secondProbe, probes := -1, -1, 0
+	for i, l := range lines {
+		if firstWeaver < 0 && strings.Contains(l, "--name semiont-weaver") {
+			firstWeaver = i
+		}
+		if strings.Contains(l, "ip route") {
+			if probes++; probes == 2 {
+				secondProbe = i
+			}
+		}
+	}
+	if firstWeaver < 0 || secondProbe < 0 || secondProbe < firstWeaver {
+		t.Errorf("the second start ran while the first was mid-flight (second's host probe at line %d, first's weaver at %d):\n%s", secondProbe, firstWeaver, s.argv(t))
+	}
+}
+
+// status --root is what a laptop asks a codespace before moving its issuer:
+// "is the stack up?" A stack mid-start is not, however healthy its gateway
+// already is — the record lists only what has started so far.
+func TestStatusRootSaysNotReadyWhileAStartRuns(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=semiont-archivist")
+	done := make(chan int, 1)
+	go func() { _, _, c := s.run(t, "start"); done <- c }()
+	held := filepath.Join(s.fakertDir, "holding-semiont-archivist")
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(held); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	_, stderr, code := s.run(t, "status", "--root", s.kb)
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-semiont-archivist"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if c := <-done; c != 0 {
+		t.Fatalf("the held start failed: exit %d", c)
+	}
+	if code == 0 {
+		t.Fatal("status --root reported a stack ready while its start was still running")
+	}
+	mustContain(t, "status names the start in progress", stderr, "A semiont start is running for this KB")
 }
 
 func TestStartRuntimeDockerBoot(t *testing.T) {
@@ -1032,6 +1123,11 @@ func TestStateImageMismatchRefuses(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// What that earlier stack also kept: the password its data was
+	// initialized with (SECRET-DELIVERY P4).
+	if err := os.WriteFile(filepath.Join(dir, "postgres-password"), []byte("kept-by-an-earlier-start\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	stdout, stderr, code := s.run(t, "start")
 	if code == 0 {
 		t.Fatalf("start over another image's data must refuse\nstdout:\n%s", stdout)
@@ -1145,6 +1241,11 @@ func TestStateProjectionAutoCleans(t *testing.T) {
 	}
 	meta := `{"kbRoot":"` + s.kb + `","stores":{"graph":{"image":"neo4j:5.20.0-community"}}}`
 	if err := os.WriteFile(filepath.Join(dir, "meta.json"), []byte(meta), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// What that earlier stack also kept: the password its data was
+	// initialized with (SECRET-DELIVERY P4).
+	if err := os.WriteFile(filepath.Join(dir, "neo4j-password"), []byte("kept-by-an-earlier-start\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	stdout, stderr, code := s.run(t, "start")
@@ -2302,6 +2403,170 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 		"semiont secret push ANTHROPIC_API_KEY --repo "+csRepo)
 }
 
+// A secret value never rides a container's command line, where any process on
+// the machine can read it with ps; it crosses through the runtime's own
+// environment and still arrives (SECRET-DELIVERY P6, D3: "keep secret values
+// off the command line"). Custody values, a user's forwarded value and the
+// daemons' credentials alike.
+func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	secrets := []string{"ANTHROPIC_API_KEY", "JWT_SECRET", "SEMIONT_OIDC_CLIENT_SECRET", "KC_BOOTSTRAP_ADMIN_PASSWORD", "POSTGRES_PASSWORD", "KC_DB_PASSWORD"}
+	for _, l := range strings.Split(s.argv(t), "\n") {
+		if !strings.HasPrefix(l, "container run") {
+			continue
+		}
+		for _, name := range secrets {
+			if strings.Contains(l, " "+name+"=") {
+				t.Errorf("%s's value is on the command line:\n%s", name, l)
+			}
+		}
+	}
+	for _, c := range []struct{ container, name, want string }{
+		{"semiont-worker", "ANTHROPIC_API_KEY", "test-key"},
+		{"semiont-gateway", "JWT_SECRET", ""},
+		{"semiont-worker", "SEMIONT_OIDC_CLIENT_SECRET", ""},
+		{"semiont-keycloak", "KC_BOOTSTRAP_ADMIN_PASSWORD", ""},
+		{"semiont-keycloak", "KC_DB_PASSWORD", ""},
+		{"semiont-postgres", "POSTGRES_PASSWORD", ""},
+	} {
+		got, _ := s.containerEnv(t, c.container, c.name)
+		if got == "" || (c.want != "" && got != c.want) {
+			t.Errorf("%s did not receive %s through the runtime's environment (got %q)", c.container, c.name, got)
+		}
+	}
+}
+
+// Each service is handed only the variables its own config sections
+// reference (SECRET-DELIVERY P5, D2: "send each service only the secrets it
+// uses"). The anthropic config names ANTHROPIC_API_KEY in [inference], which
+// the Archivist, Librarian and Worker read and nothing else does.
+func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+	if _, stderr, code := s.run(t, "start", "--config", "anthropic"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	log := s.argv(t)
+	runLine := func(svc string) string {
+		for _, l := range strings.Split(log, "\n") {
+			if strings.HasPrefix(l, "container run") && strings.Contains(l, "--name semiont-"+svc+" ") {
+				return l
+			}
+		}
+		t.Fatalf("no run line for %s:\n%s", svc, log)
+		return ""
+	}
+	for _, svc := range []string{"archivist", "librarian", "worker"} {
+		if v, _ := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); v != "test-key" {
+			t.Errorf("%s reads [inference] but was not handed ANTHROPIC_API_KEY", svc)
+		}
+	}
+	for _, svc := range []string{"gateway", "dispatcher", "weaver", "smelter"} {
+		if _, handed := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); handed || strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
+			t.Errorf("%s reads no section naming ANTHROPIC_API_KEY but was handed it", svc)
+		}
+	}
+}
+
+// A Node service started alone reaches only for its own sections' variables:
+// the smelter reads no [inference], so restarting it raises no provider
+// prompt for ANTHROPIC_API_KEY (SECRET-DELIVERY P5).
+func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\n%s", code, stderr)
+	}
+	// `secret set` verifies the source with one read of its own.
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	stdout, stderr, code := s.run(t, "start", "--service", "smelter", "--config", "anthropic")
+	if code != 0 {
+		t.Fatalf("start --service smelter: exit %d\n%s", code, stderr)
+	}
+	if strings.Contains(stdout, "reading from 1Password") || strings.Contains(s.argv(t), "op read") {
+		t.Errorf("the smelter reached for a secret it never reads:\n%s", stdout)
+	}
+}
+
+// A ${NAME:-default} names a variable the operator may set. The container's
+// loader resolves it against the environment the launcher forwards, so an
+// exported NAME that is not forwarded loses to its default
+// (SECRET-DELIVERY F7). Unset, nothing is demanded.
+func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	cfg := filepath.Join(s.kb, ".semiont", "semiontconfig", "anthropic.toml")
+	f, err := os.OpenFile(cfg, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// In a section the worker reads: a service is handed only its own
+	// sections' variables (SECRET-DELIVERY P5).
+	if _, err := f.WriteString("\n[environments.local.workers.probe]\nnote = \"${SD_OPTIONAL:-fallback}\"\n"); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
+
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("unset: exit %d\n%s", code, stderr)
+	}
+	log, _ := os.ReadFile(s.log)
+	if _, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); handed || strings.Contains(string(log), "SD_OPTIONAL") {
+		t.Errorf("forwarded an optional reference nobody set:\n%s", log)
+	}
+
+	// A registered source sets it, as it would a required one.
+	if _, stderr, code := s.run(t, "secret", "set", "SD_OPTIONAL", "op://OSS/Optional/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\n%s", code, stderr)
+	}
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("registered: exit %d\n%s", code, stderr)
+	}
+	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "fake-op-secret" {
+		t.Errorf("the registered source's value did not arrive (got %q)", v)
+	}
+
+	// Set to the empty string is set, and wins over both the source and the
+	// default (the shared table's rule), so it is forwarded empty.
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=")
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("set empty: exit %d\n%s", code, stderr)
+	}
+	if v, handed := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); !handed || v != "" {
+		t.Errorf("an optional variable set to the empty string was not forwarded empty (got %q, handed %v)", v, handed)
+	}
+
+	// The environment wins over the source.
+	s.killServes()
+	if err := os.Truncate(s.log, 0); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "SD_OPTIONAL=from-env")
+	if _, stderr, code := s.run(t, "start", "--service", "worker", "--config", "anthropic"); code != 0 {
+		t.Fatalf("set: exit %d\n%s", code, stderr)
+	}
+	if v, _ := s.containerEnv(t, "semiont-worker", "SD_OPTIONAL"); v != "from-env" {
+		t.Errorf("the exported value did not win (got %q)", v)
+	}
+	log, _ = os.ReadFile(s.log)
+	if strings.Contains(string(log), "op read") {
+		t.Errorf("read the source although the environment set the variable:\n%s", log)
+	}
+}
+
 func TestStartResolvesSecret(t *testing.T) {
 	// A registered source feeds start: announced BEFORE the reach, resolved
 	// fresh, injected into the container argv (redacted in echoes). Dry-run
@@ -2318,9 +2583,11 @@ func TestStartResolvesSecret(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"ANTHROPIC_API_KEY: reading from 1Password (op read op://OSS/Anthropic/credential)",
 		"expect an authorization prompt")
+	if v, _ := s.containerEnv(t, "semiont-worker", "ANTHROPIC_API_KEY"); v != "fake-op-secret" {
+		t.Errorf("the worker did not receive the resolved secret (got %q)", v)
+	}
 	log, _ := os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=fake-op-secret")
-	if strings.Contains(stdout, "fake-op-secret") {
+	if strings.Contains(stdout, "fake-op-secret") || strings.Contains(string(log), "fake-op-secret") {
 		t.Errorf("resolved secret leaked into the echoed output:\n%s", stdout)
 	}
 
@@ -2335,7 +2602,7 @@ func TestStartResolvesSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	mustContain(t, "dry-run stdout", stdout, "--env ANTHROPIC_API_KEY ")
 	log, _ = os.ReadFile(s.log)
 	if strings.Contains(string(log), "op read") {
 		t.Errorf("dry-run reached into the vault:\n%s", log)
@@ -2360,8 +2627,10 @@ func TestStartResolvesSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("env-wins start: exit %d\nstderr:\n%s", code, stderr)
 	}
+	if v, _ := s.containerEnv(t, "semiont-worker", "ANTHROPIC_API_KEY"); v != "from-env" {
+		t.Errorf("the worker did not receive the exported value (got %q)", v)
+	}
 	log, _ = os.ReadFile(s.log)
-	mustContain(t, "argv log", string(log), "--env ANTHROPIC_API_KEY=from-env")
 	if strings.Contains(string(log), "op read") {
 		t.Errorf("op invoked although the environment provided the value:\n%s", log)
 	}
@@ -2481,7 +2750,7 @@ func TestCodespaceWaitsForRemoteBeforeForwarding(t *testing.T) {
 	}
 	// The readiness question was asked over ssh, before any forward existed.
 	log := s.argv(t)
-	sshAt := strings.Index(log, "api/health")
+	sshAt := strings.Index(log, "SEMIONT_KB_READY") // the stack-readiness probe
 	fwdAt := strings.Index(log, "ports forward")
 	if sshAt < 0 {
 		t.Fatalf("readiness was never asked over ssh:\n%s", log)
@@ -3256,6 +3525,12 @@ func TestStartFailsFastOnReapedCodespace(t *testing.T) {
 	if strings.Contains(all, "Waiting for the codespace VM") {
 		t.Errorf("start polled a ghost instead of failing fast:\n%s", all)
 	}
+	// The record cannot say why: a codespace created with another
+	// --retention-period, adopted from GitHub's UI, or deleted by hand ends
+	// the same way.
+	if strings.Contains(all, "30-day") {
+		t.Errorf("the reason names a retention the launcher cannot know:\n%s", all)
+	}
 	if strings.Contains(string(mustLogOrEmpty(s)), "gh codespace create") {
 		t.Errorf("start auto-created a codespace from a stale record")
 	}
@@ -3374,6 +3649,58 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 		}
 	})
 
+	t.Run("a holder that takes the port after allocation is refused, named", func(t *testing.T) {
+		s := newCodespaceScenario(t)
+		local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+		if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		// 8081 is free when allocated; the move is held, and something else
+		// takes 8081 before the forward.
+		s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=fake-cs-1")
+		type result struct {
+			stderr string
+			code   int
+		}
+		done := make(chan result, 1)
+		go func() { _, e, c := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo); done <- result{e, c} }()
+		held := filepath.Join(s.fakertDir, "holding-fake-cs-1")
+		for i := 0; i < 600; i++ {
+			if _, err := os.Stat(held); err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if _, err := os.Stat(held); err != nil {
+			t.Fatal("the issuer move never ran")
+		}
+		holder, err := net.Listen("tcp", "127.0.0.1:8081")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer holder.Close()
+		if err := os.WriteFile(filepath.Join(s.fakertDir, "release-fake-cs-1"), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		r := <-done
+		if r.code == 0 {
+			t.Fatal("started with the issuer's port taken by another process")
+		}
+		mustContain(t, "stderr", r.stderr, "Port 8081 (needed for the issuer (forward)) is held by")
+		if log, _ := os.ReadFile(s.log); strings.Contains(string(log), "ports forward 8081:8081") {
+			t.Errorf("forwarded onto a port another process holds:\n%s", log)
+		}
+		// The codespace moved to 8081, so the record keeps that claim; only
+		// the forward is missing.
+		mustContain(t, "stack.json", record(t, s), `"keycloakPort": 8081`)
+		if strings.Contains(record(t, s), `"keycloakForwardPid"`) {
+			t.Errorf("recorded an issuer forward it could not make:\n%s", record(t, s))
+		}
+	})
+
 	t.Run("an issuer the codespace does not run is not forwarded", func(t *testing.T) {
 		s := newCodespaceScenario(t)
 		s.extraEnv = append(s.extraEnv, "FAKERT_GH_CS_ISSUER=https://id.example.com/realms/semiont")
@@ -3388,6 +3715,98 @@ func TestCodespaceForwardsItsIssuer(t *testing.T) {
 			t.Errorf("recorded an issuer port for an issuer this codespace does not run:\n%s", record(t, s))
 		}
 	})
+}
+
+// Two codespace KBs created from one laptop at once. Each allocates its issuer
+// port from what is recorded, and a move takes minutes live, so a claim
+// recorded only after the move lets the second allocate the first's port. Both
+// must come up, on different issuer ports.
+func TestSimultaneousCodespaceCreatesTakeDifferentIssuerPorts(t *testing.T) {
+	s := newCodespaceScenario(t)
+	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_RUN_HOLD=fake-cs-1")
+	second := *s
+	second.extraEnv = append(append([]string{}, s.extraEnv...), "FAKERT_GH_CS_NAME=fake-cs-2")
+	type result struct {
+		out  string
+		code int
+	}
+	first, other := make(chan result, 1), make(chan result, 1)
+	go func() {
+		o, e, c := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+		first <- result{o + e, c}
+	}()
+	held := filepath.Join(s.fakertDir, "holding-fake-cs-1")
+	for i := 0; i < 600; i++ {
+		if _, err := os.Stat(held); err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	if _, err := os.Stat(held); err != nil {
+		t.Fatal("the first create never moved its issuer")
+	}
+	// The second create runs whole while the first is mid-move.
+	go func() {
+		o, e, c := second.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
+		other <- result{o + e, c}
+	}()
+	r2 := <-other
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "release-fake-cs-1"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r1 := <-first
+	if r1.code != 0 || r2.code != 0 {
+		t.Fatalf("both creates must succeed: first %d, second %d\nfirst:\n%s\nsecond:\n%s", r1.code, r2.code, r1.out, r2.out)
+	}
+	log := s.argv(t)
+	mustContain(t, "argv log", log,
+		"gh codespace ports forward 8081:8081 -c fake-cs-1",
+		"gh codespace ports forward 8082:8082 -c fake-cs-2")
+}
+
+// The laptop moves a codespace's issuer only once the codespace's OWN start has
+// finished — not when its gateway first answers. Live 2026-09-29, ssh could not
+// answer yet, readiness was proven by the forward (the gateway), and the move's
+// rerun collided with post-start's start still bringing up the rest
+// (bugs/codespace-issuer-move-races-post-start.md P2).
+func TestCodespaceMovesOnlyAfterItsOwnStartFinishes(t *testing.T) {
+	s := newCodespaceScenario(t)
+	local := `{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"/elsewhere","ports":[8080],"services":{}}}}`
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(local), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.extraEnv = append(s.extraEnv, "FAKERT_GH_SSH_FAIL_FIRST=1", "FAKERT_REMOTE_STACK_READY_AFTER=3")
+	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--repo", csRepo)
+	if code != 0 {
+		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	lines := strings.Split(s.argv(t), "\n")
+	move, stackProbes, lastProbe := -1, 0, -1
+	for i, l := range lines {
+		if strings.Contains(l, "semiont status") && strings.Contains(l, "SEMIONT_KB_READY") {
+			stackProbes++
+			lastProbe = i
+		}
+		if move < 0 && strings.Contains(l, "KEYCLOAK_PORT=8081 semiont start") {
+			move = i
+		}
+	}
+	if stackProbes < 3 {
+		t.Fatalf("the laptop asked the codespace's own launcher %d times, want until it said ready (3):\n%s", stackProbes, s.argv(t))
+	}
+	if move < 0 || move < lastProbe {
+		t.Errorf("the issuer moved (line %d) before the codespace's start was done (last stack probe line %d)", move, lastProbe)
+	}
 }
 
 // A start right after a stop meets GitHub still shutting the codespace down.
@@ -3899,8 +4318,8 @@ const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer 
 // the section.
 const stdEmbedding = "[environments.local.embedding]\ntype = \"ollama\"\nmodel = \"nomic-embed-text\"\nbaseURL = \"http://${OLLAMA_HOST}:11434\"\n\n"
 const stdEmbeddingVoyage = "[environments.local.embedding]\nplatform = \"external\"\ntype = \"voyage\"\nmodel = \"voyage-3\"\n\n"
-const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n"
-const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\npassword = \"localpass\"\n\n"
+const stdDatabase = "[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5432\nname = \"semiont\"\nuser = \"postgres\"\n\n"
+const stdGraph = "[environments.local.graph]\ntype = \"neo4j\"\nuri = \"bolt://${NEO4J_HOST}:7687\"\nusername = \"neo4j\"\n\n"
 
 func TestStartExternalGraphBoot(t *testing.T) {
 	// graph at a literal address: verify reachability, launch no container,
@@ -3959,7 +4378,7 @@ func TestStartMovedDBPortBoot(t *testing.T) {
 	s := newScenario(t, "container")
 	writeKBConfig(t, s, "moved-db",
 		stdGraph+stdVectors+stdEmbedding+
-			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\npassword = \"localpass\"\n\n")
+			"[environments.local.database]\nhost = \"${POSTGRES_HOST}\"\nport = 5433\nname = \"semiont\"\nuser = \"postgres\"\n\n")
 	stdout, stderr, code := s.run(t, "start", "--config", "moved-db")
 	if code != 0 {
 		t.Fatalf("exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
@@ -4226,14 +4645,14 @@ func TestConfigStickiness(t *testing.T) {
 		"Config: anthropic", "this KB's recorded config; override with --config")
 
 	// --dry-run reads the preference (only the anthropic config references
-	// ${ANTHROPIC_API_KEY}, so its placeholder appearing proves which config
+	// ${ANTHROPIC_API_KEY}, so its name appearing proves which config
 	// drove the plan) but never writes the registry.
 	before, _ := os.ReadFile(rootsPathFor(s.home))
 	stdout, stderr, code = s.run(t, "start", "--dry-run")
 	if code != 0 {
 		t.Fatalf("dry-run: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "dry-run stdout", stdout, "ANTHROPIC_API_KEY=<env:ANTHROPIC_API_KEY>")
+	mustContain(t, "dry-run stdout", stdout, "--env ANTHROPIC_API_KEY ")
 	after, _ := os.ReadFile(rootsPathFor(s.home))
 	if !bytes.Equal(before, after) {
 		t.Errorf("dry-run mutated the registry:\n%s", after)
@@ -4852,7 +5271,7 @@ func TestStartNamesWhereTheJWTSecretCameFrom(t *testing.T) {
 		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
 	}
 	mustContain(t, "provenance", stdout, "Token-signing key", "generated")
-	secret := jwtSecretFromArgv(t, s.argv(t))
+	secret := gatewayJWTSecret(t, s)
 	if strings.Contains(stdout+stderr, secret) {
 		t.Error("the provenance line leaked the key itself")
 	}
@@ -4901,7 +5320,7 @@ func TestStartCarriesAJWTSecretRing(t *testing.T) {
 	}
 	// Verbatim: re-joining or trimming would change what signs and what
 	// verifies, and the gateway is the only component entitled to split it.
-	if got := jwtSecretFromArgv(t, s.argv(t)); got != newKey+","+oldKey {
+	if got := gatewayJWTSecret(t, s); got != newKey+","+oldKey {
 		t.Errorf("ring was not passed through verbatim:\ngot  %q\nwant %q", got, newKey+","+oldKey)
 	}
 	// Rotation is a state worth naming — and the count is safe to print.
@@ -4943,7 +5362,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 	}
 
 	argv := s.argv(t)
-	first := jwtSecretFromArgv(t, argv)
+	first := gatewayJWTSecret(t, s)
 	if len(first) < 32 {
 		t.Errorf("JWT_SECRET must be >= 32 chars (the gateway rejects shorter); got %d", len(first))
 	}
@@ -4987,7 +5406,7 @@ func TestStartInjectsPersistentJWTSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("start --service gateway: exit %d\nstdout:\n%s\nstderr:\n%s", code, out2, err2)
 	}
-	if second := jwtSecretFromArgv(t, s.argv(t)); second != first {
+	if second := gatewayJWTSecret(t, s); second != first {
 		t.Errorf("JWT_SECRET changed on restart — every previously issued token is now invalid\nfirst:  %s\nsecond: %s", first, second)
 	}
 }
@@ -5001,7 +5420,7 @@ func TestStartJWTSecretEnvWins(t *testing.T) {
 	if _, _, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("want exit 0, got %d", code)
 	}
-	if got := jwtSecretFromArgv(t, s.argv(t)); got != "an-operator-supplied-secret-of-sufficient-length" {
+	if got := gatewayJWTSecret(t, s); got != "an-operator-supplied-secret-of-sufficient-length" {
 		t.Errorf("env JWT_SECRET ignored; got %q", got)
 	}
 }
@@ -5015,7 +5434,7 @@ func TestStartDryRunDoesNotMintJWTSecret(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("want exit 0, got %d", code)
 	}
-	mustContain(t, "stdout", stdout, "JWT_SECRET=<jwt-secret>")
+	mustContain(t, "stdout", stdout, "--env JWT_SECRET ")
 	if found := findFile(t, s.home, "jwt-secret"); found != "" {
 		t.Errorf("--dry-run minted a secret at %s", found)
 	}
@@ -5048,22 +5467,19 @@ func TestStartJWTSecretKeyedToResolvedRoot(t *testing.T) {
 	}
 }
 
-// jwtSecretFromArgv extracts the value the gateway container was given.
-func jwtSecretFromArgv(t *testing.T, argv string) string {
+// gatewayJWTSecret: the value the gateway container was given. It crosses
+// through the runtime's environment, never its command line (SECRET-DELIVERY
+// P6), so it is read from what the container received.
+func gatewayJWTSecret(t *testing.T, s *scenario) string {
 	t.Helper()
-	for _, line := range strings.Split(argv, "\n") {
-		if !strings.Contains(line, "--name semiont-gateway") {
-			continue
-		}
-		for _, f := range strings.Fields(line) {
-			if v, ok := strings.CutPrefix(f, "JWT_SECRET="); ok {
-				return v
-			}
-		}
-		t.Fatalf("gateway run carries no JWT_SECRET:\n%s", line)
+	v, ok := s.containerEnv(t, "semiont-gateway", "JWT_SECRET")
+	if !ok {
+		t.Fatalf("the gateway was given no JWT_SECRET:\n%s", s.argv(t))
 	}
-	t.Fatalf("no gateway run in argv:\n%s", argv)
-	return ""
+	if strings.Contains(s.argv(t), "JWT_SECRET="+v) {
+		t.Errorf("the gateway's JWT_SECRET rode its command line")
+	}
+	return v
 }
 
 // findFile returns the first path under dir whose basename matches, else "".
@@ -5110,7 +5526,7 @@ func TestStartServiceWorker(t *testing.T) {
 	mustContain(t, "stdout", stdout,
 		"Restarting Worker Pool",
 		"OTel collector detected — export enabled",
-		"SEMIONT_OIDC_CLIENT_SECRET=<redacted>",
+		"--env SEMIONT_OIDC_CLIENT_SECRET ",
 		"🚀 worker is up",
 		"semiont status",
 	)
@@ -7633,6 +8049,174 @@ func TestStatusFlagsCwdKBDifferentFromRunningStack(t *testing.T) {
 	// Active stacks stay scannable in the slim section, addressed exactly
 	// as their rows in `semiont roots` — find one there in one glance.
 	mustContain(t, "active line", stdout, "active: file://"+other)
+}
+
+// --- SECRET-DELIVERY P4: the passwords of the daemons the launcher runs are
+// the launcher's (D1, RULED: "B for daemons the launcher runs, and A's
+// resolver for ones it doesn't") ---
+
+// stagedFile reads a file the last start staged for its containers.
+func stagedFile(t *testing.T, s *scenario, name string) string {
+	t.Helper()
+	log, _ := os.ReadFile(s.log)
+	stages := stageRe.FindAllString(string(log), -1)
+	if len(stages) == 0 {
+		t.Fatalf("no staging dir in the argv log")
+	}
+	b, err := os.ReadFile(filepath.Join(stages[len(stages)-1], name))
+	if err != nil {
+		t.Fatalf("reading staged %s: %v", name, err)
+	}
+	return string(b)
+}
+
+// Each launcher-run daemon and every service that dials it get the same
+// generated value, kept per root so a second start presents it again.
+func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	neo, _ := s.containerEnv(t, "semiont-neo4j", "NEO4J_AUTH")
+	graphPw, ok := strings.CutPrefix(neo, "neo4j/")
+	if !ok || len(graphPw) < 32 {
+		t.Fatalf("Neo4j was not given a generated password: NEO4J_AUTH=%q", neo)
+	}
+	// Where KB skills are told to read it (FLEET-P4-DAEMON-PASSWORDS): the
+	// layout is a contract with them, so a move breaks this first.
+	kept, err := os.ReadFile(filepath.Join(stateRootFor(s.home, testKBKey), "neo4j-password"))
+	if err != nil || strings.TrimSpace(string(kept)) != graphPw {
+		t.Errorf("roots/<key>/neo4j-password does not hold Neo4j's password (read %q, %v)", kept, err)
+	}
+	for _, svc := range []string{"archivist", "librarian", "weaver"} {
+		if v, _ := s.containerEnv(t, "semiont-"+svc, "NEO4J_PASSWORD"); v != graphPw {
+			t.Errorf("%s reads [graph] but was handed NEO4J_PASSWORD=%q, want Neo4j's", svc, v)
+		}
+	}
+	if _, handed := s.containerEnv(t, "semiont-smelter", "NEO4J_PASSWORD"); handed {
+		t.Error("the smelter reads no [graph] but was handed its password")
+	}
+	if staged := stagedFile(t, s, "archivist.toml"); !regexp.MustCompile(`password = ['"]\$\{NEO4J_PASSWORD\}['"]`).MatchString(staged) {
+		t.Errorf("the archivist's staged [graph] does not read ${NEO4J_PASSWORD}:\n%s", staged)
+	}
+	pg, _ := s.containerEnv(t, "semiont-postgres", "POSTGRES_PASSWORD")
+	if len(pg) < 32 {
+		t.Fatalf("PostgreSQL was not given a generated password: %q", pg)
+	}
+	if v, _ := s.containerEnv(t, "semiont-keycloak", "KC_DB_PASSWORD"); v != pg {
+		t.Errorf("Keycloak dials PostgreSQL with %q, want PostgreSQL's own password", v)
+	}
+
+	// Kept, not regenerated: a data directory keeps the password it was
+	// initialized with, so a second start must present the same one.
+	s.killServes()
+	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
+		t.Fatalf("second start: exit %d\n%s", code, stderr)
+	}
+	if again, _ := s.containerEnv(t, "semiont-neo4j", "NEO4J_AUTH"); again != neo {
+		t.Errorf("the Neo4j password changed across starts: %q then %q", neo, again)
+	}
+}
+
+// The launcher-run broker is always authenticated, and its pair reaches the
+// two clients: the dispatcher through its staged [jobs], the gateway through
+// the variables its document names.
+func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
+	s := newScenario(t, "container")
+	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "broker.toml"), b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--config", "broker"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	pw, _ := s.containerEnv(t, "semiont-nats", "NATS_PASSWORD")
+	if len(pw) < 32 {
+		t.Fatalf("the broker was not given a generated password: %q", pw)
+	}
+	mustContain(t, "argv log", s.argv(t), "-c /etc/nats/semiont.conf")
+	for _, c := range []string{"semiont-nats", "semiont-dispatcher", "semiont-gateway"} {
+		if u, _ := s.containerEnv(t, c, "NATS_USER"); u != "semiont" {
+			t.Errorf("%s: NATS_USER=%q, want semiont", c, u)
+		}
+		if v, _ := s.containerEnv(t, c, "NATS_PASSWORD"); v != pw {
+			t.Errorf("%s: NATS_PASSWORD=%q, want the broker's", c, v)
+		}
+	}
+	if staged := stagedFile(t, s, "dispatcher.toml"); !regexp.MustCompile(`password = ['"]\$\{NATS_PASSWORD\}['"]`).MatchString(staged) {
+		t.Errorf("the dispatcher's staged [jobs] does not read ${NATS_PASSWORD}:\n%s", staged)
+	}
+	mustContain(t, "the gateway's document", stagedFile(t, s, "gateway.json"), `"passwordEnv": "NATS_PASSWORD"`)
+}
+
+// A config key naming a launcher-run daemon's credential is refused, naming
+// its owner: two places deciding one password is the thing we do not do.
+func TestConfigNamingALauncherRunDaemonPasswordIsRefused(t *testing.T) {
+	s := newScenario(t, "container")
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	named := strings.Replace(string(b), "username = \"neo4j\"\n", "username = \"neo4j\"\npassword = \"localpass\"\n", 1)
+	if named == string(b) {
+		t.Fatal("the fixture's [graph] has no username line to anchor on")
+	}
+	if err := os.WriteFile(p, []byte(named), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
+	if code == 0 {
+		t.Fatal("started with a config naming the password of a Neo4j the launcher runs")
+	}
+	mustContain(t, "stderr", stderr, "[environments.local.graph]", "password", "the launcher generates")
+}
+
+// Ruled: an exported daemon password is refused, not honoured — it would only
+// disagree with the store it was meant for.
+func TestExportedDaemonPasswordIsRefused(t *testing.T) {
+	s := newScenario(t, "container")
+	s.extraEnv = append(s.extraEnv, "NEO4J_PASSWORD=mine")
+	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
+	if code == 0 {
+		t.Fatal("started with an exported NEO4J_PASSWORD")
+	}
+	mustContain(t, "stderr", stderr, "NEO4J_PASSWORD", "the launcher generates")
+}
+
+// A store that holds data but no kept password was initialized with one the
+// launcher does not have (the old literal, or custody lost): refuse, naming
+// the clean, rather than start a daemon that rejects every login.
+func TestStoreWithoutItsPasswordRefusesNamingTheClean(t *testing.T) {
+	s := newScenario(t, "container")
+	data := filepath.Join(stateRootFor(s.home, testKBKey), "neo4j", "data", "databases")
+	if err := os.MkdirAll(data, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(data, "store_lock"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start", "--config", "ollama-gemma")
+	if code == 0 {
+		t.Fatal("started Neo4j over a store initialized with a password the launcher does not hold")
+	}
+	mustContain(t, "stderr", stderr, "semiont clean --store graph")
+}
+
+// The daemon names are the launcher's: `semiont secret set` refuses them, as
+// it refuses the other values custody owns.
+func TestSecretSetRefusesADaemonPassword(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	_, stderr, code := s.run(t, "secret", "set", "NEO4J_PASSWORD", "op://OSS/Neo4j/password")
+	if code == 0 {
+		t.Fatal("registered a source for a password the launcher generates")
+	}
+	mustContain(t, "stderr", stderr, "NEO4J_PASSWORD")
 }
 
 // JOB-QUEUE-DRIVER P2 (launcher lane): a config whose [environments.*.jobs]

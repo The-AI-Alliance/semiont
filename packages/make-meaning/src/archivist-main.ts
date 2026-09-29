@@ -86,7 +86,7 @@ if (!maybeAnchoredTextDir) {
 }
 const anchoredTextDir: string = maybeAnchoredTextDir;
 
-const envConfig = loadEnvironmentConfig(projectRoot);
+const envConfig = loadEnvironmentConfig(projectRoot, { service: 'archivist' });
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
 if (!gatewayPublicURL) {
   throw new Error('services.gateway.publicURL is required in environment config');

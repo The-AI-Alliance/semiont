@@ -1,0 +1,11 @@
+{
+  "$comment": "Which [environments.<env>] sections of a knowledge base's config each Node service reads. Two consumers: the TypeScript config loader (packages/core), which resolves a section's ${VAR} references only when a service reads it and refuses a read of a section its service does not list here; and the launcher (apps/launcher), which forwards to each service only the variables its listed sections reference. `gateway` includes its legacy spelling `backend`. The Rust gateway is not here: it reads the document the launcher writes for it.",
+  "services": {
+    "archivist": ["gateway", "graph", "vectors", "embedding", "identity", "make-meaning", "actors", "workers", "inference"],
+    "librarian": ["gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"],
+    "dispatcher": ["gateway", "jobs", "identity"],
+    "weaver": ["gateway", "graph", "identity"],
+    "smelter": ["gateway", "vectors", "embedding", "identity", "archivist"],
+    "worker": ["gateway", "identity", "archivist", "workers", "inference"]
+  }
+}

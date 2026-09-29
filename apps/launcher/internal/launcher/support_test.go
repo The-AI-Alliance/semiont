@@ -90,28 +90,35 @@ func TestWaitForContainerHTTPEndsWhenTheContainerStops(t *testing.T) {
 	}
 }
 
-// The echo shows what the launcher injects and hides what is a credential.
+// The command line shows what the launcher injects and carries no credential.
 // KEYCLOAK_PORT was injected (config.go) but missing from a hand-kept echo
 // allowlist, so the one number a moved issuer is about read <redacted>
-// (bugs/codespace-move-output-misleads.md).
-func TestEchoShowsInjectedValuesAndHidesCredentials(t *testing.T) {
-	got := strings.Join(redactEnvArgs([]string{"run",
+// (bugs/codespace-move-output-misleads.md). Since SECRET-DELIVERY P6 the
+// credentials leave argv itself, for the runtime command's environment.
+func TestCommandLineShowsInjectedValuesAndCarriesNoCredentials(t *testing.T) {
+	argv, env := offCommandLine([]string{"run",
 		"--env", "KEYCLOAK_PORT=8081",
 		"--env", "KEYCLOAK_HOST=keycloak.localhost",
 		"--env", "SEMIONT_OIDC_CLIENT_ID=semiont-worker",
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET=s3cret",
 		"--env", "JWT_SECRET=jwt-value",
 		"--env", "ANTHROPIC_API_KEY=sk-value",
-	}), " ")
+		"-e", "POSTGRES_PASSWORD=pg-value",
+	})
+	got := strings.Join(argv, " ")
 	for _, shown := range []string{"KEYCLOAK_PORT=8081", "KEYCLOAK_HOST=keycloak.localhost", "SEMIONT_OIDC_CLIENT_ID=semiont-worker"} {
 		if !strings.Contains(got, shown) {
 			t.Errorf("%s was hidden:\n%s", shown, got)
 		}
 	}
-	for _, secret := range []string{"s3cret", "jwt-value", "sk-value"} {
+	for _, secret := range []string{"s3cret", "jwt-value", "sk-value", "pg-value"} {
 		if strings.Contains(got, secret) {
-			t.Errorf("a credential reached the echo (%s):\n%s", secret, got)
+			t.Errorf("a credential reached the command line (%s):\n%s", secret, got)
 		}
+	}
+	want := []string{"SEMIONT_OIDC_CLIENT_SECRET=s3cret", "JWT_SECRET=jwt-value", "ANTHROPIC_API_KEY=sk-value", "POSTGRES_PASSWORD=pg-value"}
+	if strings.Join(env, " ") != strings.Join(want, " ") {
+		t.Errorf("the runtime's environment carries %v, want %v", env, want)
 	}
 }
 

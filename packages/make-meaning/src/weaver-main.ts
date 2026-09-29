@@ -44,6 +44,7 @@ const envConfig = createTomlConfigLoader(
   tomlReader,
   configPath,
   process.env,
+  'weaver',
 )(null);
 
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;

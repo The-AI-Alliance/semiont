@@ -80,6 +80,7 @@ type keeper interface {
 	jwtSecret(root string) (string, bool)                // gateway token-signing key: env, else persisted per-root, else generated
 	identityAdminPassword(root string) (string, bool)    // Keycloak's bootstrap admin password: same three sources
 	serviceClientSecret(root, svc string) (string, bool) // one service's account credential, per root
+	daemonPassword(root, role string) (string, bool)     // a launcher-run daemon's password, per root (SECRET-DELIVERY P4)
 }
 
 // admitter: proves the issuer will admit the services, and the people, BEFORE anything holds a
@@ -384,7 +385,7 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		env, _, _, err := loadConfig(fc.configFile)
 		if err == nil {
 			var doc []byte
-			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), x.rt, addr, fc.plan.Roles["identity"].Port, fc.plan.GatewayPort, fc.userEnv); err == nil {
+			if doc, err = gatewayDocument(env, effectiveKBName(x.root), committedDomain(x.root), x.rt, addr, fc.plan.Roles["identity"].Port, fc.plan.GatewayPort, fc.userEnv, fc.plan.Roles["messaging"].Presence == presenceLauncher); err == nil {
 				err = os.WriteFile(filepath.Join(stage, gatewayDocumentFile), doc, 0o644)
 			}
 		}
@@ -394,7 +395,7 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		}
 		return true
 	}
-	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, fc.plan.EnvName, addr), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(stage, svc+".toml"), x.stagedConfig(svc, cfg, fc.plan, addr), 0o644); err != nil {
 		x.u.Fail("Staging config for %s: %v", svc, err)
 		return false
 	}
@@ -404,7 +405,9 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 // stagedConfig applies every launcher-owned patch a service's config needs.
 // ONE decider: `stageAll` and `stageOne` stage the same services from the
 // same source and must agree on what each one gets.
-func (x *liveExec) stagedConfig(svc string, cfg []byte, envName, addr string) []byte {
+func (x *liveExec) stagedConfig(svc string, cfg []byte, plan *launchPlan, addr string) []byte {
+	envName := plan.EnvName
+	cfg = patchDaemonCredentials(cfg, svc, plan)
 	if archivistDialers[svc] {
 		cfg = patchArchivistTopology(cfg, envName, addr)
 	}
@@ -412,6 +415,54 @@ func (x *liveExec) stagedConfig(svc string, cfg []byte, envName, addr string) []
 		cfg = patchKBIdentity(cfg, effectiveKBName(x.root), committedDomain(x.root))
 	}
 	return cfg
+}
+
+// patchDaemonCredentials points a service's staged config at the credentials
+// of the daemons the launcher runs (SECRET-DELIVERY P4): a service whose
+// sections include [graph] reads ${NEO4J_PASSWORD}; one whose sections include
+// [jobs] reads the broker pair. The KB config names neither — the launcher
+// refuses one that does — and the values reach the service as the variables
+// its sections name (envFor). The section already exists (a daemon the plan
+// runs is one the config declares), so the key is set in it: the copy is
+// re-serialized rather than appended to. Invalid TOML passes through
+// untouched; the consumer's own loader owns that error.
+func patchDaemonCredentials(cfg []byte, svc string, plan *launchPlan) []byte {
+	keys := map[string]map[string]string{}
+	sections := serviceConfigSections[svc]
+	if plan.Roles["graph"].Presence == presenceLauncher && contains(sections, "graph") {
+		keys["graph"] = map[string]string{"password": referenceTo(daemonPasswords["graph"].env)}
+	}
+	if plan.Roles["messaging"].Presence == presenceLauncher && contains(sections, "jobs") {
+		keys["jobs"] = map[string]string{"user": referenceTo("NATS_USER"), "password": referenceTo(daemonPasswords["messaging"].env)}
+	}
+	if len(keys) == 0 {
+		return cfg
+	}
+	var doc map[string]any
+	if err := toml.Unmarshal(cfg, &doc); err != nil {
+		return cfg
+	}
+	envs, _ := doc["environments"].(map[string]any)
+	env, _ := envs[plan.EnvName].(map[string]any)
+	patched := false
+	for section, kv := range keys {
+		table, ok := env[section].(map[string]any)
+		if !ok {
+			continue
+		}
+		for k, v := range kv {
+			table[k] = v
+		}
+		patched = true
+	}
+	if !patched {
+		return cfg
+	}
+	out, err := toml.Marshal(doc)
+	if err != nil {
+		return cfg
+	}
+	return append([]byte("# Staged by the launcher: the KB config, pointed at the credentials of the daemons it runs.\n"), out...)
 }
 
 // patchArchivistTopology appends [environments.<env>.archivist] — with the
@@ -562,9 +613,9 @@ func (x *liveExec) pull(img string) bool {
 }
 
 func (x *liveExec) runDetached(args []string) (string, bool) {
-	args = withLogOpts(x.rt, args)
-	x.u.EchoCmd(x.rt, args...)
-	id, err := runDetached(x.rt, args...)
+	argv, env := offCommandLine(withLogOpts(x.rt, args))
+	x.u.EchoCmd(x.rt, argv...)
+	id, err := runDetached(x.rt, env, argv...)
 	if err != nil {
 		return "", false
 	}
@@ -701,6 +752,10 @@ func (x *liveExec) identityAdminPassword(root string) (string, bool) {
 
 func (x *liveExec) serviceClientSecret(root, svc string) (string, bool) {
 	return loadOrCreateServiceClientSecret(x.u, root, svc)
+}
+
+func (x *liveExec) daemonPassword(root, role string) (string, bool) {
+	return loadOrCreateDaemonPassword(x.u, root, role)
 }
 
 func (x *liveExec) stageNatsConf(doc []byte) (string, bool) {
@@ -1328,7 +1383,8 @@ func (x *planExec) pull(img string) bool {
 }
 
 func (x *planExec) runDetached(args []string) (string, bool) {
-	x.p(withLogOpts(x.rt, args)...)
+	argv, _ := offCommandLine(withLogOpts(x.rt, args))
+	x.p(argv...)
 	return "", true
 }
 
@@ -1399,6 +1455,10 @@ func (x *planExec) identityAdminPassword(string) (string, bool) {
 
 func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
 	return "<" + svc + "-client-secret>", true
+}
+
+func (x *planExec) daemonPassword(_, role string) (string, bool) {
+	return "<" + daemonPasswords[role].file + ">", true
 }
 
 // The clients are read OUT OF the document rather than described alongside it.

@@ -174,3 +174,17 @@ func TestAnthropicInitNeedsNoKeyToWriteAConfig(t *testing.T) {
 		t.Error("a binding was written with an empty model")
 	}
 }
+
+// SECRET-DELIVERY P4 (with STAGED-SECRETS P3): a born KB names no password for
+// a daemon the launcher runs — the launcher generates and keeps those, and
+// refuses a config that names one.
+func TestInitWritesNoDaemonPassword(t *testing.T) {
+	for _, inference := range []string{"anthropic", "ollama"} {
+		cfg := generateSemiontconfig(genParams{Inference: inference})
+		for _, line := range strings.Split(cfg, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "password") {
+				t.Errorf("--inference %s: the born config names a daemon password: %s", inference, line)
+			}
+		}
+	}
+}

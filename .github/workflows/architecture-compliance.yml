@@ -73,6 +73,7 @@ jobs:
           npm run lint:notice || fail=1
           npm run lint:dependabot || fail=1
           npm run lint:broker-boundary || fail=1
+          npm run lint:placeholder-readers || fail=1
           npm run lint:spec-protocol || fail=1
           npm run lint:gateway-environment || fail=1
           echo "::endgroup::"

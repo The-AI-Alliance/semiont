@@ -11,14 +11,15 @@
  *   2. Read ~/.semiontconfig → defaults, environments.<env>.* (user overrides)
  *   3. Deep-merge: project base ← user overrides (user wins on conflicts)
  *      Any environment name is valid (local, staging, production, custom, ...)
- *   4. Resolve ${VAR} references from process.env
+ *   4. Resolve a section's ${VAR} references from process.env when it is read
  *   5. Apply inheritance: workers.<name> → workers.default → error
- *   6. Map to EnvironmentConfig shape
+ *   6. Map to EnvironmentConfig shape, each part built at its first read
  */
 
 import { parse as parseToml } from 'smol-toml';
 import type { EnvironmentConfig, OllamaProviderConfig, AnthropicProviderConfig } from './config.types';
 import type { PlatformType } from './config.types';
+import { serviceConfigSections, type ConfigService } from '../generated/service-config-sections';
 
 /**
  * Deep merge two plain objects. Arrays and primitives in `override` replace those in `base`.
@@ -169,10 +170,8 @@ interface EnvironmentSection {
   jobs?: {
     type?: 'fs' | 'jetstream';
     servers?: string;
-  };
-  signal?: {
-    type?: 'in-process' | 'nats';
-    servers?: string;
+    user?: string;
+    password?: string;
   };
   identity?: {
     type?: 'keycloak' | 'oidc';
@@ -246,7 +245,6 @@ interface EnvironmentSection {
   };
   workers?: Record<string, { inference?: InferenceConfig }>;
   actors?: Record<string, { inference?: InferenceConfig }>;
-  logLevel?: 'error' | 'warn' | 'info' | 'http' | 'debug';
 }
 
 // ── File reader abstraction (same pattern as createConfigLoader) ──────────────
@@ -273,13 +271,17 @@ function requirePlatform(value: string | undefined, serviceName: string): Platfo
  * @param globalConfigPath - Path to ~/.semiontconfig (caller resolves ~ expansion)
  * @param reader - File reader abstraction
  * @param env - Environment variables for ${VAR} resolution
+ * @param service - The Node service loading it, which may read only the
+ *   sections specs/src/service-config/sections.json lists for it; absent for
+ *   tools that read any section
  */
 export function loadTomlConfig(
   projectRoot: string | null,
   environment: string | undefined,
   globalConfigPath: string,
   reader: TomlFileReader,
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  service?: ConfigService,
 ): EnvironmentConfig {
   // 1. Read + parse project config from .semiont/config (skipped when no project root)
   const projectConfigContent = projectRoot ? reader.readIfExists(`${projectRoot}/.semiont/config`) : null;
@@ -352,21 +354,37 @@ export function loadTomlConfig(
     userEnvSection as Record<string, unknown>
   ) as EnvironmentSection;
 
-  // 4. Resolve ${VAR} references
-  const resolved = resolveEnvVars(envSection, env) as EnvironmentSection;
+  // 6. Each section resolves when it is read, and a service reads only the
+  //    sections specs/src/service-config/sections.json lists for it (SECRET-
+  //    DELIVERY P5). An unset ${VAR} therefore refuses at the first read of the
+  //    section that names it — never for a section this process never reads —
+  //    and the launcher can forward each service only its sections' variables.
+  const declared: readonly string[] | undefined = service ? serviceConfigSections[service] : undefined;
+  const resolvedSections = new Map<keyof EnvironmentSection, unknown>();
+  function section<K extends keyof EnvironmentSection>(key: K): EnvironmentSection[K] {
+    const listed = key === 'backend' ? 'gateway' : key;
+    if (declared && !declared.includes(listed)) {
+      throw new Error(
+        `${service} read [environments.${resolvedEnvironment}.${key}], which specs/src/service-config/sections.json ` +
+          `does not list for it. List the section there if ${service} needs it: the launcher forwards each service ` +
+          'only the variables its listed sections reference.',
+      );
+    }
+    if (!resolvedSections.has(key)) resolvedSections.set(key, resolveEnvVars(envSection[key], env));
+    return resolvedSections.get(key) as EnvironmentSection[K];
+  }
+  const built = new Map<string, unknown>();
+  function once<T>(part: string, build: () => T): T {
+    if (!built.has(part)) built.set(part, build());
+    return built.get(part) as T;
+  }
 
-  // 5. Build make-meaning actor/worker inference config with inheritance
-  // The flat [inference] section provides defaults (apiKey, maxTokens, endpoint/baseURL).
-  // Actor/worker sections only need to specify type and model; missing fields fall back
-  // to the flat inference section.
-  const flatInference = resolved.inference;
-  const makeMeaningSection = resolved['make-meaning'];
-  const workersSection = resolved.workers ?? {};
-  const actorsSection = resolved.actors ?? {};
-  const defaultWorkerInference = workersSection['default']?.inference;
-  const defaultMakeMeaningInference = makeMeaningSection?.default?.inference;
-
+  // 7. Make-meaning actor/worker inference with inheritance. The flat
+  // [inference] section provides defaults (apiKey, maxTokens, endpoint/baseURL).
+  // Actor/worker sections only need to specify type and model; missing fields
+  // fall back to the flat inference section.
   function mergeWithFlatInference(specific: InferenceConfig): InferenceConfig {
+    const flatInference = section('inference');
     if (!flatInference) return specific;
     // For keyed sub-sections, inherit credentials from the matching provider sub-section.
     // For flat (legacy) format, flatInference.type is required to know which fields apply.
@@ -407,68 +425,55 @@ export function loadTomlConfig(
     };
   }
 
-  function resolveActorInference(fromMakeMeaning?: InferenceConfig, fromActors?: InferenceConfig): InferenceConfig | undefined {
-    const base = fromMakeMeaning ?? fromActors ?? defaultMakeMeaningInference;
-    if (!base) return undefined;
-    return mergeWithFlatInference(base);
-  }
-
-  const actors: ActorInferenceConfig = {};
-  const gathererInference = resolveActorInference(
-    makeMeaningSection?.actors?.gatherer?.inference,
-    actorsSection['gatherer']?.inference
-  );
-  if (gathererInference) actors.gatherer = gathererInference;
-
-  const matcherInference = resolveActorInference(
-    makeMeaningSection?.actors?.matcher?.inference,
-    actorsSection['matcher']?.inference
-  );
-  if (matcherInference) actors.matcher = matcherInference;
-
-  const workers: WorkerInferenceConfig = {};
-  const workerTypes = ['reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'] as const;
-  if (defaultWorkerInference) {
-    workers.default = mergeWithFlatInference(defaultWorkerInference);
-  }
-  for (const wt of workerTypes) {
-    const specific = workersSection[wt]?.inference;
-    if (specific) {
-      (workers as Record<string, InferenceConfig>)[wt] = mergeWithFlatInference(specific);
+  function actorInference(): ActorInferenceConfig | undefined {
+    const makeMeaningSection = section('make-meaning');
+    const actorsSection = section('actors') ?? {};
+    function resolveActor(fromMakeMeaning?: InferenceConfig, fromActors?: InferenceConfig): InferenceConfig | undefined {
+      const base = fromMakeMeaning ?? fromActors ?? makeMeaningSection?.default?.inference;
+      return base ? mergeWithFlatInference(base) : undefined;
     }
+    const actors: ActorInferenceConfig = {};
+    const gatherer = resolveActor(makeMeaningSection?.actors?.gatherer?.inference, actorsSection['gatherer']?.inference);
+    if (gatherer) actors.gatherer = gatherer;
+    const matcher = resolveActor(makeMeaningSection?.actors?.matcher?.inference, actorsSection['matcher']?.inference);
+    if (matcher) actors.matcher = matcher;
+    return Object.keys(actors).length > 0 ? actors : undefined;
   }
 
-  // 6. Map to EnvironmentConfig
-  // `gateway` is the current spelling; `backend` is the pre-rename one, still
-  // accepted for the fleet. A file carrying BOTH is half-migrated — a mistake
-  // someone just made, not a state worth supporting — so it fails loudly here
-  // instead of picking a winner the next reader cannot identify.
-  if (resolved.gateway && resolved.backend) {
-    throw new Error(
-      `Environment '${resolvedEnvironment}' declares both [gateway] and [backend]. ` +
-      `They are one section under two spellings; keep [gateway] and delete [backend].`
-    );
+  function workerInference(): WorkerInferenceConfig | undefined {
+    const workersSection = section('workers') ?? {};
+    const workers: WorkerInferenceConfig = {};
+    const defaultWorkerInference = workersSection['default']?.inference;
+    if (defaultWorkerInference) {
+      workers.default = mergeWithFlatInference(defaultWorkerInference);
+    }
+    const workerTypes = ['reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'] as const;
+    for (const wt of workerTypes) {
+      const specific = workersSection[wt]?.inference;
+      if (specific) {
+        workers[wt] = mergeWithFlatInference(specific);
+      }
+    }
+    return Object.keys(workers).length > 0 ? workers : undefined;
   }
-  const gateway = resolved.gateway ?? resolved.backend;
-  const inferenceSection = resolved.inference;
 
-  // Build inference providers config.
-  // Supports two formats:
+  // Inference providers. Two formats:
   //   Flat:  [environments.local.inference] type = "anthropic"|"ollama"  (single provider)
   //   Keyed: [environments.local.inference.anthropic] / [environments.local.inference.ollama] (multi-provider)
-  let inferenceProviders: EnvironmentConfig['inference'] | undefined;
-  if (inferenceSection) {
-    inferenceProviders = {};
+  function inferenceProviders(): EnvironmentConfig['inference'] | undefined {
+    const inferenceSection = section('inference');
+    if (!inferenceSection) return undefined;
+    const providers: NonNullable<EnvironmentConfig['inference']> = {};
     // Keyed sub-sections take priority
     if (inferenceSection.anthropic) {
       const a = inferenceSection.anthropic;
-      inferenceProviders.anthropic = {
+      providers.anthropic = {
         platform: requirePlatform(a.platform, 'inference.anthropic'),
         endpoint: a.endpoint ?? 'https://api.anthropic.com',
         apiKey: a.apiKey ?? '',
       } as AnthropicProviderConfig;
     } else if (inferenceSection.type === 'anthropic') {
-      inferenceProviders.anthropic = {
+      providers.anthropic = {
         platform: requirePlatform(inferenceSection.platform, 'inference'),
         endpoint: inferenceSection.endpoint ?? 'https://api.anthropic.com',
         apiKey: inferenceSection.apiKey ?? '',
@@ -476,218 +481,224 @@ export function loadTomlConfig(
     }
     if (inferenceSection.ollama) {
       const o = inferenceSection.ollama;
-      inferenceProviders.ollama = {
+      providers.ollama = {
         platform: { type: requirePlatform(o.platform, 'inference.ollama') },
         baseURL: o.baseURL,
         port: o.baseURL ? undefined : (o.port ?? 11434),
       } as OllamaProviderConfig;
     } else if (inferenceSection.type === 'ollama') {
-      inferenceProviders.ollama = {
+      providers.ollama = {
         platform: { type: requirePlatform(inferenceSection.platform, 'inference') },
         baseURL: inferenceSection.baseURL,
         port: inferenceSection.baseURL ? undefined : 11434,
       } as OllamaProviderConfig;
     }
+    return providers;
   }
 
-  // Build top-level workers/actors maps for EnvironmentConfig
-  const topLevelWorkers: EnvironmentConfig['workers'] = {};
-  for (const [name, w] of Object.entries(workersSection)) {
-    if (w.inference) {
-      topLevelWorkers[name] = { inference: { type: w.inference.type, model: w.inference.model } };
+  // Top-level workers/actors maps: type and model only.
+  function topLevelWorkers(): EnvironmentConfig['workers'] | undefined {
+    const out: NonNullable<EnvironmentConfig['workers']> = {};
+    for (const [name, w] of Object.entries(section('workers') ?? {})) {
+      if (w.inference) {
+        out[name] = { inference: { type: w.inference.type, model: w.inference.model } };
+      }
     }
+    return Object.keys(out).length > 0 ? out : undefined;
   }
-  const topLevelActors: EnvironmentConfig['actors'] = {};
-  for (const [name, a] of Object.entries(actorsSection)) {
-    if (a.inference) {
-      topLevelActors[name] = { inference: { type: a.inference.type, model: a.inference.model } };
+  function topLevelActors(): EnvironmentConfig['actors'] | undefined {
+    const out: NonNullable<EnvironmentConfig['actors']> = {};
+    for (const [name, a] of Object.entries(section('actors') ?? {})) {
+      if (a.inference) {
+        out[name] = { inference: { type: a.inference.type, model: a.inference.model } };
+      }
     }
+    const makeMeaningSection = section('make-meaning');
+    if (makeMeaningSection?.actors?.gatherer?.inference) {
+      out['gatherer'] = { inference: { type: makeMeaningSection.actors.gatherer.inference.type, model: makeMeaningSection.actors.gatherer.inference.model } };
+    }
+    if (makeMeaningSection?.actors?.matcher?.inference) {
+      out['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
+    }
+    return Object.keys(out).length > 0 ? out : undefined;
   }
-  // Also include make-meaning actors
-  if (makeMeaningSection?.actors?.gatherer?.inference) {
-    topLevelActors['gatherer'] = { inference: { type: makeMeaningSection.actors.gatherer.inference.type, model: makeMeaningSection.actors.gatherer.inference.model } };
-  }
-  if (makeMeaningSection?.actors?.matcher?.inference) {
-    topLevelActors['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
-  }
+
+  // 8. Map to EnvironmentConfig. Every part is built at its first read, and
+  // every refusal a part owns fires there.
 
   // Semantic search is always available, so a config must NAME both a vector
   // store and an embedding provider — nothing is defaulted, and absence
-  // refuses the load with a config-actionable message (MANDATORY-EMBEDDING
-  // D0+D1: explicit opt-in; `memory` is a first-class choice, not a fallback).
-  if (!resolved.vectors?.type) {
-    throw new Error(
-      `[environments.${resolvedEnvironment}] names no vector store — add [environments.${resolvedEnvironment}.vectors] with type = "qdrant" or "memory". Semiont requires a vector store; nothing is defaulted.`,
-    );
+  // refuses with a config-actionable message (MANDATORY-EMBEDDING D0+D1:
+  // explicit opt-in; `memory` is a first-class choice, not a fallback).
+  function vectors(): EnvironmentConfig['services']['vectors'] {
+    const v = section('vectors');
+    if (!v?.type) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}] names no vector store — add [environments.${resolvedEnvironment}.vectors] with type = "qdrant" or "memory". Semiont requires a vector store; nothing is defaulted.`,
+      );
+    }
+    return {
+      platform: { type: 'external' as PlatformType },
+      type: v.type,
+      host: v.host,
+      port: v.port ?? 6333,
+    } as EnvironmentConfig['services']['vectors'];
   }
-  const embeddingSource = resolved.embedding ?? resolved.vectors?.embedding;
-  if (!embeddingSource?.type || !embeddingSource.model) {
-    throw new Error(
-      `[environments.${resolvedEnvironment}] names no embedding provider — add [environments.${resolvedEnvironment}.embedding] with type = "voyage" or "ollama" and a model. Semiont requires an embedding provider; nothing is defaulted.`,
-    );
+
+  function embedding(): EnvironmentConfig['services']['embedding'] {
+    const e = section('embedding');
+    const source = e ?? section('vectors')?.embedding;
+    if (!source?.type || !source.model) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}] names no embedding provider — add [environments.${resolvedEnvironment}.embedding] with type = "voyage" or "ollama" and a model. Semiont requires an embedding provider; nothing is defaulted.`,
+      );
+    }
+    const chunking = e?.chunking ?? section('vectors')?.chunking;
+    return {
+      platform: { type: 'external' as PlatformType },
+      type: source.type,
+      model: source.model,
+      apiKey: source.apiKey,
+      baseURL: source.baseURL,
+      endpoint: source.endpoint,
+      chunking: chunking ? {
+        chunkSize: chunking.chunkSize ?? 512,
+        overlap: chunking.overlap ?? 64,
+      } : undefined,
+    } as EnvironmentConfig['services']['embedding'];
   }
 
   // MANDATORY (user, 2026-09-21). A knowledge base without a trusted issuer
   // can authenticate nobody: no person, because there are no keys to verify
   // against; no sidecar, because `authorizeAgentMinter` refuses before it
   // mints; and it cannot reach its own record, because dialling the Archivist
-  // needs a service-account token. It was optional only because nothing had
-  // forced the question — the one caller that relied on absence was a test
-  // harness, not a deployment.
-  if (!resolved.identity) {
-    throw new Error(
-      `[environments.${resolvedEnvironment}] names no identity section — add [environments.${resolvedEnvironment}.identity] with type and issuer. Every knowledge base trusts an issuer: without one nobody can sign in, no sidecar can obtain an agent token, and the gateway cannot reach the Archivist.`,
-    );
-  }
-  {
-    if (!resolved.identity.type) {
+  // needs a service-account token.
+  function identity(): EnvironmentConfig['services']['identity'] {
+    const id = section('identity');
+    if (!id) {
+      throw new Error(
+        `[environments.${resolvedEnvironment}] names no identity section — add [environments.${resolvedEnvironment}.identity] with type and issuer. Every knowledge base trusts an issuer: without one nobody can sign in, no sidecar can obtain an agent token, and the gateway cannot reach the Archivist.`,
+      );
+    }
+    if (!id.type) {
       throw new Error(
         `[environments.${resolvedEnvironment}.identity] names no type — add type = "keycloak" or "oidc". Semiont selects the identity provider from config; nothing is inferred.`,
       );
     }
-    if (!resolved.identity.issuer) {
+    if (!id.issuer) {
       throw new Error(
-        `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section refuses at load, never falls through.`,
+        `[environments.${resolvedEnvironment}.identity] names no issuer — add issuer = "http://\${KEYCLOAK_HOST}:8080/realms/semiont" (the URL in a token's iss claim). A typed-but-incomplete section never falls through.`,
       );
     }
     // VERIFIED-PROVENANCE P5. A person's DID is did:web:<site domain>:users:<the
     // value of this claim>. Which claim is declared here — one rule per
     // deployment, never a fallback chain, never one code infers.
-    if (!resolved.identity.subjectClaim) {
+    if (!id.subjectClaim) {
       throw new Error(
         `[environments.${resolvedEnvironment}.identity] names no subjectClaim — add subjectClaim = "sub" (the issuer claim a person's DID is built from: did:web:<site domain>:users:<its value>). The claim people are named by is declared, never defaulted.`,
       );
     }
+    return { type: id.type, issuer: id.issuer, subjectClaim: id.subjectClaim } as EnvironmentConfig['services']['identity'];
   }
-  const identity = {
-    type: resolved.identity.type,
-    issuer: resolved.identity.issuer,
-    subjectClaim: resolved.identity.subjectClaim,
-  } as EnvironmentConfig['services']['identity'];
 
-
-  const services: EnvironmentConfig['services'] = {
-    identity,
-    vectors: {
-      platform: { type: 'external' as PlatformType },
-      type: resolved.vectors.type,
-      host: resolved.vectors.host,
-      port: resolved.vectors.port ?? 6333,
-    } as EnvironmentConfig['services']['vectors'],
-    embedding: {
-      platform: { type: 'external' as PlatformType },
-      type: embeddingSource.type,
-      model: embeddingSource.model,
-      apiKey: embeddingSource.apiKey,
-      baseURL: embeddingSource.baseURL,
-      endpoint: embeddingSource.endpoint,
-      chunking: (resolved.embedding?.chunking ?? resolved.vectors?.chunking) ? {
-        chunkSize: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.chunkSize ?? 512,
-        overlap: (resolved.embedding?.chunking ?? resolved.vectors?.chunking)?.overlap ?? 64,
-      } : undefined,
-    } as EnvironmentConfig['services']['embedding'],
-  };
-
-  if (gateway) {
-    services.gateway = {
-      platform: { type: requirePlatform(gateway.platform, 'gateway') },
-      port: gateway.port ?? 4000,
-      publicURL: gateway.publicURL ?? `http://localhost:${gateway.port ?? 4000}`,
+  // `gateway` is the current spelling; `backend` is the pre-rename one, still
+  // accepted for the fleet. A file carrying BOTH is half-migrated — a mistake
+  // someone just made, not a state worth supporting — so it fails loudly
+  // instead of picking a winner the next reader cannot identify.
+  function gateway(): EnvironmentConfig['services']['gateway'] {
+    const current = section('gateway');
+    const legacy = section('backend');
+    if (current && legacy) {
+      throw new Error(
+        `Environment '${resolvedEnvironment}' declares both [gateway] and [backend]. ` +
+        `They are one section under two spellings; keep [gateway] and delete [backend].`
+      );
+    }
+    const g = current ?? legacy;
+    if (!g) return undefined;
+    return {
+      platform: { type: requirePlatform(g.platform, 'gateway') },
+      port: g.port ?? 4000,
+      publicURL: g.publicURL ?? `http://localhost:${g.port ?? 4000}`,
     };
   }
 
-  // The Archivist's D1 read path: the gateway replays SSE resumes from it
-  // (EXTRACT-ARCHIVIST P3). Internal host:port like vectors — never a
-  // publicURL; the Archivist is not public. Without this mapping the
-  // section parses and then VANISHES: fetchArchivistReplay reads
-  // services.archivist, finds nothing, and every resume silently degrades
-  // to a gap — the exact failure D1's gate exists to catch. (The cutover
-  // added the schema and the consumer; this mapping is the missing middle.)
-  if (resolved.archivist?.host) {
-    services.archivist = {
+  // The Archivist's D1 read path (EXTRACT-ARCHIVIST P3). Internal host:port
+  // like vectors — never a publicURL; the Archivist is not public. Without
+  // this mapping the section parses and then VANISHES, and every resume
+  // silently degrades to a gap.
+  function archivist(): EnvironmentConfig['services']['archivist'] {
+    const a = section('archivist');
+    if (!a?.host) return undefined;
+    return {
       platform: { type: 'external' as PlatformType },
-      host: resolved.archivist.host,
-      port: resolved.archivist.port ?? DEFAULT_ARCHIVIST_PORT,
+      host: a.host,
+      port: a.port ?? DEFAULT_ARCHIVIST_PORT,
     } as EnvironmentConfig['services']['archivist'];
   }
 
-  // The job queue driver selection (JOB-QUEUE-DRIVER P2): jobQueueFor reads
-  // services.jobs. Same missing-middle failure shape as the archivist above —
-  // without this mapping a [jobs] section parses and then VANISHES, and the
-  // driver silently stays 'fs' on every real stack. A section that names no
-  // type refuses at load rather than falling through to 'fs' at the consumer:
+  // The job queue driver selection (JOB-QUEUE-DRIVER P2). A section that names
+  // no type refuses rather than falling through to 'fs' at the consumer:
   // selection is stated, never inferred, never silently defaulted.
-  if (resolved.jobs) {
-    if (!resolved.jobs.type) {
+  function jobs(): EnvironmentConfig['services']['jobs'] {
+    const j = section('jobs');
+    if (!j) return undefined;
+    if (!j.type) {
       throw new Error(
         `[environments.${resolvedEnvironment}.jobs] names no type — add type = "fs" or "jetstream". Semiont selects the job queue driver from config; nothing is inferred.`,
       );
     }
-    services.jobs = {
-      type: resolved.jobs.type,
-      ...(resolved.jobs.servers ? { servers: resolved.jobs.servers } : {}),
+    // The broker pair, when the section names one: the dispatcher's JetStream
+    // queue presents it (SECRET-DELIVERY F2).
+    return {
+      type: j.type,
+      ...(j.servers ? { servers: j.servers } : {}),
+      ...(j.user ? { user: j.user } : {}),
+      ...(j.password ? { password: j.password } : {}),
     };
   }
 
-  // The Signal Plane driver selection (SIGNAL-PLANE P2): the gateway reads
-  // services.signal. Same missing-middle failure shape as [jobs] above, and
-  // one refusal MORE (D6): typed-but-INCOMPLETE refuses too — a
-  // type = "nats" with no servers would select a driver that cannot connect
-  // and surface as a hang instead of a config error.
-  if (resolved.signal) {
-    if (!resolved.signal.type) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.signal] names no type — add type = "in-process" or "nats". Semiont selects the Signal Plane driver from config; nothing is inferred.`,
-      );
+  function graph(): EnvironmentConfig['services']['graph'] {
+    const g = section('graph');
+    if (g) {
+      return {
+        ...g,
+        platform: { type: requirePlatform(g.platform as string | undefined, 'graph') },
+        type: (g.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
+      } as EnvironmentConfig['services']['graph'];
     }
-    if (resolved.signal.type === 'nats' && !resolved.signal.servers) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.signal] type = "nats" names no servers — add servers = "\${NATS_HOST}:4222". A typed-but-incomplete section refuses at load, never falls through.`,
-      );
-    }
-    services.signal = {
-      type: resolved.signal.type,
-      ...(resolved.signal.servers ? { servers: resolved.signal.servers } : {}),
-    };
+    return section('make-meaning')?.graph as EnvironmentConfig['services']['graph'];
   }
 
-  // The identity provider the gateway trusts (EXTERNAL-IDENTITY D5). Same
-  // refusal discipline as [signal]: a section that names no type, or a typed
-  // section missing the issuer the verifier needs, refuses at load — a
-  // verifier configured without one would reject every token and surface as
-  // "everyone is logged out" instead of a config error.
-  //
-  // There is no `audience` key. The audience is the KB's own resource
-  // identifier, derived from its committed did:web domain (`kbResource`), so
-  // it cannot be configured into disagreement with the identity the KB
-  // already publishes.
+  function database(): EnvironmentConfig['services']['database'] {
+    const d = section('database');
+    if (!d) return undefined;
+    return {
+      platform: { type: requirePlatform(d.platform, 'database') },
+      type: 'postgres',
+      image: d.image,
+      host: d.host ?? 'localhost',
+      port: d.port ?? 5432,
+      name: d.name,
+      user: d.user,
+      password: d.password,
+    } as EnvironmentConfig['services']['database'];
+  }
+
   // No browser service is emitted. The Browser is machine-level — one Browser
   // serves many KBs — so a KB neither knows nor affects its port or publicURL
   // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are
   // inert unknown sections: tolerated, never read, never refused.
-
-  if (resolved.graph) {
-    services.graph = {
-      ...resolved.graph,
-      platform: { type: requirePlatform(resolved.graph.platform as string | undefined, 'graph') },
-      type: (resolved.graph.type ?? 'neo4j') as import('./config.types').GraphDatabaseType,
-    } as EnvironmentConfig['services']['graph'];
-  } else if (makeMeaningSection?.graph) {
-    services.graph = makeMeaningSection.graph as EnvironmentConfig['services']['graph'];
-  }
-
-  if (resolved.database) {
-    services.database = {
-      platform: { type: requirePlatform(resolved.database.platform, 'database') },
-      type: 'postgres',
-      image: resolved.database.image,
-      host: resolved.database.host ?? 'localhost',
-      port: resolved.database.port ?? 5432,
-      name: resolved.database.name,
-      user: resolved.database.user,
-      password: resolved.database.password,
-    } as EnvironmentConfig['services']['database'];
-  }
+  const services: EnvironmentConfig['services'] = {
+    get identity() { return once('identity', identity); },
+    get vectors() { return once('vectors', vectors); },
+    get embedding() { return once('embedding', embedding); },
+    get gateway() { return once('gateway', gateway); },
+    get archivist() { return once('archivist', archivist); },
+    get jobs() { return once('jobs', jobs); },
+    get graph() { return once('graph', graph); },
+    get database() { return once('database', database); },
+  };
 
   const config: EnvironmentConfig = {
     services,
@@ -699,20 +710,19 @@ export function loadTomlConfig(
           ...(raw.kb.domain ? { domain: raw.kb.domain } : {}),
         } }
       : {}),
-    ...(inferenceProviders ? { inference: inferenceProviders } : {}),
-    ...(Object.keys(topLevelWorkers).length > 0 ? { workers: topLevelWorkers } : {}),
-    ...(Object.keys(topLevelActors).length > 0 ? { actors: topLevelActors } : {}),
-    logLevel: resolved.logLevel,
+    get inference() { return once('inference', inferenceProviders); },
+    get workers() { return once('workers', topLevelWorkers); },
+    get actors() { return once('actors', topLevelActors); },
     _metadata: {
       environment: resolvedEnvironment,
       projectRoot,
-      ...(Object.keys(actors).length > 0 ? { actors } : {}),
-      ...(Object.keys(workers).length > 0 ? { workers } : {}),
-      // Always set — the loader is the ONE home of this default (D5).
-      // Consuming code (make-meaning's gather path) receives a required
-      // value and defaults nothing.
-      gather: { settleTimeoutMs: makeMeaningSection?.gather?.settleTimeoutMs ?? 15_000 },
-      search: { semanticFloor: makeMeaningSection?.search?.semanticFloor ?? 0.6 },
+      get actors() { return once('_metadata.actors', actorInference); },
+      get workers() { return once('_metadata.workers', workerInference); },
+      // The loader is the ONE home of these defaults (D5). Consuming code
+      // (make-meaning's gather path) receives a required value and defaults
+      // nothing.
+      get gather() { return once('_metadata.gather', () => ({ settleTimeoutMs: section('make-meaning')?.gather?.settleTimeoutMs ?? 15_000 })); },
+      get search() { return once('_metadata.search', () => ({ semanticFloor: section('make-meaning')?.search?.semanticFloor ?? 0.6 })); },
     },
   };
 
@@ -727,9 +737,10 @@ export function loadTomlConfig(
 export function createTomlConfigLoader(
   reader: TomlFileReader,
   globalConfigPath: string,
-  env: Record<string, string | undefined>
+  env: Record<string, string | undefined>,
+  service?: ConfigService,
 ) {
   return (projectRoot: string | null, environment?: string): EnvironmentConfig => {
-    return loadTomlConfig(projectRoot, environment, globalConfigPath, reader, env);
+    return loadTomlConfig(projectRoot, environment, globalConfigPath, reader, env, service);
   };
 }

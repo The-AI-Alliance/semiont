@@ -296,7 +296,7 @@ func Start(args []string) int {
 	}
 	configFile := filepath.Join(configDir, opts.configName+".toml")
 	var plan *launchPlan
-	var userVars []string
+	var userVars configRefs
 	var kcPort int
 	var kcFromEnv bool
 	if configNeeded {
@@ -309,19 +309,23 @@ func Start(args []string) int {
 			printConfigNames()
 			return 1
 		}
-		var uv []string
-		envCfg, envName, uv, err := loadConfig(configFile)
+		envCfg, envName, refs, err := loadConfig(configFile)
 		if err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
-		userVars = uv
+		userVars = refs
 		kcSource := ""
 		var kcOK bool
 		if kcPort, kcSource, kcFromEnv, kcOK = keycloakPort(u, root); !kcOK {
 			return 1
 		}
 		if plan, err = derivePlan(envCfg, envName, configFile, kcPort); err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
+		plan.ServiceVars = withDaemonCredentialVars(refs.ByService, plan, envCfg.Signal != nil && envCfg.Signal.Type == "nats")
+		if err := refuseDaemonCredentialNames(refs, plan, opts.configName); err != nil {
 			u.Fail("%v", err)
 			return 1
 		}
@@ -455,16 +459,50 @@ func Start(args []string) int {
 	// will consume the config — never for infra restarts. The environment
 	// always wins; a registered secret source (semiont secret) is consulted
 	// only for vars the environment doesn't provide, with the reach
-	// announced BEFORE it happens. Dry-run reaches for nothing.
+	// announced BEFORE it happens. Dry-run reaches for nothing. An optional
+	// reference (${NAME:-default}) is forwarded only when something sets it;
+	// otherwise the default applies inside the container.
 	var userEnv []string
 	if opts.service == "" || isConfigConsumer(opts.service) {
 		secrets := loadRoots().Secrets
-		for _, v := range userVars {
+		type userVar struct {
+			name     string
+			optional bool
+		}
+		// A Node service started alone reaches only for the variables it is
+		// handed, so no provider prompt asks for a secret it never reads. The
+		// gateway's document is resolved here from every section it reads, so
+		// `--service gateway` still resolves them all.
+		_, scoped := serviceConfigSections[opts.service]
+		wanted := func(v string) bool { return !scoped || contains(userVars.ByService[opts.service], v) }
+		var vars []userVar
+		for _, v := range userVars.Required {
+			if wanted(v) {
+				vars = append(vars, userVar{v, false})
+			}
+		}
+		for _, v := range userVars.Optional {
+			if wanted(v) {
+				vars = append(vars, userVar{v, true})
+			}
+		}
+		for _, uv := range vars {
+			v := uv.name
+			envVal, exported := os.LookupEnv(v)
+			_, registered := secrets[v]
 			if opts.dryRun {
-				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+				if !uv.optional || exported || registered {
+					userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+				}
 				continue
 			}
-			val := os.Getenv(v)
+			if uv.optional && exported {
+				// Set, even empty, wins over the default: the table's rule,
+				// carried across the container boundary.
+				userEnv = append(userEnv, "--env", v+"="+envVal)
+				continue
+			}
+			val := envVal
 			if val == "" {
 				if ref, ok := secrets[v]; ok && custodyOwned(v) {
 					// Registered before the refusal existed, or hand-edited.
@@ -490,6 +528,9 @@ func Start(args []string) int {
 				}
 			}
 			if val == "" {
+				if uv.optional {
+					continue
+				}
 				u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
 				fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
 				return 1
@@ -505,6 +546,12 @@ func Start(args []string) int {
 			renderStartPlan(rt, version, root, opts, userEnv, plan)
 		}
 		return 0
+	}
+	// One start per KB root at a time (startlock.go), taken before the first
+	// side effect: a second start waits for the first rather than sweeping
+	// its containers out from under it.
+	if root != "" && !acquireStartLock(u, root) {
+		return 1
 	}
 	// A codespace KB forward may squat on a port this start claims (a
 	// forward is a view, not a stack — dropping one stops nothing in the
@@ -904,7 +951,13 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	fmt.Println()
 	fmt.Printf("  Semiont Browser    %s\n", u.Bold("http://localhost:3000"))
 	fmt.Println("  Semiont KB         http://localhost:4000")
-	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", u.Dim("(neo4j / localpass)"))
+	neo4jLogin := ""
+	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
+		// The password is the launcher's (SECRET-DELIVERY P4): say where it is
+		// kept, never print it.
+		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + filepath.Join(stateRootDir(root), daemonPasswords["graph"].file) + ")")
+	}
+	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
@@ -1121,4 +1174,34 @@ func describeProcs(pids []string) string {
 		procs = append(procs, fmt.Sprintf("%s (%s)", p, comm))
 	}
 	return strings.Join(procs, ", ")
+}
+
+// refuseDaemonCredentialNames: the daemon-credential names are the launcher's
+// (SECRET-DELIVERY P4). A config may not reference one — `semiont secret`
+// registrations are machine-wide, so a name cannot be the launcher's in one KB
+// and the user's in another — and an exported one is refused, not honoured,
+// for a daemon the launcher runs (ruled 2026-09-29: "refuse exported daemon
+// passwords"): it could only disagree with the store it was meant for.
+func refuseDaemonCredentialNames(refs configRefs, plan *launchPlan, config string) error {
+	for _, name := range append(append([]string{}, refs.Required...), refs.Optional...) {
+		if daemonCredentialVar(name) {
+			return fmt.Errorf("config '%s' references ${%s}, which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", config, name)
+		}
+	}
+	for _, role := range []string{"graph", "database", "messaging"} {
+		if plan.Roles[role].Presence != presenceLauncher {
+			continue
+		}
+		d := daemonPasswords[role]
+		names := []string{d.env}
+		if role == "messaging" {
+			names = append(names, "NATS_USER")
+		}
+		for _, name := range names {
+			if _, exported := os.LookupEnv(name); exported {
+				return fmt.Errorf("%s is exported, but the launcher generates and keeps the credentials of the %s it runs. Unset it; to rotate, delete %s in this root's state dir and run semiont clean --store %s", name, d.display, d.file, role)
+			}
+		}
+	}
+	return nil
 }

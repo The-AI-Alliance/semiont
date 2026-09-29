@@ -8,7 +8,7 @@
 import { FsJobQueue, JetStreamJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
 import { SemiontState, type SemiontProject } from '@semiont/core/node';
-import { EventBus, withDeadline, type Logger, type JobsServiceConfig, evaluateEnvPlaceholders } from '@semiont/core';
+import { EventBus, withDeadline, type Logger, type JobsServiceConfig } from '@semiont/core';
 import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { createInferenceClient } from '@semiont/inference';
@@ -66,11 +66,11 @@ export function jobQueueFor(
       throw new Error("services.jobs.servers is required for the 'jetstream' job queue driver");
     }
     return new JetStreamJobQueue({
-      servers: evaluateEnvPlaceholders(jobs.servers),
+      servers: jobs.servers,
       // The same broker as the signal plane, so the same pair. Optional: absent
       // means an unauthenticated broker.
-      ...(jobs.user ? { user: evaluateEnvPlaceholders(jobs.user) } : {}),
-      ...(jobs.password ? { pass: evaluateEnvPlaceholders(jobs.password) } : {}),
+      ...(jobs.user ? { user: jobs.user } : {}),
+      ...(jobs.password ? { pass: jobs.password } : {}),
     }, logger, eventBus);
   }
   if (!name) {

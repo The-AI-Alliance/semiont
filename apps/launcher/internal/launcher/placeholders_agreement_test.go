@@ -20,11 +20,15 @@ func TestPlaceholdersAgreeWithTheSharedTable(t *testing.T) {
 	}
 	var table struct {
 		Cases []struct {
-			Why      string            `json:"why"`
-			Template string            `json:"template"`
-			Env      map[string]string `json:"env"`
-			Result   *string           `json:"result"`
-			Error    *string           `json:"error"`
+			Why        string `json:"why"`
+			Template   string `json:"template"`
+			References struct {
+				Required []string `json:"required"`
+				Optional []string `json:"optional"`
+			} `json:"references"`
+			Env    map[string]string `json:"env"`
+			Result *string           `json:"result"`
+			Error  *string           `json:"error"`
 		} `json:"cases"`
 	}
 	if err := json.Unmarshal(b, &table); err != nil {
@@ -45,5 +49,24 @@ func TestPlaceholdersAgreeWithTheSharedTable(t *testing.T) {
 		case got != *c.Result:
 			t.Errorf("%s: got %q, want %q", c.Why, got, *c.Result)
 		}
+		// The extractor decides what start demands and what it forwards, so it
+		// reads the same table the resolvers do.
+		required, optional := placeholderRefs(c.Template)
+		if !sameNames(required, c.References.Required) || !sameNames(optional, c.References.Optional) {
+			t.Errorf("%s: extractor named required %v, optional %v; the table says required %v, optional %v",
+				c.Why, required, optional, c.References.Required, c.References.Optional)
+		}
 	}
+}
+
+func sameNames(got, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
 }

@@ -228,10 +228,17 @@ semiont stop
   codespace stack, `--runtime` the local one (the same vocabulary `stop`
   uses). This replaced `start --email/--password`: the admin password used to
   ride into the gateway container as an env var, readable via `inspect` for
-  the stack's whole lifetime — now it exists only in one exec's argv, redacted
-  in the echoed command and the invocation log.
+  the stack's whole lifetime — now it is piped to `--password-stdin` and is
+  never on a command line.
 - `semiont start --dry-run` prints the exact runtime commands a real run would
   execute — the legibility answer to "what does this binary actually do".
+- **No secret value is ever on a container's command line**, where `ps` shows
+  it to every user on the machine. A container gets `--env NAME`, and the
+  value crosses through the runtime command's own environment: service-account
+  secrets, the token-signing key, forwarded config variables such as
+  `ANTHROPIC_API_KEY`, and the databases' passwords alike. Hosts, ports, client
+  ids and paths stay visible. `inspect` still shows a running container's
+  environment; that is what delivering secrets as environment means.
 - **`semiont status` reports in three layers** — LOCAL STACK (the one stack
   running here, headed by the root it belongs to and its did:web), LOCAL
   ROOTS, KNOWLEDGE BASES (local file:// clones plus codespace-hosted

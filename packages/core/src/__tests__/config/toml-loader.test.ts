@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadTomlConfig } from '../../config/toml-loader';
+import { loadTomlConfig, resolveEnvVars, createTomlConfigLoader } from '../../config/toml-loader';
 
 // Every environment must NAME a vector store and an embedding provider —
 // nothing is defaulted, and the loader refuses without them
@@ -218,10 +218,11 @@ semanticFloor = 0.75
     expect(actors?.gatherer?.apiKey).toBe('sk-secret');
   });
 
+  // The reference sits in the gatherer's inference, so the refusal fires where
+  // that section is read (SECRET-DELIVERY P5), not at load.
   it('throws when ${VAR} references a missing env var', () => {
-    expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), {})
-    ).toThrow('Environment variable MY_API_KEY is not set');
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(WITH_ENV_VAR_TOML_COMPLETE), {});
+    expect(() => config._metadata?.actors).toThrow('Environment variable MY_API_KEY is not set');
   });
 
   it('resolves from the project config when the global config file is absent', () => {
@@ -339,6 +340,25 @@ ${MINIMAL_TOML}`;
     });
   });
 
+  // SECRET-DELIVERY F2: the broker pair never left the loader, so the
+  // dispatcher's JetStream queue never authenticated, whatever the config said.
+  it('maps [jobs] user and password to services.jobs — the broker pair reaches the dispatcher', () => {
+    const toml = `
+[environments.local.jobs]
+type = "jetstream"
+servers = "nats.internal:4222"
+user = "semiont"
+password = "\${NATS_PASSWORD}"
+${MINIMAL_TOML}`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_PASSWORD: 's3cret' });
+    expect(cfg.services.jobs).toEqual({
+      type: 'jetstream',
+      servers: 'nats.internal:4222',
+      user: 'semiont',
+      password: 's3cret',
+    });
+  });
+
   it("emits no jobs service when the section is absent (the consumer's 'fs' default)", () => {
     const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
     expect(cfg.services.jobs).toBeUndefined();
@@ -354,7 +374,7 @@ ${MINIMAL_TOML}`;
 [environments.local.jobs]
 servers = "nats.internal:4222"
 ${MINIMAL_TOML}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.jobs)
       .toThrow(/\[environments\.local\.jobs\].*type/);
   });
 
@@ -371,60 +391,8 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.jobs?.servers).toBe('10.0.0.9:4222');
   });
 
-  // SIGNAL-PLANE P2: the gateway selects the Signal Plane driver from
-  // services.signal. Same missing-middle shape as [jobs] above, and the same
-  // refusal discipline (D6): selection is stated, never inferred, never
-  // silently defaulted — and typed-but-INCOMPLETE refuses too, because a
-  // [signal] type="nats" with no servers would select a driver that cannot
-  // connect and surface as a hang instead of a config error.
-  it('maps [signal] to services.signal — type and servers pass through', () => {
-    const toml = `
-[environments.local.signal]
-type = "nats"
-servers = "nats.internal:4222"
-${MINIMAL_TOML}`;
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
-    expect(cfg.services.signal).toEqual({
-      type: 'nats',
-      servers: 'nats.internal:4222',
-    });
-  });
-
-  it("emits no signal service when the section is absent (the consumer's in-process default)", () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
-    expect(cfg.services.signal).toBeUndefined();
-  });
-
-  it('refuses a [signal] section that names no type', () => {
-    const toml = `
-[environments.local.signal]
-servers = "nats.internal:4222"
-${MINIMAL_TOML}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
-      .toThrow(/\[environments\.local\.signal\].*type/);
-  });
-
-  it('refuses [signal] type = "nats" with no servers — typed-but-incomplete never falls through', () => {
-    const toml = `
-[environments.local.signal]
-type = "nats"
-${MINIMAL_TOML}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
-      .toThrow(/\[environments\.local\.signal\].*servers/);
-  });
-
-  it('resolves ${VAR} placeholders in signal.servers from the loader env', () => {
-    const toml = `
-[environments.local.signal]
-type = "nats"
-servers = "\${NATS_HOST}:4222"
-${MINIMAL_TOML}`;
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_HOST: '10.0.0.9' });
-    expect(cfg.services.signal?.servers).toBe('10.0.0.9:4222');
-  });
-
   // EXTERNAL-IDENTITY P3: the gateway reads services.identity for the issuer
-  // it trusts. Same missing-middle shape as [jobs] and [signal], and every key
+  // it trusts. Same missing-middle shape as [jobs], and every key
   // the verifier needs is required — typed-but-incomplete refuses, naming the
   // key. There is no `audience` key: the audience is the KB's own resource
   // identifier, derived from its committed did:web domain.
@@ -478,7 +446,7 @@ ${MINIMAL_NO_IDENTITY}`;
         : null,
     };
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', raw, {}),
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', raw, {}).services.identity,
     ).toThrow(/names no identity section/);
   });
 
@@ -487,7 +455,7 @@ ${MINIMAL_NO_IDENTITY}`;
 [environments.local.identity]
 issuer = "https://login.example.com/realms/acme"
 ${MINIMAL_NO_IDENTITY}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.identity)
       .toThrow(/\[environments\.local\.identity\].*type/);
   });
 
@@ -497,7 +465,7 @@ ${MINIMAL_NO_IDENTITY}`;
 type = "keycloak"
 audience = "semiont-gateway"
 ${MINIMAL_NO_IDENTITY}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.identity)
       .toThrow(/\[environments\.local\.identity\].*issuer/);
   });
 
@@ -511,7 +479,7 @@ ${MINIMAL_NO_IDENTITY}`;
 type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
 ${MINIMAL_NO_IDENTITY}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}))
+    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.identity)
       .toThrow(/\[environments\.local\.identity\].*subjectClaim/);
   });
 
@@ -619,7 +587,7 @@ ${MINIMAL_TOML}`;
   it('refuses a config naming no vector store, config-actionably (MANDATORY-EMBEDDING D1)', () => {
     const noVectors = MINIMAL_TOML.replace(/\[environments\.local\.vectors\][^[]*/, '');
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noVectors), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noVectors), {}).services.vectors
     ).toThrow(/names no vector store/);
   });
 
@@ -628,7 +596,7 @@ ${MINIMAL_TOML}`;
     // longer ends with [embedding] now that identity follows it.
     const noEmbedding = MINIMAL_TOML.replace(/\[environments\.local\.embedding\][\s\S]*?(?=\n\[|$)/, '');
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noEmbedding), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(noEmbedding), {}).services.embedding
     ).toThrow(/names no embedding provider/);
   });
 
@@ -693,7 +661,7 @@ port = 4001
 type = "memory"
 ${SERVICES_LOCAL}`;
     expect(() =>
-      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(both), {})
+      loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(both), {}).services.gateway
     ).toThrow(/both \[gateway\] and \[backend\]/);
   });
 
@@ -707,5 +675,228 @@ type = "memory"
 ${SERVICES_LOCAL}`;
     const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(neither), {});
     expect(config.services?.gateway).toBeUndefined();
+  });
+});
+
+// SECRET-DELIVERY P5, as ruled: a section's ${VAR}s resolve when a service
+// reads that section ("Loader resolves lazily"), and a service reads only the
+// sections specs/src/service-config/sections.json lists for it ("Spec file,
+// enforced lazily"). That is what lets the launcher forward each service only
+// the variables its own sections reference.
+describe('sections resolve when read, and a service reads only what it declares', () => {
+  const UNREAD_SECRET = `
+[environments.local.inference.anthropic]
+platform = "external"
+apiKey = "\${UNSET_P5_KEY}"
+`;
+
+  it('an unset variable in a section nothing reads does not refuse the load', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(`${MINIMAL_TOML}${UNREAD_SECRET}`), {});
+    expect(cfg.services.identity.issuer).toBe('http://localhost:8080/realms/semiont');
+  });
+
+  it('reading that section refuses, naming the variable', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(`${MINIMAL_TOML}${UNREAD_SECRET}`), {});
+    expect(() => cfg.inference).toThrow(/UNSET_P5_KEY/);
+  });
+
+  it('a service reading a section it does not declare refuses, naming the section and the spec', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'dispatcher');
+    expect(cfg.services.identity.type).toBe('keycloak');
+    expect(() => cfg.services.vectors).toThrow(/dispatcher.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
+  });
+});
+
+// What each part of the config maps to, read part by part. These paths are
+// the loader's own, built at each part's first read (SECRET-DELIVERY P5).
+describe('each part maps its section', () => {
+  const load = (toml: string, env: Record<string, string> = {}) =>
+    loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), env);
+  const BASE = `
+[environments.local.gateway]
+platform = "posix"
+port = 3001
+`;
+
+  it('workers inherit credentials from the keyed [inference.anthropic]', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference.anthropic]
+platform = "external"
+apiKey = "k"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "m"
+`);
+    const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; endpoint?: string; model?: string }>;
+    expect(workers.default).toMatchObject({ model: 'm', apiKey: 'k' });
+    expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
+    expect(cfg.workers).toEqual({ default: { inference: { type: 'anthropic', model: 'm' } } });
+  });
+
+  it('workers inherit baseURL and maxTokens from a flat [inference] of type ollama', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+type = "ollama"
+platform = "external"
+baseURL = "http://ollama.internal:11434"
+maxTokens = 512
+
+[environments.local.workers.generation.inference]
+type = "ollama"
+model = "gemma"
+`);
+    const workers = cfg._metadata?.workers as Record<string, { baseURL?: string; maxTokens?: number }>;
+    expect(workers.generation).toMatchObject({ baseURL: 'http://ollama.internal:11434', maxTokens: 512 });
+    expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
+  });
+
+  it('a flat [inference] with no type refuses at the read that needs it', () => {
+    for (const type of ['anthropic', 'ollama']) {
+      const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+platform = "external"
+
+[environments.local.workers.default.inference]
+type = "${type}"
+model = "m"
+`);
+      expect(() => cfg._metadata?.workers).toThrow(/inference\] is missing 'type'/);
+    }
+  });
+
+  it('maps a flat anthropic provider and a keyed ollama one, with their defaults', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.inference]
+type = "anthropic"
+platform = "external"
+apiKey = "k"
+
+[environments.local.inference.ollama]
+platform = "external"
+baseURL = "http://ollama.internal:11434"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "a"
+
+[environments.local.workers.generation.inference]
+type = "ollama"
+model = "o"
+`);
+    expect(cfg.inference?.anthropic).toMatchObject({ apiKey: 'k', endpoint: 'https://api.anthropic.com' });
+    expect(cfg.inference?.ollama).toMatchObject({ baseURL: 'http://ollama.internal:11434' });
+    // A flat anthropic section hands its key down; a keyed ollama its baseURL.
+    const workers = cfg._metadata?.workers as Record<string, { apiKey?: string; baseURL?: string }>;
+    expect(workers.default.apiKey).toBe('k');
+    expect(workers.generation.baseURL).toBe('http://ollama.internal:11434');
+  });
+
+  it('a config with no [inference] maps no providers', () => {
+    expect(load(MINIMAL_TOML).inference).toBeUndefined();
+  });
+
+  it('maps the actor maps from [actors] and [make-meaning.actors]', () => {
+    const cfg = load(`${MINIMAL_TOML}
+[environments.local.actors.gatherer.inference]
+type = "anthropic"
+model = "g"
+apiKey = "k"
+
+[environments.local.make-meaning.actors.matcher.inference]
+type = "anthropic"
+model = "mm"
+apiKey = "k"
+
+[environments.local.make-meaning.actors.gatherer.inference]
+type = "anthropic"
+model = "mg"
+apiKey = "k"
+`);
+    // [make-meaning.actors] wins over [actors] for the same actor.
+    expect(cfg.actors).toEqual({
+      gatherer: { inference: { type: 'anthropic', model: 'mg' } },
+      matcher: { inference: { type: 'anthropic', model: 'mm' } },
+    });
+  });
+
+  it('maps [graph] and [database], with their defaults', () => {
+    const cfg = load(`${BASE}
+[environments.local.graph]
+platform = "external"
+uri = "bolt://neo4j.internal:7687"
+
+[environments.local.database]
+platform = "external"
+name = "semiont"
+
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(cfg.services.graph).toMatchObject({ type: 'neo4j', uri: 'bolt://neo4j.internal:7687', platform: { type: 'external' } });
+    expect(cfg.services.database).toMatchObject({ type: 'postgres', host: 'localhost', port: 5432, name: 'semiont' });
+  });
+
+  it('a [graph] with no platform refuses at its read', () => {
+    const cfg = load(`${BASE}
+[environments.local.graph]
+type = "neo4j"
+
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(() => cfg.services.graph).toThrow(/platform is required for service 'graph'/);
+  });
+
+  it('vectors default their port, and chunking falls back to [vectors]', () => {
+    const cfg = load(`${BASE}
+[environments.local.vectors]
+type = "qdrant"
+host = "qdrant.internal"
+
+[environments.local.vectors.chunking]
+chunkSize = 256
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`);
+    expect(cfg.services.vectors).toMatchObject({ host: 'qdrant.internal', port: 6333 });
+    expect(cfg.services.database).toBeUndefined();
+    expect(cfg.services.embedding?.chunking).toEqual({ chunkSize: 256, overlap: 64 });
+  });
+
+  it('resolves a ${VAR} inside an array', () => {
+    expect(resolveEnvVars({ servers: ['${A}:4222', 'b:4222'] }, { A: 'a' })).toEqual({ servers: ['a:4222', 'b:4222'] });
+  });
+
+  it('merges a nested project section under the user config', () => {
+    const project = `[project]\nname = "p"\n\n[environments.local.graph]\nplatform = "external"\ntype = "neo4j"\nuri = "bolt://project:7687"\ndatabase = "neo4j"\n`;
+    const user = `${BASE}
+[environments.local.graph]
+uri = "bolt://user:7687"
+
+[environments.local.vectors]
+type = "memory"
+
+[environments.local.embedding]
+type = "ollama"
+model = "nomic-embed-text"
+`;
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(user, project), {});
+    expect(cfg.services.graph).toMatchObject({ uri: 'bolt://user:7687', database: 'neo4j' });
+  });
+
+  it('createTomlConfigLoader hands its service to the loader', () => {
+    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'dispatcher')('/project', 'local');
+    expect(() => cfg.services.vectors).toThrow(/dispatcher/);
   });
 });

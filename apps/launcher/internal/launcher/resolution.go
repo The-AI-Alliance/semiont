@@ -328,7 +328,11 @@ func secretSet(u *UI, name, uri string) int {
 	if custodyOwned(name) {
 		u.Fail("%s is minted and kept by the launcher, not read from a provider.", name)
 		fmt.Fprintf(os.Stderr, "  Its value lives in this root's state dir and must outlive the stack; a resolved one would be discarded at start.\n")
-		fmt.Fprintf(os.Stderr, "  To supply your own, export %s — the launcher's own process reads the environment first.\n", name)
+		if daemonCredentialVar(name) {
+			fmt.Fprintf(os.Stderr, "  It belongs to a daemon the launcher runs, so an exported one is refused too. To rotate it, delete its file there and run semiont clean --store for that daemon.\n")
+		} else {
+			fmt.Fprintf(os.Stderr, "  To supply your own, export %s — the launcher's own process reads the environment first.\n", name)
+		}
 		return 1
 	}
 	scheme, path, ok := strings.Cut(uri, "://")

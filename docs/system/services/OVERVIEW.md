@@ -117,7 +117,6 @@ platform = "external"
 type = "neo4j"
 uri = "bolt://${NEO4J_HOST}:7687"
 username = "neo4j"
-password = "localpass"
 database = "neo4j"
 
 [environments.local.vectors]
@@ -155,8 +154,9 @@ host = "${POSTGRES_HOST}"
 port = 5432
 name = "semiont"
 user = "postgres"
-password = "localpass"
 ```
+
+The config names no password for the Neo4j and PostgreSQL the launcher runs: it generates one for each, keeps it per knowledge base, and refuses a config that names one. A daemon you run yourself takes its password from a `${VAR}` reference, which you export or register with `semiont secret set`.
 
 Note the split: `[environments.local.inference.<provider>]` carries a provider's credentials, while `[environments.local.{actors.<actor>,workers.<pool>}.inference]` binds one consumer to a `(type, model)` pair. That is what lets a lighter model serve high-volume annotation workers while the Gatherer uses a stronger one.
 

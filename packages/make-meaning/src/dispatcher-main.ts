@@ -56,7 +56,7 @@ import { attachServicePumps } from './service-pumps';
 // No project root: the dispatcher has no KB mount, so everything it needs
 // rides the staged config (~/.semiontconfig in the container). `[services.jobs]`
 // selects the driver and names `${NATS_HOST}` for the JetStream one.
-const envConfig = loadEnvironmentConfig(null);
+const envConfig = loadEnvironmentConfig(null, { service: 'dispatcher' });
 
 const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
 if (!gatewayPublicURL) {

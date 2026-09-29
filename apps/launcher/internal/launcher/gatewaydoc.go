@@ -45,17 +45,32 @@ func resolveRefs(field, value string, vars map[string]string) (string, error) {
 
 // secretName: a credential's value in the KB config must be exactly ${NAME};
 // the document names NAME and the value never leaves the environment.
-var secretRefRe = regexp.MustCompile(`^\$\{([A-Z_][A-Z0-9_]*)\}$`)
-
 func secretName(field, value string) (*string, error) {
 	if value == "" {
 		return nil, nil
 	}
-	m := secretRefRe.FindStringSubmatch(value)
-	if m == nil {
+	name := referenceName(value)
+	if name == "" {
 		return nil, fmt.Errorf("%s must be a ${VAR} reference: the gateway's configuration document carries no secret value — set it in the environment and write %s = \"${NAME}\"", field, field)
 	}
-	return &m[1], nil
+	return &name, nil
+}
+
+// gatewayNamedVars: the variables the gateway's document names rather than
+// resolves — the broker pair — and so the ones the gateway is handed. A
+// credential that is not exactly ${NAME} names nothing here; writing the
+// document refuses it.
+func gatewayNamedVars(env *envConfig) []string {
+	var names []string
+	if env.Signal == nil || env.Signal.Type != "nats" {
+		return names
+	}
+	for _, v := range []struct{ field, value string }{{"signal.user", env.Signal.User}, {"signal.password", env.Signal.Password}} {
+		if name, err := secretName(v.field, v.value); err == nil && name != nil {
+			names = append(names, *name)
+		}
+	}
+	return names
 }
 
 // gatewayVars: what a ${VAR} in the gateway's settings resolves against — the
@@ -70,12 +85,8 @@ func gatewayVars(rt, addr string, issuerPort int, userEnv []string) map[string]s
 	}
 	vars["KEYCLOAK_HOST"] = identityHost(rt, addr)
 	vars["KEYCLOAK_PORT"] = strconv.Itoa(issuerPort)
-	for i := 0; i+1 < len(userEnv); i += 2 {
-		if userEnv[i] == "--env" {
-			if name, value, ok := strings.Cut(userEnv[i+1], "="); ok {
-				vars[name] = value
-			}
-		}
+	for name, value := range userEnvVars(userEnv) {
+		vars[name] = value
 	}
 	return vars
 }
@@ -90,7 +101,7 @@ const connectionAllowance = 20 << 10
 // and nowhere else: no [signal] is the in-process plane, no logLevel is info,
 // the log format is JSON (a KB config names none), no publicURL is the local
 // address, and a hand-written archivist section wins over the launcher's.
-func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPort int, port int, userEnv []string) ([]byte, error) {
+func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPort int, port int, userEnv []string, brokerRun bool) ([]byte, error) {
 	if kbDomain == "" {
 		return nil, fmt.Errorf("the knowledge base declares no [site] domain in its .semiont/config: the gateway has no identity to run under")
 	}
@@ -133,11 +144,18 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 			return nil, err
 		}
 		doc.Signal.Servers = &servers
-		if doc.Signal.UserEnv, err = secretName("signal.user", env.Signal.User); err != nil {
-			return nil, err
-		}
-		if doc.Signal.PasswordEnv, err = secretName("signal.password", env.Signal.Password); err != nil {
-			return nil, err
+		if brokerRun {
+			// The broker the launcher runs has the pair it keeps
+			// (SECRET-DELIVERY P4); the gateway is handed both.
+			user, password := "NATS_USER", daemonPasswords["messaging"].env
+			doc.Signal.UserEnv, doc.Signal.PasswordEnv = &user, &password
+		} else {
+			if doc.Signal.UserEnv, err = secretName("signal.user", env.Signal.User); err != nil {
+				return nil, err
+			}
+			if doc.Signal.PasswordEnv, err = secretName("signal.password", env.Signal.Password); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -154,4 +172,25 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 	doc.Capacity.QueuedBytes = memory / 2
 	doc.Capacity.Connections = memory / 2 / connectionAllowance
 	return json.MarshalIndent(doc, "", "  ")
+}
+
+// externalCredential: an external daemon's credential as the config writes it,
+// resolved by the shared rule against the user's variables — where the
+// launcher itself needs the value (SECRET-DELIVERY P4, D1: "A's resolver for
+// ones it doesn't"). An unresolvable reference refuses, naming it.
+func externalCredential(field, value string, userEnv []string) (string, error) {
+	return resolveRefs(field, value, userEnvVars(userEnv))
+}
+
+// userEnvVars: the NAME=value pairs of a start's resolved --env list.
+func userEnvVars(userEnv []string) map[string]string {
+	vars := map[string]string{}
+	for i := 0; i+1 < len(userEnv); i += 2 {
+		if userEnv[i] == "--env" {
+			if name, value, ok := strings.Cut(userEnv[i+1], "="); ok {
+				vars[name] = value
+			}
+		}
+	}
+	return vars
 }

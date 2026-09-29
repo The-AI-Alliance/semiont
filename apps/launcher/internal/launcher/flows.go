@@ -25,6 +25,75 @@ type flowCtx struct {
 	restart bool
 }
 
+// withDaemonCredentials adds the kept passwords of the daemons this plan runs
+// to the start's resolved variables (SECRET-DELIVERY P4): the daemon starts
+// with its own (daemonLaunchEnv), and each service is handed the ones its
+// sections reference (envFor). Loaded once, before anything is torn down or
+// started, so a store the launcher holds no password for refuses first.
+func withDaemonCredentials(x executor, fc flowCtx) (flowCtx, bool) {
+	if fc.plan == nil {
+		return fc, true
+	}
+	env := append([]string{}, fc.userEnv...)
+	for _, role := range []string{"graph", "database", "messaging"} {
+		if fc.plan.Roles[role].Presence != presenceLauncher {
+			continue
+		}
+		pw, ok := x.daemonPassword(fc.root, role)
+		if !ok {
+			return fc, false
+		}
+		if role == "messaging" {
+			env = append(env, "--env", "NATS_USER="+brokerUser)
+		}
+		env = append(env, "--env", daemonPasswords[role].env+"="+pw)
+	}
+	fc.userEnv = env
+	return fc, true
+}
+
+// daemonLaunchEnv: the credential a launcher-run daemon starts with — its kept
+// password, or, for Keycloak, PostgreSQL's: kept when the launcher runs that
+// PostgreSQL, the config's reference resolved when it does not.
+func daemonLaunchEnv(fc flowCtx, role string, rp rolePlan) ([]string, error) {
+	kept := func(role string) string {
+		return userEnvVars(fc.userEnv)[daemonPasswords[role].env]
+	}
+	switch role {
+	case "graph":
+		return []string{"NEO4J_AUTH=" + rp.User + "/" + kept("graph")}, nil
+	case "database":
+		return []string{"POSTGRES_PASSWORD=" + kept("database")}, nil
+	case "messaging":
+		return []string{"NATS_USER=" + brokerUser, "NATS_PASSWORD=" + kept("messaging")}, nil
+	case "identity":
+		if rp.ExternalDBPassword == "" {
+			return []string{"KC_DB_PASSWORD=" + kept("database")}, nil
+		}
+		pw, err := externalCredential("database.password", rp.ExternalDBPassword, fc.userEnv)
+		if err != nil {
+			return nil, err
+		}
+		return []string{"KC_DB_PASSWORD=" + pw}, nil
+	}
+	return nil, nil
+}
+
+// envFor: the user variables svc is handed — the --env pairs of userEnv whose
+// names its own config sections reference (launchPlan.ServiceVars). userEnv
+// itself keeps every resolved value: the launcher's own reads (the gateway's
+// document, the remote-model check) need them.
+func (fc flowCtx) envFor(svc string) []string {
+	var out []string
+	for i := 0; i+1 < len(fc.userEnv); i += 2 {
+		name, _, _ := strings.Cut(fc.userEnv[i+1], "=")
+		if contains(fc.plan.ServiceVars[svc], name) {
+			out = append(out, fc.userEnv[i], fc.userEnv[i+1])
+		}
+	}
+	return out
+}
+
 // roleBanner and startBanner: the heading a role's flow prints, in the voice
 // of the verb that reached it. Every flow announces itself — that is what
 // makes a flow callable from both walks, and what kept `start --service
@@ -60,6 +129,9 @@ var depRoleTitles = map[string]string{
 func flowFullStart(x executor, fc flowCtx) int {
 	addr, ok := x.resolveAddr()
 	if !ok {
+		return 1
+	}
+	if fc, ok = withDaemonCredentials(x, fc); !ok {
 		return 1
 	}
 	x.say(sayLog, "Host address: %s", x.dim(addr))
@@ -409,6 +481,12 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 			extra = append(extra, kc...)
 			svcSecrets, adminPassword = secrets, password
 		}
+		creds, err := daemonLaunchEnv(fc, role, rp)
+		if err != nil {
+			x.say(sayFail, "%v", err)
+			return 1
+		}
+		rp.Env = append(append([]string{}, rp.Env...), creds...)
 		args := providedRunArgs(role, rp, extra...)
 		id, ok := x.runDetached(args)
 		if !ok {
@@ -692,7 +770,7 @@ func flowGateway(x executor, fc flowCtx, addr, stage string, otel []string) int 
 	if !ok {
 		return 1
 	}
-	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, port, fc.userEnv, otel, extra...)
+	bArgs := gatewayArgs(stage, x.rtName(), addr, gatewayClientSecret, jwt, fc.version, port, fc.envFor("gateway"), otel, extra...)
 	id, ok := x.runDetached(bArgs)
 	if !ok {
 		x.say(sayFail, "Gateway failed to start.")
@@ -736,7 +814,7 @@ func flowSidecar(x executor, fc flowCtx, sc sidecarSpec, addr, stage string, ote
 	if !ok {
 		return 1
 	}
-	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := sidecarArgs(sc.svc, sc.port, stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor(sc.svc), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "%s failed to start.", sc.label)
@@ -775,7 +853,7 @@ func flowArchivist(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, extra...)
+	args := archivistArgs(x.val(fc.root, "<kb-root>"), stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("archivist"), otel, extra...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Archivist failed to start.")
@@ -807,7 +885,7 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 	if !ok {
 		return 1
 	}
-	args := librarianArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel, state...)
+	args := librarianArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("librarian"), otel, state...)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Librarian failed to start.")
@@ -838,7 +916,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.userEnv, otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")
@@ -858,6 +936,10 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 // service's own teardown/ports/pull, secret rejoin + OTel detection + fresh
 // staging for config consumers, then the service's launch and gate.
 func flowOneService(x executor, fc flowCtx) int {
+	fc, ok := withDaemonCredentials(x, fc)
+	if !ok {
+		return 1
+	}
 	svc := fc.opts.service
 	if fc.plan != nil {
 		if rp, ok := fc.plan.Roles[svc]; ok {

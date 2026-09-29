@@ -51,7 +51,14 @@ type rolePlan struct {
 	SharesOllamaWith string   // role under which the launcher runs the Ollama this one uses
 	Models           []string // models this role uses, whoever serves them (sorted, deduped)
 	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
-	Env              []string // container env derived from config (creds)
+	Env              []string // container env derived from config (no credential: those are added at launch)
+	// User: the login a launcher-kept password belongs to (graph: NEO4J_AUTH's
+	// user half).
+	User string
+	// ExternalDBPassword: identity on an EXTERNAL PostgreSQL — the config's
+	// [database] password as written, resolved at launch by the shared rule
+	// (SECRET-DELIVERY P4, "A's resolver for ones it doesn't").
+	ExternalDBPassword string
 	// CmdExtra: arguments appended AFTER the driver's own command. The
 	// messaging role uses it for `-c` when the broker is authenticated; the
 	// path is fixed, so the derivation can state it and the flow only has to
@@ -81,6 +88,9 @@ type launchPlan struct {
 	// EMBEDDING failure. Output must name the role, not the section it
 	// happened to be printed under.
 	OllamaModels []modelNeed
+	// ServiceVars: the user variables each stack service is handed — only
+	// those its own config sections reference (SECRET-DELIVERY P5).
+	ServiceVars map[string][]string
 }
 
 // The two roles a model can be asked to serve. Providers vary (ollama,
@@ -356,6 +366,11 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	secErr := func(section, format string, a ...any) error {
 		return fmt.Errorf("%s: [environments.%s.%s] %s", path, envName, section, fmt.Sprintf(format, a...))
 	}
+	// launcherOwnedErr: a config names the credential of a daemon the
+	// launcher runs, which the launcher generates and keeps (SECRET-DELIVERY P4).
+	launcherOwnedErr := func(section, key, daemon string) error {
+		return secErr(section, "names a %s, but the launcher generates and keeps the credentials of the %s it runs — delete the key (to rotate: delete its file in this root's state dir, then semiont clean --store)", key, daemon)
+	}
 	// envErr names the ENVIRONMENT rather than one of its sections — for the
 	// refusals where the missing thing IS the section, so secErr's prefix
 	// would point at a heading that does not exist.
@@ -388,7 +403,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	// Until that word means one thing in both places, the address shape is
 	// the authority. See GO-LAUNCHER.md follow-ups.
 	classify := func(host, injectedVar string) presence {
-		if host == "${"+injectedVar+"}" {
+		if referenceName(host) == injectedVar {
 			return presenceLauncher
 		}
 		return presenceExternal
@@ -422,12 +437,16 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			rp.Presence = presenceHostPreferred
 			rp.Image = img
 		case classify(host, "NEO4J_HOST") == presenceLauncher:
-			if g.Username == "" || g.Password == "" {
-				return nil, secErr("graph", "missing required key %q (needed to provision the container)", "username/password")
+			if g.Password != "" {
+				return nil, launcherOwnedErr("graph", "password", "Neo4j")
+			}
+			if g.Username == "" {
+				return nil, secErr("graph", "missing required key %q (needed to provision the container)", "username")
 			}
 			rp.Presence = presenceLauncher
 			rp.Image = img
-			rp.Env = []string{"NEO4J_AUTH=" + g.Username + "/" + g.Password, "NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
+			rp.User = g.Username
+			rp.Env = []string{"NEO4J_ACCEPT_LICENSE_AGREEMENT=yes"}
 		default:
 			rp.Presence = presenceExternal
 			rp.Address = host
@@ -501,8 +520,8 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 		rp := rolePlan{Role: "database", Driver: typ, Port: port}
 		if classify(d.Host, "POSTGRES_HOST") == presenceLauncher {
-			if d.Password == "" {
-				return nil, secErr("database", "missing required key %q (needed to provision the container)", "password")
+			if d.Password != "" {
+				return nil, launcherOwnedErr("database", "password", "PostgreSQL")
 			}
 			if d.Name == "" {
 				return nil, secErr("database", "missing required key %q (needed to provision the container)", "name")
@@ -512,7 +531,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			if d.Image != "" {
 				rp.Image = d.Image
 			}
-			rp.Env = []string{"POSTGRES_PASSWORD=" + d.Password, "POSTGRES_DB=" + d.Name}
+			rp.Env = []string{"POSTGRES_DB=" + d.Name}
 			// POSTGRES_USER only when it departs from the image default —
 			// keeps derivation byte-identical with today's argv.
 			if d.User != "" && d.User != "postgres" {
@@ -612,18 +631,22 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 		rp := rolePlan{Role: "messaging", Driver: "jetstream", Port: port}
 		if classify(host, "NATS_HOST") == presenceLauncher {
+			// The broker the launcher runs is always authenticated, with a pair
+			// the launcher keeps (SECRET-DELIVERY P4): a config naming one is a
+			// second place deciding it.
+			if user != "" || pass != "" {
+				section := "jobs"
+				if !jobsWantBroker || (j.User == "" && j.Password == "") {
+					section = "signal"
+				}
+				return nil, launcherOwnedErr(section, "user/password", "the broker")
+			}
 			rp.Presence = presenceLauncher
 			rp.Image = spec.image
-			// Delivered as the daemon's own environment, the way the graph role
-			// hands neo4j NEO4J_AUTH and the database role hands postgres
-			// POSTGRES_PASSWORD. nats-server reads no credential from the
-			// environment by itself, so the staged config interpolates these
-			// two names — which is what keeps the secret out of argv, where
-			// every process listing would carry it.
-			if user != "" {
-				rp.Env = []string{"NATS_USER=" + user, "NATS_PASSWORD=" + pass}
-				rp.CmdExtra = []string{"-c", natsConfPath}
-			}
+			// The pair arrives as the daemon's own environment at launch.
+			// nats-server reads no credential from the environment by itself,
+			// so the staged config interpolates the two names.
+			rp.CmdExtra = []string{"-c", natsConfPath}
 		} else {
 			rp.Presence = presenceExternal
 			rp.Address = host
@@ -700,8 +723,14 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 				return nil, secErr("identity", "type = %q needs a [%s] section — %s", id.Type, dep.role, dep.because)
 			}
 			d := env.Database
-			if d.Password == "" {
-				return nil, secErr("identity", "[database] names no password — Keycloak dials PostgreSQL with it")
+			// A launcher-run PostgreSQL's password is kept by the launcher and
+			// handed to Keycloak at launch; an external one's is the config's
+			// reference, resolved then.
+			if plan.Roles["database"].Presence != presenceLauncher {
+				if d.Password == "" {
+					return nil, secErr("identity", "[database] names no password — Keycloak dials the external PostgreSQL with it")
+				}
+				rp.ExternalDBPassword = d.Password
 			}
 			user := d.User
 			if user == "" {
@@ -712,9 +741,9 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			if id.Image != "" {
 				rp.Image = id.Image
 			}
-			rp.Env = []string{"KC_DB=postgres", "KC_DB_USERNAME=" + user, "KC_DB_PASSWORD=" + d.Password,
+			rp.Env = []string{"KC_DB=postgres", "KC_DB_USERNAME=" + user,
 				"KC_BOOTSTRAP_ADMIN_USERNAME=" + keycloakAdminUser}
-		case strings.HasPrefix(host, "${"):
+		case referenceName(host) != "":
 			return nil, secErr("identity", "issuer %q names a launcher-injected host, which only type = \"keycloak\" on ${KEYCLOAK_HOST} can be", id.Issuer)
 		default:
 			rp.Presence = presenceExternal
@@ -754,7 +783,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		switch {
 		case host == "" && e.Type == "voyage":
 			host = "api.voyageai.com"
-		case strings.HasPrefix(host, "${"):
+		case referenceName(host) != "":
 			host = "localhost"
 		case host == "":
 			return nil, secErr("embedding", "missing required key %q", "baseURL")

@@ -281,6 +281,17 @@ func startCodespace(u *UI, opts startOptions) int {
 		return 1
 	}
 	u.Ok("KB healthy %s", u.Dim("("+took(d)+")"))
+	// The forward proved only that the gateway answers. When ssh could not
+	// answer earlier, ask the codespace's own launcher once more: a stack
+	// still coming up is waited for rather than called up. An ssh that still
+	// cannot answer leaves the gateway as the best evidence there is — a
+	// codespace that never grows an sshd must not stall here — and only a
+	// move, which needs ssh anyway, insists (forwardIssuer).
+	if !askable && askRemoteKB(name) == remoteNotReady {
+		if code := waitForRemoteStack(u, name); code != 0 {
+			return code
+		}
+	}
 	if code := forwardIssuer(u, newSt); code != 0 {
 		return code
 	}
@@ -698,11 +709,12 @@ func ensureCodespaceAvailable(u *UI, repo, name string) int {
 	if state == "Available" {
 		return 0
 	}
-	// "deleted" is the NORMAL end of every codespace (the launcher's own
-	// 720h retention) — fail in two seconds with the real reason, never
-	// poll a ghost. No auto-create: a paid VM is an explicit choice.
+	// "deleted" is the NORMAL end of every codespace (its retention period
+	// after stopping, or a delete by hand) — fail in two seconds with the
+	// real reason, never poll a ghost. No auto-create: a paid VM is an
+	// explicit choice.
 	if state == "deleted" {
-		u.Fail("Codespace %s no longer exists — GitHub deleted it under the 30-day retention set at create.", name)
+		u.Fail("Codespace %s no longer exists — deleted by hand, or by GitHub once it stayed stopped past its retention period.", name)
 		fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
 		fmt.Fprintln(os.Stderr, "  Then create fresh:  semiont start --runtime codespace --repo "+repo)
 		return 1
@@ -1659,10 +1671,17 @@ const (
 // start that would otherwise have worked. Exit codes alone cannot separate
 // "curl refused" from "ssh died", so the remote command prints a sentinel and
 // we read stdout: no sentinel means the question never reached the VM.
+// askRemoteKB asks the codespace's OWN launcher whether its stack is up —
+// every service healthy and no start in progress (status --root) — not whether
+// the gateway answers. The gateway is among the first services a start brings
+// up, so a gateway-only probe said "ready" while post-start was still starting
+// the rest, and the issuer move's rerun collided with it (live 2026-09-29,
+// bugs/codespace-issuer-move-races-post-start.md P2). Before post-start has
+// installed the launcher, `semiont` is not found and the answer is "wait".
 func askRemoteKB(name string) remoteReadiness {
 	probe := fmt.Sprintf(
-		"curl -sf -o /dev/null -m 5 http://localhost:%d/api/health && echo %s || echo %s",
-		kbRemotePort, readySentinel, notReadySentinel)
+		"cd /workspaces/* && semiont status --root . >/dev/null 2>&1 && echo %s || echo %s",
+		readySentinel, notReadySentinel)
 	out, _ := capture("gh", "codespace", "ssh", "-c", name, "--", probe)
 	switch {
 	case strings.Contains(out, readySentinel):
@@ -1912,7 +1931,20 @@ func forwardIssuer(u *UI, st *StackState) int {
 	if want == 0 || portHeld(want) {
 		want = allocatePort(LoadStackSet(), cs.Repo, descriptorFor("identity", "keycloak").defaultPort)
 	}
+	// Claimed now, not after the move: a move takes minutes, and another
+	// start on this machine allocating meanwhile must see the port as taken.
+	if want != cs.KeycloakPort {
+		cs.KeycloakPort = want
+		saveStack(st)
+	}
 	if port != want {
+		// Never while the codespace's own start is still running: the rerun
+		// would sweep its containers mid-flight (live 2026-09-29). The start
+		// lock would queue it too; waiting here keeps the move's one line
+		// honest and its timing out of the lock's budget.
+		if code := waitForRemoteStack(u, cs.Name); code != 0 {
+			return code
+		}
 		u.Log("The codespace's issuer is on port %d; this machine forwards it on %d — moving it %s",
 			port, want, u.Dim("(its own launcher restarts the stack)"))
 		if code := restartRemoteStack(u, cs.Name, want); code != 0 {
@@ -1980,4 +2012,27 @@ func restartRemoteStack(u *UI, name string, port int) int {
 	}
 	u.Ok("The codespace restarted its stack with the issuer on %d", port)
 	return 0
+}
+
+// waitForRemoteStack waits for the codespace's own launcher to report its stack
+// up (askRemoteKB), tolerating an ssh that cannot answer yet. Used after a
+// readiness that only the forward — the gateway — could prove.
+func waitForRemoteStack(u *UI, name string) int {
+	t0 := time.Now()
+	announced := false
+	for {
+		if askRemoteKB(name) == remoteReady {
+			return 0
+		}
+		if !announced {
+			u.Log("Waiting for the codespace's own start to finish %s", u.Dim("(its gateway answers; the rest of its stack may still be coming up)"))
+			announced = true
+		}
+		if time.Since(t0) >= remoteReadyBudget {
+			u.Fail("The codespace's stack did not report ready within %s.", took(remoteReadyBudget))
+			fmt.Fprintf(os.Stderr, "  Look inside:  gh codespace ssh -c %s -- 'cd /workspaces/* && semiont status'\n", name)
+			return 1
+		}
+		time.Sleep(remoteReadyPoll)
+	}
 }

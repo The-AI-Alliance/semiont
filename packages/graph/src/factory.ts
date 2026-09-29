@@ -1,7 +1,6 @@
 // Factory for creating graph database instances based on configuration
 
 import { GraphDatabase } from './interface';
-import { evaluateEnvPlaceholders } from '@semiont/core';
 import { NeptuneGraphDatabase } from './implementations/neptune';
 import { Neo4jGraphDatabase } from './implementations/neo4j';
 import { JanusGraphDatabase } from './implementations/janusgraph';
@@ -105,16 +104,16 @@ export async function getGraphDatabase(graphConfig: GraphServiceConfig): Promise
       }
     } else if (graphConfig.type === 'neo4j') {
       if (graphConfig.uri) {
-        config.neo4jUri = evaluateEnvPlaceholders(graphConfig.uri);
+        config.neo4jUri = graphConfig.uri;
       }
       if (graphConfig.username) {
-        config.neo4jUsername = evaluateEnvPlaceholders(graphConfig.username);
+        config.neo4jUsername = graphConfig.username;
       }
       if (graphConfig.password) {
-        config.neo4jPassword = evaluateEnvPlaceholders(graphConfig.password);
+        config.neo4jPassword = graphConfig.password;
       }
       if (graphConfig.database) {
-        config.neo4jDatabase = evaluateEnvPlaceholders(graphConfig.database);
+        config.neo4jDatabase = graphConfig.database;
       }
     }
 
