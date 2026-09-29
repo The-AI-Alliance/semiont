@@ -5,8 +5,8 @@ holding your documents, configuration, and startup scripts — not from the
 [semiont monorepo](https://github.com/The-AI-Alliance/semiont), which is the
 platform source (it publishes the npm packages and the container images).
 
-Every KB repo shares the same shape: configuration, the event log, compose
-files, and inference presets under `.semiont/`. The stack is run by the
+Every KB repo shares the same shape: configuration, the event log, and
+inference presets under `.semiont/`. The stack is run by the
 host-installed [`semiont` launcher](https://github.com/The-AI-Alliance/semiont/tree/main/apps/launcher)
 (a single static binary), which *pulls* the published, attested
 `ghcr.io/the-ai-alliance/semiont-*` images and bind-mounts the KB's config at
@@ -30,46 +30,37 @@ automatically.
 **Or run it on GitHub's machine instead of yours.** The same launcher places
 a KB stack in a **GitHub Codespace**. One command does several things:
 - creates the codespace, or resumes it;
-- waits for the stack to answer;
-- forwards the KB to a local port;
+- waits for the stack, which the codespace's own launcher runs;
+- forwards the KB and its sign-in service (Keycloak) to local ports;
 - starts the browser on this machine, when it has a container runtime.
 
 ```bash
 semiont start --runtime codespace --repo The-AI-Alliance/semiont-template-kb
 ```
 
-The KB is forwarded to its own local port (4000, or the lowest free port
-above it), so one local browser works several cloud KBs at once via its
-Knowledge Bases panel. The summary names the codespace; `semiont status` and
-`gh codespace list` show it too.
+Each codespace KB gets its own pair of local ports: the KB on 4000 (or the
+lowest free port above it), and Keycloak on 8080 (or the lowest free port
+above it, which the launcher moves the codespace's Keycloak to match). So one
+local browser works — and signs in to — several cloud KBs at once via its
+Knowledge Bases panel. The summary names the codespace and both ports;
+`semiont status` and `gh codespace list` show it too.
 
-**Signing in needs the codespace's Keycloak too, which the launcher does not
-forward.** Forward it yourself and leave it running:
-
-```bash
-gh codespace ports forward 8080:8080 -c <codespace>
-```
-
-The browser is sent to `keycloak.localhost:8080` to sign in, a name that
-resolves to this machine. Every codespace KB's Keycloak is on 8080, so
-this machine signs into one codespace KB at a time. The forward also fails
-while a local stack holds 8080.
-
-**A new codespace KB has no users.** The `semiont useradd` line in the start
-summary refuses for a codespace KB. Create the first account with Keycloak's
-own admin tool inside the codespace; it prompts for the password:
+**A new codespace KB has no users.** Create the first account the way the
+start summary says; it prompts for the password, and the account is made by
+the launcher inside the codespace:
 
 ```bash
-gh codespace ssh -c <codespace> -- -t "docker exec -it semiont-keycloak bash -c 'K=/opt/keycloak/bin/kcadm.sh; \$K config credentials --server http://localhost:8080 --realm master --user admin --password \"\$KC_BOOTSTRAP_ADMIN_PASSWORD\" && \$K create users -r semiont -s username=<email> -s email=<email> -s emailVerified=true -s enabled=true && \$K set-password -r semiont --username <email>'"
+semiont useradd --repo The-AI-Alliance/semiont-template-kb --email you@example.com
 ```
 
 Then sign in from the browser: the first sign-in asks for your name.
 
-`semiont stop --repo <owner/name>` stops the codespace and the KB forward. It
-does not stop your 8080 forward. Compute stops billing; storage bills until
-GitHub deletes the codespace 30 days after it stopped. `--delete` destroys it
-now. A codespace whose setup failed during `start` is unknown to
-`semiont stop`; delete it with `gh codespace delete -c <codespace>`.
+`semiont stop --repo <owner/name>` stops the codespace and both forwards.
+Compute stops billing; storage bills until GitHub deletes the codespace 30
+days after it stopped. `--delete` destroys it now. Every `--repo` command
+finds the repo's codespace even when this machine has no record of it — a
+codespace whose setup failed during `start` included — so
+`semiont stop --repo <owner/name> --delete` is always the way to remove one.
 Prerequisites (the `gh` CLI and an `ANTHROPIC_API_KEY` Codespaces user secret)
 are in each KB's README; the raw `gh` recipe is kept there too as the
 no-launcher path.

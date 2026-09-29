@@ -71,7 +71,8 @@ job:reference-annotation                        [worker handleJob]
 ### Gateway / worker / smelter
 
 Standard OTel env vars. Set them on the process — for local dev,
-inherit from your shell; for containers, add to compose / ECS task env.
+inherit from your shell; for containers, add them to the container's environment (an ECS task
+definition, a Kubernetes pod spec).
 The gateway reads the ones its environment table lists
 ([`variables.json`](../../../specs/src/gateway-environment/variables.json))
 and configures its SDK from them; the table below is the sidecars'.

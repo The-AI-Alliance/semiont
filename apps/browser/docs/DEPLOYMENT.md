@@ -4,7 +4,7 @@ How the Semiont Browser is shipped and run.
 
 > **The CLI no longer deploys the Browser.** The `semiont publish` / `semiont update` commands and
 > the AWS platform they targeted have been **removed**. The Browser ships as a published container
-> image; running it anywhere beyond the supported paths below is **an exercise for the reader**.
+> image; running it anywhere beyond the supported path below is **an exercise for the reader**.
 
 ## What ships
 
@@ -17,16 +17,12 @@ Image build and publication: [administration/IMAGES.md](../../../docs/system/adm
 
 ## Running it
 
-The Browser is a member of the KB stack, so it comes up with the stack rather than being deployed
-on its own:
+The Browser is the machine-level viewer of every KB rather than a member of any one stack: the
+host-installed launcher ensures it on every start, and it outlives each stack's `stop`:
 
 ```bash
-# Supported path 1 — the host-installed launcher, from a KB directory
-semiont start
-semiont stop --service browser      # the browser is a stack-independent viewer; this closes it
-
-# Supported path 2 — compose, using the KB's own file
-docker compose -f .semiont/compose/gateway.yml up
+semiont start                       # from a KB directory; ensures the Browser on :3000
+semiont stop --service browser      # the explicit off-switch
 ```
 
 Pin a version with `SEMIONT_VERSION`. See [apps/launcher](../../launcher/README.md) and

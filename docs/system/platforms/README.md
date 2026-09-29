@@ -12,12 +12,10 @@ Semiont ships eight container images (`semiont-gateway`, `semiont-browser`, `sem
 infrastructure containers a stack needs
 (`postgres`, `neo4j`, `qdrant`, and `ollama` for local inference).
 
-A knowledge-base stack is brought up in one of two supported ways:
-
-- **The `semiont` launcher** — `brew install the-ai-alliance/semiont/semiont`, then `semiont start`
-  from a KB directory. Works locally against Docker / Podman / Apple Container, and in GitHub
-  Codespaces. See [apps/launcher](../../../apps/launcher/README.md).
-- **`docker compose`** against the KB's own `.semiont/compose/backend.yml`.
+A knowledge-base stack is brought up by **the `semiont` launcher** —
+`brew install the-ai-alliance/semiont/semiont`, then `semiont start` from a KB directory. It works
+locally against Docker / Podman / Apple Container, and in GitHub Codespaces, where the codespace's
+own launcher runs the stack. See [apps/launcher](../../../apps/launcher/README.md).
 
 ## Where to read next
 

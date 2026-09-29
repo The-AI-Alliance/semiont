@@ -6,7 +6,7 @@ cloud container platform.
 > **Nothing here deploys to a cloud.** The AWS platform, its CDK templates, and the old
 > `publish` / `update` commands have all been **removed**, along with the CLI that carried them.
 > There is no first-party image-publishing or rollout tooling for a cloud target. Semiont ships container
-> images; running them somewhere is deployment, and beyond the two supported paths below it is **an
+> images; running them somewhere is deployment, and beyond the supported path below it is **an
 > exercise for the reader**.
 
 **Related guides**: [Platforms](../platforms/README.md) | [Images](./IMAGES.md) |
@@ -37,7 +37,7 @@ Images are built and published by CI, not by the CLI — see [IMAGES.md](./IMAGE
 
 ---
 
-## Supported path 1 — the `semiont` launcher
+## The supported path — the `semiont` launcher
 
 The host-installed launcher is the supported way to run a stack, locally or in GitHub Codespaces:
 
@@ -51,35 +51,18 @@ semiont logs                  # follow service logs
 semiont stop                  # tear down
 ```
 
-`semiont start --runtime codespace` places the stack in a GitHub Codespace instead of locally. Full
+`semiont start --runtime codespace` places the stack in a GitHub Codespace instead of locally: the
+launcher on your machine creates or resumes the codespace and forwards the KB and its issuer to
+you, and the codespace's own launcher runs the stack inside it, from the KB's post-start hook. Full
 reference: [apps/launcher](../../../apps/launcher/README.md).
 
 **Restart is the launcher's job on this path, and only on this path.** A laptop has no scheduler:
 `semiont start` brings the stack up and exits, so nothing outside a container would restart a
-crashed or hung service. For local runs the launcher therefore enables an in-container supervisor,
-which restarts a crashed process, kills one that stops answering its health endpoint, and gives up
-rather than looping on a boot failure. Codespace stacks do not use it — compose owns the services
-inside — and neither does any other path below.
-
----
-
-## Supported path 2 — `docker compose`
-
-Each KB repo ships its own compose file that pulls the same published images:
-
-```bash
-cd /path/to/your-kb
-docker compose -f .semiont/compose/backend.yml up
-docker compose -f .semiont/compose/backend.yml pull    # refresh a cached :latest
-```
-
-Equivalent end state to `semiont start`. Pin a version with `SEMIONT_VERSION`; select an inference
-config with `SEMIONT_CONFIG`. See the header comments in that compose file for the current options.
-
-Restart is compose's job here — the images run one process and exit when it dies, so a `restart:`
-policy behaves normally. Note that compose restarts on **exit**, not on **unhealthy**: a process
-that hangs while still holding its port will not be replaced. If that matters, use a scheduler with
-liveness probes, or run an autoheal sidecar.
+crashed or hung service. The launcher therefore enables an in-container supervisor, which restarts
+a crashed process, kills one that stops answering its health endpoint, and gives up rather than
+looping on a boot failure. Codespace stacks get it too, since the stack inside a codespace is
+launched exactly as on a laptop. A platform with a scheduler restarts containers itself, so the
+images never supervise themselves otherwise.
 
 ---
 

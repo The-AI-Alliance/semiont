@@ -32,7 +32,7 @@ status` / `logs` / `stop` manage the running stack.
 Prerequisites: a container runtime, plus `ANTHROPIC_API_KEY` when using the
 Anthropic config. See the [KB README](https://github.com/The-AI-Alliance/gutenberg-kb) for details.
 
-The authoritative compose files and inference presets live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/`; the image inventory and supply-chain verification are in [Container Images](./administration/IMAGES.md).
+The inference presets live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository under `.semiont/semiontconfig/`; the image inventory and supply-chain verification are in [Container Images](./administration/IMAGES.md).
 
 ## Ports
 

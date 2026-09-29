@@ -13,8 +13,6 @@ my-project/
 │   │   │   └── events-000001.jsonl
 │   │   └── {ab}/{cd}/{resourceId}/   # Per-resource streams, sharded
 │   │       └── events-000001.jsonl
-│   ├── compose/                      # Optional Docker Compose files
-│   │   └── backend.yml
 │   └── semiontconfig/                # Inference/embedding configs (TOML)
 │       ├── anthropic.toml
 │       └── ollama-gemma.toml
@@ -35,9 +33,9 @@ Two kinds of streams live under `events/`:
 - **Per-resource streams**, at `events/{ab}/{cd}/{resourceId}/events-NNNNNN.jsonl`. The two 2-character shard directories come from a Jump Consistent Hash of the resource id, keeping any single shard directory from exceeding a few thousand entries at scale.
 - **The `events/__system__/` stream**, for events that have no resource — currently `frame:entity-type-added` (registering a new global entity type) and similar project-wide facts.
 
-### `.semiont/compose/`, `.semiont/semiontconfig/` (optional)
+### `.semiont/semiontconfig/` (optional)
 
-These directories are not used by Semiont itself — they are convenience infrastructure so others can run the project. The authoritative versions live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository, and most KBs stay in sync with it.
+The inference-provider presets the launcher starts from — convenience infrastructure so others can run the project. The authoritative versions live in the [semiont-template-kb](https://github.com/The-AI-Alliance/semiont-template-kb) template repository, and most KBs stay in sync with it.
 
 The stack itself is run by the host-installed
 [`semiont` launcher](../../apps/launcher/README.md)
@@ -56,7 +54,6 @@ KB repos build no images: the Semiont services run from the published, attested
 (version selected via `SEMIONT_VERSION`, default `latest`), with the KB's config
 bind-mounted at runtime.
 
-- **`compose/backend.yml`** — Docker Compose definition for the same service stack, for environments that prefer compose over the launcher's orchestration.
 - **`semiontconfig/*.toml`** — inference-provider presets the user selects at start time (e.g., `--config ollama-gemma` vs `--config anthropic`). Each file names the chat model, embedding model, and any provider-specific parameters.
 
 ### Resource files
@@ -97,7 +94,6 @@ scaffolding is in place:
 .semiont  authors  data  README.md
 
 % find .semiont -type f | sort
-.semiont/compose/backend.yml
 .semiont/config
 .semiont/events/50/fa/47488f8a27471bf16f33aba56af90d12/events-000001.jsonl
 .semiont/events/66/71/1ed8b4936cfad473c2a7b14c22a945c0/events-000001.jsonl
