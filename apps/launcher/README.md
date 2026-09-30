@@ -392,11 +392,12 @@ semiont stop
   or upgrade an infra image without a launcher release. `--dry-run` renders
   the derived plan.
 - **Model rows carry the platform's discovered ceilings.** The context window
-  and output ceiling beside each model come from the KB — one correlated
-  `browse:agents-requested` exchange over the bus (the same request every
-  other Semiont client makes), read off the collaborator roster the Browser
-  enriches with what the inference clients discovered from each provider. The
-  launcher asks no provider directly for a ceiling. A shared input+output
+  and output ceiling beside each model come from the KB: the services that
+  hold the inference credentials report what their clients discovered from
+  each provider (the worker on `job:limits-requested`, the librarian on
+  `gather:` and `match:limits-requested`), and status asks each of them over
+  the bus, the same requests every other Semiont client makes. The launcher
+  asks no provider directly for a ceiling. A shared input+output
   window renders as one figure (`128K window`); distinct ceilings render as
   `200K in / 64K out`, worded as the CollaborationPanel words them so one
   model reads the same in the terminal and in the browser. Where the platform

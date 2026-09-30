@@ -1,6 +1,6 @@
 'use client';
 
-import type { CollaboratorEntry, ConnectionState } from '@semiont/core';
+import type { Collaborator, ConnectionState } from '@semiont/core';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import './CollaborationPanel.css';
 
@@ -52,7 +52,7 @@ interface Props {
    * now* (INFERENCE-LIMITS-EXPOSURE D3), so a missing ceiling is normal and
    * shows as no ceiling rather than as an error.
    */
-  collaborators?: CollaboratorEntry[];
+  collaborators?: Collaborator[];
 }
 
 export function CollaborationPanel({
@@ -166,7 +166,7 @@ export function CollaborationPanel({
           {softwareAgents.map((entry, i) => {
             // `agent` is narrowed to the Software member by the filter above,
             // but the generated union is structural, so read through a local.
-            const agent = entry.agent as Extract<CollaboratorEntry['agent'], { '@type': 'Software' }>;
+            const agent = entry.agent as Extract<Collaborator['agent'], { '@type': 'Software' }>;
             const limits = entry.limits;
             // `maxOutputTokens === contextTokens` is the schema's documented
             // sentinel for a provider with ONE shared window (Ollama). Showing

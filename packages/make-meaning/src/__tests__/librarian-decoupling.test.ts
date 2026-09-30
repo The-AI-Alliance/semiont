@@ -201,3 +201,26 @@ describe('channel roster matches actual subscriptions (census gate)', () => {
     expect(new Set(seen)).toEqual(new Set(MATCHER_CHANNELS));
   });
 });
+
+// The matcher holds its model's inference credential, so it answers for that
+// model's limits; nothing without a key could discover them.
+describe('Matcher reports its model\'s limits', () => {
+  it('answers match:limits-requested with its own client\'s limits', async () => {
+    const { firstValueFrom, take: takeOne } = await import('rxjs');
+    const limits = { contextTokens: 200_000, maxOutputTokens: 64_000 };
+    const client: InferenceClient = { ...noopInference, type: 'anthropic', modelId: 'm-matcher', limits: async () => limits };
+    const bus = new EventBus();
+    const actor = new Matcher(makeStores(), bus, mockLogger, client, createMockEmbeddingProvider());
+    await actor.initialize();
+    try {
+      const reply = firstValueFrom(bus.frames('match:limits-result').pipe(takeOne(1)));
+      bus.emit('match:limits-requested', {}, { correlationId: 'cid-matcher' });
+      const frame = await reply;
+      expect(frame.correlationId).toBe('cid-matcher');
+      expect(frame.payload.response.limits).toEqual([{ provider: 'anthropic', model: 'm-matcher', limits }]);
+    } finally {
+      await actor.stop();
+      bus.destroy();
+    }
+  });
+});

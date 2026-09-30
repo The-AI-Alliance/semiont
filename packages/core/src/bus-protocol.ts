@@ -254,6 +254,9 @@ export type EventMap = {
   'match:search-requested': components['schemas']['MatchSearchRequest'];
   'match:search-results': components['schemas']['MatchSearchResult'];
   'match:search-failed': components['schemas']['MatchSearchFailed'];
+  'match:limits-requested': components['schemas']['InferenceLimitsRequest'];
+  'match:limits-result': components['schemas']['InferenceLimitsResult'];
+  'match:limits-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // GATHER FLOW — context gathering
@@ -269,6 +272,9 @@ export type EventMap = {
   'gather:summary-requested': components['schemas']['GatherSummaryRequest'];
   'gather:summary-result': { response: Record<string, unknown> };
   'gather:summary-failed': components['schemas']['CommandError'];
+  'gather:limits-requested': components['schemas']['InferenceLimitsRequest'];
+  'gather:limits-result': components['schemas']['InferenceLimitsResult'];
+  'gather:limits-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // BROWSE FLOW — knowledge base reads + UI navigation
@@ -420,6 +426,9 @@ export type EventMap = {
   'job:queued': components['schemas']['JobQueuedEvent'];
   'job:cancel-requested': components['schemas']['JobCancelRequest'];
   'job:cancel': components['schemas']['JobCancelCommand'];
+  'job:limits-requested': components['schemas']['InferenceLimitsRequest'];
+  'job:limits-result': components['schemas']['InferenceLimitsResult'];
+  'job:limits-failed': components['schemas']['CommandError'];
   'job:status-requested': components['schemas']['JobStatusRequest'];
   'job:create': components['schemas']['JobCreateCommand'];
   'job:claim': components['schemas']['JobClaimCommand'];
@@ -692,6 +701,9 @@ export const CHANNEL_SCHEMAS = {
   'match:search-requested':           'MatchSearchRequest',
   'match:search-results':             'MatchSearchResult',
   'match:search-failed':              'MatchSearchFailed',
+  'match:limits-requested':           'InferenceLimitsRequest',
+  'match:limits-result':              'InferenceLimitsResult',
+  'match:limits-failed':              null,
 
   // ── GATHER FLOW ─────────────────────────────────────────────────
   'gather:requested':                 'GatherAnnotationRequest',
@@ -703,6 +715,9 @@ export const CHANNEL_SCHEMAS = {
   'gather:summary-requested':         'GatherSummaryRequest',
   'gather:summary-result':            null, // { correlationId; response: Record<string, unknown> }
   'gather:summary-failed':            null, // CommandError
+  'gather:limits-requested':          'InferenceLimitsRequest',
+  'gather:limits-result':             'InferenceLimitsResult',
+  'gather:limits-failed':             null,
 
   // ── BROWSE FLOW ─────────────────────────────────────────────────
   'browse:resource-requested':        'BrowseResourceRequest',
@@ -782,6 +797,9 @@ export const CHANNEL_SCHEMAS = {
   'job:queued':                       'JobQueuedEvent',
   'job:cancel-requested':             'JobCancelRequest',
   'job:cancel':                       'JobCancelCommand',
+  'job:limits-requested':             'InferenceLimitsRequest',
+  'job:limits-result':                'InferenceLimitsResult',
+  'job:limits-failed':                null,
   'job:status-requested':             'JobStatusRequest',
   'job:create':                       'JobCreateCommand',
   'job:claim':                        'JobClaimCommand',

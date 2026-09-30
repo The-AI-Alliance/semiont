@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "description": "The inference limits one service discovered for its own (provider, model) pairs. A pair whose discovery is currently unavailable is absent.",
+  "properties": {
+    "response": {
+      "type": "object",
+      "properties": {
+        "limits": {
+          "type": "array",
+          "items": { "$ref": "./InferencePairLimits.json" }
+        }
+      },
+      "required": ["limits"]
+    }
+  },
+  "required": ["response"]
+}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
+import type { Collaborator, GatheredContext } from '@semiont/core';
 import type { ResourceGatherOptions } from '@semiont/sdk';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
 import { ConfigureGatherStep, type ResourceGatherConfig } from './ConfigureGatherStep';
@@ -66,7 +66,7 @@ export interface ResourceGenerateModalProps {
    * the max-length control is bounded by the model's real output ceiling.
    * Optional: absent means today's default bounds (INFERENCE-LIMITS-EXPOSURE D3).
    */
-  generationAgent?: CollaboratorEntry;
+  generationAgent?: Collaborator;
   isOpen: boolean;
   onClose: () => void;
   resourceId: string;

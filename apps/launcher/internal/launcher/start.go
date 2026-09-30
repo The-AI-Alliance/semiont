@@ -454,89 +454,80 @@ func Start(args []string) int {
 	}
 	u.Log("Image version: %s", u.Bold(version))
 
-	// User env vars (API keys the config references, extracted by
-	// loadConfig's single parse) are demanded only where a Semiont service
-	// will consume the config — never for infra restarts. The environment
-	// always wins; a registered secret source (semiont secret) is consulted
+	// User env vars (API keys the config references, read from loadConfig's
+	// single parse) are demanded where something reads them: a service handed
+	// them, or the launcher resolving them itself (configRefs.read). The
+	// environment always wins; a registered secret source (semiont secret) is consulted
 	// only for vars the environment doesn't provide, with the reach
 	// announced BEFORE it happens. Dry-run reaches for nothing. An optional
 	// reference (${NAME:-default}) is forwarded only when something sets it;
 	// otherwise the default applies inside the container.
 	var userEnv []string
-	if opts.service == "" || isConfigConsumer(opts.service) {
-		secrets := loadRoots().Secrets
-		type userVar struct {
-			name     string
-			optional bool
+	secrets := loadRoots().Secrets
+	type userVar struct {
+		name     string
+		optional bool
+	}
+	// A role started alone reaches only for the variables it reads, so no
+	// provider prompt asks for a secret it never uses.
+	required, optional := userVars.read(opts.service)
+	var vars []userVar
+	for _, v := range required {
+		vars = append(vars, userVar{v, false})
+	}
+	for _, v := range optional {
+		vars = append(vars, userVar{v, true})
+	}
+	for _, uv := range vars {
+		v := uv.name
+		envVal, exported := os.LookupEnv(v)
+		_, registered := secrets[v]
+		if opts.dryRun {
+			if !uv.optional || exported || registered {
+				userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
+			}
+			continue
 		}
-		// A Node service started alone reaches only for the variables it is
-		// handed, so no provider prompt asks for a secret it never reads. The
-		// gateway's document is resolved here from every section it reads, so
-		// `--service gateway` still resolves them all.
-		_, scoped := serviceConfigSections[opts.service]
-		wanted := func(v string) bool { return !scoped || contains(userVars.ByService[opts.service], v) }
-		var vars []userVar
-		for _, v := range userVars.Required {
-			if wanted(v) {
-				vars = append(vars, userVar{v, false})
-			}
+		if uv.optional && exported {
+			// Set, even empty, wins over the default: the table's rule,
+			// carried across the container boundary.
+			userEnv = append(userEnv, "--env", v+"="+envVal)
+			continue
 		}
-		for _, v := range userVars.Optional {
-			if wanted(v) {
-				vars = append(vars, userVar{v, true})
-			}
-		}
-		for _, uv := range vars {
-			v := uv.name
-			envVal, exported := os.LookupEnv(v)
-			_, registered := secrets[v]
-			if opts.dryRun {
-				if !uv.optional || exported || registered {
-					userEnv = append(userEnv, "--env", v+"=<env:"+v+">")
-				}
-				continue
-			}
-			if uv.optional && exported {
-				// Set, even empty, wins over the default: the table's rule,
-				// carried across the container boundary.
-				userEnv = append(userEnv, "--env", v+"="+envVal)
-				continue
-			}
-			val := envVal
-			if val == "" {
-				if ref, ok := secrets[v]; ok && custodyOwned(v) {
-					// Registered before the refusal existed, or hand-edited.
-					// Resolving it would answer a provider prompt and then
-					// discard the answer, since custody appends its own value
-					// after this one.
-					u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
-					fmt.Fprintf(os.Stderr, "  Forget the source (semiont secret rm %s), or export %s yourself.\n", v, v)
-					return 1
-				} else if ok {
-					if !requireProviderBin(u, ref) {
-						return 1
-					}
-					u.Log("%s: reading from %s (%s) %s", u.Bold(v),
-						secretProviders[ref.Provider].display, refCommand(ref),
-						u.Dim("— expect an authorization prompt"))
-					var err error
-					if val, err = resolveSecret(ref); err != nil {
-						u.Fail("%s: %v.", v, err)
-						fmt.Fprintf(os.Stderr, "  Fix the source (semiont secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
-						return 1
-					}
-				}
-			}
-			if val == "" {
-				if uv.optional {
-					continue
-				}
-				u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
-				fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
+		val := envVal
+		if val == "" {
+			if ref, ok := secrets[v]; ok && custodyOwned(v) {
+				// Registered before the refusal existed, or hand-edited.
+				// Resolving it would answer a provider prompt and then
+				// discard the answer, since custody appends its own value
+				// after this one.
+				u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
+				fmt.Fprintf(os.Stderr, "  Forget the source (semiont secret rm %s), or export %s yourself.\n", v, v)
 				return 1
+			} else if ok {
+				if !requireProviderBin(u, ref) {
+					return 1
+				}
+				u.Log("%s: reading from %s (%s) %s", u.Bold(v),
+					secretProviders[ref.Provider].display, refCommand(ref),
+					u.Dim("— expect an authorization prompt"))
+				var err error
+				if val, err = resolveSecret(ref); err != nil {
+					u.Fail("%s: %v.", v, err)
+					fmt.Fprintf(os.Stderr, "  Fix the source (semiont secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
+					return 1
+				}
 			}
-			userEnv = append(userEnv, "--env", v+"="+val)
 		}
+		if val == "" {
+			if uv.optional {
+				continue
+			}
+			u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
+			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
+			return 1
+		}
+		userEnv = append(userEnv, "--env", v+"="+val)
 	}
 
 	if opts.dryRun {
@@ -955,7 +946,8 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
 		// The password is the launcher's (SECRET-DELIVERY P4): say where it is
 		// kept, never print it.
-		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + filepath.Join(stateRootDir(root), daemonPasswords["graph"].file) + ")")
+		store, _ := custodyFor(root)
+		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
 	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
@@ -1177,13 +1169,14 @@ func describeProcs(pids []string) string {
 }
 
 // refuseDaemonCredentialNames: the daemon-credential names are the launcher's
-// (SECRET-DELIVERY P4). A config may not reference one — `semiont secret`
+// (SECRET-DELIVERY P4). A config may not reference one where it is read — `semiont secret`
 // registrations are machine-wide, so a name cannot be the launcher's in one KB
 // and the user's in another — and an exported one is refused, not honoured,
 // for a daemon the launcher runs (ruled 2026-09-29: "refuse exported daemon
 // passwords"): it could only disagree with the store it was meant for.
 func refuseDaemonCredentialNames(refs configRefs, plan *launchPlan, config string) error {
-	for _, name := range append(append([]string{}, refs.Required...), refs.Optional...) {
+	required, optional := refs.read("")
+	for _, name := range append(required, optional...) {
 		if daemonCredentialVar(name) {
 			return fmt.Errorf("config '%s' references ${%s}, which is the launcher's name for the credentials of a daemon it runs. Name your own variable something else", config, name)
 		}
@@ -1199,7 +1192,7 @@ func refuseDaemonCredentialNames(refs configRefs, plan *launchPlan, config strin
 		}
 		for _, name := range names {
 			if _, exported := os.LookupEnv(name); exported {
-				return fmt.Errorf("%s is exported, but the launcher generates and keeps the credentials of the %s it runs. Unset it; to rotate, delete %s in this root's state dir and run semiont clean --store %s", name, d.display, d.file, role)
+				return fmt.Errorf("%s is exported, but the launcher generates and keeps the credentials of the %s it runs. Unset it; to rotate, delete %s in this root's state dir and run semiont clean --store %s", name, d.display, d.custody, role)
 			}
 		}
 	}

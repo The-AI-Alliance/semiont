@@ -663,7 +663,12 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 			// LISTED for this key. anthropic only; other SaaS providers can
 			// join when their driver knows a models endpoint.
 			if rp.Driver == "anthropic" {
-				x.verifyRemoteModels("inference", saasBase(rp), envValue(fc.userEnv, "ANTHROPIC_API_KEY"), rp.Models)
+				key, err := externalCredential("inference.anthropic.apiKey", rp.APIKey, fc.userEnv)
+				if err != nil {
+					x.say(sayFail, "%v", err)
+					return 1
+				}
+				x.verifyRemoteModels("inference", saasBase(rp), key, rp.Models)
 			}
 			return 0
 		}

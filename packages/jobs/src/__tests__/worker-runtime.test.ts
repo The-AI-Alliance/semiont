@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -120,6 +120,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
       contentReads: { getBinary: vi.fn() },
+      reportsLimitsOf: [],
       logger: noopLogger,
     });
 
@@ -311,6 +312,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
       contentReads: { getBinary: vi.fn() },
+      reportsLimitsOf: [],
       logger: noopLogger,
     });
 
@@ -524,5 +526,43 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
   it('the fat fan-out channels that OOMed the worker are NOT subscribed', () => {
     expect(WORKER_CHANNELS).not.toContain('browse:annotations-result');
     expect(WORKER_CHANNELS).not.toContain('browse:resources-result');
+  });
+});
+
+// The pool answers job:limits-requested once, on one agent's transport: the
+// gateway delivers only the first reply to a request. Only that agent
+// subscribes the request. Every other agent's transport would receive it with
+// nobody to deliver it to, and the bus logs each such frame as a DROP.
+describe('worker-runtime — one agent reports the pool\'s limits', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const subscribedChannels = () =>
+    vi.mocked(fetch).mock.calls
+      .filter(([input]) => String(input instanceof Request ? input.url : input).includes('/bus/subscribe'))
+      .map(([, init]) => (JSON.parse(String(init?.body ?? '{}')) as { global?: string[] }).global ?? []);
+
+  it('an agent that reports limits subscribes job:limits-requested; one that does not, does not', async () => {
+    for (const [reportsLimitsOf, subscribes] of [
+      [[{ type: 'anthropic', modelId: 'claude-haiku-4-5', limits: async () => ({ contextTokens: 1, maxOutputTokens: 1 }) }], true],
+      [[], false],
+    ] as const) {
+      installFetchStub();
+      const worker = await startAgentWorker({
+        group: makeGroup(),
+        gatewayBaseUrl: DIAL_URL,
+        credential: CREDENTIAL,
+        contentReads: { getBinary: vi.fn() },
+        reportsLimitsOf,
+        logger: noopLogger,
+      });
+      const channels = subscribedChannels().flat();
+      expect(channels.length, 'the transport subscribed nothing').toBeGreaterThan(0);
+      expect(channels.includes('job:limits-requested'), `reportsLimitsOf has ${reportsLimitsOf.length}`).toBe(subscribes);
+      for (const op of WORKER_ANSWERED_OPERATIONS) expect(channels.includes(op)).toBe(subscribes);
+      await worker.dispose();
+      vi.unstubAllGlobals();
+    }
   });
 });

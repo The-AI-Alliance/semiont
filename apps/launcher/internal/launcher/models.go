@@ -250,7 +250,7 @@ func pullOllamaModel(u *UI, base, model string) bool {
 	req.Header.Set("Content-Type", "application/json")
 	// No client timeout: a cold pull of a 20GB model legitimately runs for
 	// many minutes. The stream itself is the liveness signal.
-	resp, err := (&http.Client{}).Do(req)
+	resp, err := (&http.Client{Transport: launcherTransport}).Do(req)
 	if err != nil {
 		u.Warn("pull %s: %v", model, err)
 		return false
@@ -316,7 +316,7 @@ func fetchAnthropicModels(base, key string) (map[string]remoteModelMeta, bool) {
 	}
 	req.Header.Set("x-api-key", key)
 	req.Header.Set("anthropic-version", "2023-06-01")
-	c := &http.Client{Timeout: 3 * time.Second}
+	c := &http.Client{Transport: launcherTransport, Timeout: 3 * time.Second}
 	resp, err := c.Do(req)
 	if err != nil {
 		return nil, false

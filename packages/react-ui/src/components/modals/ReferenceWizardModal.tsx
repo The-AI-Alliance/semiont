@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Dialog, DialogPanel, DialogTitle, Transition, TransitionChild } from '@headlessui/react';
-import type { GatheredContext, CollaboratorEntry } from '@semiont/core';
+import type { GatheredContext, Collaborator } from '@semiont/core';
 import { uuidV4 } from '@semiont/core';
 import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
@@ -33,7 +33,7 @@ export interface ReferenceWizardModalProps {
    * the max-length control is bounded by the model's real output ceiling.
    * Optional: absent means today's default bounds (INFERENCE-LIMITS-EXPOSURE D3).
    */
-  generationAgent?: CollaboratorEntry;
+  generationAgent?: Collaborator;
   isOpen: boolean;
   onClose: () => void;
   /** The annotation being resolved */
