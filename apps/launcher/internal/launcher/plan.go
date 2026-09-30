@@ -59,6 +59,9 @@ type rolePlan struct {
 	// [database] password as written, resolved at launch by the shared rule
 	// (SECRET-DELIVERY P4, "A's resolver for ones it doesn't").
 	ExternalDBPassword string
+	// APIKey: inference on a remote provider — its [inference] apiKey as
+	// written, resolved by the shared rule for the remote-model check.
+	APIKey string
 	// CmdExtra: arguments appended AFTER the driver's own command. The
 	// messaging role uses it for `-c` when the broker is authenticated; the
 	// path is fixed, so the derivation can state it and the flow only has to
@@ -648,6 +651,17 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			// so the staged config interpolates the two names.
 			rp.CmdExtra = []string{"-c", natsConfPath}
 		} else {
+			// Semiont's clients authenticate to a broker by username and
+			// password only; one somebody else runs, reached without them,
+			// lets anyone who reaches it read and write the job queue and
+			// the signal plane.
+			if user == "" {
+				section := "signal"
+				if jobsWantBroker {
+					section = "jobs"
+				}
+				return nil, secErr(section, "broker %s is not run by the launcher, so it needs credentials — set %q and %q", host, "user", "password")
+			}
 			rp.Presence = presenceExternal
 			rp.Address = host
 		}
@@ -852,6 +866,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			Role: "inference", Presence: presenceExternal,
 			Driver: driver, Address: host, Port: port,
 			Models: bindingModels(env), OllamaServed: []string{},
+			APIKey: env.Inference[driver].APIKey,
 		}
 	case !bindingsUseOllama:
 		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}

@@ -2472,6 +2472,75 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	}
 }
 
+// Start demands a variable only when something reads it: a service handed it,
+// or the launcher itself. A reference in an environment nobody selected, or in
+// a section no service lists, reaches no one and is not demanded.
+func TestStartDemandsOnlyTheVariablesSomethingReads(t *testing.T) {
+	s := newScenario(t, "container")
+	p := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unread := "\n[environments.local.browser]\nurl = \"${INERT}\"\n\n[environments.other.graph]\ntype = \"neo4j\"\npassword = \"${ONLY_ELSEWHERE}\"\n"
+	if err := os.WriteFile(p, append(b, unread...), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
+		t.Fatalf("start demanded a variable nothing reads: exit %d\n%s", code, stderr)
+	}
+}
+
+// A role started alone resolves what the launcher reads on its behalf:
+// Keycloak's external PostgreSQL password, and the key the model check sends.
+func TestStartServiceResolvesWhatTheLauncherReadsForIt(t *testing.T) {
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "external-db", stdGraph+stdVectors+stdEmbedding+
+		"[environments.local.database]\nhost = \"db.example.com\"\nport = 5432\nname = \"semiont\"\nuser = \"semiont\"\npassword = \"${EXT_PG}\"\n\n")
+	s.extraEnv = append(s.extraEnv, "EXT_PG=pgsecret", "ANTHROPIC_API_KEY=test-key")
+	for _, c := range []struct{ service, config string }{{"identity", "external-db"}, {"inference", "anthropic"}} {
+		if stdout, stderr, code := s.run(t, "start", "--service", c.service, "--config", c.config); code != 0 {
+			t.Errorf("start --service %s: exit %d\n%s%s", c.service, code, stdout, stderr)
+		}
+	}
+}
+
+// The remote-model check uses the key the config's [inference] apiKey
+// references, whatever the variable is called.
+func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	keys := make(chan string, 1)
+	srv := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case keys <- r.Header.Get("x-api-key"):
+		default:
+		}
+		fmt.Fprintln(w, `{"data":[{"id":"claude-sonnet-4-5-20250929"}]}`)
+	})}
+	go srv.Serve(ln)
+	t.Cleanup(func() { srv.Close() })
+
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "own-key", stdGraph+stdVectors+stdEmbedding+stdDatabase+
+		"[environments.local.inference.anthropic]\nendpoint = \"http://"+ln.Addr().String()+"\"\napiKey = \"${MY_KEY}\"\n\n"+
+		"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n")
+	s.extraEnv = append(s.extraEnv, "MY_KEY=sk-mine")
+	if _, stderr, code := s.run(t, "start", "--config", "own-key"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	select {
+	case got := <-keys:
+		if got != "sk-mine" {
+			t.Errorf("the model check sent x-api-key %q, want the value of ${MY_KEY}", got)
+		}
+	default:
+		t.Error("the model check never ran: it looked for ANTHROPIC_API_KEY, not the variable the config names")
+	}
+}
+
 // A Node service started alone reaches only for its own sections' variables:
 // the smelter reads no [inference], so restarting it raises no provider
 // prompt for ANTHROPIC_API_KEY (SECRET-DELIVERY P5).
@@ -3548,8 +3617,30 @@ func TestStopDeleteForgetsReapedCodespace(t *testing.T) {
 		t.Fatalf("stop --delete on a reaped codespace: want exit 0, got %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "delete output", stdout+stderr, "already", "record")
+	if strings.Contains(stdout+stderr, "30-day") {
+		t.Errorf("the message names a retention the launcher cannot know:\n%s", stdout+stderr)
+	}
 	if b, err := os.ReadFile(statePathFor(s.home)); err == nil && strings.Contains(string(b), "codespace:"+csRepo) {
 		t.Errorf("record kept after --delete on a reaped codespace:\n%s", b)
+	}
+}
+
+// A plain stop of a codespace GitHub already removed refuses with the real
+// reason and the forget advice, rather than running `gh codespace stop` into
+// GitHub's raw 404. Forgetting the record is --delete's job, so it stays.
+func TestPlainStopOnReapedCodespaceNamesTheForget(t *testing.T) {
+	s := newCodespaceScenario(t)
+	writeCodespaceState(t, s)
+	stdout, stderr, code := s.run(t, "stop", "--repo", csRepo)
+	if code == 0 {
+		t.Fatalf("stop on a reaped codespace succeeded\nstdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	mustContain(t, "stop output", stdout+stderr, "no longer exists", "semiont stop --repo "+csRepo+" --delete")
+	if strings.Contains(string(mustLogOrEmpty(s)), "gh codespace stop") {
+		t.Errorf("stop ran gh codespace stop against a codespace GitHub no longer has")
+	}
+	if b, _ := os.ReadFile(statePathFor(s.home)); !strings.Contains(string(b), "fake-cs-1") {
+		t.Errorf("a plain stop forgot the record:\n%s", b)
 	}
 }
 
@@ -3845,12 +3936,14 @@ func TestCodespaceStopKeepsRecordDeleteForgets(t *testing.T) {
 	}
 
 	// stop: gh codespace stop, forward killed, record KEPT (the codespace
-	// still exists — state and credentials persist).
+	// still exists — state and credentials persist). Its advice names the
+	// repo, so it works beside a local stack too.
 	stdout, stderr, code := s.run(t, "stop")
 	if code != 0 {
 		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
 	}
-	mustContain(t, "stop stdout", stdout, "billing halted", "state and credentials persist", "semiont stop --delete")
+	mustContain(t, "stop stdout", stdout, "billing halted", "state and credentials persist",
+		"semiont start --runtime codespace --repo "+csRepo, "semiont stop --repo "+csRepo+" --delete")
 	log, _ := os.ReadFile(s.log)
 	mustContain(t, "argv log", string(log), "gh codespace stop -c fake-cs-1")
 	b, err := os.ReadFile(statePathFor(s.home))

@@ -421,9 +421,10 @@ host = "${OTHER_ENV_VAR}"
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
 	}
-	got := strings.Join(vars.Required, ",")
-	if got != "ANTHROPIC_API_KEY,OTHER_ENV_VAR" {
-		t.Errorf("required vars: got %q — want the real ref and the other-environment ref, minus injected (${NEO4J_HOST}) and comment phantoms (${PHANTOM_KEY})", got)
+	required, _ := vars.read("")
+	got := strings.Join(required, ",")
+	if got != "ANTHROPIC_API_KEY" {
+		t.Errorf("required vars: got %q — want the real ref, minus injected (${NEO4J_HOST}), comment phantoms (${PHANTOM_KEY}) and another environment's ref (${OTHER_ENV_VAR}), which nothing reads", got)
 	}
 }
 
@@ -593,6 +594,28 @@ func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "incomplete") {
 		t.Errorf("error does not name the problem: %v", err)
+	}
+}
+
+// A broker somebody else runs, configured with no pair, would be used
+// unauthenticated: anyone who reaches it reads and writes the job queue and
+// the signal plane. Semiont's clients authenticate by username and password
+// only, so the pair is required.
+func TestAnExternalBrokerWithNoPairIsRefused(t *testing.T) {
+	for _, c := range []struct{ signal, jobs, section string }{
+		{"[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n",
+			"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"nats.example.com:4222\"\n", "jobs"},
+		{"[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n", "", "signal"},
+	} {
+		_, err := planForBroker(t, c.signal, c.jobs)
+		if err == nil {
+			t.Fatalf("an external broker with no user or password was accepted (%s)", c.section)
+		}
+		for _, want := range []string{"[environments.local." + c.section + "]", `"user"`, `"password"`} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("the refusal does not name %s: %v", want, err)
+			}
+		}
 	}
 }
 

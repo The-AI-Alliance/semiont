@@ -1458,7 +1458,7 @@ func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
 }
 
 func (x *planExec) daemonPassword(_, role string) (string, bool) {
-	return "<" + daemonPasswords[role].file + ">", true
+	return "<" + daemonPasswords[role].custody + ">", true
 }
 
 // The clients are read OUT OF the document rather than described alongside it.

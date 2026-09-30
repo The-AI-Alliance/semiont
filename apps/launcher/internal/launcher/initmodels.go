@@ -92,7 +92,7 @@ func anthropicModelList(base, key string) ([]anthropicModel, bool) {
 	}
 	req.Header.Set("x-api-key", key)
 	req.Header.Set("anthropic-version", "2023-06-01")
-	resp, err := (&http.Client{Timeout: 3 * time.Second}).Do(req)
+	resp, err := (&http.Client{Transport: launcherTransport, Timeout: 3 * time.Second}).Do(req)
 	if err != nil {
 		return nil, false
 	}
@@ -133,7 +133,7 @@ func validateOllamaModel(u *UI, ollamaBase, registryBase, model string) bool {
 		tag = "latest"
 	}
 	url := fmt.Sprintf("%s/v2/library/%s/manifests/%s", registryBase, name, tag)
-	resp, err := (&http.Client{Timeout: 5 * time.Second}).Get(url)
+	resp, err := (&http.Client{Transport: launcherTransport, Timeout: 5 * time.Second}).Get(url)
 	if err != nil {
 		u.Warn("Model %s could not be verified (registry unreachable) — recorded as typed; start will attempt the pull.", model)
 		return true

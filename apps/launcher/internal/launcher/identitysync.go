@@ -33,7 +33,7 @@ import (
 	"time"
 )
 
-var adminHTTP = &http.Client{Timeout: 15 * time.Second}
+var adminHTTP = &http.Client{Transport: launcherTransport, Timeout: 15 * time.Second}
 
 // syncReport: what one reconciliation did, for the operator to read back.
 type syncReport struct {

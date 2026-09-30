@@ -32,8 +32,9 @@ Semiont uses a two-layer TOML configuration model, and **both layers live in the
 > ([schema](../../../specs/src/components/schemas/GatewayConfig.json)) the
 > launcher writes from the selected environment and the KB's committed identity,
 > with every `${VAR}` already resolved. It names a broker credential by the
-> variable holding it (`signal.user = "${NATS_USER}"` becomes
-> `"userEnv": "NATS_USER"`), so a literal credential there is refused. See the
+> variable holding it (an external broker's `user = "${BROKER_USER}"` in
+> `[signal]` becomes `"userEnv": "BROKER_USER"`), so a literal credential there
+> is refused. See the
 > [gateway README](../../../apps/gateway/README.md#configuration).
 
 ### `.semiont/config` (project-local, committed)
@@ -96,12 +97,12 @@ type = "keycloak"
 issuer = "http://localhost:8080/realms/semiont"
 subjectClaim = "sub"
 
+# The launcher runs PostgreSQL at ${POSTGRES_HOST} and keeps its password.
 [environments.local.database]
-host = "localhost"
+host = "${POSTGRES_HOST}"
 port = 5432
 name = "semiont_local"
 user = "postgres"
-password = "${POSTGRES_PASSWORD}"
 
 [environments.local.make-meaning.graph]
 type = "memory"   # or: neo4j
@@ -289,14 +290,27 @@ baseURL = "http://localhost:11434"
 [environments.local.make-meaning.graph]
 type = "memory"
 
-# Neo4j
-[environments.local.make-meaning.graph]
+# Neo4j the launcher runs: it generates and keeps the password, so the
+# section names none (see Secrets)
+[environments.local.graph]
 type = "neo4j"
-uri = "bolt://localhost:7687"
+uri = "bolt://${NEO4J_HOST}:7687"
 username = "neo4j"
-password = "${NEO4J_PASSWORD}"
+database = "neo4j"
+
+# Neo4j somebody else runs: an address the containers can reach, and a
+# password from your own variable
+[environments.local.graph]
+type = "neo4j"
+uri = "bolt://neo4j.example.com:7687"
+username = "neo4j"
+password = "${MY_NEO4J_PASSWORD}"
 database = "neo4j"
 ```
+
+`${NEO4J_HOST}` is the address the launcher gives its own Neo4j, so a URI on it is the
+launcher-run form. `bolt://localhost` reaches nothing from inside a container: each service's
+`localhost` is its own.
 
 ## Vectors Configuration
 
@@ -380,6 +394,12 @@ servers = "${NATS_HOST}:4222"
 `servers` may reference environment via `${VAR}` placeholders — the config names the
 variable. A section that names `type = "jetstream"` without `servers` refuses at load.
 
+A broker on `${NATS_HOST}` is the one the launcher runs, with a username and password it
+generates and keeps. A broker anywhere else needs `user` and `password` in the section, and
+`semiont start` refuses one without them: Semiont's clients authenticate by username and
+password only, and an unauthenticated broker lets anyone who reaches it read and write the job
+queue and the signal plane.
+
 ## Signal Plane Configuration
 
 The gateway's real-time hub (SSE fan-out, correlated replies, handler dispatch) selects its
@@ -459,9 +479,9 @@ by default, and only the launcher opts in: on a laptop and inside a codespace al
 codespace's stack is launched the same way. See [DEPLOYMENT.md](./DEPLOYMENT.md) for restart
 ownership.
 
-Variable references in the config use `${VAR_NAME}` syntax (`${VAR_NAME:-default}` supplies a default). The launcher leaves them verbatim when it stages a service's copy; interpolation happens inside the container, when the service first reads the section that names the variable, so the values never pass through your shell history or the launcher's logs. The gateway's document is the exception: the launcher resolves its references when it writes it, by the same rule ([specs/src/config-placeholders/cases.json](../../../specs/src/config-placeholders/cases.json) is the rule's case table, run by both resolvers and by the launcher's reading of which variables a config names), and credentials stay named rather than resolved.
+Variable references in the config use `${VAR_NAME}` syntax (`${VAR_NAME:-default}` supplies a default). The launcher leaves them verbatim when it stages a service's copy; interpolation happens inside the container, when the service first reads the section that names the variable, so the values never pass through your shell history or the launcher's logs. The gateway's document is the exception: the launcher resolves its references when it writes it, by the same rule ([specs/src/config-placeholders/cases.json](../../../specs/src/config-placeholders/cases.json) is the rule's case table, run by both resolvers and by the launcher's reading of which variables a config names), and credentials stay named rather than resolved. Those two resolvers are the only code that reads the syntax, and `lint:placeholder-readers` fails on any other.
 
-`semiont start` refuses when a `${VAR}` is set neither in your environment nor by a registered source (`semiont secret set`). A `${VAR:-default}` is optional: it reaches the containers when you set it, even to the empty string, or register a source for it, and otherwise the default applies. Each service is handed only the variables in the sections it reads, as listed in [specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json), so the Anthropic key in `[inference]` reaches the Archivist, Librarian and Worker and no other service. A service that reads a section its list does not name refuses, naming the section.
+`semiont start` refuses when a `${VAR}` that something reads is set neither in your environment nor by a registered source (`semiont secret set`). Something reads it when it sits in a section a service reads, or in one the launcher resolves itself: the gateway's document (`[gateway]`, `[identity]`, `[archivist]`, `[signal]`), Keycloak's password on an external PostgreSQL (`[database]`), and the key the start checks its remote models with (`[inference]`). A reference anywhere else, such as another environment or a section nothing reads, is not asked for. A `${VAR:-default}` is optional: it reaches the containers when you set it, even to the empty string, or register a source for it, and otherwise the default applies. Each service is handed only the variables in the sections it reads, as listed in [specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json), so the Anthropic key in `[inference]` reaches the Archivist, Librarian and Worker and no other service. A service that reads a section its list does not name refuses, naming the section.
 
 ## Quick Start
 
