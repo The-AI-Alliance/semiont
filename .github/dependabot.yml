@@ -78,7 +78,7 @@ updates:
   # Gateway conformance suite — outside workspaces[] like tests/e2e, so it
   # needs its own entry.
   - package-ecosystem: "npm"
-    directory: "/tests/gateway-conformance"
+    directory: "/tests/conformance"
     versioning-strategy: increase-if-necessary
     cooldown:
       default-days: 5

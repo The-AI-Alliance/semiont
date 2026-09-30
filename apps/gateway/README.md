@@ -169,7 +169,7 @@ cargo build --release    # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../tests/gateway-conformance/README.md), run against the
+[conformance suite](../../tests/conformance/gateway/README.md), run against the
 built binary on both signal planes; see [TESTING.md](docs/TESTING.md). To run
 one by hand, write a `GatewayConfig` to a file, point `SEMIONT_GATEWAY_CONFIG` at
 it, and set `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.

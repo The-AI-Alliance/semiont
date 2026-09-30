@@ -45,7 +45,7 @@ Nothing in Semiont is waiting on them.
 
 The OpenAPI spec is the single source of truth for which routes are public: an
 operation declaring `security: []` is public, and the
-[gateway conformance suite](../../tests/gateway-conformance/README.md) fails if any
+[gateway conformance suite](../../tests/conformance/gateway/README.md) fails if any
 other declared operation answers an unauthenticated caller with anything but 401,
 or a public one challenges.
 
@@ -154,7 +154,7 @@ resourcesRouter.use('/api/resources/*', authMiddleware);
 `authMiddleware` verifies the bearer token, resolves the principal, and answers
 401 when it cannot. A route that needs a narrower audience than "any
 authenticated caller" needs a new gate, declared in the spec first; the
-[gateway conformance suite](../../tests/gateway-conformance/README.md) then
+[gateway conformance suite](../../tests/conformance/gateway/README.md) then
 probes it.
 
 ---

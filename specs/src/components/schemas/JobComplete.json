@@ -23,16 +23,7 @@
       "description": "When it completed."
     },
     "result": {
-      "description": "The result its worker reported with `job:complete`, or an empty object when it reported none.",
-      "anyOf": [
-        {
-          "$ref": "./JobResult.json"
-        },
-        {
-          "type": "object",
-          "maxProperties": 0
-        }
-      ]
+      "$ref": "./JobStoredResult.json"
     }
   },
   "required": [

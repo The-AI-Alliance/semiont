@@ -12,7 +12,7 @@ messages and id formats, the limits (`x-semiont-limits`, `maxItems`), and
 the claims a token must carry (the `bearerAuth` scheme). This doc states
 what a schema cannot: order, entitlement, recovery, and what the gateway
 does on its own initiative. The gateway conformance suite
-(`tests/gateway-conformance`) checks a running gateway against both.
+(`tests/conformance/gateway`) checks a running gateway against both.
 
 Transport-agnostic guarantees (at-most-once emit, per-channel ordering,
 `busRequest` semantics, `_userId` injection invariant) live in the

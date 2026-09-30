@@ -36,7 +36,7 @@ export default function setup(project: TestProject): () => void {
     throw new Error('nats-server is not on PATH. The NATS cases run a real broker; install nats-server 2.10 or later.');
   }
 
-  const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-spec-'));
+  const dir = mkdtempSync(join(tmpdir(), 'conformance-spec-'));
   const bundle = (source: string, name: string) => {
     const out = join(dir, name);
     execFileSync(join(REPO_ROOT, 'node_modules/.bin/redocly'), ['bundle', source, '-o', out], { cwd: REPO_ROOT, stdio: 'ignore' });

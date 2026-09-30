@@ -21,7 +21,7 @@ first; the `bearerAuth` and `mediaToken` schemes in
   no route answers 403; a refusal is always a 401.
 - **The spec decides what is public.** Four operations are: `GET /api/health`,
   `GET /`, `GET /api/openapi.json`, `GET /.well-known/oauth-protected-resource`.
-  The [conformance suite](../../../tests/gateway-conformance/README.md) probes
+  The [conformance suite](../../../tests/conformance/gateway/README.md) probes
   every declared operation without a credential and with a bad one.
 
 ## Where it lives

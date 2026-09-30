@@ -13,7 +13,7 @@ import { startBroker, type Broker, type BrokerOptions } from './nats';
 import { defaultSettings, startGateway, type GatewayEnvironment, type GatewayProcess, type GatewaySettings, type Plane } from './gateway';
 import { call, type Reply } from './http';
 import { freePort } from './net';
-import { startIssuer, type IssuerServer } from './issuer';
+import { startIssuer, type IssuerServer, type ServiceAccount } from './issuer';
 import { SERVICE_ROLE } from './roles';
 import { kbIdentity, principals } from './spec';
 import { subscribe, type BusFrame, type BusStream, type SubscribeBody } from './stream';
@@ -32,6 +32,8 @@ export interface WorldOptions {
   env?: GatewayEnvironment;
   /** How the NATS plane's broker is started. */
   broker?: BrokerOptions;
+  /** Service accounts the issuer grants beside the gateway's: another service the world runs. */
+  accounts?: Record<string, ServiceAccount>;
 }
 
 export class World {
@@ -54,6 +56,7 @@ export class World {
     const kb = kbIdentity();
     const secret = randomBytes(24).toString('hex');
     const issuer = await startIssuer(kb.resource, {
+      ...options.accounts,
       [GATEWAY_CLIENT]: { secret, roles: [SERVICE_ROLE] },
     });
     const archivist = await startArchivist(issuer, kb.resource);

@@ -10,7 +10,7 @@ import type {
 import { resourceId as toResourceId, cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest } from '@semiont/core';
+import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
 import { GenerationStallError, deriveStallDeadlineMs } from './generation-stall';
 import type {
@@ -207,7 +207,9 @@ export class YieldNamespace implements IYieldNamespace {
                       jobId: jid,
                       jobType: (status.type ?? 'generation') as components['schemas']['JobType'],
                       resourceId: resourceId as string,
-                      result: status.result,
+                      // A job completed without a result is stored with an empty
+                      // one; the job:complete this stands for carried none.
+                      ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
                     },
                   });
                   subscriber.complete();

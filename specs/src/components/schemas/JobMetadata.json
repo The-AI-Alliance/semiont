@@ -5,7 +5,7 @@
     "id": {
       "type": "string",
       "minLength": 1,
-      "description": "The job's id: `job-` followed by a UUID."
+      "description": "The job's id: `job-` followed by a version 4 UUID written as 32 lowercase hex digits, without dashes."
     },
     "type": {
       "$ref": "./JobType.json"

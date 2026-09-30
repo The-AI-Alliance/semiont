@@ -29,6 +29,6 @@ upload body (`ResourceUpload`) is one schema that both documents' `POST
   tests check every reply against this document, and fail when an operation
   here is not exercised.
 - The gateway conformance suite's stand-in Archivist
-  (`tests/gateway-conformance/harness/archivist.ts`): every request the gateway
+  (`tests/conformance/harness/archivist.ts`): every request the gateway
   sends it must be an operation declared here, and every reply the stand-in
   gives must match its declaration.

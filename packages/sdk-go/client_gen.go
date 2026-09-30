@@ -3427,20 +3427,12 @@ type JobComplete struct {
 	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
 	Params JobParams `json:"params"`
 
-	// Result The result its worker reported with `job:complete`, or an empty object when it reported none.
-	Result JobComplete_Result `json:"result"`
+	// Result A completed job's result as the dispatcher stores it: the result its worker reported with `job:complete`, or an empty object when it reported none.
+	Result JobStoredResult `json:"result"`
 
 	// StartedAt When the claim that completed it was made.
 	StartedAt string            `json:"startedAt"`
 	Status    JobCompleteStatus `json:"status"`
-}
-
-// JobCompleteResult1 defines model for .
-type JobCompleteResult1 = map[string]interface{}
-
-// JobComplete_Result The result its worker reported with `job:complete`, or an empty object when it reported none.
-type JobComplete_Result struct {
-	union json.RawMessage
 }
 
 // JobCompleteStatus defines model for JobComplete.Status.
@@ -3655,7 +3647,7 @@ type JobMetadata struct {
 	// Created When the job was created, as an ISO 8601 timestamp.
 	Created string `json:"created"`
 
-	// Id The job's id: `job-` followed by a UUID.
+	// Id The job's id: `job-` followed by a version 4 UUID written as 32 lowercase hex digits, without dashes.
 	Id string `json:"id"`
 
 	// MaxRetries How many transient failures the queue retries: 0 for generation, whose re-run produces different content; 1 for every other type.
@@ -3946,20 +3938,12 @@ type JobRunning struct {
 	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
 	Params JobParams `json:"params"`
 
-	// Progress The last progress the worker reported, or an empty object before its first report.
-	Progress JobRunning_Progress `json:"progress"`
+	// Progress A running job's progress as the dispatcher stores it: the last JobProgress its worker reported with `job:report-progress`, or an empty object before the first report.
+	Progress JobStoredProgress `json:"progress"`
 
 	// StartedAt When the claim that holds it was made, as an ISO 8601 timestamp.
 	StartedAt string           `json:"startedAt"`
 	Status    JobRunningStatus `json:"status"`
-}
-
-// JobRunningProgress1 defines model for .
-type JobRunningProgress1 = map[string]interface{}
-
-// JobRunning_Progress The last progress the worker reported, or an empty object before its first report.
-type JobRunning_Progress struct {
-	union json.RawMessage
 }
 
 // JobRunningStatus defines model for JobRunning.Status.
@@ -4000,14 +3984,16 @@ type JobStatusRequest struct {
 
 // JobStatusResponse defines model for JobStatusResponse.
 type JobStatusResponse struct {
-	CompletedAt *string     `json:"completedAt,omitempty"`
-	Created     string      `json:"created"`
-	Error       *string     `json:"error,omitempty"`
-	JobId       string      `json:"jobId"`
-	Progress    interface{} `json:"progress,omitempty"`
+	CompletedAt *string `json:"completedAt,omitempty"`
+	Created     string  `json:"created"`
+	Error       *string `json:"error,omitempty"`
+	JobId       string  `json:"jobId"`
 
-	// Result Discriminated union of all job result types — every member carries a single-valued `kind` (WIRE-UNION-DISCRIMINANTS D1/D2). Consumers switch on `kind`; generated clients get typed variants.
-	Result    *JobResult              `json:"result,omitempty"`
+	// Progress A running job's progress as the dispatcher stores it: the last JobProgress its worker reported with `job:report-progress`, or an empty object before the first report.
+	Progress *JobStoredProgress `json:"progress,omitempty"`
+
+	// Result A completed job's result as the dispatcher stores it: the result its worker reported with `job:complete`, or an empty object when it reported none.
+	Result    *JobStoredResult        `json:"result,omitempty"`
 	StartedAt *string                 `json:"startedAt,omitempty"`
 	Status    JobStatusResponseStatus `json:"status"`
 
@@ -4023,6 +4009,22 @@ type JobStatusResponseStatus string
 type JobStatusResult struct {
 	Response JobStatusResponse `json:"response"`
 }
+
+// JobStoredProgress A running job's progress as the dispatcher stores it: the last JobProgress its worker reported with `job:report-progress`, or an empty object before the first report.
+type JobStoredProgress struct {
+	union json.RawMessage
+}
+
+// JobStoredProgress1 defines model for .
+type JobStoredProgress1 = map[string]interface{}
+
+// JobStoredResult A completed job's result as the dispatcher stores it: the result its worker reported with `job:complete`, or an empty object when it reported none.
+type JobStoredResult struct {
+	union json.RawMessage
+}
+
+// JobStoredResult1 defines model for .
+type JobStoredResult1 = map[string]interface{}
 
 // JobTagAnnotationResult Result of a completed tag-annotation job.
 type JobTagAnnotationResult struct {
@@ -9144,68 +9146,6 @@ func (t *Job) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsJobResult returns the union data inside the JobComplete_Result as a JobResult
-func (t JobComplete_Result) AsJobResult() (JobResult, error) {
-	var body JobResult
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobResult overwrites any union data inside the JobComplete_Result as the provided JobResult
-func (t *JobComplete_Result) FromJobResult(v JobResult) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobResult performs a merge with any union data inside the JobComplete_Result, using the provided JobResult
-func (t *JobComplete_Result) MergeJobResult(v JobResult) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsJobCompleteResult1 returns the union data inside the JobComplete_Result as a JobCompleteResult1
-func (t JobComplete_Result) AsJobCompleteResult1() (JobCompleteResult1, error) {
-	var body JobCompleteResult1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromJobCompleteResult1 overwrites any union data inside the JobComplete_Result as the provided JobCompleteResult1
-func (t *JobComplete_Result) FromJobCompleteResult1(v JobCompleteResult1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeJobCompleteResult1 performs a merge with any union data inside the JobComplete_Result, using the provided JobCompleteResult1
-func (t *JobComplete_Result) MergeJobCompleteResult1(v JobCompleteResult1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t JobComplete_Result) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *JobComplete_Result) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
 // AsJobProgressLoading returns the union data inside the JobProgressMessage as a JobProgressLoading
 func (t JobProgressMessage) AsJobProgressLoading() (JobProgressLoading, error) {
 	var body JobProgressLoading
@@ -9774,22 +9714,22 @@ func (t *JobResult) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsJobProgress returns the union data inside the JobRunning_Progress as a JobProgress
-func (t JobRunning_Progress) AsJobProgress() (JobProgress, error) {
+// AsJobProgress returns the union data inside the JobStoredProgress as a JobProgress
+func (t JobStoredProgress) AsJobProgress() (JobProgress, error) {
 	var body JobProgress
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobProgress overwrites any union data inside the JobRunning_Progress as the provided JobProgress
-func (t *JobRunning_Progress) FromJobProgress(v JobProgress) error {
+// FromJobProgress overwrites any union data inside the JobStoredProgress as the provided JobProgress
+func (t *JobStoredProgress) FromJobProgress(v JobProgress) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobProgress performs a merge with any union data inside the JobRunning_Progress, using the provided JobProgress
-func (t *JobRunning_Progress) MergeJobProgress(v JobProgress) error {
+// MergeJobProgress performs a merge with any union data inside the JobStoredProgress, using the provided JobProgress
+func (t *JobStoredProgress) MergeJobProgress(v JobProgress) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -9800,22 +9740,22 @@ func (t *JobRunning_Progress) MergeJobProgress(v JobProgress) error {
 	return err
 }
 
-// AsJobRunningProgress1 returns the union data inside the JobRunning_Progress as a JobRunningProgress1
-func (t JobRunning_Progress) AsJobRunningProgress1() (JobRunningProgress1, error) {
-	var body JobRunningProgress1
+// AsJobStoredProgress1 returns the union data inside the JobStoredProgress as a JobStoredProgress1
+func (t JobStoredProgress) AsJobStoredProgress1() (JobStoredProgress1, error) {
+	var body JobStoredProgress1
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromJobRunningProgress1 overwrites any union data inside the JobRunning_Progress as the provided JobRunningProgress1
-func (t *JobRunning_Progress) FromJobRunningProgress1(v JobRunningProgress1) error {
+// FromJobStoredProgress1 overwrites any union data inside the JobStoredProgress as the provided JobStoredProgress1
+func (t *JobStoredProgress) FromJobStoredProgress1(v JobStoredProgress1) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeJobRunningProgress1 performs a merge with any union data inside the JobRunning_Progress, using the provided JobRunningProgress1
-func (t *JobRunning_Progress) MergeJobRunningProgress1(v JobRunningProgress1) error {
+// MergeJobStoredProgress1 performs a merge with any union data inside the JobStoredProgress, using the provided JobStoredProgress1
+func (t *JobStoredProgress) MergeJobStoredProgress1(v JobStoredProgress1) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -9826,12 +9766,74 @@ func (t *JobRunning_Progress) MergeJobRunningProgress1(v JobRunningProgress1) er
 	return err
 }
 
-func (t JobRunning_Progress) MarshalJSON() ([]byte, error) {
+func (t JobStoredProgress) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *JobRunning_Progress) UnmarshalJSON(b []byte) error {
+func (t *JobStoredProgress) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobResult returns the union data inside the JobStoredResult as a JobResult
+func (t JobStoredResult) AsJobResult() (JobResult, error) {
+	var body JobResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobResult overwrites any union data inside the JobStoredResult as the provided JobResult
+func (t *JobStoredResult) FromJobResult(v JobResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobResult performs a merge with any union data inside the JobStoredResult, using the provided JobResult
+func (t *JobStoredResult) MergeJobResult(v JobResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobStoredResult1 returns the union data inside the JobStoredResult as a JobStoredResult1
+func (t JobStoredResult) AsJobStoredResult1() (JobStoredResult1, error) {
+	var body JobStoredResult1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobStoredResult1 overwrites any union data inside the JobStoredResult as the provided JobStoredResult1
+func (t *JobStoredResult) FromJobStoredResult1(v JobStoredResult1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobStoredResult1 performs a merge with any union data inside the JobStoredResult, using the provided JobStoredResult1
+func (t *JobStoredResult) MergeJobStoredResult1(v JobStoredResult1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobStoredResult) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobStoredResult) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

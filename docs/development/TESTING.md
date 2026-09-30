@@ -17,7 +17,8 @@ This guide covers how Semiont's test suites are organized, configured and run: t
 |---|---|---|---|
 | Workspace suites | every workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
 | Gateway table runners | `apps/gateway` (`cargo test`) | The gateway's DID, address, name and resource-identifier functions against the shared case tables (`specs/src/principals`, `specs/src/kb-identity`) | The toolchain `apps/gateway/rust-toolchain.toml` names |
-| Gateway conformance | [`tests/gateway-conformance`](../../tests/gateway-conformance/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway and `nats-server` 2.10 or later on `PATH` |
+| Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway and `nats-server` 2.10 or later on `PATH` |
+| Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway, the packages built, and `nats-server` 2.10 or later on `PATH` |
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start/stop lifecycles; the Go bus client's wire contract | The Go toolchain named in each `go.mod` |
 | End-to-end | [`tests/e2e`](../../tests/e2e/README.md) | The live Browser against a live gateway and knowledge base | A running stack and a user in its issuer |
 
@@ -78,9 +79,9 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 - **An identity provider.** `@semiont/core/testing/issuer` is an in-process OIDC issuer: signing keys, signed tokens, and the discovery and JWKS documents. It serves nothing; the consumer answers the two URLs.
 - **A real broker where a mock would prove nothing.** `@semiont/jobs`' JetStream tests and the conformance suite's NATS plane spawn `nats-server` from `PATH`. A missing binary fails the run with instructions; it never skips.
 
-### The gateway conformance suite
+### The conformance suites
 
-[`tests/gateway-conformance/vitest.config.ts`](../../tests/gateway-conformance/vitest.config.ts) is its own config, not derived from the shared one: test files `cases/**/*.test.ts` and the harness's own `harness/**/*.test.ts`; the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. It provides the command a gateway is started with, `GATEWAY_COMMAND` in `harness/paths.ts`; its global setup refuses to start without that gateway built (`apps/gateway/target/release/semiont-gateway`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
+[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds two projects over one shared harness: `gateway` (test files `gateway/**/*.test.ts` and the harness's own `harness/**/*.test.ts`) and `dispatcher` (`dispatcher/**/*.test.ts`); the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. It provides the command a gateway is started with, `GATEWAY_COMMAND` in `harness/paths.ts`; its global setup refuses to start without that gateway built (`apps/gateway/target/release/semiont-gateway`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
 
 Each gateway the suite starts gets a fresh temporary directory holding `gateway.json` — the `GatewayConfig` document — and an environment of `PATH`, `SEMIONT_GATEWAY_CONFIG` naming that document, and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
 
@@ -491,7 +492,7 @@ Tests run through each workspace's npm scripts. There is no `semiont test` comma
 
 ### From the repository root
 
-`npm test` fans out to every workspace that defines a `test` script (`--workspaces --if-present` over `apps/*`, `packages/*` and `packages/sdk/docs/__snippets__`), and `npm run typecheck` does the same for `typecheck`. `tests/gateway-conformance` and `tests/e2e` are not root workspaces — each has its own `package.json` and lockfile and runs from its own directory — and the Go modules run under `go test`.
+`npm test` fans out to every workspace that defines a `test` script (`--workspaces --if-present` over `apps/*`, `packages/*` and `packages/sdk/docs/__snippets__`), and `npm run typecheck` does the same for `typecheck`. `tests/conformance` and `tests/e2e` are not root workspaces — each has its own `package.json` and lockfile and runs from its own directory — and the Go modules run under `go test`.
 
 To target one workspace from the root, use `--workspace`:
 
@@ -523,12 +524,14 @@ Gateway (`apps/gateway/`, Rust): `cargo test` runs only the shared-table runners
 ```bash
 (cd apps/gateway && cargo build --release)
 npm run build:packages
-cd tests/gateway-conformance
+cd tests/conformance
 npm ci
-npm test
+npm run test:gateway
 ```
 
 Its `pretest` typechecks the cases first. What each check covers is in the gateway's [TESTING.md](../../apps/gateway/docs/TESTING.md).
+
+The dispatcher's behaviour is the same suite's `dispatcher` project, against make-meaning's built entry point behind a built gateway: `npm run test:dispatcher` in `tests/conformance`, after the steps above. What it checks is in its [README](../../tests/conformance/dispatcher/README.md).
 
 Go, as CI runs them:
 
@@ -626,7 +629,8 @@ Node 24, with these jobs:
 |---|---|
 | `test-browser` | `npm run typecheck` + `npm test` for `apps/browser` |
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for `apps/gateway`; the crates it links held to the licence policy and its image's NOTICE |
-| `gateway-conformance` | Builds the gateway, installs `nats-server`, runs `tests/gateway-conformance` |
+| `gateway-conformance` | Builds the gateway, installs `nats-server`, runs `tests/conformance`'s gateway project |
+| `dispatcher-conformance` | Builds the gateway and the packages, installs `nats-server`, runs `tests/conformance`'s dispatcher project |
 | `test-comprehensive` | The Browser suite again |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |
@@ -654,7 +658,7 @@ everything — CI runs the full matrix.
 - [Browser Testing](../../apps/browser/docs/TESTING.md) - Browser test layout and scripts
 - [react-ui Testing](../../packages/react-ui/docs/TESTING.md) - Component testing by composition, test utilities
 - [Gateway Testing](../../apps/gateway/docs/TESTING.md) - What checks the gateway: the spec lint, the conformance suite, the boot, the table runners
-- [Gateway Conformance Suite](../../tests/gateway-conformance/README.md) - What the black-box suite checks and how to run it
+- [Gateway Conformance Suite](../../tests/conformance/gateway/README.md) - What the black-box suite checks and how to run it
 
 ### End-to-End Testing
 - [tests/e2e/README.md](../../tests/e2e/README.md) - Suite overview, container networking, full stack-rebuild flow

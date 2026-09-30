@@ -58,7 +58,7 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
-- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/gateway-conformance`
+- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
 - Go modules: `apps/launcher`, `packages/sdk-go`
 - Cargo: `apps/gateway`, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `apps/gateway/rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser, the desktop builder and the seven service images
@@ -194,7 +194,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd apps/browser && npm run test:security
-   (cd apps/gateway && cargo build --release) && (cd tests/gateway-conformance && npm test)
+   (cd apps/gateway && cargo build --release) && (cd tests/conformance && npm run test:gateway)
    ```
 
 2. **Check admin route behavior** manually:

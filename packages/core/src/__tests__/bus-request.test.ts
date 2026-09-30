@@ -23,6 +23,7 @@ import type { ConnectionState } from '../transport';
 import {
   busRequest,
   BusRequestError,
+  relayedFailureCode,
   type BusRequestPrimitive,
 } from '../bus-request';
 
@@ -580,6 +581,23 @@ describe('BusRequestError', () => {
   it('details is optional', () => {
     const err = new BusRequestError('x', 'bus.rejected');
     expect(err.details).toBeUndefined();
+  });
+});
+
+describe('relayedFailureCode', () => {
+  it('answers the wire code a peer stated, for every code a peer can state', () => {
+    expect(relayedFailureCode(new BusRequestError('x', 'bus.peer-unavailable'))).toBe('peer-unavailable');
+    expect(relayedFailureCode(new BusRequestError('x', 'bus.not-found'))).toBe('not-found');
+    expect(relayedFailureCode(new BusRequestError('x', 'bus.unauthorized'))).toBe('unauthorized');
+    expect(relayedFailureCode(new BusRequestError('x', 'bus.none-pending'))).toBe('none-pending');
+  });
+
+  it('answers nothing for a failure only this side knows, or for any other error', () => {
+    for (const code of ['bus.timeout', 'bus.rejected', 'bus.closed', 'bus.unsubscribed'] as const) {
+      expect(relayedFailureCode(new BusRequestError('x', code))).toBeUndefined();
+    }
+    expect(relayedFailureCode(new Error('x'))).toBeUndefined();
+    expect(relayedFailureCode('x')).toBeUndefined();
   });
 });
 

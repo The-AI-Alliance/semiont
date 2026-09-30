@@ -1,4 +1,4 @@
-import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams, hasWorkerRole } from '@semiont/core';
+import { generateUuid, jobId, userId, resourceId, entityType, isGenerationJobParams, hasWorkerRole, relayedFailureCode } from '@semiont/core';
 import type { CommandErrorCode, EventBus, Logger } from '@semiont/core';
 import type { JobQueue } from '@semiont/jobs';
 import type { ProjectionReads } from '../projection-reads-ask.js';
@@ -37,6 +37,16 @@ export function registerJobCommandHandlers(
     try {
       if (!_userId || typeof _userId !== 'string') {
         throw new Error('_userId is required (injected by bus gateway)');
+      }
+
+      // The job's resource is derived below — the envelope's, or a
+      // generation's focus — and is what the claim checks, `job:assign`
+      // records and a worker's writes are checked against. A caller's
+      // `params.resourceId` would replace it, so it is refused, never ignored.
+      if ((params as Record<string, unknown> | undefined)?.resourceId !== undefined) {
+        throw new Error(
+          'job:create must omit params.resourceId — the job\'s resource is its resourceId, or a generation\'s context focus',
+        );
       }
 
       // GENERATION-WIRE-CONTEXT D1/D2: for generation, the context is the wire
@@ -157,7 +167,10 @@ export function registerJobCommandHandlers(
       }, { correlationId });
     } catch (error) {
       logger.error('job:create failed', { correlationId, error: (error as Error).message });
-      eventBus.emit('job:create-failed', { message: (error as Error).message, }, { correlationId });
+      // A refusal because a read failed carries the read's own code: the
+      // caller of an Archivist that is not connected learns peer-unavailable.
+      const code = relayedFailureCode(error);
+      eventBus.emit('job:create-failed', { message: (error as Error).message, ...(code ? { code } : {}) }, { correlationId });
     }
   });
 

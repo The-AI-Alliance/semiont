@@ -138,7 +138,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/gateway-conformance/package-lock.json
+            tests/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer, and the job stream's
       # subjects — and bundles the spec with the root's redocly. Core is the one
@@ -160,9 +160,74 @@ jobs:
       # Black-box: it starts gateway processes and checks them against specs/.
       - name: Run the gateway conformance suite
         run: |
-          cd tests/gateway-conformance
+          cd tests/conformance
           npm ci
-          npm test
+          npm run test:gateway
+        env:
+          CI: true
+
+  dispatcher-conformance:
+    name: Dispatcher Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          cd apps/gateway
+          rustup toolchain install
+
+      # The gateway's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            apps/gateway/target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The dispatcher reaches the bus only through a gateway.
+      - name: Build the gateway
+        run: |
+          cd apps/gateway
+          cargo build --release --locked
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The dispatcher under test is make-meaning's entry point, so every
+      # package it loads is built.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build:packages
+
+      # The dispatcher's queue is JetStream, on a real broker spawned from PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # Black-box: it starts dispatcher processes behind a gateway and meets
+      # them only on the bus and their health port.
+      - name: Run the dispatcher conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:dispatcher
         env:
           CI: true
 

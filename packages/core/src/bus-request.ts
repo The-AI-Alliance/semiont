@@ -102,6 +102,21 @@ function classifyFailureCode(code: unknown): BusRequestErrorCode {
   return WIRE_CODES.get(code) ?? 'bus.rejected';
 }
 
+const CLIENT_TO_WIRE = new Map<BusRequestErrorCode, CommandErrorCode>(
+  (Object.entries(WIRE_TO_CLIENT) as [CommandErrorCode, BusRequestErrorCode][]).map(([wire, client]) => [client, wire]),
+);
+
+/**
+ * The wire code a failed request's peer stated, for a service that answers its
+ * own caller with that failure: `peer-unavailable` from a read it depended on
+ * reaches the caller as `peer-unavailable`. A failure only this side knows — a
+ * timeout, a closed bus — states no wire code, and neither does anything that
+ * is not a `BusRequestError`.
+ */
+export function relayedFailureCode(error: unknown): CommandErrorCode | undefined {
+  return error instanceof BusRequestError ? CLIENT_TO_WIRE.get(error.code) : undefined;
+}
+
 export class BusRequestError extends SemiontError {
   declare code: BusRequestErrorCode;
 

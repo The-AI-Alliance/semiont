@@ -12,6 +12,7 @@ import {
   isDefined,
   isGatheredContext,
   isGenerationJobParams,
+  isReportedJobResult,
 } from '../type-guards';
 
 describe('@semiont/core - type-guards', () => {
@@ -259,5 +260,16 @@ describe('isGatheredContext', () => {
     for (const value of [null, undefined, 'a string', 42, [], { focus: 'not an object' }]) {
       expect(isGatheredContext(value)).toBe(false);
     }
+  });
+
+  describe('isReportedJobResult', () => {
+    it('accepts a result its worker reported', () => {
+      expect(isReportedJobResult({ kind: 'highlight-annotation', highlightsFound: 1, highlightsCreated: 1 })).toBe(true);
+    });
+
+    it('refuses the empty result a job completed without one is stored with, and an absent one', () => {
+      expect(isReportedJobResult({})).toBe(false);
+      expect(isReportedJobResult(undefined)).toBe(false);
+    });
   });
 });

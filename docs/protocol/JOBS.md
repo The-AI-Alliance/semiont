@@ -10,7 +10,9 @@ The client side of the two jobs Semiont's own verbs create is in the flow docume
 [Yield](flows/YIELD.md) (generation) and [Mark](flows/MARK.md) (AI-assisted annotation). How a
 worker is built is in the [`semiont-worker` skill](skills/semiont-worker/SKILL.md). Channel payloads
 are named in [the registry](../../specs/src/bus/registry.json); the bus conventions this document
-relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md).
+relies on (`_userId`, `correlationId`, audiences) are in [EVENT-BUS.md](EVENT-BUS.md). The
+[dispatcher conformance suite](../../tests/conformance/dispatcher/README.md) checks a running
+dispatcher against this document.
 
 ## The dispatcher
 
@@ -148,7 +150,8 @@ What holds for all nine:
   A one-way frame that no dispatcher hears is lost: a `job:complete` or `job:fail` the dispatcher
   never receives leaves the job `running` until the [dead-worker sweep](#periodic-work).
 - **A failure reply is a `CommandError`**: `message`, and `code` only where the sections below give
-  one. Of the dispatcher's own failure replies, only `job:claim`'s carry a code.
+  one. Of the dispatcher's own failure replies, only `job:claim`'s carry a code, and `job:create`'s
+  when a read it made failed with one.
 - **Frames are not serialized.** Two frames for the same job may be handled concurrently. Each
   transition is atomic in the store ([Storage](#storage)), so one of two racing transitions wins and
   the other finds the job no longer in the state it needs.
@@ -160,23 +163,24 @@ Admits a new job. Reads `jobType`, `resourceId`, `params` and `_userId`
 `JobType`, which the gateway's schema check enforces.
 
 **Admission.** The checks run in this order; the first that fails is the reply,
-`job:create-failed` with the message below and **no `code`**
-([Known defects](#known-defects)).
+`job:create-failed` with the message below. Only a refusal because a read failed carries a `code`
+([The two reads](#jobcreate)).
 
 | # | Applies to | Check | Refusal message |
 |---|---|---|---|
 | 1 | all | `_userId` is a non-empty string | `_userId is required (injected by bus gateway)` |
-| 2 | `generation` | `resourceId` is absent | `generation job:create must omit resourceId — the context's focus is authoritative` |
-| 3 | `generation` | `params.referenceId` is absent | `generation job:create must omit params.referenceId — the context's focus is authoritative` |
-| 4 | `generation` | `params.title` and `params.storageUri` are non-empty strings and `params.context` is an object | `generation params do not satisfy GenerationJobParams (title, storageUri, and context are required)` |
-| 5 | `generation` | the **focus rule** yields a non-empty string (below) | `generation context has no usable focus — pass a GatheredContext produced by gather.resource(...) or gather.annotation(...)` |
-| 6 | every other type | `resourceId` is a non-empty string | `<jobType> job:create requires resourceId` |
-| 7 | `reference-annotation`, `generation` | when `params.entityTypes` is a non-empty array: every member is a registered entity type (**read 1**) | `Entity type not registered: <a>, <b>` — the unregistered members, comma-separated |
-| 8 | `tag-annotation` | **read 2**, then `params.schemaId` is a non-empty string | `tag-annotation requires schemaId` |
-| 9 | `tag-annotation` | `params.schemaId` names a registered tag schema | `Tag schema not registered: <schemaId>` |
-| 10 | all | the store accepts the new record | the store's error message |
+| 2 | all | `params.resourceId` is absent | `job:create must omit params.resourceId — the job's resource is its resourceId, or a generation's context focus` |
+| 3 | `generation` | `resourceId` is absent | `generation job:create must omit resourceId — the context's focus is authoritative` |
+| 4 | `generation` | `params.referenceId` is absent | `generation job:create must omit params.referenceId — the context's focus is authoritative` |
+| 5 | `generation` | `params.title` and `params.storageUri` are non-empty strings and `params.context` is an object | `generation params do not satisfy GenerationJobParams (title, storageUri, and context are required)` |
+| 6 | `generation` | the **focus rule** yields a non-empty string (below) | `generation context has no usable focus — pass a GatheredContext produced by gather.resource(...) or gather.annotation(...)` |
+| 7 | every other type | `resourceId` is a non-empty string | `<jobType> job:create requires resourceId` |
+| 8 | `reference-annotation`, `generation` | when `params.entityTypes` is a non-empty array: every member is a registered entity type (**read 1**) | `Entity type not registered: <a>, <b>` — the unregistered members, comma-separated |
+| 9 | `tag-annotation` | **read 2**, then `params.schemaId` is a non-empty string | `tag-annotation requires schemaId` |
+| 10 | `tag-annotation` | `params.schemaId` names a registered tag schema | `Tag schema not registered: <schemaId>` |
+| 11 | all | the store accepts the new record | the store's error message |
 
-A `reference-annotation` whose `params.entityTypes` is present but not an array skips check 7 and is
+A `reference-annotation` whose `params.entityTypes` is present but not an array skips check 8 and is
 then refused with a runtime error message this document does not specify.
 
 **The focus rule** derives a generation job's resource from its gathered context,
@@ -186,19 +190,19 @@ on. Any other focus yields none. For every other type the resource is the envelo
 
 **The two reads** ask the Archivist over the bus, as the dispatcher's own requests:
 `browse:entity-types-requested` (read 1) and `browse:tag-schemas-requested` (read 2), each with an
-empty payload. They are made per `job:create`, only where the table says, after checks 1–6, one after
+empty payload. They are made per `job:create`, only where the table says, after checks 1–7, one after
 the other, never cached. Read 2 is made for every `tag-annotation` before `schemaId` is examined. Each
-waits up to 30 seconds. When a read fails, `job:create` is refused with the read's own message; for
-an Archivist that is not connected that message is
+waits up to 30 seconds. When a read fails, `job:create` is refused with the read's own message, and with
+its `code` when the read's failure carried one. For an Archivist that is not connected the message is
 `No subscriber for browse:entity-types-requested: the service that answers it is not connected` (or
-the same for `browse:tag-schemas-requested`), and it arrives at once. A job type that triggers
+the same for `browse:tag-schemas-requested`), the code is `peer-unavailable`, and the refusal arrives at
+once. A job type that triggers
 neither read is admitted without the Archivist.
 
 **The record.** On admission the dispatcher builds the record — a new id, `retryCount: 0`,
 `maxRetries` by type, `created` now, `userId` the requester — with
-`params = { resourceId: <the resource derived above>, ...<the caller's params> }`. The caller's
-`params` are spread second, so a caller's `params.resourceId` replaces the derived one
-([Known defects](#known-defects)). For `tag-annotation` the resolved schema is stored as
+`params = { resourceId: <the resource derived above>, ...<the caller's params> }`, the caller's
+params holding no `resourceId` (check 2). For `tag-annotation` the resolved schema is stored as
 `params.schema` and `params.schemaId` is removed, so the worker needs no registry of its own.
 
 **Reply.** `job:created` with `{ response: { jobId } }`. The job is stored as `pending` before the
@@ -477,15 +481,6 @@ while the process runs.
 Current behaviour that is a defect. Each is described as it happens today; none is a rule of the
 protocol.
 
-- **A caller's `params.resourceId` overrides the job's resource.** `params` are spread after the
-  derived resource, so a `params.resourceId` in a `job:create` wins, for every job type, a
-  generation's included. The overriding value is what `job:claim` checks, what `job:assign` records
-  and what a worker's writes are checked against.
-- **`job:create-failed` carries no `code`.** Every refusal is a message only, including a refusal
-  because the Archivist is not connected, whose read failed with `peer-unavailable`.
-- **Pending jobs are not announced at boot.** The queue delivers and announces pending jobs while it
-  connects, before the outbound path is attached, so those `job:queued` are lost. Parked workers hear
-  nothing until the first re-announce tick, up to 30 seconds later.
 - **Transitions the dispatcher makes on its own are silent.** A job failed by the dead-worker sweep, a
   pending job cancelled, and a terminal record deleted by retention emit nothing, so a client watching
   the job — one told by `willRetry` that a retry is coming, say — never learns the outcome.

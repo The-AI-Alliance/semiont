@@ -832,6 +832,12 @@
       "JobPending": {
         "$ref": "components/schemas/JobPending.json"
       },
+      "JobStoredProgress": {
+        "$ref": "components/schemas/JobStoredProgress.json"
+      },
+      "JobStoredResult": {
+        "$ref": "components/schemas/JobStoredResult.json"
+      },
       "JobRunning": {
         "$ref": "components/schemas/JobRunning.json"
       },

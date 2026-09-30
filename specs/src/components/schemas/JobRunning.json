@@ -19,16 +19,7 @@
       "description": "When the claim that holds it was made, as an ISO 8601 timestamp."
     },
     "progress": {
-      "description": "The last progress the worker reported, or an empty object before its first report.",
-      "anyOf": [
-        {
-          "$ref": "./JobProgress.json"
-        },
-        {
-          "type": "object",
-          "maxProperties": 0
-        }
-      ]
+      "$ref": "./JobStoredProgress.json"
     }
   },
   "required": [

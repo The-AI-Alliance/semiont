@@ -193,6 +193,9 @@ export function errorsOf(validate: ValidateFunction): string {
 
 interface RegistryChannel {
   channel: string;
+  shape: string;
+  /** The payload's schema, when `shape` is `schema`: what a frame on the channel carries. */
+  schema?: string;
   validate: string | null;
 }
 interface RegistryOperation {

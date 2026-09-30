@@ -124,3 +124,14 @@ export function isGatheredContext(
   if (!isObject(value.graph)) return false;
   return isArray(value.graph.nodes) && isArray(value.graph.edges);
 }
+
+/**
+ * Whether a completed job's stored result is one its worker reported
+ * (`JobStoredResult`): a job completed without a result is stored with an
+ * empty one. Every `JobResult` carries its `kind`.
+ */
+export function isReportedJobResult(
+  result: import('./types').components['schemas']['JobStoredResult'] | undefined,
+): result is import('./types').components['schemas']['JobResult'] {
+  return result !== undefined && typeof result['kind'] === 'string';
+}

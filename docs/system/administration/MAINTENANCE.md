@@ -19,7 +19,7 @@ A launcher-run stack has no scheduled operational chores — no scaling to tune,
 
 ## Dependencies and CVEs
 
-[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across six ecosystems: npm (repo root, `tests/e2e` and `tests/gateway-conformance`), Go modules (`apps/launcher` and `packages/sdk-go`), Cargo (`apps/gateway` and the desktop app's `apps/desktop/src-tauri`), the gateway's Rust toolchain (`apps/gateway/rust-toolchain.toml`, which also names its builder image), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the seven service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, `opentelemetry`, `gateway-crates`, and `desktop-crates`. `npm run lint:dependabot` fails when a manifest has no entry, or an entry no manifest, so a new Dockerfile, lockfile or crate cannot go un-updated unnoticed.
+[Dependabot](../../../.github/dependabot.yml) opens PRs weekly across six ecosystems: npm (repo root, `tests/e2e` and `tests/conformance`), Go modules (`apps/launcher` and `packages/sdk-go`), Cargo (`apps/gateway` and the desktop app's `apps/desktop/src-tauri`), the gateway's Rust toolchain (`apps/gateway/rust-toolchain.toml`, which also names its builder image), GitHub Actions, and Docker base images (`apps/browser`, `apps/desktop`, and the seven service images). Related packages are grouped so they move together: `react`, `i18n`, `bundler-binaries`, `opentelemetry`, `gateway-crates`, and `desktop-crates`. `npm run lint:dependabot` fails when a manifest has no entry, or an entry no manifest, so a new Dockerfile, lockfile or crate cannot go un-updated unnoticed.
 
 The gateway's crates are also held to RustSec's advisory database by [Gateway Crate Advisories](../../../.github/workflows/gateway-advisories.yml) (`cargo deny`), on every PR that changes what the gateway links and daily, since the database changes without a commit. An advisory judged not to reach the gateway is ignored in [`apps/gateway/deny.toml`](../../../apps/gateway/deny.toml) with its reason, and an ignore that stops matching fails the run.
 
@@ -144,7 +144,7 @@ A request on `/bus/*`, `/resources/*`, `/api/resources/*` or `/api/status` that 
 
 The spec declares four operations public: `GET /api/health`, `GET /`,
 `GET /api/openapi.json` and `GET /.well-known/oauth-protected-resource`. The
-[gateway conformance suite](../../../tests/gateway-conformance/README.md) holds
+[gateway conformance suite](../../../tests/conformance/gateway/README.md) holds
 this table honest for every operation the spec declares: a protected one answers
 401 to an unauthenticated caller, a public one answers without challenging. The
 other half is the gateway's own: before it listens, it compares its route table

@@ -179,7 +179,7 @@ export interface GenerationResult {
  * `job:report-progress`, or an empty object before the first report. One shape
  * for every job type, as the spec states it (JobRunning).
  */
-export type StoredProgress = components['schemas']['JobRunning']['progress'];
+export type StoredProgress = components['schemas']['JobStoredProgress'];
 
 /**
  * Pending job - just created, waiting to be picked up

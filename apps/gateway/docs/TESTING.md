@@ -1,7 +1,7 @@
 # Gateway Testing
 
 The gateway's behavioural contract is one suite, and it lives outside this
-crate: [`tests/gateway-conformance`](../../../tests/gateway-conformance/README.md).
+crate: [`tests/conformance/gateway`](../../../tests/conformance/gateway/README.md).
 It is black-box. It starts gateway processes, talks to them over HTTP and SSE,
 and checks what they answer against the protocol as `specs/` states it — the
 OpenAPI document and the bus registry — and as
@@ -20,7 +20,7 @@ on the plane.
 |---|---|
 | `npm run lint:spec-protocol` (repository root) | The spec states the whole protocol: every operation says whether it is public; every response has a body schema, every error body is an `ErrorResponse`, every 401 a challenge; the stream's messages, frame and id formats are schemas; every JSON body has a `maxBodyBytes` and a 413; the limits are positive integers |
 | The build (`build.rs`) | The spec bundles and every component schema compiles, or the gateway does not build; the bus registry names only schemas the spec declares |
-| `tests/gateway-conformance` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, the limits on one principal (a person and an agent alike) and on one process, replicas, readiness, boot refusals, the headers on every response, the environment, and the telemetry census |
+| `tests/conformance/gateway` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, the limits on one principal (a person and an agent alike) and on one process, replicas, readiness, boot refusals, the headers on every response, the environment, and the telemetry census |
 | The gateway's boot | Its route table is exactly the spec's operations — no undeclared route, no declared operation unserved ([src/routes/mod.rs](../src/routes/mod.rs)) — and every Archivist operation it calls is in the Archivist's spec; every suite run boots gateways, so a route added without a spec entry fails CI |
 | `cargo test` (this crate) | The runners for the shared case tables ([tests/tables.rs](../tests/tables.rs)): the principals and the knowledge base's resource identifier, as core and the launcher compute them |
 | `npm run lint:broker-boundary` | The broker is reached only through its interface: `async_nats` only in `signal/nats.rs`, that plane chosen only in `app.rs`, the `nats` npm client only in the JetStream job queue |
@@ -34,9 +34,9 @@ on the plane.
 ```bash
 (cd apps/gateway && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo build --release)
 npm run build:packages
-cd tests/gateway-conformance
+cd tests/conformance
 npm ci
-npm test
+npm run test:gateway
 ```
 
 The suite needs `nats-server` 2.10 or later on `PATH`.

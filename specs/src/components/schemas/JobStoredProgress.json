@@ -1,0 +1,12 @@
+{
+  "description": "A running job's progress as the dispatcher stores it: the last JobProgress its worker reported with `job:report-progress`, or an empty object before the first report.",
+  "anyOf": [
+    {
+      "$ref": "./JobProgress.json"
+    },
+    {
+      "type": "object",
+      "maxProperties": 0
+    }
+  ]
+}

@@ -32,7 +32,7 @@ export interface Broker {
 export async function startBroker(options: BrokerOptions = {}): Promise<Broker> {
   const jetstream = options.jetstream ?? true;
   const port = await freePort();
-  const store = mkdtempSync(join(tmpdir(), 'gateway-conformance-nats-'));
+  const store = mkdtempSync(join(tmpdir(), 'conformance-nats-'));
   let child: ChildProcess | undefined;
 
   const launch = async (auth: { user?: string; password?: string }) => {

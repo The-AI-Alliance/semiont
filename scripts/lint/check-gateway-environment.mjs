@@ -24,7 +24,7 @@ const SOURCE = 'apps/gateway/src';
 const BOOT_GOLDEN = 'apps/launcher/testdata/golden/start-default-boot.argv';
 const DOCKERFILE = 'apps/gateway/Dockerfile';
 const SUPERVISOR = 'scripts/container/supervise.sh';
-const CASES = 'tests/gateway-conformance/cases';
+const CASES = 'tests/conformance/gateway';
 
 const READERS = new Set(['gateway', 'opentelemetry']);
 const PROVIDERS = new Set(['launcher', 'image', 'operator']);

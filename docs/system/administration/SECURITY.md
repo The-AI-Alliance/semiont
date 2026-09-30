@@ -35,7 +35,7 @@ The gateway makes exactly one authorization decision: **authenticated, or 401**.
 
 ### Security Testing
 
-The [gateway conformance suite](../../../tests/gateway-conformance/README.md) runs
+The [gateway conformance suite](../../../tests/conformance/gateway/README.md) runs
 a built gateway against the spec on every pull request:
 
 - Every protected operation the spec declares answers 401 without a credential,
