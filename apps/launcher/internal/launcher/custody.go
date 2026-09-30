@@ -28,6 +28,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -98,13 +99,12 @@ func daemonCredentialVar(name string) bool {
 // naming the clean. It never wipes a store itself.
 func loadOrCreateDaemonPassword(u *UI, root, role string) (string, bool) {
 	d := daemonPasswords[role]
-	store, ok := custodyFor(root)
+	store, ok := custodyFor(u, root)
 	if !ok {
-		u.Fail("No home directory resolvable, so %s's password cannot be persisted.", d.display)
 		return "", false
 	}
-	if s := store.get(d.custody); s != "" {
-		return s, true
+	if s, ok := store.get(u, d.custody); !ok || s != "" {
+		return s, ok
 	}
 	if spec, ok := stateStores[role]; ok && d.kept && storeHoldsData(spec.storeDir(root)) {
 		u.Fail("%s's store at %s holds data, but the launcher keeps no password for it.", d.display, spec.storeDir(root))
@@ -117,7 +117,7 @@ func loadOrCreateDaemonPassword(u *UI, root, role string) (string, bool) {
 	if !ok || !store.put(u, d.custody, secret) {
 		return "", false
 	}
-	u.Log("%s password: %s", d.display, u.Dim("generated and persisted at "+store.where(d.custody)))
+	u.Log("%s password: %s", d.display, u.Dim("generated and kept"))
 	return secret, true
 }
 
@@ -139,6 +139,20 @@ func storeHoldsData(dir string) bool {
 		return nil
 	})
 	return found
+}
+
+// custodyNames: every value the launcher keeps for a root, sorted — what a
+// store lists, moves and clears.
+func custodyNames() []string {
+	names := []string{custodyJWTSecret, custodyKeycloakAdmin}
+	for _, svc := range serviceClients {
+		names = append(names, serviceClientCustody(svc))
+	}
+	for _, d := range daemonPasswords {
+		names = append(names, d.custody)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // The custody names of the gateway's token-signing key and Keycloak's
@@ -195,16 +209,21 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 		return s, true
 	}
 
-	store, ok := custodyFor(root)
+	exportHint := func() {
+		fmt.Fprintln(os.Stderr, "  Or export one yourself:  export JWT_SECRET=$(openssl rand -hex 32)")
+	}
+	store, ok := custodyFor(u, root)
 	if !ok {
-		u.Fail("No home directory resolvable, so the gateway's JWT secret cannot be persisted.")
-		fmt.Fprintln(os.Stderr, "  Export one yourself:  export JWT_SECRET=$(openssl rand -hex 32)")
+		exportHint()
 		return "", false
 	}
-	p := store.where(custodyJWTSecret)
-
-	if s := store.get(custodyJWTSecret); s != "" {
-		u.Log("Token-signing key: %s", u.Dim(jwtProvenance("reused from "+p, len(strings.Split(s, ",")))))
+	s, ok := store.get(u, custodyJWTSecret)
+	if !ok {
+		exportHint()
+		return "", false
+	}
+	if s != "" {
+		u.Log("Token-signing key: %s", u.Dim(jwtProvenance("reused", len(strings.Split(s, ",")))))
 		return s, true
 	}
 
@@ -217,30 +236,32 @@ func loadOrCreateJWTSecret(u *UI, root string) (string, bool) {
 	// issued, and the incident that produced this whole plan looked exactly
 	// like an ordinary start — jobs wedged in Yielding, no line anywhere saying
 	// the key had changed underneath them.
-	u.Log("Token-signing key: %s", u.Dim(jwtProvenance("generated and persisted at "+p, 1)))
+	u.Log("Token-signing key: %s", u.Dim(jwtProvenance("generated and kept", 1)))
 	return secret, true
 }
 
 // keycloakAdminPassword resolves the bootstrap admin password WITHOUT creating
 // one — $KC_BOOTSTRAP_ADMIN_PASSWORD, else the persisted per-root value, else
-// "" — and names where it came from, for the caller that logs it.
+// "" — and names where it came from, for the caller that logs it. False when
+// the store could not answer (reported), which is not "none kept".
 //
 // The read-only half exists for `semiont useradd`, which administers the realm
 // Keycloak already created: generating a password there would hand the gateway
 // a credential the realm has never seen, and the admin API would refuse it with
 // nothing to explain why.
-func keycloakAdminPassword(root string) (secret, source string) {
+func keycloakAdminPassword(u *UI, root string) (secret, source string, ok bool) {
 	if s := os.Getenv("KC_BOOTSTRAP_ADMIN_PASSWORD"); s != "" {
-		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment"
+		return s, "from KC_BOOTSTRAP_ADMIN_PASSWORD in the environment", true
 	}
-	store, ok := custodyFor(root)
+	store, ok := custodyFor(u, root)
 	if !ok {
-		return "", ""
+		return "", "", false
 	}
-	if s := store.get(custodyKeycloakAdmin); s != "" {
-		return s, "reused from " + store.where(custodyKeycloakAdmin)
+	s, ok := store.get(u, custodyKeycloakAdmin)
+	if !ok || s == "" {
+		return "", "", ok
 	}
-	return "", ""
+	return s, "reused", true
 }
 
 // serviceClientCustody: the custody name of a sidecar's service-account
@@ -268,20 +289,19 @@ func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
 	if s := os.Getenv(serviceClientSecretEnv(svc)); s != "" {
 		return s, true
 	}
-	store, ok := custodyFor(root)
+	store, ok := custodyFor(u, root)
 	if !ok {
-		u.Fail("No home directory resolvable, so the %s service-account secret cannot be persisted.", svc)
 		return "", false
 	}
 	name := serviceClientCustody(svc)
-	if s := store.get(name); s != "" {
-		return s, true
+	if s, ok := store.get(u, name); !ok || s != "" {
+		return s, ok
 	}
 	secret, ok := generateHexSecret(u, 16, "the "+svc+" service-account secret")
 	if !ok || !store.put(u, name, secret) {
 		return "", false
 	}
-	u.Log("%s service account: %s", svc, u.Dim("generated and persisted at "+store.where(name)))
+	u.Log("%s service account: %s", svc, u.Dim("generated and kept"))
 	return secret, true
 }
 
@@ -294,21 +314,24 @@ func loadOrCreateServiceClientSecret(u *UI, root, svc string) (string, bool) {
 // variable again, so the value must outlive the stack with the database that
 // holds the admin it created — a regenerated one locks the console out.
 func loadOrCreateKeycloakAdminPassword(u *UI, root string) (string, bool) {
-	if s, source := keycloakAdminPassword(root); s != "" {
+	s, source, ok := keycloakAdminPassword(u, root)
+	if !ok {
+		return "", false
+	}
+	if s != "" {
 		u.Log("Keycloak admin password: %s", u.Dim(source+" (console user: "+keycloakAdminUser+")"))
 		return s, true
 	}
-	store, ok := custodyFor(root)
+	store, ok := custodyFor(u, root)
 	if !ok {
-		u.Fail("No home directory resolvable, so Keycloak's admin password cannot be persisted.")
-		fmt.Fprintln(os.Stderr, "  Export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
+		fmt.Fprintln(os.Stderr, "  Or export one yourself:  export KC_BOOTSTRAP_ADMIN_PASSWORD=$(openssl rand -hex 16)")
 		return "", false
 	}
 	secret, ok := generateHexSecret(u, 16, "Keycloak's admin password")
 	if !ok || !store.put(u, custodyKeycloakAdmin, secret) {
 		return "", false
 	}
-	u.Log("Keycloak admin password: %s", u.Dim("generated and persisted at "+store.where(custodyKeycloakAdmin)+" (console user: "+keycloakAdminUser+")"))
+	u.Log("Keycloak admin password: %s", u.Dim("generated and kept (console user: "+keycloakAdminUser+")"))
 	return secret, true
 }
 

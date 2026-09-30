@@ -946,7 +946,7 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 	if g := plan.Roles["graph"]; g.Presence == presenceLauncher {
 		// The password is the launcher's (SECRET-DELIVERY P4): say where it is
 		// kept, never print it.
-		store, _ := custodyFor(root)
+		store, _ := custodyFor(u, root)
 		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
 	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)

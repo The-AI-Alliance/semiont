@@ -407,6 +407,15 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			}
 			fmt.Printf("    %s\n", u.Dim(note+" · "+statePath()))
 		}
+		if st != nil && st.KBRoot != "" {
+			// Named from the setting alone: status never reaches for secrets.
+			key := stateKeyFor(st.KBDid, st.KBRoot)
+			if ref, configured, err := storeSettingFor(key); err != nil {
+				fmt.Printf("    %s\n", u.Wrap(AnsiYellow, "secrets: "+err.Error()))
+			} else {
+				fmt.Printf("    %s\n", u.Dim("secrets: "+custodyStoreNamed(key, ref, configured).describe()))
+			}
+		}
 		fmt.Println()
 	}
 

@@ -125,6 +125,19 @@ semiont stop
   by `gh` before it leaves the machine, never written to disk or logs by us.
   The repo selection is a **union**, never a replacement, so pushing for one
   repo can't silently revoke the secret from others already using it.
+- **`semiont secret store` says where a KB keeps the values the launcher
+  generates for it** — the token-signing key, Keycloak's admin password, the
+  service accounts' secrets, the daemons' passwords. `file` (the default) is
+  one 0600 file per value under the KB's state dir; `op://<vault>` is one
+  1Password Secure Note per KB in that vault, one concealed field per value,
+  values on stdin only. Naming a store moves every kept value (copy, read
+  back, record, delete from the old store) and refuses a store that already
+  holds this KB's values; with no argument it lists where each value is. The
+  setting is per KB, in `secretstores.json`, read strictly: a store that
+  cannot be read or reached stops the command, never falling back to another.
+  **Every store read, write and delete prints a line on stderr** — the
+  operation and the secret's name, never its value — `--quiet` included. An
+  unscoped `clean` deletes a KB's values through its store.
 - **`semiont start --runtime codespace` runs the same stack on a
   GitHub-hosted machine** (inside, the codespace's own launcher runs the
   stack — `semiont start --runtime docker`, from the KB's post-start hook;
