@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import type { CollaboratorEntry } from '@semiont/core';
+import type { Collaborator } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 
 export interface UseCollaboratorsResult {
-  collaborators: CollaboratorEntry[];
+  collaborators: Collaborator[];
   loading: boolean;
   error: Error | null;
 }
@@ -28,7 +28,7 @@ export interface UseCollaboratorsResult {
  * that cannot be read shows as no roster, never as a broken panel.
  */
 export function useCollaborators(client: SemiontClient | null): UseCollaboratorsResult {
-  const [collaborators, setCollaborators] = useState<CollaboratorEntry[]>([]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 

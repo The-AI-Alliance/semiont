@@ -48,11 +48,12 @@ func (f serviceAccountFinding) String() string {
 
 // preflightHTTP: short. The realm answered its own health gate moments ago, so
 // a slow answer here is a symptom, not something to wait out.
-var preflightHTTP = &http.Client{Timeout: 10 * time.Second}
+var preflightHTTP = &http.Client{Transport: launcherTransport, Timeout: 10 * time.Second}
 
 // preflightNoRedirect: the same, for the authorization probe. See
 // authorizationProbe on why a redirect must not be followed.
 var preflightNoRedirect = &http.Client{
+	Transport:     launcherTransport,
 	Timeout:       10 * time.Second,
 	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 }

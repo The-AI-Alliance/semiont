@@ -2,7 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { WizardFooter } from './WizardFooter';
-import type { CollaboratorEntry, GatheredContext, SupportedMediaType } from '@semiont/core';
+import type { Collaborator, GatheredContext, SupportedMediaType } from '@semiont/core';
 import type { GenerationOptions } from '@semiont/sdk';
 import { LOCALES, GENERATABLE_MEDIA_TYPES, capabilitiesOf, proposeStoragePath } from '@semiont/core';
 
@@ -149,7 +149,7 @@ export interface ConfigureGenerationStepProps {
    * discovery could not answer right now — the control keeps its default
    * bounds and generation still submits (D3).
    */
-  generationAgent?: CollaboratorEntry;
+  generationAgent?: Collaborator;
 }
 
 export function ConfigureGenerationStep({

@@ -42,7 +42,7 @@ import type {
   AnchorRect,
   GatheredContext,
   TagSchema,
-  CollaboratorEntry,
+  Collaborator,
   KbDescription,
 } from '@semiont/core';
 
@@ -271,11 +271,12 @@ export interface BrowseNamespace {
   tagSchemas(): CacheObservable<TagSchema[]>;
   /**
    * The KB's collaborator directory — declared software agents (with
-   * `servesJobTypes` capabilities) plus, when Persons land, its members.
-   * KB-wide singleton; cached for the client lifetime, refreshed on
-   * `bus:resume-gap`.
+   * `servesJobTypes` capabilities) plus, when Persons land, its members —
+   * with each model's limits as the services holding its inference
+   * credentials report them. KB-wide singleton; cached for the client
+   * lifetime, refreshed on `bus:resume-gap`.
    */
-  agents(): CacheObservable<CollaboratorEntry[]>;
+  agents(): CacheObservable<Collaborator[]>;
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]>;
   events(resourceId: ResourceId): CacheObservable<StoredEventResponse[]>;
 

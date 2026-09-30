@@ -87,6 +87,9 @@
       "match:search-requested",
       "match:search-results",
       "match:search-failed",
+      "match:limits-requested",
+      "match:limits-result",
+      "match:limits-failed",
       "gather:requested",
       "gather:complete",
       "gather:failed",
@@ -96,6 +99,9 @@
       "gather:summary-requested",
       "gather:summary-result",
       "gather:summary-failed",
+      "gather:limits-requested",
+      "gather:limits-result",
+      "gather:limits-failed",
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
@@ -167,6 +173,9 @@
       "job:queued",
       "job:cancel-requested",
       "job:cancel",
+      "job:limits-requested",
+      "job:limits-result",
+      "job:limits-failed",
       "job:status-requested",
       "job:create",
       "job:claim",
@@ -282,6 +291,9 @@
       "match:search-requested",
       "match:search-results",
       "match:search-failed",
+      "match:limits-requested",
+      "match:limits-result",
+      "match:limits-failed",
       "gather:requested",
       "gather:complete",
       "gather:failed",
@@ -291,6 +303,9 @@
       "gather:summary-requested",
       "gather:summary-result",
       "gather:summary-failed",
+      "gather:limits-requested",
+      "gather:limits-result",
+      "gather:limits-failed",
       "browse:resource-requested",
       "browse:resource-result",
       "browse:resource-failed",
@@ -362,6 +377,9 @@
       "job:queued",
       "job:cancel-requested",
       "job:cancel",
+      "job:limits-requested",
+      "job:limits-result",
+      "job:limits-failed",
       "job:status-requested",
       "job:create",
       "job:claim",
@@ -1783,6 +1801,51 @@
       }
     },
     {
+      "channel": "match:limits-requested",
+      "shape": "schema",
+      "schema": "InferenceLimitsRequest",
+      "validate": "InferenceLimitsRequest",
+      "ts": "components['schemas']['InferenceLimitsRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:limits-result",
+      "shape": "schema",
+      "schema": "InferenceLimitsResult",
+      "validate": "InferenceLimitsResult",
+      "ts": "components['schemas']['InferenceLimitsResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "match:limits-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "gather:requested",
       "shape": "schema",
       "schema": "GatherAnnotationRequest",
@@ -1923,6 +1986,51 @@
       "schemaDocs": {
         "lead": [],
         "trailing": "// CommandError"
+      }
+    },
+    {
+      "channel": "gather:limits-requested",
+      "shape": "schema",
+      "schema": "InferenceLimitsRequest",
+      "validate": "InferenceLimitsRequest",
+      "ts": "components['schemas']['InferenceLimitsRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:limits-result",
+      "shape": "schema",
+      "schema": "InferenceLimitsResult",
+      "validate": "InferenceLimitsResult",
+      "ts": "components['schemas']['InferenceLimitsResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "gather:limits-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
       }
     },
     {
@@ -3073,6 +3181,51 @@
       }
     },
     {
+      "channel": "job:limits-requested",
+      "shape": "schema",
+      "schema": "InferenceLimitsRequest",
+      "validate": "InferenceLimitsRequest",
+      "ts": "components['schemas']['InferenceLimitsRequest']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:limits-result",
+      "shape": "schema",
+      "schema": "InferenceLimitsResult",
+      "validate": "InferenceLimitsResult",
+      "ts": "components['schemas']['InferenceLimitsResult']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "channel": "job:limits-failed",
+      "shape": "schema",
+      "schema": "CommandError",
+      "validate": null,
+      "ts": "components['schemas']['CommandError']",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      },
+      "schemaDocs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "channel": "job:status-requested",
       "shape": "schema",
       "schema": "JobStatusRequest",
@@ -3756,6 +3909,15 @@
       }
     },
     {
+      "request": "gather:limits-requested",
+      "result": "gather:limits-result",
+      "failure": "gather:limits-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
       "request": "job:create",
       "result": "job:created",
       "failure": "job:create-failed",
@@ -3771,6 +3933,15 @@
       "request": "job:status-requested",
       "result": "job:status-result",
       "failure": "job:status-failed",
+      "docs": {
+        "lead": [],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "job:limits-requested",
+      "result": "job:limits-result",
+      "failure": "job:limits-failed",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3863,6 +4034,15 @@
           "  // ── MATCH ───────────────────────────────────────────────────────",
           "  // take-1 dressed as an Observable in the SDK"
         ],
+        "trailing": ""
+      }
+    },
+    {
+      "request": "match:limits-requested",
+      "result": "match:limits-result",
+      "failure": "match:limits-failed",
+      "docs": {
+        "lead": [],
         "trailing": ""
       }
     },
@@ -4156,10 +4336,13 @@
       "browse:resource-requested",
       "browse:resources-requested",
       "browse:tag-schemas-requested",
+      "gather:limits-requested",
       "gather:requested",
       "gather:resource-requested",
       "gather:summary-requested",
+      "job:limits-requested",
       "job:status-requested",
+      "match:limits-requested",
       "match:search-requested",
       "yield:clone-resource-requested",
       "yield:clone-token-requested"

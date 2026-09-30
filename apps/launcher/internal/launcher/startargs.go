@@ -20,11 +20,15 @@ import (
 	"strings"
 )
 
+// defaultConfigName: the config a start runs when neither --config nor the
+// KB's recorded preference names one.
+const defaultConfigName = "ollama-gemma"
+
 // parseStart: argv in, options out. `usage` means --help was asked for and the
 // caller should print it; a non-empty message means the command line was
 // refused and names why.
 func parseStart(args []string) (opts startOptions, usage bool, errMsg string) {
-	opts = startOptions{configName: "ollama-gemma", observe: true, platform: platformLocal}
+	opts = startOptions{configName: defaultConfigName, observe: true, platform: platformLocal}
 
 	// needVal reports a missing value rather than printing it — the whole
 	// point here is that every refusal is a value a test can read.

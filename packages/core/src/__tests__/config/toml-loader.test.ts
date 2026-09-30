@@ -707,6 +707,70 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 });
 
+// Who is on the collaborator roster is a keyless fact: each role's provider
+// and model. The archivist lists the roster and holds no inference credential
+// (ruled 2026-09-29: "The worker and the librarian are the only two images
+// that should get inference secrets"), so it reads the keyless maps and never
+// [inference]. They must select exactly what the credentialed maps select.
+describe('the keyless roster maps', () => {
+  const ROSTER = `${MINIMAL_TOML}
+[environments.local.inference.anthropic]
+platform = "external"
+apiKey = "\${UNSET_ROSTER_KEY}"
+
+[environments.local.inference.ollama]
+platform = "external"
+baseURL = "http://ollama.internal:11434"
+
+[environments.local.workers.default.inference]
+type = "anthropic"
+model = "m-default"
+
+[environments.local.workers.generation.inference]
+type = "anthropic"
+model = "m-generation"
+
+[environments.local.make-meaning.default.inference]
+type = "ollama"
+model = "g-fallback"
+
+[environments.local.actors.matcher.inference]
+type = "anthropic"
+model = "m-matcher"
+`;
+
+  it('an archivist reads them without reading [inference], which it cannot', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(ROSTER), {}, 'archivist');
+    expect(cfg.workers).toEqual({
+      default: { inference: { type: 'anthropic', model: 'm-default' } },
+      generation: { inference: { type: 'anthropic', model: 'm-generation' } },
+    });
+    // The gatherer names no section of its own: make-meaning.default serves it.
+    expect(cfg.actors).toEqual({
+      gatherer: { inference: { type: 'ollama', model: 'g-fallback' } },
+      matcher: { inference: { type: 'anthropic', model: 'm-matcher' } },
+    });
+    expect(() => cfg.inference).toThrow(/archivist.*\[environments\.local\.inference\]/);
+  });
+
+  it('they select what the credentialed maps select, role by role', () => {
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(ROSTER), { UNSET_ROSTER_KEY: 'k' }, 'librarian');
+    const pick = (i: { type?: string; model?: string }) => ({ type: i.type, model: i.model });
+    const merged = cfg._metadata?.actors as Record<string, { type: string; model: string }>;
+    for (const [role, { inference }] of Object.entries(cfg.actors ?? {})) {
+      expect(inference && pick(inference), role).toEqual(pick(merged[role]!));
+    }
+    expect(Object.keys(cfg.actors ?? {}).sort()).toEqual(Object.keys(merged).sort());
+
+    const worker = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(ROSTER), { UNSET_ROSTER_KEY: 'k' }, 'worker');
+    const mergedWorkers = worker._metadata?.workers as Record<string, { type: string; model: string }>;
+    for (const [role, { inference }] of Object.entries(worker.workers ?? {})) {
+      expect(inference && pick(inference), role).toEqual(pick(mergedWorkers[role]!));
+    }
+    expect(Object.keys(worker.workers ?? {}).sort()).toEqual(Object.keys(mergedWorkers).sort());
+  });
+});
+
 // What each part of the config maps to, read part by part. These paths are
 // the loader's own, built at each part's first read (SECRET-DELIVERY P5).
 describe('each part maps its section', () => {

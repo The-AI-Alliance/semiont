@@ -69,9 +69,13 @@ describe('weaver transport channels', () => {
 describe('librarian transport channels', () => {
   it('subscribes exactly its inbound roster', () => {
     expect([...LIBRARIAN_INBOUND_CHANNELS].sort()).toEqual([
+      // Its actors' model limits: the librarian holds the gatherer's and the
+      // matcher's inference credentials, so only it can discover them.
+      'gather:limits-requested',
       'gather:requested',
       'gather:resource-requested',
       'gather:summary-requested',
+      'match:limits-requested',
       'match:search-requested',
       'smelt:settled',
       'weave:applied',

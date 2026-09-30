@@ -64,62 +64,21 @@ func placeholderRefs(value string) (required, optional []string) {
 	return required, optional
 }
 
-// configRefs: the variables a config names, minus those the launcher
-// injects. Start demands the required ones and forwards an optional one only
-// when it is set, so the container's loader lets a set variable win over its
-// default.
+// configRefs: the variables the selected environment references where
+// something reads them. Start demands a required one and forwards an optional
+// one only when it is set, so the container's loader lets a set variable win
+// over its default. A reference nothing reads — another environment's, or a
+// section no service lists and the launcher does not resolve — is demanded by
+// nobody: each service's loader resolves a section only when it reads it.
 type configRefs struct {
-	Required, Optional []string
+	envSection map[string]any
 	// ByService: which of them each stack service is handed (serviceVars).
 	ByService map[string][]string
 }
 
-// referencedVars walks every string value in the parsed document for ${VAR}
-// references, minus the launcher-injected set. A name required anywhere is
-// required. Deliberately the WHOLE
-// document, not the typed model: the containers interpolate refs in keys the
-// launcher doesn't consume (apiKey, custom sections), and refs may live in
-// any environment. Walking parsed VALUES (not raw bytes) means a ${VAR} in a
-// TOML comment no longer creates a phantom requirement.
-func referencedVars(doc any) configRefs {
-	isRequired := map[string]bool{}
-	var walk func(v any)
-	walk = func(v any) {
-		switch t := v.(type) {
-		case string:
-			required, optional := placeholderRefs(t)
-			for _, name := range required {
-				if !injectedVars[name] {
-					isRequired[name] = true
-				}
-			}
-			for _, name := range optional {
-				if _, named := isRequired[name]; !named && !injectedVars[name] {
-					isRequired[name] = false
-				}
-			}
-		case map[string]any:
-			for _, vv := range t {
-				walk(vv)
-			}
-		case []any:
-			for _, vv := range t {
-				walk(vv)
-			}
-		}
-	}
-	walk(doc)
-	var refs configRefs
-	for name, required := range isRequired {
-		if required {
-			refs.Required = append(refs.Required, name)
-		} else {
-			refs.Optional = append(refs.Optional, name)
-		}
-	}
-	sort.Strings(refs.Required)
-	sort.Strings(refs.Optional)
-	return refs
+// read: the variables a start of svc reads ("" is the whole stack).
+func (r configRefs) read(svc string) (required, optional []string) {
+	return sectionRefs(r.envSection, readSections(svc))
 }
 
 type semiontConfig struct {
@@ -305,8 +264,8 @@ type bindingCfg struct {
 }
 
 // loadConfig parses a semiontconfig TOML once, selecting the
-// defaults.environment block and extracting the required ${VAR} references
-// (the launcher's single reader of the file). ${VAR} values stay verbatim —
+// defaults.environment block and the section its ${VAR} references are read
+// from (the launcher's single reader of the file). ${VAR} values stay verbatim —
 // classification happens at derivation, interpolation stays the containers'
 // job.
 func loadConfig(path string) (*envConfig, string, configRefs, error) {
@@ -336,9 +295,8 @@ func loadConfig(path string) (*envConfig, string, configRefs, error) {
 	if err := resolveGatewaySection(&env, path, envName); err != nil {
 		return nil, "", configRefs{}, err
 	}
-	refs := referencedVars(doc)
-	refs.ByService = serviceVars(doc, envName, &env)
-	return &env, envName, refs, nil
+	envSection := environmentSection(doc, envName)
+	return &env, envName, configRefs{envSection: envSection, ByService: serviceVars(envSection, &env)}, nil
 }
 
 // refuseEnvironmentSites rejects a [site] section in any environment, selected
