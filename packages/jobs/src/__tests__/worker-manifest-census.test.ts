@@ -19,7 +19,6 @@ import {
   WORKER_CHANNELS,
   WORKER_CONSUMED_BROADCASTS,
   WORKER_AWAITED_OPERATIONS,
-  WORKER_ANSWERED_OPERATIONS,
 } from '../worker-runtime';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -31,11 +30,10 @@ const sources = () =>
   WORKER_FILES.map((f) => ({ file: f, text: stripComments(readFileSync(join(SRC, f), 'utf-8')) }));
 
 describe('worker subscription manifest', () => {
-  it('WORKER_CHANNELS is the awaited replies UNION the consumed broadcasts UNION the answered requests', () => {
+  it('WORKER_CHANNELS is the awaited replies UNION the consumed broadcasts', () => {
     const expected = new Set<string>([
       ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
       ...WORKER_CONSUMED_BROADCASTS,
-      ...WORKER_ANSWERED_OPERATIONS,
     ]);
     expect(new Set<string>(WORKER_CHANNELS)).toEqual(expected);
   });

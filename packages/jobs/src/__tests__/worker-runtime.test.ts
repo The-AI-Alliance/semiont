@@ -120,6 +120,7 @@ describe('worker-runtime — identity is minted by the exchange, carried verbati
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
       contentReads: { getBinary: vi.fn() },
+      reportsLimitsOf: [],
       logger: noopLogger,
     });
 
@@ -311,6 +312,7 @@ describe('worker-runtime — health vitals (WORKER-LIVENESS.md P1)', () => {
       gatewayBaseUrl: DIAL_URL,
       credential: CREDENTIAL,
       contentReads: { getBinary: vi.fn() },
+      reportsLimitsOf: [],
       logger: noopLogger,
     });
 
@@ -462,7 +464,7 @@ describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
 });
 
 describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
-  it('WORKER_CHANNELS is exactly the manifest: awaited replies, declared broadcasts, and answered requests', () => {
+  it('WORKER_CHANNELS is exactly the manifest: awaited replies PLUS declared broadcasts', () => {
     // The explicit pin survives the manifest change deliberately: growing a
     // worker's subscription set must stay a conscious edit to a literal list,
     // which is the OOM protection this test was written for (2026-09-03).
@@ -499,9 +501,6 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
       // The queue announcement the claim adapter races for. Deleting its
       // declaration idled every worker (2026-09-16).
       'job:queued',
-      // The one request the worker ANSWERS: its models' limits. It holds the
-      // inference credentials, so nothing else can discover them.
-      'job:limits-requested',
     ].sort());
   });
 
@@ -513,11 +512,11 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
     // to consume. Anything outside both sets is drift.
     const { BRIDGED_CHANNELS, replyChannelsFor } = await import('@semiont/core');
     const replies = new Set<string>(replyChannelsFor(WORKER_AWAITED_OPERATIONS));
-    const declared = new Set<string>([...WORKER_CONSUMED_BROADCASTS, ...WORKER_ANSWERED_OPERATIONS]);
+    const declared = new Set<string>(WORKER_CONSUMED_BROADCASTS);
     for (const channel of WORKER_CHANNELS) {
       expect(
         replies.has(channel) || declared.has(channel),
-        `${channel} is neither an awaited reply, a declared broadcast, nor an answered request`,
+        `${channel} is neither an awaited reply nor a declared broadcast`,
       ).toBe(true);
     }
     // The replies half still must be registry-bridged.
@@ -527,5 +526,43 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
   it('the fat fan-out channels that OOMed the worker are NOT subscribed', () => {
     expect(WORKER_CHANNELS).not.toContain('browse:annotations-result');
     expect(WORKER_CHANNELS).not.toContain('browse:resources-result');
+  });
+});
+
+// The pool answers job:limits-requested once, on one agent's transport: the
+// gateway delivers only the first reply to a request. Only that agent
+// subscribes the request. Every other agent's transport would receive it with
+// nobody to deliver it to, and the bus logs each such frame as a DROP.
+describe('worker-runtime — one agent reports the pool\'s limits', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const subscribedChannels = () =>
+    vi.mocked(fetch).mock.calls
+      .filter(([input]) => String(input instanceof Request ? input.url : input).includes('/bus/subscribe'))
+      .map(([, init]) => (JSON.parse(String(init?.body ?? '{}')) as { global?: string[] }).global ?? []);
+
+  it('an agent that reports limits subscribes job:limits-requested; one that does not, does not', async () => {
+    for (const [reportsLimitsOf, subscribes] of [
+      [[{ type: 'anthropic', modelId: 'claude-haiku-4-5', limits: async () => ({ contextTokens: 1, maxOutputTokens: 1 }) }], true],
+      [[], false],
+    ] as const) {
+      installFetchStub();
+      const worker = await startAgentWorker({
+        group: makeGroup(),
+        gatewayBaseUrl: DIAL_URL,
+        credential: CREDENTIAL,
+        contentReads: { getBinary: vi.fn() },
+        reportsLimitsOf,
+        logger: noopLogger,
+      });
+      const channels = subscribedChannels().flat();
+      expect(channels.length, 'the transport subscribed nothing').toBeGreaterThan(0);
+      expect(channels.includes('job:limits-requested'), `reportsLimitsOf has ${reportsLimitsOf.length}`).toBe(subscribes);
+      for (const op of WORKER_ANSWERED_OPERATIONS) expect(channels.includes(op)).toBe(subscribes);
+      await worker.dispose();
+      vi.unstubAllGlobals();
+    }
   });
 });
