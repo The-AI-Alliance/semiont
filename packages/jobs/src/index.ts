@@ -28,6 +28,8 @@ export type {
   CommentDetectionJob,
   TagDetectionJob,
   AnyJob,
+  RunningAnyJob,
+  StoredProgress,
   PendingJob,
   RunningJob,
   CompleteJob,
@@ -39,12 +41,6 @@ export type {
   AssessmentDetectionParams,
   CommentDetectionParams,
   TagDetectionParams,
-  DetectionProgress,
-  YieldProgress,
-  HighlightDetectionProgress,
-  AssessmentDetectionProgress,
-  CommentDetectionProgress,
-  TagDetectionProgress,
   GenerationResult,
 } from './types';
 

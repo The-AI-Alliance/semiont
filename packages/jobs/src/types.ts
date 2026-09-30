@@ -11,11 +11,12 @@
  * - State machine is explicit and type-safe
  */
 
-import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema, UnitCursor } from '@semiont/core';
+import { JOB_TYPES } from '@semiont/core';
+import type { JobId, EntityType, ResourceId, UserId, GenerationJobParams, TagSchema, UnitCursor, components } from '@semiont/core';
 import type { JobReferenceAnnotationResult, JobHighlightAnnotationResult, JobCommentAnnotationResult, JobAssessmentAnnotationResult, JobTagAnnotationResult } from '@semiont/core';
 
-export type JobType = 'reference-annotation' | 'generation' | 'highlight-annotation' | 'assessment-annotation' | 'comment-annotation' | 'tag-annotation';
-export type JobStatus = 'pending' | 'running' | 'complete' | 'failed' | 'cancelled';
+export type JobType = components['schemas']['JobType'];
+export type JobStatus = components['schemas']['Job']['status'];
 
 // ============================================================================
 // Core Metadata and Parameters
@@ -86,7 +87,7 @@ export interface JobMetadata {
 /**
  * Detection job parameters
  */
-export interface DetectionParams {
+export type DetectionParams = {
   resourceId: ResourceId;
   entityTypes: EntityType[];
   includeDescriptiveReferences?: boolean;
@@ -94,24 +95,24 @@ export interface DetectionParams {
   language?: string;
   /** Source-resource locale — see locale conventions above. */
   sourceLanguage?: string;
-}
+};
 
 
 /**
  * Highlight detection job parameters
  */
-export interface HighlightDetectionParams {
+export type HighlightDetectionParams = {
   resourceId: ResourceId;
   instructions?: string;
   density?: number;
   /** Source-resource locale — see locale conventions above. */
   sourceLanguage?: string;
-}
+};
 
 /**
  * Assessment detection job parameters
  */
-export interface AssessmentDetectionParams {
+export type AssessmentDetectionParams = {
   resourceId: ResourceId;
   instructions?: string;
   tone?: 'analytical' | 'critical' | 'balanced' | 'constructive';
@@ -120,12 +121,12 @@ export interface AssessmentDetectionParams {
   language?: string;
   /** Source-resource locale — see locale conventions above. */
   sourceLanguage?: string;
-}
+};
 
 /**
  * Comment detection job parameters
  */
-export interface CommentDetectionParams {
+export type CommentDetectionParams = {
   resourceId: ResourceId;
   instructions?: string;
   tone?: 'scholarly' | 'explanatory' | 'conversational' | 'technical';
@@ -134,7 +135,7 @@ export interface CommentDetectionParams {
   language?: string;
   /** Source-resource locale — see locale conventions above. */
   sourceLanguage?: string;
-}
+};
 
 /**
  * Tag detection job parameters.
@@ -144,7 +145,7 @@ export interface CommentDetectionParams {
  * at job-creation time and embeds the resolved schema here, keeping the
  * worker independent of the registry.
  */
-export interface TagDetectionParams {
+export type TagDetectionParams = {
   resourceId: ResourceId;
   schema: TagSchema;
   categories: string[];
@@ -152,32 +153,11 @@ export interface TagDetectionParams {
   language?: string;
   /** Source-resource locale — see locale conventions above. */
   sourceLanguage?: string;
-}
+};
 
 // ============================================================================
-// Progress and Result Types
+// Result Types
 // ============================================================================
-
-/**
- * Detection job progress
- */
-export interface DetectionProgress {
-  totalEntityTypes: number;
-  processedEntityTypes: number;
-  entitiesFound: number;
-  entitiesEmitted: number;
-}
-
-
-/**
- * Generation job progress
- */
-export interface YieldProgress {
-  /** The two real generation transitions — LLM call running, then persisting. */
-  stage: 'generating' | 'creating';
-  percentage: number;
-  message?: string;
-}
 
 /**
  * Generation job result
@@ -190,52 +170,16 @@ export interface GenerationResult {
   truncated: boolean;
 }
 
-/**
- * Highlight detection job progress
- */
-export interface HighlightDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  message?: string;
-}
-
-
-/**
- * Assessment detection job progress
- */
-export interface AssessmentDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  message?: string;
-}
-
-
-/**
- * Comment detection job progress
- */
-export interface CommentDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  message?: string;
-}
-
-
-/**
- * Tag detection job progress
- */
-export interface TagDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  currentCategory?: string;
-  processedCategories: number;
-  totalCategories: number;
-  message?: string;
-}
-
-
 // ============================================================================
 // Generic Job State Types
 // ============================================================================
+
+/**
+ * The progress a running job carries: the last its worker reported with
+ * `job:report-progress`, or an empty object before the first report. One shape
+ * for every job type, as the spec states it (JobRunning).
+ */
+export type StoredProgress = components['schemas']['JobRunning']['progress'];
 
 /**
  * Pending job - just created, waiting to be picked up
@@ -249,12 +193,12 @@ export interface PendingJob<P> {
 /**
  * Running job - actively being processed
  */
-export interface RunningJob<P, PG> {
+export interface RunningJob<P> {
   status: 'running';
   metadata: JobMetadata;
   params: P;
   startedAt: string;
-  progress: PG;
+  progress: StoredProgress;
 }
 
 /**
@@ -295,9 +239,9 @@ export interface CancelledJob<P> {
 /**
  * Generic job - discriminated union of all states
  */
-export type Job<P, PG, R> =
+export type Job<P, R> =
   | PendingJob<P>
-  | RunningJob<P, PG>
+  | RunningJob<P>
   | CompleteJob<P, R>
   | FailedJob<P>
   | CancelledJob<P>;
@@ -306,30 +250,27 @@ export type Job<P, PG, R> =
 // Concrete Job Types
 // ============================================================================
 
-export type DetectionJob = Job<DetectionParams, DetectionProgress, JobReferenceAnnotationResult>;
-export type GenerationJob = Job<GenerationJobParams, YieldProgress, GenerationResult>;
-export type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, JobHighlightAnnotationResult>;
-export type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, JobAssessmentAnnotationResult>;
-export type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, JobCommentAnnotationResult>;
-export type TagDetectionJob = Job<TagDetectionParams, TagDetectionProgress, JobTagAnnotationResult>;
+export type DetectionJob = Job<DetectionParams, JobReferenceAnnotationResult>;
+/** A generation job's params carry the resource the dispatcher derived from the context's focus. */
+export type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, GenerationResult>;
+export type HighlightDetectionJob = Job<HighlightDetectionParams, JobHighlightAnnotationResult>;
+export type AssessmentDetectionJob = Job<AssessmentDetectionParams, JobAssessmentAnnotationResult>;
+export type CommentDetectionJob = Job<CommentDetectionParams, JobCommentAnnotationResult>;
+export type TagDetectionJob = Job<TagDetectionParams, JobTagAnnotationResult>;
 
 /**
  * Discriminated union of all job types
  */
 export type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob | TagDetectionJob;
 
+/** A job of any type, running: what a claim returns. */
+export type RunningAnyJob = Extract<AnyJob, { status: 'running' }>;
+
 // ============================================================================
 // Type Guards
 // ============================================================================
 
-const JOB_TYPES: ReadonlySet<string> = new Set<JobType>([
-  'reference-annotation',
-  'generation',
-  'highlight-annotation',
-  'assessment-annotation',
-  'comment-annotation',
-  'tag-annotation',
-]);
+const KNOWN_JOB_TYPES: ReadonlySet<string> = new Set<JobType>(JOB_TYPES);
 
 /**
  * Narrow a job type arriving off the bus, where it is only `string`.
@@ -340,7 +281,7 @@ const JOB_TYPES: ReadonlySet<string> = new Set<JobType>([
  * error than as an opaque emit failure.
  */
 export function isJobType(value: string): value is JobType {
-  return JOB_TYPES.has(value);
+  return KNOWN_JOB_TYPES.has(value);
 }
 
 /**
@@ -369,7 +310,7 @@ export function isPendingJob(job: AnyJob): job is PendingJob<any> {
   return job.status === 'pending';
 }
 
-export function isRunningJob(job: AnyJob): job is RunningJob<any, any> {
+export function isRunningJob(job: AnyJob): job is RunningJob<any> {
   return job.status === 'running';
 }
 

@@ -10,7 +10,7 @@ Job queue, worker infrastructure, and annotation workers for [Semiont](https://g
 
 ## Architecture Context
 
-Workers run in a separate process and connect to the Knowledge System (KS) over HTTP/SSE using a `SemiontSession` (from `@semiont/sdk`) driven by a `JobClaimAdapter`. Workers receive job assignments via an SSE `job:queued` subscription, claim jobs atomically, and emit domain events back to the KS via `session.client.transport.emit(...)`. The KS ingests these events onto its EventBus for SSE delivery to the Browser.
+Workers run in a separate process and connect to the Knowledge System (KS) over HTTP/SSE using a `SemiontSession` (from `@semiont/sdk`) driven by a `JobClaimAdapter`. Whenever a worker is idle it claims the next pending job of its types with `job:claim` (a `job:queued` announcement wakes a parked worker), and it emits domain events back to the KS via `session.client.transport.emit(...)`. The KS ingests these events onto its EventBus for SSE delivery to the Browser.
 
 ## Installation
 
@@ -64,9 +64,10 @@ await jobQueue.createJob(job);
 
 Generation jobs are enqueued the same way, but their params are a
 [`GenerationJobParams`](./docs/JobTypes.md#generation-generation) bag whose
-`context` carries the anchor — writing one straight to the queue bypasses the
-dispatcher that normally derives and stamps `resourceId` from
-`context.focus`, so prefer `client.yield.fromContext(...)`.
+`context` carries the anchor, plus the `resourceId` the dispatcher derives from
+`context.focus` and stamps in (`GenerationJob`'s params are
+`GenerationJobParams & { resourceId: ResourceId }`). Writing one straight to the
+queue bypasses that derivation, so prefer `client.yield.fromContext(...)`.
 
 ## Job Types
 
@@ -92,12 +93,17 @@ interface JobMetadata {
   created: string;
   retryCount: number;
   maxRetries: number;
-  completedUnits?: string[];  // Checkpoint: work units (entity types) already
-                              // persisted by a failed attempt — the retry skips them
+  completedUnits?: string[];  // Checkpoint: work units already persisted —
+                              // the retry skips them
+  unitCursors?: Record<string, UnitCursor>;  // How far each unfinished unit got
 }
 ```
 
-`userId` is the job's only identity — the DID the gateway verified on the `job:create`. The dispatcher records it as the requester when it accepts a claim, and that record is what lets the knowledge base attribute a write citing this job; a worker never states it. `completedUnits` is written only by `failJob`, unioned across attempts, and carried on the `job:fail` event — see Failure discipline below.
+`userId` is the job's only identity — the DID the gateway verified on the `job:create`. The dispatcher records it as the requester when it accepts a claim, and that record is what lets the knowledge base attribute a write citing this job; a worker never states it. `completedUnits` and `unitCursors` are written by `checkpointUnits` (from `job:checkpoint`, as work lands) and by `failJob` (from `job:fail`), merged across attempts — see Failure discipline below.
+
+## Progress
+
+A running job's `progress` is `StoredProgress`: the last `JobProgress` its worker reported with `job:report-progress`, or `{}` before the first report. It is one shape for every job type — the spec's `JobRunning.progress` — so there are no per-type progress types. See [Job Types Guide](./docs/JobTypes.md#progress).
 
 ## Annotation Workers
 
@@ -112,9 +118,9 @@ The worker process (`worker-main.ts` → `startWorkerProcess` in `worker-process
 | `comment-annotation` | `processCommentJob` |
 | `tag-annotation` | `processTagJob` |
 
-Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Processors never fetch content themselves — the worker process fetches it via `session.client.browse.resourceContent(resourceId)` and passes it in.
+Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`). Processors never fetch content themselves — the worker process prepares it with `prepareDetection` (bytes through `contentReads` for text media, the Smelter's anchored text for geometry-bearing media such as PDF) and passes it in.
 
-Workers emit lifecycle events via `session.client.transport.emit('job:start' | 'job:report-progress' | 'job:checkpoint' | 'job:complete' | 'job:fail', payload)` and persist annotations through the **awaited `mark:commit` operation** — a batch per unit of work that resolves only once the Stower actor in @semiont/make-meaning has appended every annotation to the event log. Unit completion and `job:complete` gate on that acknowledgement, never on emission, so a down persistence sink is a retryable failure instead of silent loss. The job command handlers mirror the lifecycle events into the queue files (completion, retry-on-failure with `maxRetries`, progress-as-heartbeat). `job:fail` carries the fields the worker computes: `completedUnits` (the checkpoint), `failureClass`, and `willRetry` — see Failure discipline.
+Workers emit lifecycle events via `session.client.transport.emit('job:start' | 'job:report-progress' | 'job:checkpoint' | 'job:complete' | 'job:fail', payload)` and persist annotations through the **awaited `mark:commit` operation** — a batch per unit of work that resolves only once the Stower actor in @semiont/make-meaning has appended every annotation to the event log. Unit completion and `job:complete` gate on that acknowledgement, never on emission, so a down persistence sink is a retryable failure instead of silent loss. The dispatcher's job command handlers mirror the lifecycle events into the queue (completion, checkpoints, retry-on-failure with `maxRetries`, progress-as-heartbeat). `job:fail` carries the fields the worker computes: `completedUnits` and `unitCursors` (the checkpoint), `failureClass`, and `willRetry` — see Failure discipline.
 
 ## Failure discipline
 
@@ -126,13 +132,13 @@ Long inference work fails in bounded, classified, resumable ways — every piece
 - **Successful-looking extractions are verified** (`assertYieldNotCollapsed`). A local model can return a clean, schema-conforming response carrying a fraction of the entities present — deterministic and otherwise invisible. When the provider declares `verifyDetectionYield` (all real providers do), each chunk's item count is checked against a cheap parallel count call; an extraction under half the count is flagged and subdivided. Every anchoring outcome and every call — including flagged and failed ones — is recorded to `semiont.detection.*` metrics (`@semiont/observability`).
 - **Entity types run concurrently up to the provider's declared capacity** (`client.maxConcurrency`): a hosted API with rate headroom runs several types at once; a local single-model server runs them sequentially, because concurrent requests only split one GPU. Jobs never switches on provider identity — both behaviors are capabilities declared on the `InferenceClient`.
 - **Failures are classified at the worker, where errors are still typed** (`failure-class.ts`). Only KNOWN-deterministic failures — truncation at the subdivision floor, unsupported media, non-throttle 4xx — skip the retry budget; everything unrecognized stays retryable. The class rides `job:fail` as `failureClass`.
-- **Retries resume from the checkpoint.** Reference-annotation persists each entity type's annotations as that unit completes; completed units ride `job:fail` into `metadata.completedUnits`, and the retry processes only what's left.
+- **Retries resume from the checkpoint.** Reference-annotation persists each entity type's annotations as that unit completes; completed units ride `job:checkpoint` and `job:fail` into `metadata.completedUnits`, and the retry processes only what's left.
 
 ## Adding a Job Type
 
 Workers are not subclassed. To add a job type:
 
-1. Add the new `JobType` and its params/result/progress types in `src/types.ts`.
+1. Add the new `JobType` and its params type in `src/types.ts`, and in the spec: the type in `JobType.json`, its category in `specs/src/jobs/storage.json`, and its result schema in the `JobResult` union. There is no progress type — every job reports `JobProgress`.
 2. Add a `process*Job` function in `src/processors.ts` that runs the inference and returns the annotations/result.
 3. Dispatch the new `jobType` to that processor in `handleJobInner()` in `src/worker-process.ts`.
 
@@ -145,7 +151,7 @@ Jobs use TypeScript discriminated unions for type safety:
 ```typescript
 function handleJob(job: AnyJob) {
   if (job.status === 'running') {
-    console.log(job.progress);    // Available
+    console.log(job.progress);    // Available — StoredProgress, `{}` until the first report
     // console.log(job.result);   // Compile error
   }
   if (job.status === 'complete') {
@@ -157,7 +163,7 @@ function handleJob(job: AnyJob) {
 
 ## Storage Format
 
-Jobs are stored as individual JSON files organized by status:
+The deployed driver, `JetStreamJobQueue`, keeps one `JobRecord` per job in a JetStream key-value bucket (layout in `specs/src/jobs/storage.json`). The `FsJobQueue` driver stores jobs as individual JSON files organized by status:
 
 ```
 {project.jobsDir}/

@@ -340,9 +340,9 @@ ${MINIMAL_TOML}`;
     });
   });
 
-  // SECRET-DELIVERY F2: the broker pair never left the loader, so the
-  // dispatcher's JetStream queue never authenticated, whatever the config said.
-  it('maps [jobs] user and password to services.jobs — the broker pair reaches the dispatcher', () => {
+  // SECRET-DELIVERY F2: the broker pair never left the loader, so a JetStream
+  // queue built from it never authenticated, whatever the config said.
+  it('maps [jobs] user and password to services.jobs — the broker pair reaches the queue', () => {
     const toml = `
 [environments.local.jobs]
 type = "jetstream"
@@ -701,9 +701,9 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 
   it('a service reading a section it does not declare refuses, naming the section and the spec', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'dispatcher');
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'weaver');
     expect(cfg.services.identity.type).toBe('keycloak');
-    expect(() => cfg.services.vectors).toThrow(/dispatcher.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
+    expect(() => cfg.services.vectors).toThrow(/weaver.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
   });
 });
 
@@ -960,7 +960,7 @@ model = "nomic-embed-text"
   });
 
   it('createTomlConfigLoader hands its service to the loader', () => {
-    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'dispatcher')('/project', 'local');
-    expect(() => cfg.services.vectors).toThrow(/dispatcher/);
+    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'weaver')('/project', 'local');
+    expect(() => cfg.services.vectors).toThrow(/weaver/);
   });
 });

@@ -1,5 +1,5 @@
-import type { AnyJob } from './types';
-import type { EventMap, JobId, UnitCursor } from '@semiont/core';
+import type { AnyJob, RunningAnyJob, StoredProgress } from './types';
+import type { EventMap, JobCategory, JobId, UnitCursor } from '@semiont/core';
 
 export interface JobQueue {
   initialize(): Promise<void>;
@@ -17,7 +17,7 @@ export interface JobQueue {
    * admit one winner PER pending job; a claim that finds nothing is
    * DECLINED (`none-available`), never an error.
    */
-  claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }>;
+  claimNextJob(types: string[]): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }>;
   /** Move a running job to `complete`. Returns false if the job isn't running. */
   completeJob(jobId: JobId, result: Record<string, unknown>): Promise<boolean>;
   /**
@@ -59,13 +59,13 @@ export interface JobQueue {
    */
   checkpointUnits(jobId: JobId, completedUnits: string[], unitCursors?: Record<string, UnitCursor>): Promise<void>;
   /** Write progress into a running job's file (throttled, best-effort). */
-  recordProgress(jobId: JobId, progress: Record<string, unknown>): Promise<void>;
+  recordProgress(jobId: JobId, progress: StoredProgress): Promise<void>;
   /**
    * Cancel all pending jobs in a category — 'generation' is the
    * `generation` type; 'annotation' is every `*-annotation` type.
    * Running jobs are left to finish. Returns the number cancelled.
    */
-  cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number>;
+  cancelPendingJobs(category: JobCategory): Promise<number>;
   cancelJob(jobId: JobId): Promise<boolean>;
   getStats(): Promise<{ pending: number; running: number; complete: number; failed: number; cancelled: number }>;
 }

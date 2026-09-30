@@ -60,8 +60,8 @@ for df in apps/*/Dockerfile; do
 
   # CMD is the conventional exec form a Kubernetes user expects to see, and
   # the ONLY statement of the entry path (D4).
-  if ! grep -qE '^CMD \[("node", "/[^"]+\.js"|"/usr/local/bin/[a-z-]+")\]$' "$df"; then
-    echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\"] or [\"/usr/local/bin/<binary>\"]"
+  if ! grep -qE '^CMD \[("node", "/[^"]+\.js"|"/usr/local/bin/[a-z-]+")(, "[^"]+")*\]$' "$df"; then
+    echo "❌ supervision: $df has no exec-form CMD [\"node\", \"<entry>.js\", <args>...] or [\"/usr/local/bin/<binary>\", <args>...]"
     FAIL=1
   fi
   if sed -n '/^CMD/,$p' "$df" | grep -q "supervise.sh"; then

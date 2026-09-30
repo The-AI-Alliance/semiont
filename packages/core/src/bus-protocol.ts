@@ -438,7 +438,7 @@ export type EventMap = {
   'job:status-failed': components['schemas']['CommandError'];
   'job:created': components['schemas']['JobCreatedResult'];
   'job:create-failed': components['schemas']['CommandError'];
-  'job:claimed': { response: Record<string, unknown> };
+  'job:claimed': components['schemas']['JobClaimedResult'];
   'job:claim-failed': components['schemas']['CommandError'];
   // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
   // (running jobs finish — there's no worker-kill channel). Failure surfaces a
@@ -807,7 +807,7 @@ export const CHANNEL_SCHEMAS = {
   'job:status-failed':                null, // CommandError
   'job:created':                      'JobCreatedResult',
   'job:create-failed':                null,
-  'job:claimed':                      null, // { correlationId; response: Record<string, unknown> }
+  'job:claimed':                      null,
   'job:claim-failed':                 null,
   'job:cancel-ok':                    null,
   'job:cancel-failed':                'CommandError',

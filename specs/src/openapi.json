@@ -822,6 +822,42 @@
       },
       "LimitRefusal": {
         "$ref": "components/schemas/LimitRefusal.json"
+      },
+      "JobMetadata": {
+        "$ref": "components/schemas/JobMetadata.json"
+      },
+      "JobParams": {
+        "$ref": "components/schemas/JobParams.json"
+      },
+      "JobPending": {
+        "$ref": "components/schemas/JobPending.json"
+      },
+      "JobRunning": {
+        "$ref": "components/schemas/JobRunning.json"
+      },
+      "JobComplete": {
+        "$ref": "components/schemas/JobComplete.json"
+      },
+      "JobFailed": {
+        "$ref": "components/schemas/JobFailed.json"
+      },
+      "JobCancelled": {
+        "$ref": "components/schemas/JobCancelled.json"
+      },
+      "Job": {
+        "$ref": "components/schemas/Job.json"
+      },
+      "JobRecord": {
+        "$ref": "components/schemas/JobRecord.json"
+      },
+      "JobClaimedResult": {
+        "$ref": "components/schemas/JobClaimedResult.json"
+      },
+      "DispatcherConfig": {
+        "$ref": "components/schemas/DispatcherConfig.json"
+      },
+      "DispatcherHealth": {
+        "$ref": "components/schemas/DispatcherHealth.json"
       }
     }
   }

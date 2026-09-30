@@ -2,7 +2,7 @@
 
 ## FsJobQueue
 
-`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `updateJob`, `completeJob`, `failJob`, `recordProgress`, `cancelPendingJobs`, `cancelJob`, `getStats`) is the same across gateways; `listJobs`, `cleanupOldJobs`, and `recoverStaleRunningJobs` are `FsJobQueue`-specific methods not on the interface.
+`FsJobQueue` is the filesystem-backed implementation of the `JobQueue` interface; `JetStreamJobQueue` is the other. The interface contract (`initialize`, `destroy`, `createJob`, `getJob`, `claimNextJob`, `completeJob`, `failJob`, `checkpointUnits`, `recordProgress`, `cancelPendingJobs`, `cancelJob`, `getStats`) is the same for both drivers; `listJobs`, `cleanupOldJobs`, and `recoverStaleRunningJobs` are `FsJobQueue` methods not on the interface. There is no generic update: a job changes state only through the named transitions.
 
 ### Constructor
 
@@ -24,7 +24,7 @@ await queue.initialize();
 
 ### `initialize(): Promise<void>`
 
-Creates status directories, announces any existing pending backlog on `job:queued` (restart recovery), and starts the maintenance intervals: a 30-second tick that re-announces pending jobs and recovers stale running jobs, and an hourly retention sweep that prunes terminal jobs older than 24 hours. Idempotent.
+Creates status directories and starts the hourly retention sweep that prunes terminal jobs older than 24 hours. With an EventBus it also announces any existing pending backlog on `job:queued` (restart recovery) and starts a 30-second tick that re-announces pending jobs and recovers stale running jobs. Idempotent.
 
 ### `destroy(): void`
 
@@ -73,57 +73,48 @@ if (job?.status === 'complete') {
 }
 ```
 
-### `updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void>`
+### `claimNextJob(types: string[]): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }>`
 
-Updates a job in place, or atomically moves it between status directories if `oldStatus` differs from `job.status`. A job moved back to `pending` (e.g. a retry) is re-announced on `job:queued`.
+Atomically claims a pending job whose type is in `types` (an empty `types` accepts any type): it moves to `running` with `startedAt` stamped and `progress: {}`. No ordering among matching pending jobs is promised. Finding nothing is a decline, not an error.
+
+```typescript
+const claim = await queue.claimNextJob(['reference-annotation']);
+if ('job' in claim) {
+  console.log(claim.job.metadata.id, claim.job.startedAt);
+}
+```
 
 ### `completeJob(jobId: JobId, result): Promise<boolean>`
 
 Moves a running job to `complete` with the result and `completedAt`. Returns `false` (and changes nothing) if the job is missing or not running — duplicate `job:complete` events are harmless.
 
 ```typescript
-const moved = await queue.completeJob(jobId('job-abc123'), { totalFound: 3, totalEmitted: 3, errors: 0 });
+const moved = await queue.completeJob(jobId('job-abc123'), { kind: 'reference-annotation', totalFound: 3, totalEmitted: 3, errors: 0 });
 ```
 
-### `failJob(jobId: JobId, error, completedUnits?, failureClass?): Promise<'retried' | 'failed' | null>`
+### `failJob(jobId: JobId, error, completedUnits?, failureClass?, unitCursors?): Promise<'retried' | 'failed' | null>`
 
-Retry-or-fail a running job. While `retryCount < maxRetries` **and the failure is not classified `'deterministic'`**, the job moves back to `pending` with the count bumped (and is re-announced for another worker to claim); a deterministic failure — one the worker knows cannot succeed on an identical second attempt — moves straight to `failed` without spending the budget. `completedUnits` (work units the failed attempt already persisted) is unioned into `metadata.completedUnits`, surviving the retry rebuild so the next attempt resumes rather than restarts. Returns `null` if the job isn't running.
+Retry-or-fail a running job. While `retryCount < maxRetries` **and the failure is not classified `'deterministic'`**, the job moves back to `pending` with the count bumped (and is re-announced for another worker to claim); a deterministic failure — one the worker knows cannot succeed on an identical second attempt — moves straight to `failed` without spending the budget. `completedUnits` (work units the failed attempt already persisted) is unioned into `metadata.completedUnits`, and `unitCursors` (how far each unfinished unit got) merged per unit into `metadata.unitCursors`, surviving the retry rebuild so the next attempt resumes rather than restarts. Returns `null` if the job isn't running.
 
 ```typescript
 const outcome = await queue.failJob(jobId('job-abc123'), 'inference timeout', ['Person'], 'transient');
 // 'retried' | 'failed' | null
 ```
 
-### `recordProgress(jobId: JobId, progress): Promise<void>`
+### `checkpointUnits(jobId: JobId, completedUnits: string[], unitCursors?): Promise<void>`
 
-Writes progress into a running job's file, throttled to one write per 5 seconds per job. Beyond surfacing live progress to `job:status-requested`, each write refreshes the file's mtime — the heartbeat that stale-running recovery watches. A no-op for jobs that aren't running.
+Persists a running job's checkpoint as work lands: `completedUnits` is unioned into `metadata.completedUnits` and `unitCursors` merged monotonically per unit into `metadata.unitCursors` (a completed unit drops its cursor). Unthrottled; a no-op for jobs that aren't running. A worker that dies without emitting `job:fail` therefore loses at most its in-flight chunk.
 
-### `cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number>`
+### `recordProgress(jobId: JobId, progress: StoredProgress): Promise<void>`
 
-Cancels all pending jobs in a category — the granularity of the `job:cancel-requested` UI signal (`'annotation'` covers every `*-annotation` type). Running jobs are left to finish. Returns the number cancelled.
+Replaces a running job's `progress` with the reported `JobProgress`, throttled to one write per 5 seconds per job. Beyond surfacing live progress to `job:status-requested`, each write refreshes the file's mtime — the heartbeat that stale-running recovery watches. A no-op for jobs that aren't running.
+
+### `cancelPendingJobs(category: JobCategory): Promise<number>`
+
+Cancels all pending jobs in a category — the granularity of the `job:cancel-requested` UI signal. `JobCategory` (`'generation' | 'annotation'`) comes from `@semiont/core`, generated from `specs/src/jobs/storage.json`; `'annotation'` covers every `*-annotation` type. Running jobs are left to finish. Returns the number cancelled.
 
 ```typescript
-// Progress update (same status)
-if (job.status === 'running') {
-  const updated: RunningJob<GenerationJobParams, YieldProgress> = {
-    ...job,
-    progress: { stage: 'generating', percentage: 50, message: 'Generating...' },
-  };
-  await queue.updateJob(updated);
-}
-
-// Status transition (atomic move)
-if (job.status === 'running') {
-  const complete: CompleteJob<GenerationJobParams, GenerationResult> = {
-    status: 'complete',
-    metadata: job.metadata,
-    params: job.params,
-    startedAt: job.startedAt,
-    completedAt: new Date().toISOString(),
-    result: { resourceId: resourceId('doc-new'), resourceName: 'Article' },
-  };
-  await queue.updateJob(complete, 'running');
-}
+const cancelled = await queue.cancelPendingJobs('annotation');
 ```
 
 ### `listJobs(filters?: JobQueryFilters): Promise<AnyJob[]>`
@@ -171,9 +162,9 @@ const removed = await queue.cleanupOldJobs(7 * 24 * 60 * 60 * 1000);
 
 ### `recoverStaleRunningJobs(): Promise<number>`
 
-> `FsJobQueue`-specific — not part of the `JobQueue` interface.
+> Not part of the `JobQueue` interface (`JetStreamJobQueue` has its own).
 
-Recovers running jobs orphaned by a dead worker: any `running/` file whose mtime is older than 30 minutes is fed through the same retry-or-fail path as `failJob`. Progress writes refresh the mtime, so a worker that reports within the window is never recovered out from under itself. Runs automatically on the 30-second maintenance tick.
+Recovers running jobs orphaned by a dead worker: any `running/` file whose mtime is older than 30 minutes is fed through the same retry-or-fail path as `failJob`. Progress writes refresh the mtime, so a worker that reports within the window is never recovered out from under itself. Runs automatically on the 30-second maintenance tick when an EventBus is provided.
 
 ### `getStats(): Promise<{ pending, running, complete, failed, cancelled }>`
 
@@ -198,11 +189,12 @@ const adapter = startWorkerProcess({
   jobTypes,         // string[] — job types this agent serves
   inferenceClient,  // InferenceClient
   generator,        // this agent's W3C `Software` record, sent as annotation `generator`
+  contentReads,     // ContentReads — resource bytes for detection, read from the Archivist
   logger,
 });
 ```
 
-`startWorkerProcess` claims jobs over the bus via a `JobClaimAdapter` — a reactive, SSE-driven `job:queued` subscription, not a poll-interval loop. When a job is claimed, it dispatches by `jobType` to the matching `process*Job` function in `src/processors.ts`:
+`startWorkerProcess` claims jobs over the bus via a `JobClaimAdapter`, which pulls: it sends `job:claim` whenever it becomes idle (at start, after each job settles, on a matching `job:queued` while parked, on reconnect) — not on a poll interval. When a job is claimed, it dispatches by `jobType` to the matching `process*Job` function in `src/processors.ts`:
 
 | Job Type | Processor |
 |----------|-----------|
@@ -215,27 +207,29 @@ const adapter = startWorkerProcess({
 
 ### Processors
 
-Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, buildAnnotation, onProgress, onChunkComplete, resumeCursors?)` and return `{ result }` — annotations are committed per chunk through `onChunkComplete`, not returned, and no user identity reaches a processor; `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns the synthesized resource. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
+Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, buildAnnotation, onProgress, onChunkComplete, resumeCursors?)` — `processReferenceJob` additionally takes `logger`, an `onUnitComplete` checkpoint callback and an abort `signal`, and its `onChunkComplete` is optional — and return `{ result }`. Annotations are committed per chunk through `onChunkComplete`, not returned, and no user identity reaches a processor. `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns `{ content, title, format, citations, result }`. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).
 
 ### Processing Flow
 
 ```
-SSE job:queued → JobClaimAdapter claims job atomically
+idle → job:claim → JobClaimAdapter receives a running job (or a decline, and parks)
   ↓
 emit job:start
   ↓
-session.client.browse.resourceContent(resourceId)   (detection job types)
+prepareDetection(...) → text + buildAnnotation   (detection job types)
   ↓
-process*Job(...) → annotations + result
+process*Job(...) — per chunk: await mark:commit (acknowledged), emit job:checkpoint
   ↓
-await mark:commit (batched, acknowledged); emit job:checkpoint; emit job:complete
+emit job:complete (with result)
   ↓ on error
 emit job:fail; adapter.failJob(jobId, message)
 ```
 
-A pending job whose announcement found no idle eligible worker (all busy, worker offline or mid-reconnect, gateway restart) is re-announced every 30 seconds, so backlog drains as soon as a worker frees up. Duplicate announcements are harmless — claims on a job that already moved to `running` fail with "Job already claimed".
+`prepareDetection` reads the resource's bytes through `contentReads` for text media types, and consults the Smelter's canonical anchored text (`session.client.browse.resourceAnchoredText`) for geometry-bearing types such as PDF.
 
-On the gateway, the lifecycle events are mirrored into the queue files (see `@semiont/make-meaning`'s job command handlers): `job:complete` moves the file to `complete/`, `job:fail` retries or moves it to `failed/`, and `job:report-progress` is written into the running file as both live progress and a worker heartbeat.
+A worker that is busy when a job is queued claims it at its next settle; the 30-second re-announce only covers a wake-up lost in transit to an idle worker. Duplicate announcements are harmless — a claim is by type, so a worker that finds nothing pending is declined and parks.
+
+At the dispatcher, the lifecycle commands are mirrored into the queue (see `@semiont/make-meaning`'s job command handlers): `job:complete` → `completeJob`, `job:fail` → `failJob` (retry or `failed`), `job:checkpoint` → `checkpointUnits`, and `job:report-progress` → `recordProgress`, which is both live progress and a worker heartbeat.
 
 Lifecycle events are emitted via `session.client.transport.emit(...)`; annotations persist through the **awaited `mark:commit`** operation, which the Stower actor in @semiont/make-meaning answers with `mark:commit-ok` only once every annotation is appended to the event log. Unit completion — and `job:complete` itself — gate on that acknowledgement, never on emission.
 

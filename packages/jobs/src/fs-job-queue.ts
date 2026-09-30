@@ -8,9 +8,9 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
-import type { AnyJob, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, FailedJob, PendingJob, RunningJob } from './types';
+import type { AnyJob, RunningAnyJob, StoredProgress, JobStatus, JobQueryFilters, CancelledJob, CompleteJob, FailedJob, PendingJob, RunningJob } from './types';
 import type { SemiontState } from '@semiont/core/node';
-import { jobId as toJobId, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
+import { jobId as toJobId, JOB_CATEGORIES, type JobCategory, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
 import { TERMINAL_JOB_RETENTION_MS, TERMINAL_JOB_SWEEP_INTERVAL_MS, type JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
@@ -207,14 +207,14 @@ export class FsJobQueue implements JobQueue {
    */
   private claimChain: Promise<unknown> = Promise.resolve();
 
-  async claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+  async claimNextJob(types: string[]): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }> {
     const claim = this.claimChain.then(() => this.doClaimNext(types));
     // A failed claim must not wedge every later one.
     this.claimChain = claim.catch(() => undefined);
     return claim;
   }
 
-  private async doClaimNext(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+  private async doClaimNext(types: string[]): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }> {
     const pending = await this.listJobs({ status: 'pending', limit: Number.MAX_SAFE_INTEGER });
     const match = pending.find((j) => types.length === 0 || types.includes(j.metadata.type));
     if (!match) return { declined: 'none-available' };
@@ -222,7 +222,7 @@ export class FsJobQueue implements JobQueue {
     // Progress starts empty: a just-claimed job has reported nothing yet.
     // The typed progress shapes describe REPORTS, and the first report
     // arrives from the worker via recordProgress.
-    const running: RunningJob<any, any> = {
+    const running: RunningJob<any> = {
       status: 'running',
       metadata: match.metadata,
       params: match.params,
@@ -380,7 +380,7 @@ export class FsJobQueue implements JobQueue {
     // would keep a cursor pointing into work that is done.
     const { unitCursors: superseded, ...metadata } = job.metadata;
     void superseded;
-    const updated: RunningJob<any, any> = {
+    const updated: RunningJob<any> = {
       ...job,
       metadata: {
         ...metadata,
@@ -400,7 +400,7 @@ export class FsJobQueue implements JobQueue {
    * progress to `job:status-requested`, each write refreshes the
    * file's mtime — the heartbeat `recoverStaleRunningJobs` watches.
    */
-  async recordProgress(jobId: JobId, progress: Record<string, unknown>): Promise<void> {
+  async recordProgress(jobId: JobId, progress: StoredProgress): Promise<void> {
     const now = Date.now();
     const lastWrite = this.lastProgressWrite.get(jobId) ?? 0;
     if (now - lastWrite < PROGRESS_WRITE_MIN_INTERVAL_MS) {
@@ -414,9 +414,9 @@ export class FsJobQueue implements JobQueue {
       return;
     }
 
-    // Written directly (not via updateJob) so chatty progress doesn't
+    // Written directly (not via transition) so chatty progress doesn't
     // flood the info log.
-    const updated: RunningJob<any, any> = { ...job, progress };
+    const updated: RunningJob<any> = { ...job, progress };
     await fs.writeFile(this.getJobPath(jobId, 'running'), JSON.stringify(updated, null, 2), 'utf-8');
   }
 
@@ -500,10 +500,9 @@ export class FsJobQueue implements JobQueue {
    * interrupting a worker mid-inference would need a worker-side kill
    * channel that doesn't exist.
    */
-  async cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number> {
-    const matches = category === 'generation'
-      ? (type: string) => type === 'generation'
-      : (type: string) => type.endsWith('-annotation');
+  async cancelPendingJobs(category: JobCategory): Promise<number> {
+    const types: readonly string[] = JOB_CATEGORIES[category];
+    const matches = (type: string) => types.includes(type);
 
     const pending = await this.listJobs({ status: 'pending', limit: Number.MAX_SAFE_INTEGER });
     let cancelled = 0;

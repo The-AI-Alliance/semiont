@@ -28,8 +28,8 @@
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
 import type { JobQueue } from '../job-queue-interface';
-import type { PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams, DetectionProgress } from '../types';
-import type { JobReferenceAnnotationResult, GenerationJobParams, JobId } from '@semiont/core';
+import type { PendingJob, RunningJob, CompleteJob, FailedJob, DetectionParams } from '../types';
+import type { JobReferenceAnnotationResult, GenerationJobParams, JobId, ResourceId } from '@semiont/core';
 import { entityType, jobId, userId, resourceId } from '@semiont/core';
 import { minimalContext } from './fixtures/generation-fixtures';
 
@@ -69,7 +69,7 @@ export function createPendingDetectionJob(id: string): PendingJob<DetectionParam
   };
 }
 
-export function createRunningDetectionJob(id: string): RunningJob<DetectionParams, DetectionProgress> {
+export function createRunningDetectionJob(id: string): RunningJob<DetectionParams> {
   return {
     status: 'running',
     metadata: {
@@ -85,12 +85,7 @@ export function createRunningDetectionJob(id: string): RunningJob<DetectionParam
       entityTypes: [entityType('Person'), entityType('Organization')],
     },
     startedAt: new Date().toISOString(),
-    progress: {
-      totalEntityTypes: 2,
-      processedEntityTypes: 1,
-      entitiesFound: 5,
-      entitiesEmitted: 5,
-    },
+    progress: { percentage: 50 },
   };
 }
 
@@ -141,7 +136,7 @@ export function createFailedDetectionJob(id: string): FailedJob<DetectionParams>
   };
 }
 
-export function createPendingGenerationJob(id: string): PendingJob<GenerationJobParams> {
+export function createPendingGenerationJob(id: string): PendingJob<GenerationJobParams & { resourceId: ResourceId }> {
   return {
     status: 'pending',
     metadata: {
@@ -153,6 +148,7 @@ export function createPendingGenerationJob(id: string): PendingJob<GenerationJob
       maxRetries: 3,
     },
     params: {
+      resourceId: resourceId('res-1'),
       prompt: 'Generate a summary',
       title: 'Summary',
       storageUri: 'file://generated/summary.md',

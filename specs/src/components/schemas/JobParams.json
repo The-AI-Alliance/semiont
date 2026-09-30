@@ -1,0 +1,14 @@
+{
+  "type": "object",
+  "description": "The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "resourceId"
+  ],
+  "additionalProperties": true
+}

@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, specs/src/jobs/storage.json.",
+  "properties": {
+    "job": {
+      "$ref": "./Job.json"
+    },
+    "lastProgressAt": {
+      "type": "string",
+      "description": "When the job was created, claimed, checkpointed or last reported progress, as an ISO 8601 timestamp."
+    }
+  },
+  "required": [
+    "job",
+    "lastProgressAt"
+  ],
+  "additionalProperties": false
+}

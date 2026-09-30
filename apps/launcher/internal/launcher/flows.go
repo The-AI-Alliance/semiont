@@ -907,11 +907,10 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 }
 
 // flowDispatcher: the Dispatcher owns the job queue and answers job:* lifecycle
-// commands (EXTRACT-JOBS). It mounts NOTHING — D7 moved its entity-type and
-// tag-schema reads onto the bus (asked of the Archivist), retiring the state
-// mount's last non-fs reason; the deployed jetstream driver holds no state tree,
-// and an fs-by-omission driver fails loud rather than writing to a fabricated
-// home. It dials the gateway for its token and the plane; it is a CONTROL PLANE
+// commands (EXTRACT-JOBS). It mounts nothing but its configuration document
+// (dispatcherdoc.go): its entity-type and tag-schema reads are asked of the
+// Archivist over the bus, and its queue is JetStream, which holds no state tree
+// here. It dials the gateway for its token and the plane; it is a CONTROL PLANE
 // (D5) and touches no bytes, so it never reads from the Archivist. Started after
 // the Librarian — health-after-pumps makes ordering against other sidecars moot
 // rather than racy.
@@ -921,7 +920,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")

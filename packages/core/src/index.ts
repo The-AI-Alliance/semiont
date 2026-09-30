@@ -61,7 +61,18 @@ export {
 
 // The service-account role: one literal, and the predicate that reads it.
 export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
-export { JOBS_SUBJECT_ROOT, JOBS_STREAM_SUBJECTS } from './job-subjects';
+export {
+  JOBS_STREAM,
+  JOBS_SUBJECT_ROOT,
+  JOBS_STREAM_SUBJECTS,
+  JOBS_CONSUMER,
+  JOBS_BUCKET,
+  JOB_TYPES,
+  JOB_CATEGORIES,
+  jobCategoryOf,
+  jobSubject,
+  type JobCategory,
+} from './generated/job-storage';
 
 // Attribution: who a record is attributed to, as a chain rather than a choice.
 

@@ -37,8 +37,10 @@ JetStream must say so.
 ## The claim is atomic, and by type
 
 ```ts
-claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }>
+claimNextJob(types: string[]): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }>
 ```
+
+A claim moves the job from `pending` to `running`, stamps `startedAt`, and starts it with empty progress (`{}`). An empty `types` accepts any type.
 
 Two properties the interface states and both drivers must honour:
 
@@ -93,7 +95,7 @@ await queue.initialize();
 **What `initialize()` does:**
 - Creates status directories (`pending/`, `running/`, etc.)
 - Announces any existing pending jobs on `job:queued` (restart catch-up)
-- Starts a 30-second maintenance tick with two independent jobs: recovering stale running jobs (no heartbeat for 30 minutes → retry-or-fail), and re-announcing pending jobs as the lost-wake-up insurance described under [Dispatch](#dispatch-workers-pull-announcements-wake)
+- When an EventBus is provided: starts a 30-second maintenance tick with two independent jobs: recovering stale running jobs (no heartbeat for 30 minutes → retry-or-fail), and re-announcing pending jobs as the lost-wake-up insurance described under [Dispatch](#dispatch-workers-pull-announcements-wake)
 - Starts an hourly retention sweep: terminal jobs older than 24 hours are deleted
 - Idempotent (safe to call multiple times)
 
@@ -127,8 +129,7 @@ await queue.createJob(job);
 ```
 
 **Behavior:**
-- Writes job to `{state.jobsDir}/{status}/{jobId}.json`
-- Creates parent directories if needed
+- Writes job to `{state.jobsDir}/{status}/{jobId}.json` (the directories are created by `initialize()`)
 - Overwrites if job with same ID already exists at that status
 - If status is `pending`, the EventBus is provided, and job params contain `resourceId`, emits a `job:queued` announcement for immediate worker pickup
 
@@ -147,7 +148,7 @@ if (job) {
   console.log(`User: ${job.metadata.userId}`);
 
   // Type-safe access based on status
-  if (job.status === 'running') {
+  if (job.status === 'running' && 'percentage' in job.progress) {
     console.log(`Progress: ${job.progress.percentage}%`);
   }
   if (job.status === 'complete') {
@@ -163,46 +164,9 @@ if (job) {
 - Returns first match (jobs should only exist in one status)
 - Returns `null` if job not found in any directory
 
-## Updating Jobs
+## Transitions
 
-### `updateJob(job: AnyJob, oldStatus?: JobStatus): Promise<void>`
-
-Updates a job, optionally moving it between status directories.
-
-```typescript
-const job = await queue.getJob(jobId('job-abc123'));
-if (!job) return;
-
-// Simple update (same status) — immutable pattern
-if (job.status === 'running') {
-  const updatedJob: RunningJob<GenerationJobParams, YieldProgress> = {
-    ...job,
-    progress: { stage: 'generating', percentage: 50, message: 'Generating...' },
-  };
-  await queue.updateJob(updatedJob);
-}
-
-// Status transition (atomic move)
-if (job.status === 'running') {
-  const completeJob: CompleteJob<GenerationJobParams, GenerationResult> = {
-    status: 'complete',
-    metadata: job.metadata,
-    params: job.params,
-    startedAt: job.startedAt,
-    completedAt: new Date().toISOString(),
-    result: { resourceId: resourceId('doc-new'), resourceName: 'Generated Article' },
-  };
-  await queue.updateJob(completeJob, 'running');
-}
-```
-
-**Parameters:**
-- `job` — Updated job object
-- `oldStatus` — (Optional) Previous status for atomic move
-
-**Behavior:**
-- If `oldStatus` provided and different from `job.status`: deletes from old directory, writes to new directory; a job moved back to `pending` (e.g. a retry) is re-announced on `job:queued`
-- If `oldStatus` not provided or same as `job.status`: overwrites job file in current directory
+There is no generic update. A job changes state only through the named transitions — `claimNextJob`, `completeJob`, `failJob`, `cancelJob`, `cancelPendingJobs` — plus the in-place writes to a running job, `recordProgress` and `checkpointUnits`. The same set works on both drivers; a generic patch is trivial on files and impossible on an in-flight message, so neither offers one.
 
 ## Listing Jobs
 
@@ -256,7 +220,7 @@ interface JobQueryFilters {
 A pending job is announced:
 
 - **On creation** — `createJob()` emits `job:queued` immediately
-- **On retry** — `updateJob()` re-announces a job moved back to `pending`
+- **On retry** — `failJob()` re-announces a job it moves back to `pending`
 - **On startup** — `initialize()` announces every job already in `pending/` (a wake-up for any worker already parked)
 - **Every 30 seconds** — the maintenance tick re-announces pending jobs. This is **insurance, not dispatch**: a job created while every worker was busy is claimed at the next settle without it. What it covers is the one case pull cannot — a wake-up *lost in transit* to an idle worker, which has nothing to settle and so nothing to pull on. On a healthy stack it never acts.
 
@@ -265,19 +229,27 @@ A pending job is announced:
 
 ## Job Lifecycle Sync
 
-The queue exposes transition methods that the dispatcher's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle events:
+The queue exposes transition methods that the dispatcher's bus handlers (in `@semiont/make-meaning`) call when workers emit lifecycle commands:
+
+### `claimNextJob(types): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }>`
+
+`job:claim` → a pending job whose type is in `types` moves `pending/` → `running/` with `startedAt` and `progress: {}`; no ordering among matching jobs is promised. Claims are serialized within the process. Nothing matching → `{ declined: 'none-available' }`.
 
 ### `completeJob(jobId, result): Promise<boolean>`
 
 `job:complete` → moves `running/` → `complete/` with the result and `completedAt`. Returns `false` if the job isn't running (duplicate events are harmless).
 
-### `failJob(jobId, error, completedUnits?, failureClass?): Promise<'retried' | 'failed' | null>`
+### `failJob(jobId, error, completedUnits?, failureClass?, unitCursors?): Promise<'retried' | 'failed' | null>`
 
-`job:fail` → retry-or-fail. While `metadata.retryCount < metadata.maxRetries` and the failure is not classified `'deterministic'`, the job moves back to `pending/` with the count bumped and is re-announced for another worker; a deterministic failure lands in `failed/` immediately (an identical retry is guaranteed waste). `completedUnits` from the event is unioned into the job's checkpoint, so the retry resumes where the failed attempt left off. After the budget it moves to `failed/` with the error.
+`job:fail` → retry-or-fail. While `metadata.retryCount < metadata.maxRetries` and the failure is not classified `'deterministic'`, the job moves back to `pending/` with the count bumped and is re-announced for another worker; a deterministic failure lands in `failed/` immediately (an identical retry is guaranteed waste). `completedUnits` from the event is unioned into the job's checkpoint and `unitCursors` merged per unit, so the retry resumes where the failed attempt left off. After the budget it moves to `failed/` with the error. Returns `null` if the job isn't running.
 
-### `recordProgress(jobId, progress): Promise<void>`
+### `checkpointUnits(jobId, completedUnits, unitCursors?): Promise<void>`
 
-`job:report-progress` → written into the `running/` file (throttled to one write per 5s per job). The write doubles as a worker heartbeat: the file's mtime is what stale-running recovery checks.
+`job:checkpoint` → the running file's `metadata.completedUnits` is unioned with `completedUnits`, and `metadata.unitCursors` merged monotonically per unit (a unit that completes drops its cursor). Unthrottled, and a no-op for a job that isn't running. It persists the checkpoint as work lands, so a worker that dies without emitting `job:fail` loses at most its in-flight chunk.
+
+### `recordProgress(jobId, progress: StoredProgress): Promise<void>`
+
+`job:report-progress` → the reported `JobProgress` replaces the `running/` file's `progress` (throttled to one write per 5s per job). The write doubles as a worker heartbeat: the file's mtime is what stale-running recovery checks. A no-op for a job that isn't running.
 
 ### `recoverStaleRunningJobs(): Promise<number>`
 
@@ -293,9 +265,9 @@ Cancels a pending or running job. Returns `false` if job doesn't exist or is alr
 const cancelled = await queue.cancelJob(jobId('job-abc123'));
 ```
 
-### `cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number>`
+### `cancelPendingJobs(category: JobCategory): Promise<number>`
 
-Cancels all *pending* jobs in a category — `'annotation'` covers every `*-annotation` type. This is what the `job:cancel-requested` UI signal maps to. Running jobs are left to finish (interrupting a worker mid-inference would need a worker-side kill channel that doesn't exist).
+Cancels all *pending* jobs in a category. `JobCategory` (`'generation' | 'annotation'`) and the types in each come from `@semiont/core`'s `JOB_CATEGORIES`, generated from `specs/src/jobs/storage.json` — `'annotation'` covers every `*-annotation` type. This is what the `job:cancel-requested` UI signal maps to. Running jobs are left to finish (interrupting a worker mid-inference would need a worker-side kill channel that doesn't exist).
 
 ## Cleanup and Lifecycle
 
@@ -359,16 +331,7 @@ await Promise.all(
 
 ### Retries
 
-Retries are automatic: `failJob` re-queues a failed job (with `retryCount` bumped and a fresh `job:queued` announcement) until `maxRetries` is exhausted, and only then lands it in `failed/`. A job in `failed/` has used all its retries — re-queue one manually only if you've fixed the underlying cause:
-
-```typescript
-const retryJob: PendingJob<any> = {
-  status: 'pending',
-  metadata: { ...job.metadata, retryCount: 0 },
-  params: job.params,
-};
-await queue.updateJob(retryJob, 'failed'); // re-announced automatically
-```
+Retries are automatic: `failJob` re-queues a failed job (with `retryCount` bumped and a fresh `job:queued` announcement) until `maxRetries` is exhausted, and only then lands it in `failed/`. A job in `failed/` has used all its retries, or failed deterministically; the queue offers no transition out of `failed`.
 
 ### Monitor Queue Depth
 
@@ -387,5 +350,5 @@ console.log(`Pending: ${stats.pending}, Running: ${stats.running}, Failed: ${sta
 - The hourly retention sweep (`cleanupOldJobs`) keeps completed/failed/cancelled out of the way on its own; call it directly only to prune a different window
 
 **File I/O:**
-- Each `createJob`/`updateJob`/`getJob` reads/writes a JSON file
+- Each `createJob`/`getJob`/transition reads/writes a JSON file
 - `listJobs` reads all files in matching status directories

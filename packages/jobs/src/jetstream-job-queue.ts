@@ -38,18 +38,26 @@
 
 import { connect, NatsError, RetentionPolicy, AckPolicy, DeliverPolicy, nanos } from 'nats';
 import type { NatsConnection, JetStreamClient, JetStreamManager, JsMsg, KV, ConsumerMessages } from 'nats';
-import type { AnyJob, PendingJob, RunningJob, FailedJob, CompleteJob, CancelledJob } from './types';
-import { jobId as toJobId, JOBS_STREAM_SUBJECTS, JOBS_SUBJECT_ROOT, type JobId, type Logger, type EventBus, type UnitCursor } from '@semiont/core';
+import type { AnyJob, RunningAnyJob, StoredProgress, PendingJob, RunningJob, FailedJob, CompleteJob, CancelledJob } from './types';
+import {
+  jobId as toJobId,
+  JOBS_STREAM,
+  JOBS_STREAM_SUBJECTS,
+  JOBS_SUBJECT_ROOT,
+  JOBS_CONSUMER,
+  JOBS_BUCKET,
+  JOB_CATEGORIES,
+  jobSubject,
+  type JobCategory,
+  type JobId,
+  type Logger,
+  type EventBus,
+  type UnitCursor,
+} from '@semiont/core';
 import { TERMINAL_JOB_RETENTION_MS, TERMINAL_JOB_SWEEP_INTERVAL_MS, type JobQueue } from './job-queue-interface';
 import { willRetryAfter } from './will-retry';
 import { mergeUnitCursors } from './checkpoint-merge';
 
-const STREAM = 'JOBS';
-// The durable consumer keeps its original name: it is a WIRE name on every
-// deployed broker, and renaming it would orphan the consumer and its leases.
-// The process that holds it is the dispatcher.
-const CONSUMER = 'gateway-claims';
-const BUCKET = 'jobs';
 /**
  * The bucket's own backing stream and per-key subject (the NATS KV layout
  * every client shares). The retention sweep purges a concluded job at the
@@ -64,8 +72,8 @@ const BUCKET = 'jobs';
  * asserts the bucket's message count, so a name that stops matching fails
  * there instead of silently purging nothing.
  */
-const BUCKET_STREAM = `KV_${BUCKET}`;
-const bucketSubject = (key: string) => `$KV.${BUCKET}.${key}`;
+const BUCKET_STREAM = `KV_${JOBS_BUCKET}`;
+const bucketSubject = (key: string) => `$KV.${JOBS_BUCKET}.${key}`;
 
 /** Minimum spacing between progress writes per job — workers can be chatty. */
 const PROGRESS_WRITE_MIN_INTERVAL_MS = 5_000;
@@ -99,17 +107,16 @@ export interface JetStreamJobQueueOptions {
   ackWaitMs?: number;
   /** Re-announce + worker-death-sweep cadence (default 30 s; tests shrink it). */
   tickMs?: number;
+  /** How long a concluded job is kept before it is deleted (default `TERMINAL_JOB_RETENTION_MS`). */
+  retentionMs?: number;
+  /** How often concluded jobs past `retentionMs` are deleted (default `TERMINAL_JOB_SWEEP_INTERVAL_MS`). */
+  retentionSweepMs?: number;
+  /** Least time between two progress writes for one job (default 5 s). */
+  progressWriteIntervalMs?: number;
   /** Reconnect on connection loss (default true; tests turn it off). */
   reconnect?: boolean;
 }
 
-function categoryOf(type: string): 'annotation' | 'generation' {
-  return type === 'generation' ? 'generation' : 'annotation';
-}
-
-function subjectFor(job: AnyJob): string {
-  return `${JOBS_SUBJECT_ROOT}.${categoryOf(job.metadata.type)}.${job.metadata.type}`;
-}
 
 export class JetStreamJobQueue implements JobQueue {
   private nc!: NatsConnection;
@@ -129,6 +136,9 @@ export class JetStreamJobQueue implements JobQueue {
   private readonly staleRunningMs: number;
   private readonly ackWaitMs: number;
   private readonly tickMs: number;
+  private readonly retentionMs: number;
+  private readonly retentionSweepMs: number;
+  private readonly progressWriteIntervalMs: number;
 
   constructor(
     private readonly options: JetStreamJobQueueOptions,
@@ -138,6 +148,9 @@ export class JetStreamJobQueue implements JobQueue {
     this.staleRunningMs = options.staleRunningMs ?? 30 * 60_000;
     this.ackWaitMs = options.ackWaitMs ?? 30_000;
     this.tickMs = options.tickMs ?? 30_000;
+    this.retentionMs = options.retentionMs ?? TERMINAL_JOB_RETENTION_MS;
+    this.retentionSweepMs = options.retentionSweepMs ?? TERMINAL_JOB_SWEEP_INTERVAL_MS;
+    this.progressWriteIntervalMs = options.progressWriteIntervalMs ?? PROGRESS_WRITE_MIN_INTERVAL_MS;
   }
 
   async initialize(): Promise<void> {
@@ -157,22 +170,22 @@ export class JetStreamJobQueue implements JobQueue {
     this.watchConnection();
     this.js = this.nc.jetstream();
     this.jsm = await this.nc.jetstreamManager();
-    this.kv = await this.js.views.kv(BUCKET);
+    this.kv = await this.js.views.kv(JOBS_BUCKET);
 
     try {
-      await this.jsm.streams.info(STREAM);
+      await this.jsm.streams.info(JOBS_STREAM);
     } catch {
       await this.jsm.streams.add({
-        name: STREAM,
+        name: JOBS_STREAM,
         subjects: [...JOBS_STREAM_SUBJECTS],
         retention: RetentionPolicy.Workqueue,
       });
     }
     try {
-      await this.jsm.consumers.info(STREAM, CONSUMER);
+      await this.jsm.consumers.info(JOBS_STREAM, JOBS_CONSUMER);
     } catch {
-      await this.jsm.consumers.add(STREAM, {
-        durable_name: CONSUMER,
+      await this.jsm.consumers.add(JOBS_STREAM, {
+        durable_name: JOBS_CONSUMER,
         ack_policy: AckPolicy.Explicit,
         deliver_policy: DeliverPolicy.All,
         ack_wait: nanos(this.ackWaitMs),
@@ -182,7 +195,7 @@ export class JetStreamJobQueue implements JobQueue {
       });
     }
 
-    const consumer = await this.js.consumers.get(STREAM, CONSUMER);
+    const consumer = await this.js.consumers.get(JOBS_STREAM, JOBS_CONSUMER);
     this.iter = await consumer.consume({
       callback: (m) => {
         void this.onDelivery(m).catch((error) => {
@@ -255,12 +268,12 @@ export class JetStreamJobQueue implements JobQueue {
     // record is indifferent to a minute either way, and running it 120 times
     // an hour would spend a full bucket scan to find nothing 119 times.
     this.cleanupTimer = setInterval(() => {
-      this.pruneTerminalJobs(TERMINAL_JOB_RETENTION_MS).catch((error) => {
+      this.pruneTerminalJobs(this.retentionMs).catch((error) => {
         this.logger.warn('Job retention cleanup failed', {
           error: error instanceof Error ? error.message : String(error),
         });
       });
-    }, TERMINAL_JOB_SWEEP_INTERVAL_MS);
+    }, this.retentionSweepMs);
     this.cleanupTimer.unref?.();
   }
 
@@ -395,7 +408,7 @@ export class JetStreamJobQueue implements JobQueue {
     // Only pending jobs need delivery — the stream is the claim vehicle,
     // not the record (KV is).
     if (job.status === 'pending') {
-      await this.js.publish(subjectFor(job), enc.encode(JSON.stringify({ jobId: job.metadata.id })));
+      await this.js.publish(jobSubject(job.metadata.type), enc.encode(JSON.stringify({ jobId: job.metadata.id })));
     }
   }
 
@@ -404,7 +417,7 @@ export class JetStreamJobQueue implements JobQueue {
     return envelope?.job ?? null;
   }
 
-  async claimNextJob(types: string[]): Promise<{ job: AnyJob } | { declined: 'none-available' }> {
+  async claimNextJob(types: string[]): Promise<{ job: RunningAnyJob } | { declined: 'none-available' }> {
     const matches = (t: string) => types.length === 0 || types.includes(t);
     // Lease-aligned fast path (topology memo, mechanic 1): deliveries this
     // dispatcher already holds — the claim lands where the worker is connected.
@@ -427,12 +440,12 @@ export class JetStreamJobQueue implements JobQueue {
   }
 
   /** CAS one pending job to running; null when someone else won it. */
-  private async tryClaim(jobIdArg: JobId): Promise<{ job: AnyJob } | null> {
-    return this.cas<{ job: AnyJob } | null>(
+  private async tryClaim(jobIdArg: JobId): Promise<{ job: RunningAnyJob } | null> {
+    return this.cas<{ job: RunningAnyJob } | null>(
       jobIdArg,
       (job) => {
         if (job.status !== 'pending') return { result: null };
-        const running: RunningJob<any, any> = {
+        const running: RunningJob<any> = {
           status: 'running',
           metadata: job.metadata,
           params: job.params,
@@ -441,7 +454,7 @@ export class JetStreamJobQueue implements JobQueue {
         };
         return {
           envelope: { job: running, lastProgressAt: new Date().toISOString() },
-          result: { job: running as AnyJob },
+          result: { job: running },
         };
       },
       null,
@@ -519,7 +532,7 @@ export class JetStreamJobQueue implements JobQueue {
         held.m.nak();
       } else {
         const envelope = await this.read(jobIdArg);
-        if (envelope) await this.js.publish(subjectFor(envelope.job), enc.encode(JSON.stringify({ jobId: jobIdArg })));
+        if (envelope) await this.js.publish(jobSubject(envelope.job.metadata.type), enc.encode(JSON.stringify({ jobId: jobIdArg })));
       }
     } else if (outcome === 'failed') {
       // Deterministic or exhausted: the message must never redeliver.
@@ -546,9 +559,9 @@ export class JetStreamJobQueue implements JobQueue {
     );
   }
 
-  async recordProgress(jobIdArg: JobId, progress: Record<string, unknown>): Promise<void> {
+  async recordProgress(jobIdArg: JobId, progress: StoredProgress): Promise<void> {
     const last = this.lastProgressWrite.get(jobIdArg as string) ?? 0;
-    if (Date.now() - last < PROGRESS_WRITE_MIN_INTERVAL_MS) return;
+    if (Date.now() - last < this.progressWriteIntervalMs) return;
     this.lastProgressWrite.set(jobIdArg as string, Date.now());
 
     this.held.get(jobIdArg as string)?.m.working();
@@ -556,7 +569,7 @@ export class JetStreamJobQueue implements JobQueue {
       jobIdArg,
       (job) => {
         if (job.status !== 'running') return { result: undefined };
-        const updated: RunningJob<any, any> = {
+        const updated: RunningJob<any> = {
           status: 'running',
           metadata: job.metadata,
           params: job.params,
@@ -569,10 +582,9 @@ export class JetStreamJobQueue implements JobQueue {
     );
   }
 
-  async cancelPendingJobs(category: 'annotation' | 'generation'): Promise<number> {
-    const matches = category === 'generation'
-      ? (type: string) => type === 'generation'
-      : (type: string) => type.endsWith('-annotation');
+  async cancelPendingJobs(category: JobCategory): Promise<number> {
+    const types: readonly string[] = JOB_CATEGORIES[category];
+    const matches = (type: string) => types.includes(type);
 
     let cancelled = 0;
     for (const key of await this.allKeys()) {
@@ -599,7 +611,7 @@ export class JetStreamJobQueue implements JobQueue {
       }
     }
     // Undelivered messages for the category die with the state change.
-    await this.jsm.streams.purge(STREAM, { filter: `${JOBS_SUBJECT_ROOT}.${category}.>` });
+    await this.jsm.streams.purge(JOBS_STREAM, { filter: `${JOBS_SUBJECT_ROOT}.${category}.>` });
     return cancelled;
   }
 

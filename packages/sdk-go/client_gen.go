@@ -77,13 +77,13 @@ func (e AnnotationType) Valid() bool {
 
 // Defines values for ArchivistHealthStatus.
 const (
-	Ok ArchivistHealthStatus = "ok"
+	ArchivistHealthStatusOk ArchivistHealthStatus = "ok"
 )
 
 // Valid indicates whether the value is a known member of the ArchivistHealthStatus enum.
 func (e ArchivistHealthStatus) Valid() bool {
 	switch e {
-	case Ok:
+	case ArchivistHealthStatusOk:
 		return true
 	default:
 		return false
@@ -354,6 +354,81 @@ func (e DiscoveryDocumentVersion) Valid() bool {
 	}
 }
 
+// Defines values for DispatcherConfigLogFormat.
+const (
+	DispatcherConfigLogFormatJson   DispatcherConfigLogFormat = "json"
+	DispatcherConfigLogFormatSimple DispatcherConfigLogFormat = "simple"
+)
+
+// Valid indicates whether the value is a known member of the DispatcherConfigLogFormat enum.
+func (e DispatcherConfigLogFormat) Valid() bool {
+	switch e {
+	case DispatcherConfigLogFormatJson:
+		return true
+	case DispatcherConfigLogFormatSimple:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DispatcherConfigLogLevel.
+const (
+	DispatcherConfigLogLevelDebug DispatcherConfigLogLevel = "debug"
+	DispatcherConfigLogLevelError DispatcherConfigLogLevel = "error"
+	DispatcherConfigLogLevelHttp  DispatcherConfigLogLevel = "http"
+	DispatcherConfigLogLevelInfo  DispatcherConfigLogLevel = "info"
+	DispatcherConfigLogLevelWarn  DispatcherConfigLogLevel = "warn"
+)
+
+// Valid indicates whether the value is a known member of the DispatcherConfigLogLevel enum.
+func (e DispatcherConfigLogLevel) Valid() bool {
+	switch e {
+	case DispatcherConfigLogLevelDebug:
+		return true
+	case DispatcherConfigLogLevelError:
+		return true
+	case DispatcherConfigLogLevelHttp:
+		return true
+	case DispatcherConfigLogLevelInfo:
+		return true
+	case DispatcherConfigLogLevelWarn:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DispatcherHealthQueue.
+const (
+	Jetstream DispatcherHealthQueue = "jetstream"
+)
+
+// Valid indicates whether the value is a known member of the DispatcherHealthQueue enum.
+func (e DispatcherHealthQueue) Valid() bool {
+	switch e {
+	case Jetstream:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DispatcherHealthStatus.
+const (
+	DispatcherHealthStatusOk DispatcherHealthStatus = "ok"
+)
+
+// Valid indicates whether the value is a known member of the DispatcherHealthStatus enum.
+func (e DispatcherHealthStatus) Valid() bool {
+	switch e {
+	case DispatcherHealthStatusOk:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DurabilityEvidence.
 const (
 	Acknowledged     DurabilityEvidence = "acknowledged"
@@ -542,16 +617,16 @@ func (e FragmentSelectorType) Valid() bool {
 
 // Defines values for GatewayConfigLogFormat.
 const (
-	Json   GatewayConfigLogFormat = "json"
-	Simple GatewayConfigLogFormat = "simple"
+	GatewayConfigLogFormatJson   GatewayConfigLogFormat = "json"
+	GatewayConfigLogFormatSimple GatewayConfigLogFormat = "simple"
 )
 
 // Valid indicates whether the value is a known member of the GatewayConfigLogFormat enum.
 func (e GatewayConfigLogFormat) Valid() bool {
 	switch e {
-	case Json:
+	case GatewayConfigLogFormatJson:
 		return true
-	case Simple:
+	case GatewayConfigLogFormatSimple:
 		return true
 	default:
 		return false
@@ -560,25 +635,25 @@ func (e GatewayConfigLogFormat) Valid() bool {
 
 // Defines values for GatewayConfigLogLevel.
 const (
-	Debug GatewayConfigLogLevel = "debug"
-	Error GatewayConfigLogLevel = "error"
-	Http  GatewayConfigLogLevel = "http"
-	Info  GatewayConfigLogLevel = "info"
-	Warn  GatewayConfigLogLevel = "warn"
+	GatewayConfigLogLevelDebug GatewayConfigLogLevel = "debug"
+	GatewayConfigLogLevelError GatewayConfigLogLevel = "error"
+	GatewayConfigLogLevelHttp  GatewayConfigLogLevel = "http"
+	GatewayConfigLogLevelInfo  GatewayConfigLogLevel = "info"
+	GatewayConfigLogLevelWarn  GatewayConfigLogLevel = "warn"
 )
 
 // Valid indicates whether the value is a known member of the GatewayConfigLogLevel enum.
 func (e GatewayConfigLogLevel) Valid() bool {
 	switch e {
-	case Debug:
+	case GatewayConfigLogLevelDebug:
 		return true
-	case Error:
+	case GatewayConfigLogLevelError:
 		return true
-	case Http:
+	case GatewayConfigLogLevelHttp:
 		return true
-	case Info:
+	case GatewayConfigLogLevelInfo:
 		return true
-	case Warn:
+	case GatewayConfigLogLevelWarn:
 		return true
 	default:
 		return false
@@ -696,6 +771,21 @@ func (e JobCancelRequestJobType) Valid() bool {
 	}
 }
 
+// Defines values for JobCancelledStatus.
+const (
+	JobCancelledStatusCancelled JobCancelledStatus = "cancelled"
+)
+
+// Valid indicates whether the value is a known member of the JobCancelledStatus enum.
+func (e JobCancelledStatus) Valid() bool {
+	switch e {
+	case JobCancelledStatusCancelled:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobCommentAnnotationResultKind.
 const (
 	CommentAnnotation JobCommentAnnotationResultKind = "comment-annotation"
@@ -705,6 +795,21 @@ const (
 func (e JobCommentAnnotationResultKind) Valid() bool {
 	switch e {
 	case CommentAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobCompleteStatus.
+const (
+	Complete JobCompleteStatus = "complete"
+)
+
+// Valid indicates whether the value is a known member of the JobCompleteStatus enum.
+func (e JobCompleteStatus) Valid() bool {
+	switch e {
+	case Complete:
 		return true
 	default:
 		return false
@@ -768,6 +873,21 @@ func (e JobDeclinedResultReason) Valid() bool {
 	}
 }
 
+// Defines values for JobFailedStatus.
+const (
+	Failed JobFailedStatus = "failed"
+)
+
+// Valid indicates whether the value is a known member of the JobFailedStatus enum.
+func (e JobFailedStatus) Valid() bool {
+	switch e {
+	case Failed:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobGenerationResultKind.
 const (
 	Generation JobGenerationResultKind = "generation"
@@ -792,6 +912,21 @@ const (
 func (e JobHighlightAnnotationResultKind) Valid() bool {
 	switch e {
 	case HighlightAnnotation:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for JobPendingStatus.
+const (
+	Pending JobPendingStatus = "pending"
+)
+
+// Valid indicates whether the value is a known member of the JobPendingStatus enum.
+func (e JobPendingStatus) Valid() bool {
+	switch e {
+	case Pending:
 		return true
 	default:
 		return false
@@ -1032,27 +1167,42 @@ func (e JobReferenceAnnotationResultKind) Valid() bool {
 	}
 }
 
+// Defines values for JobRunningStatus.
+const (
+	Running JobRunningStatus = "running"
+)
+
+// Valid indicates whether the value is a known member of the JobRunningStatus enum.
+func (e JobRunningStatus) Valid() bool {
+	switch e {
+	case Running:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for JobStatusResponseStatus.
 const (
-	Cancelled JobStatusResponseStatus = "cancelled"
-	Complete  JobStatusResponseStatus = "complete"
-	Failed    JobStatusResponseStatus = "failed"
-	Pending   JobStatusResponseStatus = "pending"
-	Running   JobStatusResponseStatus = "running"
+	JobStatusResponseStatusCancelled JobStatusResponseStatus = "cancelled"
+	JobStatusResponseStatusComplete  JobStatusResponseStatus = "complete"
+	JobStatusResponseStatusFailed    JobStatusResponseStatus = "failed"
+	JobStatusResponseStatusPending   JobStatusResponseStatus = "pending"
+	JobStatusResponseStatusRunning   JobStatusResponseStatus = "running"
 )
 
 // Valid indicates whether the value is a known member of the JobStatusResponseStatus enum.
 func (e JobStatusResponseStatus) Valid() bool {
 	switch e {
-	case Cancelled:
+	case JobStatusResponseStatusCancelled:
 		return true
-	case Complete:
+	case JobStatusResponseStatusComplete:
 		return true
-	case Failed:
+	case JobStatusResponseStatusFailed:
 		return true
-	case Pending:
+	case JobStatusResponseStatusPending:
 		return true
-	case Running:
+	case JobStatusResponseStatusRunning:
 		return true
 	default:
 		return false
@@ -2415,6 +2565,82 @@ type DiscoveryDocument struct {
 // DiscoveryDocumentVersion Document schema version. Consumers MUST check it and ignore documents they do not understand.
 type DiscoveryDocumentVersion int
 
+// DispatcherConfig Everything the dispatcher reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the environment the knowledge base's config selects, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. Its other inputs are its service account (`SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`) and the telemetry variables every service reads. A document that does not validate is refused at boot, naming each failing field.
+type DispatcherConfig struct {
+	// GatewayUrl The URL the dispatcher reaches the gateway at: its only route to the bus.
+	GatewayUrl string `json:"gatewayUrl"`
+
+	// Identity The issuer the dispatcher's service account signs in at.
+	Identity struct {
+		// Issuer The issuer URL, exactly as tokens carry it in `iss`.
+		Issuer string `json:"issuer"`
+	} `json:"identity"`
+
+	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+	LogFormat DispatcherConfigLogFormat `json:"logFormat"`
+
+	// LogLevel The least severe level written.
+	LogLevel DispatcherConfigLogLevel `json:"logLevel"`
+
+	// Port The port the dispatcher answers `/health` on.
+	Port int `json:"port"`
+
+	// Queue The JetStream broker holding the job queue, whose layout is specs/src/jobs/storage.json.
+	Queue struct {
+		// PasswordEnv The environment variable holding the broker password, when the broker requires one.
+		PasswordEnv *string `json:"passwordEnv,omitempty"`
+
+		// Servers The broker's address (`host:port`, or several, comma-separated).
+		Servers string `json:"servers"`
+
+		// UserEnv The environment variable holding the broker user, when the broker requires one.
+		UserEnv *string `json:"userEnv,omitempty"`
+	} `json:"queue"`
+
+	// Timing The queue's clocks, in milliseconds. The launcher writes the values a deployment runs with; a test harness shrinks them.
+	Timing struct {
+		// AckWaitMs How long the broker waits, after this dispatcher stops renewing a job's lease, before redelivering its message.
+		AckWaitMs int `json:"ackWaitMs"`
+
+		// BootDeadlineMs How long the dispatcher waits at boot for the broker before it exits, so that a restart policy can retry.
+		BootDeadlineMs int `json:"bootDeadlineMs"`
+
+		// ProgressWriteIntervalMs The least time between two progress writes for one job; reports closer together than this are not written.
+		ProgressWriteIntervalMs int `json:"progressWriteIntervalMs"`
+
+		// RetentionMs How long a concluded job is kept before it is deleted.
+		RetentionMs int `json:"retentionMs"`
+
+		// RetentionSweepMs How often concluded jobs past `retentionMs` are deleted.
+		RetentionSweepMs int `json:"retentionSweepMs"`
+
+		// StaleRunningMs How long a running job may go without progress, a checkpoint or a claim before its worker is presumed dead.
+		StaleRunningMs int `json:"staleRunningMs"`
+
+		// TickMs How often the queue re-announces pending jobs and sweeps for dead workers. The re-announcement is insurance against a lost wake-up, not dispatch.
+		TickMs int `json:"tickMs"`
+	} `json:"timing"`
+}
+
+// DispatcherConfigLogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+type DispatcherConfigLogFormat string
+
+// DispatcherConfigLogLevel The least severe level written.
+type DispatcherConfigLogLevel string
+
+// DispatcherHealth The dispatcher's liveness answer. It answers only once its queue has connected and its bus pumps are attached, so a 200 means it can take work.
+type DispatcherHealth struct {
+	// Queue The queue it holds.
+	Queue  DispatcherHealthQueue  `json:"queue"`
+	Status DispatcherHealthStatus `json:"status"`
+}
+
+// DispatcherHealthQueue The queue it holds.
+type DispatcherHealthQueue string
+
+// DispatcherHealthStatus defines model for DispatcherHealth.Status.
+type DispatcherHealthStatus string
+
 // DurabilityEvidence How a job's annotations were established as durable — the OBSERVATION, never a conclusion drawn from it. 'acknowledged': the event log confirmed the batch (mark:commit-ok). 'probe-confirmed': the acknowledgement was lost and a later read found the batch's last annotation present — true, but a weaker claim than an ack, since it rests on the log appending a batch in order and stopping at the first failure. 'probe-refused': the read returned a failure reply; note this does NOT assert the annotations are absent, because a read that failed for its own reasons answers on the same channel. 'probe-unreachable': no answer came at all, so nothing was established either way. ABSENT means the question never arose — a job that committed no annotations. Never defaulted: a manufactured value here is a claim nobody made, in a log nobody can rewrite.
 type DurabilityEvidence string
 
@@ -3046,6 +3272,11 @@ type InferencePairLimits struct {
 	Provider string `json:"provider"`
 }
 
+// Job A job as the dispatcher holds it. Its `status` decides which timestamps and outcome fields it carries. It is what a claim returns (`job:claimed`, always `running`) and what the queue stores, inside a JobRecord.
+type Job struct {
+	union json.RawMessage
+}
+
 // JobAssessmentAnnotationResult Result of a completed assessment-annotation job.
 type JobAssessmentAnnotationResult struct {
 	AssessmentsCreated int `json:"assessmentsCreated"`
@@ -3115,7 +3346,7 @@ type JobCancelCommand struct {
 
 // JobCancelRequest Request to cancel a job. Target one running or pending job by `jobId` (JOB-RESTART-SAFETY P4), or a whole category of pending jobs by `jobType`. A `jobId`-targeted request that names a RUNNING job is honoured cooperatively by the owning worker, which stops at its next unit boundary and emits JobCancelCommand — the queue is never made to yank a running job out from under a live worker.
 type JobCancelRequest struct {
-	// JobId Cancel this one job. A pending job is cancelled immediately by the gateway; a running job is cancelled cooperatively by its worker. Takes precedence over jobType.
+	// JobId Cancel this one job. A pending job is cancelled immediately by the dispatcher; a running job is cancelled cooperatively by its worker. Takes precedence over jobType.
 	JobId *string `json:"jobId,omitempty"`
 
 	// JobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
@@ -3124,6 +3355,25 @@ type JobCancelRequest struct {
 
 // JobCancelRequestJobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
 type JobCancelRequestJobType string
+
+// JobCancelled A job cancelled before it concluded.
+type JobCancelled struct {
+	// CompletedAt When it was cancelled.
+	CompletedAt string `json:"completedAt"`
+
+	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
+	Metadata JobMetadata `json:"metadata"`
+
+	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	Params JobParams `json:"params"`
+
+	// StartedAt When its claim was made; absent when it was cancelled while pending.
+	StartedAt *string            `json:"startedAt,omitempty"`
+	Status    JobCancelledStatus `json:"status"`
+}
+
+// JobCancelledStatus defines model for JobCancelled.Status.
+type JobCancelledStatus string
 
 // JobCheckpointCommand Command to persist a running job's completed-unit checkpoint AT unit completion (JOB-RESTART-SAFETY P2). Distinct from JobFailCommand's checkpoint, which lands only on a clean failure: a worker that dies (crash/OOM/kill) never emits job:fail, so this durable, unthrottled write is what lets the janitor's stale-running recovery resume a dead worker's job rather than redo its finished units.
 type JobCheckpointCommand struct {
@@ -3148,6 +3398,12 @@ type JobClaimCommand struct {
 	Types            []string `json:"types"`
 }
 
+// JobClaimedResult The reply to a successful `job:claim`: the claimed job, now running under the claimant.
+type JobClaimedResult struct {
+	// Response A job a worker has claimed and not yet concluded.
+	Response JobRunning `json:"response"`
+}
+
 // JobCommentAnnotationResult Result of a completed comment-annotation job.
 type JobCommentAnnotationResult struct {
 	CommentsCreated int `json:"commentsCreated"`
@@ -3159,6 +3415,36 @@ type JobCommentAnnotationResult struct {
 
 // JobCommentAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 type JobCommentAnnotationResultKind string
+
+// JobComplete A job its worker completed.
+type JobComplete struct {
+	// CompletedAt When it completed.
+	CompletedAt string `json:"completedAt"`
+
+	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
+	Metadata JobMetadata `json:"metadata"`
+
+	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	Params JobParams `json:"params"`
+
+	// Result The result its worker reported with `job:complete`, or an empty object when it reported none.
+	Result JobComplete_Result `json:"result"`
+
+	// StartedAt When the claim that completed it was made.
+	StartedAt string            `json:"startedAt"`
+	Status    JobCompleteStatus `json:"status"`
+}
+
+// JobCompleteResult1 defines model for .
+type JobCompleteResult1 = map[string]interface{}
+
+// JobComplete_Result The result its worker reported with `job:complete`, or an empty object when it reported none.
+type JobComplete_Result struct {
+	union json.RawMessage
+}
+
+// JobCompleteStatus defines model for JobComplete.Status.
+type JobCompleteStatus string
 
 // JobCompleteCommand Command to mark a job as complete
 type JobCompleteCommand struct {
@@ -3286,6 +3572,28 @@ type JobFailCommand struct {
 	WillRetry *bool `json:"willRetry,omitempty"`
 }
 
+// JobFailed A job that failed and will not be retried.
+type JobFailed struct {
+	// CompletedAt When it failed.
+	CompletedAt string `json:"completedAt"`
+
+	// Error The failure's message.
+	Error string `json:"error"`
+
+	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
+	Metadata JobMetadata `json:"metadata"`
+
+	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	Params JobParams `json:"params"`
+
+	// StartedAt When the last claim was made; absent when it failed without one.
+	StartedAt *string         `json:"startedAt,omitempty"`
+	Status    JobFailedStatus `json:"status"`
+}
+
+// JobFailedStatus defines model for JobFailed.Status.
+type JobFailedStatus string
+
 // JobFailedPayload Payload for the job:failed domain event — a permanent fact of the resource, not operational state. It carries the judgments the worker COMPUTED, not just its message: at the log they are otherwise unrecoverable, the only remaining witness being a flattened English string.
 type JobFailedPayload struct {
 	// AnnotationId Annotation this job was attached to, when applicable
@@ -3338,6 +3646,50 @@ type JobHighlightAnnotationResult struct {
 
 // JobHighlightAnnotationResultKind Discriminant — every JobResult member carries `kind`, single-valued, so a consumer holding only the result can tell what it is (WIRE-UNION-DISCRIMINANTS D1).
 type JobHighlightAnnotationResultKind string
+
+// JobMetadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
+type JobMetadata struct {
+	// CompletedUnits The units a worker has finished, merged across checkpoints and failures as a set.
+	CompletedUnits *[]string `json:"completedUnits,omitempty"`
+
+	// Created When the job was created, as an ISO 8601 timestamp.
+	Created string `json:"created"`
+
+	// Id The job's id: `job-` followed by a UUID.
+	Id string `json:"id"`
+
+	// MaxRetries How many transient failures the queue retries: 0 for generation, whose re-run produces different content; 1 for every other type.
+	MaxRetries int `json:"maxRetries"`
+	RetryCount int `json:"retryCount"`
+
+	// Type Type of background job
+	Type JobType `json:"type"`
+
+	// UnitCursors How far each unfinished unit got, keyed by unit.
+	UnitCursors *map[string]UnitCursor `json:"unitCursors,omitempty"`
+
+	// UserId The DID of the principal whose `job:create` created the job.
+	UserId string `json:"userId"`
+}
+
+// JobParams The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+type JobParams struct {
+	ResourceId           string                 `json:"resourceId"`
+	AdditionalProperties map[string]interface{} `json:"-"`
+}
+
+// JobPending A job waiting for a worker to claim it.
+type JobPending struct {
+	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
+	Metadata JobMetadata `json:"metadata"`
+
+	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	Params JobParams        `json:"params"`
+	Status JobPendingStatus `json:"status"`
+}
+
+// JobPendingStatus defines model for JobPending.Status.
+type JobPendingStatus string
 
 // JobProgress Progress report from a running job. The required field is `percentage`; `message` carries the coded phase and the rest are optional job-shape fields. This is the single progress shape for every job type — annotation workers and generation alike. `stage` and `currentEntityType` were REMOVED (ASSIST-PROGRESS-CONSOLIDATION P5): both were redundant denormalization of `message`. Terminality is signalled on `job:complete` / `job:fail`, not here. The per-flow progress vocabularies (`processedEntityTypes`/`totalEntityTypes` for references, `processedCategories`/`totalCategories`/`currentCategory` for tags) were replaced by one `current`/`processed`/`total` triple (CLEAN-PROGRESS D2): both flows iterate a user-chosen list, so they report the same shape and the client stops guessing which flow it is drawing.
 type JobProgress struct {
@@ -3530,6 +3882,15 @@ type JobQueuedEvent struct {
 	UserId string `json:"userId"`
 }
 
+// JobRecord One job as the queue stores it: the job, and when it last showed life. The dead-worker sweep reads `lastProgressAt`: a running job whose worker has reported nothing for the configured interval is presumed dead. Where the queue keeps these records is the job storage layout, specs/src/jobs/storage.json.
+type JobRecord struct {
+	// Job A job as the dispatcher holds it. Its `status` decides which timestamps and outcome fields it carries. It is what a claim returns (`job:claimed`, always `running`) and what the queue stores, inside a JobRecord.
+	Job Job `json:"job"`
+
+	// LastProgressAt When the job was created, claimed, checkpointed or last reported progress, as an ISO 8601 timestamp.
+	LastProgressAt string `json:"lastProgressAt"`
+}
+
 // JobReferenceAnnotationResult Result of a completed reference-annotation job.
 type JobReferenceAnnotationResult struct {
 	// Errors Number of errors encountered
@@ -3576,6 +3937,33 @@ type JobReportProgressCommand struct {
 type JobResult struct {
 	union json.RawMessage
 }
+
+// JobRunning A job a worker has claimed and not yet concluded.
+type JobRunning struct {
+	// Metadata What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.
+	Metadata JobMetadata `json:"metadata"`
+
+	// Params The parameters a job was created with: the `params` of its `job:create`, with the resource the job is about under `resourceId`. For generation the dispatcher derives that resource from the context's focus; for every other type it is the request's `resourceId`. The other fields depend on the job type and are carried as the caller sent them.
+	Params JobParams `json:"params"`
+
+	// Progress The last progress the worker reported, or an empty object before its first report.
+	Progress JobRunning_Progress `json:"progress"`
+
+	// StartedAt When the claim that holds it was made, as an ISO 8601 timestamp.
+	StartedAt string           `json:"startedAt"`
+	Status    JobRunningStatus `json:"status"`
+}
+
+// JobRunningProgress1 defines model for .
+type JobRunningProgress1 = map[string]interface{}
+
+// JobRunning_Progress The last progress the worker reported, or an empty object before its first report.
+type JobRunning_Progress struct {
+	union json.RawMessage
+}
+
+// JobRunningStatus defines model for JobRunning.Status.
+type JobRunningStatus string
 
 // JobStartCommand Command to start a job
 type JobStartCommand struct {
@@ -5483,6 +5871,72 @@ func (a AgentSoftware) MarshalJSON() ([]byte, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error marshaling 'provider': %w", err)
 		}
+	}
+
+	for fieldName, field := range a.AdditionalProperties {
+		object[fieldName], err = json.Marshal(field)
+		if err != nil {
+			return nil, fmt.Errorf("error marshaling '%s': %w", fieldName, err)
+		}
+	}
+	return json.Marshal(object)
+}
+
+// Getter for additional properties for JobParams. Returns the specified
+// element and whether it was found
+func (a JobParams) Get(fieldName string) (value interface{}, found bool) {
+	if a.AdditionalProperties != nil {
+		value, found = a.AdditionalProperties[fieldName]
+	}
+	return
+}
+
+// Setter for additional properties for JobParams
+func (a *JobParams) Set(fieldName string, value interface{}) {
+	if a.AdditionalProperties == nil {
+		a.AdditionalProperties = make(map[string]interface{})
+	}
+	a.AdditionalProperties[fieldName] = value
+}
+
+// Override default JSON handling for JobParams to handle AdditionalProperties
+func (a *JobParams) UnmarshalJSON(b []byte) error {
+	object := make(map[string]json.RawMessage)
+	err := json.Unmarshal(b, &object)
+	if err != nil {
+		return err
+	}
+
+	if raw, found := object["resourceId"]; found {
+		err = json.Unmarshal(raw, &a.ResourceId)
+		if err != nil {
+			return fmt.Errorf("error reading 'resourceId': %w", err)
+		}
+		delete(object, "resourceId")
+	}
+
+	if len(object) != 0 {
+		a.AdditionalProperties = make(map[string]interface{})
+		for fieldName, fieldBuf := range object {
+			var fieldVal interface{}
+			err := json.Unmarshal(fieldBuf, &fieldVal)
+			if err != nil {
+				return fmt.Errorf("error unmarshaling field %s: %w", fieldName, err)
+			}
+			a.AdditionalProperties[fieldName] = fieldVal
+		}
+	}
+	return nil
+}
+
+// Override default JSON handling for JobParams to handle AdditionalProperties
+func (a JobParams) MarshalJSON() ([]byte, error) {
+	var err error
+	object := make(map[string]json.RawMessage)
+
+	object["resourceId"], err = json.Marshal(a.ResourceId)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling 'resourceId': %w", err)
 	}
 
 	for fieldName, field := range a.AdditionalProperties {
@@ -8511,6 +8965,247 @@ func (t *GatheredContext_Focus) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsJobPending returns the union data inside the Job as a JobPending
+func (t Job) AsJobPending() (JobPending, error) {
+	var body JobPending
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobPending overwrites any union data inside the Job as the provided JobPending
+func (t *Job) FromJobPending(v JobPending) error {
+	v.Status = "pending"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobPending performs a merge with any union data inside the Job, using the provided JobPending
+func (t *Job) MergeJobPending(v JobPending) error {
+	v.Status = "pending"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobRunning returns the union data inside the Job as a JobRunning
+func (t Job) AsJobRunning() (JobRunning, error) {
+	var body JobRunning
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobRunning overwrites any union data inside the Job as the provided JobRunning
+func (t *Job) FromJobRunning(v JobRunning) error {
+	v.Status = "running"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobRunning performs a merge with any union data inside the Job, using the provided JobRunning
+func (t *Job) MergeJobRunning(v JobRunning) error {
+	v.Status = "running"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobComplete returns the union data inside the Job as a JobComplete
+func (t Job) AsJobComplete() (JobComplete, error) {
+	var body JobComplete
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobComplete overwrites any union data inside the Job as the provided JobComplete
+func (t *Job) FromJobComplete(v JobComplete) error {
+	v.Status = "complete"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobComplete performs a merge with any union data inside the Job, using the provided JobComplete
+func (t *Job) MergeJobComplete(v JobComplete) error {
+	v.Status = "complete"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobFailed returns the union data inside the Job as a JobFailed
+func (t Job) AsJobFailed() (JobFailed, error) {
+	var body JobFailed
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobFailed overwrites any union data inside the Job as the provided JobFailed
+func (t *Job) FromJobFailed(v JobFailed) error {
+	v.Status = "failed"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobFailed performs a merge with any union data inside the Job, using the provided JobFailed
+func (t *Job) MergeJobFailed(v JobFailed) error {
+	v.Status = "failed"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobCancelled returns the union data inside the Job as a JobCancelled
+func (t Job) AsJobCancelled() (JobCancelled, error) {
+	var body JobCancelled
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobCancelled overwrites any union data inside the Job as the provided JobCancelled
+func (t *Job) FromJobCancelled(v JobCancelled) error {
+	v.Status = "cancelled"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobCancelled performs a merge with any union data inside the Job, using the provided JobCancelled
+func (t *Job) MergeJobCancelled(v JobCancelled) error {
+	v.Status = "cancelled"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Job) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"status"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t Job) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "cancelled":
+		return t.AsJobCancelled()
+	case "complete":
+		return t.AsJobComplete()
+	case "failed":
+		return t.AsJobFailed()
+	case "pending":
+		return t.AsJobPending()
+	case "running":
+		return t.AsJobRunning()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t Job) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Job) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobResult returns the union data inside the JobComplete_Result as a JobResult
+func (t JobComplete_Result) AsJobResult() (JobResult, error) {
+	var body JobResult
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobResult overwrites any union data inside the JobComplete_Result as the provided JobResult
+func (t *JobComplete_Result) FromJobResult(v JobResult) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobResult performs a merge with any union data inside the JobComplete_Result, using the provided JobResult
+func (t *JobComplete_Result) MergeJobResult(v JobResult) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobCompleteResult1 returns the union data inside the JobComplete_Result as a JobCompleteResult1
+func (t JobComplete_Result) AsJobCompleteResult1() (JobCompleteResult1, error) {
+	var body JobCompleteResult1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobCompleteResult1 overwrites any union data inside the JobComplete_Result as the provided JobCompleteResult1
+func (t *JobComplete_Result) FromJobCompleteResult1(v JobCompleteResult1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobCompleteResult1 performs a merge with any union data inside the JobComplete_Result, using the provided JobCompleteResult1
+func (t *JobComplete_Result) MergeJobCompleteResult1(v JobCompleteResult1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobComplete_Result) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobComplete_Result) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsJobProgressLoading returns the union data inside the JobProgressMessage as a JobProgressLoading
 func (t JobProgressMessage) AsJobProgressLoading() (JobProgressLoading, error) {
 	var body JobProgressLoading
@@ -9075,6 +9770,68 @@ func (t JobResult) MarshalJSON() ([]byte, error) {
 }
 
 func (t *JobResult) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsJobProgress returns the union data inside the JobRunning_Progress as a JobProgress
+func (t JobRunning_Progress) AsJobProgress() (JobProgress, error) {
+	var body JobProgress
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobProgress overwrites any union data inside the JobRunning_Progress as the provided JobProgress
+func (t *JobRunning_Progress) FromJobProgress(v JobProgress) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobProgress performs a merge with any union data inside the JobRunning_Progress, using the provided JobProgress
+func (t *JobRunning_Progress) MergeJobProgress(v JobProgress) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsJobRunningProgress1 returns the union data inside the JobRunning_Progress as a JobRunningProgress1
+func (t JobRunning_Progress) AsJobRunningProgress1() (JobRunningProgress1, error) {
+	var body JobRunningProgress1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromJobRunningProgress1 overwrites any union data inside the JobRunning_Progress as the provided JobRunningProgress1
+func (t *JobRunning_Progress) FromJobRunningProgress1(v JobRunningProgress1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeJobRunningProgress1 performs a merge with any union data inside the JobRunning_Progress, using the provided JobRunningProgress1
+func (t *JobRunning_Progress) MergeJobRunningProgress1(v JobRunningProgress1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t JobRunning_Progress) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *JobRunning_Progress) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

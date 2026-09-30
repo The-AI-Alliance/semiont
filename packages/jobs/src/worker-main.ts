@@ -40,13 +40,8 @@ import { createServer } from 'http';
 import { readFileSync, existsSync } from 'fs';
 import { homedir } from 'os';
 import { join } from 'path';
-import { createTomlConfigLoader, type EnvironmentConfig } from '@semiont/core';
+import { createTomlConfigLoader, JOB_TYPES, type EnvironmentConfig } from '@semiont/core';
 import { archivistContentReads } from '@semiont/content';
-
-const ALL_JOB_TYPES = [
-  'reference-annotation', 'generation', 'highlight-annotation',
-  'assessment-annotation', 'comment-annotation', 'tag-annotation',
-];
 
 // ── Load config via the canonical TOML loader ─────────────────────────
 
@@ -134,7 +129,7 @@ function toClientConfig(w: ResolvedInference): InferenceClientConfig {
 }
 
 const groups = new Map<string, AgentGroup>();
-for (const jobType of ALL_JOB_TYPES) {
+for (const jobType of JOB_TYPES) {
   const inference = resolveWorker(jobType);
   const key = clientKey(inference);
   let group = groups.get(key);

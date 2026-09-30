@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "The reply to a successful `job:claim`: the claimed job, now running under the claimant.",
+  "properties": {
+    "response": {
+      "$ref": "./JobRunning.json"
+    }
+  },
+  "required": [
+    "response"
+  ],
+  "additionalProperties": false
+}

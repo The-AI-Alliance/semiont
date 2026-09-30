@@ -4,7 +4,7 @@
   "properties": {
     "jobId": {
       "type": "string",
-      "description": "Cancel this one job. A pending job is cancelled immediately by the gateway; a running job is cancelled cooperatively by its worker. Takes precedence over jobType."
+      "description": "Cancel this one job. A pending job is cancelled immediately by the dispatcher; a running job is cancelled cooperatively by its worker. Takes precedence over jobType."
     },
     "jobType": {
       "type": "string",

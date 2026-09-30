@@ -111,7 +111,7 @@ jobs:
             platforms: linux/amd64,linux/arm64
             dockerfile: apps/dispatcher/Dockerfile
             installs: npm
-            refusal: No environment selected
+            refusal: Cannot read the dispatcher's configuration document
 
     steps:
       - name: Checkout repository

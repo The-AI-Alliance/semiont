@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "description": "A job its worker completed.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "complete"
+      ]
+    },
+    "metadata": {
+      "$ref": "./JobMetadata.json"
+    },
+    "params": {
+      "$ref": "./JobParams.json"
+    },
+    "startedAt": {
+      "type": "string",
+      "description": "When the claim that completed it was made."
+    },
+    "completedAt": {
+      "type": "string",
+      "description": "When it completed."
+    },
+    "result": {
+      "description": "The result its worker reported with `job:complete`, or an empty object when it reported none.",
+      "anyOf": [
+        {
+          "$ref": "./JobResult.json"
+        },
+        {
+          "type": "object",
+          "maxProperties": 0
+        }
+      ]
+    }
+  },
+  "required": [
+    "status",
+    "metadata",
+    "params",
+    "startedAt",
+    "completedAt",
+    "result"
+  ],
+  "additionalProperties": false
+}

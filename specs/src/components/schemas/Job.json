@@ -1,0 +1,30 @@
+{
+  "description": "A job as the dispatcher holds it. Its `status` decides which timestamps and outcome fields it carries. It is what a claim returns (`job:claimed`, always `running`) and what the queue stores, inside a JobRecord.",
+  "oneOf": [
+    {
+      "$ref": "./JobPending.json"
+    },
+    {
+      "$ref": "./JobRunning.json"
+    },
+    {
+      "$ref": "./JobComplete.json"
+    },
+    {
+      "$ref": "./JobFailed.json"
+    },
+    {
+      "$ref": "./JobCancelled.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "status",
+    "mapping": {
+      "pending": "./JobPending.json",
+      "running": "./JobRunning.json",
+      "complete": "./JobComplete.json",
+      "failed": "./JobFailed.json",
+      "cancelled": "./JobCancelled.json"
+    }
+  }
+}

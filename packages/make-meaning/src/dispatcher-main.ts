@@ -22,30 +22,30 @@
  *   out — DISPATCHER_OUTBOUND_CHANNELS: every reply DERIVED from BUS_OPERATIONS
  *         over the inbound set, plus the queue's own `job:queued` broadcast.
  *
- * No KB mount, no graph, no vectors, no views, no content — and since D7 moved
- * its two projection reads onto the bus, no state mount either: unlike the other
- * make-meaning sidecars, the dispatcher touches none of the knowledge system and
- * mounts nothing. It needs the gateway (its token and the plane) and the
- * messaging broker (the JetStream queue). The fs job driver would still want a
- * writable state tree, but the deployed config is jetstream; an fs driver
- * reached without a mount fails loud in `stateDirFor` rather than writing to a
- * fabricated home.
+ * No KB mount, no graph, no vectors, no views, no content, no state mount:
+ * unlike the other make-meaning sidecars, the dispatcher touches none of the
+ * knowledge system and mounts nothing. It needs the gateway (its token and the
+ * plane) and the messaging broker (the JetStream queue), both named by its
+ * configuration document.
  *
- * Environment variables:
+ * Inputs:
+ *   --config <path>            — its configuration document (DispatcherConfig in
+ *                                the spec); the image passes /etc/semiont/dispatcher.json.
  *   SEMIONT_OIDC_CLIENT_ID     — this process's own account at the KB's
  *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the gateway.
+ *   the broker credentials     — the variables the document's `queue` names.
  */
 
 import { Subscription } from 'rxjs';
 import { createServer } from 'http';
 import { HttpTransport } from '@semiont/http-transport';
 import { EventBus, baseUrl as makeBaseUrl, withDeadline } from '@semiont/core';
-import { loadEnvironmentConfig } from '@semiont/core/node';
+import { JetStreamJobQueue } from '@semiont/jobs';
 import { registerJobQueueProvider } from '@semiont/observability';
 import { createProcessLogger } from '@semiont/observability/process-logger';
 import { startAgentSession } from './agent-session';
-import { jobQueueFor, STARTUP_CONNECT_TIMEOUT_MS, RESTART_HINT } from './service';
-import { makeMeaningConfigFrom } from './config';
+import { RESTART_HINT } from './service';
+import { configPathFrom, readDispatcherConfig, namedSecret, type DispatcherConfig } from './dispatcher-config';
 import { registerJobCommandHandlers } from './handlers/job-commands';
 import { DISPATCHER_INBOUND_CHANNELS, DISPATCHER_OUTBOUND_CHANNELS, DISPATCHER_REPLY_CHANNELS } from './service-channels';
 import { projectionReadsOverBus } from './projection-reads-ask';
@@ -53,45 +53,33 @@ import { attachServicePumps } from './service-pumps';
 
 // ── Config ───────────────────────────────────────────────────────────
 //
-// No project root: the dispatcher has no KB mount, so everything it needs
-// rides the staged config (~/.semiontconfig in the container). `[services.jobs]`
-// selects the driver and names `${NATS_HOST}` for the JetStream one.
-const envConfig = loadEnvironmentConfig(null, { service: 'dispatcher' });
-
-const gatewayPublicURL = envConfig.services?.gateway?.publicURL;
-if (!gatewayPublicURL) {
-  throw new Error('services.gateway.publicURL is required in environment config');
+// One document, named by `--config` and validated against DispatcherConfig in
+// the spec; the launcher writes it resolved. The service account is the only
+// other input it reads by name, and the broker's credentials are the
+// variables the document names. A refusal here ends the process before it
+// serves, with the reason on stderr.
+function loadConfig(): DispatcherConfig {
+  try {
+    return readDispatcherConfig(configPathFrom(process.argv.slice(2)));
+  } catch (error) {
+    process.stderr.write(`[fatal] ${(error as Error).message}\n`);
+    process.exit(1);
+  }
 }
-const baseUrl: string = gatewayPublicURL;
-
-// The KB name is read OPTIONALLY, not required: since D7 moved the projection
-// reads onto the bus and the mount was dropped, the deployed jetstream
-// dispatcher holds no state tree and does not name the KB — like the Smelter
-// and Worker, and unlike the Librarian, it is absent from the launcher's
-// `kbIdentityStaged`, so its config carries no `[kb] name`. Only the fs job
-// driver needs one, and `jobQueueFor` demands it there.
-const kbName = envConfig.kb?.name;
-const config = makeMeaningConfigFrom(envConfig);
+const config = loadConfig();
 
 /**
  * This process's own account at the issuer. The credential authenticates the
  * PROCESS; the agent DID it buys names the WORK. See `startAgentSession`.
  */
-const issuerUrl = envConfig.services?.identity?.issuer;
-if (!issuerUrl) {
-  throw new Error('services.identity.issuer is required: a sidecar authenticates at the knowledge base\'s issuer');
-}
 const clientId = process.env.SEMIONT_OIDC_CLIENT_ID;
 const clientSecret = process.env.SEMIONT_OIDC_CLIENT_SECRET;
 if (!clientId || !clientSecret) {
   throw new Error('SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are required to authenticate as a service account');
 }
-const credential = { issuer: issuerUrl, clientId, clientSecret };
+const credential = { issuer: config.identity.issuer, clientId, clientSecret };
 
-/** Claimed as a portNeed in the launcher: worker 24100, smelter 24101, weaver 24102, archivist 24103, librarian 24104. */
-const healthPort = 24105;
-
-const logger = createProcessLogger('dispatcher');
+const logger = createProcessLogger('dispatcher', { level: config.logLevel, format: config.logFormat });
 
 // ── Main ─────────────────────────────────────────────────────────────
 
@@ -104,7 +92,7 @@ async function main() {
   // for the control plane, the same shape the Archivist and Librarian use.
   // The token's lifetime and refresh cadence are the gateway's to decide.
   const session = await startAgentSession({
-    baseUrl,
+    baseUrl: config.gatewayUrl,
     credential,
     provider: 'semiont',
     model: 'dispatcher',
@@ -114,18 +102,22 @@ async function main() {
   const localBus = new EventBus();
 
   // ── The queue ──────────────────────────────────────────────────────
-  // Selected from config (jetstream in the deployed fleet). Its initialize()
-  // connects to the messaging broker, so it takes the boot deadline: a slow
+  // JetStream, on the broker and with the clocks the document names. Its
+  // initialize() connects to the broker, so it takes the boot deadline: a slow
   // dependency on a restart-everything-at-once resume must make the process
   // EXIT rather than hang unhealthy (the archivist-main pattern).
-  //
-  // Only the KB NAME goes in: the JetStream driver holds no state tree, so the
-  // deployed (jetstream) dispatcher needs no state mount. Only the fs driver
-  // builds a `SemiontState` — inside `jobQueueFor`, from this name — and an fs
-  // driver reached without a mount fails loud there rather than writing to a
-  // fabricated home (D7 removed the last non-fs reason for the mount).
-  const jobQueue = jobQueueFor(config.services.jobs, kbName, logger.child({ component: 'job-queue' }), localBus);
-  await withDeadline('Job queue', STARTUP_CONNECT_TIMEOUT_MS, () => jobQueue.initialize(), RESTART_HINT);
+  const jobQueue = new JetStreamJobQueue({
+    servers: config.queue.servers,
+    user: namedSecret('queue.userEnv', config.queue.userEnv),
+    pass: namedSecret('queue.passwordEnv', config.queue.passwordEnv),
+    tickMs: config.timing.tickMs,
+    staleRunningMs: config.timing.staleRunningMs,
+    ackWaitMs: config.timing.ackWaitMs,
+    retentionMs: config.timing.retentionMs,
+    retentionSweepMs: config.timing.retentionSweepMs,
+    progressWriteIntervalMs: config.timing.progressWriteIntervalMs,
+  }, logger.child({ component: 'job-queue' }), localBus);
+  await withDeadline('Job queue', config.timing.bootDeadlineMs, () => jobQueue.initialize(), RESTART_HINT);
 
   // Tier-3 observability: queue size by status. Exported by THIS process now,
   // not the gateway (the metrics moved with the queue).
@@ -138,7 +130,7 @@ async function main() {
   // failure mode; `busRequest`'s isSubscribed probe fails fast if a reply
   // channel is missing from this set.
   const httpTransport = new HttpTransport({
-    baseUrl: makeBaseUrl(baseUrl),
+    baseUrl: makeBaseUrl(config.gatewayUrl),
     token$: session.token$,
     tokenRefresher: session.refresh,
     channels: [...DISPATCHER_INBOUND_CHANNELS, ...DISPATCHER_REPLY_CHANNELS],
@@ -169,14 +161,14 @@ async function main() {
   const server = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ status: 'ok', queue: config.services.jobs?.type ?? 'fs' }));
+      res.end(JSON.stringify({ status: 'ok', queue: 'jetstream' }));
       return;
     }
     res.writeHead(404);
     res.end();
   });
-  server.listen(healthPort, () => {
-    logger.info('Dispatcher HTTP surface ready', { port: healthPort, paths: ['/health'] });
+  server.listen(config.port, () => {
+    logger.info('Dispatcher HTTP surface ready', { port: config.port, paths: ['/health'] });
   });
 
   const shutdown = () => {

@@ -33,9 +33,10 @@ container rm semiont-prometheus
 container stop semiont-jaeger
 container rm semiont-jaeger
 # remove staged config copies: /tmp/semiont-config.*
-# require free ports: 7474 7687 6333 5432 8080 4000 24100 24101 24102 24103 24104 4318 24110 16686 14318 9090
+# require free ports: 7474 7687 6333 5432 4222 8080 4000 24100 24101 24102 24103 24104 4318 24110 16686 14318 9090
 # write <config-stage>/gateway.json (the gateway's configuration document: GatewayConfig, resolved)
-# stage per-service config copies under <config-stage>: archivist.toml librarian.toml dispatcher.toml worker.toml smelter.toml weaver.toml
+# write <config-stage>/dispatcher.json (the dispatcher's configuration document: DispatcherConfig, resolved)
+# stage per-service config copies under <config-stage>: archivist.toml librarian.toml worker.toml smelter.toml weaver.toml
 # write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)
 # write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)
 # append [environments.local.archivist] host/port (launcher-staged topology) to librarian.toml
@@ -60,7 +61,11 @@ container run -d --name semiont-postgres --memory 1G -p 5432:5432 -v <home>/.loc
 # wait: tcp localhost:5432 (20s)
 # probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 5432
 # wait: container exec semiont-postgres pg_isready -h 127.0.0.1 (30s) — the REAL server; initdb's temporary one answers the socket only
-# messaging: nothing to launch (jobs: fs driver; signal: in-process)
+# messaging state: <home>/.local/share/semiont/roots/example.github.io-test-kb/nats (created if absent; reused across restarts)
+# stage the broker's authorization block (no credential in it — the daemon interpolates $NATS_USER/$NATS_PASSWORD from its own environment)
+container run -d --name semiont-nats --memory 512M -p 4222:4222 -v <home>/.local/share/semiont/roots/example.github.io-test-kb/nats:/data -v <stage>/nats-semiont.conf:/etc/nats/semiont.conf:ro -e NATS_USER -e NATS_PASSWORD nats:2.14.0-alpine -js -sd /data -c /etc/nats/semiont.conf
+# wait: tcp localhost:4222 (15s)
+# probe: container run --rm busybox:1.38.0 nc -z -w 2 <host-addr> 4222
 # create database keycloak on PostgreSQL if absent: container exec -i semiont-postgres psql -U postgres (SQL on stdin)
 # write <config-stage>/keycloak-semiont-realm.json (launcher-owned; realm "semiont", clients: semiont-browser, semiont-cli, semiont-archivist, semiont-dispatcher, semiont-gateway, semiont-librarian, semiont-smelter, semiont-weaver, semiont-worker)
 container run -d --name semiont-keycloak --memory 1G -p 8080:8080 -v <config-stage>/keycloak-semiont-realm.json:/opt/keycloak/data/import/semiont.json:ro -e KC_DB_URL=jdbc:postgresql://<host-addr>:5432/keycloak --env KC_BOOTSTRAP_ADMIN_PASSWORD -e KC_DB=postgres -e KC_DB_USERNAME=postgres -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_DB_PASSWORD quay.io/keycloak/keycloak:26.7.4 start-dev --import-realm
@@ -106,7 +111,7 @@ container run -d --name semiont-archivist --memory 2G --publish 24103:24103 --vo
 # mount state state (shared; the stamp stays with its owning service)
 container run -d --name semiont-librarian --memory 2G --publish 24104:24104 --volume <config-stage>/librarian.toml:/home/semiont/.semiontconfig:ro -v <home>/.local/share/semiont/roots/example.github.io-test-kb/state:/semiont-state --env NEO4J_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env KEYCLOAK_PORT=8080 --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env XDG_STATE_HOME=/semiont-state --env SEMIONT_OIDC_CLIENT_ID=semiont-librarian --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-librarian:latest
 # wait: http://localhost:24104/health (30s)
-container run -d --name semiont-dispatcher --memory 2G --publish 24105:24105 --volume <config-stage>/dispatcher.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env KEYCLOAK_PORT=8080 --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-dispatcher --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-dispatcher:latest
+container run -d --name semiont-dispatcher --memory 2G --publish 24105:24105 --volume <config-stage>/dispatcher.json:/etc/semiont/dispatcher.json:ro --env NATS_USER --env NATS_PASSWORD --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env SEMIONT_OIDC_CLIENT_ID=semiont-dispatcher --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-dispatcher:latest
 # wait: http://localhost:24105/health (30s)
 container run -d --name semiont-worker --memory 2G --publish 24100:24100 --volume <config-stage>/worker.toml:/home/semiont/.semiontconfig:ro --env OTEL_EXPORTER_OTLP_ENDPOINT=http://<host-addr>:4318 --env GATEWAY_HOST=<host-addr> --env BACKEND_HOST=<host-addr> --env OLLAMA_HOST=<host-addr> --env NEO4J_HOST=<host-addr> --env NATS_HOST=<host-addr> --env KEYCLOAK_HOST=<host-addr> --env KEYCLOAK_PORT=8080 --env QDRANT_HOST=<host-addr> --env POSTGRES_HOST=<host-addr> --env SEMIONT_OIDC_CLIENT_ID=semiont-worker --env SEMIONT_OIDC_CLIENT_SECRET --env SEMIONT_SUPERVISE=1 ghcr.io/the-ai-alliance/semiont-worker:latest
 # wait: http://localhost:24100/health (30s)

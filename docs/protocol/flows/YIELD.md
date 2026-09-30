@@ -139,7 +139,7 @@ Browser → client.yield.fromContext(...) emits job:create via /bus/emit
            and the reference to auto-bind, from params.context.focus, and
            REJECTS a caller-supplied id via job:create-failed)
     ↓
-Gateway job:create handler builds a PendingJob, persists to queue, returns job:created
+Dispatcher admits a pending job to its queue, returns job:created
     ↓
 Worker (separate process, subscribed to job:queued) claims it via job:claim bus command
     ↓

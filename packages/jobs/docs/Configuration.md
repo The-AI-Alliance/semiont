@@ -59,11 +59,11 @@ Created automatically by `initialize()`.
 
 ## Worker Configuration
 
-### Job Claiming (SSE, not polling)
+### Job Claiming (pull on idle, not polling)
 
-Workers do not poll the queue. The worker process opens a `SemiontSession` and a `JobClaimAdapter` (created internally by `startWorkerProcess`, in this package's `src/job-claim-adapter.ts`) subscribes to the bus `job:queued` channel over SSE. When a job is queued, the adapter is pushed the event, claims the job atomically, and dispatches it by `jobType`. There is no poll interval or error-backoff to tune.
+Workers do not poll the queue. The worker process opens a `SemiontSession`, and a `JobClaimAdapter` (created internally by `startWorkerProcess`, in this package's `src/job-claim-adapter.ts`) sends `job:claim` for its job types whenever it becomes idle — at start, after each job settles, on a matching `job:queued` while parked, and on reconnect. The dispatcher answers with a claimed job or a decline, and the adapter parks until the next of those moments. There is no poll interval or error-backoff to tune.
 
-Announcements have built-in catch-up: the gateway re-announces pending jobs every 30 seconds (and immediately at startup), so a job queued while every eligible worker was busy or disconnected is claimed as soon as one frees up.
+A job queued while every eligible worker is busy is claimed at the next settle. The queue also re-announces pending jobs every 30 seconds (and immediately at startup), which covers a wake-up lost in transit to an idle worker.
 
 Each worker process serves the `jobTypes` it is configured for — driven by the per-`(provider, model)` worker entries in `~/.semiontconfig`. Multiple job types that share an inference engine share one worker process (and one software-agent identity); different engines run as separate processes.
 
@@ -75,6 +75,7 @@ const adapter = startWorkerProcess({
   jobTypes,         // string[] — job types this agent claims
   inferenceClient,
   generator,
+  contentReads,     // resource bytes for detection, read from the Archivist
   logger,
 });
 ```

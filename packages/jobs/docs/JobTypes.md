@@ -1,6 +1,6 @@
 # Job Types Guide
 
-All job types, their parameters, progress, and result types. Jobs use discriminated unions based on status for type safety.
+All job types, their parameters, and their result types. Jobs use discriminated unions based on status for type safety. Progress has one shape for every job type — see [Progress](#progress).
 
 **See also**: [Type System Guide](./TYPES.md) for discriminated union architecture and type narrowing patterns.
 
@@ -28,9 +28,11 @@ interface JobMetadata {
   created: string;        // ISO 8601
   retryCount: number;
   maxRetries: number;
-  completedUnits?: string[];  // Checkpoint: units a failed attempt persisted
-                              // (entity types, for reference-annotation);
-                              // written only by failJob, the retry skips them
+  completedUnits?: string[];  // Checkpoint: units already persisted (entity types for
+                              // reference-annotation, categories for tag-annotation);
+                              // written by checkpointUnits and failJob, the retry skips them
+  unitCursors?: Record<string, UnitCursor>;  // How far each unfinished unit got —
+                                             // a retry resumes mid-unit
 }
 ```
 
@@ -52,25 +54,15 @@ interface DetectionParams {
 }
 ```
 
-**Progress:**
+**Result:** `JobReferenceAnnotationResult` (from `@semiont/core`)
 
 ```typescript
-interface DetectionProgress {
-  totalEntityTypes: number;
-  processedEntityTypes: number;
-  entitiesFound: number;
-  entitiesEmitted: number;
-}
-```
-
-**Result:**
-
-```typescript
-interface DetectionResult {
+interface JobReferenceAnnotationResult {
   kind: 'reference-annotation';   // discriminant — every JobResult member carries one
   totalFound: number;
   totalEmitted: number;
   errors: number;
+  underReportedPieces?: number;
 }
 ```
 
@@ -153,21 +145,12 @@ worker, `referenceIdOf(job)` is the one derivation:
 The same helper serves every other jobType by passing their own
 `params.referenceId` through — detection echoes still carry one.
 
-**Progress:**
+The job the queue holds carries that stamped id: `GenerationJob` is
+`Job<GenerationJobParams & { resourceId: ResourceId }, GenerationResult>`.
 
-```typescript
-interface YieldProgress {
-  /** The two real generation transitions — LLM call running, then persisting. */
-  stage: 'generating' | 'creating';
-  percentage: number;
-  message?: string;
-}
-```
-
-Note: The progress type is `YieldProgress`, not `GenerationProgress`. On the wire,
-progress is the coded `JobProgressMessage` — for generation exactly three frames:
-5% `generating-resource`, 95% `creating-resource`, and the terminal 100%
-`complete-generated` carrying required `truncated`.
+Generation reports exactly three progress frames: 5% `generating-resource`,
+95% `creating-resource`, and 100% `complete-generated` carrying required
+`truncated`.
 
 **Result:**
 
@@ -185,9 +168,9 @@ interface GenerationResult {
 
 ```typescript
 import type { PendingJob } from '@semiont/jobs';
-import type { GenerationJobParams } from '@semiont/core';
+import type { GenerationJobParams, ResourceId } from '@semiont/core';
 
-const job: PendingJob<GenerationJobParams> = {
+const job: PendingJob<GenerationJobParams & { resourceId: ResourceId }> = {
   status: 'pending',
   metadata: {
     id: jobId('job-789'),
@@ -201,6 +184,7 @@ const job: PendingJob<GenerationJobParams> = {
     maxRetries: 0,
   },
   params: {
+    resourceId: resourceId('doc-456'),  // stamped by the dispatcher from context.focus
     title: 'Article about Quantum Computing',
     storageUri: 'file://generated/quantum-computing.md',
     // The context carries the anchor. This one is annotation-focus, so the
@@ -236,20 +220,10 @@ interface HighlightDetectionParams {
 }
 ```
 
-**Progress:**
+**Result:** `JobHighlightAnnotationResult` (from `@semiont/core`)
 
 ```typescript
-interface HighlightDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  message?: string;
-}
-```
-
-**Result:**
-
-```typescript
-interface HighlightDetectionResult {
+interface JobHighlightAnnotationResult {
   kind: 'highlight-annotation';
   highlightsFound: number;
   highlightsCreated: number;
@@ -294,20 +268,10 @@ interface AssessmentDetectionParams {
 }
 ```
 
-**Progress:**
+**Result:** `JobAssessmentAnnotationResult` (from `@semiont/core`)
 
 ```typescript
-interface AssessmentDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  message?: string;
-}
-```
-
-**Result:**
-
-```typescript
-interface AssessmentDetectionResult {
+interface JobAssessmentAnnotationResult {
   kind: 'assessment-annotation';
   assessmentsFound: number;
   assessmentsCreated: number;
@@ -331,20 +295,10 @@ interface CommentDetectionParams {
 }
 ```
 
-**Progress:**
+**Result:** `JobCommentAnnotationResult` (from `@semiont/core`)
 
 ```typescript
-interface CommentDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  message?: string;
-}
-```
-
-**Result:**
-
-```typescript
-interface CommentDetectionResult {
+interface JobCommentAnnotationResult {
   kind: 'comment-annotation';
   commentsFound: number;
   commentsCreated: number;
@@ -367,23 +321,10 @@ interface TagDetectionParams {
 }
 ```
 
-**Progress:**
+**Result:** `JobTagAnnotationResult` (from `@semiont/core`)
 
 ```typescript
-interface TagDetectionProgress {
-  stage: 'analyzing' | 'creating';
-  percentage: number;
-  currentCategory?: string;
-  processedCategories: number;
-  totalCategories: number;
-  message?: string;
-}
-```
-
-**Result:**
-
-```typescript
-interface TagDetectionResult {
+interface JobTagAnnotationResult {
   kind: 'tag-annotation';
   tagsFound: number;
   tagsCreated: number;
@@ -423,17 +364,39 @@ const job: PendingJob<TagDetectionParams> = {
 };
 ```
 
+## Progress
+
+A running job's `progress` is `StoredProgress` — the spec's `JobRunning.progress`: the last `JobProgress` its worker reported with `job:report-progress`, or `{}` before the first report. One shape for every job type:
+
+```typescript
+type StoredProgress = components['schemas']['JobRunning']['progress'];
+// = JobProgress | Record<string, never>
+```
+
+`JobProgress` requires `percentage`. `message` is a coded `JobProgressMessage` (`loading`, `analyzing`, `detecting-entities`, `creating-annotations`, `complete-created`, …) that each client renders in its own language. The rest are reported by the flows they apply to:
+
+| Field | Reported by |
+|-------|-------------|
+| `current` / `processed` / `total` | `reference-annotation` (entity types), `tag-annotation` (categories) |
+| `completedItems` | `reference-annotation`, `tag-annotation` |
+| `entitiesFound` / `entitiesEmitted` / `entitiesExpected` | `reference-annotation` |
+| `requestParams` | `reference-annotation` and the highlight / assessment / comment flows |
+| `annotationId` | any job attached to an annotation (generation from a reference) |
+
 ## Concrete Job Type Aliases
 
 ```typescript
-type DetectionJob = Job<DetectionParams, DetectionProgress, DetectionResult>;
-type GenerationJob = Job<GenerationJobParams, YieldProgress, GenerationResult>;
-type HighlightDetectionJob = Job<HighlightDetectionParams, HighlightDetectionProgress, HighlightDetectionResult>;
-type AssessmentDetectionJob = Job<AssessmentDetectionParams, AssessmentDetectionProgress, AssessmentDetectionResult>;
-type CommentDetectionJob = Job<CommentDetectionParams, CommentDetectionProgress, CommentDetectionResult>;
-type TagDetectionJob = Job<TagDetectionParams, TagDetectionProgress, TagDetectionResult>;
+type DetectionJob = Job<DetectionParams, JobReferenceAnnotationResult>;
+type GenerationJob = Job<GenerationJobParams & { resourceId: ResourceId }, GenerationResult>;
+type HighlightDetectionJob = Job<HighlightDetectionParams, JobHighlightAnnotationResult>;
+type AssessmentDetectionJob = Job<AssessmentDetectionParams, JobAssessmentAnnotationResult>;
+type CommentDetectionJob = Job<CommentDetectionParams, JobCommentAnnotationResult>;
+type TagDetectionJob = Job<TagDetectionParams, JobTagAnnotationResult>;
 
 type AnyJob = DetectionJob | GenerationJob | HighlightDetectionJob | AssessmentDetectionJob | CommentDetectionJob | TagDetectionJob;
+
+/** A job of any type, running: what a claim returns. */
+type RunningAnyJob = Extract<AnyJob, { status: 'running' }>;
 ```
 
 ## Type Safety
@@ -458,12 +421,12 @@ function processJob(job: AnyJob) {
 ```typescript
 function isRunningGenerationJob(
   job: AnyJob
-): job is RunningJob<GenerationJobParams, YieldProgress> {
+): job is Extract<GenerationJob, { status: 'running' }> {
   return job.status === 'running' && job.metadata.type === 'generation';
 }
 
 if (isRunningGenerationJob(job)) {
-  console.log(job.params.title);     // GenerationJobParams
-  console.log(job.progress.stage);   // YieldProgress
+  console.log(job.params.title);       // GenerationJobParams & { resourceId }
+  console.log(job.params.resourceId);
 }
 ```

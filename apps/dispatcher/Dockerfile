@@ -77,4 +77,6 @@ HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
 ENV SUPERVISE_NAME=dispatcher \
     SUPERVISE_PROBE=http://localhost:24105/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/dispatcher-main.js"]
+# Its configuration document is named here and nowhere else: the launcher mounts
+# the resolved document at this path, and a run without one refuses to start.
+CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/dispatcher-main.js", "--config", "/etc/semiont/dispatcher.json"]

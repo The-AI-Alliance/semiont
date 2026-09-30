@@ -24,6 +24,28 @@ import { WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS } from '../worker-runtime';
 import type { BusRequestPrimitive } from '@semiont/core';
 import { EventBus, type BusEnvelope, type ConnectionState, type EventMap } from '@semiont/core';
 
+/** The job a `job:claimed` reply carries: running, under the claimant. */
+type ClaimedJob = EventMap['job:claimed']['response'];
+
+/** A running job as the dispatcher returns one from a claim, its metadata overridden by `metadata`. */
+function runningJob(id: string, metadata: Partial<ClaimedJob['metadata']> = {}): ClaimedJob {
+  return {
+    status: 'running',
+    metadata: {
+      id,
+      type: 'generation',
+      userId: 'u',
+      created: '2026-01-01T00:00:00.000Z',
+      retryCount: 0,
+      maxRetries: 0,
+      ...metadata,
+    },
+    params: { resourceId: 'res-1' },
+    startedAt: '2026-01-01T00:00:01.000Z',
+    progress: {},
+  };
+}
+
 function fakeBus(initialState: ConnectionState = 'open') {
   // A correlated union, not `{ channel: keyof EventMap; payload: <union> }`:
   // the latter pairs every channel with every payload, so `.payload.jobId`
@@ -77,11 +99,9 @@ function fakeBus(initialState: ConnectionState = 'open') {
     },
     /** The key the adapter minted onto that claim's ENVELOPE. */
     claimCidAt: (i: number): string | undefined => claims()[i]?.correlationId,
-    /** Answer claim `i` with a job. */
-    grant: (i: number, id: string, extra: Record<string, unknown> = {}) =>
-      eventBus.emit('job:claimed', {
-        response: { params: {}, metadata: { id, type: 'generation', userId: 'u', ...extra } },
-      }, { correlationId: claims()[i]!.correlationId }),
+    /** Answer claim `i` with a running job, its metadata overridden by `metadata`. */
+    grant: (i: number, id: string, metadata: Partial<ClaimedJob['metadata']> = {}) =>
+      eventBus.emit('job:claimed', { response: runningJob(id, metadata) }, { correlationId: claims()[i]!.correlationId }),
     /** Answer claim `i` with the dispatcher's decline — nothing pending. */
     decline: (i: number) =>
       eventBus.emit('job:claim-failed', { message: 'No pending job of the requested types', code: 'none-pending' }, { correlationId: claims()[i]!.correlationId }),
@@ -285,7 +305,8 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.refused$.subscribe((r) => refusals.push(r));
     adapter.start();
 
-    h.pushEvent('job:claimed', { response: { params: {}, metadata: {} } }, h.claimCidAt(0));
+    // Off-spec on purpose: a reply the dispatcher must never send, to prove the adapter refuses it.
+    h.pushEvent('job:claimed', { response: { params: {}, metadata: {} } } as never, h.claimCidAt(0));
     await tick();
 
     expect(refusals).toHaveLength(1);
@@ -310,7 +331,7 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.start();
 
     h.pushEvent('job:claimed', {
-      response: { params: { foo: 'bar' }, metadata: { id: 'j1', type: 'generation', userId: 'u1' } },
+      response: { ...runningJob('j1', { userId: 'u1' }), params: { resourceId: 'res-1', foo: 'bar' } },
     }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
@@ -520,13 +541,14 @@ describe('claimed-job checkpoint (A3)', () => {
     const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
     adapter.start();
 
+    // Off-spec on purpose: a cursor without its tallies, which the spec requires.
     h.grant(0, 'jc-cursor', {
       completedUnits: [],
       unitCursors: {
         Person: { next: 12_400, size: 560 },                              // pre-tally shape
         Location: { next: 900, size: 300, found: 4, emitted: 4 },          // complete
       },
-    });
+    } as never);
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     // The position is dropped with the counts — not kept and zero-filled.

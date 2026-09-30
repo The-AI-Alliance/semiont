@@ -833,21 +833,18 @@ func librarianArgs(stage, rt, addr string, issuerPort int, clientSecret, version
 
 // dispatcherArgs: the Dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5) — it owns
 // the job queue and answers job:* lifecycle commands, and content bytes and
-// annotations never flow through it. Like librarianArgs but LEANER: no KB tree,
-// no ARCHIVIST_HOST (D5 — it never reads from the record), no graph, and — since
-// D7 moved its entity-type/tag-schema reads onto the bus — NO STATE MOUNT and no
-// XDG_STATE_HOME. The deployed jetstream driver holds no state tree; an
-// fs-by-omission driver fails loud (stateDirFor) rather than writing to a
-// fabricated home. It carries the full *_HOST eager-interpolation set its staged
-// config may reference, exactly as the other sidecars do.
-func dispatcherArgs(stage, rt, addr string, issuerPort int, clientSecret, version string, userEnv, otel []string) []string {
+// annotations never flow through it. No KB tree, no state mount, no graph. It
+// reads a resolved configuration document (dispatcherdoc.go) at the path its
+// image passes to `--config`, so it is handed no *_HOST variables: the
+// document carries every address already. It keeps the issuer's host entry,
+// because it signs in at the issuer by name.
+func dispatcherArgs(stage, rt, addr string, clientSecret, version string, userEnv, otel []string) []string {
 	a := []string{"run", "-d", "--name", "semiont-dispatcher", // no --rm: see providedRunArgs
 		"--memory", semiontDescriptor("dispatcher").mem, "--publish", "24105:24105",
-		"--volume", stage + "/dispatcher.toml:/home/semiont/.semiontconfig:ro"}
+		"--volume", stage + "/" + dispatcherDocumentFile + ":" + dispatcherDocumentTarget + ":ro"}
 	a = append(a, userEnv...)
 	a = append(a, otel...)
-	a = append(a, gatewayHostEnv(addr)...)
-	a = append(a, dependencyHostEnv(rt, addr, issuerPort)...)
+	a = append(a, identityHostArgs(rt, addr)...)
 	a = append(a,
 		"--env", "SEMIONT_OIDC_CLIENT_ID="+serviceClientID("dispatcher"),
 		"--env", "SEMIONT_OIDC_CLIENT_SECRET="+clientSecret)

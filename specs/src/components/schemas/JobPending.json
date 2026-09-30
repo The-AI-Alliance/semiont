@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "A job waiting for a worker to claim it.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "pending"
+      ]
+    },
+    "metadata": {
+      "$ref": "./JobMetadata.json"
+    },
+    "params": {
+      "$ref": "./JobParams.json"
+    }
+  },
+  "required": [
+    "status",
+    "metadata",
+    "params"
+  ],
+  "additionalProperties": false
+}

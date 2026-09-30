@@ -264,7 +264,7 @@ export function registerJobCommandHandlers(
     try {
       await jobQueue.recordProgress(
         jobId(event.jobId),
-        (event.progress ?? { percentage: event.percentage }) as Record<string, unknown>,
+        event.progress ?? { percentage: event.percentage },
       );
     } catch (error) {
       logger.error('Failed to record job progress', {
