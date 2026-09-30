@@ -16,6 +16,12 @@ The `semiont` launcher is a single static binary — no npm, no Node.js:
 brew install the-ai-alliance/semiont/semiont
 ```
 
+`semiont settings` lists everything the launcher keeps: the container runtime, where your secrets come from, and where each knowledge base's generated secrets are kept. To keep every new knowledge base's secrets in 1Password, set that before creating one:
+
+```bash
+semiont settings secret-store --default op://YourVaultName
+```
+
 ### 2. Configure inference
 
 A knowledge base needs a model to reason with. Either a hosted one or a local one — pick now, because the next step records the choice.
@@ -23,7 +29,7 @@ A knowledge base needs a model to reason with. Either a hosted one or a local on
 **Hosted** — register your [Anthropic](https://www.anthropic.com/) key once. Only the pointer is stored, read fresh on every start and passed to the containers, written nowhere:
 
 ```bash
-semiont secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
+semiont settings secret set ANTHROPIC_API_KEY op://YourVaultName/Anthropic/credential
 ```
 
 **Local** — [Ollama](https://ollama.com/) runs a small model on your own machine instead. There is no key to register and nothing to configure here; you select it in the next step, and no content leaves your machine.

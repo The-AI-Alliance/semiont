@@ -58,7 +58,7 @@ func custodyOwned(name string) bool {
 // (SECRET-DELIVERY P4, D1 RULED: "B for daemons the launcher runs"). Each is
 // generated once per root and kept, because a data directory keeps the
 // password it was initialized with. The variable names are the launcher's,
-// machine-wide (ruled 2026-09-29: "names are fine") — `semiont secret`
+// machine-wide (ruled 2026-09-29: "names are fine") — `semiont settings secret`
 // registrations are machine-wide while a daemon's presence is per-KB config,
 // so no config may borrow one. The custody names are also the files under
 // roots/<key>/ where KB skills that connect to a daemon directly are told to

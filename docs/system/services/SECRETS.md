@@ -27,12 +27,12 @@ librarian, smelter, weaver and worker. A daemon's password exists only when the 
 that daemon.
 
 **Where they are kept**: in the knowledge base's secrets store. Each knowledge base has one,
-and `semiont secret store` names it:
+and `semiont settings secret-store` names it:
 
 | Store | Set with | Each value is |
 |---|---|---|
-| Files (the default) | `semiont secret store file` | a file, mode 0600, in the knowledge base's state directory: `~/Library/Application Support/semiont/roots/<key>/<name>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>/<name>` on Linux (`~/.local/share/…` when that variable is unset) |
-| 1Password | `semiont secret store op://<vault>` | a concealed field of one Secure Note per knowledge base, titled `Semiont — <key>`, in the vault you name: `op://<vault>/Semiont — <key>/<name>` |
+| Files (the default) | `semiont settings secret-store file` | a file, mode 0600, in the knowledge base's state directory: `~/Library/Application Support/semiont/roots/<key>/<name>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>/<name>` on Linux (`~/.local/share/…` when that variable is unset) |
+| 1Password | `semiont settings secret-store op://<vault>` | a concealed field of one Secure Note per knowledge base, titled `Semiont — <key>`, in the vault you name: `op://<vault>/Semiont — <key>/<name>` |
 
 `<key>` is the knowledge base's state key, derived from its domain, and `<name>` is the "Kept as"
 column above. Give 1Password a vault that holds the launcher's items and nothing else. The
@@ -51,8 +51,9 @@ it runs, naming the operation and the secret, never its value:
 ▸ secrets: read jwt-secret (op://Semiont/Semiont — example.org/jwt-secret)
 ```
 
-**Finding a value.** `semiont secret store` lists where each kept value is. When the launcher runs
-Neo4j, the start's summary names where its password is kept. A skill or a person connecting to
+**Finding a value.** `semiont settings secret-store` names the store and where each value is kept
+once a start generates it, from the setting alone, without contacting the store. Every start's
+summary names the store, and when the launcher runs Neo4j, where its password is kept. A skill or a person connecting to
 Neo4j directly reads it there: the file, or `op read "op://<vault>/Semiont — <key>/neo4j-password"`.
 
 **Moving to another store.** Naming a different store moves every kept value: the launcher
@@ -61,12 +62,25 @@ store it leaves. It refuses a store that already holds values for this knowledge
 copies never disagree after a rotation.
 
 ```bash
-semiont secret store op://Semiont    # from the files into 1Password
-semiont secret store                 # which store, and where each value is
-semiont secret store file            # back to the files
+semiont settings secret-store op://Semiont    # from the files into 1Password
+semiont settings secret-store                 # which store, and where each value is
+semiont settings secret-store file            # back to the files
 ```
 
-The setting is per knowledge base and machine, kept in `secretstores.json` beside `roots.json`.
+**A default for new knowledge bases.** To keep every new knowledge base's secrets in 1Password:
+
+```bash
+semiont settings secret-store --default op://Semiont
+```
+
+A knowledge base adopts the default the first time a start needs a secret for it, if it has no
+store of its own yet and keeps nothing in files. Adopting records the default as that knowledge
+base's own store, so changing the default later moves nothing. A knowledge base that already keeps
+files stays on them until you move it. `init`'s summary names the store a new knowledge base will
+use.
+
+The settings are per machine, kept in `secretstores.json` beside `roots.json`: the default, and
+each knowledge base's own store. `semiont settings` lists them with the launcher's other settings.
 
 **Generated once, then kept.** Each value is generated on the first start that needs it and
 written to its file before use. Every later start reuses it, because replacing it breaks
@@ -84,7 +98,7 @@ something that outlived the stack:
   one variable per service, never one shared by all.
 - The daemons' names (`NEO4J_PASSWORD`, `POSTGRES_PASSWORD`, `NATS_USER`, `NATS_PASSWORD`) are
   the launcher's. An exported one is refused for a daemon the launcher runs, a config may not
-  reference one, and `semiont secret set` refuses them. A config section for a daemon the
+  reference one, and `semiont settings secret set` refuses them. A config section for a daemon the
   launcher runs names no password.
 
 **Rotating a daemon's password.** Delete it from the secrets store (its file, or its field in
@@ -115,16 +129,16 @@ codespace's filesystem, and nothing is copied from the laptop.
 
 ## Values you own
 
-Inference API keys and the like are never stored by the launcher. `semiont secret` registers
+Inference API keys and the like are never stored by the launcher. `semiont settings secret` registers
 *where a value comes from*: a `{provider, path}` pointer, machine-wide, in `roots.json`. Every
 `semiont start` reads it again by running the provider's own CLI with the terminal attached, so
 its authorization prompt works.
 
 ```bash
-semiont secret set ANTHROPIC_API_KEY                          # interactive
-semiont secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
-semiont secret list                                           # pointers, never values
-semiont secret rm ANTHROPIC_API_KEY
+semiont settings secret set ANTHROPIC_API_KEY    # interactive
+semiont settings secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
+semiont settings secret                          # pointers, never values
+semiont settings secret rm ANTHROPIC_API_KEY
 ```
 
 Exporting the variable yourself always wins, and is the escape hatch on a machine with no secret
@@ -145,7 +159,7 @@ A codespace runs on GitHub's machine and cannot reach your local provider, so th
 live there too:
 
 ```bash
-semiont secret push ANTHROPIC_API_KEY --repo owner/name
+semiont settings secret push ANTHROPIC_API_KEY --repo owner/name
 ```
 
 This resolves the pointer, hands the value to `gh` on stdin (never argv), and *adds* the repo to

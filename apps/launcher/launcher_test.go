@@ -614,14 +614,10 @@ func TestStartRuntimeDockerBoot(t *testing.T) {
 	checkGolden(t, "start-docker-boot.argv", s.argv(t))
 }
 
-// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to inject, like
-// its host — one Keycloak port per KB, the same number on both ends, so a
-// laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
-// launcher's env shape: the environment wins, the root records it, and 8080
-// is the default. The codespace's post-start runs a bare start on every
-// resume, which is why the port a laptop moved it to must stick.
-func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
-	s := newScenario(t, "container")
+// movableKeycloakPort rewrites the KB's configs to name the issuer's port by
+// ${KEYCLOAK_PORT}, as a newborn KB's do, so a start takes and records it.
+func movableKeycloakPort(t *testing.T, s *scenario) {
+	t.Helper()
 	for _, name := range []string{"ollama-gemma.toml", "anthropic.toml"} {
 		p := filepath.Join(s.kb, ".semiont", "semiontconfig", name)
 		b, err := os.ReadFile(p)
@@ -633,6 +629,17 @@ func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+}
+
+// CODESPACE-IDENTITY B4: the issuer's port is the launcher's to inject, like
+// its host — one Keycloak port per KB, the same number on both ends, so a
+// laptop can hold a forward per codespace KB. KEYCLOAK_PORT follows the
+// launcher's env shape: the environment wins, the root records it, and 8080
+// is the default. The codespace's post-start runs a bare start on every
+// resume, which is why the port a laptop moved it to must stick.
+func TestKeycloakPortIsInjectedAndSticky(t *testing.T) {
+	s := newScenario(t, "container")
+	movableKeycloakPort(t, s)
 	keycloakRun := func(t *testing.T, argv string) string {
 		t.Helper()
 		for _, line := range strings.Split(argv, "\n") {
@@ -813,7 +820,7 @@ func TestStartMissingEnvVar(t *testing.T) {
 	}
 	mustContain(t, "stderr", stderr,
 		"Config 'anthropic' references ${ANTHROPIC_API_KEY} but it is not set in the environment.",
-		"register a secret source once:  semiont secret set ANTHROPIC_API_KEY")
+		"register a secret source once:  semiont settings secret set ANTHROPIC_API_KEY")
 	checkGolden(t, "start-missing-env.argv", s.argv(t))
 }
 
@@ -2168,7 +2175,7 @@ func TestSecretCommand(t *testing.T) {
 	// pointers; rm forgets.
 	s := newScenario(t, "container", "op")
 
-	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential")
+	stdout, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential")
 	if code != 0 {
 		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -2187,21 +2194,21 @@ func TestSecretCommand(t *testing.T) {
 		t.Errorf("secret value printed by set:\n%s", stdout)
 	}
 
-	stdout, _, code = s.run(t, "secret", "list")
+	stdout, _, code = s.run(t, "settings", "secret")
 	if code != 0 {
 		t.Fatalf("secret list: exit %d", code)
 	}
 	mustContain(t, "list stdout", stdout,
-		"ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential", "the environment always wins")
+		"ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential", "the environment wins")
 
 	// Unknown scheme rejected; verification failure stores nothing.
-	if _, stderr, code := s.run(t, "secret", "set", "X", "vault://a/b"); code != 1 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "X", "vault://a/b"); code != 1 {
 		t.Error("unknown scheme should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "Unknown secret provider 'vault'")
 	}
 	s.extraEnv = append(s.extraEnv, "FAKERT_OP_FAIL=1")
-	if _, stderr, code := s.run(t, "secret", "set", "OTHER_KEY", "op://a/b/c"); code != 1 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "OTHER_KEY", "op://a/b/c"); code != 1 {
 		t.Error("failed verification should fail set")
 	} else {
 		mustContain(t, "stderr", stderr, "Verification failed")
@@ -2212,16 +2219,27 @@ func TestSecretCommand(t *testing.T) {
 	}
 
 	// rm forgets; a second rm is an honest error.
-	if _, _, code := s.run(t, "secret", "rm", "ANTHROPIC_API_KEY"); code != 0 {
+	if _, _, code := s.run(t, "settings", "secret", "rm", "ANTHROPIC_API_KEY"); code != 0 {
 		t.Fatal("secret rm failed")
 	}
 	b, _ = os.ReadFile(rootsPathFor(s.home))
 	if strings.Contains(string(b), "Anthropic/credential") {
 		t.Errorf("rm left the source behind:\n%s", b)
 	}
-	if _, _, code := s.run(t, "secret", "rm", "ANTHROPIC_API_KEY"); code != 1 {
+	if _, _, code := s.run(t, "settings", "secret", "rm", "ANTHROPIC_API_KEY"); code != 1 {
 		t.Error("rm of an absent source should fail")
 	}
+}
+
+// `secret` moved under `settings` (LAUNCHER-SETTINGS D2): the old verb is gone,
+// not kept as an alias.
+func TestSecretIsNoLongerAVerb(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	_, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential")
+	if code == 0 {
+		t.Fatal("semiont secret still runs")
+	}
+	mustContain(t, "stderr", stderr, "Unknown command: secret")
 }
 
 func TestSecretSetInteractive(t *testing.T) {
@@ -2233,7 +2251,7 @@ func TestSecretSetInteractive(t *testing.T) {
 	// Empty provider input takes the default; a pasted full URI as the
 	// path is tolerated.
 	s.stdin = "\nop://OSS/Anthropic/credential\n"
-	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY")
+	stdout, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY")
 	if code != 0 {
 		t.Fatalf("interactive set: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -2251,7 +2269,7 @@ func TestSecretSetInteractive(t *testing.T) {
 
 	// An unknown provider name is a clean failure.
 	s.stdin = "vault\n"
-	if _, stderr, code := s.run(t, "secret", "set", "X"); code != 1 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "X"); code != 1 {
 		t.Error("unknown interactive provider should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "Unknown secret provider 'vault'")
@@ -2259,7 +2277,7 @@ func TestSecretSetInteractive(t *testing.T) {
 
 	// An empty path is a clean failure.
 	s.stdin = "op\n\n"
-	if _, stderr, code := s.run(t, "secret", "set", "X"); code != 1 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "X"); code != 1 {
 		t.Error("empty path should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "A path is required.")
@@ -2271,7 +2289,7 @@ func TestSecretSetInteractiveWithoutProvider(t *testing.T) {
 	// choosing one fails the early PATH test with the escape hatch.
 	s := newScenario(t, "container") // no "op" shim
 	s.stdin = "op\n"
-	stdout, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY")
+	stdout, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY")
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d", code)
 	}
@@ -2285,7 +2303,7 @@ func TestSecretSetRequiresProviderOnPath(t *testing.T) {
 	// The clear, early PATH test: no op binary, no set — with the escape
 	// hatch spelled out.
 	s := newScenario(t, "container") // deliberately no "op" shim
-	_, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/x/y")
+	_, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/x/y")
 	if code != 1 {
 		t.Fatalf("want exit 1, got %d", code)
 	}
@@ -2300,7 +2318,7 @@ func TestSecretPush(t *testing.T) {
 	// Codespaces user secrets — resolved fresh, handed over on STDIN (never
 	// argv), and unioned into the existing repo selection.
 	s := newScenario(t, "container", "op", "gh")
-	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
 	}
 
@@ -2310,7 +2328,7 @@ func TestSecretPush(t *testing.T) {
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	stdout, stderr, code := s.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "pingel-org/foo-kb")
+	stdout, stderr, code := s.run(t, "settings", "secret", "push", "ANTHROPIC_API_KEY", "--repo", "pingel-org/foo-kb")
 	if code != 0 {
 		t.Fatalf("push: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -2344,7 +2362,7 @@ func TestSecretPush(t *testing.T) {
 
 	// Already-selected repo isn't duplicated.
 	s2 := newScenario(t, "container", "op", "gh")
-	if _, _, code := s2.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+	if _, _, code := s2.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatal("set failed")
 	}
 	s2.extraEnv = append(s2.extraEnv,
@@ -2352,7 +2370,7 @@ func TestSecretPush(t *testing.T) {
 	if err := os.Truncate(s2.log, 0); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, code := s2.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "pingel-org/foo-kb"); code != 0 {
+	if _, _, code := s2.run(t, "settings", "secret", "push", "ANTHROPIC_API_KEY", "--repo", "pingel-org/foo-kb"); code != 0 {
 		t.Fatal("push failed")
 	}
 	log, _ = os.ReadFile(s2.log)
@@ -2363,22 +2381,22 @@ func TestSecretPush(t *testing.T) {
 
 	// Failure paths: no registered source, bad slug, gh rejecting the write.
 	s3 := newScenario(t, "container", "op", "gh")
-	if _, stderr, code := s3.run(t, "secret", "push", "NOPE_KEY", "--repo", "a/b"); code != 1 {
+	if _, stderr, code := s3.run(t, "settings", "secret", "push", "NOPE_KEY", "--repo", "a/b"); code != 1 {
 		t.Error("push without a source should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "No secret source registered for NOPE_KEY",
-			"semiont secret set NOPE_KEY")
+			"semiont settings secret set NOPE_KEY")
 	}
-	if _, stderr, code := s3.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "notaslug"); code != 1 {
+	if _, stderr, code := s3.run(t, "settings", "secret", "push", "ANTHROPIC_API_KEY", "--repo", "notaslug"); code != 1 {
 		t.Error("bad slug should fail")
 	} else {
 		mustContain(t, "stderr", stderr, "--repo must be owner/name")
 	}
-	if _, _, code := s3.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+	if _, _, code := s3.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatal("set failed")
 	}
 	s3.extraEnv = append(s3.extraEnv, "FAKERT_GH_SECRET_SET_FAIL=1")
-	if _, stderr, code := s3.run(t, "secret", "push", "ANTHROPIC_API_KEY", "--repo", "a/b"); code != 1 {
+	if _, stderr, code := s3.run(t, "settings", "secret", "push", "ANTHROPIC_API_KEY", "--repo", "a/b"); code != 1 {
 		t.Error("gh failure should fail the push")
 	} else {
 		mustContain(t, "stderr", stderr, "Could not set the Codespaces user secret")
@@ -2397,7 +2415,7 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 	mustContain(t, "stderr", stderr, "gh secret set ANTHROPIC_API_KEY --user --app codespaces")
 
 	s2 := newScenario(t, "container", "op", "gh")
-	if _, _, code := s2.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+	if _, _, code := s2.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatal("set failed")
 	}
 	s2.extraEnv = append(s2.extraEnv,
@@ -2408,7 +2426,7 @@ func TestCodespaceSecretMissingPointsAtPush(t *testing.T) {
 	}
 	mustContain(t, "stderr", stderr,
 		"You have a local source registered (op://OSS/Anthropic/credential)",
-		"semiont secret push ANTHROPIC_API_KEY --repo "+csRepo)
+		"semiont settings secret push ANTHROPIC_API_KEY --repo "+csRepo)
 }
 
 // A secret value never rides a container's command line, where any process on
@@ -2556,7 +2574,7 @@ func TestRemoteModelCheckReadsTheConfiguredKey(t *testing.T) {
 // prompt for ANTHROPIC_API_KEY (SECRET-DELIVERY P5).
 func TestStartServiceResolvesOnlyItsOwnSecrets(t *testing.T) {
 	s := newScenario(t, "container", "op")
-	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatalf("secret set: exit %d\n%s", code, stderr)
 	}
 	// `secret set` verifies the source with one read of its own.
@@ -2600,7 +2618,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	}
 
 	// A registered source sets it, as it would a required one.
-	if _, stderr, code := s.run(t, "secret", "set", "SD_OPTIONAL", "op://OSS/Optional/credential"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "SD_OPTIONAL", "op://OSS/Optional/credential"); code != 0 {
 		t.Fatalf("secret set: exit %d\n%s", code, stderr)
 	}
 	s.killServes()
@@ -2651,7 +2669,7 @@ func TestStartResolvesSecret(t *testing.T) {
 	// fresh, injected into the container argv (redacted in echoes). Dry-run
 	// reaches for nothing; the environment always wins over the source.
 	s := newScenario(t, "container", "op")
-	if _, stderr, code := s.run(t, "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
 		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
 	}
 
@@ -5696,7 +5714,7 @@ func freshLog(s *scenario, t *testing.T, before []byte) string {
 func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	s.noJWTSecret = true
-	stdout, stderr, code := s.run(t, "secret", "store", "op://Semiont")
+	stdout, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont")
 	if code != 0 {
 		t.Fatalf("secret store: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -5743,7 +5761,7 @@ func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
 
 	stdout, _, _ = s.run(t, "status")
 	mustContain(t, "status", stdout, `secrets: 1Password vault "Semiont", item "Semiont — `+testKBKey+`"`)
-	stdout, _, code = s.run(t, "secret", "store")
+	stdout, _, code = s.run(t, "settings", "secret-store")
 	if code != 0 {
 		t.Fatalf("secret store (show): exit %d", code)
 	}
@@ -5753,7 +5771,7 @@ func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
 func TestSecretStoreNeverFallsBackToTheFilesystem(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	s.noJWTSecret = true
-	if _, stderr, code := s.run(t, "secret", "store", "op://Semiont"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont"); code != 0 {
 		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if err := os.Remove(filepath.Join(s.shim, "op")); err != nil {
@@ -5781,7 +5799,7 @@ func TestSecretStoreMovesKeptValues(t *testing.T) {
 	dir := stateRootFor(s.home, testKBKey)
 	onDisk := keptSecrets(t, dir)
 
-	stdout, stderr, code := s.run(t, "secret", "store", "op://Semiont")
+	stdout, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont")
 	if code != 0 {
 		t.Fatalf("move: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
@@ -5799,7 +5817,7 @@ func TestSecretStoreMovesKeptValues(t *testing.T) {
 		t.Errorf("the move left %d values in the old store", len(left))
 	}
 	// And back: the store it leaves is emptied the same way.
-	if _, stderr, code := s.run(t, "secret", "store", "file"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret-store", "file"); code != 0 {
 		t.Fatalf("move back: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if back := keptSecrets(t, dir); len(back) != len(onDisk) || back["jwt-secret"] != onDisk["jwt-secret"] {
@@ -5825,7 +5843,7 @@ func TestSecretStoreRefusesATargetThatAlreadyHoldsValues(t *testing.T) {
 		t.Fatal(err)
 	}
 	onDisk := keptSecrets(t, stateRootFor(s.home, testKBKey))
-	_, stderr, code := s.run(t, "secret", "store", "op://Semiont")
+	_, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont")
 	if code == 0 {
 		t.Fatal("a move into a store that already holds this KB's values succeeded")
 	}
@@ -5841,7 +5859,7 @@ func TestSecretStoreRefusesATargetThatAlreadyHoldsValues(t *testing.T) {
 func TestCleanClearsTheSecretStore(t *testing.T) {
 	s := newScenario(t, "container", "op")
 	s.noJWTSecret = true
-	if _, stderr, code := s.run(t, "secret", "store", "op://Semiont"); code != 0 {
+	if _, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont"); code != 0 {
 		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
 	}
 	if _, stderr, code := s.run(t, "start"); code != 0 {
@@ -5898,6 +5916,270 @@ func TestCleanShowsEachSecretItDeletesFromTheFilesystem(t *testing.T) {
 	}
 	for name := range kept {
 		mustContain(t, "clean", stderr, "secrets: delete "+name)
+	}
+}
+
+// --- semiont settings (LAUNCHER-SETTINGS) ---
+
+// settingRow: the line `semiont settings` prints for one setting, or "". A
+// label may carry its flag: "secret-store --default".
+func settingRow(out, label string) string {
+	for _, line := range strings.Split(out, "\n") {
+		f := strings.Fields(line)
+		if len(f) == 0 {
+			continue
+		}
+		got := f[0]
+		if len(f) > 1 && strings.HasPrefix(f[1], "--") {
+			got += " " + f[1]
+		}
+		if got == label {
+			return line
+		}
+	}
+	return ""
+}
+
+func TestSettingsListsEverySetting(t *testing.T) {
+	s := newScenario(t, "container", "docker", "op")
+	movableKeycloakPort(t, s)
+	s.extraEnv = append(s.extraEnv, "KEYCLOAK_PORT=8181")
+	if _, stderr, code := s.run(t, "start", "--runtime", "docker", "--config", "ollama-gemma"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	s.extraEnv = nil
+	if _, stderr, code := s.run(t, "settings", "secret", "set", "ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"); code != 0 {
+		t.Fatalf("secret set: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "settings", "secret-store", "op://Semiont"); code != 0 {
+		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
+	}
+
+	before := s.mustLog(t)
+	stdout, stderr, code := s.run(t, "settings")
+	if code != 0 {
+		t.Fatalf("settings: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	for name, wants := range map[string][]string{
+		"runtime":       {"docker", "recorded"},
+		"config":        {"ollama-gemma", "recorded"},
+		"keycloak-port": {"8181", "recorded"},
+		"secret":        {"ANTHROPIC_API_KEY", "op://OSS/Anthropic/credential"},
+		"secret-store":  {`1Password vault "Semiont"`, "set"},
+	} {
+		row := settingRow(stdout, name)
+		if row == "" {
+			t.Errorf("no %s row:\n%s", name, stdout)
+			continue
+		}
+		mustContain(t, name+" row", row, wants...)
+	}
+	// Showing a setting reaches for no secret: no provider, no store.
+	for _, line := range strings.Split(freshLog(s, t, before), "\n") {
+		if strings.HasPrefix(line, "op ") {
+			t.Errorf("settings ran %q", line)
+		}
+	}
+
+	// The environment wins over a recorded port, and the row says so.
+	s.extraEnv = []string{"KEYCLOAK_PORT=9191"}
+	stdout, _, _ = s.run(t, "settings")
+	mustContain(t, "keycloak-port row", settingRow(stdout, "keycloak-port"), "9191", "KEYCLOAK_PORT")
+}
+
+func TestSettingsShowsTheDefaultsOfAFreshMachine(t *testing.T) {
+	s := newScenario(t, "container")
+	stdout, stderr, code := s.run(t, "settings")
+	if code != 0 {
+		t.Fatalf("settings: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for name, wants := range map[string][]string{
+		"runtime":       {"auto-detect", "container"},
+		"config":        {"ollama-gemma", "default"},
+		"keycloak-port": {"8080", "default"},
+		"secret":        {"none"},
+		"secret-store":  {"files", "default"},
+	} {
+		mustContain(t, name+" row", settingRow(stdout, name), wants...)
+	}
+}
+
+func TestSettingsSetsAndClearsTheStickyOnes(t *testing.T) {
+	s := newScenario(t, "container", "podman")
+	movableKeycloakPort(t, s)
+	run := func(args ...string) string {
+		t.Helper()
+		stdout, stderr, code := s.run(t, args...)
+		if code != 0 {
+			t.Fatalf("%v: exit %d\nstdout:\n%s\nstderr:\n%s", args, code, stdout, stderr)
+		}
+		return stdout
+	}
+
+	run("settings", "runtime", "podman")
+	run("settings", "keycloak-port", "8282")
+	run("start")
+	started := s.argv(t)
+	mustContain(t, "a start after the settings", started, "podman run", "8282")
+	run("stop")
+
+	run("settings", "config", "anthropic")
+	mustContain(t, "config row", settingRow(run("settings", "config"), "config"), "anthropic", "recorded")
+
+	run("settings", "runtime", "--unset")
+	run("settings", "keycloak-port", "--unset")
+	run("settings", "config", "--unset")
+	out := run("settings")
+	mustContain(t, "runtime row", settingRow(out, "runtime"), "auto-detect")
+	mustContain(t, "keycloak-port row", settingRow(out, "keycloak-port"), "8080", "default")
+	mustContain(t, "config row", settingRow(out, "config"), "ollama-gemma", "default")
+}
+
+// The machine's default store applies to new knowledge bases only
+// (LAUNCHER-SETTINGS D4, ruled: "I agree "new KBs only""): a KB with no
+// setting and nothing kept adopts it at its first need, as its own setting,
+// so changing the default later moves nothing.
+func TestDefaultSecretStoreIsAdoptedByANewKnowledgeBase(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "settings", "secret-store", "--default", "op://Semiont"); code != 0 {
+		t.Fatalf("set the default: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, _, _ := s.run(t, "settings")
+	mustContain(t, "default row", settingRow(stdout, "secret-store --default"), `1Password vault "Semiont"`)
+
+	_, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "start", stderr, "adopt", `1Password vault "Semiont"`)
+	if opItemFields(t, s)["jwt-secret"] == "" {
+		t.Error("the new knowledge base did not keep its secrets in the default store")
+	}
+	if files := keptSecrets(t, stateRootFor(s.home, testKBKey)); len(files) != 0 {
+		t.Errorf("the new knowledge base kept %d values in files too", len(files))
+	}
+	stdout, _, _ = s.run(t, "settings")
+	mustContain(t, "the KB's own row", settingRow(stdout, "secret-store"), `1Password vault "Semiont"`, "set")
+
+	// Changing the default moves nothing: the KB keeps what it adopted.
+	if _, stderr, code := s.run(t, "settings", "secret-store", "--default", "--unset"); code != 0 {
+		t.Fatalf("unset the default: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	_, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "second start", stderr, "secrets: read jwt-secret (op://Semiont/")
+}
+
+func TestDefaultSecretStoreLeavesAKnowledgeBaseThatKeepsFiles(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	kept := keptSecrets(t, stateRootFor(s.home, testKBKey))
+	if _, stderr, code := s.run(t, "settings", "secret-store", "--default", "op://Semiont"); code != 0 {
+		t.Fatalf("set the default: exit %d\nstderr:\n%s", code, stderr)
+	}
+	_, stderr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustNotContain(t, "start", stderr, "adopt")
+	if got := keptSecrets(t, stateRootFor(s.home, testKBKey)); got["jwt-secret"] != kept["jwt-secret"] {
+		t.Error("a knowledge base that keeps files lost them to the default")
+	}
+	if len(opItemFields(t, s)) != 0 {
+		t.Error("a knowledge base that keeps files was moved to the default store")
+	}
+}
+
+// Only keeping a value adopts the default: a clean, or naming another store,
+// is not a new knowledge base's first need.
+func TestDefaultSecretStoreIsNotAdoptedByCleanOrAMove(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "settings", "secret-store", "--default", "op://Semiont"); code != 0 {
+		t.Fatalf("set the default: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if err := os.MkdirAll(stateRootFor(s.home, testKBKey), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "clean", "--dry-run")
+	if code != 0 {
+		t.Fatalf("clean --dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustNotContain(t, "clean", stderr, "adopt")
+	stdout, _, _ := s.run(t, "settings", "secret-store")
+	mustContain(t, "after clean", settingRow(stdout, "secret-store"), "files", "the default")
+
+	_, stderr, code = s.run(t, "settings", "secret-store", "op://Other")
+	if code != 0 {
+		t.Fatalf("secret-store op://Other: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustNotContain(t, "move", stderr, "adopt", `vault "Semiont"`)
+	stdout, _, _ = s.run(t, "settings", "secret-store")
+	mustContain(t, "after the move", settingRow(stdout, "secret-store"), `1Password vault "Other"`)
+}
+
+// A person learns where a knowledge base keeps its secrets from the verbs
+// they already run (LAUNCHER-SETTINGS D5): init's summary and the start's.
+func TestInitAndStartNameTheSecretsStore(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	if _, stderr, code := s.run(t, "settings", "secret-store", "--default", "op://Semiont"); code != 0 {
+		t.Fatalf("set the default: exit %d\nstderr:\n%s", code, stderr)
+	}
+	born := newScenario(t, "container", "op")
+	born.home = s.home
+	born.cwd = t.TempDir()
+	stdout, stderr, code := born.run(t, "init", "--name", "born-kb", "--domain", "example.org:born-kb", "--yes")
+	if code != 0 {
+		t.Fatalf("init: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "init's summary", stdout, "Secrets", "op://Semiont", "semiont settings secret-store")
+
+	stdout, stderr, code = s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	mustContain(t, "start's summary", stdout, "Secrets", `1Password vault "Semiont"`, "semiont settings secret-store")
+}
+
+// A setter validates as a start would, and a refused value records nothing.
+func TestSettingsRefusesWhatAStartWould(t *testing.T) {
+	s := newScenario(t, "container")
+	before, _, _ := s.run(t, "settings")
+	for _, c := range []struct {
+		args  []string
+		wants []string
+	}{
+		{[]string{"settings", "runtime", "rocket"}, []string{"rocket", "container, docker, or podman"}},
+		{[]string{"settings", "runtime", "docker"}, []string{"'docker' is not on PATH"}},
+		{[]string{"settings", "config", "nope"}, []string{"nope", "not found"}},
+		{[]string{"settings", "keycloak-port", "70000"}, []string{"70000", "1-65535"}},
+		// The fixture's configs name the issuer's port literally, so a port
+		// setting would change nothing: the start's own warning, as a refusal.
+		{[]string{"settings", "keycloak-port", "8282"}, []string{"names its port literally", "${KEYCLOAK_PORT}"}},
+		{[]string{"settings", "nonesuch", "x"}, []string{"Unknown setting"}},
+	} {
+		_, stderr, code := s.run(t, c.args...)
+		if code == 0 {
+			t.Errorf("%v was accepted", c.args)
+		}
+		mustContain(t, fmt.Sprint(c.args), stderr, c.wants...)
+	}
+	if after, _, _ := s.run(t, "settings"); after != before {
+		t.Errorf("a refused setting changed what is recorded:\nbefore:\n%s\nafter:\n%s", before, after)
 	}
 }
 
@@ -8687,7 +8969,7 @@ func TestStoreWithoutItsPasswordRefusesNamingTheClean(t *testing.T) {
 // it refuses the other values custody owns.
 func TestSecretSetRefusesADaemonPassword(t *testing.T) {
 	s := newScenario(t, "container", "op")
-	_, stderr, code := s.run(t, "secret", "set", "NEO4J_PASSWORD", "op://OSS/Neo4j/password")
+	_, stderr, code := s.run(t, "settings", "secret", "set", "NEO4J_PASSWORD", "op://OSS/Neo4j/password")
 	if code == 0 {
 		t.Fatal("registered a source for a password the launcher generates")
 	}

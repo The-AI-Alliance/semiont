@@ -164,7 +164,7 @@ Secrets are **not** part of the config file. The gateway reads them from its env
 | `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET` | this service's own account at the knowledge base's issuer |
 | inference API keys (e.g. `ANTHROPIC_API_KEY`) | provider calls |
 
-See [Secrets](../services/SECRETS.md) and `semiont secret` for registering where values come
+See [Secrets](../services/SECRETS.md) and `semiont settings secret` for registering where values come
 from.
 
 ## Environment Selection
@@ -481,7 +481,7 @@ ownership.
 
 Variable references in the config use `${VAR_NAME}` syntax (`${VAR_NAME:-default}` supplies a default). The launcher leaves them verbatim when it stages a service's copy; interpolation happens inside the container, when the service first reads the section that names the variable, so the values never pass through your shell history or the launcher's logs. The gateway's document is the exception: the launcher resolves its references when it writes it, by the same rule ([specs/src/config-placeholders/cases.json](../../../specs/src/config-placeholders/cases.json) is the rule's case table, run by both resolvers and by the launcher's reading of which variables a config names), and credentials stay named rather than resolved. Those two resolvers are the only code that reads the syntax, and `lint:placeholder-readers` fails on any other.
 
-`semiont start` refuses when a `${VAR}` that something reads is set neither in your environment nor by a registered source (`semiont secret set`). Something reads it when it sits in a section a service reads, or in one the launcher resolves itself: the gateway's document (`[gateway]`, `[identity]`, `[archivist]`, `[signal]`), Keycloak's password on an external PostgreSQL (`[database]`), and the key the start checks its remote models with (`[inference]`). A reference anywhere else, such as another environment or a section nothing reads, is not asked for. A `${VAR:-default}` is optional: it reaches the containers when you set it, even to the empty string, or register a source for it, and otherwise the default applies. Each service is handed only the variables in the sections it reads, as listed in [specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json), so the Anthropic key in `[inference]` reaches the Librarian and the Worker and no other service. Those two are the only services that call a model, so they report each model's limits (context window, output ceiling) over the bus, and clients join the reports to the collaborator directory the Archivist lists. A service that reads a section its list does not name refuses, naming the section.
+`semiont start` refuses when a `${VAR}` that something reads is set neither in your environment nor by a registered source (`semiont settings secret set`). Something reads it when it sits in a section a service reads, or in one the launcher resolves itself: the gateway's document (`[gateway]`, `[identity]`, `[archivist]`, `[signal]`), Keycloak's password on an external PostgreSQL (`[database]`), and the key the start checks its remote models with (`[inference]`). A reference anywhere else, such as another environment or a section nothing reads, is not asked for. A `${VAR:-default}` is optional: it reaches the containers when you set it, even to the empty string, or register a source for it, and otherwise the default applies. Each service is handed only the variables in the sections it reads, as listed in [specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json), so the Anthropic key in `[inference]` reaches the Librarian and the Worker and no other service. Those two are the only services that call a model, so they report each model's limits (context window, output ceiling) over the bus, and clients join the reports to the collaborator directory the Archivist lists. A service that reads a section its list does not name refuses, naming the section.
 
 ## Quick Start
 
@@ -510,7 +510,7 @@ semiont status
 
 Secrets never live in the config. `JWT_SECRET`, the per-service `SEMIONT_OIDC_CLIENT_SECRET`, and any inference API keys
 reach services as environment variables — see [Secrets](../services/SECRETS.md) and
-`semiont secret` for registering where they come from.
+`semiont settings secret` for registering where they come from.
 
 ## Runtime File Locations
 
