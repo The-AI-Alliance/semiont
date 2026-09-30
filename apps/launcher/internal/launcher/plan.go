@@ -555,23 +555,21 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		plan.Roles["database"] = rp
 	}
 
-	// messaging — the shared NATS daemon (SIGNAL-PLANE D9). ONE role, TWO
-	// config sections voting: [jobs] type = "jetstream" and [signal]
-	// type = "nats" each need it; either alone starts it. When BOTH select
-	// NATS their servers must match — one role is one daemon; two sections
-	// naming two servers is a config error, never silently reconciled. The
-	// daemon has ONE shape, -js with the stamped store, because both voters
-	// use that store: the job queue's stream, and the signal driver's KV
-	// tables, where the gateway's ledger keeps its claims.
+	// messaging — the shared NATS daemon (SIGNAL-PLANE D9). The dispatcher's
+	// queue is JetStream, so [jobs] is required and always starts it; [signal]
+	// type = "nats" rides the same daemon. One role is one daemon: when
+	// [signal] names the broker, its servers and credentials must agree with
+	// [jobs] — a config error, never silently reconciled. The daemon has ONE
+	// shape, -js with the stamped store, because both use that store: the job
+	// queue's stream, and the signal driver's KV tables, where the gateway's
+	// ledger keeps its claims.
 	j := env.Jobs
 	sig := env.Signal
-	if j != nil {
-		if j.Type != "jetstream" {
-			return nil, secErr("jobs", `must set type = "jetstream": the dispatcher's queue is JetStream`)
-		}
-		if j.Servers == "" {
-			return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
-		}
+	if j == nil || j.Type != "jetstream" {
+		return nil, envErr(`must declare [environments.%s.jobs] with type = "jetstream": the dispatcher's queue is JetStream`, envName)
+	}
+	if j.Servers == "" {
+		return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
 	}
 	if sig != nil {
 		switch sig.Type {
@@ -585,88 +583,65 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			return nil, secErr("signal", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
 		}
 	}
-	jobsWantBroker := j != nil
-	signalWantsBroker := sig != nil && sig.Type == "nats"
-	if !jobsWantBroker && !signalWantsBroker {
-		plan.Roles["messaging"] = rolePlan{Role: "messaging", Presence: presenceAbsent}
-	} else {
-		servers := ""
-		if jobsWantBroker {
-			servers = j.Servers
+	user, pass := j.User, j.Password
+	// credSection names the section a credential refusal points at: [jobs],
+	// unless the only credential in play is [signal]'s.
+	credSection := "jobs"
+	if sig != nil && sig.Type == "nats" {
+		if sig.Servers != j.Servers {
+			return nil, secErr("signal", "[jobs] and [signal] name different servers (%q vs %q) — one role is one daemon; they must match", j.Servers, sig.Servers)
 		}
-		if signalWantsBroker {
-			if servers != "" && sig.Servers != servers {
-				return nil, secErr("signal", "[jobs] and [signal] name different servers (%q vs %q) — one role is one daemon; they must match", j.Servers, sig.Servers)
-			}
-			if servers == "" {
-				servers = sig.Servers
-			}
+		if user != "" && sig.User != "" && sig.User != user {
+			return nil, secErr("signal", "[jobs] and [signal] name different broker users (%q vs %q) — one role is one daemon; they must match", j.User, sig.User)
 		}
-		// Credentials reconcile exactly like servers: one role is one daemon,
-		// so two sections naming two passwords is a config error rather than a
-		// silent choice between them.
-		user, pass := "", ""
-		if jobsWantBroker {
-			user, pass = j.User, j.Password
+		if pass != "" && sig.Password != "" && sig.Password != pass {
+			return nil, secErr("signal", "[jobs] and [signal] name different broker passwords — one role is one daemon; they must match")
 		}
-		if signalWantsBroker {
-			if user != "" && sig.User != "" && sig.User != user {
-				return nil, secErr("signal", "[jobs] and [signal] name different broker users (%q vs %q) — one role is one daemon; they must match", j.User, sig.User)
-			}
-			if pass != "" && sig.Password != "" && sig.Password != pass {
-				return nil, secErr("signal", "[jobs] and [signal] name different broker passwords — one role is one daemon; they must match")
-			}
-			if user == "" {
-				user = sig.User
-			}
-			if pass == "" {
-				pass = sig.Password
-			}
+		if user == "" && pass == "" && (sig.User != "" || sig.Password != "") {
+			credSection = "signal"
 		}
-		if (user == "") != (pass == "") {
-			return nil, secErr("signal", "broker credentials are incomplete — set both %q and %q, or neither", "user", "password")
+		if user == "" {
+			user = sig.User
 		}
-
-		spec := descriptorFor("messaging", "jetstream")
-		host, port := parseHostPort(servers)
-		if port == 0 {
-			port = spec.defaultPort
+		if pass == "" {
+			pass = sig.Password
 		}
-		rp := rolePlan{Role: "messaging", Driver: "jetstream", Port: port}
-		if classify(host, "NATS_HOST") == presenceLauncher {
-			// The broker the launcher runs is always authenticated, with a pair
-			// the launcher keeps (SECRET-DELIVERY P4): a config naming one is a
-			// second place deciding it.
-			if user != "" || pass != "" {
-				section := "jobs"
-				if !jobsWantBroker || (j.User == "" && j.Password == "") {
-					section = "signal"
-				}
-				return nil, launcherOwnedErr(section, "user/password", "the broker")
-			}
-			rp.Presence = presenceLauncher
-			rp.Image = spec.image
-			// The pair arrives as the daemon's own environment at launch.
-			// nats-server reads no credential from the environment by itself,
-			// so the staged config interpolates the two names.
-			rp.CmdExtra = []string{"-c", natsConfPath}
-		} else {
-			// Semiont's clients authenticate to a broker by username and
-			// password only; one somebody else runs, reached without them,
-			// lets anyone who reaches it read and write the job queue and
-			// the signal plane.
-			if user == "" {
-				section := "signal"
-				if jobsWantBroker {
-					section = "jobs"
-				}
-				return nil, secErr(section, "broker %s is not run by the launcher, so it needs credentials — set %q and %q", host, "user", "password")
-			}
-			rp.Presence = presenceExternal
-			rp.Address = host
-		}
-		plan.Roles["messaging"] = rp
 	}
+	if (user == "") != (pass == "") {
+		return nil, secErr(credSection, "broker credentials are incomplete — set both %q and %q, or neither", "user", "password")
+	}
+
+	spec := descriptorFor("messaging", "jetstream")
+	host, port := parseHostPort(j.Servers)
+	if port == 0 {
+		port = spec.defaultPort
+	}
+	messaging := rolePlan{Role: "messaging", Driver: "jetstream", Port: port}
+	if classify(host, "NATS_HOST") == presenceLauncher {
+		// The broker the launcher runs is always authenticated, with a pair
+		// the launcher keeps (SECRET-DELIVERY P4): a config naming one is a
+		// second place deciding it.
+		if user != "" || pass != "" {
+			return nil, launcherOwnedErr(credSection, "user/password", "the broker")
+		}
+		messaging.Presence = presenceLauncher
+		messaging.Image = spec.image
+		// The pair arrives as the daemon's own environment at launch.
+		// nats-server reads no credential from the environment by itself,
+		// so the staged config interpolates the two names.
+		messaging.CmdExtra = []string{"-c", natsConfPath}
+	} else {
+		// Semiont's clients authenticate to a broker by username and
+		// password only; one somebody else runs, reached without them,
+		// lets anyone who reaches it read and write the job queue and
+		// the signal plane.
+		if user == "" {
+			return nil, secErr("jobs", "broker %s is not run by the launcher, so it needs credentials — set %q and %q", host, "user", "password")
+		}
+		messaging.Presence = presenceExternal
+		messaging.Address = host
+	}
+	plan.Roles["messaging"] = messaging
 
 	// identity — the OIDC issuer the gateway trusts (EXTERNAL-IDENTITY D5).
 	// One shape for both types: the issuer is stated, never inferred. The

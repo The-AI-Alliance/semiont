@@ -72,18 +72,14 @@ func dispatcherVars(rt, addr string, issuerPort int, userEnv []string) map[strin
 }
 
 // dispatcherDocument renders the document from the selected environment, the
-// address the launcher computed, and the user's variables. The dispatcher's
-// queue is JetStream: a [jobs] section of any other type, or none, refuses,
-// because a dispatcher holds no state tree for another driver to write.
+// address the launcher computed, and the user's variables. The environment is
+// one derivePlan accepted, so its [jobs] is the JetStream queue.
 func dispatcherDocument(env *envConfig, rt, addr string, issuerPort int, userEnv []string, brokerRun bool) ([]byte, error) {
 	if env.Gateway == nil || env.Gateway.PublicURL == "" {
 		return nil, fmt.Errorf("the environment declares no [gateway] publicURL: the dispatcher has no gateway to reach")
 	}
 	if env.Identity == nil {
 		return nil, fmt.Errorf("the environment declares no [identity]: the dispatcher has no issuer to sign in at")
-	}
-	if env.Jobs == nil || env.Jobs.Type != "jetstream" {
-		return nil, fmt.Errorf(`the dispatcher's queue is JetStream: the environment's [jobs] must set type = "jetstream"`)
 	}
 	vars := dispatcherVars(rt, addr, issuerPort, userEnv)
 	var doc semiont.DispatcherConfig

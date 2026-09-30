@@ -229,10 +229,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
-	// The broker (NATS, when the config selects the nats signal driver or the
-	// jetstream jobs driver) precedes the gateway for the signal plane's sake;
-	// the dispatcher's JetStream queue dials the same server later. Absent
-	// config = the in-process signal plane; nothing runs.
+	// The broker (NATS: the dispatcher's JetStream queue, and the nats signal
+	// driver when [signal] selects it) precedes the gateway for the signal
+	// plane's sake; the dispatcher dials the same server later.
 	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
 		return code
 	}
@@ -431,16 +430,10 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	if role == "embedding" && rp.Presence == presenceHostPreferred {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
-	// Absent messaging and identity say what IS running instead, in one line,
-	// rather than the generic "not configured; skipping" banner block, which
-	// reads as a misconfiguration: identity without an [identity] section
-	// means the gateway issues its own tokens.
-	if role == "messaging" && rp.Presence == presenceAbsent {
-		x.say(sayLog, "messaging — nothing to launch: no [jobs] section; signals are in-process")
-		x.note("messaging: nothing to launch (no [jobs] section; signal: in-process)")
-		x.record(role, "", "", providedNone, "", "")
-		return 0
-	}
+	// Absent identity says what IS running instead, in one line, rather than
+	// the generic "not configured; skipping" banner block, which reads as a
+	// misconfiguration: without an [identity] section the gateway issues its
+	// own tokens.
 	if role == "identity" && rp.Presence == presenceAbsent {
 		x.say(sayLog, "identity — nothing to launch: no [identity] section; the gateway issues its own tokens")
 		x.note("identity: nothing to launch (no [identity] section; gateway-issued tokens)")

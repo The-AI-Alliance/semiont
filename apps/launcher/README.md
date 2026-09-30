@@ -674,21 +674,21 @@ something resident on the host, which the launcher deliberately is not.
 
 ### The messaging daemon
 
-A single NATS container, addressed as `--service messaging`, appears only when
-the config selects a broker-backed driver — and one server carries whichever
-of the two ask for it:
+A single NATS container, addressed as `--service messaging`, is part of every
+stack, and one server carries both sections that use it:
 
-- `[jobs] type = "jetstream"` backs the job queue with JetStream (streams plus
-  KV), so the daemon runs `-js -sd /data` with a durable state mount.
+- `[jobs] type = "jetstream"` is required: the dispatcher's queue is JetStream
+  (streams plus KV), so the daemon runs `-js -sd /data` with a durable state
+  mount. A config with no `[jobs]`, or one of another type, is refused.
 - `[signal] type = "nats"` moves the gateway's real-time fan-out onto core NATS
   subjects on the *same* server. Signal frames are never captured — signals are
   not a record — but the gateway's correlation ledger keeps its claims in a
   JetStream KV bucket there, so this driver needs JetStream too.
 
 Both sections must name the same `servers`; a start that finds them pointing at
-different addresses refuses, naming both, rather than run two brokers. When
-**either** section selects it, the daemon runs the same way — `-js -sd /data` with
-the state mount — because both drivers use the store. `semiont status` lists it as
+different addresses refuses, naming both, rather than run two brokers. The
+daemon runs one way — `-js -sd /data` with the state mount — because both
+drivers use the store. `semiont status` lists it as
 `messaging (NATS)`.
 
 Unlike the Semiont service processes, this is a stock third-party image, so it

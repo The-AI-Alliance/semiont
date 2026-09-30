@@ -125,20 +125,6 @@ func TestDispatcherDocumentRefusesALiteralSecret(t *testing.T) {
 	}
 }
 
-// The dispatcher's queue is JetStream: it holds no state tree for another
-// driver to write, so a [jobs] of any other type, or none, refuses by name.
-func TestDispatcherDocumentRefusesAQueueItCannotHold(t *testing.T) {
-	for label, text := range map[string]string{
-		"fs":   strings.Replace(dispatcherDocFixture, `type = "jetstream"`, `type = "fs"`, 1),
-		"none": strings.Replace(dispatcherDocFixture, "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n", "", 1),
-	} {
-		_, err := dispatcherDocument(envFrom(t, text), "container", "192.168.64.1", 8080, nil, false)
-		if err == nil || !strings.Contains(err.Error(), "jetstream") {
-			t.Errorf("%s: want a refusal naming jetstream, got %v", label, err)
-		}
-	}
-}
-
 func TestDispatcherDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
 	noGateway := strings.Replace(dispatcherDocFixture, `publicURL = "http://${GATEWAY_HOST:-localhost}:4000"`, "", 1)
 	if _, err := dispatcherDocument(envFrom(t, noGateway), "container", "192.168.64.1", 8080, nil, false); err == nil || !strings.Contains(err.Error(), "publicURL") {
