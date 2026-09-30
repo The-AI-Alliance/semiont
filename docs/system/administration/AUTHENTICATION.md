@@ -227,10 +227,10 @@ Nothing generates the signing key at request time, and the gateway **refuses to 
 
 | Placement | Supplied by | Where it lives |
 |---|---|---|
-| local | `semiont start` | `<state-root>/jwt-secret`, mode `0600`, one per KB root |
+| local | `semiont start` | `jwt-secret` in the knowledge base's secrets store: a file in its state dir (mode `0600`) or its 1Password item, one per KB root (see [Secrets](../services/SECRETS.md)) |
 | codespace | `.devcontainer/post-create.sh` | `.devcontainer/.env` inside the codespace |
 
-Both announce which key they used — `Token-signing key: generated and persisted at …` / `reused from …` / `from JWT_SECRET in the environment`. Neither ever prints the key. If tokens start failing, that line tells you whether the key changed.
+Both announce which key they used — `Token-signing key: generated and kept` / `reused` / `from JWT_SECRET in the environment` — after the secrets store's own line naming where the key is kept (`secrets: read jwt-secret (…)`). Neither ever prints the key. If tokens start failing, those lines tell you whether the key changed.
 
 ### Rotating `JWT_SECRET` without cutting off the sidecars
 

@@ -139,7 +139,7 @@ func secretUsage() string {
 		p := secretProviders[s]
 		providers += fmt.Sprintf("  %s://%s   %s (%s)\n", s, p.pathHint, p.display, p.bin)
 	}
-	return `Usage: semiont secret <set|list|rm> ...
+	return `Usage: semiont secret <set|push|list|rm|store> ...
 
 Register where config secrets come from. The launcher stores only a POINTER
 (provider + path) in roots.json — never a value — and reads it fresh on
@@ -157,6 +157,9 @@ Commands:
                                   which cannot reach your local provider.
   list                            Show registered sources (pointers, never values)
   rm <VAR>                        Forget a source
+  store [file | op://<vault>]     Where this KB keeps the values the launcher
+                                  generates for it; naming a store moves them
+                                  (semiont secret store --help)
 
 Providers (the URI scheme picks one):
 ` + providers + `
@@ -217,6 +220,8 @@ func Secret(args []string) int {
 		}
 		fmt.Println(u.Dim("  (pointers only — values are read fresh on every start; the environment always wins)"))
 		return 0
+	case "store":
+		return secretStoreCmd(u, args[1:])
 	case "rm":
 		if len(args) != 2 {
 			u.Fail("Usage: semiont secret rm <VAR>")

@@ -75,7 +75,7 @@ func TestCustodyIsKeptPerRootAndPrivate(t *testing.T) {
 	u := NewUI(false)
 	secret, _ := loadOrCreateJWTSecret(u, root)
 
-	store, ok := custodyFor(root)
+	store, ok := custodyFor(u, root)
 	if !ok {
 		t.Fatal("no custody store for this root")
 	}
@@ -87,7 +87,7 @@ func TestCustodyIsKeptPerRootAndPrivate(t *testing.T) {
 	if mode := fi.Mode().Perm(); mode != 0o600 {
 		t.Errorf("%s is mode %04o — a signing key is readable only by its owner", p, mode)
 	}
-	if got := store.get(custodyJWTSecret); got != secret {
+	if got, _ := store.get(u, custodyJWTSecret); got != secret {
 		t.Errorf("the kept value is not the one handed out: %q vs %q", got, secret)
 	}
 	if b, err := os.ReadFile(rootsPath()); err == nil && strings.Contains(string(b), secret) {

@@ -26,13 +26,47 @@ There is one service account for each stack service: the gateway, archivist, dis
 librarian, smelter, weaver and worker. A daemon's password exists only when the launcher runs
 that daemon.
 
-**Where they are kept**: one file per value, mode 0600, in the knowledge base's state directory:
-`~/Library/Application Support/semiont/roots/<key>/` on macOS, and
-`$XDG_DATA_HOME/semiont/roots/<key>/` on Linux (`~/.local/share/semiont/roots/<key>/` when that
-variable is unset). `<key>` is the knowledge base's state key, derived from its domain. A start
-that generates a value names the file it wrote, and when the launcher runs Neo4j, the start's
-summary names the file its password is kept in: a skill or a person connecting to Neo4j directly
-reads it from there.
+**Where they are kept**: in the knowledge base's secrets store. Each knowledge base has one,
+and `semiont secret store` names it:
+
+| Store | Set with | Each value is |
+|---|---|---|
+| Files (the default) | `semiont secret store file` | a file, mode 0600, in the knowledge base's state directory: `~/Library/Application Support/semiont/roots/<key>/<name>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>/<name>` on Linux (`~/.local/share/…` when that variable is unset) |
+| 1Password | `semiont secret store op://<vault>` | a concealed field of one Secure Note per knowledge base, titled `Semiont — <key>`, in the vault you name: `op://<vault>/Semiont — <key>/<name>` |
+
+`<key>` is the knowledge base's state key, derived from its domain, and `<name>` is the "Kept as"
+column above. Give 1Password a vault that holds the launcher's items and nothing else. The
+desktop app asks once per terminal session to authorize the CLI, for the whole account; to scope
+the launcher to that one vault with no prompt, use a 1Password service account limited to it, by
+exporting `OP_SERVICE_ACCOUNT_TOKEN`, which the `op` CLI reads itself.
+
+A knowledge base keeps its values in exactly one store. A store that does not answer (1Password
+locked and the prompt refused, or `op` not installed) stops the start: the launcher never falls
+back to another store, which would generate new values over the ones kept.
+
+**Every store operation is shown.** Each read, write and delete prints a line on stderr before
+it runs, naming the operation and the secret, never its value:
+
+```
+▸ secrets: read jwt-secret (op://Semiont/Semiont — example.org/jwt-secret)
+```
+
+**Finding a value.** `semiont secret store` lists where each kept value is. When the launcher runs
+Neo4j, the start's summary names where its password is kept. A skill or a person connecting to
+Neo4j directly reads it there: the file, or `op read "op://<vault>/Semiont — <key>/neo4j-password"`.
+
+**Moving to another store.** Naming a different store moves every kept value: the launcher
+copies each one, reads each back, records the new store, and then deletes the values from the
+store it leaves. It refuses a store that already holds values for this knowledge base, so two
+copies never disagree after a rotation.
+
+```bash
+semiont secret store op://Semiont    # from the files into 1Password
+semiont secret store                 # which store, and where each value is
+semiont secret store file            # back to the files
+```
+
+The setting is per knowledge base and machine, kept in `secretstores.json` beside `roots.json`.
 
 **Generated once, then kept.** Each value is generated on the first start that needs it and
 written to its file before use. Every later start reuses it, because replacing it breaks
@@ -53,13 +87,13 @@ something that outlived the stack:
   reference one, and `semiont secret set` refuses them. A config section for a daemon the
   launcher runs names no password.
 
-**Rotating a daemon's password.** Delete its file, then clear the store the daemon initialized
-with the old one, for example `semiont clean --store graph`. The next start generates a new
-password and a fresh store.
+**Rotating a daemon's password.** Delete it from the secrets store (its file, or its field in
+the 1Password item), then clear the data the daemon initialized with the old one, for example
+`semiont clean --store graph`. The next start generates a new password and a fresh data store.
 
-**A store the launcher keeps no password for.** When a daemon's store holds data but its
-password file is missing, the store was initialized with a password the launcher does not have:
-one a config once named literally, or a file that was lost. A daemon started over it would
+**A store the launcher keeps no password for.** When a daemon's store holds data but the secrets
+store keeps no password for it, the data was initialized with a password the launcher does not
+have: one a config once named literally, or one that was lost. A daemon started over it would
 reject every login, so `semiont start` refuses and names the fix:
 
 ```bash
@@ -70,12 +104,14 @@ semiont start
 semiont useradd --email you@example.com --generate-password
 ```
 
-**Removal.** An unscoped `semiont clean` removes the knowledge base's state directory, and every
-kept value with it. That is consistent: the accounts and the stores those values protect are
-removed with them. A `--store` clean keeps them all.
+**Removal.** An unscoped `semiont clean` deletes every kept value from the secrets store, showing
+each, and removes the knowledge base's state directory. That is consistent: the accounts and the
+stores those values protect are removed with them. `--dry-run` lists the values it would
+delete. The store setting stays, so the next start keeps its new values in the same store. A
+`--store` clean keeps every value.
 
-A codespace keeps its own values: the launcher inside it generates them on the codespace's
-filesystem, and nothing is copied from the laptop.
+A codespace keeps its own values: the launcher inside it generates them in the files on the
+codespace's filesystem, and nothing is copied from the laptop.
 
 ## Values you own
 

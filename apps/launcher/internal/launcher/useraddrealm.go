@@ -90,7 +90,10 @@ func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 		fmt.Fprintf(os.Stderr, "  Create the account at %s, then it can sign in here.\n", rp.Issuer)
 		return realmAdmin{}, false
 	}
-	adminPass, _ := keycloakAdminPassword(root)
+	adminPass, _, ok := keycloakAdminPassword(u, root)
+	if !ok {
+		return realmAdmin{}, false
+	}
 	if adminPass == "" {
 		u.Fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
 		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")

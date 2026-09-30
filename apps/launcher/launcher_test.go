@@ -5587,6 +5587,320 @@ func TestStartJWTSecretKeyedToResolvedRoot(t *testing.T) {
 	}
 }
 
+// keptSecrets: the secrets the filesystem store keeps for a root, by name —
+// its files, less the root's own bookkeeping.
+func keptSecrets(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("reading %s: %v", dir, err)
+	}
+	kept := map[string]string{}
+	for _, e := range entries {
+		if e.IsDir() || e.Name() == "meta.json" || e.Name() == "start.lock" {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		kept[e.Name()] = strings.TrimSpace(string(b))
+	}
+	return kept
+}
+
+// Every secret-store operation is shown on the terminal before it runs: the
+// operation and the secret's name, never its value (SECRETS-STORE, ruled
+// 2026-09-29: "Not the secret values, but their names and the operation").
+// The filesystem store is no exception.
+func TestStartShowsEverySecretStoreOperation(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true
+	firstOut, firstErr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("first start: exit %d\nstderr:\n%s", code, firstErr)
+	}
+	kept := keptSecrets(t, stateRootFor(s.home, testKBKey))
+	if _, ok := kept["jwt-secret"]; !ok || len(kept) < 2 {
+		t.Fatalf("the first start kept too little to test with: %d secrets", len(kept))
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	secondOut, secondErr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, secondErr)
+	}
+	for name := range kept {
+		mustContain(t, "the first start", firstErr, "secrets: write "+name)
+		mustContain(t, "the second start", secondErr, "secrets: read "+name)
+		mustNotContain(t, "the second start", secondErr, "secrets: write "+name)
+	}
+	for name, value := range kept {
+		for label, out := range map[string]string{
+			"first start stdout": firstOut, "first start stderr": firstErr,
+			"second start stdout": secondOut, "second start stderr": secondErr,
+		} {
+			if strings.Contains(out, value) {
+				t.Errorf("%s shows the VALUE of %s", label, name)
+			}
+		}
+	}
+}
+
+// --- the configured secrets store (SECRETS-STORE P3–P5) ---
+
+// opItemFields: the fields of this KB's 1Password item, by label, as the fake
+// CLI keeps them; nil when there is no item.
+func opItemFields(t *testing.T, s *scenario) map[string]string {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join(s.fakertDir, "op-items.json"))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	var items []struct {
+		Title  string                          `json:"title"`
+		Vault  struct{ Name string }           `json:"vault"`
+		Fields []struct{ Label, Value string } `json:"fields"`
+	}
+	if err := json.Unmarshal(b, &items); err != nil {
+		t.Fatal(err)
+	}
+	var out map[string]string
+	for _, it := range items {
+		if it.Title != "Semiont — "+testKBKey {
+			continue
+		}
+		if out != nil {
+			t.Fatalf("two items for one knowledge base:\n%s", b)
+		}
+		out = map[string]string{}
+		for _, f := range it.Fields {
+			if f.Label != "notesPlain" {
+				out[f.Label] = f.Value
+			}
+		}
+	}
+	return out
+}
+
+// The newly started lines of the argv log, since before.
+func freshLog(s *scenario, t *testing.T, before []byte) string {
+	t.Helper()
+	return strings.TrimPrefix(string(s.mustLog(t)), string(before))
+}
+
+func TestSecretStoreKeepsAKnowledgeBaseInOnePassword(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	stdout, stderr, code := s.run(t, "secret", "store", "op://Semiont")
+	if code != 0 {
+		t.Fatalf("secret store: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	mustContain(t, "secret store", stdout, `1Password vault "Semiont"`)
+
+	_, firstErr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("first start: exit %d\nstderr:\n%s", code, firstErr)
+	}
+	ref := "op://Semiont/Semiont — " + testKBKey + "/"
+	mustContain(t, "first start", firstErr, "secrets: write jwt-secret ("+ref+"jwt-secret)")
+	kept := opItemFields(t, s)
+	if kept["jwt-secret"] == "" || kept["postgres-password"] == "" {
+		t.Fatalf("the start kept its values somewhere other than the item: %d fields", len(kept))
+	}
+	// The configured store is the only one: nothing lands on the filesystem.
+	if files := keptSecrets(t, stateRootFor(s.home, testKBKey)); len(files) != 0 {
+		t.Errorf("a root on 1Password kept %d values in files too", len(files))
+	}
+	// Values travel on stdin: none reached any command line.
+	for name, v := range kept {
+		if strings.Contains(string(s.mustLog(t)), v) {
+			t.Errorf("the value of %s reached a command line", name)
+		}
+	}
+
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	before := s.mustLog(t)
+	_, secondErr, code := s.run(t, "start")
+	if code != 0 {
+		t.Fatalf("second start: exit %d\nstderr:\n%s", code, secondErr)
+	}
+	mustContain(t, "second start", secondErr, "secrets: read jwt-secret ("+ref+"jwt-secret)")
+	mustNotContain(t, "second start", secondErr, "secrets: write")
+	// One read of the whole item, not one call per value.
+	if n := strings.Count(freshLog(s, t, before), "op item get"); n != 1 {
+		t.Errorf("the second start ran `op item get` %d times, want once:\n%s", n, freshLog(s, t, before))
+	}
+	if got := opItemFields(t, s); got["jwt-secret"] != kept["jwt-secret"] {
+		t.Error("the second start replaced the kept token-signing key")
+	}
+
+	stdout, _, _ = s.run(t, "status")
+	mustContain(t, "status", stdout, `secrets: 1Password vault "Semiont", item "Semiont — `+testKBKey+`"`)
+	stdout, _, code = s.run(t, "secret", "store")
+	if code != 0 {
+		t.Fatalf("secret store (show): exit %d", code)
+	}
+	mustContain(t, "secret store (show)", stdout, ref+"jwt-secret", ref+"postgres-password")
+}
+
+func TestSecretStoreNeverFallsBackToTheFilesystem(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "secret", "store", "op://Semiont"); code != 0 {
+		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if err := os.Remove(filepath.Join(s.shim, "op")); err != nil {
+		t.Fatal(err)
+	}
+	_, stderr, code := s.run(t, "start")
+	if code == 0 {
+		t.Fatal("start succeeded with its configured store unreachable")
+	}
+	mustContain(t, "refusal", stderr, `1Password vault "Semiont"`, "'op' is not on PATH", "never falls back")
+	if files := keptSecrets(t, stateRootFor(s.home, testKBKey)); len(files) != 0 {
+		t.Errorf("the refused start kept %d values on the filesystem", len(files))
+	}
+}
+
+func TestSecretStoreMovesKeptValues(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	dir := stateRootFor(s.home, testKBKey)
+	onDisk := keptSecrets(t, dir)
+
+	stdout, stderr, code := s.run(t, "secret", "store", "op://Semiont")
+	if code != 0 {
+		t.Fatalf("move: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+	}
+	moved := opItemFields(t, s)
+	for name, v := range onDisk {
+		if moved[name] != v {
+			t.Errorf("%s did not arrive in 1Password intact", name)
+		}
+		mustContain(t, "move", stderr, "secrets: read "+name, "secrets: write "+name, "secrets: delete "+name)
+		if strings.Contains(stdout+stderr, v) {
+			t.Errorf("the move showed the value of %s", name)
+		}
+	}
+	if left := keptSecrets(t, dir); len(left) != 0 {
+		t.Errorf("the move left %d values in the old store", len(left))
+	}
+	// And back: the store it leaves is emptied the same way.
+	if _, stderr, code := s.run(t, "secret", "store", "file"); code != 0 {
+		t.Fatalf("move back: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if back := keptSecrets(t, dir); len(back) != len(onDisk) || back["jwt-secret"] != onDisk["jwt-secret"] {
+		t.Errorf("moving back restored %d of %d values", len(back), len(onDisk))
+	}
+	if left := opItemFields(t, s); len(left) != 0 {
+		t.Errorf("moving back left %d values in 1Password", len(left))
+	}
+}
+
+func TestSecretStoreRefusesATargetThatAlreadyHoldsValues(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	stale := `[{"id":"stale1","title":"Semiont — ` + testKBKey + `","category":"SECURE_NOTE","vault":{"id":"v","name":"Semiont"},` +
+		`"fields":[{"id":"jwt-secret","label":"jwt-secret","type":"CONCEALED","value":"an-older-key"}]}]`
+	if err := os.WriteFile(filepath.Join(s.fakertDir, "op-items.json"), []byte(stale), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	onDisk := keptSecrets(t, stateRootFor(s.home, testKBKey))
+	_, stderr, code := s.run(t, "secret", "store", "op://Semiont")
+	if code == 0 {
+		t.Fatal("a move into a store that already holds this KB's values succeeded")
+	}
+	mustContain(t, "refusal", stderr, "already holds", "jwt-secret")
+	if got := opItemFields(t, s)["jwt-secret"]; got != "an-older-key" {
+		t.Error("the refused move wrote into the target")
+	}
+	if left := keptSecrets(t, stateRootFor(s.home, testKBKey)); len(left) != len(onDisk) {
+		t.Error("the refused move touched the source")
+	}
+}
+
+func TestCleanClearsTheSecretStore(t *testing.T) {
+	s := newScenario(t, "container", "op")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "secret", "store", "op://Semiont"); code != 0 {
+		t.Fatalf("secret store: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	kept := opItemFields(t, s)
+
+	stdout, stderr, code := s.run(t, "clean", "--dry-run")
+	if code != 0 {
+		t.Fatalf("clean --dry-run: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for name := range kept {
+		mustContain(t, "dry run", stdout, "would delete "+name)
+	}
+	if len(opItemFields(t, s)) != len(kept) {
+		t.Error("a dry run deleted secrets")
+	}
+
+	_, stderr, code = s.run(t, "clean")
+	if code != 0 {
+		t.Fatalf("clean: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for name := range kept {
+		mustContain(t, "clean", stderr, "secrets: delete "+name)
+	}
+	if left := opItemFields(t, s); len(left) != 0 {
+		t.Errorf("clean left %d values in 1Password", len(left))
+	}
+	// The store stays configured: the next start keeps its new values there.
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start after clean: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if opItemFields(t, s)["jwt-secret"] == "" {
+		t.Error("after a clean, the next start did not keep its values in the configured store")
+	}
+}
+
+func TestCleanShowsEachSecretItDeletesFromTheFilesystem(t *testing.T) {
+	s := newScenario(t, "container")
+	s.noJWTSecret = true
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, _, code := s.run(t, "stop"); code != 0 {
+		t.Fatalf("stop: exit %d", code)
+	}
+	kept := keptSecrets(t, stateRootFor(s.home, testKBKey))
+	_, stderr, code := s.run(t, "clean")
+	if code != 0 {
+		t.Fatalf("clean: exit %d\nstderr:\n%s", code, stderr)
+	}
+	for name := range kept {
+		mustContain(t, "clean", stderr, "secrets: delete "+name)
+	}
+}
+
 // gatewayJWTSecret: the value the gateway container was given. It crosses
 // through the runtime's environment, never its command line (SECRET-DELIVERY
 // P6), so it is read from what the container received.
