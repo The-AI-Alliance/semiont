@@ -6001,10 +6001,14 @@ func TestSettingsShowsTheDefaultsOfAFreshMachine(t *testing.T) {
 		"config":        {"ollama-gemma", "default"},
 		"keycloak-port": {"8080", "default"},
 		"secret":        {"none"},
-		"secret-store":  {"files", "default"},
+		// Wherever the file store is named, it says it is not secure.
+		"secret-store":           {"files", "default", "not secure: for development only"},
+		"secret-store --default": {"files", "not secure: for development only"},
 	} {
 		mustContain(t, name+" row", settingRow(stdout, name), wants...)
 	}
+	status, _, _ := s.run(t, "settings", "--help")
+	mustContain(t, "settings --help", status, "not secure: for development only")
 }
 
 func TestSettingsSetsAndClearsTheStickyOnes(t *testing.T) {

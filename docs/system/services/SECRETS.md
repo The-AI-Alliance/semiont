@@ -31,11 +31,16 @@ and `semiont settings secret-store` names it:
 
 | Store | Set with | Each value is |
 |---|---|---|
-| Files (the default) | `semiont settings secret-store file` | a file, mode 0600, in the knowledge base's state directory: `~/Library/Application Support/semiont/roots/<key>/<name>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>/<name>` on Linux (`~/.local/share/…` when that variable is unset) |
+| Files (the default; development only) | `semiont settings secret-store file` | a file, mode 0600, in the knowledge base's state directory: `~/Library/Application Support/semiont/roots/<key>/<name>` on macOS, `$XDG_DATA_HOME/semiont/roots/<key>/<name>` on Linux (`~/.local/share/…` when that variable is unset) |
 | 1Password | `semiont settings secret-store op://<vault>` | a concealed field of one Secure Note per knowledge base, titled `Semiont — <key>`, in the vault you name: `op://<vault>/Semiont — <key>/<name>` |
 
 `<key>` is the knowledge base's state key, derived from its domain, and `<name>` is the "Kept as"
-column above. Give 1Password a vault that holds the launcher's items and nothing else. The
+column above.
+
+**The files are not secure; use them for development only.** Each value is plain text. Mode 0600
+keeps other accounts out, but anything running as you can read it, and every backup of your home
+directory copies it. Wherever the launcher names the file store, it says so. Keep a knowledge
+base whose data matters in 1Password. Give 1Password a vault that holds the launcher's items and nothing else. The
 desktop app asks once per terminal session to authorize the CLI, for the whole account; to scope
 the launcher to that one vault with no prompt, use a 1Password service account limited to it, by
 exporting `OP_SERVICE_ACCOUNT_TOKEN`, which the `op` CLI reads itself.
@@ -64,7 +69,7 @@ copies never disagree after a rotation.
 ```bash
 semiont settings secret-store op://Semiont    # from the files into 1Password
 semiont settings secret-store                 # which store, and where each value is
-semiont settings secret-store file            # back to the files
+semiont settings secret-store file            # back to the files (development only)
 ```
 
 **A default for new knowledge bases.** To keep every new knowledge base's secrets in 1Password:
@@ -124,8 +129,8 @@ stores those values protect are removed with them. `--dry-run` lists the values 
 delete. The store setting stays, so the next start keeps its new values in the same store. A
 `--store` clean keeps every value.
 
-A codespace keeps its own values: the launcher inside it generates them in the files on the
-codespace's filesystem, and nothing is copied from the laptop.
+A codespace keeps its own values in the file store on the codespace's filesystem, with the same
+caveat: the launcher inside it generates them, and nothing is copied from the laptop.
 
 ## Values you own
 

@@ -60,7 +60,9 @@ brews:
         semiont start       run its stack
         semiont settings    where secrets come from and where they are kept,
                             the container runtime, and the rest
-      To keep every new knowledge base's secrets in 1Password:
+      A knowledge base's secrets are kept in plain files by default, which are
+      not secure: for development only. To keep every new knowledge base's
+      secrets in 1Password:
         semiont settings secret-store --default op://<vault>
 
 release:

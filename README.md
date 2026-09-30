@@ -16,7 +16,7 @@ The `semiont` launcher is a single static binary — no npm, no Node.js:
 brew install the-ai-alliance/semiont/semiont
 ```
 
-`semiont settings` lists everything the launcher keeps: the container runtime, where your secrets come from, and where each knowledge base's generated secrets are kept. To keep every new knowledge base's secrets in 1Password, set that before creating one:
+`semiont settings` lists everything the launcher keeps: the container runtime, where your secrets come from, and where each knowledge base's generated secrets are kept. By default they are plain files, which are not secure and are for development only. To keep every new knowledge base's secrets in 1Password, set that before creating one:
 
 ```bash
 semiont settings secret-store --default op://YourVaultName

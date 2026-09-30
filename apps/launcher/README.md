@@ -137,7 +137,9 @@ semiont stop
 - **`semiont settings secret-store` says where a KB keeps the values the launcher
   generates for it** — the token-signing key, Keycloak's admin password, the
   service accounts' secrets, the daemons' passwords. `file` (the default) is
-  one 0600 file per value under the KB's state dir; `op://<vault>` is one
+  one 0600 plain-text file per value under the KB's state dir — **not secure:
+  for development only**, and every place the launcher names it says so;
+  `op://<vault>` is one
   1Password Secure Note per KB in that vault, one concealed field per value,
   values on stdin only. Naming a store moves every kept value (copy, read
   back, record, delete from the old store) and refuses a store that already

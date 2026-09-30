@@ -179,12 +179,20 @@ func showCustodyOp(u *UI, op, where string) {
 }
 
 // fileBackend: one 0600 file per value under the root's state dir. The
-// default store, and the only one for a root that configures none.
+// default store, and the only one for a root that configures none. It is not
+// secure (fileStoreCaveat), and says so wherever it is named.
 type fileBackend struct{ dir string }
+
+// fileStoreCaveat: said wherever the file store is named. Its values are plain
+// text: mode 0600 keeps other accounts out, but anything running as this user
+// can read them, and every backup of the home directory copies them.
+const fileStoreCaveat = "plain files, not secure: for development only"
 
 func (f fileBackend) where(name string) string { return filepath.Join(f.dir, name) }
 
-func (f fileBackend) describe() string { return "the files under " + f.dir }
+func (f fileBackend) describe() string {
+	return "the files under " + f.dir + " — " + fileStoreCaveat
+}
 
 func (f fileBackend) get(u *UI, name string) (string, bool) {
 	b, err := os.ReadFile(f.where(name))

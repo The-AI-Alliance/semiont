@@ -84,9 +84,10 @@ Settings:
                                    start runs
   keycloak-port   knowledge base   The port of this knowledge base's Keycloak
   secret-store    knowledge base   Where the values the launcher generates for
-                                   the knowledge base are kept: file (the
-                                   default) or op://<vault>, one 1Password item
-                                   per knowledge base. Setting it moves every
+                                   the knowledge base are kept: op://<vault>,
+                                   one 1Password item per knowledge base, or
+                                   file, the default:
+                                   plain files, not secure: for development only. Setting it moves every
                                    kept value, and refuses a store that already
                                    holds this knowledge base's values.
   secret-store --default
@@ -268,7 +269,7 @@ func showDefaultSecretStore(u *UI, root string) []settingLine {
 	case set:
 		return []settingLine{{custodyStoreNamed("<key>", def, true).describe(), "adopted by each new knowledge base"}}
 	}
-	return []settingLine{{"files", "new knowledge bases keep their values in files"}}
+	return []settingLine{{"files", "new knowledge bases keep their values in " + fileStoreCaveat}}
 }
 
 // changeSetting sets or unsets one setting.
