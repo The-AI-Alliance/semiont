@@ -668,7 +668,7 @@ func flowInferenceRole(x executor, fc flowCtx, addr string) int {
 					x.say(sayFail, "%v", err)
 					return 1
 				}
-				x.verifyRemoteModels("inference", saasBase(rp), key, rp.Models)
+				x.verifyRemoteModels("inference", saasBase(rp), key, servedBy(rp.Models, "anthropic"))
 			}
 			return 0
 		}

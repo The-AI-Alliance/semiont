@@ -6393,6 +6393,47 @@ func TestStatusNeverShowsACrossProviderCeiling(t *testing.T) {
 	mustNotContain(t, "cross-provider report", stdout, "window", " in / ")
 }
 
+func TestStatusShowsARemoteCeilingInAnOllamaDrivenRow(t *testing.T) {
+	// Workers default to Anthropic while one job type runs on Ollama, so the
+	// inference row's driver is ollama and lists Claude beside gemma. Each
+	// binding names its provider, so each model's ceiling is keyed by its own
+	// provider, not by the row's (found live 2026-09-29: Claude's row was
+	// bare although the worker reported its limits).
+	anthPort := serveAnthropicModels(t, "claude-sonnet-4-5-20250929")
+	s := newScenario(t, "container")
+	writeKBConfig(t, s, "mixed-ollama",
+		stdGraph+stdVectors+stdDatabase+stdEmbedding+
+			fmt.Sprintf("[environments.local.inference.anthropic]\nplatform = \"external\"\nendpoint = \"http://localhost:%d\"\napiKey = \"${ANTHROPIC_API_KEY}\"\n\n", anthPort)+
+			"[environments.local.workers.default.inference]\ntype = \"anthropic\"\nmodel = \"claude-sonnet-4-5-20250929\"\n\n"+
+			"[environments.local.workers.highlight-annotation.inference]\ntype = \"ollama\"\nmodel = \"gemma4:26b\"\n\n")
+	s.extraEnv = append(s.extraEnv,
+		"ANTHROPIC_API_KEY=test-key",
+		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
+		limitsReply(
+			reportedPair("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`),
+			reportedPair("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
+		))
+	if _, stderr, code := s.run(t, "start", "--config", "mixed-ollama"); code != 0 {
+		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	}
+	if _, stderr, code := s.run(t, "login"); code != 0 {
+		t.Fatalf("login: exit %d\nstderr:\n%s", code, stderr)
+	}
+	stdout, _, code := s.run(t, "status")
+	if code != 0 {
+		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
+	}
+	mustContain(t, "inference row", stdout, "inference (Ollama)")
+	for _, line := range strings.Split(stdout, "\n") {
+		switch {
+		case strings.Contains(line, "claude-sonnet-4-5-20250929"):
+			mustContain(t, "Claude's row", line, "remote", "200K in / 64K out")
+		case strings.Contains(line, "gemma4:26b"):
+			mustContain(t, "gemma's row", line, "installed", "128K window")
+		}
+	}
+}
+
 func TestStatusPlatformCeilingReplacesTheProbedWindow(t *testing.T) {
 	// The launcher's own /v1/models probe renders "200K ctx" today. Once the
 	// platform publishes the ceiling, THAT is the one on the row — one context

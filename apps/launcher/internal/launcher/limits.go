@@ -111,37 +111,6 @@ func fetchModelCeilings(st *StackState) modelCeilings {
 	return out
 }
 
-// ceilingProvider names the provider that serves ONE model in a role's row,
-// and reports whether the record settles the question at all.
-//
-// It deliberately does NOT mirror printModels' isOllama: that one falls back
-// to the row's driver for records written before ollamaServed existed, which
-// is right for an install state (those records rendered that way before, and
-// a wrong install state is visibly wrong) and wrong for a ceiling (a wrong
-// number reads as a fact). Two models in one row can have two providers —
-// a config can point workers at Anthropic while embedding runs on Ollama —
-// so where the record cannot name this model's provider, nothing is claimed.
-func ceilingProvider(model, driver string, ollamaServed []string) (string, bool) {
-	if ollamaServed == nil {
-		return "", false // predates the field; the driver alone is not evidence
-	}
-	for _, m := range ollamaServed {
-		if m == model {
-			return "ollama", true
-		}
-	}
-	switch driver {
-	case "":
-		return "", false
-	case "ollama":
-		// Ollama does not serve it, yet the row claims Ollama. Whoever serves
-		// this model, the record does not say. (The same confusion, trusted,
-		// once advised `ollama pull claude-…`.)
-		return "", false
-	}
-	return driver, true
-}
-
 // ceilingCell renders one model's ceilings. Wording matches the
 // CollaborationPanel's, so the same model reads the same in the terminal and
 // in the browser; the shared-window sentinel is the schema's own

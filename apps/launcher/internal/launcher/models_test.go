@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -39,41 +40,6 @@ func TestUnreachableOllamaIsUnknownNotMissing(t *testing.T) {
 	}
 }
 
-// Which provider serves a model is a PER-MODEL fact, and a ceiling keyed off
-// the wrong one is worse than no ceiling: it would print Claude's window on a
-// Gemma row. The row's driver is NOT that fact — a config can point workers at
-// Anthropic while embedding runs on Ollama, and the inference row then lists
-// Claude models under a driver of "ollama" (the same confusion that shipped
-// "ollama pull claude-…", observed 2026-07-20). So the derivation refuses
-// wherever the record cannot settle the question.
-func TestCeilingProviderDerivation(t *testing.T) {
-	for _, c := range []struct {
-		name         string
-		model        string
-		driver       string
-		ollamaServed []string
-		want         string
-		wantOK       bool
-	}{
-		{"ollama-served model", "gemma4:26b", "ollama", []string{"gemma4:26b"}, "ollama", true},
-		{"remote model on a remote row", "claude-sonnet-4-5", "anthropic", []string{}, "anthropic", true},
-		{"ollama-served model on a remote row", "nomic-embed-text", "anthropic", []string{"nomic-embed-text"}, "ollama", true},
-		// The bug shape: Ollama does not serve it, yet the row claims Ollama.
-		// Nothing in the record names who does — so nothing is claimed.
-		{"remote model on an ollama row", "claude-sonnet-4-5", "ollama", []string{"gemma4:26b"}, "", false},
-		// A record written before ollamaServed existed: the driver is the only
-		// signal, and trusting it alone is precisely what shipped the bug.
-		{"record predating ollamaServed", "gemma4:26b", "ollama", nil, "", false},
-		{"no driver recorded", "gemma4:26b", "", []string{}, "", false},
-	} {
-		got, ok := ceilingProvider(c.model, c.driver, c.ollamaServed)
-		if got != c.want || ok != c.wantOK {
-			t.Errorf("%s: ceilingProvider(%q, %q, %v) = (%q, %v), want (%q, %v)",
-				c.name, c.model, c.driver, c.ollamaServed, got, ok, c.want, c.wantOK)
-		}
-	}
-}
-
 // The ceiling cell reads as a ceiling, does not round one away, and words
 // itself exactly as the CollaborationPanel does — the same model must read the
 // same in the terminal and in the browser.
@@ -109,17 +75,17 @@ func TestBindingModelsAreSortedAndDeduped(t *testing.T) {
 	env.Actors["matcher"] = mk("ollama", "gemma4:26b") // dupe
 	env.Workers["tag"] = mk("ollama", "gemma4:e2b")
 	// A mixed config lists remote models too — these ARE the models this
-	// stack performs inference with, whoever serves them.
+	// stack performs inference with, whoever serves them — each under the
+	// provider its binding names.
 	env.Workers["gen"] = mk("anthropic", "claude-sonnet-4-5")
 	got := bindingModels(env)
-	want := []string{"claude-sonnet-4-5", "gemma4:26b", "gemma4:e2b"}
-	if len(got) != len(want) {
-		t.Fatalf("got %v want %v", got, want)
+	want := []servedModel{
+		{Model: "claude-sonnet-4-5", Provider: "anthropic"},
+		{Model: "gemma4:26b", Provider: "ollama"},
+		{Model: "gemma4:e2b", Provider: "ollama"},
 	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("got %v want %v", got, want)
-		}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("got %v want %v", got, want)
 	}
 }
 

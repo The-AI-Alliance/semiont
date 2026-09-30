@@ -91,34 +91,15 @@ func humanSize(n int64) string {
 // printModels renders one role's configured models beneath its row. Remote
 // providers (Anthropic, Voyage) have nothing to install, so they get the name
 // and an honest "remote" rather than a fabricated install state.
-func printModels(u *UI, models, ollamaServed []string, driver string, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings) {
-	// Which models have an install state at all is PER MODEL, not per row: a
-	// config can point its workers at Anthropic while its embedding runs on
-	// Ollama, and the inference row then lists Claude models under a driver
-	// of "ollama". Checking those against Ollama reported them MISSING and
-	// advised `ollama pull claude-…` — nonsense (observed 2026-07-20).
-	//
-	// A nil ollamaServed is a record written before this field existed; fall
-	// back to the row's driver so those keep rendering as they did.
-	served := map[string]bool{}
-	for _, m := range ollamaServed {
-		served[m] = true
-	}
-	isOllama := func(m string) bool {
-		if ollamaServed == nil {
-			return driver == "ollama"
-		}
-		return served[m]
-	}
-	// The platform's ceiling for THIS model, or "" where the roster has none
-	// and where the record cannot confidently say who serves it (see
-	// ceilingProvider — a wrong ceiling is worse than a missing one).
-	ceiling := func(m string) string {
-		provider, ok := ceilingProvider(m, driver, ollamaServed)
-		if !ok {
-			return ""
-		}
-		l, found := ceilings[ceilingKey(provider, m)]
+func printModels(u *UI, models []servedModel, facts modelFacts, remote map[string]remoteModelMeta, ceilings modelCeilings) {
+	// Install state and ceiling both follow the MODEL's provider, never the
+	// row's driver: a config can point its workers at Anthropic while one job
+	// type runs on Ollama, and the inference row then lists Claude under a
+	// driver of "ollama". Keyed off the driver, Claude was reported MISSING
+	// with advice to `ollama pull claude-…` (observed 2026-07-20), and shown
+	// no ceiling although its key holder reported one (2026-09-29).
+	ceiling := func(m servedModel) string {
+		l, found := ceilings[ceilingKey(m.Provider, m.Model)]
 		if !found {
 			return ""
 		}
@@ -128,18 +109,19 @@ func printModels(u *UI, models, ollamaServed []string, driver string, facts mode
 	// every longer name (claude-sonnet-4-5-20250929) push its own line's
 	// status over by its own overflow, so nothing lined up.
 	w := 24
-	for _, m := range models {
-		if len(m) > w {
-			w = len(m)
+	for _, sm := range models {
+		if len(sm.Model) > w {
+			w = len(sm.Model)
 		}
 	}
-	for _, m := range models {
-		c := ceiling(m)
+	for _, sm := range models {
+		m := sm.Model
+		c := ceiling(sm)
 		tail := ""
 		if c != "" {
 			tail = "  " + u.Dim(c)
 		}
-		if !isOllama(m) {
+		if sm.Provider != "ollama" {
 			// With recorded /v1/models metadata: identity, release, context
 			// window, and whether this key can see the model at all — the
 			// remote analog of MISSING. Without it (older record, fetch

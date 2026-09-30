@@ -563,7 +563,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 		if rec != nil && len(rec.Models) > 0 {
 			// Only reach for Ollama when this row actually has models it
 			// serves — an all-remote row must not probe it at all.
-			needsFacts := len(rec.OllamaServed) > 0 || (rec.OllamaServed == nil && rec.Driver == "ollama")
+			needsFacts := len(servedBy(rec.Models, "ollama")) > 0
 			if needsFacts && !factsFetched {
 				facts = fetchModelFacts(ollamaBase(rec.Endpoint))
 				factsFetched = true
@@ -573,11 +573,11 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 			// environment — status never resolves secrets (no op reads, no
 			// prompts). Availability can drift after start (a model
 			// withdrawn mid-flight), so fresher is better when it is free.
-			if rec.Driver == "anthropic" && len(rec.Models) > 0 {
+			if rec.Driver == "anthropic" {
 				if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 					if live, ok := fetchAnthropicModels(anthropicBase(rec.Endpoint), key); ok {
 						remote = map[string]remoteModelMeta{}
-						for _, m := range rec.Models {
+						for _, m := range servedBy(rec.Models, "anthropic") {
 							if meta, listed := live[m]; listed {
 								remote[m] = meta
 							} else {
@@ -591,7 +591,7 @@ func printLocalStack(u *UI, st *StackState, runtime, service string) (healthy bo
 				ceilings = fetchModelCeilings(st)
 				ceilingsFetched = true
 			}
-			printModels(u, rec.Models, rec.OllamaServed, rec.Driver, facts, remote, ceilings)
+			printModels(u, rec.Models, facts, remote, ceilings)
 		}
 	}
 	return healthy, 0
