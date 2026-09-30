@@ -39,13 +39,7 @@ type realmAdmin struct {
 // which precondition failed. The sticky config, exactly as `identity sync`
 // resolves it — administering a realm the operator does not actually start
 // with would write to the wrong one.
-func resolveRealmAdmin(u *UI) (realmAdmin, bool) {
-	root, _, err := resolveKBRoot()
-	if err != nil {
-		u.Fail("%v", err)
-		fmt.Fprintln(os.Stderr, "  cd into a KB clone, or set SEMIONT_ROOT.")
-		return realmAdmin{}, false
-	}
+func resolveRealmAdmin(u *UI, root string) (realmAdmin, bool) {
 	configName := configForRealm(root)
 	if configName == "" {
 		u.Fail("Cannot tell which config this knowledge base runs, so there is no realm to administer.")
@@ -102,8 +96,8 @@ func resolveRealmAdmin(u *UI) (realmAdmin, bool) {
 // useraddLocal: the account decisions, in the order the flags imply. The
 // issuer holds whether a person may sign in, so `--active`/`--inactive` are
 // written there and nowhere else; absent both, an update leaves that alone.
-func useraddLocal(u *UI, o useraddOpts, password string) int {
-	a, ok := resolveRealmAdmin(u)
+func useraddLocal(u *UI, o useraddOpts, password, root string) int {
+	a, ok := resolveRealmAdmin(u, root)
 	if !ok {
 		return 1
 	}

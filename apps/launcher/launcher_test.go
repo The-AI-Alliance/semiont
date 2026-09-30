@@ -2124,7 +2124,15 @@ func TestUseradd(t *testing.T) {
 	// A create with nothing on stdin cannot proceed — say so rather than
 	// hanging or sending an empty password. This fires before any realm is
 	// reached, which is the point: nobody should be asked for a secret by an
-	// invocation that was already going to be refused.
+	// invocation that was already going to be refused. So a local stack is
+	// recorded here: without one, "no local stack is running" is the refusal
+	// that comes first.
+	if err := os.MkdirAll(filepath.Dir(statePathFor(s.home)), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(statePathFor(s.home), []byte(`{"schema":3,"stacks":{"local":{"runtime":"container","kbRoot":"`+s.kb+`","services":{}}}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	s.stdin = ""
 	if _, stderr, code := s.run(t, "useradd", "--email", "d@e.co"); code != 1 {
 		t.Errorf("empty stdin should fail, got exit %d", code)
@@ -3342,6 +3350,23 @@ func TestRepoVerbsAdoptAnUnrecordedCodespace(t *testing.T) {
 		}
 		mustContain(t, "stderr", stderr, "orphan-cs", "not forwarded", "semiont start --runtime codespace --repo "+csRepo)
 	})
+}
+
+// useradd administers the stack it selected. With a local stack running for
+// one knowledge base, running it from inside another must still reach the
+// running stack's realm: that root's config, issuer port and admin password.
+// It used to start over from the current directory and refuse about a
+// knowledge base that has no stack at all.
+func TestUseraddLocalAdministersTheRunningStackNotTheCwd(t *testing.T) {
+	s := newScenario(t, "container")
+	if _, stderr, code := s.run(t, "start"); code != 0 {
+		t.Fatalf("start: exit %d\n%s", code, stderr)
+	}
+	s.cwd = mkKB(t) // another knowledge base, never started
+	_, stderr, _ := s.run(t, "useradd", "--runtime", "container", "--email", "a@b.co", "--generate-password")
+	if strings.Contains(stderr, "Cannot tell which config this knowledge base runs") || strings.Contains(stderr, s.cwd) {
+		t.Errorf("useradd administered the knowledge base in the current directory, not the running stack's:\n%s", stderr)
+	}
 }
 
 func TestUseraddAmbiguousStacks(t *testing.T) {

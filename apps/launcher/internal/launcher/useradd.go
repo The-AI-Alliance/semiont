@@ -189,10 +189,25 @@ func Useradd(args []string) int {
 		return 1
 	}
 
-	// Which stack? The shared knowledge-verb ladder (stackselect.go).
-	target, ok := SelectVerbStack(u, "useradd", LoadStackSet(), repo, wantLocal)
+	// Which stack? The shared knowledge-verb ladder (stackselect.go). The one
+	// it selects is the one administered: for the local stack, its recorded
+	// root decides the config, the issuer port and the admin password — not
+	// the current directory, which may be another knowledge base entirely.
+	stacks := LoadStackSet()
+	target, ok := SelectVerbStack(u, "useradd", stacks, repo, wantLocal)
 	if !ok {
 		return 1
+	}
+	localRoot := ""
+	if target == nil {
+		if local := stacks.Stacks["local"]; local != nil {
+			localRoot = local.KBRoot
+		}
+		if localRoot == "" {
+			u.Fail("No local stack is running, so there is no realm to administer.")
+			fmt.Fprintln(os.Stderr, "  Start it first:  semiont start")
+			return 1
+		}
 	}
 
 	// The password is read LAST, after every refusal this command can make.
@@ -217,7 +232,7 @@ func Useradd(args []string) int {
 	if target != nil {
 		return useraddCodespace(u, target, rest, password)
 	}
-	return useraddLocal(u, o, password)
+	return useraddLocal(u, o, password, localRoot)
 }
 
 // useraddValidate: the mutual exclusions and the one format check. They belong
