@@ -8,6 +8,7 @@ package launcher
 // KB's own TOMLs); variants are inline.
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -128,11 +129,8 @@ func checkRole(t *testing.T, plan *launchPlan, role string, want rolePlan) {
 	if got.Port != want.Port {
 		t.Errorf("%s port: got %d want %d", role, got.Port, want.Port)
 	}
-	if strings.Join(got.Models, " ") != strings.Join(want.Models, " ") {
+	if fmt.Sprint(got.Models) != fmt.Sprint(want.Models) {
 		t.Errorf("%s models: got %v want %v", role, got.Models, want.Models)
-	}
-	if strings.Join(got.OllamaServed, " ") != strings.Join(want.OllamaServed, " ") {
-		t.Errorf("%s ollama-served: got %v want %v", role, got.OllamaServed, want.OllamaServed)
 	}
 	if strings.Join(got.Env, " ") != strings.Join(want.Env, " ") {
 		t.Errorf("%s env: got %v want %v", role, got.Env, want.Env)
@@ -172,13 +170,13 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				checkRole(t, plan, "embedding", rolePlan{
 					Presence: presenceHostPreferred, Driver: "ollama",
 					Image: "ollama/ollama", Port: 11434,
-					Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
+					Models: []servedModel{{Model: "nomic-embed-text", Provider: "ollama"}},
 				})
 			} else {
 				checkRole(t, plan, "embedding", rolePlan{
 					Presence: presenceExternal, Driver: "ollama",
 					Address: "localhost", Port: 11434,
-					Models: []string{"nomic-embed-text"}, OllamaServed: []string{"nomic-embed-text"},
+					Models: []servedModel{{Model: "nomic-embed-text", Provider: "ollama"}},
 				})
 			}
 			checkRole(t, plan, "database", rolePlan{
@@ -199,15 +197,19 @@ func TestDerivePlanTemplateConfigs(t *testing.T) {
 				checkRole(t, plan, "inference", rolePlan{
 					Presence: presenceExternal, Driver: "anthropic",
 					Address: "api.anthropic.com", Port: 443,
-					Models:       []string{"claude-haiku-4-5-20251001", "claude-sonnet-4-5-20250929"},
-					OllamaServed: []string{},
+					Models: []servedModel{
+						{Model: "claude-haiku-4-5-20251001", Provider: "anthropic"},
+						{Model: "claude-sonnet-4-5-20250929", Provider: "anthropic"},
+					},
 				})
 			} else {
-				m := []string{"gemma4:26b", "gemma4:e2b"}
 				checkRole(t, plan, "inference", rolePlan{
 					Presence: presenceHostPreferred, Driver: "ollama",
 					Image: "ollama/ollama", Port: 11434,
-					Models: m, OllamaServed: m,
+					Models: []servedModel{
+						{Model: "gemma4:26b", Provider: "ollama"},
+						{Model: "gemma4:e2b", Provider: "ollama"},
+					},
 				})
 			}
 			// Only what OLLAMA can serve is pullable — the anthropic config's
@@ -344,7 +346,7 @@ model = "voyage-3"
 	checkRole(t, plan, "embedding", rolePlan{
 		Presence: presenceExternal, Driver: "voyage",
 		Address: "api.voyageai.com", Port: 443,
-		Models: []string{"voyage-3"}, // voyage is remote: nothing to install
+		Models: []servedModel{{Model: "voyage-3", Provider: "voyage"}}, // voyage is remote: nothing to install
 	})
 	// The fixture's worker binds Claude, so inference is a configured
 	// EXTERNAL role — "absent" would be the old drag-in logic's answer, and a
@@ -352,8 +354,7 @@ model = "voyage-3"
 	checkRole(t, plan, "inference", rolePlan{
 		Presence: presenceExternal, Driver: "anthropic",
 		Address: "api.anthropic.com", Port: 443,
-		Models:       []string{"claude-sonnet-4-5-20250929"},
-		OllamaServed: []string{},
+		Models: []servedModel{{Model: "claude-sonnet-4-5-20250929", Provider: "anthropic"}},
 	})
 }
 
