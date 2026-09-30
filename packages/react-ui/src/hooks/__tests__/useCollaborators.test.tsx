@@ -13,7 +13,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { BehaviorSubject, Subject } from 'rxjs';
-import type { CollaboratorEntry } from '@semiont/core';
+import type { Collaborator } from '@semiont/core';
 import type { SemiontClient } from '@semiont/sdk';
 import { useCollaborators } from '../useCollaborators';
 
@@ -22,22 +22,22 @@ type CacheState<T> =
   | { status: 'ready'; value: T }
   | { status: 'failed'; error: Error };
 
-const entry = (model: string): CollaboratorEntry =>
+const entry = (model: string): Collaborator =>
   ({
     agent: { '@type': 'Software', name: model, provider: 'anthropic', model },
     servesJobTypes: ['generation'],
     limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
-  }) as unknown as CollaboratorEntry;
+  }) as unknown as Collaborator;
 
 /** A client whose `browse.agents()` replays whatever the given subject holds. */
-function makeClient(subject: Subject<CacheState<CollaboratorEntry[]>>) {
+function makeClient(subject: Subject<CacheState<Collaborator[]>>) {
   const agents = vi.fn(() => subject);
   return { client: { browse: { agents } } as unknown as SemiontClient, agents };
 }
 
 describe('useCollaborators', () => {
   it('surfaces the roster once the cache is ready', async () => {
-    const subject = new BehaviorSubject<CacheState<CollaboratorEntry[]>>({ status: 'pending' });
+    const subject = new BehaviorSubject<CacheState<Collaborator[]>>({ status: 'pending' });
     const { client } = makeClient(subject);
 
     const { result } = renderHook(() => useCollaborators(client));
@@ -61,7 +61,7 @@ describe('useCollaborators', () => {
   });
 
   it('degrades to an empty roster when the cache reports failure', async () => {
-    const subject = new BehaviorSubject<CacheState<CollaboratorEntry[]>>({ status: 'pending' });
+    const subject = new BehaviorSubject<CacheState<Collaborator[]>>({ status: 'pending' });
     const { client } = makeClient(subject);
     const { result } = renderHook(() => useCollaborators(client));
 
@@ -73,7 +73,7 @@ describe('useCollaborators', () => {
   });
 
   it('normalizes a non-Error thrown on the stream', async () => {
-    const subject = new Subject<CacheState<CollaboratorEntry[]>>();
+    const subject = new Subject<CacheState<Collaborator[]>>();
     const { client } = makeClient(subject);
     const { result } = renderHook(() => useCollaborators(client));
 
@@ -87,7 +87,7 @@ describe('useCollaborators', () => {
   it('keeps the previous roster visible while revalidating', async () => {
     // `pending` after a successful read is a revalidation, not a blank slate;
     // clearing here would flicker the panel on every resume-gap refresh.
-    const subject = new BehaviorSubject<CacheState<CollaboratorEntry[]>>({
+    const subject = new BehaviorSubject<CacheState<Collaborator[]>>({
       status: 'ready',
       value: [entry('gemma2:27b')],
     });
@@ -101,7 +101,7 @@ describe('useCollaborators', () => {
   });
 
   it('unsubscribes on unmount and resubscribes for a new client', async () => {
-    const subject = new BehaviorSubject<CacheState<CollaboratorEntry[]>>({ status: 'pending' });
+    const subject = new BehaviorSubject<CacheState<Collaborator[]>>({ status: 'pending' });
     const { client, agents } = makeClient(subject);
 
     const { unmount, rerender } = renderHook(
@@ -112,7 +112,7 @@ describe('useCollaborators', () => {
     expect(subject.observed).toBe(true);
 
     // A KB switch replaces the client; the old subscription must not linger.
-    const second = makeClient(new BehaviorSubject<CacheState<CollaboratorEntry[]>>({ status: 'pending' }));
+    const second = makeClient(new BehaviorSubject<CacheState<Collaborator[]>>({ status: 'pending' }));
     rerender({ c: second.client });
     expect(subject.observed).toBe(false);
     expect(second.agents).toHaveBeenCalledTimes(1);

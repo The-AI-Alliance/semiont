@@ -52,6 +52,18 @@ brews:
     license: Apache-2.0
     test: |
       system "#{bin}/semiont", "version"
+    # Printed after install and by `brew info semiont`. Every command named
+    # here must exist (TestBrewCaveatNamesOnlyRealCommands).
+    caveats: |
+      Next:
+        semiont init        make a new knowledge base here, or clone one
+        semiont start       run its stack
+        semiont settings    where secrets come from and where they are kept,
+                            the container runtime, and the rest
+      A knowledge base's secrets are kept in plain files by default, which are
+      not secure: for development only. To keep every new knowledge base's
+      secrets in 1Password:
+        semiont settings secret-store --default op://<vault>
 
 release:
   # The launcher rides the monorepo's existing vX.Y.Z release tags — one

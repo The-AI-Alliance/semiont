@@ -122,6 +122,7 @@ export type {
   SelectionData,
   JobType,
   CollaboratorEntry,
+  Collaborator,
   KbDescription,
   DiscoveryDocument,
   DiscoveredKB,
@@ -258,6 +259,7 @@ export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from 
 export { busRequest, replyChannelsFor, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
 export { ResourceOperations, type CreateResourceInput, type Emitter } from './resource-operations';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
+export { LIMITS_OPERATIONS, type LimitsOperation } from './limits-operations';
 export {
   CHANNEL_ATTRS,
   channelAttrsOf,

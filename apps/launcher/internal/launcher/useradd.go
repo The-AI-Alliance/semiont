@@ -44,6 +44,9 @@ Options:
   --password-stdin      Set the password (implied when creating; say it
                         explicitly with --update to CHANGE a password)
 
+Creating an account prints the identity it acts under. On a terminal, it then
+says how the person signs in.
+
 There are no role flags. No Semiont route grants access on the basis of a role,
 so there is nothing here to grant. There is no display name either: the realm
 requires a first and last name, and asks the person for their own at first
@@ -189,10 +192,25 @@ func Useradd(args []string) int {
 		return 1
 	}
 
-	// Which stack? The shared knowledge-verb ladder (stackselect.go).
-	target, ok := SelectVerbStack(u, "useradd", LoadStackSet(), repo, wantLocal)
+	// Which stack? The shared knowledge-verb ladder (stackselect.go). The one
+	// it selects is the one administered: for the local stack, its recorded
+	// root decides the config, the issuer port and the admin password — not
+	// the current directory, which may be another knowledge base entirely.
+	stacks := LoadStackSet()
+	target, ok := SelectVerbStack(u, "useradd", stacks, repo, wantLocal)
 	if !ok {
 		return 1
+	}
+	localRoot := ""
+	if target == nil {
+		if local := stacks.Stacks["local"]; local != nil {
+			localRoot = local.KBRoot
+		}
+		if localRoot == "" {
+			u.Fail("No local stack is running, so there is no realm to administer.")
+			fmt.Fprintln(os.Stderr, "  Start it first:  semiont start")
+			return 1
+		}
 	}
 
 	// The password is read LAST, after every refusal this command can make.
@@ -214,10 +232,33 @@ func Useradd(args []string) int {
 		rest = append(rest, "--password-stdin")
 	}
 
+	// The next steps are for a person reading a terminal. Over ssh the
+	// codespace's own launcher writes to a pipe and prints none, so the lines
+	// the person sees name the stack the way they selected it here.
 	if target != nil {
-		return useraddCodespace(u, target, rest, password)
+		code := useraddCodespace(u, target, rest, password)
+		if code == 0 && !update && !o.inactive && !o.upsert && stdoutIsTerminal() {
+			printLines(useraddNextSteps(target, nil))
+		}
+		return code
 	}
-	return useraddLocal(u, o, password)
+	code, created := useraddLocal(u, o, password, localRoot)
+	if code == 0 && created && !o.inactive && stdoutIsTerminal() {
+		printLines(useraddNextSteps(nil, stacks.Stacks["local"]))
+	}
+	return code
+}
+
+// stdoutIsTerminal: whether a person is reading stdout, not a pipe or a file.
+func stdoutIsTerminal() bool {
+	fi, err := os.Stdout.Stat()
+	return err == nil && fi.Mode()&os.ModeCharDevice != 0
+}
+
+func printLines(lines []string) {
+	for _, l := range lines {
+		fmt.Println(l)
+	}
 }
 
 // useraddValidate: the mutual exclusions and the one format check. They belong

@@ -49,7 +49,7 @@ describe('browse:kb — the knowledge base describes itself', () => {
   beforeEach(async () => {
     tp = await createTestProject('arxiv-kb');
     bus = new EventBus();
-    browser = new Browser(READS, bus, tp.project, CONFIG, { enrich: async (entries) => entries }, createMockEmbeddingProvider(), mockLogger);
+    browser = new Browser(READS, bus, tp.project, CONFIG, CONFIG, createMockEmbeddingProvider(), mockLogger);
     await browser.initialize();
   });
 

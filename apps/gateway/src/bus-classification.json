@@ -391,6 +391,21 @@
       "direction": "inbound",
       "delivery": "correlated"
     },
+    "match:limits-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false
+    },
+    "match:limits-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "match:limits-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
     "gather:requested": {
       "recorded": false,
       "direction": "outbound",
@@ -432,6 +447,21 @@
       "delivery": "correlated"
     },
     "gather:summary-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:limits-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false
+    },
+    "gather:limits-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "gather:limits-failed": {
       "recorded": false,
       "direction": "inbound",
       "delivery": "correlated"
@@ -766,6 +796,21 @@
       "recorded": false,
       "direction": "outbound",
       "writes": true
+    },
+    "job:limits-requested": {
+      "recorded": false,
+      "direction": "outbound",
+      "writes": false
+    },
+    "job:limits-result": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
+    },
+    "job:limits-failed": {
+      "recorded": false,
+      "direction": "inbound",
+      "delivery": "correlated"
     },
     "job:status-requested": {
       "recorded": false,
