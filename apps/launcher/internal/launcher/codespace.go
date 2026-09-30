@@ -147,7 +147,7 @@ func startCodespace(u *UI, opts startOptions) int {
 				// registered, name the one command that bridges it.
 				if ref, ok := loadRoots().Secrets["ANTHROPIC_API_KEY"]; ok {
 					fmt.Fprintf(os.Stderr, "  You have a local source registered (%s). Push its current value:\n", refDisplay(ref))
-					fmt.Fprintf(os.Stderr, "    semiont secret push ANTHROPIC_API_KEY --repo %s\n", repo)
+					fmt.Fprintf(os.Stderr, "    semiont settings secret push ANTHROPIC_API_KEY --repo %s\n", repo)
 				} else {
 					fmt.Fprintln(os.Stderr, "  Fix:  gh secret set ANTHROPIC_API_KEY --user --app codespaces   (then select the repo)")
 				}

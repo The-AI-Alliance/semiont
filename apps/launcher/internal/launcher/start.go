@@ -457,7 +457,7 @@ func Start(args []string) int {
 	// User env vars (API keys the config references, read from loadConfig's
 	// single parse) are demanded where something reads them: a service handed
 	// them, or the launcher resolving them itself (configRefs.read). The
-	// environment always wins; a registered secret source (semiont secret) is consulted
+	// environment always wins; a registered secret source (semiont settings secret) is consulted
 	// only for vars the environment doesn't provide, with the reach
 	// announced BEFORE it happens. Dry-run reaches for nothing. An optional
 	// reference (${NAME:-default}) is forwarded only when something sets it;
@@ -502,7 +502,7 @@ func Start(args []string) int {
 				// discard the answer, since custody appends its own value
 				// after this one.
 				u.Fail("%s is registered as %s, but the launcher mints and keeps that value itself.", v, refDisplay(ref))
-				fmt.Fprintf(os.Stderr, "  Forget the source (semiont secret rm %s), or export %s yourself.\n", v, v)
+				fmt.Fprintf(os.Stderr, "  Forget the source (semiont settings secret rm %s), or export %s yourself.\n", v, v)
 				return 1
 			} else if ok {
 				if !requireProviderBin(u, ref) {
@@ -514,7 +514,7 @@ func Start(args []string) int {
 				var err error
 				if val, err = resolveSecret(ref); err != nil {
 					u.Fail("%s: %v.", v, err)
-					fmt.Fprintf(os.Stderr, "  Fix the source (semiont secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
+					fmt.Fprintf(os.Stderr, "  Fix the source (semiont settings secret set %s ...), or export %s yourself — the environment always wins.\n", v, v)
 					return 1
 				}
 			}
@@ -524,7 +524,7 @@ func Start(args []string) int {
 				continue
 			}
 			u.Fail("Config '%s' references ${%s} but it is not set in the environment.", opts.configName, v)
-			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont secret set %s\n", v)
+			fmt.Fprintf(os.Stderr, "  Export it, or register a secret source once:  semiont settings secret set %s\n", v)
 			return 1
 		}
 		userEnv = append(userEnv, "--env", v+"="+val)
@@ -950,6 +950,9 @@ func runStart(u *UI, rt, version, root, configFile string, opts startOptions, us
 		neo4jLogin = u.Dim("(user " + g.User + "; password kept at " + store.where(daemonPasswords["graph"].custody) + ")")
 	}
 	fmt.Printf("  Neo4j Browser      http://localhost:7474   %s\n", neo4jLogin)
+	if store, ok := custodyFor(u, root); ok {
+		fmt.Printf("  Secrets            %s   %s\n", store.describe(), u.Dim("(semiont settings secret-store)"))
+	}
 	fmt.Println("  Qdrant Dashboard   http://localhost:6333/dashboard")
 	if opts.observe {
 		fmt.Println("  Jaeger UI          http://localhost:16686")
@@ -1169,7 +1172,7 @@ func describeProcs(pids []string) string {
 }
 
 // refuseDaemonCredentialNames: the daemon-credential names are the launcher's
-// (SECRET-DELIVERY P4). A config may not reference one where it is read — `semiont secret`
+// (SECRET-DELIVERY P4). A config may not reference one where it is read — `semiont settings secret`
 // registrations are machine-wide, so a name cannot be the launcher's in one KB
 // and the user's in another — and an exported one is refused, not honoured,
 // for a daemon the launcher runs (ruled 2026-09-29: "refuse exported daemon

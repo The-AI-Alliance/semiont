@@ -1,10 +1,12 @@
 package launcher
 
-// secretstore.go — `semiont secret store`: which store keeps a knowledge
-// base's custody values, and moving them between stores (SECRETS-STORE P3,
-// P4). One setting per KB root (D1), keyed like the values it governs.
+// secretstore.go — the secret-store setting (`semiont settings secret-store`):
+// which store keeps a knowledge base's custody values, and moving them
+// between stores (SECRETS-STORE P3, P4). One setting per KB root (D1), keyed
+// like the values it governs.
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -27,10 +29,19 @@ func storeSettingsPath() string {
 	return filepath.Join(dir, "secretstores.json")
 }
 
-// storeSettings: state key → the store that keeps that root's values. A root
-// with no entry keeps them on the filesystem.
-func storeSettings() (map[string]secretRef, error) {
-	settings := map[string]secretRef{}
+// storeSettingsFile: secretstores.json. Roots maps a state key to the store
+// that keeps that root's values; a root with no entry keeps them in files.
+// Default, when set, is the store a new knowledge base adopts at its first
+// need (LAUNCHER-SETTINGS D4).
+type storeSettingsFile struct {
+	Default *secretRef           `json:"default,omitempty"`
+	Roots   map[string]secretRef `json:"roots"`
+}
+
+// storeSettings reads secretstores.json strictly: an unknown field, or a
+// store the launcher does not know, fails rather than reading as "no setting".
+func storeSettings() (storeSettingsFile, error) {
+	settings := storeSettingsFile{Roots: map[string]secretRef{}}
 	p := storeSettingsPath()
 	if p == "" {
 		return settings, nil
@@ -40,17 +51,24 @@ func storeSettings() (map[string]secretRef, error) {
 		return settings, nil
 	}
 	if err == nil {
-		err = json.Unmarshal(b, &settings)
+		dec := json.NewDecoder(bytes.NewReader(b))
+		dec.DisallowUnknownFields()
+		err = dec.Decode(&settings)
 	}
-	if err == nil {
-		for key, ref := range settings {
-			if ref.Provider != "op" || ref.Path == "" {
-				err = fmt.Errorf("%s names no store the launcher knows", key)
-			}
+	known := func(ref secretRef) bool { return ref.Provider == "op" && ref.Path != "" }
+	if err == nil && settings.Default != nil && !known(*settings.Default) {
+		err = errors.New("the default names no store the launcher knows")
+	}
+	for key, ref := range settings.Roots {
+		if err == nil && !known(ref) {
+			err = fmt.Errorf("%s names no store the launcher knows", key)
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("%s is unreadable (%v), so which store keeps this knowledge base's secrets is unknown. Repair or remove it; the launcher never guesses a store", p, err)
+		return storeSettingsFile{}, fmt.Errorf("%s is unreadable (%v), so which store keeps this knowledge base's secrets is unknown. Repair or remove it; the launcher never guesses a store", p, err)
+	}
+	if settings.Roots == nil {
+		settings.Roots = map[string]secretRef{}
 	}
 	return settings, nil
 }
@@ -62,23 +80,50 @@ func storeSettingFor(key string) (secretRef, bool, error) {
 	if err != nil {
 		return secretRef{}, false, err
 	}
-	ref, ok := settings[key]
+	ref, ok := settings.Roots[key]
 	return ref, ok, nil
+}
+
+// defaultStoreSetting: the store a new knowledge base adopts, and false when
+// new knowledge bases keep their values in files.
+func defaultStoreSetting() (secretRef, bool, error) {
+	settings, err := storeSettings()
+	if err != nil || settings.Default == nil {
+		return secretRef{}, false, err
+	}
+	return *settings.Default, true, nil
 }
 
 // saveStoreSetting records one root's store; configured false records the
 // filesystem default by removing the entry. Never best-effort: a setting that
 // did not save is a store the next start does not use.
 func saveStoreSetting(key string, ref secretRef, configured bool) error {
+	return changeStoreSettings(func(settings *storeSettingsFile) {
+		if configured {
+			settings.Roots[key] = ref
+		} else {
+			delete(settings.Roots, key)
+		}
+	})
+}
+
+// saveDefaultStoreSetting records the store new knowledge bases adopt;
+// configured false returns them to files.
+func saveDefaultStoreSetting(ref secretRef, configured bool) error {
+	return changeStoreSettings(func(settings *storeSettingsFile) {
+		settings.Default = nil
+		if configured {
+			settings.Default = &ref
+		}
+	})
+}
+
+func changeStoreSettings(change func(*storeSettingsFile)) error {
 	settings, err := storeSettings()
 	if err != nil {
 		return err
 	}
-	if configured {
-		settings[key] = ref
-	} else {
-		delete(settings, key)
-	}
+	change(&settings)
 	p := storeSettingsPath()
 	if p == "" {
 		return errors.New("no home directory resolvable, so the setting has nowhere to be kept")
@@ -107,99 +152,66 @@ func parseStoreTarget(arg string) (secretRef, bool, error) {
 	return secretRef{Provider: "op", Path: vault}, true, nil
 }
 
-const secretStoreUsage = `Usage: semiont secret store [file | op://<vault>] [--root <path|name>]
-
-Where this knowledge base keeps the values the launcher generates for it: the
-token-signing key, Keycloak's admin password, each service account's secret,
-and the passwords of the daemons it runs.
-
-With no store named, shows the store and where each kept value is.
-
-Naming a store moves every kept value into it, reads each one back, records
-the store, then deletes the values from the one it leaves. A store that
-already holds values for this knowledge base is refused.
-
-Stores:
-  file            One file per value under this root's state dir (the default)
-  op://<vault>    One 1Password item per knowledge base, in a vault that
-                  holds the launcher's items and nothing else
-
-Every read, write and delete is shown as it runs: the secret's name, never
-its value.
-`
-
-// secretStoreCmd implements `semiont secret store`.
-func secretStoreCmd(u *UI, args []string) int {
-	target, rootArg := "", ""
-	for i := 0; i < len(args); i++ {
-		switch {
-		case args[i] == "--help" || args[i] == "-h":
-			fmt.Print(secretStoreUsage)
-			return 0
-		case args[i] == "--root":
-			if i+1 >= len(args) {
-				u.Fail("Missing value for --root")
-				return 1
-			}
-			rootArg = args[i+1]
-			i++
-		case target == "" && !strings.HasPrefix(args[i], "-"):
-			target = args[i]
-		default:
-			u.Fail("Unknown argument: %s", args[i])
-			fmt.Print(secretStoreUsage)
-			return 1
-		}
-	}
-	var root string
-	var err error
-	if rootArg == "" {
-		root, _, err = resolveKBRoot()
-	} else {
-		root, err = resolveRootArg(rootArg)
-	}
+// setSecretStore: the secret-store setting's setter. Naming a different store
+// moves every kept value into it (moveSecretStore).
+func setSecretStore(u *UI, root, value string) bool {
+	ref, configured, err := parseStoreTarget(value)
 	if err != nil {
 		u.Fail("%v", err)
-		fmt.Fprintln(os.Stderr, "  Run inside a KB, or name one: semiont secret store --root <path|name>")
-		return 1
+		return false
 	}
 	key := rootKey(root)
-	from, ok := custodyFor(u, root)
+	from, ok := configuredCustody(u, key)
 	if !ok {
-		return 1
-	}
-	if target == "" {
-		return showSecretStore(u, from)
-	}
-	ref, configured, err := parseStoreTarget(target)
-	if err != nil {
-		u.Fail("%v", err)
-		return 1
+		return false
 	}
 	to, ok := custodyStoreAt(u, key, ref, configured)
 	if !ok {
-		return 1
+		return false
 	}
 	if to.describe() == from.describe() {
-		u.Ok("This knowledge base already keeps its secrets in %s.", to.describe())
-		return 0
+		return true
 	}
-	return moveSecretStore(u, key, from, to, ref, configured)
+	return moveSecretStore(u, key, from, to, ref, configured) == 0
 }
 
-func showSecretStore(u *UI, s custodyStore) int {
-	names, ok := s.names(u)
-	if !ok {
-		return 1
+// unsetSecretStore returns a root to the default store, moving its values
+// back to the files.
+func unsetSecretStore(u *UI, root string) bool { return setSecretStore(u, root, "file") }
+
+// setDefaultSecretStore: the store new knowledge bases adopt. It moves no
+// knowledge base's values (D4: new KBs only).
+func setDefaultSecretStore(u *UI, root, value string) bool {
+	ref, configured, err := parseStoreTarget(value)
+	if err != nil {
+		u.Fail("%v", err)
+		return false
 	}
-	fmt.Printf("This knowledge base keeps its secrets in %s.\n", s.describe())
-	if len(names) == 0 {
-		fmt.Println(u.Dim("  (none kept yet; the next start generates them)"))
+	if p := secretProviders[ref.Provider]; configured && !onPath(p.bin) {
+		u.Fail("'%s' (%s CLI) is not on PATH, so no knowledge base could adopt %s.", p.bin, p.display, value)
+		return false
 	}
-	for _, name := range names {
-		fmt.Printf("  %-34s %s\n", name, s.where(name))
+	return recorded(u, saveDefaultStoreSetting(ref, configured))
+}
+
+func unsetDefaultSecretStore(u *UI, root string) bool {
+	return recorded(u, saveDefaultStoreSetting(secretRef{}, false))
+}
+
+// showSecretStoreLocations: where each value is kept once generated, from the
+// setting alone — what a person or a skill needs to read one, with no store
+// contacted.
+func showSecretStoreLocations(u *UI, root string) {
+	key := rootKey(root)
+	ref, configured, err := storeSettingFor(key)
+	if err != nil {
+		return
 	}
-	return 0
+	s := custodyStoreNamed(key, ref, configured)
+	fmt.Printf("  %s\n", u.Dim("each value, once a start generates it:"))
+	for _, name := range custodyNames() {
+		fmt.Printf("    %-34s %s\n", name, s.where(name))
+	}
 }
 
 // moveSecretStore moves every kept value, as D4 rules: copy, read each back,

@@ -101,8 +101,17 @@ semiont stop
   port a flag may move — and is also the explicit refresh (it always
   restarts, bypassing keep-if-current). A non-3000 port warns that anything
   holding `http://localhost:3000` literally will not follow it.
-- **`semiont secret` registers where config secrets come from** — pointers,
-  never values. `semiont secret set ANTHROPIC_API_KEY` walks an interactive
+- **`semiont settings` lists every setting the launcher keeps**, with its
+  value and where the value came from: the container `runtime`, where your
+  own secrets come from (`secret`), and the default store for new KBs
+  (`secret-store --default`) on this machine; and for the KB you are in (or
+  `--root`), its `config`, `keycloak-port` and `secret-store`.
+  `semiont settings <name> <value>` sets one, checked as a start would check
+  it, and `--unset` returns it to its default. Showing reads no secret and
+  contacts no store. The Homebrew formula's caveat points a new install here;
+  every command it names is checked to exist (`caveat_test.go`).
+- **`semiont settings secret` registers where config secrets come from** — pointers,
+  never values. `semiont settings secret set ANTHROPIC_API_KEY` walks an interactive
   provider-then-path flow (or pass the source directly:
   `… set ANTHROPIC_API_KEY op://OSS/Anthropic/credential`); either form
   stores `{provider, path}` in `roots.json`
@@ -117,7 +126,7 @@ semiont stop
   1Password at all: **exporting the variable always wins** — a plain
   `ANTHROPIC_API_KEY=… semiont start` behaves exactly as it always has.
   `--dry-run` reaches for nothing (plan shows `<env:VAR>` placeholders).
-  `semiont secret push <VAR> --repo <owner/name>` is the one place a value
+  `semiont settings secret push <VAR> --repo <owner/name>` is the one place a value
   *moves*: a codespace runs on GitHub's machine and can't reach your local
   provider, so this copies the current value into your GitHub Codespaces user
   secrets. Same discipline — resolved fresh and announced, handed to `gh` on
@@ -125,16 +134,22 @@ semiont stop
   by `gh` before it leaves the machine, never written to disk or logs by us.
   The repo selection is a **union**, never a replacement, so pushing for one
   repo can't silently revoke the secret from others already using it.
-- **`semiont secret store` says where a KB keeps the values the launcher
+- **`semiont settings secret-store` says where a KB keeps the values the launcher
   generates for it** — the token-signing key, Keycloak's admin password, the
   service accounts' secrets, the daemons' passwords. `file` (the default) is
-  one 0600 file per value under the KB's state dir; `op://<vault>` is one
+  one 0600 plain-text file per value under the KB's state dir — **not secure:
+  for development only**, and every place the launcher names it says so;
+  `op://<vault>` is one
   1Password Secure Note per KB in that vault, one concealed field per value,
   values on stdin only. Naming a store moves every kept value (copy, read
   back, record, delete from the old store) and refuses a store that already
-  holds this KB's values; with no argument it lists where each value is. The
-  setting is per KB, in `secretstores.json`, read strictly: a store that
-  cannot be read or reached stops the command, never falling back to another.
+  holds this KB's values; with no value it names the store and where each
+  value is kept, from the setting alone. `secret-store --default
+  op://<vault>` is the store a new KB (no store of its own, nothing in files)
+  adopts at its first start, recorded as its own, so changing the default
+  moves nothing. The settings are per machine, in `secretstores.json`, read
+  strictly: a store that cannot be read or reached stops the command, never
+  falling back to another.
   **Every store read, write and delete prints a line on stderr** — the
   operation and the secret's name, never its value — `--quiet` included. An
   unscoped `clean` deletes a KB's values through its store.

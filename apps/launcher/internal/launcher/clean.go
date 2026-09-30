@@ -29,7 +29,7 @@ for one local semiont root. The stack must be stopped first — state is
 never removed while a recorded stack may be mounting it.
 
 An unscoped clean also deletes every secret the launcher keeps for this
-root, from whichever store keeps them (semiont secret store): the token-
+root, from whichever store keeps them (semiont settings secret-store): the token-
 signing key, so every token issued against it stops verifying — which is
 consistent, since the user accounts those tokens name lived in the
 PostgreSQL data just removed — and the passwords of the stores going with
@@ -123,7 +123,7 @@ func Clean(args []string) int {
 	var custody custodyStore
 	if store == "" {
 		var ok bool
-		if custody, ok = custodyForKey(u, key); !ok {
+		if custody, ok = configuredCustody(u, key); !ok {
 			return 1
 		}
 		if secrets, ok = custody.names(u); !ok {

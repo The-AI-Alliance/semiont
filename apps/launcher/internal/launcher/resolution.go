@@ -100,7 +100,7 @@ func resolveSecret(ref secretRef) (string, error) {
 }
 
 // resolvedSecretValue: a variable's value from the environment, else from the
-// source `semiont secret set` registered for it, else "".
+// source `semiont settings secret set` registered for it, else "".
 //
 // The SAME precedence start uses — the environment always wins — so a command
 // that needs a credential at any other time gets the answer start would get.
@@ -139,7 +139,7 @@ func secretUsage() string {
 		p := secretProviders[s]
 		providers += fmt.Sprintf("  %s://%s   %s (%s)\n", s, p.pathHint, p.display, p.bin)
 	}
-	return `Usage: semiont secret <set|push|list|rm|store> ...
+	return `Usage: semiont settings secret [set|push|rm] ...
 
 Register where config secrets come from. The launcher stores only a POINTER
 (provider + path) in roots.json — never a value — and reads it fresh on
@@ -148,6 +148,7 @@ variable yourself always wins, and is the escape hatch on machines without
 any secret manager installed.
 
 Commands:
+  (none)                          Show registered sources (pointers, never values)
   set <VAR> [<scheme>://<path>]   Register a source (verified with one read
                                   now). With no source given, an interactive
                                   flow picks the provider and path.
@@ -155,31 +156,26 @@ Commands:
                                   into your GitHub Codespaces user secrets and
                                   select that repo — for codespace stacks,
                                   which cannot reach your local provider.
-  list                            Show registered sources (pointers, never values)
   rm <VAR>                        Forget a source
-  store [file | op://<vault>]     Where this KB keeps the values the launcher
-                                  generates for it; naming a store moves them
-                                  (semiont secret store --help)
+
+Where the values the launcher generates are kept is another setting:
+semiont settings secret-store --help
 
 Providers (the URI scheme picks one):
 ` + providers + `
 Examples:
-  semiont secret set ANTHROPIC_API_KEY
-  semiont secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
-  semiont secret push ANTHROPIC_API_KEY --repo The-AI-Alliance/my-kb
-  semiont secret rm ANTHROPIC_API_KEY
+  semiont settings secret set ANTHROPIC_API_KEY
+  semiont settings secret set ANTHROPIC_API_KEY op://OSS/Anthropic/credential
+  semiont settings secret push ANTHROPIC_API_KEY --repo The-AI-Alliance/my-kb
+  semiont settings secret rm ANTHROPIC_API_KEY
 `
 }
 
-// Secret implements `semiont secret` — set / list / rm over the registered
-// sources.
-func Secret(args []string) int {
-	u := NewUI(false)
-	if len(args) == 0 || args[0] == "--help" || args[0] == "-h" {
+// secretSourcesCmd implements `semiont settings secret set|push|rm` over the
+// registered sources; `semiont settings secret` alone shows them.
+func secretSourcesCmd(u *UI, args []string) int {
+	if args[0] == "--help" || args[0] == "-h" {
 		fmt.Print(secretUsage())
-		if len(args) == 0 {
-			return 1
-		}
 		return 0
 	}
 	switch args[0] {
@@ -190,50 +186,34 @@ func Secret(args []string) int {
 		case 3:
 			return secretSet(u, args[1], args[2])
 		default:
-			u.Fail("Usage: semiont secret set <VAR> [<scheme>://<path>]")
+			u.Fail("Usage: semiont settings secret set <VAR> [<scheme>://<path>]")
 			return 1
 		}
 	case "push":
 		if len(args) != 4 || args[2] != "--repo" {
-			u.Fail("Usage: semiont secret push <VAR> --repo <owner/name>")
+			u.Fail("Usage: semiont settings secret push <VAR> --repo <owner/name>")
 			return 1
 		}
 		return secretPush(u, args[1], args[3])
-	case "list":
-		reg := loadRoots()
-		if len(reg.Secrets) == 0 {
-			fmt.Println("No secret sources registered. (semiont secret set <VAR>)")
-			return 0
-		}
-		vars := make([]string, 0, len(reg.Secrets))
-		for v := range reg.Secrets {
-			vars = append(vars, v)
-		}
-		sort.Strings(vars)
-		for _, v := range vars {
-			ref := reg.Secrets[v]
-			note := ""
-			if p := secretProviders[ref.Provider]; !onPath(p.bin) {
-				note = "  " + u.Wrap(AnsiYellow, "('"+p.bin+"' not on PATH)")
-			}
-			fmt.Printf("  %s  %s%s\n", u.Bold(v), refDisplay(ref), note)
-		}
-		fmt.Println(u.Dim("  (pointers only — values are read fresh on every start; the environment always wins)"))
-		return 0
-	case "store":
-		return secretStoreCmd(u, args[1:])
 	case "rm":
 		if len(args) != 2 {
-			u.Fail("Usage: semiont secret rm <VAR>")
+			u.Fail("Usage: semiont settings secret rm <VAR>")
 			return 1
 		}
-		reg := loadRoots()
+		reg, err := readRoots()
+		if err != nil {
+			u.Fail("%v", err)
+			return 1
+		}
 		if _, ok := reg.Secrets[args[1]]; !ok {
 			u.Fail("No secret source registered for %s.", args[1])
 			return 1
 		}
 		delete(reg.Secrets, args[1])
-		saveRoots(reg)
+		if err := writeRoots(reg); err != nil {
+			u.Fail("Forgetting the source: %v", err)
+			return 1
+		}
 		u.Ok("Forgot the source for %s.", args[1])
 		return 0
 	default:
@@ -261,7 +241,7 @@ func secretPush(u *UI, name, repo string) int {
 	ref, ok := loadRoots().Secrets[name]
 	if !ok {
 		u.Fail("No secret source registered for %s — nothing to push.", name)
-		fmt.Fprintf(os.Stderr, "  Register one first:  semiont secret set %s\n", name)
+		fmt.Fprintf(os.Stderr, "  Register one first:  semiont settings secret set %s\n", name)
 		return 1
 	}
 	if !requireProviderBin(u, ref) {
@@ -352,7 +332,7 @@ func secretSet(u *UI, name, uri string) int {
 	return storeSecret(u, name, secretRef{Provider: scheme, Path: path})
 }
 
-// secretSetInteractive: `semiont secret set <VAR>` with no source — walk the
+// secretSetInteractive: `semiont settings secret set <VAR>` with no source — walk the
 // provider registry, never assuming one. A lone installed provider is the
 // prompt's default; the path prompt carries the provider's own shape.
 func secretSetInteractive(u *UI, name string) int {
@@ -416,12 +396,19 @@ func storeSecret(u *UI, name string, ref secretRef) int {
 		u.Fail("Verification failed: %v", err)
 		return 1
 	}
-	reg := loadRoots()
+	reg, err := readRoots()
+	if err != nil {
+		u.Fail("%v", err)
+		return 1
+	}
 	if reg.Secrets == nil {
 		reg.Secrets = map[string]secretRef{}
 	}
 	reg.Secrets[name] = ref
-	saveRoots(reg)
+	if err := writeRoots(reg); err != nil {
+		u.Fail("Recording the source: %v", err)
+		return 1
+	}
 	u.Ok("%s reads from %s at every start %s", u.Bold(name), refDisplay(ref),
 		u.Dim("(pointer stored, never the value; exporting "+name+" overrides)"))
 	return 0

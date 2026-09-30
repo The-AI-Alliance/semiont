@@ -41,16 +41,17 @@ type custodyBackend interface {
 // reads a root's 1Password item once however many values it needs.
 var openCustody = map[string]custodyStore{}
 
-// custodyFor: root's store — the one configured for it (`semiont secret
-// store`), else the filesystem. False, reported, when the configured store
+// custodyFor: root's store — the one configured for it (`semiont settings
+// secret-store`), else the filesystem. False, reported, when the configured store
 // cannot be reached or there is nowhere to keep anything: never another store
 // in its place, which would mint new values over the ones kept there.
 func custodyFor(u *UI, root string) (custodyStore, bool) {
 	return custodyForKey(u, rootKey(root))
 }
 
-// custodyForKey: custodyFor by state key, for a root known only by its key
-// (clean's orphans).
+// custodyForKey: custodyFor by state key. This is the lookup of a caller
+// that keeps values, so a new knowledge base adopts the machine's default
+// store here, at its first need (adoptDefaultStore).
 func custodyForKey(u *UI, key string) (custodyStore, bool) {
 	if s, ok := openCustody[key]; ok {
 		return s, true
@@ -60,11 +61,61 @@ func custodyForKey(u *UI, key string) (custodyStore, bool) {
 		u.Fail("%v", err)
 		return custodyStore{}, false
 	}
+	if !configured {
+		var ok bool
+		if ref, configured, ok = adoptDefaultStore(u, key); !ok {
+			return custodyStore{}, false
+		}
+	}
 	s, ok := custodyStoreAt(u, key, ref, configured)
 	if ok {
 		openCustody[key] = s
 	}
 	return s, ok
+}
+
+// configuredCustody: the store a root's setting names today, adopting
+// nothing — for a caller that clears or moves values (clean, the
+// secret-store setter), which is no knowledge base's first need.
+func configuredCustody(u *UI, key string) (custodyStore, bool) {
+	ref, configured, err := storeSettingFor(key)
+	if err != nil {
+		u.Fail("%v", err)
+		return custodyStore{}, false
+	}
+	return custodyStoreAt(u, key, ref, configured)
+}
+
+// adoptDefaultStore: the machine's default store, for a root with no setting
+// that keeps nothing in files — a new knowledge base (LAUNCHER-SETTINGS D4:
+// new KBs only). It is recorded as the root's own setting, so a later change
+// to the default moves nothing. A root that keeps files stays on them.
+func adoptDefaultStore(u *UI, key string) (secretRef, bool, bool) {
+	def, set, err := defaultStoreSetting()
+	if err != nil {
+		u.Fail("%v", err)
+		return secretRef{}, false, false
+	}
+	if !set {
+		return secretRef{}, false, true
+	}
+	files, ok := custodyStoreAt(u, key, secretRef{}, false)
+	if !ok {
+		return secretRef{}, false, false
+	}
+	kept, ok := files.names(u)
+	if !ok {
+		return secretRef{}, false, false
+	}
+	if len(kept) > 0 {
+		return secretRef{}, false, true
+	}
+	showCustodyOp(u, "adopt the default for new knowledge bases", custodyStoreNamed(key, def, true).describe())
+	if err := saveStoreSetting(key, def, true); err != nil {
+		u.Fail("Recording the store: %v", err)
+		return secretRef{}, false, false
+	}
+	return def, true, true
 }
 
 // custodyStoreAt: the store a setting names for one root, reachable.
@@ -128,12 +179,20 @@ func showCustodyOp(u *UI, op, where string) {
 }
 
 // fileBackend: one 0600 file per value under the root's state dir. The
-// default store, and the only one for a root that configures none.
+// default store, and the only one for a root that configures none. It is not
+// secure (fileStoreCaveat), and says so wherever it is named.
 type fileBackend struct{ dir string }
+
+// fileStoreCaveat: said wherever the file store is named. Its values are plain
+// text: mode 0600 keeps other accounts out, but anything running as this user
+// can read them, and every backup of the home directory copies them.
+const fileStoreCaveat = "plain files, not secure: for development only"
 
 func (f fileBackend) where(name string) string { return filepath.Join(f.dir, name) }
 
-func (f fileBackend) describe() string { return "the files under " + f.dir }
+func (f fileBackend) describe() string {
+	return "the files under " + f.dir + " — " + fileStoreCaveat
+}
 
 func (f fileBackend) get(u *UI, name string) (string, bool) {
 	b, err := os.ReadFile(f.where(name))

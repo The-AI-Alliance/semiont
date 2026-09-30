@@ -520,10 +520,14 @@ siteName = %q
 	// read.
 	if inference == "anthropic" && os.Getenv("ANTHROPIC_API_KEY") == "" {
 		if _, registered := loadRoots().Secrets["ANTHROPIC_API_KEY"]; !registered {
-			fmt.Printf("    %d. %s\n", step, u.Bold("semiont secret set ANTHROPIC_API_KEY"))
+			fmt.Printf("    %d. %s\n", step, u.Bold("semiont settings secret set ANTHROPIC_API_KEY"))
 			step++
 		}
 	}
 	fmt.Printf("    %d. %s\n", step, u.Bold("semiont start"))
+	fmt.Println()
+	for _, l := range showSecretStoreSetting(u, dir) {
+		fmt.Printf("  Secrets: %s %s\n", l.value, u.Dim("("+l.source+"; change with semiont settings secret-store)"))
+	}
 	return 0
 }

@@ -2,10 +2,13 @@ package launcher
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -98,18 +101,31 @@ func rootsPath() string {
 // loadRoots returns the registry, most-recently-used first (empty, never
 // nil-fielded, when absent or unreadable).
 func loadRoots() rootsRegistry {
+	reg, _ := readRoots()
+	return reg
+}
+
+// readRoots: loadRoots, and an error when the registry exists but cannot be
+// read — for a command whose purpose is to change it, which must not rewrite
+// an unreadable registry as an empty one.
+func readRoots() (rootsRegistry, error) {
 	reg := rootsRegistry{Schema: 1}
 	p := rootsPath()
 	if p == "" {
-		return reg
+		return reg, nil
 	}
 	b, err := os.ReadFile(p)
-	if err != nil {
-		return reg
+	if errors.Is(err, fs.ErrNotExist) {
+		return reg, nil
 	}
-	_ = json.Unmarshal(b, &reg)
+	if err == nil {
+		err = json.Unmarshal(b, &reg)
+	}
 	sort.Slice(reg.Roots, func(i, j int) bool { return reg.Roots[i].LastUsed.After(reg.Roots[j].LastUsed) })
-	return reg
+	if err != nil {
+		return reg, fmt.Errorf("%s is unreadable: %v", p, err)
+	}
+	return reg, nil
 }
 
 // registerRootUse upserts a root into the registry. Best-effort: registry
@@ -118,14 +134,38 @@ func loadRoots() rootsRegistry {
 // pass it only after the start SUCCEEDED with an explicit --config — a typo'd
 // or unlaunchable config must never become the default).
 func registerRootUse(path string, fullStart bool, config string) {
-	p := rootsPath()
-	if p == "" {
+	if rootsPath() == "" {
 		return
 	}
+	reg := loadRoots()
+	e := upsertRoot(&reg, path)
+	if fullStart {
+		e.LastStarted = e.LastUsed
+	}
+	if config != "" {
+		e.Config = config
+	}
+	saveRoots(reg)
+}
+
+// updateRootEntry changes one root's row, creating it if absent. Unlike
+// registerRootUse it is not best-effort: `semiont settings` records what a
+// person asked for, and a setting that did not save must say so.
+func updateRootEntry(path string, change func(*rootEntry)) error {
+	reg, err := readRoots()
+	if err != nil {
+		return err
+	}
+	change(upsertRoot(&reg, path))
+	return writeRoots(reg)
+}
+
+// upsertRoot: path's row in reg, created if absent, with its identity
+// refreshed and its use stamped now.
+func upsertRoot(reg *rootsRegistry, path string) *rootEntry {
 	if abs, err := filepath.Abs(path); err == nil {
 		path = abs
 	}
-	reg := loadRoots()
 	now := time.Now().UTC()
 	// Identity refreshes on every use — the KB's .semiont/config can change.
 	ident := loadKBIdentity(path)
@@ -146,58 +186,47 @@ func registerRootUse(path string, fullStart bool, config string) {
 		}
 		reg.Roots = kept
 	}
-	found := false
-	for i := range reg.Roots {
-		if reg.Roots[i].Path == path {
-			reg.Roots[i].LastUsed = now
-			if fullStart {
-				reg.Roots[i].LastStarted = now
-			}
-			if config != "" {
-				reg.Roots[i].Config = config
-			}
-			if ident != nil {
-				reg.Roots[i].Did = ident.didWeb()
-				reg.Roots[i].SiteName = ident.SiteName
-			}
-			found = true
-		}
+	i := slices.IndexFunc(reg.Roots, func(e rootEntry) bool { return e.Path == path })
+	if i < 0 {
+		reg.Roots = append(reg.Roots, rootEntry{Path: path})
+		i = len(reg.Roots) - 1
 	}
-	if !found {
-		e := rootEntry{Path: path, LastUsed: now, Did: ident.didWeb(), Config: config}
-		if ident != nil {
-			e.SiteName = ident.SiteName
-		}
-		if fullStart {
-			e.LastStarted = now
-		}
-		reg.Roots = append(reg.Roots, e)
+	e := &reg.Roots[i]
+	e.LastUsed = now
+	if ident != nil {
+		e.Did = ident.didWeb()
+		e.SiteName = ident.SiteName
 	}
-	saveRoots(reg)
+	return e
 }
 
 // saveRoots writes the registry atomically. Best-effort, like every registry
 // touch: trouble here never fails the command.
 func saveRoots(reg rootsRegistry) {
+	_ = writeRoots(reg)
+}
+
+// writeRoots writes the registry atomically, reporting failure.
+func writeRoots(reg rootsRegistry) error {
 	p := rootsPath()
 	if p == "" {
-		return
+		return errors.New("no home directory resolvable, so there is nowhere to keep the registry")
 	}
 	if reg.Schema == 0 {
 		reg.Schema = 1
 	}
 	b, err := json.MarshalIndent(reg, "", "  ")
 	if err != nil {
-		return
+		return err
 	}
 	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return
+		return err
 	}
 	tmp := p + ".tmp"
 	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
-		return
+		return err
 	}
-	_ = os.Rename(tmp, p)
+	return os.Rename(tmp, p)
 }
 
 // recordRuntimePref stores the machine-wide sticky runtime — callers pass it
