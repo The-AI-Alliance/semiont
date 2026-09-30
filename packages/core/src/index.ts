@@ -429,7 +429,6 @@ export type {
   InferenceProvidersConfig,
   McpServiceConfig,
   ArchivistServiceConfig,
-  JobsServiceConfig,
   ServicesConfig,
   VectorsServiceConfig,
   EmbeddingServiceConfig,

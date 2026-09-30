@@ -944,9 +944,6 @@
         "archivist": {
           "$ref": "#/definitions/ArchivistServiceConfig"
         },
-        "jobs": {
-          "$ref": "#/definitions/JobsServiceConfig"
-        },
         "identity": {
           "$ref": "#/definitions/IdentityServiceConfig"
         }
@@ -1077,32 +1074,6 @@
         "services"
       ],
       "additionalProperties": true
-    },
-    "JobsServiceConfig": {
-      "type": "object",
-      "description": "The job queue driver (JOB-QUEUE-DRIVER). Selection is stated here, never inferred: 'fs' is the filesystem queue inside the gateway; 'jetstream' is NATS JetStream \u2014 KV operational state plus stream-held leases. Absent section means 'fs'. 'servers' is the NATS address and may reference environment via ${VAR} placeholders \u2014 the CONFIG names the variable; code never invents one. Broker credentials: 'user' and 'password' authenticate this client to NATS. Both may reference environment via ${VAR}. They are optional \u2014 absent means an unauthenticated broker, which is what every deployment had before INTER-COMPONENT-ACCESS P3, and means anyone who can reach NATS can read and write everything on it. [signal] and [jobs] name ONE daemon: when both carry credentials they must match, and the launcher refuses a disagreement rather than choosing.",
-      "properties": {
-        "type": {
-          "type": "string",
-          "enum": [
-            "fs",
-            "jetstream"
-          ]
-        },
-        "servers": {
-          "type": "string"
-        },
-        "user": {
-          "type": "string"
-        },
-        "password": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "additionalProperties": false
     },
     "ArchivistServiceConfig": {
       "type": "object",

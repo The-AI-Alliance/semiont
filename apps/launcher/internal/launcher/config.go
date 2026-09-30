@@ -100,8 +100,7 @@ type envConfig struct {
 	Embedding  *embeddingCfg          `toml:"embedding"`
 	Inference  map[string]providerCfg `toml:"inference"`
 	Database   *databaseCfg           `toml:"database"`
-	// Jobs selects the gateway's job-queue driver (JOB-QUEUE-DRIVER P2).
-	// Absent = the in-gateway fs driver; nothing to launch.
+	// Jobs names the dispatcher's JetStream queue (see jobsCfg).
 	Jobs     *jobsCfg              `toml:"jobs"`
 	Signal   *signalCfg            `toml:"signal"`
 	Identity *identityCfg          `toml:"identity"`
@@ -206,9 +205,10 @@ type databaseCfg struct {
 	Image    string `toml:"image"` // optional: override the catalog's default image
 }
 
-// jobsCfg mirrors the TypeScript JobsServiceConfig: type "fs" | "jetstream",
-// and for jetstream a servers address whose host may be the launcher-injected
-// ${NATS_HOST} (provided) or anything else (externally provided broker).
+// jobsCfg is [environments.<env>.jobs], which only the launcher reads (it
+// writes the dispatcher's queue settings from it): type "jetstream", and a
+// servers address whose host may be the launcher-injected ${NATS_HOST}
+// (provided) or anything else (externally provided broker).
 type jobsCfg struct {
 	Type    string `toml:"type"`
 	Servers string `toml:"servers"`
