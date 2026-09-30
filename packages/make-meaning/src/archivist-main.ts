@@ -60,8 +60,7 @@ import { CloneTokenManager } from './clone-token-manager';
 import { ARCHIVIST_INBOUND_CHANNELS, ARCHIVIST_OUTBOUND_CHANNELS } from './service-channels';
 import { attachServicePumps } from './service-pumps';
 import { createSmeltProgress } from './smelt-progress';
-import { createLimitsDiscovery } from './limits-discovery';
-import { makeMeaningConfigFrom } from './config';
+import { makeMeaningConfigFrom, rosterConfigFrom } from './config';
 import { createArchivistServer } from './archivist-read-path';
 import { createFactPump } from './fact-pump';
 import { registerAnnotationAssemblyHandler } from './handlers/annotation-assembly';
@@ -232,10 +231,11 @@ async function main() {
   );
   await stower.initialize();
 
-  const limitsDiscovery = createLimitsDiscovery(config, logger.child({ component: 'limits-discovery' }));
+  // The roster from the keyless role maps: the archivist holds no inference
+  // credential, and its section list names no [inference].
   const browser = new Browser(
     { views, eventStore, graph: graphDb, vectors: vectorStore, content, anchoredText, smeltProgress },
-    localBus, project, config, limitsDiscovery, embeddingProvider, logger.child({ component: 'browser' }),
+    localBus, project, config, rosterConfigFrom(envConfig), embeddingProvider, logger.child({ component: 'browser' }),
   );
   await browser.initialize();
 

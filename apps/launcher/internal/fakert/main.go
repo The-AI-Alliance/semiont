@@ -1415,7 +1415,6 @@ var busScripted = map[string]bool{
 	"browse:resource-requested":     true,
 	"browse:annotations-requested":  true,
 	"browse:entity-types-requested": true,
-	"browse:agents-requested":       true,
 	"frame:add-entity-type":         true,
 	"gather:resource-requested":     true,
 	"gather:requested":              true,
@@ -1424,6 +1423,9 @@ var busScripted = map[string]bool{
 	"bind:update-body":              true,
 	"match:search-requested":        true,
 	"job:create":                    true,
+	"job:limits-requested":          true,
+	"gather:limits-requested":       true,
+	"match:limits-requested":        true,
 }
 
 // existingContainers is every semiont-* container that exists here, from BOTH

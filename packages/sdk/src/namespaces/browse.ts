@@ -1,4 +1,4 @@
-import { Observable, map } from 'rxjs';
+import { Observable, combineLatest, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
 import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery, decodeWithCharset } from '@semiont/core';
 import type { AnchoredTextAnswer } from '@semiont/core';
@@ -12,12 +12,14 @@ import type {
   AnnotationId,
   GraphConnection,
   TagSchema,
+  Collaborator,
   CollaboratorEntry,
   KbDescription,
+  LimitsOperation,
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest } from '@semiont/core';
+import { busRequest, LIMITS_OPERATIONS } from '@semiont/core';
 import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
@@ -94,6 +96,18 @@ const TAG_SCHEMAS_KEY = '_';
 /** Sentinel key for the singleton collaborator-directory cache. */
 const AGENTS_KEY = '_';
 
+type InferencePairLimits = components['schemas']['InferencePairLimits'];
+
+/** The directory with each reported model's limits on its entries. */
+function joinLimits(directory: CollaboratorEntry[], reported: InferencePairLimits[]): Collaborator[] {
+  return directory.map((entry) => {
+    const agent = entry.agent;
+    if (agent['@type'] !== 'Software') return entry;
+    const pair = reported.find((r) => r.provider === agent.provider && r.model === agent.model);
+    return pair ? { ...entry, limits: pair.limits } : entry;
+  });
+}
+
 export class BrowseNamespace implements IBrowseNamespace {
   // ── Caches, backed by the RxJS-native `Cache<K, V>` primitive ───────────
   //
@@ -119,6 +133,10 @@ export class BrowseNamespace implements IBrowseNamespace {
   private readonly entityTypesCache: Cache<string, string[]>;
   private readonly tagSchemasCache: Cache<string, TagSchema[]>;
   private readonly agentsCache: Cache<string, CollaboratorEntry[]>;
+  /** Each key holder's limits report, by the operation it answers. */
+  private readonly limitsCache: Cache<LimitsOperation, InferencePairLimits[]>;
+  /** The directory, joined with the limits reports as each arrives. */
+  private readonly collaborators$: Observable<CacheState<Collaborator[]>>;
   private readonly referencedByCache: Cache<ResourceId, ReferencedByEntry[]>;
   private readonly resourceEventsCache: Cache<ResourceId, StoredEventResponse[]>;
 
@@ -308,6 +326,21 @@ export class BrowseNamespace implements IBrowseNamespace {
       return result.agents;
     });
 
+    // The services holding the inference credentials report their models'
+    // limits; nothing else can discover them. One that is down or silent
+    // reports nothing, so its models show no limits, and it delays only its
+    // own report, never the directory.
+    this.limitsCache = createCache<LimitsOperation, InferencePairLimits[]>(async (operation) =>
+      busRequest(this.transport, operation, {}, this.busTimeoutMs).then((result) => result.limits, () => []));
+
+    this.collaborators$ = combineLatest([
+      this.agentsCache.observe(AGENTS_KEY),
+      ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.observe(operation)),
+    ]).pipe(map(([directory, ...reports]): CacheState<Collaborator[]> =>
+      directory.status === 'ready'
+        ? { status: 'ready', value: joinLimits(directory.value, reports.flatMap((r) => (r.status === 'ready' ? r.value : []))) }
+        : directory));
+
     this.referencedByCache = createCache<ResourceId, ReferencedByEntry[]>(async (resourceId) => {
       const result = await busRequest(
         this.transport,
@@ -420,8 +453,14 @@ export class BrowseNamespace implements IBrowseNamespace {
    * are `bus:resume-gap` (a gateway restart with a changed roster necessarily
    * presents as an SSE gap) and a fresh `await` (which always fetches).
    */
-  agents(): CacheObservable<CollaboratorEntry[]> {
-    return CacheObservable.from(this.agentsCache.observe(AGENTS_KEY), () => this.agentsCache.fetch(AGENTS_KEY));
+  agents(): CacheObservable<Collaborator[]> {
+    return CacheObservable.from(this.collaborators$, async () => {
+      const [directory, ...reports] = await Promise.all([
+        this.agentsCache.fetch(AGENTS_KEY),
+        ...LIMITS_OPERATIONS.map((operation) => this.limitsCache.fetch(operation)),
+      ]);
+      return joinLimits(directory, reports.flat());
+    });
   }
 
   referencedBy(resourceId: ResourceId): CacheObservable<ReferencedByEntry[]> {
@@ -610,6 +649,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   invalidateAgents(): void {
     this.agentsCache.invalidate(AGENTS_KEY);
+    for (const operation of LIMITS_OPERATIONS) this.limitsCache.invalidate(operation);
   }
 
   /**
@@ -688,6 +728,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.entityTypesCache.dispose();
     this.tagSchemasCache.dispose();
     this.agentsCache.dispose();
+    this.limitsCache.dispose();
     this.referencedByCache.dispose();
     this.resourceEventsCache.dispose();
     this.annotationResources.clear();

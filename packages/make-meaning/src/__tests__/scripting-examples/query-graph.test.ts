@@ -40,13 +40,13 @@ stubEmbeddingProbeFetch();
 // Mock @semiont/inference
 const mockInferenceClient = vi.hoisted(() => ({ client: null as any }));
 
-vi.mock('@semiont/inference', async () => {
-  const { MockInferenceClient } = await import('@semiont/inference');
-  mockInferenceClient.client = new MockInferenceClient(['[]']);
+vi.mock('@semiont/inference', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@semiont/inference')>();
+  mockInferenceClient.client = new actual.MockInferenceClient(['[]']);
 
   return {
+    ...actual,
     createInferenceClient: vi.fn().mockReturnValue(mockInferenceClient.client),
-    MockInferenceClient,
   };
 });
 

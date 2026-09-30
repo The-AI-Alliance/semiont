@@ -251,6 +251,15 @@ export const WORKER_CONSUMED_BROADCASTS = [
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
+ * The requests a worker ANSWERS. It holds the inference credentials, so it is
+ * the one service that can discover its models' limits from their providers
+ * (worker-main answers for the whole pool).
+ */
+export const WORKER_ANSWERED_OPERATIONS = [
+  'job:limits-requested',
+] as const satisfies readonly BusOperationKey[];
+
+/**
  * The global SSE channel set for a worker's transport: the whole manifest,
  * stated once and passed at construction. Nothing widens it afterwards.
  */
@@ -260,6 +269,7 @@ export const WORKER_CONSUMED_BROADCASTS = [
 export const WORKER_CHANNELS: readonly (keyof EventMap)[] = [
   ...replyChannelsFor(WORKER_AWAITED_OPERATIONS),
   ...WORKER_CONSUMED_BROADCASTS,
+  ...WORKER_ANSWERED_OPERATIONS,
 ];
 
 /**

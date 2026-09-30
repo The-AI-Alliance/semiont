@@ -10,7 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { Logger } from '@semiont/core';
-import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
+import { startAgentWorker, authenticateAgent, parseGatewayUrl, buildHealthPayload, startStallWatchdog, STALL_THRESHOLD_MS, STALL_CHECK_INTERVAL_MS, WORKER_CHANNELS, WORKER_CONSUMED_BROADCASTS, WORKER_AWAITED_OPERATIONS, WORKER_ANSWERED_OPERATIONS, type AgentGroup, type AgentVitals } from '../worker-runtime';
 import { startWorkerProcess } from '../worker-process';
 import type { InferenceClient } from '@semiont/inference';
 import { createServer, type Server } from 'http';
@@ -462,7 +462,7 @@ describe('worker-runtime — stall watchdog (WORKER-LIVENESS.md P3)', () => {
 });
 
 describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)', () => {
-  it('WORKER_CHANNELS is exactly the manifest: awaited replies PLUS declared broadcasts', () => {
+  it('WORKER_CHANNELS is exactly the manifest: awaited replies, declared broadcasts, and answered requests', () => {
     // The explicit pin survives the manifest change deliberately: growing a
     // worker's subscription set must stay a conscious edit to a literal list,
     // which is the OOM protection this test was written for (2026-09-03).
@@ -499,6 +499,9 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
       // The queue announcement the claim adapter races for. Deleting its
       // declaration idled every worker (2026-09-16).
       'job:queued',
+      // The one request the worker ANSWERS: its models' limits. It holds the
+      // inference credentials, so nothing else can discover them.
+      'job:limits-requested',
     ].sort());
   });
 
@@ -510,11 +513,11 @@ describe('worker-runtime — narrowed SSE subscription (worker OOM, 2026-09-03)'
     // to consume. Anything outside both sets is drift.
     const { BRIDGED_CHANNELS, replyChannelsFor } = await import('@semiont/core');
     const replies = new Set<string>(replyChannelsFor(WORKER_AWAITED_OPERATIONS));
-    const declared = new Set<string>(WORKER_CONSUMED_BROADCASTS);
+    const declared = new Set<string>([...WORKER_CONSUMED_BROADCASTS, ...WORKER_ANSWERED_OPERATIONS]);
     for (const channel of WORKER_CHANNELS) {
       expect(
         replies.has(channel) || declared.has(channel),
-        `${channel} is neither an awaited reply nor a declared broadcast`,
+        `${channel} is neither an awaited reply, a declared broadcast, nor an answered request`,
       ).toBe(true);
     }
     // The replies half still must be registry-bridged.

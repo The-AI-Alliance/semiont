@@ -33,6 +33,7 @@ import {
   type ResolvedInference,
 } from './worker-runtime';
 import {
+  answerLimitsRequests,
   createInferenceClient,
   type InferenceClientConfig,
 } from '@semiont/inference';
@@ -175,6 +176,17 @@ async function main() {
     ),
   );
 
+  // Every agent's transport carries job:limits-requested, and the first
+  // answers for the whole pool: the gateway delivers only the first reply to
+  // a request, so each group answering for itself would deliver one group's
+  // limits.
+  const limitsResponder = answerLimitsRequests(
+    workers[0]!.session.client.transport,
+    'job:limits-requested',
+    Array.from(groups.values(), (g) => g.client),
+    logger,
+  );
+
   const health = createServer((req, res) => {
     if (req.url === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -195,6 +207,7 @@ async function main() {
   const shutdown = async () => {
     logger.info('Shutting down');
     watchdog.dispose();
+    limitsResponder.unsubscribe();
     await Promise.all(workers.map((w) => w.dispose()));
     health.close();
     process.exit(0);

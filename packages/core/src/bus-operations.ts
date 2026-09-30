@@ -64,10 +64,12 @@ export const BUS_OPERATIONS = {
   'gather:resource-requested':           { result: 'gather:resource-complete',       failure: 'gather:resource-failed' },
   // dormant — gateway handler complete, no client caller yet (annotation summary)
   'gather:summary-requested':            { result: 'gather:summary-result',          failure: 'gather:summary-failed' },
+  'gather:limits-requested':             { result: 'gather:limits-result',           failure: 'gather:limits-failed' },
 
   // ── JOB ─────────────────────────────────────────────────────────
   'job:create':                          { result: 'job:created',                    failure: 'job:create-failed' },
   'job:status-requested':                { result: 'job:status-result',              failure: 'job:status-failed' },
+  'job:limits-requested':                { result: 'job:limits-result',              failure: 'job:limits-failed' },
   'job:cancel-requested':                { result: 'job:cancel-ok',                  failure: 'job:cancel-failed' },
   // worker-side: the worker claims a queued job (not an SDK call)
   'job:claim':                           { result: 'job:claimed',                    failure: 'job:claim-failed' },
@@ -83,6 +85,7 @@ export const BUS_OPERATIONS = {
   // ── MATCH ───────────────────────────────────────────────────────
   // take-1 dressed as an Observable in the SDK
   'match:search-requested':              { result: 'match:search-results',           failure: 'match:search-failed' },
+  'match:limits-requested':              { result: 'match:limits-result',            failure: 'match:limits-failed' },
 
   // ── WEAVE ───────────────────────────────────────────────────────
   // Graph-projection rebuild, served by the Weaver (WEAVER-ISOLATION D3)

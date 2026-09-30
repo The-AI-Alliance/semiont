@@ -2443,7 +2443,9 @@ func TestSecretValuesStayOffTheCommandLine(t *testing.T) {
 // Each service is handed only the variables its own config sections
 // reference (SECRET-DELIVERY P5, D2: "send each service only the secrets it
 // uses"). The anthropic config names ANTHROPIC_API_KEY in [inference], which
-// the Archivist, Librarian and Worker read and nothing else does.
+// the Librarian and Worker read and nothing else does: the Archivist lists the
+// collaborator roster without it (ruled 2026-09-29: "The worker and the
+// librarian are the only two images that should get inference secrets").
 func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 	s := newScenario(t, "container")
 	s.extraEnv = append(s.extraEnv, "ANTHROPIC_API_KEY=test-key")
@@ -2460,12 +2462,12 @@ func TestEachServiceGetsOnlyTheSecretsItReads(t *testing.T) {
 		t.Fatalf("no run line for %s:\n%s", svc, log)
 		return ""
 	}
-	for _, svc := range []string{"archivist", "librarian", "worker"} {
+	for _, svc := range []string{"librarian", "worker"} {
 		if v, _ := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); v != "test-key" {
 			t.Errorf("%s reads [inference] but was not handed ANTHROPIC_API_KEY", svc)
 		}
 	}
-	for _, svc := range []string{"gateway", "dispatcher", "weaver", "smelter"} {
+	for _, svc := range []string{"archivist", "gateway", "dispatcher", "weaver", "smelter"} {
 		if _, handed := s.containerEnv(t, "semiont-"+svc, "ANTHROPIC_API_KEY"); handed || strings.Contains(runLine(svc), "ANTHROPIC_API_KEY") {
 			t.Errorf("%s reads no section naming ANTHROPIC_API_KEY but was handed it", svc)
 		}
@@ -6212,10 +6214,11 @@ func TestStartRefusesAConfigWithNoSemanticSearch(t *testing.T) {
 
 // --- platform-sourced inference ceilings (INFERENCE-LIMITS-EXPOSURE P4) ---
 
-// The ceilings status prints come from the PLATFORM — one correlated
-// browse:agents-requested exchange over the bus, the same request every other
-// client makes — never from a direct provider probe. mustNotContain is spelled
-// out here because "no ceiling" is the whole assertion in three of these tests.
+// The ceilings status prints come from the PLATFORM — the limits the services
+// holding the inference credentials report over the bus (job:, gather: and
+// match:limits-requested), the same requests every other client makes — never
+// from a direct provider probe. mustNotContain is spelled out here because "no
+// ceiling" is the whole assertion in three of these tests.
 func mustNotContain(t *testing.T, label, haystack string, needles ...string) {
 	t.Helper()
 	for _, n := range needles {
@@ -6225,25 +6228,22 @@ func mustNotContain(t *testing.T, label, haystack string, needles ...string) {
 	}
 }
 
-// agentsReply scripts the fake bus's browse:agents-result payload.
-func agentsReply(entries ...string) string {
-	return `FAKERT_BUS_REPLY_browse_agents_requested={"agents":[` + strings.Join(entries, ",") + `]}`
+// limitsReply scripts the worker's job:limits-result payload: the pairs it
+// reports, each with the limits it discovered.
+func limitsReply(pairs ...string) string {
+	return `FAKERT_BUS_REPLY_job_limits_requested={"limits":[` + strings.Join(pairs, ",") + `]}`
 }
 
-func softwareAgent(provider, model, limits string) string {
-	e := fmt.Sprintf(`{"agent":{"@type":"Software","name":"%s","provider":"%s","model":"%s"}`, model, provider, model)
-	if limits != "" {
-		e += `,"limits":` + limits
-	}
-	return e + "}"
+func reportedPair(provider, model, limits string) string {
+	return fmt.Sprintf(`{"provider":"%s","model":"%s","limits":%s}`, provider, model, limits)
 }
 
 func TestStatusShowsPlatformCeilings(t *testing.T) {
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
-		agentsReply(
-			softwareAgent("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
-			softwareAgent("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
+		limitsReply(
+			reportedPair("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`),
+			reportedPair("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
 		))
 	stdout, stderr, code := s.run(t, "status")
 	if code != 0 {
@@ -6260,27 +6260,29 @@ func TestStatusShowsPlatformCeilings(t *testing.T) {
 	}
 	mustContain(t, "ceilings", stdout, "128K window", "8K window")
 
-	// Sourced over the bus, on the generated operation — not by probing a
+	// Sourced over the bus, from every key holder — not by probing a
 	// provider. (D5: platform data flows through the platform surface.)
-	found := false
-	for _, e := range emits(t, s) {
-		if strings.Contains(e, `"channel":"browse:agents-requested"`) {
-			found = true
-			mustContain(t, "agents request", e, `"correlationId"`)
+	for _, op := range []string{"job:limits-requested", "gather:limits-requested", "match:limits-requested"} {
+		found := false
+		for _, e := range emits(t, s) {
+			if strings.Contains(e, `"channel":"`+op+`"`) {
+				found = true
+				mustContain(t, op, e, `"correlationId"`)
+			}
 		}
-	}
-	if !found {
-		t.Errorf("status never asked the platform for the roster:\n%s", strings.Join(emits(t, s), "\n"))
+		if !found {
+			t.Errorf("status never asked %s:\n%s", op, strings.Join(emits(t, s), "\n"))
+		}
 	}
 }
 
 func TestStatusCeilingsNeedASession(t *testing.T) {
 	// Same started stack, only the credential removed: no session means no
-	// roster, and a row without a ceiling is exactly today's row — no error,
+	// report, and a row without a ceiling is exactly today's row — no error,
 	// no placeholder. (Ignorance is not a finding.)
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
-		agentsReply(softwareAgent("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`)))
+		limitsReply(reportedPair("ollama", "gemma4:26b", `{"contextTokens":128000,"maxOutputTokens":128000}`)))
 	if _, stderr, code := s.run(t, "logout"); code != 0 {
 		t.Fatalf("logout: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -6292,28 +6294,28 @@ func TestStatusCeilingsNeedASession(t *testing.T) {
 	mustNotContain(t, "status without a session", stdout, "window", " in / ")
 }
 
-func TestStatusCeilingsSurviveARejectedRoster(t *testing.T) {
-	// The platform answering on the failure channel is the same non-answer as
-	// silence: rows render as today, and status still exits on health alone.
+func TestStatusCeilingsSurviveRejectedReports(t *testing.T) {
+	// The key holders answering on their failure channels is the same
+	// non-answer as silence: rows render as today, and status still exits on health alone.
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
 		"FAKERT_BUS_FAIL=directory unavailable")
 	stdout, stderr, code := s.run(t, "status")
 	if code != 0 {
-		t.Fatalf("a rejected roster must not fail status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
+		t.Fatalf("rejected reports must not fail status: exit %d\nstdout:\n%s\nstderr:\n%s", code, stdout, stderr)
 	}
 	mustContain(t, "model row still renders", stdout, "gemma4:26b", "installed")
-	mustNotContain(t, "status with a rejected roster", stdout, "window", " in / ", "directory unavailable")
+	mustNotContain(t, "status with rejected reports", stdout, "window", " in / ", "directory unavailable")
 }
 
-func TestStatusCeilingsAbsentWhenTheEntryHasNone(t *testing.T) {
-	// D3's absence semantics reach all the way to the terminal: an entry
-	// whose discovery failed carries no limits, and its row is unchanged.
+func TestStatusCeilingsAbsentWhenNoKeyHolderReportsThem(t *testing.T) {
+	// D3's absence semantics reach all the way to the terminal: a pair whose
+	// discovery failed is absent from its key holder's report, and its row is
+	// unchanged.
 	s := busScenario(t,
 		"FAKERT_OLLAMA_TAGS=gemma4:26b,nomic-embed-text:latest",
-		agentsReply(
-			softwareAgent("ollama", "gemma4:26b", ""),
-			softwareAgent("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
+		limitsReply(
+			reportedPair("ollama", "nomic-embed-text", `{"contextTokens":8000,"maxOutputTokens":8000}`),
 		))
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
@@ -6352,18 +6354,18 @@ func mixedStackScenario(t *testing.T, env ...string) *scenario {
 }
 
 func TestStatusNeverShowsACrossProviderCeiling(t *testing.T) {
-	// The roster claims OLLAMA serves a Claude. The row's model is Anthropic's,
+	// A key holder reports OLLAMA serving a Claude. The row's model is Anthropic's,
 	// so the keys do not meet and no ceiling is printed. A ceiling matched on
 	// the model NAME alone would have printed one here — a wrong number, which
 	// is worse than a missing one.
 	s := mixedStackScenario(t,
-		agentsReply(softwareAgent("ollama", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
+		limitsReply(reportedPair("ollama", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)
 	}
 	mustContain(t, "model row still renders", stdout, "claude-sonnet-4-5-20250929", "remote")
-	mustNotContain(t, "cross-provider roster", stdout, "window", " in / ")
+	mustNotContain(t, "cross-provider report", stdout, "window", " in / ")
 }
 
 func TestStatusPlatformCeilingReplacesTheProbedWindow(t *testing.T) {
@@ -6372,7 +6374,7 @@ func TestStatusPlatformCeilingReplacesTheProbedWindow(t *testing.T) {
 	// figure, from the platform (D5), never two from two sources. The probe
 	// keeps rendering what only it knows (identity, release, key visibility).
 	s := mixedStackScenario(t,
-		agentsReply(softwareAgent("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
+		limitsReply(reportedPair("anthropic", "claude-sonnet-4-5-20250929", `{"contextTokens":200000,"maxOutputTokens":64000}`)))
 	stdout, _, code := s.run(t, "status")
 	if code != 0 {
 		t.Fatalf("status: exit %d\nstdout:\n%s", code, stdout)

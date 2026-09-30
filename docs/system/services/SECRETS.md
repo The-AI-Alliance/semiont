@@ -121,7 +121,9 @@ a value instead of pointing at one.
 **Only to the services that read them.** Each service is handed the variables named in the
 config sections it reads, as listed in
 [specs/src/service-config/sections.json](../../../specs/src/service-config/sections.json). The
-Anthropic key in `[inference]` reaches the archivist, librarian and worker, and no other service.
+Anthropic key in `[inference]` reaches the librarian and the worker, and no other service. They are
+the only services that call a model, so they are also the ones that report each model's limits
+(context window, output ceiling); the archivist lists the collaborator directory without a key.
 A daemon's password reaches the services that connect to that daemon: Neo4j's goes to the
 services that read `[graph]` (the archivist, librarian and weaver), and the broker's pair goes to
 the dispatcher, which reads `[jobs]`, and to the gateway when its signal plane is the broker.

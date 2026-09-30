@@ -20,7 +20,7 @@
 
 import { softwareToAgent } from '@semiont/core';
 import type { components } from '@semiont/core';
-import { resolveActorInference, resolveWorkerInference, type InferenceConfig, type MakeMeaningConfig, type WorkerInferenceConfig } from './config';
+import { resolveActorInference, resolveWorkerInference, type RoleInference, type RosterConfig, type WorkerInferenceConfig } from './config';
 
 type Agent = components['schemas']['Agent'];
 type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
@@ -37,20 +37,16 @@ const JOB_TYPES = [
 ] as const satisfies readonly (JobType & keyof Omit<WorkerInferenceConfig, 'default'>)[];
 
 /** The roster's dedup key — with one domain per KB, this pair IS the DID
- *  (COLLABORATOR-DIRECTORY D4), and it is the granularity limits discovery
- *  caches at (INFERENCE-LIMITS-EXPOSURE D4). One definition, two readers. */
-export const inferencePairKey = (provider: string, model: string): string => `${provider} ${model}`;
+ *  (COLLABORATOR-DIRECTORY D4). */
+const inferencePairKey = (provider: string, model: string): string => `${provider} ${model}`;
 
 /**
- * The one walk over the config sections that route work: every inference
- * section the roster admits, in roster order (workers by job type, then
- * actors). Both projections below — the directory entries and the limits
- * discovery pool — derive from this walk, so they cannot disagree about
- * who is on the roster.
+ * The one walk over the config sections that route work: every role the
+ * roster admits, in roster order (workers by job type, then actors).
  */
 function eachAdmittedInference(
-  config: MakeMeaningConfig,
-  visit: (inference: InferenceConfig, jobType?: JobType) => void,
+  config: RosterConfig,
+  visit: (inference: RoleInference, jobType?: JobType) => void,
 ): void {
   for (const jobType of JOB_TYPES) {
     try {
@@ -69,24 +65,7 @@ function eachAdmittedInference(
   }
 }
 
-/**
- * Every distinct `(provider, model)` the roster admits, each with the config
- * section that admitted it (first wins, mirroring the roster dedup) — the
- * LimitsDiscovery pool's construction input (INFERENCE-LIMITS-EXPOSURE P2).
- * Deliberately domain-free: pairs mint no DIDs, so a KB without a domain
- * still yields a pool — the roster read fails loudly on its own; discovery
- * construction must not (D3).
- */
-export function deriveInferencePairs(config: MakeMeaningConfig): Map<string, InferenceConfig> {
-  const pairs = new Map<string, InferenceConfig>();
-  eachAdmittedInference(config, (inference) => {
-    const key = inferencePairKey(inference.type, inference.model);
-    if (!pairs.has(key)) pairs.set(key, inference);
-  });
-  return pairs;
-}
-
-export function deriveAgentRoster(config: MakeMeaningConfig, domain: string | undefined): CollaboratorEntry[] {
+export function deriveAgentRoster(config: RosterConfig, domain: string | undefined): CollaboratorEntry[] {
   if (!domain) {
     throw new Error(
       "The knowledge base's committed .semiont/config declares no [site] domain, and agent DIDs are minted under it — the same domain /api/tokens/agent mints worker DIDs from (no topology fallback)",
