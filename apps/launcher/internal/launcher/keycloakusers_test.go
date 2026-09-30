@@ -240,7 +240,52 @@ func TestUserCallsReportARefusedPut(t *testing.T) {
 
 func applyAgainst(t *testing.T, s *stubUsers, o useraddOpts, password string) int {
 	t.Helper()
-	return applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token"}, o, password)
+	code, _ := applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: "sub"}, o, password)
+	return code
+}
+
+// The account block names the identity the person will act under — the DID the
+// gateway builds from the claim [identity] subjectClaim names — rather than the
+// realm's bare account id, which nothing else in Semiont shows.
+func TestUseraddNamesTheIdentityItCreated(t *testing.T) {
+	for _, c := range []struct{ claim, want string }{
+		{"sub", "did:web:kb.example:users:new-user-uuid"},
+		{"email", "did:web:kb.example:users:sam%40x.co"},
+		{"preferred_username", "did:web:kb.example:users:sam%40x.co"},
+	} {
+		s := newStubUsers(t, "semiont", []map[string]any{})
+		var code int
+		var created bool
+		out := harness.CaptureStdout(t, func() {
+			code, created = applyUseradd(NewUI(false), realmAdmin{base: s.srv.URL, realm: "semiont", token: "admin-token", domain: "kb.example", subjectClaim: c.claim}, useraddOpts{email: "sam@x.co"}, "hunter2hunter2")
+		})
+		if code != 0 || !created {
+			t.Fatalf("%s: create: exit %d, created %v\n%s", c.claim, code, created, out)
+		}
+		if !strings.Contains(out, "Identity: "+c.want) {
+			t.Errorf("%s: the output does not name %s:\n%s", c.claim, c.want, out)
+		}
+		if strings.Contains(out, "Subject:") {
+			t.Errorf("%s: the output still shows the realm's account id as Subject:\n%s", c.claim, out)
+		}
+	}
+}
+
+// What the person does next: sign in, at the Browser this machine serves or
+// from a terminal against the same stack. The terminal command names the stack
+// the way the person selected it.
+func TestUseraddNextStepsNameTheSelectedStack(t *testing.T) {
+	local := strings.Join(useraddNextSteps(nil, &StackState{Runtime: "docker"}), "\n")
+	for _, want := range []string{"Next: sign in at http://localhost:3000 with this email and password.", "first and last name", "semiont login --runtime docker"} {
+		if !strings.Contains(local, want) {
+			t.Errorf("local next steps missing %q:\n%s", want, local)
+		}
+	}
+	cs := &StackState{Codespace: &codespacePlacement{Repo: "owner/kb"}}
+	remote := strings.Join(useraddNextSteps(cs, nil), "\n")
+	if !strings.Contains(remote, "semiont login --repo owner/kb") || strings.Contains(remote, "--runtime") {
+		t.Errorf("codespace next steps must name --repo owner/kb:\n%s", remote)
+	}
 }
 
 func TestUseraddCreatesWhenTheRealmHoldsNothing(t *testing.T) {
