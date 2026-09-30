@@ -208,8 +208,6 @@ func queueDriverDisplay(driver string) string {
 	switch driver {
 	case "jetstream":
 		return "JetStream"
-	case "fs":
-		return "files"
 	}
 	return driver
 }

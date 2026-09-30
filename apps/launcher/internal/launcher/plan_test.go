@@ -497,6 +497,22 @@ model = "gemma4:26b"
 	}
 }
 
+// The dispatcher's queue is JetStream: the plan refuses a [jobs] of any other
+// type, or of none, in the words the dispatcher's document uses.
+func TestPlanRefusesAJobsTypeTheDispatcherCannotRun(t *testing.T) {
+	for _, typ := range []string{"fs", ""} {
+		_, err := planForBroker(t, "", "[environments.local.jobs]\ntype = \""+typ+"\"\nservers = \"${NATS_HOST}:4222\"\n")
+		if err == nil {
+			t.Fatalf("type = %q was accepted", typ)
+		}
+		for _, want := range []string{"[environments.local.jobs]", `type = "jetstream"`, "dispatcher's queue is JetStream"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("type = %q: the refusal does not name %s: %v", typ, want, err)
+			}
+		}
+	}
+}
+
 // ── Broker credentials (INTER-COMPONENT-ACCESS P3) ──────────────────────────
 //
 // [signal] and [jobs] name ONE daemon, so their credentials reconcile the way

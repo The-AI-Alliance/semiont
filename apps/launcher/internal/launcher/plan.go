@@ -566,14 +566,10 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 	j := env.Jobs
 	sig := env.Signal
 	if j != nil {
-		switch j.Type {
-		case "":
-			return nil, secErr("jobs", "missing required key %q", "type")
-		case "fs", "jetstream":
-		default:
-			return nil, secErr("jobs", "unknown type %q (use \"fs\", or \"jetstream\")", j.Type)
+		if j.Type != "jetstream" {
+			return nil, secErr("jobs", `must set type = "jetstream": the dispatcher's queue is JetStream`)
 		}
-		if j.Type == "jetstream" && j.Servers == "" {
+		if j.Servers == "" {
 			return nil, secErr("jobs", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
 		}
 	}
@@ -589,14 +585,10 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			return nil, secErr("signal", "missing required key %q (e.g. \"${NATS_HOST}:4222\")", "servers")
 		}
 	}
-	jobsWantBroker := j != nil && j.Type == "jetstream"
+	jobsWantBroker := j != nil
 	signalWantsBroker := sig != nil && sig.Type == "nats"
 	if !jobsWantBroker && !signalWantsBroker {
-		fsDriver := ""
-		if j != nil && j.Type == "fs" {
-			fsDriver = "fs"
-		}
-		plan.Roles["messaging"] = rolePlan{Role: "messaging", Driver: fsDriver, Presence: presenceAbsent}
+		plan.Roles["messaging"] = rolePlan{Role: "messaging", Presence: presenceAbsent}
 	} else {
 		servers := ""
 		if jobsWantBroker {

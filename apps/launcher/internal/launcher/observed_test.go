@@ -80,17 +80,14 @@ semiont_job_queue_size{job="semiont-dispatcher",job_status="pending"} 3
 // The SERVICE cell is %-22s wide; a longer product name shoves every column
 // after it out of alignment for the whole report.
 func TestQueueDriverDisplayFitsTheServiceColumn(t *testing.T) {
-	for _, driver := range []string{"jetstream", "fs"} {
-		if n := len("dispatcher (" + queueDriverDisplay(driver) + ")"); n > 22 {
-			t.Errorf("dispatcher (%s) is %d columns, want <= 22", queueDriverDisplay(driver), n)
-		}
+	if n := len("dispatcher (" + queueDriverDisplay("jetstream") + ")"); n > 22 {
+		t.Errorf("dispatcher (%s) is %d columns, want <= 22", queueDriverDisplay("jetstream"), n)
 	}
 }
 
 func TestQueueDriverDisplayPassesUnknownDriversThrough(t *testing.T) {
 	for driver, want := range map[string]string{
 		"jetstream": "JetStream",
-		"fs":        "files",
 		// A driver this launcher predates must name itself rather than vanish.
 		"sqs": "sqs",
 	} {

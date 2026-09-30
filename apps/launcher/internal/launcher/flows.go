@@ -431,16 +431,14 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	if role == "embedding" && rp.Presence == presenceHostPreferred {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
-	// jobs without a [jobs] section is a WORKING DEFAULT, not a gap: the
-	// gateway's built-in fs queue serves the stack. The generic "not
-	// configured; skipping" banner block read as a misconfiguration to the
-	// first person who saw it — say what IS running instead, in one line,
-	// no banner. Same for identity without an [identity] section: the
-	// gateway issues its own tokens.
+	// Absent messaging and identity say what IS running instead, in one line,
+	// rather than the generic "not configured; skipping" banner block, which
+	// reads as a misconfiguration: identity without an [identity] section
+	// means the gateway issues its own tokens.
 	if role == "messaging" && rp.Presence == presenceAbsent {
-		x.say(sayLog, "messaging — nothing to launch: jobs ride the gateway's fs queue; signals are in-process")
-		x.note("messaging: nothing to launch (jobs: fs driver; signal: in-process)")
-		x.record(role, "", "", providedNone, "", rp.Driver)
+		x.say(sayLog, "messaging — nothing to launch: no [jobs] section; signals are in-process")
+		x.note("messaging: nothing to launch (no [jobs] section; signal: in-process)")
+		x.record(role, "", "", providedNone, "", "")
 		return 0
 	}
 	if role == "identity" && rp.Presence == presenceAbsent {

@@ -225,8 +225,6 @@ var serviceDescriptors = []serviceDescriptor{
 	// stamped /data store — because both drivers that select it use that
 	// store: the job queue's stream, and the signal driver's KV tables, where
 	// the gateway's ledger keeps its claims (LEDGER-STATE-TO-THE-BROKER P0).
-	// JOB-QUEUE-DRIVER P2: "fs" is a valid config type but not a driver here
-	// — it runs inside the gateway and launches nothing.
 	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},

@@ -9,21 +9,9 @@ import (
 	toml "github.com/pelletier/go-toml/v2"
 )
 
-// A KB born from `semiont init` must be one `semiont start` can bring up.
-//
-// It was not. The generated config declared no [jobs] section, so the job
-// queue fell to the fs driver — which needs the KB's name to locate its
-// jobsDir, and the launcher stages that name for the gateway and the
-// librarian only (kbIdentityStaged). The dispatcher therefore started,
-// authenticated, and died:
-//
-//	the fs job driver needs the KB name ([kb] name) to locate its jobsDir,
-//	but the config carries none
-//
-// Five times, then the supervisor gave up and the start failed. Found by the
-// first real boot on a runner (FAKE-RUNTIME-FIDELITY P5); invisible to the
-// launcher's own vet, which checks what the LAUNCHER consumes and cannot
-// speak for what a service needs.
+// A KB born from `semiont init` must be one `semiont start` can bring up, and
+// the dispatcher's queue is JetStream: a generated config without
+// [jobs] type = "jetstream" is one the launcher refuses.
 func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 	for _, inference := range []string{"anthropic", "ollama"} {
 		cfg := generateSemiontconfig(genParams{
@@ -47,7 +35,7 @@ func TestGeneratedConfigSelectsAJobsDriverTheDispatcherCanRun(t *testing.T) {
 		}
 		local := parsed.Environments["local"]
 		if local.Jobs.Type != "jetstream" {
-			t.Errorf("--inference %s: jobs driver is %q, want \"jetstream\" — without it the dispatcher takes the fs driver and refuses for want of a KB name the launcher never stages it", inference, local.Jobs.Type)
+			t.Errorf("--inference %s: jobs driver is %q, want \"jetstream\" — the dispatcher's queue is JetStream", inference, local.Jobs.Type)
 		}
 		// The ledger's durability rides on this one: `nats` is what puts the
 		// gateway's claims and retained replies in JetStream KV on the
