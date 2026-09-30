@@ -38,10 +38,12 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
+      # rustup installs the toolchain rust-toolchain.toml names, the one every
+      # Rust build in the repository uses, then the platform's target for it.
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+          rustup target add ${{ matrix.target }}
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-latest'

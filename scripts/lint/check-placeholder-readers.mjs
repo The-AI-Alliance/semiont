@@ -17,7 +17,7 @@
  * blanked. Not scanned: tests (they spell placeholders to exercise the
  * readers), and this file.
  */
-import { execFileSync } from 'child_process';
+import { repositoryFiles } from './repository-files.mjs';
 import { readFileSync } from 'fs';
 import { withoutComments } from './source-text.mjs';
 
@@ -53,8 +53,7 @@ const SPELLINGS = [
   { name: 'literal "${"', re: /(["'`])\$\{\1/g },
 ];
 
-const files = execFileSync('git', ['ls-files'], { encoding: 'utf8' })
-  .split('\n')
+const files = repositoryFiles(process.cwd())
   .filter((f) => SOURCE.test(f) && !TEST.test(f) && f !== SELF);
 
 const found = new Map();

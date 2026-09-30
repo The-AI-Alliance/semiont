@@ -1,4 +1,4 @@
-# cargo-deny's checks of the crates the gateway links. The Gateway Crate
+# cargo-deny's checks of the crates the workspace links. The Gateway Crate
 # Advisories workflow (.github/workflows/gateway-advisories.yml) runs
 #
 #   cargo deny --locked check -D advisory-not-detected advisories bans sources

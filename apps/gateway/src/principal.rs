@@ -2,10 +2,10 @@
 //! with no row behind it. The DID is the identity; everything downstream keys
 //! on it.
 
-use crate::identity;
 use crate::issuer::IssuerVerifier;
-use crate::roles::{SERVICE_ROLE, WORKER_ROLE, has_role, roles_of};
 use crate::tokens::KeyRing;
+use semiont::identity;
+use semiont::roles::{SERVICE_ROLE, WORKER_ROLE, has_role, roles_of};
 use serde_json::Value;
 
 #[derive(Debug, Clone)]

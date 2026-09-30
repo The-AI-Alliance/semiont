@@ -1,14 +1,14 @@
-//! The telemetry the gateway exports over OTLP/HTTP: the spans and metrics
-//! specs/src/gateway-telemetry/telemetry.json lists, and nothing else.
+//! The telemetry a service exports over OTLP/HTTP: its spans and metrics, and
+//! the readings every service takes of its own process.
 //!
-//! It reads the environment itself (variables.json's `gateway` rows) and
-//! configures the SDK from the values: an empty resource and an explicit
-//! endpoint, so no standard variable changes what the table promises. With
-//! neither an endpoint nor the console exporter, or with the SDK disabled,
-//! nothing is exported and no trace context travels.
+//! It reads the environment itself and configures the SDK from the values:
+//! an empty resource and an explicit endpoint, so no standard variable changes
+//! what a service's telemetry table promises. With neither an endpoint nor the
+//! console exporter, or with the SDK disabled, nothing is exported and no
+//! trace context travels. A service's own instruments are made on `meter()`.
 
 use crate::spec::VERSION;
-use opentelemetry::metrics::{Counter, Meter, MeterProvider as _, UpDownCounter};
+use opentelemetry::metrics::{Counter, Meter, MeterProvider as _};
 use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry::trace::{SpanKind, TraceContextExt, Tracer, TracerProvider as _};
 use opentelemetry::{Context, KeyValue};
@@ -23,7 +23,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-const SERVICE_NAME: &str = "semiont-gateway";
 const DEFAULT_METRIC_EXPORT_INTERVAL: Duration = Duration::from_millis(30_000);
 
 struct Telemetry {
@@ -31,12 +30,6 @@ struct Telemetry {
     meter_provider: SdkMeterProvider,
     tracer: SdkTracer,
     meter: Meter,
-    emits: Counter<u64>,
-    replies_suppressed: Counter<u64>,
-    resume_gaps: Counter<u64>,
-    unanswerable: Counter<u64>,
-    refusals: Counter<u64>,
-    subscribers: UpDownCounter<i64>,
     abnormal_exits: Counter<u64>,
 }
 
@@ -51,10 +44,11 @@ fn propagator() -> &'static TraceContextPropagator {
     PROPAGATOR.get_or_init(TraceContextPropagator::new)
 }
 
-/// Start exporting, as the environment says. Call once, before the runtime
-/// starts: the OTLP exporter's HTTP client runs threads of its own.
-pub fn initialize() -> Result<(), String> {
-    let configured = configure()?;
+/// Start exporting, as the environment says, as `service_name` unless
+/// `OTEL_SERVICE_NAME` says otherwise. Call once, before the runtime starts:
+/// the OTLP exporter's HTTP client runs threads of its own.
+pub fn initialize(service_name: &str) -> Result<(), String> {
+    let configured = configure(service_name)?;
     if TELEMETRY.set(configured).is_err() {
         panic!("telemetry is initialized once");
     }
@@ -66,7 +60,7 @@ pub fn initialize() -> Result<(), String> {
     Ok(())
 }
 
-fn configure() -> Result<Option<Telemetry>, String> {
+fn configure(default_service_name: &str) -> Result<Option<Telemetry>, String> {
     if std::env::var("OTEL_SDK_DISABLED").is_ok_and(|v| v == "true") {
         return Ok(None);
     }
@@ -79,7 +73,7 @@ fn configure() -> Result<Option<Telemetry>, String> {
     }
     let service_name = std::env::var("OTEL_SERVICE_NAME")
         .ok()
-        .unwrap_or_else(|| SERVICE_NAME.to_owned());
+        .unwrap_or_else(|| default_service_name.to_owned());
     let resource = Resource::builder_empty()
         .with_attributes([
             KeyValue::new("service.name", service_name),
@@ -141,32 +135,6 @@ fn configure() -> Result<Option<Telemetry>, String> {
     let tracer = tracer_provider.tracer("semiont");
     let meter = meter_provider.meter("semiont");
     Ok(Some(Telemetry {
-        emits: meter
-            .u64_counter("semiont.bus.emit")
-            .with_description("Emits accepted")
-            .build(),
-        replies_suppressed: meter
-            .u64_counter("semiont.bus.reply.suppressed")
-            .with_description("Correlated replies withheld from a non-owning subscriber")
-            .build(),
-        resume_gaps: meter
-            .u64_counter("semiont.bus.resume_gap")
-            .with_description("SSE resumes that degraded to a gap because replay was unavailable")
-            .build(),
-        unanswerable: meter
-            .u64_counter("semiont.bus.unanswerable")
-            .with_description(
-                "Request emits that reached zero subscribers and were failed at the gateway",
-            )
-            .build(),
-        refusals: meter
-            .u64_counter("semiont.gateway.refused")
-            .with_description("Requests a limit refused, and connections closed at the cap")
-            .build(),
-        subscribers: meter
-            .i64_up_down_counter("semiont.sse.subscribers")
-            .with_description("Active SSE subscribers")
-            .build(),
         abnormal_exits: meter
             .u64_counter("semiont.process.abnormal_exit")
             .with_description("Process terminations that were not a clean shutdown")
@@ -285,73 +253,9 @@ pub fn in_span_now<T>(
 
 // ── Metrics ──────────────────────────────────────────────────────────────
 
-pub fn record_bus_emit(channel: &str, scope: Option<&str>) {
-    let Some(t) = telemetry() else { return };
-    let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
-    if let Some(scope) = scope {
-        attributes.push(KeyValue::new("bus.scope", scope.to_owned()));
-    }
-    t.emits.add(1, &attributes);
-}
-
-pub fn record_reply_suppressed(channel: &str) {
-    if let Some(t) = telemetry() {
-        t.replies_suppressed
-            .add(1, &[KeyValue::new("bus.channel", channel.to_owned())]);
-    }
-}
-
-pub fn record_resume_gap(reason: &str) {
-    if let Some(t) = telemetry() {
-        t.resume_gaps.add(
-            1,
-            &[KeyValue::new("bus.resume_gap.reason", reason.to_owned())],
-        );
-    }
-}
-
-/// A refusal by a limit (the LimitRefusal code), or `connections` at the cap.
-pub fn record_refused(reason: &str) {
-    if let Some(t) = telemetry() {
-        t.refusals
-            .add(1, &[KeyValue::new("refused.reason", reason.to_owned())]);
-    }
-}
-
-pub fn record_unanswerable(channel: &str) {
-    if let Some(t) = telemetry() {
-        t.unanswerable
-            .add(1, &[KeyValue::new("bus.channel", channel.to_owned())]);
-    }
-}
-
-pub fn subscriber_connected() {
-    if let Some(t) = telemetry() {
-        t.subscribers.add(1, &[]);
-    }
-}
-
-pub fn subscriber_disconnected() {
-    if let Some(t) = telemetry() {
-        t.subscribers.add(-1, &[]);
-    }
-}
-
-/// `semiont.bus.correlation.size`: the claims this replica's ledger holds, and their cap.
-pub fn register_correlation_size(occupancy: impl Fn() -> (u64, u64) + Send + Sync + 'static) {
-    let Some(t) = telemetry() else { return };
-    t.meter
-        .u64_observable_gauge("semiont.bus.correlation.size")
-        .with_description("Correlation registry occupancy: live claims")
-        .with_callback(move |observer| {
-            let (claims, claims_max) = occupancy();
-            observer.observe(claims, &[KeyValue::new("correlation.kind", "claims")]);
-            observer.observe(
-                claims_max,
-                &[KeyValue::new("correlation.kind", "claims_max")],
-            );
-        })
-        .build();
+/// The meter a service makes its own instruments on, when it exports.
+pub fn meter() -> Option<&'static Meter> {
+    telemetry().map(|t| &t.meter)
 }
 
 /// `semiont.process.restarts`: the lives the supervisor recorded, less one.

@@ -23,12 +23,11 @@
 //! (`ledger_replies`) for `replyRetentionSeconds`; recovery answers from any
 //! replica, and only to the claim's owner.
 
-use crate::logging;
 use crate::signal::{Meta, SharedTable, SignalPlane, Subscription};
-use crate::spec::spec;
-use crate::telemetry;
+use crate::{limits, metrics};
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
+use semiont_core::logging;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
@@ -187,7 +186,7 @@ impl Ledger {
     /// hold. Resolves once this replica's projection holds every claim the
     /// table contained.
     pub async fn open(plane: &dyn SignalPlane) -> Result<Arc<Ledger>, String> {
-        let limits = spec().limits();
+        let limits = limits::limits();
         let claim_ms = limits.claim_seconds * 1000;
         let retention_ms = limits.reply_retention_seconds * 1000;
         let claims = plane
@@ -455,7 +454,7 @@ impl Ledger {
             return Verdict::Deliver;
         }
         // Owned by someone else: the amplification the filter removes.
-        telemetry::record_reply_suppressed(channel);
+        metrics::record_reply_suppressed(channel);
         Verdict::Drop
     }
 

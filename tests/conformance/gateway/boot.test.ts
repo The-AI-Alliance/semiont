@@ -52,7 +52,7 @@ describe('starting a gateway', () => {
     return s;
   };
 
-  const refusals: Array<[string, () => Promise<{ settings: GatewaySettings; env: GatewayEnvironment }>, RegExp]> = [
+  const refusals: Array<[string, () => Promise<{ settings: GatewaySettings; env: GatewayEnvironment; args?: (document: string) => string[] }>, RegExp]> = [
     ['no JWT_SECRET', async () => ({ settings: await settings(), env: env({ JWT_SECRET: undefined }) }), /JWT_SECRET/],
     ['a JWT_SECRET key shorter than 32 characters', async () => ({ settings: await settings(), env: env({ JWT_SECRET: `${'a'.repeat(40)},short` }) }), /JWT_SECRET/],
     ['no service-account client id', async () => ({ settings: await settings(), env: env({ SEMIONT_OIDC_CLIENT_ID: undefined }) }), /SEMIONT_OIDC_CLIENT_ID/],
@@ -64,14 +64,14 @@ describe('starting a gateway', () => {
     ['a field the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { corsOrigin: '*' })), env: env() }), /corsOrigin/],
     ['a log format the document does not declare', async () => ({ settings: await settings((s) => void (s.verbatim = { logFormat: 'text' })), env: env() }), /\/logFormat\b/],
     ['no capacity', async () => ({ settings: await settings((s) => delete s.capacity), env: env() }), /capacity/],
-    ['no SEMIONT_GATEWAY_CONFIG: there is no default path to fall back on', async () => ({ settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: undefined }) }), /SEMIONT_GATEWAY_CONFIG/],
-    ['a SEMIONT_GATEWAY_CONFIG naming no file', async () => ({ settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: join(tmpdir(), `gateway-conformance-no-document-${randomUUID()}.json`) }) }), /gateway-conformance-no-document-/],
+    ['no --config: there is no default path to fall back on', async () => ({ settings: await settings(), env: env(), args: () => [] }), /--config <path>/],
+    ['a --config naming no file', async () => ({ settings: await settings(), env: env(), args: () => ['--config', join(tmpdir(), `gateway-conformance-no-document-${randomUUID()}.json`)] }), /gateway-conformance-no-document-/],
     [
       "a knowledge base's TOML config where the JSON document belongs: the refusal names the format it got",
       async () => {
         const path = join(tmpdir(), `gateway-conformance-toml-${randomUUID()}.toml`);
         writeFileSync(path, '[user]\nname = ""\n\n[environments.local.gateway]\nport = 4000\n');
-        return { settings: await settings(), env: env({ SEMIONT_GATEWAY_CONFIG: path }) };
+        return { settings: await settings(), env: env(), args: () => ['--config', path] };
       },
       /gateway-conformance-toml-\S+ .*looks like TOML/,
     ],
@@ -88,8 +88,8 @@ describe('starting a gateway', () => {
 
   for (const [why, make, names] of refusals) {
     it(`refuses to serve with ${why}, and prints no secret it was given`, async () => {
-      const { settings: s, env: e } = await make();
-      const { code, output } = await refusedBoot({ settings: s, env: e });
+      const { settings: s, env: e, args } = await make();
+      const { code, output } = await refusedBoot({ settings: s, env: e, ...(args ? { args } : {}) });
       expect(code, output).not.toBe(0);
       expect(code, output).not.toBeNull();
       expect(output).toMatch(names);

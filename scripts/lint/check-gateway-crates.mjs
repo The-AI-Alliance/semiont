@@ -30,6 +30,8 @@ import { loadPolicy } from '../../.github/scripts/license-policy.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const NOTICE = join(ROOT, 'apps/gateway/NOTICE');
+/** The package whose binary the image ships, in the workspace's metadata. */
+const GATEWAY = 'semiont-gateway';
 const HEADING = '  Rust crates compiled into the gateway binary (from crates.io):';
 const NATIVE_HEADING = '  Native code those crates compile into the binary:';
 
@@ -61,8 +63,13 @@ for (const input of inputs) {
   const metadata = JSON.parse(readFileSync(input, 'utf8'));
   const packages = new Map(metadata.packages.map((p) => [p.id, p]));
   const nodes = new Map(metadata.resolve.nodes.map((n) => [n.id, n]));
+  // The workspace's own crates are the repository's, under its licence: the
+  // walk goes through them, and credits only what they bring from crates.io.
+  const members = new Set(metadata.workspace_members);
+  const gateway = metadata.workspace_members.find((id) => packages.get(id).name === GATEWAY);
+  if (!gateway) throw new Error(`${input}: the workspace has no ${GATEWAY} package`);
   const seen = new Set();
-  const pending = [metadata.resolve.root];
+  const pending = [gateway];
   while (pending.length > 0) {
     const id = pending.pop();
     if (seen.has(id)) continue;
@@ -70,8 +77,8 @@ for (const input of inputs) {
     const pkg = packages.get(id);
     const macro = pkg.targets.some((t) => t.kind.includes('proc-macro'));
     if (macro) continue;
-    if (id !== metadata.resolve.root) linked.set(pkg.name, pkg.license ?? null);
-    if (id !== metadata.resolve.root && pkg.links) native.add(pkg.name);
+    if (!members.has(id)) linked.set(pkg.name, pkg.license ?? null);
+    if (!members.has(id) && pkg.links) native.add(pkg.name);
     for (const dep of nodes.get(id).deps) {
       if (dep.dep_kinds.some((k) => k.kind === null)) pending.push(dep.pkg);
     }

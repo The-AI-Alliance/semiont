@@ -1,8 +1,7 @@
 /**
  * Starting and stopping gateway processes.
  *
- * A gateway is `GATEWAY_COMMAND`, a configuration document and an
- * environment. The document is `GatewaySettings`, the spec's own type with the
+ * A gateway is `GATEWAY_COMMAND`, `--config <document>` and an environment. The document is `GatewaySettings`, the spec's own type with the
  * fields a case may delete made optional; `writeConfiguration` renders it into
  * the file the gateway reads, and a case that needs a broken configuration
  * edits the settings, never the rendering. The environment holds only what
@@ -42,8 +41,7 @@ export interface GatewayEnvironment {
 /**
  * Renders the settings as the gateway's configuration document
  * (`GatewayConfig` in the spec) and answers its path, which the gateway is
- * given as SEMIONT_GATEWAY_CONFIG. A setting a case deleted is absent from
- * the document.
+ * given with `--config`. A setting a case deleted is absent from the document.
  */
 function writeConfiguration(dir: string, s: GatewaySettings): string {
   const { verbatim, ...fields } = s;
@@ -92,6 +90,8 @@ export interface LaunchOptions {
   env: GatewayEnvironment;
   /** Variables the table does not list, set only by a case showing that they change nothing. */
   unlisted?: Record<string, string>;
+  /** The arguments after the command, when a case means to get them wrong. Default: `--config <document>`. */
+  args?: (document: string) => string[];
 }
 
 /** Appends each complete line of a stream to every list in `into`; a line split across chunks is kept whole. */
@@ -108,18 +108,18 @@ function collectLines(stream: NodeJS.ReadableStream, into: string[][]): void {
   stream.on('end', () => push(partial));
 }
 
-function launch({ settings, env, unlisted = {} }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
+function launch({ settings, env, unlisted = {}, args }: LaunchOptions): { child: ChildProcess; output: string[]; stdout: string[]; exited: Promise<number | null>; dir: string } {
   checkEnvironment(env, settings, unlisted);
   const dir = mkdtempSync(join(tmpdir(), 'gateway-conformance-'));
   const document = writeConfiguration(dir, settings);
-  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', SEMIONT_GATEWAY_CONFIG: document, ...unlisted };
-  // A variable a case sets to undefined is one it withholds, the document's included.
+  const childEnv: Record<string, string> = { PATH: process.env['PATH'] ?? '', ...unlisted };
+  // A variable a case sets to undefined is one it withholds.
   for (const [k, v] of Object.entries(env)) {
     if (v === undefined) delete childEnv[k];
     else childEnv[k] = v;
   }
-  const [command, ...args] = inject('gatewayCommand');
-  const child = spawn(command!, args, { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
+  const [command, ...prefix] = inject('gatewayCommand');
+  const child = spawn(command!, [...prefix, ...(args ? args(document) : ['--config', document])], { env: childEnv, stdio: ['ignore', 'pipe', 'pipe'] });
   const output: string[] = [];
   const stdout: string[] = [];
   collectLines(child.stdout!, [output, stdout]);

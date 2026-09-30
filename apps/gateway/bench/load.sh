@@ -3,7 +3,7 @@
 # after another, on Alpine as the image is. From the repository root:
 #
 #   container run --rm -c 12 -m 8g -v "$PWD":/work -w /work alpine:3.24 \
-#     sh apps/gateway/bench/load.sh now=apps/gateway/target/release/semiont-gateway
+#     sh apps/gateway/bench/load.sh now=target/release/semiont-gateway
 #
 # The gateway gets CPUs 0-7 (so eight workers) and wrk the next four, so the
 # two never share a core. Each scenario runs once to warm up and then RUNS
@@ -100,8 +100,8 @@ STREAM_LINES=""
 for pair in "$@"; do
   label=${pair%%=*}
   binary=${pair#*=}
-  SEMIONT_GATEWAY_CONFIG="$WORK/gateway.json" JWT_SECRET="$JWT_SECRET" SEMIONT_OIDC_CLIENT_ID=load SEMIONT_OIDC_CLIENT_SECRET=load \
-    taskset -c "$GATEWAY_CPUS" "$binary" >"$WORK/$label.log" 2>&1 &
+  JWT_SECRET="$JWT_SECRET" SEMIONT_OIDC_CLIENT_ID=load SEMIONT_OIDC_CLIENT_SECRET=load \
+    taskset -c "$GATEWAY_CPUS" "$binary" --config "$WORK/gateway.json" >"$WORK/$label.log" 2>&1 &
   GATEWAY=$!
   tries=0
   until wget -q -O /dev/null "http://127.0.0.1:$PORT/api/health" 2>/dev/null; do

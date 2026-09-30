@@ -3,8 +3,9 @@
  * lint:gateway-environment — the gateway reads exactly the environment
  * specs/src/gateway-environment/variables.json lists.
  *
- * 1. Reads, both directions. Every environment read in the gateway's source
- *    is a row with `readBy: gateway`, and every such row is read — by literal
+ * 1. Reads, both directions. Every environment read in the gateway's source —
+ *    its crate's, and every workspace crate's it depends on — is a row with
+ *    `readBy: gateway`, and every such row is read — by literal
  *    name (`env::var`, `env::var_os`). A computed name is allowed only where
  *    DYNAMIC says why; `env::vars()` and `EnvFilter::from_default_env` never
  *    are.
@@ -20,7 +21,7 @@ import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const TABLE = 'specs/src/gateway-environment/variables.json';
-const SOURCE = 'apps/gateway/src';
+const GATEWAY = 'apps/gateway';
 const BOOT_GOLDEN = 'apps/launcher/testdata/golden/start-default-boot.argv';
 const DOCKERFILE = 'apps/gateway/Dockerfile';
 const SUPERVISOR = 'scripts/container/supervise.sh';
@@ -31,7 +32,7 @@ const PROVIDERS = new Set(['launcher', 'image', 'operator']);
 
 /** Files that read by a computed name, and why each is bounded. */
 const DYNAMIC = {
-  'apps/gateway/src/config.rs': 'from_environment reads the broker variables the document names (signal.userEnv, signal.passwordEnv)',
+  'packages/core-rust/src/config.rs': 'from_environment reads the variables a document names (the gateway\'s signal.userEnv, signal.passwordEnv)',
 };
 
 const failures = [];
@@ -70,8 +71,22 @@ const COMPUTED = /\benv::var(?:_os)?\(\s*(?!")/g;
 const WHOLE = /\benv::vars(?:_os)?\s*\(/g;
 const IMPLICIT = /\bfrom_default_env\b/g;
 
+/**
+ * The source the gateway binary is built from: its crate, and each workspace
+ * crate it names — the workspace's path dependencies (Cargo.toml at the root)
+ * that its manifest uses.
+ */
+function gatewaySources() {
+  const workspace = new Map(
+    [...read('Cargo.toml').matchAll(/^([a-z][a-z0-9-]*) = \{ path = "([^"]+)" \}$/gm)].map(([, name, path]) => [name, path]),
+  );
+  const named = [...read(`${GATEWAY}/Cargo.toml`).matchAll(/^([a-z][a-z0-9-]*)(?:\.workspace = true| = \{ workspace = true)/gm)].map(([, name]) => name);
+  return [GATEWAY, ...named.filter((name) => workspace.has(name)).map((name) => workspace.get(name))].map((crate) => `${crate}/src`);
+}
+const SOURCES = gatewaySources();
+
 const reads = new Map(); // name → files
-for (const file of sourceFiles(SOURCE)) {
+for (const file of SOURCES.flatMap(sourceFiles)) {
   const text = withoutComments(read(file));
   for (const m of text.matchAll(NAMED)) reads.set(m[1], [...(reads.get(m[1]) ?? []), file]);
   if (COMPUTED.test(text) && !(file in DYNAMIC)) fail(`${file} reads the environment by a computed name; the gateway reads only the variables ${TABLE} lists`);
@@ -91,7 +106,7 @@ for (const [name, files] of reads) {
   if (!readByGateway.has(name)) fail(`${[...new Set(files)].join(', ')} read ${name}, which ${TABLE} does not list as read by the gateway`);
 }
 for (const name of readByGateway) {
-  if (!reads.has(name)) fail(`${TABLE} lists ${name} as read by the gateway, and nothing in ${SOURCE} reads it`);
+  if (!reads.has(name)) fail(`${TABLE} lists ${name} as read by the gateway, and nothing in ${SOURCES.join(', ')} reads it`);
 }
 
 // ── 2. provision ────────────────────────────────────────────────────────────

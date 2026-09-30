@@ -8,8 +8,8 @@
 #   sha    the checkout's short commit
 #
 # One decider for every job of publish-service-images.yml that names a tag:
-# the matrix legs, and gateway-manifest, which tags the platform images the
-# gateway's legs pushed by digest.
+# the matrix legs, and the manifest job, which tags the platform images a
+# service's per-architecture legs pushed by digest.
 set -eu
 USAGE="usage: image-tags.sh <service> <version> <tag_latest>"
 SERVICE="${1:?$USAGE}"

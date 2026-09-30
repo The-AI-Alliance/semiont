@@ -12,9 +12,11 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 #
 # The gateway compiles Rust, and its arm64 half took over an hour under
 # emulation (2026-09-28), so each of its platforms builds on a runner of its
-# own architecture and pushes by digest, and gateway-manifest joins the two
-# under the tags. The other six only `npm install` in their images, which
-# emulation handles in minutes, so each publishes both platforms from one leg.
+# own architecture and pushes by digest, and the manifest job joins the two
+# under the tags. The dispatcher publishes the same way, ready for the Rust
+# dispatcher to take its place. The other five only `npm install` in their
+# images, which emulation handles in minutes, so each publishes both platforms
+# from one leg.
 
 on:
   workflow_dispatch:
@@ -52,7 +54,7 @@ jobs:
           # `runner`: the machine the leg runs on. `scan`: the platform its gates
           # build and run, the runner's own. `platforms`: what it publishes.
           # `arch`: a leg that publishes one architecture by digest, for
-          # gateway-manifest to join; a leg without one publishes tagged.
+          # the manifest job to join; a leg without one publishes tagged.
           # `installs`: the image installs @semiont/* packages from npm, so it
           # waits for them to be installable. `refusal`: what the image says,
           # run bare, when it reaches its own configuration.
@@ -106,9 +108,18 @@ jobs:
             installs: npm
             refusal: No environment selected
           - service: dispatcher
+            arch: amd64
             runner: ubuntu-latest
             scan: linux/amd64
-            platforms: linux/amd64,linux/arm64
+            platforms: linux/amd64
+            dockerfile: apps/dispatcher/Dockerfile
+            installs: npm
+            refusal: Cannot read the dispatcher's configuration document
+          - service: dispatcher
+            arch: arm64
+            runner: ubuntu-24.04-arm
+            scan: linux/arm64
+            platforms: linux/arm64
             dockerfile: apps/dispatcher/Dockerfile
             installs: npm
             refusal: Cannot read the dispatcher's configuration document
@@ -187,7 +198,7 @@ jobs:
           done
           echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
 
-      # The gateway compiles with the toolchain apps/gateway/rust-toolchain.toml
+      # The gateway compiles with the toolchain rust-toolchain.toml
       # pins; the others install the version this run publishes.
       - name: Build arguments
         id: args
@@ -195,7 +206,7 @@ jobs:
           {
             echo "args<<EOF"
             if [ "${{ matrix.service }}" = gateway ]; then
-              echo "RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' apps/gateway/rust-toolchain.toml)"
+              echo "RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
             else
               echo "SEMIONT_VERSION=${{ inputs.version }}"
             fi
@@ -317,7 +328,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # One architecture, untagged: gateway-manifest names it. The push rides
+      # One architecture, untagged: the manifest job names it. The push rides
       # the same negated boolean as the tagged build above.
       - name: Build and push this architecture by digest
         id: push-digest
@@ -339,7 +350,7 @@ jobs:
           digest="${{ steps.push-digest.outputs.digest }}"
           touch "digests/${digest#sha256:}"
 
-      - name: Hand the digest to gateway-manifest
+      - name: Hand the digest to the manifest job
         if: ${{ matrix.arch && !inputs.dry_run }}
         uses: actions/upload-artifact@v7
         with:
@@ -350,7 +361,7 @@ jobs:
 
       # The joined image is attested with the amd64 SBOM, as a tagged multi-arch
       # build is below.
-      - name: Hand the SBOM to gateway-manifest
+      - name: Hand the SBOM to the manifest job
         if: ${{ matrix.arch == 'amd64' && !inputs.dry_run }}
         uses: actions/upload-artifact@v7
         with:
@@ -363,7 +374,7 @@ jobs:
       # attestation alongside the image in GHCR. Verify with:
       #   gh attestation verify oci://ghcr.io/the-ai-alliance/semiont-<svc>:VERSION \
       #     --owner The-AI-Alliance
-      # A leg with an `arch` is attested once joined, by gateway-manifest.
+      # A leg with an `arch` is attested once joined, by the manifest jobst.
       - name: Attest build provenance
         if: ${{ !inputs.dry_run && !matrix.arch }}
         uses: actions/attest-build-provenance@v4.2.2
@@ -402,39 +413,43 @@ jobs:
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
-  # The gateway's two architectures, each built on its own runner and pushed by
+  # A service's two architectures, each built on its own runner and pushed by
   # digest, joined into one image under the tags, then attested.
-  gateway-manifest:
+  manifest:
     needs: publish
     # Each leg of publish succeeds or fails alone (fail-fast is off), so a
-    # failure elsewhere must not hold the gateway back. A gateway leg that
-    # failed leaves no digest, and its download below fails on it.
+    # failure elsewhere must not hold a service back. A leg that failed leaves
+    # no digest, and its download below fails on it.
     if: ${{ !cancelled() && !inputs.dry_run }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, dispatcher]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
       - name: Determine tags
         id: tags
-        run: scripts/ci/image-tags.sh gateway "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
+        run: scripts/ci/image-tags.sh "${{ matrix.service }}" "${{ inputs.version }}" "${{ inputs.tag_latest }}" >> "$GITHUB_OUTPUT"
 
       - name: Collect the amd64 digest
         uses: actions/download-artifact@v8
         with:
-          name: gateway-digest-amd64
+          name: ${{ matrix.service }}-digest-amd64
           path: digests
 
       - name: Collect the arm64 digest
         uses: actions/download-artifact@v8
         with:
-          name: gateway-digest-arm64
+          name: ${{ matrix.service }}-digest-arm64
           path: digests
 
       - name: Collect the SBOM
         uses: actions/download-artifact@v8
         with:
-          name: gateway-sbom
+          name: ${{ matrix.service }}-sbom
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4.4.1

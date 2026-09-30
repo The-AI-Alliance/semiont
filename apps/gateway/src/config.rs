@@ -1,56 +1,14 @@
-//! The gateway's configuration: one document, `GatewayConfig` in the spec,
-//! read once at boot from the JSON file `SEMIONT_GATEWAY_CONFIG` names, and
-//! validated against the spec's own schema before anything in it is used.
-//! Nothing in it is resolved or defaulted here; a document that does not
-//! validate stops the process before it serves, naming each failing field by
-//! its JSON pointer.
+//! The gateway's configuration document: `GatewayConfig` in the spec, its type
+//! generated in `semiont_core::config`, read at boot from the path `--config`
+//! names (the image passes `/etc/semiont/gateway.json`, where the launcher
+//! mounts it) and validated against its schema before anything in it is used.
 
-use crate::spec::spec;
-use jsonschema::error::ValidationErrorKind;
-use serde::Deserialize;
-use serde_json::Value;
-use std::path::{Path, PathBuf};
+use semiont_core::config::{self, ConfigError, Document, GatewayConfig, GatewayConfigSignalType};
 
-#[derive(Debug, Clone)]
-pub struct GatewayConfig {
-    pub kb: Kb,
-    pub port: u16,
-    pub public_url: String,
-    pub identity: Identity,
-    pub archivist: ArchivistAddress,
-    pub signal: SignalConfig,
-    pub log_level: LogLevel,
-    pub log_format: LogFormat,
-    pub capacity: Capacity,
-}
-
-/// What this process can hold (`capacity`): the bytes queued for all its
-/// streams, and the connections it holds open.
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Capacity {
-    pub queued_bytes: usize,
-    pub connections: usize,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct Kb {
-    pub name: String,
-    pub domain: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Identity {
-    pub issuer: String,
-    pub subject_claim: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct ArchivistAddress {
-    pub host: String,
-    pub port: u16,
-}
+pub const DOCUMENT: Document = Document {
+    service: "gateway",
+    schema: "GatewayConfig",
+};
 
 /// The signal plane, with the one rule the schema cannot state made a type: a NATS plane has servers.
 #[derive(Debug, Clone)]
@@ -63,182 +21,29 @@ pub enum SignalConfig {
     },
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LogLevel {
-    Error,
-    Warn,
-    Info,
-    Http,
-    Debug,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LogFormat {
-    Json,
-    Simple,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct Document {
-    kb: Kb,
-    port: u16,
-    public_url: String,
-    identity: Identity,
-    archivist: ArchivistAddress,
-    signal: SignalDocument,
-    log_level: LogLevel,
-    log_format: LogFormat,
-    capacity: Capacity,
-}
-
-#[derive(Deserialize)]
-#[serde(rename_all = "camelCase")]
-struct SignalDocument {
-    #[serde(rename = "type")]
-    kind: String,
-    servers: Option<String>,
-    user_env: Option<String>,
-    password_env: Option<String>,
-}
-
-/// The path `SEMIONT_GATEWAY_CONFIG` names; the image sets it to
-/// `/etc/semiont/gateway.json`, where the launcher mounts the document. There
-/// is no default: a path the gateway guessed would hide the drift between
-/// where a deployment put the document and where the gateway looks.
-pub fn config_path() -> Result<PathBuf, String> {
-    std::env::var_os("SEMIONT_GATEWAY_CONFIG")
-        .filter(|path| !path.is_empty())
-        .map(PathBuf::from)
-        .ok_or_else(|| {
-            "SEMIONT_GATEWAY_CONFIG is not set, so the gateway has no configuration document to read. The image sets it to /etc/semiont/gateway.json, where the launcher mounts the document (GatewayConfig in specs/); a gateway started another way sets it to the document's path.".to_owned()
-        })
-}
-
-/// The first line that is TOML and cannot be JSON: a table header (`[user]`,
-/// `[environments.local.gateway]`) or a `key = value` pair. A parse failure
-/// that names it says what the file is, where serde alone says only where it
-/// stopped.
-fn toml_line(text: &str) -> Option<(usize, &str)> {
-    let bare_key = |key: &str| {
-        !key.is_empty()
-            && key
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '"'))
-    };
-    text.lines().enumerate().find_map(|(index, line)| {
-        let trimmed = line.trim();
-        let header = trimmed
-            .strip_prefix('[')
-            .and_then(|rest| rest.strip_suffix(']'))
-            .is_some_and(|name| bare_key(name.trim_matches(|c| c == '[' || c == ']').trim()));
-        let pair = trimmed
-            .split_once('=')
-            .is_some_and(|(key, _)| bare_key(key.trim()));
-        (header || pair).then_some((index + 1, trimmed))
-    })
-}
-
-pub fn read_gateway_config(path: &Path) -> Result<GatewayConfig, String> {
-    let where_ = path.display();
-    let text = std::fs::read_to_string(path).map_err(|e| {
-        format!(
-            "Cannot read the gateway's configuration document at {where_} ({e}). The launcher writes it; a gateway started another way is given one (GatewayConfig in specs/)."
-        )
-    })?;
-    let document: Value = serde_json::from_str(&text).map_err(|e| match toml_line(&text) {
-        Some((number, line)) => format!(
-            "{where_} is not JSON: it looks like TOML (line {number}: `{line}`), a knowledge base's config rather than the gateway's resolved document (GatewayConfig in specs/, which the launcher writes as JSON): {e}"
-        ),
-        None => format!("{where_} is not JSON: {e}"),
-    })?;
-    let refusals: Vec<String> = spec()
-        .validator("GatewayConfig")
-        .iter_errors(&document)
-        .map(|e| describe(&e))
-        .collect();
-    if !refusals.is_empty() {
-        return Err(refused(path, &refusals));
-    }
-    let document: Document =
-        serde_json::from_value(document).map_err(|e| refused(path, &[e.to_string()]))?;
-    let signal = match (document.signal.kind.as_str(), document.signal.servers) {
-        ("in-process", _) => SignalConfig::InProcess,
-        ("nats", Some(servers)) => SignalConfig::Nats {
-            servers,
-            user_env: document.signal.user_env,
-            password_env: document.signal.password_env,
+/// The document the gateway was started on, and its signal plane.
+pub fn read_gateway_config(
+    args: impl IntoIterator<Item = String>,
+) -> Result<(GatewayConfig, SignalConfig), ConfigError> {
+    let path = config::path_from_args(args, &DOCUMENT)?;
+    let document: GatewayConfig = config::read(&path, &DOCUMENT)?;
+    let signal = match (document.signal.r#type, &document.signal.servers) {
+        (GatewayConfigSignalType::InProcess, _) => SignalConfig::InProcess,
+        (GatewayConfigSignalType::Nats, Some(servers)) => SignalConfig::Nats {
+            servers: servers.clone(),
+            user_env: document.signal.user_env.clone(),
+            password_env: document.signal.password_env.clone(),
         },
-        ("nats", None) => {
-            return Err(refused(
-                path,
+        (GatewayConfigSignalType::Nats, None) => {
+            return Err(config::refused(
+                &path,
+                &DOCUMENT,
                 &[
                     "/signal is missing servers: a nats plane needs its broker's address"
                         .to_owned(),
                 ],
             ));
         }
-        (other, _) => {
-            return Err(refused(
-                path,
-                &[format!("/signal/type {other} is not a plane")],
-            ));
-        }
     };
-    Ok(GatewayConfig {
-        kb: document.kb,
-        port: document.port,
-        public_url: document.public_url,
-        identity: document.identity,
-        archivist: document.archivist,
-        signal,
-        log_level: document.log_level,
-        log_format: document.log_format,
-        capacity: document.capacity,
-    })
-}
-
-fn refused(path: &Path, refusals: &[String]) -> String {
-    let lines: Vec<String> = refusals.iter().map(|r| format!("  {r}")).collect();
-    format!(
-        "{} is not a gateway configuration document (GatewayConfig):\n{}",
-        path.display(),
-        lines.join("\n")
-    )
-}
-
-fn describe(error: &jsonschema::ValidationError<'_>) -> String {
-    let path = error.instance_path().to_string();
-    let where_ = if path.is_empty() {
-        "/".to_owned()
-    } else {
-        path
-    };
-    match error.kind() {
-        ValidationErrorKind::Required { property } => {
-            format!(
-                "{where_} is missing {}",
-                property
-                    .as_str()
-                    .map(str::to_owned)
-                    .unwrap_or_else(|| property.to_string())
-            )
-        }
-        ValidationErrorKind::AdditionalProperties { unexpected } => {
-            format!("{where_} does not declare {}", unexpected.join(", "))
-        }
-        _ => format!("{where_} {}", error.masked()),
-    }
-}
-
-/// The value of the environment variable a document field names; absence refuses.
-pub fn from_environment(field: &str, name: &str) -> Result<String, String> {
-    match std::env::var(name) {
-        Ok(value) if !value.is_empty() => Ok(value),
-        _ => Err(format!(
-            "{field} names the environment variable {name}, which is not set"
-        )),
-    }
+    Ok((document, signal))
 }

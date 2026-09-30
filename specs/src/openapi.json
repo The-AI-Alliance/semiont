@@ -859,6 +859,12 @@
       "JobClaimedResult": {
         "$ref": "components/schemas/JobClaimedResult.json"
       },
+      "LogLevel": {
+        "$ref": "components/schemas/LogLevel.json"
+      },
+      "LogFormat": {
+        "$ref": "components/schemas/LogFormat.json"
+      },
       "DispatcherConfig": {
         "$ref": "components/schemas/DispatcherConfig.json"
       },

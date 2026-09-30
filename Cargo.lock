@@ -2044,6 +2044,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "semiont"
+version = "0.0.0"
+dependencies = [
+ "percent-encoding",
+ "reqwest",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "semiont-core"
+version = "0.0.0"
+dependencies = [
+ "async-nats",
+ "bytes",
+ "chrono",
+ "futures",
+ "jsonschema",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry-stdout",
+ "opentelemetry_sdk",
+ "serde",
+ "serde_json",
+ "tikv-jemalloc-ctl",
+ "tokio",
+]
+
+[[package]]
 name = "semiont-gateway"
 version = "0.0.0"
 dependencies = [
@@ -2056,19 +2085,16 @@ dependencies = [
  "http-body",
  "hyper",
  "hyper-util",
- "jsonschema",
  "jsonwebtoken",
  "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry-stdout",
- "opentelemetry_sdk",
  "percent-encoding",
  "reqwest",
  "rustls",
+ "semiont",
+ "semiont-core",
  "serde",
  "serde_json",
  "socket2",
- "tikv-jemalloc-ctl",
  "tikv-jemallocator",
  "tokio",
  "tower",

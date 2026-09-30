@@ -1,6 +1,7 @@
 package launcher
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -69,10 +70,6 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 			"SEMIONT_ROOT", kbMountTarget},
 		{"smelter", []string{"..", "..", "..", "smelter", "Dockerfile"},
 			"SEMIONT_ANCHORED_TEXT_DIR", stateStores["anchored-text"].mounts[0].target},
-		// The gateway's configuration is a resolved JSON document, not a copy
-		// of the KB's TOML — so it has its own path, and the image says where.
-		{"gateway", []string{"..", "..", "..", "gateway", "Dockerfile"},
-			"SEMIONT_GATEWAY_CONFIG", gatewayDocumentTarget},
 	} {
 		declared := declaredEnv(t, c.file...)
 		got, ok := declared[c.env]
@@ -83,6 +80,46 @@ func TestContainerPathsMatchTheImage(t *testing.T) {
 		if got != c.mounts {
 			t.Errorf("%s/%s: the image says %q, the launcher mounts onto %q — the service would read an empty directory and never report it",
 				c.label, c.env, got, c.mounts)
+		}
+	}
+}
+
+// commandConfigPath: the path an image's exec-form CMD passes to --config.
+func commandConfigPath(t *testing.T, parts ...string) string {
+	t.Helper()
+	df, err := os.ReadFile(filepath.Join(parts...))
+	if err != nil {
+		t.Fatal(err)
+	}
+	cmd := regexp.MustCompile(`(?m)^CMD (\[.*\])$`).FindSubmatch(df)
+	if cmd == nil {
+		t.Fatalf("%s has no exec-form CMD", filepath.Join(parts...))
+	}
+	var argv []string
+	if err := json.Unmarshal(cmd[1], &argv); err != nil {
+		t.Fatalf("%s: the CMD is not a JSON array: %v", filepath.Join(parts...), err)
+	}
+	for i, a := range argv {
+		if a == "--config" && i+1 < len(argv) {
+			return argv[i+1]
+		}
+	}
+	return ""
+}
+
+// A service configured by a resolved document reads it from the path its
+// image's command passes to --config, and the launcher mounts the document
+// there. A mismatch is a service that refuses to start on every boot.
+func TestConfigDocumentsAreWhereTheImagesLook(t *testing.T) {
+	for _, c := range []struct {
+		service string
+		mounts  string
+	}{
+		{"gateway", gatewayDocumentTarget},
+		{"dispatcher", dispatcherDocumentTarget},
+	} {
+		if named := commandConfigPath(t, "..", "..", "..", c.service, "Dockerfile"); named != c.mounts {
+			t.Errorf("the %s image passes --config %q, the launcher mounts onto %q", c.service, named, c.mounts)
 		}
 	}
 }

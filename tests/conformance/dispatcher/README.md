@@ -54,7 +54,7 @@ Behaviour JOBS.md lists as a known defect is not pinned by any case.
 ## Running it
 
 ```bash
-(cd apps/gateway && cargo build --release)
+cargo build --release -p semiont-gateway
 npm run build:packages
 cd tests/conformance
 npm ci

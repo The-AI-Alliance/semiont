@@ -69,7 +69,7 @@ func TestDispatcherDocumentIsResolved(t *testing.T) {
 	if doc.Port != semiontDescriptor("dispatcher").ports[0].port {
 		t.Errorf("port = %d, want the descriptor's", doc.Port)
 	}
-	if doc.LogLevel != "debug" || doc.LogFormat != semiont.DispatcherConfigLogFormatJson {
+	if doc.LogLevel != "debug" || doc.LogFormat != semiont.Json {
 		t.Errorf("log = %q %q", doc.LogLevel, doc.LogFormat)
 	}
 	if doc.Timing.TickMs != 30_000 || doc.Timing.StaleRunningMs != 30*60_000 || doc.Timing.AckWaitMs != 30_000 ||
@@ -151,31 +151,15 @@ func TestDispatcherDocumentRefusesAMissingGatewayOrIssuer(t *testing.T) {
 	}
 }
 
-// The image names the document's path in its command, the launcher mounts the
-// document there, and nothing else: the dispatcher is handed no *_HOST
-// variables, because the document already carries every address. Its health
-// port is the descriptor's, which the document carries and the image probes.
+// The launcher mounts the document where the image's command points --config
+// (TestConfigDocumentsAreWhereTheImagesLook), and hands the dispatcher nothing
+// else: no *_HOST variables, because the document already carries every
+// address. Its health port is the descriptor's, which the document carries and
+// the image probes.
 func TestDispatcherDocumentIsWhereTheImageLooks(t *testing.T) {
 	df, err := os.ReadFile(filepath.Join("..", "..", "..", "dispatcher", "Dockerfile"))
 	if err != nil {
 		t.Fatal(err)
-	}
-	cmd := regexp.MustCompile(`(?m)^CMD (\[.*\])$`).FindSubmatch(df)
-	if cmd == nil {
-		t.Fatal("the dispatcher image has no exec-form CMD")
-	}
-	var argv []string
-	if err := json.Unmarshal(cmd[1], &argv); err != nil {
-		t.Fatalf("the CMD is not a JSON array: %v", err)
-	}
-	var named string
-	for i, a := range argv {
-		if a == "--config" && i+1 < len(argv) {
-			named = argv[i+1]
-		}
-	}
-	if named != dispatcherDocumentTarget {
-		t.Errorf("the image passes --config %q, the launcher mounts onto %q — the dispatcher would refuse to start", named, dispatcherDocumentTarget)
 	}
 
 	args := strings.Join(dispatcherArgs("/stage", "container", "1.2.3.4", "client-secret", "v", nil, nil), " ")

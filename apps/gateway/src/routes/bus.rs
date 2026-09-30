@@ -3,21 +3,22 @@
 //! publish it on the plane.
 
 use crate::app::App;
-use crate::bus_log::bus_log;
 use crate::http::{ApiError, Authenticated, json_body, json_response, text};
-use crate::identity;
 use crate::ledger::ClaimOutcome;
-use crate::logging;
 use crate::principal::Principal;
 use crate::signal::{Meta, Unavailable};
-use crate::spec::spec;
-use crate::telemetry;
+use crate::{limits, metrics};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::identity;
+use semiont_core::bus_log::bus_log;
+use semiont_core::logging;
+use semiont_core::spec::spec;
+use semiont_core::telemetry;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 
@@ -107,7 +108,7 @@ pub async fn emit(
     };
     if let Some(schema) = schema {
         let candidate = Value::Object(payload.clone());
-        if let Some(problems) = crate::spec::problems(schema, &candidate) {
+        if let Some(problems) = semiont_core::spec::problems(schema, &candidate) {
             logging::warn(
                 "Bus emit validation failed",
                 bus(
@@ -164,7 +165,7 @@ pub async fn emit(
                 ));
             }
             ClaimOutcome::AtCapacity { retry_after } => {
-                let max = spec().limits().pending_replies_max;
+                let max = limits::limits().pending_replies_max;
                 return Err(ApiError::limited(
                     StatusCode::TOO_MANY_REQUESTS,
                     "unanswered-requests",
@@ -193,7 +194,7 @@ pub async fn emit(
         } else {
             plane.ingest(channel.clone(), payload, scope.clone(), meta).await?
         };
-        telemetry::record_bus_emit(&channel, scope.as_deref());
+        metrics::record_bus_emit(&channel, scope.as_deref());
         logging::info(
             "emit",
             bus(json!({ "channel": channel, "scope": scope, "subscribers": receipt.observers, "clientId": client_id, "correlationId": correlation_id })),
@@ -241,7 +242,7 @@ async fn answer_unanswerable(
             "No subscriber for {channel}: the service that answers it is not connected"
         )),
     );
-    telemetry::record_unanswerable(channel);
+    metrics::record_unanswerable(channel);
     logging::warn(
         "[bus UNANSWERABLE] synthesizing failure for an unsubscribed request",
         bus(json!({ "channel": channel, "failureChannel": failure_channel, "correlationId": cid })),

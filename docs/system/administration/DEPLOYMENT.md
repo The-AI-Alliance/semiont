@@ -72,10 +72,11 @@ Any container platform can schedule these images: ECS Fargate, EKS/Kubernetes, N
 Docker. Nothing in this repository does it for you, and none of it is tested. What you will need to
 solve:
 
-- **Config delivery.** Every service but the gateway reads `~/.semiontconfig` (TOML) for service
-  endpoints, driver settings (graph, vectors, inference), and the database connection. The gateway
-  reads a resolved JSON document (`GatewayConfig` in `specs/`) at the path its image declares in
-  `SEMIONT_GATEWAY_CONFIG`: `/etc/semiont/gateway.json`. Getting those files into each container is
+- **Config delivery.** Every service but the gateway and the dispatcher reads `~/.semiontconfig`
+  (TOML) for service endpoints, driver settings (graph, vectors, inference), and the database
+  connection. The gateway and the dispatcher each read a resolved JSON document (`GatewayConfig`
+  and `DispatcherConfig` in `specs/`) at the path their image passes to `--config`:
+  `/etc/semiont/gateway.json` and `/etc/semiont/dispatcher.json`. Getting those files into each container is
   yours to arrange. Schema: [CONFIGURATION.md](./CONFIGURATION.md).
 - **Secrets.** `JWT_SECRET`, each service's `SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`,
   and inference API keys arrive as environment variables. Semiont reads no cloud secret store

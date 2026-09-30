@@ -6,7 +6,7 @@ Scripts that build Semiont's container images, run inside them, or check them.
 
 | Script | Purpose |
 |--------|---------|
-| `build-images.js` | Builds the gateway and Browser images — the gateway with the toolchain `apps/gateway/rust-toolchain.toml` pins. The six Node service images are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
+| `build-images.js` | Builds the gateway and Browser images — the gateway with the toolchain `rust-toolchain.toml` pins. The six Node service images are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
 | `container-utils.js` | Lists and removes semiont images. |
 
 Both auto-detect Apple Container, Docker, or Podman (in that order). Override with

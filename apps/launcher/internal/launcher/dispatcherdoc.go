@@ -20,7 +20,7 @@ import (
 const dispatcherDocumentFile = "dispatcher.json"
 
 // dispatcherDocumentTarget: where the dispatcher reads that document — the
-// path its image passes to `--config`. TestDispatcherDocumentIsWhereTheImageLooks
+// path its image passes to `--config`. TestConfigDocumentsAreWhereTheImagesLook
 // holds the two together.
 const dispatcherDocumentTarget = "/etc/semiont/dispatcher.json"
 
@@ -122,8 +122,8 @@ func dispatcherDocument(env *envConfig, rt, addr string, issuerPort int, userEnv
 
 	doc.LogLevel = "info"
 	if env.LogLevel != "" {
-		doc.LogLevel = semiont.DispatcherConfigLogLevel(env.LogLevel)
+		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.DispatcherConfigLogFormatJson
+	doc.LogFormat = semiont.Json
 	return json.MarshalIndent(doc, "", "  ")
 }

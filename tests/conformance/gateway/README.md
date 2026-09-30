@@ -69,7 +69,7 @@ require credentials and be taken down and brought back, and an OTLP receiver.
 It needs a built gateway and `nats-server` (2.10 or later) on `PATH`:
 
 ```bash
-(cd apps/gateway && cargo build --release)
+cargo build --release -p semiont-gateway
 npm run build:packages
 cd tests/conformance
 npm ci

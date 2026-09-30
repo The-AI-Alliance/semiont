@@ -2,18 +2,20 @@
 //! gateway that lacks any of it exits non-zero without serving, saying what
 //! is missing and never a secret it was given.
 
-use crate::archivist::{Archivist, Credential};
+use crate::archivist::Archivist;
 use crate::composition::{Composition, compose};
-use crate::config::{
-    GatewayConfig, SignalConfig, config_path, from_environment, read_gateway_config,
-};
+use crate::config::{SignalConfig, read_gateway_config};
 use crate::issuer::IssuerVerifier;
 use crate::rates::EmitRates;
 use crate::signal::SignalPlane;
 use crate::signal::in_process::InProcessPlane;
 use crate::signal::nats::NatsPlane;
 use crate::tokens::{KeyRing, require_jwt_secret};
-use crate::{archivist, bus_log, identity, logging, routes, telemetry};
+use crate::{archivist, metrics, routes};
+use semiont::identity;
+use semiont::service_account::Credential;
+use semiont_core::config::{self, GatewayConfig};
+use semiont_core::{bus_log, logging, telemetry};
 use serde_json::json;
 use socket2::{Domain, Protocol, Socket, Type};
 use std::future::Future;
@@ -92,12 +94,13 @@ pub fn main() -> i32 {
 }
 
 fn boot() -> Result<i32, String> {
-    let config = read_gateway_config(&config_path()?)?;
+    let (config, signal) =
+        read_gateway_config(std::env::args().skip(1)).map_err(|e| e.to_string())?;
     let keys = KeyRing::new(require_jwt_secret()?, config.kb.domain.clone());
     let (client_id, client_secret) = require_service_account()?;
     logging::initialize(config.log_level, config.log_format);
     bus_log::configure();
-    telemetry::initialize()?;
+    telemetry::initialize("semiont-gateway")?;
     // One worker per CPU the process may use (its cgroup quota and affinity),
     // stated here so tokio never reads TOKIO_WORKER_THREADS: the container's
     // CPU limit is the one thing that sizes the gateway.
@@ -109,6 +112,7 @@ fn boot() -> Result<i32, String> {
         .map_err(|e| format!("cannot start the runtime: {e}"))?;
     let outcome = runtime.block_on(run(
         config,
+        signal,
         keys,
         Credential {
             issuer: String::new(),
@@ -121,7 +125,12 @@ fn boot() -> Result<i32, String> {
     outcome
 }
 
-async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Result<i32, String> {
+async fn run(
+    config: GatewayConfig,
+    signal: SignalConfig,
+    keys: KeyRing,
+    credential: Credential,
+) -> Result<i32, String> {
     let http = reqwest::Client::builder()
         .build()
         .map_err(|e| format!("cannot build the HTTP client: {e}"))?;
@@ -147,7 +156,7 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
         http,
     );
 
-    let (plane, driver): (Arc<dyn SignalPlane>, &str) = match &config.signal {
+    let (plane, driver): (Arc<dyn SignalPlane>, &str) = match &signal {
         SignalConfig::InProcess => (Arc::new(InProcessPlane::new()), "in-process"),
         SignalConfig::Nats {
             servers,
@@ -156,12 +165,14 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
         } => {
             let user = user_env
                 .as_deref()
-                .map(|name| from_environment("/signal/userEnv", name))
-                .transpose()?;
+                .map(|name| config::from_environment("/signal/userEnv", name))
+                .transpose()
+                .map_err(|e| e.to_string())?;
             let password = password_env
                 .as_deref()
-                .map(|name| from_environment("/signal/passwordEnv", name))
-                .transpose()?;
+                .map(|name| config::from_environment("/signal/passwordEnv", name))
+                .transpose()
+                .map_err(|e| e.to_string())?;
             (
                 Arc::new(NatsPlane::connect(servers, user, password).await?),
                 "nats",
@@ -184,7 +195,7 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
     logging::info("Signal Plane ready", json!({ "driver": driver }));
 
     let ledger = bus.ledger.clone();
-    telemetry::register_correlation_size(move || ledger.occupancy());
+    metrics::register_correlation_size(move || ledger.occupancy());
     telemetry::register_supervisor_restarts();
     telemetry::sample_lag();
 
@@ -231,7 +242,7 @@ async fn run(config: GatewayConfig, keys: KeyRing, credential: Credential) -> Re
     crate::http::serve(
         listener,
         routes::router(app.clone()),
-        app.config.capacity.connections,
+        app.config.capacity.connections as usize,
         async {
             received = rx.await.unwrap_or("SIGTERM");
         },

@@ -1,8 +1,8 @@
-//! The gateway's runners for the shared case tables: the same cases
-//! TypeScript and Go run, against the Rust functions that name the knowledge
-//! base and its principals.
+//! The runners for the shared case tables: the same cases TypeScript and Go
+//! run, against the Rust functions that name the knowledge base and its
+//! principals.
 
-use semiont_gateway::identity;
+use semiont::identity;
 use serde_json::Value;
 
 fn table(text: &str) -> Value {

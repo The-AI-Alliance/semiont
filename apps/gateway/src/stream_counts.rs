@@ -10,10 +10,10 @@
 //! Whether the DID names a person or an agent makes no difference; a principal
 //! whose roles make it unlimited takes no lease.
 
-use crate::logging;
+use crate::limits;
 use crate::principal::Principal;
 use crate::signal::{SharedTable, SignalPlane, Subscription};
-use crate::spec::spec;
+use semiont_core::logging;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -44,7 +44,7 @@ pub struct StreamCounts {
 impl StreamCounts {
     /// Open the table and project the leases it already holds.
     pub async fn open(plane: &dyn SignalPlane) -> Result<Arc<StreamCounts>, String> {
-        let lease = Duration::from_secs(2 * spec().limits().heartbeat_seconds);
+        let lease = Duration::from_secs(2 * limits::limits().heartbeat_seconds);
         let table = plane.table(TABLE.to_owned(), lease).await?;
         let counts = Arc::new(StreamCounts {
             table: table.clone(),
@@ -76,7 +76,7 @@ impl StreamCounts {
     /// unlimited), or how long to wait before asking again.
     pub fn admit(self: &Arc<Self>, principal: &Principal) -> Result<Option<StreamLease>, Duration> {
         let roles = principal.roles.as_deref().unwrap_or_default();
-        let Some(limit) = spec().limits().streams_per_principal.for_roles(roles) else {
+        let Some(limit) = limits::limits().streams_per_principal.for_roles(roles) else {
             return Ok(None);
         };
         let now = now_ms();
@@ -89,7 +89,7 @@ impl StreamCounts {
                 .filter(|(did, _)| *did == principal.did)
                 .count();
             if holding as u64 >= limit {
-                return Err(Duration::from_secs(spec().limits().heartbeat_seconds));
+                return Err(Duration::from_secs(limits::limits().heartbeat_seconds));
             }
             held.insert(id.clone(), (principal.did.clone(), now));
         }

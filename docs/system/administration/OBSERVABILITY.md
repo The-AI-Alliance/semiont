@@ -184,7 +184,7 @@ implicitly) — see `packages/observability/src/node.ts`.
 
 ## Relationship to the structured logger and `busLog`
 
-- **Structured logger** (the gateway's own, in `apps/gateway/src/logging.rs`;
+- **Structured logger** (the Rust services', in `packages/core-rust/src/logging.rs`;
   `createProcessLogger()` in workers/smelter) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-

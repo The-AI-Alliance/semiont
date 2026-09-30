@@ -166,7 +166,7 @@ func TestGatewayDocumentFillsWhatTheConfigLeavesOut(t *testing.T) {
 	if doc.LogLevel != "info" {
 		t.Errorf("logLevel = %q, want info", doc.LogLevel)
 	}
-	if doc.LogFormat != semiont.GatewayConfigLogFormatJson {
+	if doc.LogFormat != semiont.Json {
 		t.Errorf("logFormat = %q, want json", doc.LogFormat)
 	}
 	if doc.Archivist.Host != "archivist.internal" || doc.Archivist.Port != 9999 {

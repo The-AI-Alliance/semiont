@@ -19,10 +19,10 @@ on the plane.
 | Where | Checks |
 |---|---|
 | `npm run lint:spec-protocol` (repository root) | The spec states the whole protocol: every operation says whether it is public; every response has a body schema, every error body is an `ErrorResponse`, every 401 a challenge; the stream's messages, frame and id formats are schemas; every JSON body has a `maxBodyBytes` and a 413; the limits are positive integers |
-| The build (`build.rs`) | The spec bundles and every component schema compiles, or the gateway does not build; the bus registry names only schemas the spec declares |
+| The build (`semiont-core`'s `build.rs`) | The spec bundles and every component schema compiles, or the gateway does not build; the bus registry names only schemas the spec declares; the configuration documents' types are generated from their schemas |
 | `tests/conformance/gateway` | A running gateway conforms: spec-derived probes of every operation, every response and stream message validated against the spec, and hand-written cases for credentials, content, emitting, the stream, the connection bounds, the limits on one principal (a person and an agent alike) and on one process, replicas, readiness, boot refusals, the headers on every response, the environment, and the telemetry census |
 | The gateway's boot | Its route table is exactly the spec's operations — no undeclared route, no declared operation unserved ([src/routes/mod.rs](../src/routes/mod.rs)) — and every Archivist operation it calls is in the Archivist's spec; every suite run boots gateways, so a route added without a spec entry fails CI |
-| `cargo test` (this crate) | The runners for the shared case tables ([tests/tables.rs](../tests/tables.rs)): the principals and the knowledge base's resource identifier, as core and the launcher compute them |
+| `cargo test --workspace` | The runners for the shared case tables ([packages/sdk-rust/tests/tables.rs](../../../packages/sdk-rust/tests/tables.rs)), against the SDK the gateway names its principals with: the principals and the knowledge base's resource identifier, as core and the launcher compute them |
 | `npm run lint:broker-boundary` | The broker is reached only through its interface: `async_nats` only in `signal/nats.rs`, that plane chosen only in `app.rs`, the `nats` npm client only in the JetStream job queue |
 | `npm run lint:gateway-environment`, `lint:service-role` | The environment it reads is exactly [variables.json](../../../specs/src/gateway-environment/variables.json)'s; its role names are the launcher's and core's |
 | `scripts/lint/check-gateway-crates.mjs` | Every crate it links is under a permitted licence, and credited in the image's NOTICE; every crate that compiles native code in says what, and a library under a licence of its own is credited too |
@@ -32,7 +32,7 @@ on the plane.
 ## Running it
 
 ```bash
-(cd apps/gateway && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo build --release)
+cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway
 npm run build:packages
 cd tests/conformance
 npm ci

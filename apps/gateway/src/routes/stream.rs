@@ -11,14 +11,12 @@
 //! presence: `session:joined` and `session:left`.
 
 use crate::app::App;
-use crate::bus_log::bus_log;
 use crate::http::{ApiError, Authenticated, ConnectionAbort, json_body, text};
 use crate::ledger::DeliveryGate;
-use crate::logging;
+use crate::limits::{self, Limits};
+use crate::metrics;
 use crate::signal::{ClientSubscription, Frame, ScopedChannels, Subscription};
-use crate::spec::{Limits, spec};
 use crate::stream_counts::StreamLease;
-use crate::telemetry;
 use axum::Extension;
 use axum::body::Body;
 use axum::extract::State;
@@ -27,6 +25,10 @@ use axum::response::Response;
 use bytes::Bytes;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont_core::bus_log::bus_log;
+use semiont_core::logging;
+use semiont_core::spec::spec;
+use semiont_core::telemetry;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::pin::Pin;
@@ -110,8 +112,8 @@ pub async fn subscribe(
         );
     }
 
-    let limits = spec().limits();
-    if app.queued_bytes.load(Ordering::SeqCst) >= app.config.capacity.queued_bytes {
+    let limits = limits::limits();
+    if app.queued_bytes.load(Ordering::SeqCst) >= app.config.capacity.queued_bytes as usize {
         return Err(ApiError::limited(
             StatusCode::SERVICE_UNAVAILABLE,
             "capacity",
@@ -269,7 +271,7 @@ impl Connection {
     ) -> Arc<Connection> {
         let gate = app.bus.ledger.gate(&client_id, Some(&did));
         Arc::new(Connection {
-            limits: spec().limits(),
+            limits: limits::limits(),
             id: uuid::Uuid::new_v4().to_string(),
             app,
             did,
@@ -460,7 +462,7 @@ impl Connection {
     }
 
     fn resume_gap(self: &Arc<Self>, reason: &str, scope: &str, last_seen_id: &str) {
-        telemetry::record_resume_gap(reason);
+        metrics::record_resume_gap(reason);
         let data = json!({ "channel": "bus:resume-gap", "payload": { "reason": reason, "scope": scope, "lastSeenId": last_seen_id } });
         let id = self.next_ephemeral();
         let _delivery = locked(&self.delivery);
@@ -493,7 +495,7 @@ impl Connection {
         }
         drop(locked(&self.lease).take());
         self.gate.close();
-        telemetry::subscriber_disconnected();
+        metrics::subscriber_disconnected();
         tokio::spawn(Self::announce(
             self.app.clone(),
             "session:left",
@@ -532,7 +534,7 @@ impl Connection {
                 "scopes": scoped.iter().map(|s| json!({ "scope": s.scope, "channels": s.channels, "lastEventId": s.last_event_id })).collect::<Vec<_>>(),
             })),
         );
-        telemetry::subscriber_connected();
+        metrics::subscriber_connected();
         Self::announce(
             self.app.clone(),
             "session:joined",

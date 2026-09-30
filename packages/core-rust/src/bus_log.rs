@@ -1,4 +1,4 @@
-//! `SEMIONT_BUS_LOG`: with any non-empty value, one line per frame the gateway
+//! `SEMIONT_BUS_LOG`: with any non-empty value, one line per frame the service
 //! accepts or delivers, and per content read, grep-able alike across
 //! processes: `[bus <op>] <channel> [scope=X] [cid=<first 8>] [trace=<first 8>] <payload>`.
 //! On stderr, so the log lines on stdout stay one format.

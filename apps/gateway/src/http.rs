@@ -3,7 +3,6 @@
 //! credential.
 
 use crate::app::App;
-use crate::logging;
 use crate::principal::{Principal, principal_from_token};
 use axum::body::Body;
 use axum::extract::{FromRequestParts, Request};
@@ -14,6 +13,7 @@ use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
 use futures::task::AtomicWaker;
 use hyper_util::rt::{TokioIo, TokioTimer};
+use semiont_core::logging;
 use serde_json::{Value, json};
 use std::io;
 use std::pin::Pin;
@@ -122,7 +122,7 @@ pub async fn serve(
                 let Ok((stream, _)) = accepted else { continue };
                 if open.load(Ordering::SeqCst) >= connections {
                     drop(stream);
-                    crate::telemetry::record_refused("connections");
+                    crate::metrics::record_refused("connections");
                     continue;
                 }
                 open.fetch_add(1, Ordering::SeqCst);
@@ -290,7 +290,7 @@ impl ApiError {
         retry_after: std::time::Duration,
     ) -> ApiError {
         let seconds = retry_after.as_secs() + u64::from(retry_after.subsec_nanos() > 0);
-        crate::telemetry::record_refused(code);
+        crate::metrics::record_refused(code);
         ApiError {
             status,
             body: json!({ "error": message.into(), "code": code }),
@@ -333,7 +333,7 @@ impl IntoResponse for ApiError {
 /// maxBodyBytes (unread, when its Content-Length says so), and with 400 when
 /// it is not JSON or does not match the operation's schema.
 pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
-    let Some(accepts) = crate::spec::spec().json_body(operation) else {
+    let Some(accepts) = crate::limits::json_body(operation) else {
         return Err(ApiError::internal(
             "reading a request body",
             format!("the spec gives {operation} no JSON body"),
@@ -363,7 +363,7 @@ pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
     }
     let value: Value = serde_json::from_slice(&bytes)
         .map_err(|_| ApiError::bad_request("The body is not JSON"))?;
-    if let Some(problems) = crate::spec::problems(&accepts.schema, &value) {
+    if let Some(problems) = semiont_core::spec::problems(&accepts.schema, &value) {
         return Err(ApiError::bad_request(problems));
     }
     Ok(value)

@@ -10,10 +10,9 @@ mod tokens;
 
 use crate::app::App;
 use crate::http::{edge, not_found};
-use crate::spec::{Spec, spec};
 use axum::Router;
 use axum::routing::{MethodRouter, get, post};
-use std::collections::BTreeSet;
+use semiont_core::spec::{self, spec};
 use std::sync::Arc;
 
 type Route = (&'static str, &'static str, fn() -> MethodRouter<Arc<App>>);
@@ -51,42 +50,7 @@ pub fn router(app: Arc<App>) -> Router {
         .with_state(app)
 }
 
-/// A path's shape, parameter names aside.
-fn shape(path: &str) -> String {
-    let mut out = String::with_capacity(path.len());
-    let mut in_parameter = false;
-    for c in path.chars() {
-        match c {
-            '{' => {
-                in_parameter = true;
-                out.push_str("{}");
-            }
-            '}' => in_parameter = false,
-            _ if in_parameter => {}
-            _ => out.push(c),
-        }
-    }
-    out
-}
-
 /// Every difference between the routes served and the operations the spec declares.
 pub fn mismatches() -> Vec<String> {
-    let declared: BTreeSet<String> = Spec::operations_of(&spec().document)
-        .into_iter()
-        .map(|(m, p)| format!("{m} {}", shape(&p)))
-        .collect();
-    let served: BTreeSet<String> = ROUTES
-        .iter()
-        .map(|(m, p, _)| format!("{m} {}", shape(p)))
-        .collect();
-    let mut problems: Vec<String> = served
-        .difference(&declared)
-        .map(|op| format!("{op} is served, and the spec does not declare it"))
-        .collect();
-    problems.extend(
-        declared
-            .difference(&served)
-            .map(|op| format!("{op} is declared, and nothing serves it")),
-    );
-    problems
+    spec::route_mismatches(&spec().document, ROUTES.iter().map(|(m, p, _)| (*m, *p)))
 }

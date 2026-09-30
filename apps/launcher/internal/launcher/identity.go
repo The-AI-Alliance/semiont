@@ -23,7 +23,7 @@ const (
 	// vendor-neutral by design — the gateway's verification path names no
 	// Keycloak structure, so an operator federating another issuer maps their
 	// own groups into the same claim. Must equal SERVICE_ROLE in
-	// apps/gateway/src/roles.rs (npm run lint:service-role holds them together).
+	// packages/sdk-rust/src/roles.rs (npm run lint:service-role holds them together).
 	serviceRole = "semiont-service"
 
 	// workerRole: the realm role marking a client permitted to CLAIM JOBS

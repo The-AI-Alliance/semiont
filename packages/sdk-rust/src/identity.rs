@@ -1,4 +1,4 @@
-//! How the gateway names the knowledge base and the principals it acts for.
+//! How a knowledge base is named, and the principals who act in it.
 //!
 //! Every function here is held to a shared case table that TypeScript and Go
 //! run too: `kb_resource` to specs/src/kb-identity/cases.json, the rest to

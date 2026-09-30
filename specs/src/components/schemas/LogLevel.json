@@ -1,0 +1,11 @@
+{
+  "type": "string",
+  "enum": [
+    "error",
+    "warn",
+    "info",
+    "http",
+    "debug"
+  ],
+  "description": "How much a service logs: the least severe level it writes, from error, the most severe, to debug."
+}

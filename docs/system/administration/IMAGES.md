@@ -76,7 +76,7 @@ version it carries. The five that bundle `@semiont/make-meaning` run `node:24-al
 held there by the qdrant client they carry; the worker and the Browser carry no
 qdrant client and run `node:26-alpine`.
 The gateway is Rust: its image compiles `apps/gateway` from the commit the
-workflow runs on, with the toolchain `apps/gateway/rust-toolchain.toml` pins,
+workflow runs on, with the toolchain `rust-toolchain.toml` pins,
 and ships the binary on `alpine` — no source, no toolchain, and nothing built
 or fetched when it starts.
 
@@ -133,12 +133,13 @@ version: [`publish-browser.yml`](../../../.github/workflows/publish-browser.yml)
    `@semiont/*` version(s) exist — it bundles published packages, never the
    working tree. The gateway image compiles the checkout instead, so it is
    published from the release tag.
-2. Builds the multi-platform image from the service's Dockerfile. The six
-   npm images build both platforms on one amd64 runner, arm64 under
-   emulation. The gateway compiles Rust, which emulation makes take over an
-   hour, so each of its platforms builds on a runner of its own architecture,
-   passes every check below there, and is pushed by digest; a final job
-   (`gateway-manifest`) joins the two under the tags and attests the result.
+2. Builds the multi-platform image from the service's Dockerfile. Five npm
+   images build both platforms on one amd64 runner, arm64 under emulation.
+   The gateway compiles Rust, which emulation makes take over an hour, so each
+   of its platforms builds on a runner of its own architecture, passes every
+   check below there, and is pushed by digest; a final job (`manifest`) joins
+   the two under the tags and attests the result. The dispatcher publishes the
+   same way, ready for a Rust dispatcher.
    For the gateway, checks the built image carries no source, serves
    `/api/health` within its start bound, and passes its own HEALTHCHECK
    (`scripts/container/check-gateway-image.sh`).

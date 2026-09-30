@@ -371,11 +371,10 @@ var kbIdentityStaged = map[string]bool{"librarian": true}
 // of the KB's config (gatewaydoc.go). One name, staged and mounted.
 const gatewayDocumentFile = "gateway.json"
 
-// gatewayDocumentTarget: where the gateway reads that document — a constant
-// of the gateway image, which declares it as SEMIONT_GATEWAY_CONFIG (the
-// arrangement SEMIONT_ROOT and SEMIONT_ANCHORED_TEXT_DIR already have). Its
-// own name and place: a resolved JSON artifact, not the sidecars' TOML
-// ~/.semiontconfig it was derived from.
+// gatewayDocumentTarget: where the gateway reads that document — the path its
+// image passes to `--config`; TestConfigDocumentsAreWhereTheImagesLook holds
+// the two together. Its own name and place: a resolved JSON artifact, not the
+// sidecars' TOML ~/.semiontconfig it was derived from.
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
 // stageService writes one service's config into the stage: the gateway's or

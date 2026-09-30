@@ -115,10 +115,10 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
   }
 }
 
-/** The gateway compiles with the toolchain apps/gateway/rust-toolchain.toml pins. */
+/** The gateway compiles with the toolchain rust-toolchain.toml pins. */
 async function buildGateway(runtime) {
-  const toolchain = /^channel = "(.*)"$/m.exec(readFileSync('apps/gateway/rust-toolchain.toml', 'utf-8'))?.[1];
-  if (!toolchain) throw new Error('apps/gateway/rust-toolchain.toml names no channel');
+  const toolchain = /^channel = "(.*)"$/m.exec(readFileSync('rust-toolchain.toml', 'utf-8'))?.[1];
+  if (!toolchain) throw new Error('rust-toolchain.toml names no channel');
   await buildImage('gateway', 'apps/gateway/Dockerfile', '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
 }
 

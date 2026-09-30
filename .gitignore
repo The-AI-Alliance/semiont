@@ -114,3 +114,6 @@ apps/*/scripts/*.d.ts.map
 
 # Backups written beside .env.local by tooling
 .env*.backup*
+
+# Cargo's build output, for the whole Rust workspace (Cargo.toml).
+/target

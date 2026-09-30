@@ -1,0 +1,30 @@
+[package]
+name = "semiont-core"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "What Semiont's Rust services share and no client needs: the spec each is built against, its configuration document, its logging and its telemetry."
+
+[features]
+# Reaching the messaging broker (src/nats.rs). Off unless a crate asks: one that
+# does not has no NATS client in its build.
+nats = ["dep:async-nats", "dep:bytes", "dep:futures"]
+
+[dependencies]
+async-nats = { workspace = true, optional = true, features = ["ring", "kv", "server_2_10", "nuid"] }
+bytes = { workspace = true, optional = true }
+chrono = { workspace = true, features = ["clock", "std"] }
+futures = { workspace = true, optional = true }
+jsonschema.workspace = true
+opentelemetry = { workspace = true, features = ["trace", "metrics"] }
+opentelemetry_sdk = { workspace = true, features = ["trace", "metrics"] }
+opentelemetry-otlp = { workspace = true, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics"] }
+opentelemetry-stdout = { workspace = true, features = ["trace", "metrics"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+tikv-jemalloc-ctl = { workspace = true, features = ["stats"] }
+tokio = { workspace = true, features = ["rt", "time", "macros"] }
+
+[build-dependencies]
+jsonschema.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }

@@ -354,51 +354,6 @@ func (e DiscoveryDocumentVersion) Valid() bool {
 	}
 }
 
-// Defines values for DispatcherConfigLogFormat.
-const (
-	DispatcherConfigLogFormatJson   DispatcherConfigLogFormat = "json"
-	DispatcherConfigLogFormatSimple DispatcherConfigLogFormat = "simple"
-)
-
-// Valid indicates whether the value is a known member of the DispatcherConfigLogFormat enum.
-func (e DispatcherConfigLogFormat) Valid() bool {
-	switch e {
-	case DispatcherConfigLogFormatJson:
-		return true
-	case DispatcherConfigLogFormatSimple:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for DispatcherConfigLogLevel.
-const (
-	DispatcherConfigLogLevelDebug DispatcherConfigLogLevel = "debug"
-	DispatcherConfigLogLevelError DispatcherConfigLogLevel = "error"
-	DispatcherConfigLogLevelHttp  DispatcherConfigLogLevel = "http"
-	DispatcherConfigLogLevelInfo  DispatcherConfigLogLevel = "info"
-	DispatcherConfigLogLevelWarn  DispatcherConfigLogLevel = "warn"
-)
-
-// Valid indicates whether the value is a known member of the DispatcherConfigLogLevel enum.
-func (e DispatcherConfigLogLevel) Valid() bool {
-	switch e {
-	case DispatcherConfigLogLevelDebug:
-		return true
-	case DispatcherConfigLogLevelError:
-		return true
-	case DispatcherConfigLogLevelHttp:
-		return true
-	case DispatcherConfigLogLevelInfo:
-		return true
-	case DispatcherConfigLogLevelWarn:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for DispatcherHealthQueue.
 const (
 	Jetstream DispatcherHealthQueue = "jetstream"
@@ -609,51 +564,6 @@ const (
 func (e FragmentSelectorType) Valid() bool {
 	switch e {
 	case FragmentSelectorTypeFragmentSelector:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayConfigLogFormat.
-const (
-	GatewayConfigLogFormatJson   GatewayConfigLogFormat = "json"
-	GatewayConfigLogFormatSimple GatewayConfigLogFormat = "simple"
-)
-
-// Valid indicates whether the value is a known member of the GatewayConfigLogFormat enum.
-func (e GatewayConfigLogFormat) Valid() bool {
-	switch e {
-	case GatewayConfigLogFormatJson:
-		return true
-	case GatewayConfigLogFormatSimple:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for GatewayConfigLogLevel.
-const (
-	GatewayConfigLogLevelDebug GatewayConfigLogLevel = "debug"
-	GatewayConfigLogLevelError GatewayConfigLogLevel = "error"
-	GatewayConfigLogLevelHttp  GatewayConfigLogLevel = "http"
-	GatewayConfigLogLevelInfo  GatewayConfigLogLevel = "info"
-	GatewayConfigLogLevelWarn  GatewayConfigLogLevel = "warn"
-)
-
-// Valid indicates whether the value is a known member of the GatewayConfigLogLevel enum.
-func (e GatewayConfigLogLevel) Valid() bool {
-	switch e {
-	case GatewayConfigLogLevelDebug:
-		return true
-	case GatewayConfigLogLevelError:
-		return true
-	case GatewayConfigLogLevelHttp:
-		return true
-	case GatewayConfigLogLevelInfo:
-		return true
-	case GatewayConfigLogLevelWarn:
 		return true
 	default:
 		return false
@@ -1290,6 +1200,51 @@ func (e ListResourcesResponseMatchKind) Valid() bool {
 	case Lexical:
 		return true
 	case Semantic:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogFormat.
+const (
+	Json   LogFormat = "json"
+	Simple LogFormat = "simple"
+)
+
+// Valid indicates whether the value is a known member of the LogFormat enum.
+func (e LogFormat) Valid() bool {
+	switch e {
+	case Json:
+		return true
+	case Simple:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for LogLevel.
+const (
+	Debug LogLevel = "debug"
+	Error LogLevel = "error"
+	Http  LogLevel = "http"
+	Info  LogLevel = "info"
+	Warn  LogLevel = "warn"
+)
+
+// Valid indicates whether the value is a known member of the LogLevel enum.
+func (e LogLevel) Valid() bool {
+	switch e {
+	case Debug:
+		return true
+	case Error:
+		return true
+	case Http:
+		return true
+	case Info:
+		return true
+	case Warn:
 		return true
 	default:
 		return false
@@ -2577,10 +2532,10 @@ type DispatcherConfig struct {
 	} `json:"identity"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
-	LogFormat DispatcherConfigLogFormat `json:"logFormat"`
+	LogFormat LogFormat `json:"logFormat"`
 
-	// LogLevel The least severe level written.
-	LogLevel DispatcherConfigLogLevel `json:"logLevel"`
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
 
 	// Port The port the dispatcher answers `/health` on.
 	Port int `json:"port"`
@@ -2621,12 +2576,6 @@ type DispatcherConfig struct {
 		TickMs int `json:"tickMs"`
 	} `json:"timing"`
 }
-
-// DispatcherConfigLogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
-type DispatcherConfigLogFormat string
-
-// DispatcherConfigLogLevel The least severe level written.
-type DispatcherConfigLogLevel string
 
 // DispatcherHealth The dispatcher's liveness answer. It answers only once its queue has connected and its bus pumps are attached, so a 200 means it can take work.
 type DispatcherHealth struct {
@@ -2831,7 +2780,7 @@ type FrameAddTagSchemaCommand struct {
 	Schema TagSchema `json:"schema"`
 }
 
-// GatewayConfig Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at the path `SEMIONT_GATEWAY_CONFIG` names (the image sets `/etc/semiont/gateway.json`). Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/gateway-environment/variables.json lists, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
+// GatewayConfig Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/gateway-environment/variables.json lists, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.
 type GatewayConfig struct {
 	// Archivist Where the Archivist listens.
 	Archivist struct {
@@ -2864,10 +2813,10 @@ type GatewayConfig struct {
 	} `json:"kb"`
 
 	// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
-	LogFormat GatewayConfigLogFormat `json:"logFormat"`
+	LogFormat LogFormat `json:"logFormat"`
 
-	// LogLevel The least severe level written.
-	LogLevel GatewayConfigLogLevel `json:"logLevel"`
+	// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+	LogLevel LogLevel `json:"logLevel"`
 
 	// Port The port the gateway listens on, on every address the host has: IPv4 and IPv6.
 	Port int `json:"port"`
@@ -2888,12 +2837,6 @@ type GatewayConfig struct {
 		UserEnv *string `json:"userEnv,omitempty"`
 	} `json:"signal"`
 }
-
-// GatewayConfigLogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
-type GatewayConfigLogFormat string
-
-// GatewayConfigLogLevel The least severe level written.
-type GatewayConfigLogLevel string
 
 // GatewayConfigSignalType defines model for GatewayConfig.Signal.Type.
 type GatewayConfigSignalType string
@@ -4104,6 +4047,12 @@ type ListResourcesResponse struct {
 
 // ListResourcesResponseMatchKind What kind of answer this is: 'lexical' — the resources matched the query text; 'semantic' — no lexical match existed, and these resources discuss the query per the vector index (SEMANTIC-FALLBACK). Required so every producer labels its answer; a UI can render semantic results as a different kind of page ('no title matches, but these documents discuss it').
 type ListResourcesResponseMatchKind string
+
+// LogFormat How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON.
+type LogFormat string
+
+// LogLevel How much a service logs: the least severe level it writes, from error, the most severe, to debug.
+type LogLevel string
 
 // MarkArchiveCommand Bus command to archive a resource and optionally remove its file.
 type MarkArchiveCommand struct {

@@ -105,23 +105,10 @@
       "additionalProperties": false
     },
     "logLevel": {
-      "type": "string",
-      "enum": [
-        "error",
-        "warn",
-        "info",
-        "http",
-        "debug"
-      ],
-      "description": "The least severe level written."
+      "$ref": "./LogLevel.json"
     },
     "logFormat": {
-      "type": "string",
-      "enum": [
-        "json",
-        "simple"
-      ],
-      "description": "How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON."
+      "$ref": "./LogFormat.json"
     }
   },
   "required": [

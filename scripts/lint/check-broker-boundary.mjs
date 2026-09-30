@@ -9,7 +9,9 @@
  * NATS implementation and a second one. A module that used the NATS client
  * beside them would tie the rest to the broker, and nothing would say so. So:
  *
- *   - the `async_nats` crate is named only in the gateway's NATS plane;
+ *   - the `async_nats` crate is named only in the gateway's NATS plane and in
+ *     semiont-core's broker helpers (its `nats` feature, which a crate must
+ *     ask for; CI's crate-tree check holds the crates that must not);
  *   - that plane (`signal::nats`, `NatsPlane`) is named only where the plane
  *     is chosen, the composition in app.rs;
  *   - the `nats` npm client (or `@nats-io/*`) is imported only by the
@@ -19,15 +21,15 @@
  * suite's harness starts one. Each allowed file must still use what it is
  * allowed, so an entry cannot outlive the implementation it was for.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { repositoryFiles } from './repository-files.mjs';
 import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-const gatewaySource = (file) => file.startsWith('apps/gateway/src/') && file.endsWith('.rs');
+const rustSource = (file) => /^(apps|packages)\/(?!desktop\/)[^/]+\/src\/.*\.rs$/.test(file);
 const javascriptSource = (file) =>
   /^(apps|packages)\//.test(file) &&
   /\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) &&
@@ -37,13 +39,13 @@ const RULES = [
   {
     what: 'the async_nats crate',
     uses: /\basync_nats\b/,
-    scope: gatewaySource,
-    allowed: ['apps/gateway/src/signal/nats.rs'],
+    scope: rustSource,
+    allowed: ['apps/gateway/src/signal/nats.rs', 'packages/core-rust/src/nats.rs'],
   },
   {
     what: "the gateway's NATS plane",
     uses: /\bsignal::nats\b|\bNatsPlane\b/,
-    scope: gatewaySource,
+    scope: rustSource,
     allowed: ['apps/gateway/src/app.rs', 'apps/gateway/src/signal/nats.rs'],
   },
   {
@@ -54,7 +56,7 @@ const RULES = [
   },
 ];
 
-const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+const tracked = repositoryFiles(ROOT);
 const text = new Map();
 const source = (file) => {
   if (!text.has(file)) text.set(file, withoutComments(readFileSync(join(ROOT, file), 'utf8')));
@@ -79,4 +81,4 @@ if (problems.length > 0) {
   console.error('  Reach the broker through SignalPlane/SharedTable (the gateway) or JobQueue (the job queue).');
   process.exit(1);
 }
-console.log('✓ lint:broker-boundary — async_nats only in the gateway\'s NATS plane, that plane chosen only in app.rs, and the nats client only in the JetStream job queue');
+console.log('✓ lint:broker-boundary — async_nats only in the gateway\'s NATS plane and semiont-core\'s broker helpers, that plane chosen only in app.rs, and the nats client only in the JetStream job queue');

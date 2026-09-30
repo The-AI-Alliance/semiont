@@ -6,8 +6,8 @@
 
 use crate::ledger::Ledger;
 use crate::signal::{ClientSubscription, SignalPlane, Subscription};
-use crate::spec::spec;
 use crate::stream_counts::StreamCounts;
+use semiont_core::spec::spec;
 use std::sync::Arc;
 
 pub struct Composition {

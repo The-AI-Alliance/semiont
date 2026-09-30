@@ -54,11 +54,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names,
-      # with rustfmt and clippy.
+      # rustup installs the toolchain rust-toolchain.toml names, with rustfmt
+      # and clippy.
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway
           rustup toolchain install
           cargo --version
 
@@ -72,8 +71,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway/target
-          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+            target
+          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-dev-
 
@@ -82,10 +81,20 @@ jobs:
       # tables, its only Rust tests.
       - name: Format, lint, and run the shared-table runners
         run: |
-          cd apps/gateway
-          cargo fmt --check
-          cargo clippy --all-targets --locked -- -D warnings
-          cargo test --locked
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
+
+      # The broker is reached only by a crate that asks for semiont-core's
+      # `nats` feature: the SDK and semiont-core itself carry no NATS client.
+      - name: Check which crates can reach the broker
+        run: |
+          for crate in semiont semiont-core; do
+            if cargo tree --locked -p "$crate" -e normal | grep -q '^.*async-nats '; then
+              echo "✗ $crate reaches async-nats; only a crate that enables semiont-core's nats feature may"
+              exit 1
+            fi
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -97,7 +106,7 @@ jobs:
       - name: Check the crates the gateway links
         run: |
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
-            (cd apps/gateway && cargo metadata --format-version 1 --locked --filter-platform "$target") > "$RUNNER_TEMP/metadata-$target.json"
+            cargo metadata --format-version 1 --locked --filter-platform "$target" > "$RUNNER_TEMP/metadata-$target.json"
           done
           node scripts/lint/check-gateway-crates.mjs "$RUNNER_TEMP"/metadata-*.json
 
@@ -111,7 +120,6 @@ jobs:
 
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway
           rustup toolchain install
 
       # Its own key, for the release profile: see Gateway Tests.
@@ -121,15 +129,13 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway/target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
       - name: Build the gateway
-        run: |
-          cd apps/gateway
-          cargo build --release --locked
+        run: cargo build --release --locked -p semiont-gateway
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -176,7 +182,6 @@ jobs:
 
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway
           rustup toolchain install
 
       # The gateway's release build, shared with Gateway Conformance.
@@ -186,16 +191,14 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway/target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
       # The dispatcher reaches the bus only through a gateway.
       - name: Build the gateway
-        run: |
-          cd apps/gateway
-          cargo build --release --locked
+        run: cargo build --release --locked -p semiont-gateway
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

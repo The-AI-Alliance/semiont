@@ -9,14 +9,14 @@ This guide covers how Semiont's test suites are organized, configured and run: t
 - **The SDK's test doubles** (`@semiont/sdk/testing`, `@semiont/core/testing`) stand in for a knowledge base: a real `SemiontClient` over a scriptable in-memory transport. Unit tests make no network requests.
 - **Playwright** drives the live Browser in the end-to-end suite.
 - **Go's `testing` package** covers the launcher and `packages/sdk-go`.
-- **Cargo's test harness** runs the gateway's shared-table runners (`apps/gateway/tests`).
+- **Cargo's test harness** runs the Rust SDK's shared-table runners (`packages/sdk-rust/tests`).
 
 ## Test Suites
 
 | Suite | Where | What it exercises | Needs |
 |---|---|---|---|
 | Workspace suites | every workspace in `apps/*` and `packages/*` with a `test` script | Units and in-process integration: components, hooks, SDK namespaces, services composed over test doubles | Nothing running, except `nats-server` on `PATH` for `@semiont/jobs` |
-| Gateway table runners | `apps/gateway` (`cargo test`) | The gateway's DID, address, name and resource-identifier functions against the shared case tables (`specs/src/principals`, `specs/src/kb-identity`) | The toolchain `apps/gateway/rust-toolchain.toml` names |
+| Rust table runners | `packages/sdk-rust` (`cargo test --workspace`) | The Rust SDK's DID, address, name and resource-identifier functions, which the gateway uses, against the shared case tables (`specs/src/principals`, `specs/src/kb-identity`) | The toolchain `rust-toolchain.toml` names |
 | Gateway conformance | [`tests/conformance/gateway`](../../tests/conformance/gateway/README.md) | A running gateway, black-box, against `specs/`: every declared operation, every response and stream message, and hand-written protocol cases, on both signal planes | A built gateway and `nats-server` 2.10 or later on `PATH` |
 | Dispatcher conformance | [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/README.md) | A running dispatcher, black-box, behind a real gateway on a real JetStream broker, against [JOBS.md](../protocol/JOBS.md) and every channel's schema | A built gateway, the packages built, and `nats-server` 2.10 or later on `PATH` |
 | Go | `apps/launcher`, `packages/sdk-go` | The launcher driving a fake runtime through real start/stop lifecycles; the Go bus client's wire contract | The Go toolchain named in each `go.mod` |
@@ -81,9 +81,9 @@ Workspace suites run with nothing listening. CI's package matrix starts no datab
 
 ### The conformance suites
 
-[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds two projects over one shared harness: `gateway` (test files `gateway/**/*.test.ts` and the harness's own `harness/**/*.test.ts`) and `dispatcher` (`dispatcher/**/*.test.ts`); the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. It provides the command a gateway is started with, `GATEWAY_COMMAND` in `harness/paths.ts`; its global setup refuses to start without that gateway built (`apps/gateway/target/release/semiont-gateway`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
+[`tests/conformance/vitest.config.ts`](../../tests/conformance/vitest.config.ts) is its own config, not derived from the shared one. It holds two projects over one shared harness: `gateway` (test files `gateway/**/*.test.ts` and the harness's own `harness/**/*.test.ts`) and `dispatcher` (`dispatcher/**/*.test.ts`); the `forks` pool with up to four workers, since each file boots its own gateways, issuer, Archivist and broker on ports of its own; and 60-second test and hook timeouts. It provides the command a gateway is started with, `GATEWAY_COMMAND` in `harness/paths.ts`; its global setup refuses to start without that gateway built (`target/release/semiont-gateway`) or `nats-server`, and bundles the gateway's and the Archivist's specs from `specs/src` at the start of every run.
 
-Each gateway the suite starts gets a fresh temporary directory holding `gateway.json` — the `GatewayConfig` document — and an environment of `PATH`, `SEMIONT_GATEWAY_CONFIG` naming that document, and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
+Each gateway the suite starts gets a fresh temporary directory holding `gateway.json` — the `GatewayConfig` document — started with `--config` naming that document and an environment of `PATH` and the variables the case sets, such as `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET` and `OTEL_EXPORTER_OTLP_ENDPOINT`. Nothing else from the developer's shell reaches it.
 
 ### The end-to-end suite
 
@@ -522,7 +522,7 @@ npm run test:ui             # Vitest UI
 Gateway (`apps/gateway/`, Rust): `cargo test` runs only the shared-table runners. The gateway's behaviour is the conformance suite's, run against a built gateway:
 
 ```bash
-(cd apps/gateway && cargo build --release)
+cargo build --release -p semiont-gateway
 npm run build:packages
 cd tests/conformance
 npm ci

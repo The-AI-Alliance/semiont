@@ -163,9 +163,9 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 
 	doc.LogLevel = "info"
 	if env.LogLevel != "" {
-		doc.LogLevel = semiont.GatewayConfigLogLevel(env.LogLevel)
+		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
-	doc.LogFormat = semiont.GatewayConfigLogFormatJson
+	doc.LogFormat = semiont.Json
 
 	// Its capacity follows from the memory its container is given: half for
 	// the bytes queued to its streams, and the other half at a connection

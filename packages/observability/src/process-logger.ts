@@ -17,7 +17,7 @@
  */
 
 import winston from 'winston';
-import type { Logger } from '@semiont/core';
+import type { Logger, components } from '@semiont/core';
 import { getLogTraceContext } from './index.js';
 
 const traceContextFormat = winston.format((info) => {
@@ -34,8 +34,8 @@ const traceContextFormat = winston.format((info) => {
  * which then govern; every other process reads `LOG_LEVEL` and `LOG_FORMAT`.
  */
 export interface ProcessLogSettings {
-  level: 'error' | 'warn' | 'info' | 'http' | 'debug';
-  format: 'json' | 'simple';
+  level: components['schemas']['LogLevel'];
+  format: components['schemas']['LogFormat'];
 }
 
 export function createProcessLogger(component: string, settings?: ProcessLogSettings): Logger {

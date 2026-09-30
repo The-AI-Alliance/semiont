@@ -1,6 +1,6 @@
 {
   "type": "object",
-  "description": "Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts — from the knowledge base's committed identity and the environment its config selects — and a gateway started any other way is given the same document at the path `SEMIONT_GATEWAY_CONFIG` names (the image sets `/etc/semiont/gateway.json`). Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/gateway-environment/variables.json lists, and the ones this document names. A document that does not validate is refused at boot — the gateway exits without serving — and the refusal names each failing field by its JSON pointer.",
+  "description": "Everything the gateway reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the gateway. The launcher writes it for the gateway it starts \u2014 from the knowledge base's committed identity and the environment its config selects \u2014 and a gateway started any other way is given the same document at the path its `--config` flag names (the image passes `/etc/semiont/gateway.json`). Started without `--config`, or with a path that names no file, the gateway refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The gateway's other inputs are the environment variables specs/src/gateway-environment/variables.json lists, and the ones this document names. A document that does not validate is refused at boot \u2014 the gateway exits without serving \u2014 and the refusal names each failing field by its JSON pointer.",
   "properties": {
     "kb": {
       "type": "object",
@@ -108,27 +108,14 @@
       "additionalProperties": false
     },
     "logLevel": {
-      "type": "string",
-      "enum": [
-        "error",
-        "warn",
-        "info",
-        "http",
-        "debug"
-      ],
-      "description": "The least severe level written."
+      "$ref": "./LogLevel.json"
     },
     "logFormat": {
-      "type": "string",
-      "enum": [
-        "json",
-        "simple"
-      ],
-      "description": "How each log line is written to stdout: `json`, one JSON object per line carrying the active trace's `trace_id` and `span_id`; or `simple`, `<timestamp> [<LEVEL>] <message>` followed by any metadata as JSON."
+      "$ref": "./LogFormat.json"
     },
     "capacity": {
       "type": "object",
-      "description": "What this gateway process can hold, from the memory its deployment gives it. `queuedBytes`: the bytes queued for all its streams together; at it, a new stream is refused with 503 (`AtCapacity`, code `capacity`) until the queues drain — each stream's own bound is `x-semiont-limits.pendingWriteBytes`. `connections`: the connections it holds open at once; one past it is closed unanswered. The launcher derives both from the memory it gives the gateway's container.",
+      "description": "What this gateway process can hold, from the memory its deployment gives it. `queuedBytes`: the bytes queued for all its streams together; at it, a new stream is refused with 503 (`AtCapacity`, code `capacity`) until the queues drain \u2014 each stream's own bound is `x-semiont-limits.pendingWriteBytes`. `connections`: the connections it holds open at once; one past it is closed unanswered. The launcher derives both from the memory it gives the gateway's container.",
       "properties": {
         "queuedBytes": {
           "type": "integer",

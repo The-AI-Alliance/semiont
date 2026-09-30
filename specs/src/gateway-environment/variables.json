@@ -1,5 +1,5 @@
 {
-  "$comment": "Every environment variable a gateway reads, beside its configuration document (GatewayConfig) and the broker variables that document names in signal.userEnv and signal.passwordEnv. A gateway, in any language, reads these and no variable the table does not list — beyond the standard OTEL_* variables an OpenTelemetry SDK reads on its own, and the options variable of the allocator a gateway links (jemalloc's _RJEM_MALLOC_CONF, which it reads before any code of the gateway runs), which the table neither promises nor refuses. `readBy` says what reads each: `gateway`, its own code — which lint:gateway-environment scans in both directions (apps/gateway/src): a read not listed here fails it, and so does a row nothing reads; `opentelemetry`, the OpenTelemetry SDK. `providedBy` says what sets each where the launcher runs a gateway: `launcher` (lint:gateway-environment checks the launcher's boot golden passes it), `image` (the image or its supervisor sets it; checked there too), or `operator` (nothing sets it; an operator may). The conformance suite sets only these, and exercises each by name; one case also sets a variable a gateway's runtime would read for itself (TOKIO_WORKER_THREADS), to show that it changes nothing.",
+  "$comment": "Every environment variable a gateway reads, beside its configuration document (GatewayConfig) and the broker variables that document names in signal.userEnv and signal.passwordEnv. A gateway, in any language, reads these and no variable the table does not list \u2014 beyond the standard OTEL_* variables an OpenTelemetry SDK reads on its own, and the options variable of the allocator a gateway links (jemalloc's _RJEM_MALLOC_CONF, which it reads before any code of the gateway runs), which the table neither promises nor refuses. `readBy` says what reads each: `gateway`, its own code \u2014 which lint:gateway-environment scans in both directions (apps/gateway/src): a read not listed here fails it, and so does a row nothing reads; `opentelemetry`, the OpenTelemetry SDK. `providedBy` says what sets each where the launcher runs a gateway: `launcher` (lint:gateway-environment checks the launcher's boot golden passes it), `image` (the image or its supervisor sets it; checked there too), or `operator` (nothing sets it; an operator may). The conformance suite sets only these, and exercises each by name; one case also sets a variable a gateway's runtime would read for itself (TOKIO_WORKER_THREADS), to show that it changes nothing.",
   "variables": [
     {
       "name": "JWT_SECRET",
@@ -21,13 +21,6 @@
       "providedBy": "launcher",
       "required": true,
       "effect": "That service account's secret. Unset, the gateway refuses to start, and its output never carries the value."
-    },
-    {
-      "name": "SEMIONT_GATEWAY_CONFIG",
-      "readBy": "gateway",
-      "providedBy": "image",
-      "required": true,
-      "effect": "The path of the gateway's configuration document, a JSON GatewayConfig. The image sets it to /etc/semiont/gateway.json, where the launcher mounts the document. Unset, the gateway refuses to start and names the variable; there is no default path."
     },
     {
       "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -83,7 +76,7 @@
       "readBy": "gateway",
       "providedBy": "operator",
       "required": false,
-      "effect": "Any non-empty value writes one `[bus <op>] <channel> …` line to the gateway's output for each frame it accepts or delivers, and each content read."
+      "effect": "Any non-empty value writes one `[bus <op>] <channel> \u2026` line to the gateway's output for each frame it accepts or delivers, and each content read."
     },
     {
       "name": "SUPERVISE_EVENTS",

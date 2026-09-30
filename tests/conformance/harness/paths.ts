@@ -9,7 +9,7 @@ export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..
  * the environment, and talk to it over HTTP. vitest.config.ts provides it to
  * the cases as `gatewayCommand`.
  */
-export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'apps/gateway/target/release/semiont-gateway')];
+export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-gateway')];
 
 /**
  * How a dispatcher is started: the other line. The dispatcher suite runs it

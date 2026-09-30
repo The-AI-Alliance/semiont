@@ -1,0 +1,12 @@
+[package]
+name = "semiont"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "Semiont's Rust SDK: what a client of a knowledge base needs to name its principals, hold its roles and sign in as a service account, as specs/ states it."
+
+[dependencies]
+percent-encoding.workspace = true
+reqwest = { workspace = true, features = ["json"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["sync"] }

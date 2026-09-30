@@ -144,11 +144,13 @@ updates:
       prefix: "sdk-go"
       include: "scope"
 
-  # The gateway's crates (apps/gateway, Rust). One grouped PR: the crates move
-  # together (the OpenTelemetry and hyper families especially), and every bump
-  # runs the conformance suite and the crate licence gate.
+  # The Rust workspace's crates (Cargo.toml at the root: the gateway and the
+  # crates the services share), one lockfile for all of them. One grouped PR:
+  # the crates move together (the OpenTelemetry and hyper families
+  # especially), and every bump runs the conformance suites and the crate
+  # licence gate.
   - package-ecosystem: "cargo"
-    directory: "/apps/gateway"
+    directory: "/"
     cooldown:
       default-days: 5
     schedule:
@@ -167,13 +169,13 @@ updates:
       prefix: "gateway"
       include: "scope"
 
-  # The gateway's Rust toolchain (apps/gateway/rust-toolchain.toml). Its channel
-  # is also the builder image's tag, rust:<channel>-alpine, which local-build.sh,
-  # publish-service-images.yml and build-images.js read from that file, so one
-  # bump moves the compiler everywhere; the cooldown gives the official image
-  # time to be published.
+  # The repository's Rust toolchain (rust-toolchain.toml), which every Rust
+  # build uses. Its channel is also the builder image's tag,
+  # rust:<channel>-alpine, which local-build.sh, publish-service-images.yml and
+  # build-images.js read from that file, so one bump moves the compiler
+  # everywhere; the cooldown gives the official image time to be published.
   - package-ecosystem: "rust-toolchain"
-    directory: "/apps/gateway"
+    directory: "/"
     cooldown:
       default-days: 5
     schedule:
@@ -266,7 +268,7 @@ updates:
   # Service image base images (apps/<svc>/Dockerfile). Grouped into one PR:
   # the make-meaning sidecars share a base image, so an ungrouped bump opens
   # five PRs for one upgrade. The gateway's runtime base is alpine; its
-  # builder's Rust tag comes from apps/gateway/rust-toolchain.toml, which the
+  # builder's Rust tag comes from rust-toolchain.toml, which the
   # rust-toolchain entry updates. Major node updates are ignored because node
   # 26's undici breaks the qdrant client the sidecars carry; drop the ignore
   # when qdrant ships a fix. apps/browser and apps/worker carry no qdrant

@@ -2,10 +2,10 @@
 
 use crate::app::App;
 use crate::http::{Authenticated, json_response};
-use crate::spec::{VERSION, spec};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
+use semiont_core::spec::{VERSION, spec};
 use serde_json::json;
 use std::sync::Arc;
 

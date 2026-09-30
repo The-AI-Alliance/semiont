@@ -24,7 +24,7 @@ Both need a built gateway and `nats-server` (2.10 or later) on `PATH`; the
 dispatcher suite also needs the packages built:
 
 ```bash
-(cd apps/gateway && cargo build --release)
+cargo build --release -p semiont-gateway
 npm run build:packages
 cd tests/conformance
 npm ci
