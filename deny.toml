@@ -27,6 +27,9 @@ ignore = [
 # Two versions of one crate cost size, not safety.
 multiple-versions = "warn"
 wildcards = "deny"
+# The workspace's own crates name each other by path, with no version; none
+# is published, so a path is exact, not a wildcard.
+allow-wildcard-paths = true
 
 [sources]
 unknown-registry = "deny"
