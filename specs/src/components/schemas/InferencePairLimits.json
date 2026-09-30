@@ -1,0 +1,16 @@
+{
+  "type": "object",
+  "description": "The discovered limits of one (provider, model) pair.",
+  "properties": {
+    "provider": {
+      "type": "string",
+      "description": "The inference provider, as the KB config names it (e.g. anthropic, ollama)."
+    },
+    "model": {
+      "type": "string",
+      "description": "The model identifier, as the KB config names it."
+    },
+    "limits": { "$ref": "./InferenceLimits.json" }
+  },
+  "required": ["provider", "model", "limits"]
+}

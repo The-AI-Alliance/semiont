@@ -147,7 +147,7 @@ func startCodespace(u *UI, opts startOptions) int {
 				// registered, name the one command that bridges it.
 				if ref, ok := loadRoots().Secrets["ANTHROPIC_API_KEY"]; ok {
 					fmt.Fprintf(os.Stderr, "  You have a local source registered (%s). Push its current value:\n", refDisplay(ref))
-					fmt.Fprintf(os.Stderr, "    semiont secret push ANTHROPIC_API_KEY --repo %s\n", repo)
+					fmt.Fprintf(os.Stderr, "    semiont settings secret push ANTHROPIC_API_KEY --repo %s\n", repo)
 				} else {
 					fmt.Fprintln(os.Stderr, "  Fix:  gh secret set ANTHROPIC_API_KEY --user --app codespaces   (then select the repo)")
 				}
@@ -490,6 +490,11 @@ type codespaceInstance struct {
 	Repository string `json:"repository"`
 }
 
+// codespaceGone: why a recorded codespace is "deleted". The record cannot say
+// which: a codespace created with another --retention-period, adopted from
+// GitHub's UI, or deleted by hand ends the same way.
+const codespaceGone = "deleted by hand, or by GitHub once it stayed stopped past its retention period"
+
 // classifyCodespaceState is THE decider for "what state is this codespace
 // in", over an already-fetched list. Three call sites used to decide it
 // independently and only status got it right (#1058): absence from a
@@ -714,7 +719,7 @@ func ensureCodespaceAvailable(u *UI, repo, name string) int {
 	// real reason, never poll a ghost. No auto-create: a paid VM is an
 	// explicit choice.
 	if state == "deleted" {
-		u.Fail("Codespace %s no longer exists — deleted by hand, or by GitHub once it stayed stopped past its retention period.", name)
+		u.Fail("Codespace %s no longer exists — %s.", name, codespaceGone)
 		fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+repo+" --delete")
 		fmt.Fprintln(os.Stderr, "  Then create fresh:  semiont start --runtime codespace --repo "+repo)
 		return 1
@@ -1147,15 +1152,16 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 		u.Log("Stopping the issuer forward %s", u.Dim(fmt.Sprintf("(pid %d)", st.Codespace.KeycloakForwardPID)))
 		retireForward(st.Codespace.KeycloakForwardPID)
 	}
+	instances, lerr := ghCodespaceList(st.Codespace.Repo)
+	gone := classifyCodespaceState(instances, lerr, true, st.Codespace.Name) == "deleted"
 	if del {
 		// --delete's goal state is "no codespace, no record". A codespace
-		// GitHub already reaped (720h retention) is halfway there: skip the
-		// delete, forget the record, exit 0 — the old path treated the 404
-		// as failure and left the record a permanent dead end.
-		instances, lerr := ghCodespaceList(st.Codespace.Repo)
-		if classifyCodespaceState(instances, lerr, true, st.Codespace.Name) == "deleted" {
+		// GitHub already removed is halfway there: skip the delete, forget
+		// the record, exit 0 — the old path treated the 404 as failure and
+		// left the record a permanent dead end.
+		if gone {
 			forgetStack("codespace:" + st.Codespace.Repo)
-			u.Ok("GitHub had already removed codespace %s (30-day retention) — record forgotten.", st.Codespace.Name)
+			u.Ok("Codespace %s was already gone (%s) — record forgotten.", st.Codespace.Name, codespaceGone)
 			return 0
 		}
 		u.Log("Deleting codespace %s %s", u.Bold(st.Codespace.Name), u.Dim("("+st.Codespace.Repo+" — destroys its state and credentials)"))
@@ -1178,6 +1184,12 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 		fmt.Println("Codespace deleted — stack, state, and credentials destroyed.")
 		return 0
 	}
+	if gone {
+		// Nothing to stop, and forgetting the record is --delete's job.
+		u.Fail("Codespace %s no longer exists — %s.", st.Codespace.Name, codespaceGone)
+		fmt.Fprintln(os.Stderr, "  Forget the record:  semiont stop --repo "+st.Codespace.Repo+" --delete")
+		return 1
+	}
 	u.Log("Stopping codespace %s %s", u.Bold(st.Codespace.Name), u.Dim("("+st.Codespace.Repo+" — billing halts; state persists)"))
 	u.EchoCmd("gh", "codespace", "stop", "-c", st.Codespace.Name)
 	if out, err := captureBoth("gh", "codespace", "stop", "-c", st.Codespace.Name); err != nil {
@@ -1191,8 +1203,8 @@ func stopCodespace(u *UI, st *StackState, service string, del, dryRun bool) int 
 		verifyPortsReleased(u, st.Ports)
 	}
 	fmt.Println("Codespace stopped — billing halted; state and credentials persist.")
-	fmt.Println("  Resume:   semiont start")
-	fmt.Println("  Destroy:  semiont stop --delete")
+	fmt.Println("  Resume:   semiont start --runtime codespace --repo " + st.Codespace.Repo)
+	fmt.Println("  Destroy:  semiont stop --repo " + st.Codespace.Repo + " --delete")
 	return 0
 }
 

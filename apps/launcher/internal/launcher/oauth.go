@@ -289,7 +289,7 @@ func revokeToken(ctx context.Context, revocationEndpoint, refreshToken string) e
 // is capped at 1 MiB — every document this launcher reads is small, and a
 // misdirected URL must not be read to exhaustion.
 func fetchJSON(target string, timeout time.Duration, out any) error {
-	c := &http.Client{Timeout: timeout}
+	c := &http.Client{Transport: launcherTransport, Timeout: timeout}
 	req, err := http.NewRequest(http.MethodGet, target, nil)
 	if err != nil {
 		return err
@@ -316,7 +316,7 @@ func postForm(ctx context.Context, target string, form url.Values, out any) (int
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Transport: launcherTransport}).Do(req)
 	if err != nil {
 		return 0, err
 	}

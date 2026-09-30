@@ -182,3 +182,26 @@ describe('channel roster matches actual subscriptions (census gate)', () => {
     expect(new Set(seen)).toEqual(new Set(GATHERER_CHANNELS));
   });
 });
+
+// The gatherer holds its model's inference credential, so it answers for that
+// model's limits; nothing without a key could discover them.
+describe('Gatherer reports its model\'s limits', () => {
+  it('answers gather:limits-requested with its own client\'s limits', async () => {
+    const { firstValueFrom, take: takeOne } = await import('rxjs');
+    const limits = { contextTokens: 200_000, maxOutputTokens: 64_000 };
+    const client: InferenceClient = { ...noopInference, type: 'anthropic', modelId: 'm-gatherer', limits: async () => limits };
+    const bus = new EventBus();
+    const actor = new Gatherer(makeStores(), bus, client, 1_000, mockLogger, createMockEmbeddingProvider());
+    await actor.initialize();
+    try {
+      const reply = firstValueFrom(bus.frames('gather:limits-result').pipe(takeOne(1)));
+      bus.emit('gather:limits-requested', {}, { correlationId: 'cid-gatherer' });
+      const frame = await reply;
+      expect(frame.correlationId).toBe('cid-gatherer');
+      expect(frame.payload.response.limits).toEqual([{ provider: 'anthropic', model: 'm-gatherer', limits }]);
+    } finally {
+      await actor.stop();
+      bus.destroy();
+    }
+  });
+});

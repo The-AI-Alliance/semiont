@@ -170,8 +170,13 @@ async function main() {
   });
 
   const workers = await Promise.all(
-    Array.from(groups.values()).map((group) =>
-      startAgentWorker({ group, gatewayBaseUrl, credential, contentReads, logger }),
+    // The first agent reports every group's limits: the gateway delivers only
+    // the first reply to a request, so one agent answers for the pool.
+    Array.from(groups.values()).map((group, i, all) =>
+      startAgentWorker({
+        group, gatewayBaseUrl, credential, contentReads, logger,
+        reportsLimitsOf: i === 0 ? all.map((g) => g.client) : [],
+      }),
     ),
   );
 

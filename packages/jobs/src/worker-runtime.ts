@@ -18,7 +18,7 @@ import { startWorkerProcess } from './worker-process';
 import type { MarkCommitAwaits, DescriptorReadAwaits, DurabilityProbeAwaits } from './worker-process';
 import type { WorkerVitals, JobClaimAwaits } from './job-claim-adapter';
 import type { ConsultAnchoredTextAwaits } from './workers/detection/prepare-detection';
-import type { InferenceClient } from '@semiont/inference';
+import { answerLimitsRequests, type InferenceClient, type LimitsSource } from '@semiont/inference';
 import { hostname } from 'os';
 import {
   replyChannelsFor,
@@ -81,6 +81,12 @@ export interface WorkerRuntimeOptions {
    */
   contentReads: ContentReads;
   logger: Logger;
+  /**
+   * The clients whose limits this agent reports on `job:limits-requested`:
+   * every group's, for the one agent that answers for its pool, and none for
+   * the rest. The gateway delivers only the first reply to a request.
+   */
+  reportsLimitsOf: readonly LimitsSource[];
 }
 
 /** Per-agent liveness: the adapter's snapshot plus this agent's identity. */
@@ -251,6 +257,17 @@ export const WORKER_CONSUMED_BROADCASTS = [
 ] as const satisfies readonly (keyof EventMap)[];
 
 /**
+ * The requests a worker ANSWERS. It holds the inference credentials, so it is
+ * the one service that can discover its models' limits from their providers.
+ * One agent in a pool answers for all of them (`reportsLimitsOf`): only its
+ * transport subscribes these, so no other agent receives a request it would
+ * drop.
+ */
+export const WORKER_ANSWERED_OPERATIONS = [
+  'job:limits-requested',
+] as const satisfies readonly BusOperationKey[];
+
+/**
  * The global SSE channel set for a worker's transport: the whole manifest,
  * stated once and passed at construction. Nothing widens it afterwards.
  */
@@ -362,7 +379,7 @@ export async function authenticateAgent(opts: {
 export async function startAgentWorker(
   opts: WorkerRuntimeOptions,
 ): Promise<AgentWorkerHandle> {
-  const { group, gatewayBaseUrl, credential, contentReads, logger } = opts;
+  const { group, gatewayBaseUrl, credential, contentReads, reportsLimitsOf, logger } = opts;
   const { inference } = group;
 
   const { protocol, host, port } = parseGatewayUrl(gatewayBaseUrl);
@@ -407,8 +424,9 @@ export async function startAgentWorker(
     token$,
     tokenRefresher: () => session.refresh().then((t) => t ?? null),
     // Only the reply channels this process awaits — not the full bridged
-    // set. See WORKER_AWAITED_OPERATIONS.
-    channels: WORKER_CHANNELS,
+    // set. See WORKER_AWAITED_OPERATIONS. The agent that reports its pool's
+    // limits also subscribes the requests it answers.
+    channels: reportsLimitsOf.length > 0 ? [...WORKER_CHANNELS, ...WORKER_ANSWERED_OPERATIONS] : WORKER_CHANNELS,
   });
   const content = new HttpContentTransport(transport);
   const client = new SemiontClient(transport, content, transport);
@@ -454,6 +472,10 @@ export async function startAgentWorker(
     logger,
   });
 
+  const limitsResponder = reportsLimitsOf.length > 0
+    ? answerLimitsRequests(transport, 'job:limits-requested', reportsLimitsOf, logger)
+    : undefined;
+
   logger.info('Agent ready', {
     did,
     provider: inference.type,
@@ -471,6 +493,7 @@ export async function startAgentWorker(
       ...adapter.vitals(),
     }),
     dispose: async () => {
+      limitsResponder?.unsubscribe();
       adapter.dispose();
       await session.dispose();
     },

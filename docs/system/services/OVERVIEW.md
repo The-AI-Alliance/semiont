@@ -156,7 +156,7 @@ name = "semiont"
 user = "postgres"
 ```
 
-The config names no password for the Neo4j and PostgreSQL the launcher runs: it generates one for each, keeps it per knowledge base, and refuses a config that names one. A daemon you run yourself takes its password from a `${VAR}` reference, which you export or register with `semiont secret set`.
+The config names no password for the Neo4j and PostgreSQL the launcher runs: it generates one for each, keeps it per knowledge base, and refuses a config that names one. A daemon you run yourself takes its password from a `${VAR}` reference, which you export or register with `semiont settings secret set`.
 
 Note the split: `[environments.local.inference.<provider>]` carries a provider's credentials, while `[environments.local.{actors.<actor>,workers.<pool>}.inference]` binds one consumer to a `(type, model)` pair. That is what lets a lighter model serve high-volume annotation workers while the Gatherer uses a stronger one.
 

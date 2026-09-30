@@ -159,13 +159,12 @@ func RejectedFail(u *UI, verb string, rej *SessionRejected) int {
 }
 
 // VerbTarget is what every knowledge verb needs: which stack, its gateway
-// base URL, the KB root, and a session that keeps itself authorized. One
+// base URL, and a session that keeps itself authorized. One
 // place, because nine verbs asking the same questions nine different ways is
 // how they drift. Refusals are printed here with their fix-it lines; ok=false
 // means stop.
 type VerbTarget struct {
 	base string // gateway base URL (local record, or a codespace's forward)
-	root string // KB root, "" for a codespace target with no local clone
 	sess *Session
 }
 
@@ -188,7 +187,6 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 			return VerbTarget{}, false
 		}
 		key = "codespace:" + target.Codespace.Repo
-		t.root = CwdKBRoot()
 	} else {
 		local := ss.Stacks["local"]
 		if local == nil {
@@ -198,10 +196,6 @@ func VerbSession(u *UI, verb, repo string, wantLocal bool) (VerbTarget, bool) {
 		}
 		t.base = GatewayBase(local)
 		key = "local"
-		t.root = local.KBRoot
-		if t.root == "" {
-			t.root = CwdKBRoot()
-		}
 	}
 	if t.sess, ok = LoadSession(u, key); !ok {
 		return VerbTarget{}, false
