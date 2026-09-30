@@ -1,28 +1,41 @@
-# scripts/container — Container Image Management
+# scripts/container — Container Images
 
-Build and manage Semiont container images. Auto-detects Apple Container, Docker,
-or Podman (in that order). Override with `CONTAINER_RUNTIME=docker` (or `podman`).
+Scripts that build Semiont's container images, run inside them, or check them.
 
-## Scripts
+## Building and managing images (run on the host)
 
 | Script | Purpose |
 |--------|---------|
-| `build-images.js` | Build container images for gateway/Browser |
-| `container-utils.js` | List and clean semiont container images |
+| `build-images.js` | Builds the gateway and Browser images — the gateway with the toolchain `apps/gateway/rust-toolchain.toml` pins. The six Node service images are built by `scripts/ci/local-build.sh` and the image publish workflow, not here. |
+| `container-utils.js` | Lists and removes semiont images. |
 
-## Usage
+Both auto-detect Apple Container, Docker, or Podman (in that order). Override with
+`CONTAINER_RUNTIME=docker` (or `podman`).
 
 ```bash
-npm run container:build           # Build all images
-npm run container:build:gateway   # Build gateway only
-npm run container:build:browser   # Build browser only
+npm run container:build           # Build the gateway and Browser images
+npm run container:build:gateway   # Build the gateway only
+npm run container:build:browser   # Build the Browser only
 npm run container:images          # List semiont images
 npm run container:clean           # Remove semiont images
 ```
 
-Prefix with `docker:` or `podman:` to force a specific runtime:
+The `podman:` variants (`npm run podman:build`, …) force Podman. The `docker:`
+variants are aliases of the `container:` ones and auto-detect the same way; to
+force Docker, set `CONTAINER_RUNTIME=docker`.
 
-```bash
-npm run docker:build
-npm run podman:build
-```
+## Inside the images
+
+Copied into images by their Dockerfiles; the build context is the repository root.
+
+| Script | Purpose | Images |
+|--------|---------|--------|
+| `boot.sh` | The entrypoint, run as PID 1 under tini. With `SEMIONT_SUPERVISE` set — the launcher sets it for local stacks — it runs the image's `CMD` under `supervise.sh`; unset, it execs the `CMD` directly, so a published image behaves like a conventional container. | all seven services and the Browser |
+| `supervise.sh` | The in-container supervisor: restarts a crashed child, probes and kills a hung one, fails fast on a deterministic boot refusal instead of looping, and forwards `TERM` from `semiont stop`. | all seven services and the Browser |
+| `patch-qdrant-undici.sh` | Installer-stage step. Replaces the `undici` that `@qdrant/js-client-rest` pins for itself with a patched release, because `npm install -g` ignores `overrides`. **Self-retiring:** it exits non-zero once there is nothing left to patch — when that happens, delete it and its `RUN` lines rather than loosening the check. | archivist, dispatcher, librarian, smelter, weaver |
+
+## Checking a built image
+
+| Script | Purpose |
+|--------|---------|
+| `check-gateway-image.sh <image> [runtime]` | Checks what a built gateway image promises: no source in it, a first `/api/health` 200 within its start bound, and its `HEALTHCHECK` passing against the serving gateway. Run by `scripts/ci/local-build.sh` and the image publish workflow. |

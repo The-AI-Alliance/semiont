@@ -129,7 +129,6 @@ const MOCK_COLLABORATORS = [
       model: 'claude-haiku-4-5',
     },
     servesJobTypes: ['reference-annotation', 'generation'],
-    limits: { contextTokens: 200_000, maxOutputTokens: 64_000 },
   },
   {
     agent: {
@@ -142,6 +141,19 @@ const MOCK_COLLABORATORS = [
     // actors-only (gatherer/matcher): no servesJobTypes — must stay absent.
   },
 ];
+
+/**
+ * What each key holder reports: the worker for the model its jobs use, the
+ * librarian's matcher for the actor-only model, and a gatherer that reports
+ * nothing.
+ */
+const HAIKU_LIMITS = { contextTokens: 200_000, maxOutputTokens: 64_000 };
+const SONNET_LIMITS = { contextTokens: 200_000, maxOutputTokens: 32_000 };
+const MOCK_LIMITS: Record<string, unknown[]> = {
+  'job:limits-requested': [{ provider: 'anthropic', model: 'claude-haiku-4-5', limits: HAIKU_LIMITS }],
+  'match:limits-requested': [{ provider: 'anthropic', model: 'claude-sonnet-4-5', limits: SONNET_LIMITS }],
+  'gather:limits-requested': [],
+};
 
 /**
  * Test harness: a mock ActorStateUnit whose responses are parameterized so
@@ -220,6 +232,13 @@ function createHarness(opts: HarnessOptions = {}) {
       case 'browse:agents-requested': {
         resultChannel = 'browse:agents-result';
         response = { agents: MOCK_COLLABORATORS };
+        break;
+      }
+      case 'job:limits-requested':
+      case 'gather:limits-requested':
+      case 'match:limits-requested': {
+        resultChannel = channel.replace('-requested', '-result');
+        response = { limits: MOCK_LIMITS[channel] };
         break;
       }
       default:
@@ -925,7 +944,11 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       browse.dispose();
 
-      expect(events).toEqual(['next', 'complete']);
+      // The directory, then the directory with the limits joined: each
+      // arrival is a value. Disposal completes the subscriber either way.
+      expect(events.at(-1)).toBe('complete');
+      expect(events).not.toContain('error');
+      expect(events.filter((e) => e === 'next').length).toBeGreaterThan(0);
     });
 
     it('bus:resume-gap refetches the roster alongside the other KB-wide singletons', async () => {
@@ -939,6 +962,48 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;
       expect(agentFetches).toBe(2);
+    });
+
+    it('joins each key holder\'s limits onto the entries for its model', async () => {
+      const { browse } = createHarness();
+
+      const entries = await firstValueFrom(browse.agents().pipe(
+        filter(isReady),
+        map((s) => s.value),
+        filter((es) => es.every((e) => e.limits !== undefined)),
+      ));
+
+      expect(entries.map((e) => [e.agent.model, e.limits])).toEqual([
+        ['claude-haiku-4-5', HAIKU_LIMITS],
+        ['claude-sonnet-4-5', SONNET_LIMITS],
+      ]);
+      // The entry is otherwise the directory's, unreshaped.
+      expect(entries[0]!.servesJobTypes).toEqual(['reference-annotation', 'generation']);
+    });
+
+    it('a silent key holder does not hold the directory, and leaves only its models without limits', async () => {
+      const { browse } = createHarness({ silentChannels: ['job:limits-requested'], busTimeoutMs: 60_000 });
+
+      const first = await firstDefined(browse.agents());
+      expect(first.map((e) => e.agent.model)).toEqual(['claude-haiku-4-5', 'claude-sonnet-4-5']);
+
+      await flush();
+      const entries = await firstDefined(browse.agents());
+      expect(entries.find((e) => e.agent.model === 'claude-sonnet-4-5')?.limits).toEqual(SONNET_LIMITS);
+      expect(entries.find((e) => e.agent.model === 'claude-haiku-4-5')).not.toHaveProperty('limits');
+    });
+
+    it('bus:resume-gap asks the key holders again', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.agents());
+      await flush();
+
+      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'retention-exceeded'));
+      await flush();
+
+      for (const op of ['job:limits-requested', 'gather:limits-requested', 'match:limits-requested']) {
+        expect(emitSpy.mock.calls.filter(([ch]) => ch === op).length, op).toBe(2);
+      }
     });
 
     it('threads busTimeoutMs: an unanswered roster request rejects bus.timeout at the configured deadline', async () => {

@@ -34,8 +34,11 @@ Identity & auth:
   useradd   Create or update a user in the running stack
   login     Sign in through the knowledge base's issuer (device grant; tokens stored, never a password)
   logout    End the stored session (server best-effort, local token forgotten)
-  secret    Register where config secrets come from (pointers, never values)
   identity  Reconcile a running realm's service-account clients (identity sync)
+
+Settings:
+  settings  Every setting the launcher keeps: the runtime, where secrets come
+            from and where they are kept, each knowledge base's config
 
 Knowledge base (need login):
   browse    Read the KB: resources, annotations, entity types
@@ -98,8 +101,8 @@ func main() {
 		code = verbs.Frame(rest)
 	case "listen":
 		code = verbs.Listen(rest)
-	case "secret":
-		code = launcher.Secret(rest)
+	case "settings":
+		code = launcher.Settings(rest)
 	case "identity":
 		code = launcher.Identity(rest)
 	case "status":

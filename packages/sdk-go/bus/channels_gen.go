@@ -267,6 +267,15 @@ const (
 	// payload: MatchSearchFailed
 	MatchSearchFailed Channel = "match:search-failed"
 
+	// payload: InferenceLimitsRequest
+	MatchLimitsRequested Channel = "match:limits-requested"
+
+	// payload: InferenceLimitsResult
+	MatchLimitsResult Channel = "match:limits-result"
+
+	// not emittable (no registered schema)
+	MatchLimitsFailed Channel = "match:limits-failed"
+
 	// payload: GatherAnnotationRequest
 	GatherRequested Channel = "gather:requested"
 
@@ -293,6 +302,15 @@ const (
 
 	// not emittable (no registered schema)
 	GatherSummaryFailed Channel = "gather:summary-failed"
+
+	// payload: InferenceLimitsRequest
+	GatherLimitsRequested Channel = "gather:limits-requested"
+
+	// payload: InferenceLimitsResult
+	GatherLimitsResult Channel = "gather:limits-result"
+
+	// not emittable (no registered schema)
+	GatherLimitsFailed Channel = "gather:limits-failed"
 
 	// payload: BrowseResourceRequest
 	BrowseResourceRequested Channel = "browse:resource-requested"
@@ -501,6 +519,15 @@ const (
 	// payload: JobCancelCommand
 	JobCancel Channel = "job:cancel"
 
+	// payload: InferenceLimitsRequest
+	JobLimitsRequested Channel = "job:limits-requested"
+
+	// payload: InferenceLimitsResult
+	JobLimitsResult Channel = "job:limits-result"
+
+	// not emittable (no registered schema)
+	JobLimitsFailed Channel = "job:limits-failed"
+
 	// payload: JobStatusRequest
 	JobStatusRequested Channel = "job:status-requested"
 
@@ -639,11 +666,15 @@ var ChannelSchemas = map[Channel]string{
 	MatchSearchRequested:             "MatchSearchRequest",
 	MatchSearchResults:               "MatchSearchResult",
 	MatchSearchFailed:                "MatchSearchFailed",
+	MatchLimitsRequested:             "InferenceLimitsRequest",
+	MatchLimitsResult:                "InferenceLimitsResult",
 	GatherRequested:                  "GatherAnnotationRequest",
 	GatherComplete:                   "GatherAnnotationComplete",
 	GatherResourceRequested:          "GatherResourceRequest",
 	GatherResourceComplete:           "GatherResourceComplete",
 	GatherSummaryRequested:           "GatherSummaryRequest",
+	GatherLimitsRequested:            "InferenceLimitsRequest",
+	GatherLimitsResult:               "InferenceLimitsResult",
 	BrowseResourceRequested:          "BrowseResourceRequest",
 	BrowseResourceResult:             "BrowseResourceResult",
 	BrowseAnchoredTextRequested:      "BrowseAnchoredTextRequest",
@@ -692,6 +723,8 @@ var ChannelSchemas = map[Channel]string{
 	JobQueued:                        "JobQueuedEvent",
 	JobCancelRequested:               "JobCancelRequest",
 	JobCancel:                        "JobCancelCommand",
+	JobLimitsRequested:               "InferenceLimitsRequest",
+	JobLimitsResult:                  "InferenceLimitsResult",
 	JobStatusRequested:               "JobStatusRequest",
 	JobCreate:                        "JobCreateCommand",
 	JobClaim:                         "JobClaimCommand",

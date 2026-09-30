@@ -45,9 +45,8 @@ import { readTagSchemasProjection } from './views/tag-schemas-reader';
 import { AnnotationContext } from './annotation-context';
 import { ResourceContext } from './resource-context';
 import { assembleResourceGraph } from './resource-graph';
-import type { MakeMeaningConfig } from './config';
+import type { MakeMeaningConfig, RosterConfig } from './config';
 import { deriveAgentRoster } from './agent-roster';
-import type { LimitsDiscovery } from './limits-discovery';
 import type { EmbeddingProvider } from '@semiont/vectors';
 
 type DirectoryEntry = components['schemas']['DirectoryEntry'];
@@ -93,8 +92,9 @@ export class Browser {
     private eventBus: EventBus,
     private project: SemiontProject,
     private config: MakeMeaningConfig,
-    /** Discovered per-(provider, model) ceilings for the roster (INFERENCE-LIMITS-EXPOSURE P2). */
-    private limitsDiscovery: LimitsDiscovery,
+    /** Who serves each role — provider and model, no credential. The
+     *  directory's limits come from the services that hold the keys. */
+    private roster: RosterConfig,
     /** For the semantic search fallback — mandatory (MANDATORY-EMBEDDING D0). */
     private embeddingProvider: EmbeddingProvider,
     logger: Logger,
@@ -468,12 +468,10 @@ export class Browser {
   private async handleBrowseAgents(_event: EventMap['browse:agents-requested'], correlationId: string | undefined): Promise<void> {
     try {
       // Derived per request from the config sections that route work — the
-      // declared roster, cheap enough that no caching layer is warranted.
-      // Enrichment attaches discovered ceilings where the pool answers
-      // within its budget; every failure shape degrades to an entry
-      // without `limits` (D3) — the reply itself never fails or blocks
-      // on a provider.
-      const agents = await this.limitsDiscovery.enrich(deriveAgentRoster(this.config, this.project.siteDomain()));
+      // declared roster, cheap enough that no caching layer is warranted. It
+      // carries no limits: the worker and the librarian, which hold the
+      // inference credentials, report those (job:/gather:/match:limits).
+      const agents = deriveAgentRoster(this.roster, this.project.siteDomain());
       this.eventBus.emit('browse:agents-result', {
         response: { agents },
       }, { correlationId });

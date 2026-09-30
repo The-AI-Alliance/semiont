@@ -830,12 +830,11 @@ func (x *liveExec) record(role, id, image, provided, endpoint, driver string) {
 			}
 		}
 	}
-	var models, ollamaServed []string
+	var models []servedModel
 	if x.plan != nil {
 		models = x.plan.Roles[role].Models
-		ollamaServed = x.plan.Roles[role].OllamaServed
 	}
-	x.st.recordService(role, id, image, provided, endpoint, driver, models, ollamaServed)
+	x.st.recordService(role, id, image, provided, endpoint, driver, models)
 }
 
 // providerOf reads back how an earlier step in THIS run resolved a role.
@@ -1458,7 +1457,7 @@ func (x *planExec) serviceClientSecret(_, svc string) (string, bool) {
 }
 
 func (x *planExec) daemonPassword(_, role string) (string, bool) {
-	return "<" + daemonPasswords[role].file + ">", true
+	return "<" + daemonPasswords[role].custody + ">", true
 }
 
 // The clients are read OUT OF the document rather than described alongside it.

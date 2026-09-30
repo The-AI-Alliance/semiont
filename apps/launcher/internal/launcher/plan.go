@@ -44,14 +44,13 @@ func (p presence) String() string {
 type rolePlan struct {
 	Role             string
 	Presence         presence
-	Driver           string   // config `type` (catalog key)
-	Image            string   // catalog, for provided/host-fallback launches
-	Address          string   // external host, for reachability probes
-	Port             int      // primary port (config, else driver default)
-	SharesOllamaWith string   // role under which the launcher runs the Ollama this one uses
-	Models           []string // models this role uses, whoever serves them (sorted, deduped)
-	OllamaServed     []string // the subset of Models that OLLAMA serves — the only ones with an install state
-	Env              []string // container env derived from config (no credential: those are added at launch)
+	Driver           string        // config `type` (catalog key)
+	Image            string        // catalog, for provided/host-fallback launches
+	Address          string        // external host, for reachability probes
+	Port             int           // primary port (config, else driver default)
+	SharesOllamaWith string        // role under which the launcher runs the Ollama this one uses
+	Models           []servedModel // models this role uses, each with the provider that serves it
+	Env              []string      // container env derived from config (no credential: those are added at launch)
 	// User: the login a launcher-kept password belongs to (graph: NEO4J_AUTH's
 	// user half).
 	User string
@@ -59,6 +58,9 @@ type rolePlan struct {
 	// [database] password as written, resolved at launch by the shared rule
 	// (SECRET-DELIVERY P4, "A's resolver for ones it doesn't").
 	ExternalDBPassword string
+	// APIKey: inference on a remote provider — its [inference] apiKey as
+	// written, resolved by the shared rule for the remote-model check.
+	APIKey string
 	// CmdExtra: arguments appended AFTER the driver's own command. The
 	// messaging role uses it for `-c` when the broker is authenticated; the
 	// path is fixed, so the derivation can state it and the flow only has to
@@ -108,27 +110,30 @@ type modelNeed struct {
 	Roles []string // roleInference and/or roleEmbedding
 }
 
-// ollamaModels: the models this config asks Ollama to serve — bindings whose
-// inference type is ollama, plus an ollama-typed embedding. These are exactly
-// the models a "pull" is defined for.
-func ollamaBindingModels(env *envConfig) []string {
-	seen := map[string]bool{}
-	// Non-nil even when empty: "no ollama-served models here" is a real
-	// answer that must survive a round trip through the record, distinct
-	// from "this record predates the field".
-	out := []string{}
-	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
-		for _, b := range bindings {
-			if b.Inference.Type == "ollama" && b.Inference.Model != "" && !seen[b.Inference.Model] {
-				seen[b.Inference.Model] = true
-				out = append(out, b.Inference.Model)
-			}
+// servedModel: one model a role uses and the provider that serves it — the
+// config `type` of the binding or section that names it. A role's driver does
+// not say this: a config can point workers at Anthropic and one job type at
+// Ollama, and the inference row then lists Claude under a driver of "ollama".
+// The pair is also how key holders report limits.
+type servedModel struct {
+	Model    string `json:"model"`
+	Provider string `json:"provider"`
+}
+
+// servedBy: the names of the models one provider serves.
+func servedBy(models []servedModel, provider string) []string {
+	var out []string
+	for _, m := range models {
+		if m.Provider == provider {
+			out = append(out, m.Model)
 		}
 	}
-	sort.Strings(out)
 	return out
 }
 
+// ollamaModels: the models this config asks Ollama to serve — bindings whose
+// inference type is ollama, plus an ollama-typed embedding. These are exactly
+// the models a "pull" is defined for.
 func ollamaModels(env *envConfig) []modelNeed {
 	idx := map[string]*modelNeed{}
 	var names []string
@@ -222,21 +227,27 @@ func remoteInferenceDriver(env *envConfig) string {
 }
 
 // bindingModels: every model the config's actors and workers bind for
-// inference, sorted and deduped. Deliberately NOT filtered by provider type:
-// these are the models this stack performs inference with, whoever serves
-// them — a mixed config lists all of them.
-func bindingModels(env *envConfig) []string {
-	seen := map[string]bool{}
-	var out []string
+// inference, with its provider, sorted and deduped. Deliberately NOT filtered
+// by provider: these are the models this stack performs inference with,
+// whoever serves them — a mixed config lists all of them.
+func bindingModels(env *envConfig) []servedModel {
+	seen := map[servedModel]bool{}
+	var out []servedModel
 	for _, bindings := range []map[string]bindingCfg{env.Actors, env.Workers} {
 		for _, b := range bindings {
-			if m := b.Inference.Model; m != "" && !seen[m] {
+			m := servedModel{Model: b.Inference.Model, Provider: b.Inference.Type}
+			if m.Model != "" && !seen[m] {
 				seen[m] = true
 				out = append(out, m)
 			}
 		}
 	}
-	sort.Strings(out)
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Model != out[j].Model {
+			return out[i].Model < out[j].Model
+		}
+		return out[i].Provider < out[j].Provider
+	})
 	return out
 }
 
@@ -648,6 +659,17 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			// so the staged config interpolates the two names.
 			rp.CmdExtra = []string{"-c", natsConfPath}
 		} else {
+			// Semiont's clients authenticate to a broker by username and
+			// password only; one somebody else runs, reached without them,
+			// lets anyone who reaches it read and write the job queue and
+			// the signal plane.
+			if user == "" {
+				section := "signal"
+				if jobsWantBroker {
+					section = "jobs"
+				}
+				return nil, secErr(section, "broker %s is not run by the launcher, so it needs credentials — set %q and %q", host, "user", "password")
+			}
 			rp.Presence = presenceExternal
 			rp.Address = host
 		}
@@ -792,11 +814,7 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 			Role: "embedding", Presence: presenceExternal,
 			Driver: e.Type, Address: host, Port: port,
 		}
-		rp.Models = []string{e.Model}
-		rp.OllamaServed = []string{}
-		if e.Type == "ollama" {
-			rp.OllamaServed = []string{e.Model}
-		}
+		rp.Models = []servedModel{{Model: e.Model, Provider: e.Type}}
 		// WHO runs the local Ollama an ollama embedding needs? If any actor/
 		// worker binding is ollama-typed, the inference role runs it and the
 		// embedding rides along (SharesOllamaWith names that, so both rows
@@ -851,7 +869,8 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		plan.Roles["inference"] = rolePlan{
 			Role: "inference", Presence: presenceExternal,
 			Driver: driver, Address: host, Port: port,
-			Models: bindingModels(env), OllamaServed: []string{},
+			Models: bindingModels(env),
+			APIKey: env.Inference[driver].APIKey,
 		}
 	case !bindingsUseOllama:
 		plan.Roles["inference"] = rolePlan{Role: "inference", Presence: presenceAbsent}
@@ -877,10 +896,6 @@ func derivePlan(env *envConfig, envName, path string, keycloakPort int) (*launch
 		}
 		rp := rolePlan{Role: "inference", Driver: "ollama", Port: port, Image: img}
 		rp.Models = bindingModels(env)
-		// Only the ollama-typed bindings have an install state. A Claude in
-		// this list is served by Anthropic and must never be checked against
-		// — let alone "pulled" into — Ollama.
-		rp.OllamaServed = ollamaBindingModels(env)
 		if host == "${OLLAMA_HOST}" {
 			rp.Presence = presenceHostPreferred
 		} else {

@@ -29,7 +29,7 @@ import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
 import { EventBus, annotationId as makeAnnotationId, resourceId, errField } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
-import type { InferenceClient } from '@semiont/inference';
+import { answerLimitsRequests, type InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import { AnnotationContext, type AnnotationGatherReads } from './annotation-context';
 import { LLMContext, type ResourceGatherReads } from './llm-context';
@@ -51,6 +51,7 @@ export type GathererStores = AnnotationGatherReads & ResourceGatherReads;
 export const GATHERER_CHANNELS = [
   'gather:requested',
   'gather:resource-requested',
+  'gather:limits-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
 export class Gatherer {
@@ -101,6 +102,8 @@ export class Gatherer {
     this.subscriptions.push(
       annotationGather$.subscribe({ error: errorHandler }),
       resourceGather$.subscribe({ error: errorHandler }),
+      // It holds its model's credential, so it reports that model's limits.
+      answerLimitsRequests(this.eventBus, 'gather:limits-requested', [this.inferenceClient], this.logger),
     );
   }
 

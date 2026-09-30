@@ -65,8 +65,10 @@ func gatewayNamedVars(env *envConfig) []string {
 	if env.Signal == nil || env.Signal.Type != "nats" {
 		return names
 	}
-	for _, v := range []struct{ field, value string }{{"signal.user", env.Signal.User}, {"signal.password", env.Signal.Password}} {
-		if name, err := secretName(v.field, v.value); err == nil && name != nil {
+	user, _ := secretName("signal.user", env.Signal.User)
+	password, _ := secretName("signal.password", env.Signal.Password)
+	for _, name := range []*string{user, password} {
+		if name != nil {
 			names = append(names, *name)
 		}
 	}

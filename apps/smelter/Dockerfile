@@ -15,13 +15,17 @@
 # no neo4j-driver.
 #
 # Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
-# qdrant client's undici@6, which @semiont/make-meaning can load transitively at
-# connect time. Keep in sync with the gateway image.
+# qdrant client's own undici, which @semiont/make-meaning can load transitively
+# at connect time.
 FROM node:24-alpine AS installer
 ARG NPM_REGISTRY=https://registry.npmjs.org
 ARG SEMIONT_VERSION=latest
+# @qdrant/js-client-rest pins undici exactly; `npm install -g` ignores overrides,
+# so the pinned copy is replaced after install. See the script.
+COPY scripts/container/patch-qdrant-undici.sh /tmp/patch-qdrant-undici.sh
 RUN npm config set registry $NPM_REGISTRY && \
     npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
+    sh /tmp/patch-qdrant-undici.sh && \
     npm cache clean --force
 
 # Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
