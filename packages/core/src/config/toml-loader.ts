@@ -425,36 +425,45 @@ export function loadTomlConfig(
     };
   }
 
-  function actorInference(): ActorInferenceConfig | undefined {
+  // Which section serves each role is decided once, here, and read twice:
+  // keyless, as the roster (`workers`/`actors`: who serves a role, which the
+  // archivist lists without holding any credential), and merged with
+  // [inference], as the services that call the model need it
+  // (`_metadata.workers`/`_metadata.actors`).
+  function selectedActors(): [keyof ActorInferenceConfig, InferenceConfig][] {
     const makeMeaningSection = section('make-meaning');
     const actorsSection = section('actors') ?? {};
-    function resolveActor(fromMakeMeaning?: InferenceConfig, fromActors?: InferenceConfig): InferenceConfig | undefined {
-      const base = fromMakeMeaning ?? fromActors ?? makeMeaningSection?.default?.inference;
-      return base ? mergeWithFlatInference(base) : undefined;
+    const selected: [keyof ActorInferenceConfig, InferenceConfig][] = [];
+    for (const actor of ['gatherer', 'matcher'] as const) {
+      const inference = makeMeaningSection?.actors?.[actor]?.inference
+        ?? actorsSection[actor]?.inference
+        ?? makeMeaningSection?.default?.inference;
+      if (inference) selected.push([actor, inference]);
     }
-    const actors: ActorInferenceConfig = {};
-    const gatherer = resolveActor(makeMeaningSection?.actors?.gatherer?.inference, actorsSection['gatherer']?.inference);
-    if (gatherer) actors.gatherer = gatherer;
-    const matcher = resolveActor(makeMeaningSection?.actors?.matcher?.inference, actorsSection['matcher']?.inference);
-    if (matcher) actors.matcher = matcher;
-    return Object.keys(actors).length > 0 ? actors : undefined;
+    return selected;
+  }
+
+  function selectedWorkers(): [keyof WorkerInferenceConfig, InferenceConfig][] {
+    const workersSection = section('workers') ?? {};
+    const roles = ['default', 'reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'] as const;
+    return roles.flatMap((role) => {
+      const inference = workersSection[role]?.inference;
+      return inference ? [[role, inference] as [keyof WorkerInferenceConfig, InferenceConfig]] : [];
+    });
+  }
+
+  function actorInference(): ActorInferenceConfig | undefined {
+    const selected = selectedActors();
+    return selected.length > 0
+      ? Object.fromEntries(selected.map(([actor, inference]) => [actor, mergeWithFlatInference(inference)]))
+      : undefined;
   }
 
   function workerInference(): WorkerInferenceConfig | undefined {
-    const workersSection = section('workers') ?? {};
-    const workers: WorkerInferenceConfig = {};
-    const defaultWorkerInference = workersSection['default']?.inference;
-    if (defaultWorkerInference) {
-      workers.default = mergeWithFlatInference(defaultWorkerInference);
-    }
-    const workerTypes = ['reference-annotation', 'highlight-annotation', 'assessment-annotation', 'comment-annotation', 'tag-annotation', 'generation'] as const;
-    for (const wt of workerTypes) {
-      const specific = workersSection[wt]?.inference;
-      if (specific) {
-        workers[wt] = mergeWithFlatInference(specific);
-      }
-    }
-    return Object.keys(workers).length > 0 ? workers : undefined;
+    const selected = selectedWorkers();
+    return selected.length > 0
+      ? Object.fromEntries(selected.map(([role, inference]) => [role, mergeWithFlatInference(inference)]))
+      : undefined;
   }
 
   // Inference providers. Two formats:
@@ -496,31 +505,17 @@ export function loadTomlConfig(
     return providers;
   }
 
-  // Top-level workers/actors maps: type and model only.
+  // The roster: each role's provider and model, and no credential.
+  function keyless(selected: [string, InferenceConfig][]): Record<string, { inference: { type: InferenceConfig['type']; model: string } }> | undefined {
+    return selected.length > 0
+      ? Object.fromEntries(selected.map(([role, i]) => [role, { inference: { type: i.type, model: i.model } }]))
+      : undefined;
+  }
   function topLevelWorkers(): EnvironmentConfig['workers'] | undefined {
-    const out: NonNullable<EnvironmentConfig['workers']> = {};
-    for (const [name, w] of Object.entries(section('workers') ?? {})) {
-      if (w.inference) {
-        out[name] = { inference: { type: w.inference.type, model: w.inference.model } };
-      }
-    }
-    return Object.keys(out).length > 0 ? out : undefined;
+    return keyless(selectedWorkers());
   }
   function topLevelActors(): EnvironmentConfig['actors'] | undefined {
-    const out: NonNullable<EnvironmentConfig['actors']> = {};
-    for (const [name, a] of Object.entries(section('actors') ?? {})) {
-      if (a.inference) {
-        out[name] = { inference: { type: a.inference.type, model: a.inference.model } };
-      }
-    }
-    const makeMeaningSection = section('make-meaning');
-    if (makeMeaningSection?.actors?.gatherer?.inference) {
-      out['gatherer'] = { inference: { type: makeMeaningSection.actors.gatherer.inference.type, model: makeMeaningSection.actors.gatherer.inference.model } };
-    }
-    if (makeMeaningSection?.actors?.matcher?.inference) {
-      out['matcher'] = { inference: { type: makeMeaningSection.actors.matcher.inference.type, model: makeMeaningSection.actors.matcher.inference.model } };
-    }
-    return Object.keys(out).length > 0 ? out : undefined;
+    return keyless(selectedActors());
   }
 
   // 8. Map to EnvironmentConfig. Every part is built at its first read, and

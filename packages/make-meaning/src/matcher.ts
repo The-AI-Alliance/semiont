@@ -17,7 +17,7 @@ import type { EventMap, GatheredContext, GraphViews, Logger, ResourceDescriptor 
 import { type EventBus, resourceId, errField, deriveViews } from '@semiont/core';
 import { getResourceId, getResourceEntityTypes } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
-import type { InferenceClient } from '@semiont/inference';
+import { answerLimitsRequests, type InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider, VectorSearchResult, VectorStore } from '@semiont/vectors';
 import type { GraphDatabase } from '@semiont/graph';
 import type { ViewStorage } from '@semiont/event-sourcing';
@@ -47,6 +47,7 @@ export interface MatcherStores {
  */
 export const MATCHER_CHANNELS = [
   'match:search-requested',
+  'match:limits-requested',
 ] as const satisfies readonly (keyof EventMap)[];
 
 export class Matcher {
@@ -76,6 +77,8 @@ export class Matcher {
 
     this.subscriptions.push(
       search$.subscribe({ error: errorHandler }),
+      // It holds its model's credential, so it reports that model's limits.
+      answerLimitsRequests(this.eventBus, 'match:limits-requested', [this.inferenceClient], this.logger),
     );
   }
 

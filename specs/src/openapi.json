@@ -427,6 +427,15 @@
       "InferenceLimits": {
         "$ref": "components/schemas/InferenceLimits.json"
       },
+      "InferenceLimitsRequest": {
+        "$ref": "components/schemas/InferenceLimitsRequest.json"
+      },
+      "InferenceLimitsResult": {
+        "$ref": "components/schemas/InferenceLimitsResult.json"
+      },
+      "InferencePairLimits": {
+        "$ref": "components/schemas/InferencePairLimits.json"
+      },
       "GraphAnnotationNode": {
         "$ref": "components/schemas/GraphAnnotationNode.json"
       },

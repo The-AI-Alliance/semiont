@@ -11,7 +11,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import type { CollaboratorEntry, GatheredContext } from '@semiont/core';
+import type { Collaborator, GatheredContext } from '@semiont/core';
 import { GENERATABLE_MEDIA_TYPES, capabilitiesOf } from '@semiont/core';
 import { ConfigureGenerationStep, freshGenerationDraft } from '../ConfigureGenerationStep';
 import type { GenerationDraft } from '../ConfigureGenerationStep';
@@ -42,7 +42,7 @@ const context = { resources: [], annotations: [] } as unknown as GatheredContext
 /** The wizard's initial draft (WIZARD-NAVIGATION D3). */
 const DRAFT: GenerationDraft = freshGenerationDraft('Untitled', 'en');
 
-const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
+const agentWithCeiling = (maxOutputTokens: number): Collaborator =>
   ({
     agent: {
       '@type': 'Software',
@@ -52,7 +52,7 @@ const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
     },
     servesJobTypes: ['generation'],
     limits: { contextTokens: 200_000, maxOutputTokens },
-  }) as unknown as CollaboratorEntry;
+  }) as unknown as Collaborator;
 
 /**
  * The step is CONTROLLED since WIZARD-NAVIGATION D3 — the wizard owns the draft so
@@ -60,7 +60,7 @@ const agentWithCeiling = (maxOutputTokens: number): CollaboratorEntry =>
  * than the bare component: a `vi.fn()` for `onConfigChange` would swallow every edit
  * and quietly turn each assertion below into a test of nothing.
  */
-function Harness({ generationAgent, defaultFolder }: { generationAgent?: CollaboratorEntry; defaultFolder?: string }) {
+function Harness({ generationAgent, defaultFolder }: { generationAgent?: Collaborator; defaultFolder?: string }) {
   const [draft, setDraft] = useState(DRAFT);
   return (
     <ConfigureGenerationStep
@@ -78,7 +78,7 @@ function Harness({ generationAgent, defaultFolder }: { generationAgent?: Collabo
 
 let onGenerateSpy = vi.fn();
 
-function renderStep(generationAgent?: CollaboratorEntry, defaultFolder?: string) {
+function renderStep(generationAgent?: Collaborator, defaultFolder?: string) {
   onGenerateSpy = vi.fn();
   const utils = render(
     <Harness
@@ -172,7 +172,7 @@ describe('ConfigureGenerationStep — ceiling awareness', () => {
   it('falls back when the agent is present but discovery could not answer', () => {
     const noLimits = { ...agentWithCeiling(64_000) } as Record<string, unknown>;
     delete noLimits.limits;
-    const { input } = renderStep(noLimits as unknown as CollaboratorEntry);
+    const { input } = renderStep(noLimits as unknown as Collaborator);
 
     expect(input().max).toBe('4000');
     expect(screen.queryByText(/Limited to/)).not.toBeInTheDocument();
@@ -457,7 +457,7 @@ describe('temperature gating — the Creativity slider follows the model (SONNET
   // with a 400 — including the wizard's own 0.7 default — so a rejecting model
   // must neither show the control nor receive the field. Only an EXPLICIT
   // false hides it: absence of discovery means no claim, and the control stays.
-  const rejectingAgent = (): CollaboratorEntry =>
+  const rejectingAgent = (): Collaborator =>
     ({
       agent: {
         '@type': 'Software',
@@ -467,7 +467,7 @@ describe('temperature gating — the Creativity slider follows the model (SONNET
       },
       servesJobTypes: ['generation'],
       limits: { contextTokens: 200_000, maxOutputTokens: 64_000, acceptsTemperature: false },
-    }) as unknown as CollaboratorEntry;
+    }) as unknown as Collaborator;
 
   it('hides the slider and OMITS temperature from the submission when the model rejects it', () => {
     const { props } = renderStep(rejectingAgent(), 'research');

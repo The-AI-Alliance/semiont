@@ -753,22 +753,233 @@ func lsof(args []string) {
 	printLsof(port, strconv.Itoa(os.Getpid()))
 }
 
-// opCmd fakes the 1Password CLI: the launcher calls `op read op://<path>`.
-// FAKERT_OP_FAIL fails the read; FAKERT_OP_VALUE overrides the output.
+// opCmd fakes the 1Password CLI. Resolution calls `op read op://<path>`; the
+// launcher's 1Password custody store calls the `item` commands, shaped as the
+// real CLI answered them in SECRETS-STORE's P0 probe (op 2.33.1): items live
+// in FAKERT_DIR/op-items.json, values arrive on stdin, never argv.
+// FAKERT_OP_FAIL fails every command, as a denied authorization does;
+// FAKERT_OP_VALUE overrides a read of a path no item answers; FAKERT_OP_VAULTS
+// (comma-separated) names the vaults that exist, every vault when unset.
 func opCmd(args []string) {
-	if len(args) != 2 || args[0] != "read" || !strings.HasPrefix(args[1], "op://") {
-		fmt.Fprintf(os.Stderr, "fakert op: unscripted args %v\n", args)
-		os.Exit(64)
-	}
 	if os.Getenv("FAKERT_OP_FAIL") != "" {
 		fmt.Fprintln(os.Stderr, "[ERROR] authorization denied")
 		os.Exit(1)
 	}
-	v := os.Getenv("FAKERT_OP_VALUE")
-	if v == "" {
-		v = "fake-op-secret"
+	switch {
+	case len(args) == 2 && args[0] == "read" && strings.HasPrefix(args[1], "op://"):
+		if v, ok := opReadItemField(strings.TrimPrefix(args[1], "op://")); ok {
+			fmt.Println(v)
+			return
+		}
+		v := os.Getenv("FAKERT_OP_VALUE")
+		if v == "" {
+			v = "fake-op-secret"
+		}
+		fmt.Println(v)
+	case len(args) >= 2 && args[0] == "item":
+		opItemCmd(args[1], args[2:])
+	default:
+		fmt.Fprintf(os.Stderr, "fakert op: unscripted args %v\n", args)
+		os.Exit(64)
 	}
-	fmt.Println(v)
+}
+
+// opItem is an item as `op item get --format json --reveal` prints it, less
+// what the launcher never reads.
+type opItem struct {
+	ID       string    `json:"id"`
+	Title    string    `json:"title"`
+	Category string    `json:"category"`
+	Vault    opVault   `json:"vault"`
+	Fields   []opField `json:"fields"`
+}
+
+type opVault struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type opField struct {
+	ID      string `json:"id"`
+	Label   string `json:"label"`
+	Type    string `json:"type"`
+	Purpose string `json:"purpose,omitempty"`
+	Value   string `json:"value,omitempty"`
+}
+
+func opItemsPath() string { return filepath.Join(os.Getenv("FAKERT_DIR"), "op-items.json") }
+
+func loadOpItems() []opItem {
+	var items []opItem
+	if b, err := os.ReadFile(opItemsPath()); err == nil {
+		_ = json.Unmarshal(b, &items)
+	}
+	return items
+}
+
+func saveOpItems(items []opItem) {
+	b, _ := json.MarshalIndent(items, "", "  ")
+	_ = os.WriteFile(opItemsPath(), b, 0o600)
+}
+
+func opVaultExists(name string) bool {
+	vaults := os.Getenv("FAKERT_OP_VAULTS")
+	if vaults == "" {
+		return true
+	}
+	for _, v := range strings.Split(vaults, ",") {
+		if v == name {
+			return true
+		}
+	}
+	return false
+}
+
+// opFlag: the value of --<name> in args, and args without the flag.
+func opFlag(args []string, name string) (string, []string) {
+	var rest []string
+	val := ""
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--"+name && i+1 < len(args) {
+			val = args[i+1]
+			i++
+			continue
+		}
+		rest = append(rest, args[i])
+	}
+	return val, rest
+}
+
+func opFail(format string, a ...any) {
+	fmt.Fprintf(os.Stderr, "[ERROR] 2026/09/30 00:00:00 "+format+"\n", a...)
+	os.Exit(1)
+}
+
+func opPrint(v any) {
+	b, _ := json.MarshalIndent(v, "", "  ")
+	fmt.Println(string(b))
+}
+
+// opFind: the items in vault matching ref by id or title.
+func opFind(items []opItem, vault, ref string) []int {
+	var out []int
+	for i, it := range items {
+		if it.Vault.Name == vault && (it.ID == ref || it.Title == ref) {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func opItemCmd(verb string, args []string) {
+	vault, args := opFlag(args, "vault")
+	_, args = opFlag(args, "format")
+	var rest []string
+	for _, a := range args {
+		if a != "--reveal" {
+			rest = append(rest, a)
+		}
+	}
+	if vault == "" {
+		opFail("fakert: a --vault is required")
+	}
+	if !opVaultExists(vault) {
+		opFail("%q isn't a vault in this account. Specify the vault with its ID or name.", vault)
+	}
+	items := loadOpItems()
+	one := func() int {
+		if len(rest) == 0 {
+			opFail("fakert: an item is required")
+		}
+		found := opFind(items, vault, rest[0])
+		switch len(found) {
+		case 0:
+			opFail("%q isn't an item in the %q vault. Specify the item with its UUID, name, or domain.", rest[0], vault)
+		case 1:
+			return found[0]
+		}
+		opFail("More than one item matches %q. Try again and specify the item by its ID.", rest[0])
+		return -1
+	}
+	switch verb {
+	case "list":
+		var out []opItem
+		for _, it := range items {
+			if it.Vault.Name == vault {
+				out = append(out, opItem{ID: it.ID, Title: it.Title, Category: it.Category, Vault: it.Vault})
+			}
+		}
+		if out == nil {
+			out = []opItem{}
+		}
+		opPrint(out)
+	case "get":
+		opPrint(items[one()])
+	case "create":
+		var tmpl opItem
+		if b, _ := io.ReadAll(os.Stdin); json.Unmarshal(b, &tmpl) != nil {
+			opFail("fakert: create reads its template on stdin")
+		}
+		tmpl.ID = fmt.Sprintf("fakeitem%04d", len(items)+1)
+		tmpl.Vault = opVault{ID: "vault-" + vault, Name: vault}
+		// The real CLI adds a Secure Note's own notes field.
+		tmpl.Fields = append([]opField{{ID: "notesPlain", Label: "notesPlain", Type: "STRING", Purpose: "NOTES"}}, tmpl.Fields...)
+		items = append(items, tmpl)
+		saveOpItems(items)
+		opPrint(tmpl)
+	case "edit":
+		i := one()
+		if len(rest) > 1 {
+			// Assignments: only `<field>[delete]` is scripted — a value on
+			// argv is exactly what the launcher must never do.
+			for _, a := range rest[1:] {
+				label, ok := strings.CutSuffix(a, "[delete]")
+				if !ok {
+					opFail("fakert: unscripted assignment %q (values travel on stdin)", a)
+				}
+				kept := items[i].Fields[:0]
+				for _, f := range items[i].Fields {
+					if f.Label != label {
+						kept = append(kept, f)
+					}
+				}
+				items[i].Fields = kept
+			}
+		} else {
+			var edited opItem
+			if b, _ := io.ReadAll(os.Stdin); json.Unmarshal(b, &edited) != nil {
+				opFail("fakert: edit reads the item on stdin")
+			}
+			items[i].Fields = edited.Fields
+		}
+		saveOpItems(items)
+		opPrint(items[i])
+	case "delete":
+		i := one()
+		items = append(items[:i], items[i+1:]...)
+		saveOpItems(items)
+	default:
+		opFail("fakert: unscripted item command %q", verb)
+	}
+}
+
+// opReadItemField answers `op read op://<vault>/<item>/<field>` from the item
+// store, as the real CLI reads a field a custody store wrote.
+func opReadItemField(path string) (string, bool) {
+	parts := strings.Split(path, "/")
+	if len(parts) != 3 {
+		return "", false
+	}
+	for _, it := range loadOpItems() {
+		if it.Vault.Name == parts[0] && (it.Title == parts[1] || it.ID == parts[1]) {
+			for _, f := range it.Fields {
+				if f.Label == parts[2] {
+					return f.Value, true
+				}
+			}
+		}
+	}
+	return "", false
 }
 
 func psCmd(args []string) {
@@ -1415,7 +1626,6 @@ var busScripted = map[string]bool{
 	"browse:resource-requested":     true,
 	"browse:annotations-requested":  true,
 	"browse:entity-types-requested": true,
-	"browse:agents-requested":       true,
 	"frame:add-entity-type":         true,
 	"gather:resource-requested":     true,
 	"gather:requested":              true,
@@ -1424,6 +1634,9 @@ var busScripted = map[string]bool{
 	"bind:update-body":              true,
 	"match:search-requested":        true,
 	"job:create":                    true,
+	"job:limits-requested":          true,
+	"gather:limits-requested":       true,
+	"match:limits-requested":        true,
 }
 
 // existingContainers is every semiont-* container that exists here, from BOTH

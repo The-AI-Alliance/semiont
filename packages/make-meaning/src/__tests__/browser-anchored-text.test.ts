@@ -49,7 +49,7 @@ function browserOver(kb: Record<string, unknown>) {
     eventBus,
     { root: '/tmp' } as never,
     { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } } as MakeMeaningConfig,
-    { enrich: async (entries: never[]) => entries },
+    {},
     createMockEmbeddingProvider(),
     mockLogger,
   );

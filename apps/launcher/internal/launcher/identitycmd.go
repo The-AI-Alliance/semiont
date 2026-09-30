@@ -139,7 +139,10 @@ func Identity(args []string) int {
 		return 1
 	}
 
-	adminPass, source := keycloakAdminPassword(root)
+	adminPass, source, ok := keycloakAdminPassword(u, root)
+	if !ok {
+		return 1
+	}
 	if adminPass == "" {
 		u.Fail("No Keycloak bootstrap admin password for this root, so the admin API cannot be reached.")
 		fmt.Fprintln(os.Stderr, "  It is written on a successful `semiont start`; export KC_BOOTSTRAP_ADMIN_PASSWORD if the realm was created elsewhere.")

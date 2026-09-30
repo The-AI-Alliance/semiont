@@ -35,6 +35,20 @@ export interface WorkerInferenceConfig {
   'generation'?: InferenceConfig;
 }
 
+/** Who serves a role: its provider and model, and no credential. */
+export type RoleInference = Pick<InferenceConfig, 'type' | 'model'>;
+
+/**
+ * The collaborator roster's input: each role's provider and model. The
+ * credentialed `MakeMeaningConfig` is one, since its entries carry more; the
+ * archivist, which holds no inference credential, builds one from the keyless
+ * role maps (`rosterConfigFrom`).
+ */
+export interface RosterConfig {
+  workers?: { [R in keyof WorkerInferenceConfig]?: RoleInference };
+  actors?: { [A in keyof ActorInferenceConfig]?: RoleInference };
+}
+
 /** Narrow config type — only the fields make-meaning actually reads */
 export interface MakeMeaningConfig {
   /**
@@ -152,10 +166,10 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
 /**
  * Resolve inference config for a named actor.
  */
-export function resolveActorInference(
-  config: MakeMeaningConfig,
+export function resolveActorInference<T extends RoleInference>(
+  config: { actors?: { [A in keyof ActorInferenceConfig]?: T } },
   actor: 'gatherer' | 'matcher'
-): InferenceConfig {
+): T {
   const specific = config.actors?.[actor];
   if (specific) return specific;
 
@@ -169,10 +183,10 @@ export function resolveActorInference(
  * Resolve inference config for a named worker type.
  * Falls back to workers.default if a specific worker is not listed.
  */
-export function resolveWorkerInference(
-  config: MakeMeaningConfig,
+export function resolveWorkerInference<T extends RoleInference>(
+  config: { workers?: { [R in keyof WorkerInferenceConfig]?: T } },
   workerType: keyof Omit<WorkerInferenceConfig, 'default'>
-): InferenceConfig {
+): T {
   const specific = config.workers?.[workerType];
   if (specific) return specific;
 
@@ -183,4 +197,28 @@ export function resolveWorkerInference(
     `No inference config found for worker '${workerType}'. ` +
     `Set workers.${workerType}.inference or workers.default.inference in your config.`
   );
+}
+
+/** One keyless role entry, refused by name when it is not a provider and a model. */
+function roleInference(role: string, entry: { inference?: { type?: string; model?: string } }): [string, RoleInference][] {
+  const { type, model } = entry.inference ?? {};
+  if (type === undefined && model === undefined) return [];
+  if ((type !== 'anthropic' && type !== 'ollama') || !model) {
+    throw new Error(`${role}.inference must name type "anthropic" or "ollama" and a model (got type ${JSON.stringify(type)}, model ${JSON.stringify(model)})`);
+  }
+  return [[role, { type, model }]];
+}
+
+/**
+ * The roster from the loaded config's keyless role maps, which select exactly
+ * what the credentialed ones do and never read [inference]. Delegates at each
+ * read, as `makeMeaningConfigFrom` does.
+ */
+export function rosterConfigFrom(config: EnvironmentConfig): RosterConfig {
+  const roles = (maps: EnvironmentConfig['workers']) =>
+    Object.fromEntries(Object.entries(maps ?? {}).flatMap(([role, entry]) => roleInference(role, entry)));
+  return {
+    get workers() { return roles(config.workers); },
+    get actors() { return roles(config.actors); },
+  };
 }

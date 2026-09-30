@@ -1,0 +1,5 @@
+{
+  "type": "object",
+  "description": "Request for the inference limits of the (provider, model) pairs one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own pairs, so no other service needs one.",
+  "properties": {}
+}

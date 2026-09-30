@@ -63,6 +63,14 @@ export type JobType = components['schemas']['JobType'];
 export type CollaboratorEntry = components['schemas']['CollaboratorEntry'];
 
 /**
+ * A directory entry with its model's discovered limits, as the SDK joins them:
+ * the directory lists who serves each role, and the services holding the
+ * inference credentials report the limits (`LIMITS_OPERATIONS`). Absent
+ * `limits` means no key holder reported that model.
+ */
+export type Collaborator = CollaboratorEntry & { limits?: components['schemas']['InferenceLimits'] };
+
+/**
  * What a knowledge base says of itself (`browse:kb-result`): its committed
  * name and domain, and the working tree's branch. The Archivist answers it;
  * it is the only source clients use for a KB's name and domain.

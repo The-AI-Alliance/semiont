@@ -2291,13 +2291,10 @@ type CloneResourceWithTokenResponse struct {
 	Token string `json:"token"`
 }
 
-// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes.
+// CollaboratorEntry One collaborator in the KB's directory: a W3C Agent plus, for software agents declared in the KB's worker inference config, the job types it serves. Actor-role-only agents (gatherer/matcher) and Persons omit servesJobTypes. The directory carries no inference limits: the services that hold the inference credentials report those (InferenceLimitsResult).
 type CollaboratorEntry struct {
 	// Agent Web Annotation / W3C PROV Agent. Discriminated by @type — Person, Organization, or Software (named member schemas: AgentPerson, AgentOrganization, AgentSoftware). Software peers are first-class participants, not a sub-class of Person.
 	Agent Agent `json:"agent"`
-
-	// Limits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
-	Limits *InferenceLimits `json:"limits,omitempty"`
 
 	// ServesJobTypes Job types this agent is declared to serve (from the KB's workers.* config sections). Absent for Persons and for agents declared only under actor roles.
 	ServesJobTypes *[]JobType `json:"servesJobTypes,omitempty"`
@@ -3025,6 +3022,28 @@ type InferenceLimits struct {
 
 	// MaxOutputTokens Maximum output tokens per generation. Equal to contextTokens when the provider has a single shared window.
 	MaxOutputTokens float32 `json:"maxOutputTokens"`
+}
+
+// InferenceLimitsRequest Request for the inference limits of the (provider, model) pairs one service holds a client for. Answered on job:limits-requested by the worker, and on gather:limits-requested and match:limits-requested by the librarian: each service that holds an inference credential reports for its own pairs, so no other service needs one.
+type InferenceLimitsRequest = map[string]interface{}
+
+// InferenceLimitsResult The inference limits one service discovered for its own (provider, model) pairs. A pair whose discovery is currently unavailable is absent.
+type InferenceLimitsResult struct {
+	Response struct {
+		Limits []InferencePairLimits `json:"limits"`
+	} `json:"response"`
+}
+
+// InferencePairLimits The discovered limits of one (provider, model) pair.
+type InferencePairLimits struct {
+	// Limits A provider's actual ceilings for a model, discovered from the provider itself (Anthropic Models API; Ollama /api/show) — never hand-maintained constants. Semantics differ by provider shape: Anthropic reports maximum input tokens in contextTokens with a separate output ceiling in maxOutputTokens; Ollama reports the shared input+output window and mirrors it into both fields (there is no separate output ceiling), so maxOutputTokens === contextTokens signals a shared window.
+	Limits InferenceLimits `json:"limits"`
+
+	// Model The model identifier, as the KB config names it.
+	Model string `json:"model"`
+
+	// Provider The inference provider, as the KB config names it (e.g. anthropic, ollama).
+	Provider string `json:"provider"`
 }
 
 // JobAssessmentAnnotationResult Result of a completed assessment-annotation job.

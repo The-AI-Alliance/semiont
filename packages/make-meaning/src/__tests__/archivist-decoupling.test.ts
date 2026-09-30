@@ -185,7 +185,6 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
     gather: { settleTimeoutMs: 15_000 },
     search: { semanticFloor: 0.6 },
   };
-  const passthroughDiscovery = { enrich: async (entries: any[]) => entries };
 
   let eventBus: EventBus;
   let browser: Browser;
@@ -233,7 +232,7 @@ describe('Browser constructs from capability doubles (EXTRACT-ARCHIVIST P1)', ()
       eventBus,
       { root: PROJECT_ROOT } as never,
       config,
-      passthroughDiscovery,
+      config,
       createMockEmbeddingProvider(),
       mockLogger,
     );
@@ -476,7 +475,7 @@ describe('channel rosters match actual subscriptions (census gate)', () => {
         bus,
         { root: '/tmp/census' } as never,
         { services: { vectors: { type: 'memory' }, embedding: { type: 'ollama', model: 'nomic-embed-text' } }, gather: { settleTimeoutMs: 15_000 }, search: { semanticFloor: 0.6 } },
-        { enrich: async (entries: never[]) => entries },
+        {},
         createMockEmbeddingProvider(),
         mockLogger,
       );

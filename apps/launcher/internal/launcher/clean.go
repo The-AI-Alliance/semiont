@@ -6,10 +6,11 @@ package launcher
 // stop deliberately leaves it, and start's database image-mismatch refusal
 // names this command as the way out.
 //
-// The root dir also holds the generated `jwt-secret` (loadOrCreateJWTSecret),
-// so an UNSCOPED clean removes it along with the stores: the accounts its
-// tokens name are in the postgres data going away, so keeping the key would
-// preserve nothing. A --store clean targets one subdir and leaves it.
+// An UNSCOPED clean also deletes every secret the launcher keeps for the root
+// (custody.go), through the store that keeps them (SECRETS-STORE P5): the
+// accounts the token-signing key's tokens name are in the postgres data going
+// away, so keeping it would preserve nothing. A --store clean targets one
+// subdir and leaves them.
 
 import (
 	"fmt"
@@ -27,10 +28,12 @@ and the gateway's own derived stores)
 for one local semiont root. The stack must be stopped first — state is
 never removed while a recorded stack may be mounting it.
 
-An unscoped clean also removes this root's generated JWT secret, so every
-token issued against it stops verifying — which is consistent, since the
-user accounts those tokens name lived in the PostgreSQL data just removed.
-A --store clean keeps the secret.
+An unscoped clean also deletes every secret the launcher keeps for this
+root, from whichever store keeps them (semiont settings secret-store): the token-
+signing key, so every token issued against it stops verifying — which is
+consistent, since the user accounts those tokens name lived in the
+PostgreSQL data just removed — and the passwords of the stores going with
+it. The store setting itself stays. A --store clean keeps the secrets.
 
 Options:
   --store <role>   Remove one store only: database, vectors, graph,
@@ -115,6 +118,24 @@ func Clean(args []string) int {
 		targets = append(targets, target{"all stores (" + key + ")", dir, 0})
 	}
 
+	// The secrets go with an unscoped clean, from the store that keeps them.
+	var secrets []string
+	var custody custodyStore
+	if store == "" {
+		var ok bool
+		if custody, ok = configuredCustody(u, key); !ok {
+			return 1
+		}
+		if secrets, ok = custody.names(u); !ok {
+			return 1
+		}
+		if dryRun {
+			for _, name := range secrets {
+				u.Log("would delete %s %s", name, u.Dim("("+custody.where(name)+")"))
+			}
+		}
+	}
+
 	var kept []target
 	for _, tg := range targets {
 		sz, exists := dirSize(tg.path)
@@ -127,7 +148,7 @@ func Clean(args []string) int {
 			u.Log("would remove %s — %s (%s)", tg.path, humanBytes(sz), tg.label)
 		}
 	}
-	if len(kept) == 0 {
+	if len(kept) == 0 && len(secrets) == 0 {
 		if store != "" {
 			u.Log("Nothing to remove: no %s state under %s", store, dir)
 		} else {
@@ -142,6 +163,14 @@ func Clean(args []string) int {
 		}
 		u.Log("Total: %s %s", humanBytes(total), u.Dim("(dry-run; nothing removed)"))
 		return 0
+	}
+	for _, name := range secrets {
+		if !custody.remove(u, name) {
+			return 1
+		}
+	}
+	if len(secrets) > 0 {
+		u.Ok("Deleted %d secrets from %s.", len(secrets), custody.describe())
 	}
 	// The stores' contents were written by containers, so a container empties
 	// them (clearStoreContents); what is left — the store dirs, and for an

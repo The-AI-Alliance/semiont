@@ -426,7 +426,7 @@ func SelectRuntime(u *UI, requested string) (string, bool) {
 // where one role is allowed to stall longer than the rest.
 const healthProbeTimeout = 2 * time.Second
 
-var healthClient = &http.Client{Timeout: healthProbeTimeout}
+var healthClient = &http.Client{Transport: launcherTransport, Timeout: healthProbeTimeout}
 
 // netDialTimeout: one TCP reachability check (external-role verification).
 func netDialTimeout(addr string) (net.Conn, error) {
