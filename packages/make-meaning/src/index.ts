@@ -36,7 +36,6 @@ export {
   registerAnnotationContextHandler,
   registerGatherSummaryHandler,
   registerBindUpdateBodyHandler,
-  registerJobCommandHandlers,
 } from './handlers';
 
 // Bootstrap
@@ -108,6 +107,4 @@ export {
   ARCHIVIST_OUTBOUND_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
-  DISPATCHER_INBOUND_CHANNELS,
-  DISPATCHER_OUTBOUND_CHANNELS,
 } from './service-channels';

@@ -149,7 +149,31 @@ impl Bus {
         payload: &impl Serialize,
         scope: Option<&str>,
     ) -> Result<(), BusError> {
-        self.send(channel, object(payload)?, scope, None).await
+        self.send(BusEmitRequest {
+            channel: channel.to_owned(),
+            payload: object(payload)?,
+            scope: scope.map(str::to_owned),
+            client_id: None,
+            correlation_id: None,
+        })
+        .await
+    }
+
+    /// Answer a request: a frame on `channel` carrying the request's correlation id.
+    pub async fn reply(
+        &self,
+        channel: &str,
+        payload: &impl Serialize,
+        correlation_id: &str,
+    ) -> Result<(), BusError> {
+        self.send(BusEmitRequest {
+            channel: channel.to_owned(),
+            payload: object(payload)?,
+            scope: None,
+            client_id: None,
+            correlation_id: Some(correlation_id.to_owned()),
+        })
+        .await
     }
 
     /// Send `payload` as the request of `operation` and wait up to `within`
@@ -174,7 +198,13 @@ impl Bus {
         let mut frames = self.frames.subscribe();
         self.pending_mut().insert(correlation_id.clone());
         let sent = self
-            .send(operation, object(payload)?, None, Some(&correlation_id))
+            .send(BusEmitRequest {
+                channel: operation.to_owned(),
+                payload: object(payload)?,
+                scope: None,
+                client_id: Some(self.client_id.clone()),
+                correlation_id: Some(correlation_id.clone()),
+            })
             .await;
         let answer = match sent {
             Err(error) => Err(error),
@@ -211,20 +241,7 @@ impl Bus {
         self.pending.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    async fn send(
-        &self,
-        channel: &str,
-        payload: Map<String, Value>,
-        scope: Option<&str>,
-        correlation_id: Option<&str>,
-    ) -> Result<(), BusError> {
-        let body = BusEmitRequest {
-            channel: channel.to_owned(),
-            payload,
-            scope: scope.map(str::to_owned),
-            client_id: correlation_id.map(|_| self.client_id.clone()),
-            correlation_id: correlation_id.map(str::to_owned),
-        };
+    async fn send(&self, body: BusEmitRequest) -> Result<(), BusError> {
         let url = format!("{}/bus/emit", self.session.gateway());
         let mut refreshed = false;
         loop {

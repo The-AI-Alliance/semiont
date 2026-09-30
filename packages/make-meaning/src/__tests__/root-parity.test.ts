@@ -15,6 +15,9 @@
  * The union deliberately EXCLUDES the projection pipelines: the Weaver and
  * Smelter are standalone-only (WEAVER-ISOLATION D4; constructed in their
  * mains, never here), so their channels are not this root's obligation.
+ * Nor does it run jobs: the job queue is the dispatcher's, a process of its
+ * own, and this root answers none of its operations. (The Stower here still
+ * records the lifecycle a worker reports, as it does in the Archivist.)
  *
  * Per-actor channel fidelity (roster constant == the actor's real
  * subscriptions) is pinned by each actor's own census gate; this gate adds
@@ -31,7 +34,7 @@ import { MATCHER_CHANNELS } from '../matcher';
 import { GATHERER_CHANNELS } from '../gatherer';
 import { HANDLER_CHANNELS } from '../handlers/index.js';
 import { SemiontProject } from '@semiont/core/node';
-import { EventBus, type Logger } from '@semiont/core';
+import { BUS_OPERATIONS, EventBus, type Logger } from '@semiont/core';
 import { promises as fs } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
@@ -111,5 +114,12 @@ describe('root parity (in-process composition root vs extracted rosters)', () =>
     // compose is absent (or deaf) in the in-process root — fix the root, or
     // if the channel genuinely left the fleet, fix its roster constant.
     expect(missing).toEqual({});
+  });
+
+  it('answers no job operation: the queue is the dispatcher\'s', () => {
+    const jobOperations = Object.keys(BUS_OPERATIONS).filter((c) => c.startsWith('job:'));
+    expect(jobOperations.length).toBeGreaterThan(0);
+    const observed = new Set(eventBus.observedChannels());
+    expect(jobOperations.filter((c) => observed.has(c))).toEqual([]);
   });
 });

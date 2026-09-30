@@ -1,82 +1,71 @@
-# dispatcher image.
+# The dispatcher image: the binary, built here from the repository, and nothing
+# of its source — no .rs, no Cargo files, no target/, no toolchain, no specs/
+# (the spec is compiled into the binary), and no Node. Nothing is built,
+# installed or fetched when the container starts: the entrypoint execs the binary.
 #
-# THE ENTRYPOINT SOURCE IS NOT IN THIS DIRECTORY. This image installs the
-# published @semiont/make-meaning and runs `dist/dispatcher-main.js` out of it;
-# the source is packages/make-meaning/src/dispatcher-main.ts. Only the image
-# recipe lives here — the entrypoint stayed in its package deliberately, so
-# that moving it out would not have to promote that package's internals to
-# public API just to satisfy a directory layout. If you change the CMD, change
-# it against that file.
+# Built from the repository root, with the toolchain
+# rust-toolchain.toml names — the one place it is written:
 #
-# Stage 1: install (npm runs here, then is discarded).
+#   --build-arg RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
 #
-# The dispatcher is a CONTROL PLANE (EXTRACT-JOBS D5): it owns the job queue
-# and answers `job:*` lifecycle commands. It dials no graph, no vectors, and
-# touches no KB tree — so, like the smelter and unlike the weaver, it bundles
-# no neo4j-driver.
-#
-# Base is node:24-alpine (not node:26): node 26's built-in undici breaks the
-# qdrant client's own undici, which @semiont/make-meaning can load transitively
-# at connect time.
-FROM node:24-alpine AS installer
-ARG NPM_REGISTRY=https://registry.npmjs.org
-ARG SEMIONT_VERSION=latest
-# @qdrant/js-client-rest pins undici exactly; `npm install -g` ignores overrides,
-# so the pinned copy is replaced after install. See the script.
-COPY scripts/container/patch-qdrant-undici.sh /tmp/patch-qdrant-undici.sh
-RUN npm config set registry $NPM_REGISTRY && \
-    npm install -g @semiont/make-meaning@${SEMIONT_VERSION} && \
-    sh /tmp/patch-qdrant-undici.sh && \
-    npm cache clean --force
+# There is no default: without it the first FROM names no image and the build
+# stops, rather than building with a toolchain nothing pinned.
+ARG RUST_TOOLCHAIN
 
-# Stage 2: minimal runtime — node only, no npm. The runtime entrypoint is
-# `node dispatcher-main.js`, so npm is build-only baggage. Removing it also
-# drops the picomatch / glob / etc. CVE surface that ships inside npm's bundled
-# node_modules.
-FROM node:24-alpine
-# Patch base-image OS packages so alpine security fixes apply even when the
-# node:24-alpine snapshot hasn't been rebuilt against them yet.
-RUN apk upgrade --no-cache
+FROM rust:${RUST_TOOLCHAIN}-alpine AS builder
+# make builds jemalloc, the allocator tikv-jemalloc-sys compiles into the binary.
+RUN apk add --no-cache make
+# cargo-auditable writes the crates the binary links into the binary itself,
+# which is how the image scan (Trivy) sees them in an image with no Cargo.lock.
+RUN cargo install cargo-auditable --locked --version 0.7.6
+WORKDIR /build
+COPY version.json ./
+COPY specs/src specs/src
+# The workspace (Cargo.toml at the repository root): cargo loads every member
+# to build any one of them, so each member's crate is copied.
+COPY Cargo.toml Cargo.lock ./
+COPY apps/gateway/Cargo.toml apps/gateway/
+COPY apps/gateway/src apps/gateway/src
+COPY apps/dispatcher/Cargo.toml apps/dispatcher/
+COPY apps/dispatcher/src apps/dispatcher/src
+COPY apps/dispatcher/handlers/Cargo.toml apps/dispatcher/handlers/
+COPY apps/dispatcher/handlers/src apps/dispatcher/handlers/src
+COPY apps/dispatcher/jetstream/Cargo.toml apps/dispatcher/jetstream/build.rs apps/dispatcher/jetstream/
+COPY apps/dispatcher/jetstream/src apps/dispatcher/jetstream/src
+COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
+COPY packages/codegen-rust/src packages/codegen-rust/src
+COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
+COPY packages/core-rust/src packages/core-rust/src
+COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
+COPY packages/sdk-rust/src packages/sdk-rust/src
+# A spec that does not compile fails here, in the build scripts, never at boot.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/build/target \
+    cargo auditable build --release --locked -p semiont-dispatcher && \
+    cp target/release/semiont-dispatcher /semiont-dispatcher
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 semiont
+FROM alpine:3.24
+RUN apk upgrade --no-cache && apk add --no-cache tini
 
-# The global @semiont/make-meaning (with its hoisted deps) and its bin symlinks.
-COPY --from=installer /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=installer /usr/local/bin /usr/local/bin
+# The uid the launcher's state mount is written as, as in every service image.
+RUN addgroup --system --gid 1001 semiont && \
+    adduser --system --uid 1001 --ingroup semiont --home /home/semiont semiont
 
-# Strip npm/npx (re-introduced by the COPY above) plus the TypeScript compiler.
-# `typescript` + its native `@typescript/*` Go binaries are pulled transitively
-# via the qdrant client's dep chain but never loaded at runtime — build-only
-# baggage, and the native `tsc` carries a Go-stdlib CVE (CVE-2026-39822).
-RUN rm -rf /usr/local/lib/node_modules/npm \
-           /usr/local/bin/npm \
-           /usr/local/bin/npx && \
-    find /usr/local/lib/node_modules \
-      -type d \( -name typescript -o -name '@typescript' \) -prune -exec rm -rf {} +
-
-COPY LICENSE /home/semiont/LICENSE
-COPY apps/dispatcher/NOTICE /home/semiont/NOTICE
-
-WORKDIR /kb
-RUN chown semiont:nodejs /kb
-# Supervision runtime — ROOT-TIME on purpose: apk refuses to run and
-# /usr/local/bin refuses writes once USER drops privileges below.
-RUN apk add --no-cache tini
+COPY --from=builder /semiont-dispatcher /usr/local/bin/semiont-dispatcher
+COPY LICENSE apps/dispatcher/NOTICE /home/semiont/
 COPY scripts/container/supervise.sh /usr/local/bin/supervise.sh
 COPY scripts/container/boot.sh /usr/local/bin/boot.sh
 
 USER semiont
 
-ENV NODE_ENV=production
 EXPOSE 24105
 
 HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:24105/health', r => process.exit(r.statusCode < 400 ? 0 : 1)).on('error', () => process.exit(1))"
+  CMD wget -q -O /dev/null http://localhost:24105/health || exit 1
 
 ENV SUPERVISE_NAME=dispatcher \
     SUPERVISE_PROBE=http://localhost:24105/health
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-# Its configuration document is named here and nowhere else: the launcher mounts
-# the resolved document at this path, and a run without one refuses to start.
-CMD ["node", "/usr/local/lib/node_modules/@semiont/make-meaning/dist/dispatcher-main.js", "--config", "/etc/semiont/dispatcher.json"]
+# --config names where the launcher mounts the dispatcher's document; the
+# launcher's census (TestConfigDocumentsAreWhereTheImagesLook) reads it here.
+CMD ["/usr/local/bin/semiont-dispatcher", "--config", "/etc/semiont/dispatcher.json"]

@@ -16,6 +16,6 @@ export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/relea
  * with `--config <document>` and the environment, and meets it only on the bus
  * and its health port. vitest.config.ts provides it as `dispatcherCommand`.
  */
-export const DISPATCHER_COMMAND: readonly string[] = ['node', join(REPO_ROOT, 'packages/make-meaning/dist/dispatcher-main.js')];
+export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-dispatcher')];
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

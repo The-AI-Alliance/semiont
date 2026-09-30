@@ -254,7 +254,7 @@ emit job:fail  →  adapter.failJob(jobId, message)
 
 The subscription in `startWorkerProcess` wraps `handleJob` in a `.catch` that emits `job:fail` and calls `adapter.failJob`, so any throw from your processor surfaces as a clean failure. `handleJob` also records an OpenTelemetry span (`job:<type>`) and a job-outcome metric around each run — you get that for free by living inside `handleJobInner`.
 
-At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, non-throttle 4xx), in which case it lands in `failed/` immediately rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing for 30 minutes is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
+At the dispatcher, `job:fail` feeds a retry-or-fail path: the job is re-queued (and re-announced) while `retryCount < maxRetries` — unless the worker classified the failure `deterministic` (truncation at the subdivision floor, unsupported media, non-throttle 4xx), in which case it fails for good at once rather than paying for a retry that cannot succeed. The event's `completedUnits` and `unitCursors` are merged into job metadata so the retry resumes. Your `onProgress` calls double as a heartbeat — a running job that reports nothing within the dispatcher's window is presumed orphaned and recovered the same way, so call `onProgress` at meaningful stages rather than never.
 
 ## Reporting Progress
 
@@ -332,46 +332,3 @@ describe('processSummaryJob', () => {
 ```
 
 To exercise the claim → fetch → process → emit → complete orchestration end to end, test `handleJob` from `worker-process.ts` with a fake adapter and a fake session whose `transport.emit` is a spy — but that's the only place you need to mock the bus. The processor stays pure.
-
-## Testing the Queue
-
-`FsJobQueue` is filesystem-backed, so its tests build a throwaway state over a temp directory. The constructor is `(state, logger, eventBus?)` — there is no `dataDir` option. These tests pass a `SemiontProject`, which is fine because `SemiontProject extends SemiontState`; the queue only ever reads `state.jobsDir`:
-
-```typescript
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { promises as fs } from 'fs';
-import * as path from 'path';
-import * as os from 'os';
-import { FsJobQueue } from '@semiont/jobs';
-import { SemiontProject, type SemiontState } from '@semiont/core/node';
-import { EventBus } from '@semiont/core';
-
-const mockLogger = {
-  debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn(),
-  child: vi.fn(() => mockLogger),
-};
-
-describe('FsJobQueue', () => {
-  let tempDir: string;
-  let state: SemiontState;
-  let queue: FsJobQueue;
-
-  beforeEach(async () => {
-    tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'job-queue-test-'));
-    state = new SemiontProject(tempDir, { anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR! });
-    queue = new FsJobQueue(state, mockLogger, new EventBus());
-    await queue.initialize();
-  });
-
-  afterEach(async () => {
-    queue.destroy();
-    await fs.rm(tempDir, { recursive: true, force: true });
-  });
-
-  it('claims a pending job', async () => {
-    // create a pending job, then take it back out with claimNextJob…
-  });
-});
-```
-
-`state.jobsDir` (under the XDG state dir) is where the queue lays out its `pending` / `running` / `complete` / `failed` / `cancelled` directories.

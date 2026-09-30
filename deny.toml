@@ -3,7 +3,7 @@
 #
 #   cargo deny --locked check -D advisory-not-detected advisories bans sources
 #
-# and not `licenses`: scripts/lint/check-gateway-crates.mjs holds every crate's
+# and not `licenses`: scripts/lint/check-image-crates.mjs holds every crate's
 # licence to .github/licenses/, the policy all the published images answer to,
 # and a second policy here would be a copy of it that drifts.
 

@@ -43,6 +43,7 @@
     "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules",
     "container:build": "node scripts/container/build-images.js",
     "container:build:gateway": "node scripts/container/build-images.js gateway",
+    "container:build:dispatcher": "node scripts/container/build-images.js dispatcher",
     "container:build:browser": "node scripts/container/build-images.js browser",
     "container:build:all": "node scripts/container/build-images.js all",
     "container:images": "node scripts/container/container-utils.js list",

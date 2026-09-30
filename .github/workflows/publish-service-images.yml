@@ -4,17 +4,16 @@ run-name: "Service Images @ ${{ inputs.version }}${{ inputs.dry_run && ' (dry-ru
 
 # Builds and publishes the seven Semiont service images
 # (gateway · worker · smelter · weaver · archivist · librarian · dispatcher):
-# the gateway compiled from this checkout (apps/gateway, the Rust gateway,
-# reporting version.json's version), the other six from the published
-# @semiont/* packages, mirroring publish-browser.yml's verify-npm → scan →
+# the gateway and the dispatcher compiled from this checkout (apps/gateway and
+# apps/dispatcher, reporting version.json's version), the other five from the
+# published @semiont/* packages, mirroring publish-browser.yml's verify-npm → scan →
 # multi-arch push → SBOM → attest spine, with an added license-policy gate.
 # Config is runtime (bind-mount); the images ship config-free.
 #
-# The gateway compiles Rust, and its arm64 half took over an hour under
-# emulation (2026-09-28), so each of its platforms builds on a runner of its
-# own architecture and pushes by digest, and the manifest job joins the two
-# under the tags. The dispatcher publishes the same way, ready for the Rust
-# dispatcher to take its place. The other five only `npm install` in their
+# The gateway and the dispatcher compile Rust, and the gateway's arm64 half
+# took over an hour under emulation (2026-09-28), so each of their platforms
+# builds on a runner of its own architecture and pushes by digest, and the
+# manifest job joins the two under the tags. The other five only `npm install` in their
 # images, which emulation handles in minutes, so each publishes both platforms
 # from one leg.
 
@@ -113,16 +112,14 @@ jobs:
             scan: linux/amd64
             platforms: linux/amd64
             dockerfile: apps/dispatcher/Dockerfile
-            installs: npm
-            refusal: Cannot read the dispatcher's configuration document
+            refusal: "Cannot read the dispatcher's configuration document"
           - service: dispatcher
             arch: arm64
             runner: ubuntu-24.04-arm
             scan: linux/arm64
             platforms: linux/arm64
             dockerfile: apps/dispatcher/Dockerfile
-            installs: npm
-            refusal: Cannot read the dispatcher's configuration document
+            refusal: "Cannot read the dispatcher's configuration document"
 
     steps:
       - name: Checkout repository
@@ -198,14 +195,14 @@ jobs:
           done
           echo "✅ every published @semiont package is installable at ${{ inputs.version }}"
 
-      # The gateway compiles with the toolchain rust-toolchain.toml
-      # pins; the others install the version this run publishes.
+      # The gateway and the dispatcher compile with the toolchain
+      # rust-toolchain.toml pins; the others install the version this run publishes.
       - name: Build arguments
         id: args
         run: |
           {
             echo "args<<EOF"
-            if [ "${{ matrix.service }}" = gateway ]; then
+            if [ "${{ matrix.service }}" = gateway ] || [ "${{ matrix.service }}" = dispatcher ]; then
               echo "RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)"
             else
               echo "SEMIONT_VERSION=${{ inputs.version }}"
@@ -297,7 +294,7 @@ jobs:
           fi
           # The refusal each service raises when it has no configuration: for the
           # sidecars @semiont/core's loader with no environment staged, for the
-          # gateway its own with no document. A change to either message should
+          # gateway and the dispatcher their own with no document. A change to either message should
           # fail here loudly rather than pass silently.
           if ! echo "$out" | grep -qF "${{ matrix.refusal }}"; then
             echo "::error::${{ matrix.service }} image did not reach config resolution. Expected \"${{ matrix.refusal }}\"; see the output above for where it stopped instead."
@@ -309,6 +306,12 @@ jobs:
       - name: Check the gateway image
         if: matrix.service == 'gateway'
         run: scripts/container/check-gateway-image.sh semiont-${{ matrix.service }}:scan docker
+
+      # The dispatcher image carries no source and no Node, and refuses at once
+      # without its document.
+      - name: Check the dispatcher image
+        if: matrix.service == 'dispatcher'
+        run: scripts/container/check-dispatcher-image.sh semiont-${{ matrix.service }}:scan docker
 
       - name: Build and push Docker image
         id: build-push

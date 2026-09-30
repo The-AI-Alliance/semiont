@@ -8,9 +8,17 @@ Workers run in a separate **worker process** (the worker pool — [worker-main.t
 
 A job created while every eligible worker was busy is not lost, and needs no re-announcement to be found: each worker pulls the moment its current job settles. The queue's 30-second tick re-announces pending jobs as insurance against a wake-up lost in transit to an *idle* worker — the one case pull cannot cover, since an idle worker has nothing to settle. On a healthy stack it never acts.
 
-The worker's lifecycle events are mirrored into the queue files by the job command handlers (`registerJobCommandHandlers`): `job:complete` moves the job to `complete/`; `job:fail` retries it (re-queue + re-announce) while `retryCount < maxRetries`, then lands it in `failed/`; `job:report-progress` is written into the running file as live progress and doubles as a worker heartbeat — a running job with no heartbeat for 30 minutes is presumed orphaned and fed through the same retry-or-fail path. `job:cancel-requested` cancels pending jobs of the requested `jobType`. Terminal jobs are pruned after 24 hours.
+Jobs run on the stack. The queue and the nine `job:*` channels belong to the **dispatcher**
+([apps/dispatcher](../../../apps/dispatcher/README.md)), a service of its own; the worker's lifecycle
+commands reach it over the bus, and what it does with each — completion, the retry rule, progress as a
+heartbeat, the sweep for a worker gone silent, cancellation, retention — is
+[docs/protocol/JOBS.md](../../../docs/protocol/JOBS.md). The in-process root
+[`startMakeMeaning()`](../src/service.ts) runs no jobs: a script that runs them runs the stack and
+uses the SDK: `semiont.mark` and `semiont.yield` start jobs, and `semiont.job` follows them.
 
-Workers never persist directly — the **Stower** actor subscribes to the emitted commands and handles all persistence (`eventStore.appendEvent()`). In the gateway deployment the Stower runs inside the **Archivist** service (`archivist-main`), not the gateway. The queue and the `job:*` handlers live in the **dispatcher** (`dispatcher-main`), which owns them in the split deployment; the in-process root [`startMakeMeaning()`](../src/service.ts) (standalone/scripting, all actors in-process) owns its own. Neither instantiates workers.
+Workers never persist directly — the **Stower** actor subscribes to the emitted commands and handles all
+persistence (`eventStore.appendEvent()`). In the stack the Stower runs inside the **Archivist** service
+(`archivist-main`). Neither the Archivist nor the dispatcher instantiates workers.
 
 ## Available Workers
 
@@ -125,6 +133,7 @@ The type decides which applies: `textSourceOf(format)` returns `'decode' | 'pdf-
 
 ## See Also
 
-- [@semiont/jobs README](../../jobs/README.md) — Job queue, worker process, job types
+- [@semiont/jobs README](../../jobs/README.md) — Worker process, job types
+- [docs/protocol/JOBS.md](../../../docs/protocol/JOBS.md) — The dispatcher's job protocol
 - [@semiont/jobs Workers Guide](../../jobs/docs/Workers.md) — Building custom workers
 - [Architecture](./architecture.md) — Actor model and data flow

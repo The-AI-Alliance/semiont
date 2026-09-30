@@ -2092,12 +2092,43 @@ name = "semiont-dispatcher"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "opentelemetry",
  "reqwest",
  "rustls",
  "semiont",
  "semiont-core",
+ "semiont-dispatcher-handlers",
+ "semiont-dispatcher-jetstream",
+ "serde",
  "serde_json",
  "tikv-jemallocator",
+ "tokio",
+]
+
+[[package]]
+name = "semiont-dispatcher-handlers"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "semiont",
+ "semiont-core",
+ "serde",
+ "serde_json",
+ "uuid",
+]
+
+[[package]]
+name = "semiont-dispatcher-jetstream"
+version = "0.0.0"
+dependencies = [
+ "async-nats",
+ "bytes",
+ "chrono",
+ "futures",
+ "semiont",
+ "semiont-core",
+ "semiont-dispatcher-handlers",
+ "serde_json",
  "tokio",
 ]
 

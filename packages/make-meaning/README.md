@@ -10,7 +10,7 @@
 
 This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
 
-**The actors no longer run in one process.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it keeps the HTTP surface, the bus door, and the job queue.
+**The actors no longer run in one process.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it keeps the HTTP surface and the bus door. The job queue is the dispatcher's ([apps/dispatcher](../../apps/dispatcher/README.md)).
 
 | Service | Entry point | Actors |
 | --- | --- | --- |
@@ -18,9 +18,8 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 | **Librarian** | `@semiont/make-meaning/librarian-main` | Gatherer, Matcher |
 | **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
 | **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
-| **Dispatcher** | `@semiont/make-meaning/dispatcher-main` | the job queue and the `job:*` command handlers — no actor, a control plane |
 
-`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use, and it is unchanged. In the split topology no process assembles a subset: each sidecar's `*-main` composes exactly what it owns, and the gateway composes nothing from this package.
+`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use. It runs no jobs: a script that runs them runs the stack. In the split topology no process assembles a subset: each sidecar's `*-main` composes exactly what it owns, and the gateway composes nothing from this package.
 
 ### The access actors — the bus-facing interface of the Knowledge Base
 

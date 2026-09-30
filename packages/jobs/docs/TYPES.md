@@ -326,4 +326,3 @@ See [JobTypes.md](./JobTypes.md) for all parameter and result types:
 
 - [JobTypes.md](./JobTypes.md) — All job type definitions
 - [Workers.md](./Workers.md) — Worker implementation guide
-- [JobQueue.md](./JobQueue.md) — Job queue API

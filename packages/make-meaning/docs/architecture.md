@@ -10,10 +10,9 @@ The third derived read model — the materialized views — is **not** pipeline-
 
 ### Deployment topology
 
-The package has one composition root and five standalone service entry points:
+The package has one composition root and four standalone service entry points:
 
 - **`startMakeMeaning()`** — the standalone root: runs all five access actors in-process against local stores.
-- **Dispatcher** (`dispatcher-main`) — the job queue and the nine `job:*` lifecycle handlers. A control plane: ids, types and status cross it and content never does, so it holds no store and mounts nothing.
 - **Archivist** (`archivist-main`) — the service that keeps the system of record: runs Stower, Browser and CloneTokenManager against local stores (event log, views, working tree, anchored text), plus the annotation-assembly handler, the entity-type bootstrap and the startup view rebuild. It serves no bytes — the gateway is the content server.
 - **Librarian** (`librarian-main`) — the reference desk: runs the LLM-bound actors, Matcher and Gatherer, plus the gather-summary handler. It reads views from the shared stateDir the Archivist materializes into, bytes over `HttpContentTransport`, and runs the weave/smelt progress folds locally off the bus signals. It appends nothing, serves no bytes, and owns no store.
 - **Weaver** (`weaver-main`) and **Smelter** (`smelter-main`) — the projection pipelines, each its own process in every arrangement.

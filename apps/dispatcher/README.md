@@ -8,23 +8,23 @@ status. It dispatches and records; it does not perform (that is the [worker](../
 | --- | --- |
 | Image | `ghcr.io/the-ai-alliance/semiont-dispatcher` |
 | Port | 24105 (`/health`, and nothing else — all real traffic is the bus) |
-| Entry point | `@semiont/make-meaning/dist/dispatcher-main.js` |
-| Code | [`packages/make-meaning`](../../packages/make-meaning/) |
+| Binary | `semiont-dispatcher`, Rust, built from this directory |
+| Protocol | [docs/protocol/JOBS.md](../../docs/protocol/JOBS.md) |
 | npm | not published — container only |
 
-## The source is not in this directory
+## What is here
 
-Only the image recipe lives here. The entry point is
-`packages/make-meaning/src/dispatcher-main.ts`, and the image installs the published
-`@semiont/make-meaning` and runs `dist/dispatcher-main.js` out of it. That is deliberate: the
-entry point is thin wiring over the queue it starts, and moving it here would mean promoting
-that package's internals to public API to satisfy a directory layout.
+Three crates of the repository's Rust workspace, split so the broker stays behind an interface:
 
-Change the CMD only against that file.
+| Crate | Path | What |
+| --- | --- | --- |
+| `semiont-dispatcher-handlers` | [`handlers/`](handlers/) | The `JobQueue` trait and the nine handlers, generic over the queue. No NATS in its dependencies — CI's crate-tree check holds it. |
+| `semiont-dispatcher-jetstream` | [`jetstream/`](jetstream/) | The queue on JetStream: the one implementation of the trait, and the only code here that names the broker (`lint:broker-boundary`). |
+| `semiont-dispatcher` | [`src/`](src/) | The binary: reads its document, signs in, opens the queue, and answers the bus. |
 
-`src/` is the dispatcher's Rust port, a crate of the repository's Rust workspace. Until the
-port is complete it is a skeleton that boots, signs in and subscribes, and answers nothing; the
-image still runs the TypeScript entry point.
+The judge of all three is the black-box suite in
+[`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/), which drives the binary as a
+process on the wire.
 
 ## What it is — a control plane, not a conduit
 
@@ -46,10 +46,9 @@ Three things, and nothing else:
 - **The gateway's bus**, in and out. SSE in for the nine `job:*` command channels plus the two
   reply channels below; `POST /bus/emit` out for every reply and for `job:queued`, the queue's
   own broadcast that wakes parked workers.
-- **The messaging broker, directly**, for the queue itself (`[jobs] type = "jetstream"`). Job
-  state lives in JetStream, so the dispatcher holds no state tree and mounts nothing. The `fs`
-  driver survives as the reference implementation and would need a writable state tree; the
-  launcher does not give the dispatcher one.
+- **The messaging broker, directly**, for the queue itself. Job state lives in JetStream, in the
+  layout [specs/src/jobs/storage.json](../../specs/src/jobs/storage.json) states, so the
+  dispatcher holds no state tree and mounts nothing.
 - **The Archivist, over the bus**, for the two validations `job:create` makes: the KB's
   registered entity types (`browse:entity-types-requested`) and tag schemas
   (`browse:tag-schemas-requested`). It asks the service that owns those projections rather than
@@ -86,17 +85,14 @@ workers never share a job.
 
 ## Configuration
 
-Reads `~/.semiontconfig` (TOML), section chosen by `[defaults] environment`. Required:
+One document, `DispatcherConfig` in [specs/](../../specs/src/components/schemas/DispatcherConfig.json),
+at the path `--config` names. The launcher writes it, resolved, and mounts it where the image's `CMD`
+passes it: `/etc/semiont/dispatcher.json`. Started without `--config`, or with a path that names no
+file, the dispatcher refuses to start and says which; a document that does not validate is refused
+naming each failing field. Secrets are never values in it: a field that needs one names the
+environment variable holding it.
 
-| Key | |
-| --- | --- |
-| `services.gateway.publicURL` | the bus it attaches to and answers on |
-| `services.identity.issuer` | where it authenticates as a service account |
-| `services.jobs.{type,servers}` | the queue backend (JetStream in the deployed fleet) |
-
-`[kb] name` is read only by the `fs` job driver; the JetStream dispatcher names no KB.
-
-Two environment variables:
+Two environment variables besides those the document names and the OpenTelemetry ones:
 
 - **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — this process's own service
   account at the knowledge base's issuer. It exchanges them for an issuer token, which buys an
@@ -104,8 +100,8 @@ Two environment variables:
 
 ## Related
 
-- [`@semiont/make-meaning`](../../packages/make-meaning/) — the queue and this entry point
-- [`@semiont/jobs`](../../packages/jobs/) — the `JobQueue` interface and its drivers
+- [docs/protocol/JOBS.md](../../docs/protocol/JOBS.md) — what it does, channel by channel
+- [`@semiont/jobs`](../../packages/jobs/) — the worker's side
 - [Worker](../worker/) — the executor, and a client of this service
 - [Archivist](../archivist/) — serves the bytes and records the annotations, directly to workers
 - [Container Topology](../../docs/system/CONTAINER-TOPOLOGY.md) — where it sits in the fleet

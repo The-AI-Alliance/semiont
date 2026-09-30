@@ -5,11 +5,11 @@
  *   const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
  */
 
-import { FsJobQueue, JetStreamJobQueue, STALL_THRESHOLD_MS, type JobQueue } from '@semiont/jobs';
+import { STALL_THRESHOLD_MS } from '@semiont/jobs';
 import { createEventStore as createEventStoreCore, type EventStore } from '@semiont/event-sourcing';
-import { SemiontState, type SemiontProject } from '@semiont/core/node';
-import { EventBus, withDeadline, type Logger, type JobsServiceConfig } from '@semiont/core';
-import { registerJobQueueProvider, registerVectorIndexSizeProvider } from '@semiont/observability';
+import type { SemiontProject } from '@semiont/core/node';
+import { EventBus, withDeadline, type Logger } from '@semiont/core';
+import { registerVectorIndexSizeProvider } from '@semiont/observability';
 import { resolveActorInference, type MakeMeaningConfig } from './config';
 import { createInferenceClient } from '@semiont/inference';
 import { getGraphDatabase } from '@semiont/graph';
@@ -31,10 +31,9 @@ export type { MakeMeaningConfig } from './config';
 
 export interface MakeMeaningService {
   knowledgeSystem: KnowledgeSystem;
-  jobQueue:        JobQueue;
   /**
-   * The one SemiontProject this gateway is serving — the same instance the
-   * KnowledgeSystem, the job queue and the bus handlers were built from.
+   * The one SemiontProject this root is serving — the same instance the
+   * KnowledgeSystem and the bus handlers were built from.
    *
    * Exposed so request handlers reach for it instead of improvising their own
    * from `config._metadata`. Two of them used to do exactly that, casting an
@@ -47,58 +46,6 @@ export interface MakeMeaningService {
 }
 
 // ─── Step helpers ─────────────────────────────────────────────────────────────
-
-export function jobQueueFor(
-  jobs: JobsServiceConfig | undefined,
-  // Only the KB NAME, and ONLY the fs driver needs it (to locate its jobsDir).
-  // The JetStream driver holds no state tree, so a jetstream service — the
-  // deployed dispatcher — needs no `[kb] name` at all: it is optional here, and
-  // demanded (below) only when the fs driver is actually selected. Constructing
-  // a `SemiontState` eagerly would instead demand `XDG_STATE_HOME` of a service
-  // that has no state mount.
-  name: string | undefined,
-  logger: Logger,
-  eventBus: EventBus,
-): JobQueue {
-  if (jobs?.type === 'jetstream') {
-    if (!jobs.servers) {
-      throw new Error("services.jobs.servers is required for the 'jetstream' job queue driver");
-    }
-    return new JetStreamJobQueue({
-      servers: jobs.servers,
-      // The same broker as the signal plane, so the same pair. Optional: absent
-      // means an unauthenticated broker.
-      ...(jobs.user ? { user: jobs.user } : {}),
-      ...(jobs.password ? { pass: jobs.password } : {}),
-    }, logger, eventBus);
-  }
-  if (!name) {
-    throw new Error(
-      "the fs job driver needs the KB name ([kb] name) to locate its jobsDir, but the config carries none",
-    );
-  }
-  return new FsJobQueue(new SemiontState({ name }), logger, eventBus);
-}
-
-async function createJobQueue(
-  name: string,
-  jobs: JobsServiceConfig | undefined,
-  eventBus: EventBus,
-  logger: Logger,
-): Promise<JobQueue> {
-  const jobQueueLogger = logger.child({ component: 'job-queue' });
-  const jobQueue = jobQueueFor(jobs, name, jobQueueLogger, eventBus);
-  await jobQueue.initialize();
-
-  // Tier 3 observability: report queue size by status. The provider is
-  // polled at the metric-collection interval (default 30s).
-  registerJobQueueProvider(() => jobQueue.getStats());
-
-  // The job:status-requested responder lives with its siblings in
-  // handlers/job-commands.ts — roots compose, handlers subscribe (the
-  // gateway-handler census enforces it).
-  return jobQueue;
-}
 
 /**
  * How long a boot waits for a dependency, and why exiting is the right end.
@@ -291,6 +238,8 @@ export function assertMakeMeaningConfig(config: MakeMeaningConfig): void {
  * caller-owned bus, for `LocalTransport` consumers — the SDK test seam and
  * embedding. Production composes the same actors as extracted services
  * (archivist-main, librarian-main); this second root is supported, not legacy.
+ * It runs no jobs: the job queue and the `job:*` channels are the
+ * dispatcher's (apps/dispatcher), and a script that runs jobs runs the stack.
  */
 export async function startMakeMeaning(
   project: SemiontProject,
@@ -303,19 +252,16 @@ export async function startMakeMeaning(
 
   const skipRebuild = options?.skipRebuild ?? (process.env.SEMIONT_SKIP_REBUILD === 'true');
 
-  const jobQueue = await createJobQueue(project.name, config.services.jobs, eventBus, logger);
   const knowledgeSystem = await createKnowledgeSystemFromConfig(project, config, eventBus, logger, skipRebuild);
 
   // Register the bus command handlers that translate caller-facing
-  // request channels (mark:create-request, bind:update-body, job:create,
+  // request channels (mark:create-request, bind:update-body,
   // browse:annotation-context-requested, gather:summary-requested) into
-  // the underlying make-meaning pipeline. Lives here so every transport
-  // (HTTP gateway, LocalTransport, future ones) gets the same contract.
-  registerBusHandlers(eventBus, knowledgeSystem, jobQueue, logger);
+  // the underlying make-meaning pipeline.
+  registerBusHandlers(eventBus, knowledgeSystem, logger);
 
   return {
     knowledgeSystem,
-    jobQueue,
     project,
     stop: async () => {
       logger.info('Stopping Make-Meaning service');
@@ -329,8 +275,8 @@ export async function startMakeMeaning(
 
 /**
  * The event log this root connects, plus its teardown. NOT a
- * `MakeMeaningService`: there are no actors, no job queue and no bus handlers
- * here, so there is nothing to expose but the record itself.
+ * `MakeMeaningService`: there are no actors and no bus handlers here, so
+ * there is nothing to expose but the record itself.
  */
 export interface MakeMeaningRecord {
   eventStore: EventStore;
@@ -339,21 +285,9 @@ export interface MakeMeaningRecord {
 
 /**
  * The record-maintenance root: the shared stores (graph, event store, views,
- * content, vectors + embedding) and NOTHING that dispatches or serves jobs —
- * no actors, no job queue, no bus command handlers.
- *
- * `startMakeMeaning` builds a job queue because the in-process /
- * LocalTransport / embedding seam plays gateway-AND-worker in one process,
- * and `root-parity.test.ts` holds it to the full job-command surface. An
- * operator tool that only reads the event log and re-materializes views —
- * `rebuild-projections` — is NOT that seam: it dispatches zero jobs and reads
- * no job state. Handing it `startMakeMeaning` made it build a queue from
- * `[services.jobs]`; harmless under the fs driver (a scratch-dir queue), but
- * under jetstream it opened the hardcoded durable `gateway-claims` consumer on
- * the live broker and SPLIT deliveries with the gateway, parking their leases
- * with no worker attached (job starvation). Ruling M: the gateway is the SOLE
- * broker holder, so a non-dispatching root builds no queue at all — and so
- * never reads `[services.jobs]`.
+ * content, vectors + embedding), and no actors and no bus command handlers.
+ * An operator tool that only reads the event log and re-materializes views —
+ * `rebuild-projections` — needs nothing more.
  */
 export async function connectRecord(
   project: SemiontProject,
@@ -378,10 +312,3 @@ export async function connectRecord(
     },
   };
 }
-
-// The gateway's composition root is gone (EXTRACT-JOBS P2/P3): the job queue
-// and the nine `job:*` handlers it hosted now live in the DISPATCHER
-// (dispatcher-main.ts), and the gateway routes `job:*` frames across the plane
-// to that process rather than answering them. `createJobQueue` and
-// `startMakeMeaning` above stay — the in-process / embedding / LocalTransport
-// root still plays gateway-AND-worker in one process and needs both.

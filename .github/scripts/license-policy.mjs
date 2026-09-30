@@ -7,7 +7,7 @@
 // human reviews it.
 //
 // Read by check-licenses.mjs (npm packages in an image's SBOM) and by
-// scripts/lint/check-gateway-crates.mjs (the crates the gateway binary links).
+// scripts/lint/check-image-crates.mjs (the crates each Rust service binary links).
 
 import { readFileSync } from 'node:fs';
 

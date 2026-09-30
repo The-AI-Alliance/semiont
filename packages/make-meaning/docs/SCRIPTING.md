@@ -56,7 +56,7 @@ async function main() {
   // EventBus is created outside make-meaning
   const eventBus = new EventBus();
 
-  // Start make-meaning service (initializes KB, actors, job queue)
+  // Start make-meaning service (initializes KB and actors)
   const makeMeaning = await startMakeMeaning(project, config, eventBus, logger);
 
   try {
@@ -67,7 +67,6 @@ async function main() {
     // makeMeaning.knowledgeSystem.gatherer          — Context assembly actor
     // makeMeaning.knowledgeSystem.matcher           — Search/link actor
     // makeMeaning.knowledgeSystem.cloneTokenManager — Clone token actor
-    // makeMeaning.jobQueue                          — Job queue
 
     console.log('Script running...');
   } finally {
@@ -113,56 +112,12 @@ const rId = await ResourceOperations.createResource(
 console.log(`Created: ${rId}`);
 ```
 
-## Queuing Detection Jobs
+## Jobs
 
-```typescript
-import { resourceId, userId, entityType, jobId } from '@semiont/core';
-import type { PendingJob, DetectionParams } from '@semiont/jobs';
-
-const job: PendingJob<DetectionParams> = {
-  status: 'pending',
-  metadata: {
-    id: jobId(`job-${Date.now()}`),
-    type: 'reference-annotation',
-    userId: userId('script-user'),
-    created: new Date().toISOString(),
-    retryCount: 0,
-    maxRetries: 1,
-  },
-  params: {
-    resourceId: resourceId(rId),
-    entityTypes: [
-      entityType('Person'),
-      entityType('Organization'),
-    ],
-  },
-};
-
-await makeMeaning.jobQueue.createJob(job);
-```
-
-## Monitoring Job Progress
-
-Job processing requires the worker process (`@semiont/jobs`) to be running against the same project — `startMakeMeaning` only owns the queue; see [Job Workers](./job-workers.md). Subscribe to EventBus events before creating the job:
-
-```typescript
-import { firstValueFrom, filter, timeout } from 'rxjs';
-
-// Subscribe before creating job
-const completionPromise = firstValueFrom(
-  eventBus.get('job:complete').pipe(
-    filter(e => e.jobId === job.metadata.id),
-    timeout(5 * 60 * 1000),
-  ),
-);
-
-// Create the job
-await makeMeaning.jobQueue.createJob(job);
-
-// Wait for completion
-await completionPromise;
-console.log('Job complete!');
-```
+The in-process knowledge base runs no jobs: the job queue belongs to the dispatcher, a service of the
+stack, and jobs are run by workers against it. A script that runs jobs — annotation detection,
+generation — runs the stack and uses the SDK: `semiont.mark` and `semiont.yield` start them, and
+`semiont.job` follows and cancels them (see [Job Workers](./job-workers.md)).
 
 ## Querying the Knowledge Base
 

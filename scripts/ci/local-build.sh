@@ -147,7 +147,7 @@ IMAGES_ONLY=false
 IMAGES_FORCED=false
 PACKAGES=""
 START_FROM=""
-IMAGES="gateway worker smelter weaver archivist librarian dispatcher browser"
+IMAGES="gateway worker smelter weaver archivist dispatcher librarian browser"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -876,8 +876,8 @@ fi
 # Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
 # (10s "transferring" round-trips for byte-sized payloads), which overlapping
 # absorbs. Three, not six: the builder VM has 2G, and the default image order
-# splits the two heavy builds (the gateway's compile, the browser's npm) across
-# batches. Build output goes to a per-image log; a failure tails it and stops
+# puts the three heavy builds (the gateway's compile, the dispatcher's, the
+# browser's npm) in batches of their own. Build output goes to a per-image log; a failure tails it and stops
 # the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
 i=0
@@ -891,13 +891,14 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
     TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
     LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
     step "Building ${TAG} from ${DF}..."
-    # The gateway compiles from the repository with the pinned toolchain, and
-    # its layers are keyed by what it copies, so a cached one is never stale.
+    # The gateway and the dispatcher compile from the repository with the
+    # pinned toolchain, and their layers are keyed by what they copy, so a
+    # cached one is never stale.
     # Every other image installs from Verdaccio, where --no-cache is what keeps
     # a republished same-version package from being reused stale (above).
     case "$img" in
-      gateway) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
-      *)       BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
+      gateway|dispatcher) BUILD_FLAGS=(--build-arg "RUST_TOOLCHAIN=$RUST_TOOLCHAIN") ;;
+      *)                  BUILD_FLAGS=(--no-cache --build-arg "NPM_REGISTRY=$BUILD_REGISTRY") ;;
     esac
     $RT build "${BUILD_FLAGS[@]}" --tag "$TAG" \
       --file "$REPO_ROOT/$DF" \
@@ -943,9 +944,10 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
       ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
       beat=$(date +%s)
       rm -f "${LOGS[$j]}"
-      # The gateway image carries no source and starts quickly, or it is not built.
-      if [[ "${NAMES[$j]}" == gateway ]] && ! "$REPO_ROOT/scripts/container/check-gateway-image.sh" "${TAGS[$j]}" "$RT"; then
-        fail "${TAGS[$j]} does not keep the gateway image's promises (above)"
+      # The Rust images carry no source and start (or refuse) quickly, or they are not built.
+      if [[ "${NAMES[$j]}" == gateway || "${NAMES[$j]}" == dispatcher ]] \
+         && ! "$REPO_ROOT/scripts/container/check-${NAMES[$j]}-image.sh" "${TAGS[$j]}" "$RT"; then
+        fail "${TAGS[$j]} does not keep the ${NAMES[$j]} image's promises (above)"
         for k in "${!PIDS[@]}"; do
           [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
         done

@@ -86,10 +86,11 @@ jobs:
           cargo test --workspace --locked
 
       # The broker is reached only by a crate that asks for semiont-core's
-      # `nats` feature: the SDK and semiont-core itself carry no NATS client.
+      # `nats` feature: the SDK, semiont-core itself and the dispatcher's
+      # handlers carry no NATS client.
       - name: Check which crates can reach the broker
         run: |
-          for crate in semiont semiont-core; do
+          for crate in semiont semiont-core semiont-dispatcher-handlers; do
             if cargo tree --locked -p "$crate" -e normal | grep -q '^.*async-nats '; then
               echo "✗ $crate reaches async-nats; only a crate that enables semiont-core's nats feature may"
               exit 1
@@ -101,14 +102,14 @@ jobs:
         with:
           node-version: '24'
 
-      # Every crate the binary links, on each platform the image is built for,
-      # is under a permitted licence and credited in the image's NOTICE.
-      - name: Check the crates the gateway links
+      # Every crate each service binary links, on each platform the images are
+      # built for, is under a permitted licence and credited in its image's NOTICE.
+      - name: Check the crates the service binaries link
         run: |
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
             cargo metadata --format-version 1 --locked --filter-platform "$target" > "$RUNNER_TEMP/metadata-$target.json"
           done
-          node scripts/lint/check-gateway-crates.mjs "$RUNNER_TEMP"/metadata-*.json
+          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP"/metadata-*.json
 
   gateway-conformance:
     name: Gateway Conformance

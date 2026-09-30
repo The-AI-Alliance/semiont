@@ -160,18 +160,10 @@ recordInferenceUsage({ model: 'gemma3:27b', inputTokens: 412, outputTokens: 87 }
 
 ### Provider registration
 
-Long-lived snapshots (job queue depth, vector index size) are gauges, registered via callback so the SDK can pull at metric-export time:
+Long-lived snapshots (vector index size, the fact pump's backlog) are gauges, registered via callback so the SDK can pull at metric-export time:
 
 ```ts
-import {
-  registerJobQueueProvider,
-  registerVectorIndexSizeProvider,
-} from '@semiont/observability';
-
-registerJobQueueProvider(() => ({
-  pending: jobs.pending.size,
-  running: jobs.running.size,
-}));
+import { registerVectorIndexSizeProvider } from '@semiont/observability';
 
 registerVectorIndexSizeProvider(() => vectorStore.count());
 ```

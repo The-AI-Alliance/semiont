@@ -28,6 +28,10 @@ COPY apps/gateway/Cargo.toml apps/gateway/
 COPY apps/gateway/src apps/gateway/src
 COPY apps/dispatcher/Cargo.toml apps/dispatcher/
 COPY apps/dispatcher/src apps/dispatcher/src
+COPY apps/dispatcher/handlers/Cargo.toml apps/dispatcher/handlers/
+COPY apps/dispatcher/handlers/src apps/dispatcher/handlers/src
+COPY apps/dispatcher/jetstream/Cargo.toml apps/dispatcher/jetstream/build.rs apps/dispatcher/jetstream/
+COPY apps/dispatcher/jetstream/src apps/dispatcher/jetstream/src
 COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
 COPY packages/codegen-rust/src packages/codegen-rust/src
 COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/

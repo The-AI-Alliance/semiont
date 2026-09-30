@@ -38,7 +38,7 @@ withDispatcher('the dispatcher\'s boot', (world) => {
   it.each([
     ['started without --config', { args: () => [] }, /\[fatal\] The dispatcher's configuration document is not named: start it with --config <path>/],
     ['with --config naming no file', { args: () => ['--config', join(tmpdir(), `absent-${randomUUID()}.json`)] }, /\[fatal\] Cannot read the dispatcher's configuration document at \S*absent-/],
-    ['with a document that is not JSON', { verbatim: 'gatewayUrl = "http://gateway"' }, /\[fatal\] The dispatcher's configuration document at \S+ is not JSON/],
+    ['with a document that is not JSON', { verbatim: 'gatewayUrl = "http://gateway"' }, /\[fatal\] \S+ is not JSON/],
   ])('refuses to start %s, saying why', async (_how, change, reason) => {
     const refusal = await refusedDispatcherBoot(await launch(world(), change));
     expect(refusal.code).toBe(1);
@@ -57,7 +57,7 @@ withDispatcher('the dispatcher\'s boot', (world) => {
     breakIt(document);
     const refusal = await refusedDispatcherBoot(await launch(world(), { verbatim: document }));
     expect(refusal.code).toBe(1);
-    expect(refusal.output).toMatch(/\[fatal\] The dispatcher's configuration document at \S+ is not valid: /);
+    expect(refusal.output).toMatch(/\[fatal\] \S+ is not a dispatcher configuration document \(DispatcherConfig\):/);
     expect(refusal.output).toMatch(field);
     expect(refusal.output).not.toMatch(/hunter2/);
   });

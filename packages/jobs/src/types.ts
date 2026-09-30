@@ -326,15 +326,3 @@ export function isCancelledJob(job: AnyJob): job is CancelledJob<any> {
   return job.status === 'cancelled';
 }
 
-// ============================================================================
-// Job Query Types
-// ============================================================================
-
-export interface JobQueryFilters {
-  status?: JobStatus;
-  type?: JobType;
-  userId?: UserId;
-  limit?: number;
-  offset?: number;
-}
-

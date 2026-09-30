@@ -6,7 +6,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/@semiont/jobs.svg)](https://www.npmjs.com/package/@semiont/jobs)
 [![License](https://img.shields.io/npm/l/@semiont/jobs.svg)](https://github.com/The-AI-Alliance/semiont/blob/main/LICENSE)
 
-Job queue, worker infrastructure, and annotation workers for [Semiont](https://github.com/The-AI-Alliance/semiont).
+The job worker for [Semiont](https://github.com/The-AI-Alliance/semiont): the processors for each job type, the job types, and the worker process that claims jobs over the bus. The job queue is the dispatcher's ([apps/dispatcher](../../apps/dispatcher/README.md)), and what it does with a job is [docs/protocol/JOBS.md](../../docs/protocol/JOBS.md).
 
 ## Architecture Context
 
@@ -29,45 +29,10 @@ npm install @semiont/jobs
 
 ## Quick Start
 
-```typescript
-import { FsJobQueue, type PendingJob, type DetectionParams } from '@semiont/jobs';
-import { EventBus, userId, resourceId, jobId } from '@semiont/core';
-import { SemiontProject } from '@semiont/core/node';
-
-// Initialize — jobs are stored under project.jobsDir
-const eventBus = new EventBus();
-const project = new SemiontProject('/path/to/project', {
-  anchoredTextDir: process.env.SEMIONT_ANCHORED_TEXT_DIR!,
-});
-const jobQueue = new FsJobQueue(project, logger, eventBus);
-await jobQueue.initialize();
-
-// Create a job
-const job: PendingJob<DetectionParams> = {
-  status: 'pending',
-  metadata: {
-    id: jobId('job-abc123'),
-    type: 'reference-annotation',
-    userId: userId('did:web:example.com:users:f47ac10b-58cc-4372-a567-0e02b2c3d479'),
-    created: new Date().toISOString(),
-    retryCount: 0,
-    maxRetries: 1,
-  },
-  params: {
-    resourceId: resourceId('doc-456'),
-    entityTypes: ['Person', 'Organization'],
-  },
-};
-
-await jobQueue.createJob(job);
-```
-
-Generation jobs are enqueued the same way, but their params are a
-[`GenerationJobParams`](./docs/JobTypes.md#generation-generation) bag whose
-`context` carries the anchor, plus the `resourceId` the dispatcher derives from
-`context.focus` and stamps in (`GenerationJob`'s params are
-`GenerationJobParams & { resourceId: ResourceId }`). Writing one straight to the
-queue bypasses that derivation, so prefer `client.yield.fromContext(...)`.
+A job is created on the bus (`job:create`), answered by the dispatcher, and claimed by a worker. A
+client starts one through the SDK — `semiont.mark.assist(...)` for an annotation pass,
+`semiont.yield.fromContext(...)` for generation — and follows it with `semiont.job`. A worker is this
+package's `worker-main`, run as the `semiont-worker` image.
 
 ## Job Types
 
@@ -163,24 +128,16 @@ function handleJob(job: AnyJob) {
 
 ## Storage Format
 
-The deployed driver, `JetStreamJobQueue`, keeps one `JobRecord` per job in a JetStream key-value bucket (layout in `specs/src/jobs/storage.json`). The `FsJobQueue` driver stores jobs as individual JSON files organized by status:
-
-```
-{project.jobsDir}/
-  pending/job-abc123.json
-  running/job-def456.json
-  complete/job-ghi789.json
-  failed/job-jkl012.json
-  cancelled/job-mno345.json
-```
+The dispatcher keeps one `JobRecord` per job in a JetStream key-value bucket, in the layout
+`specs/src/jobs/storage.json` states. A worker never reads it: it sees a job only as the dispatcher
+hands it over on `job:claimed`.
 
 ## Documentation
 
-- **[Job Queue Guide](./docs/JobQueue.md)** — JobQueue API and job management
 - **[Workers Guide](./docs/Workers.md)** — Building custom workers
 - **[Job Types Guide](./docs/JobTypes.md)** — All job type definitions
 - **[Type System Guide](./docs/TYPES.md)** — Discriminated unions and type safety
-- **[Configuration Guide](./docs/Configuration.md)** — Setup and options
+- **[Configuration Guide](./docs/Configuration.md)** — Running a worker
 - **[API Reference](./docs/API.md)** — Complete API reference
 
 ## License

@@ -5,6 +5,8 @@
 resolver = "3"
 members = [
     "apps/dispatcher",
+    "apps/dispatcher/handlers",
+    "apps/dispatcher/jetstream",
     "apps/gateway",
     "packages/codegen-rust",
     "packages/core-rust",
@@ -17,6 +19,8 @@ exclude = ["apps/desktop/src-tauri"]
 [workspace.dependencies]
 semiont = { path = "packages/sdk-rust" }
 semiont-codegen = { path = "packages/codegen-rust" }
+semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
+semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }

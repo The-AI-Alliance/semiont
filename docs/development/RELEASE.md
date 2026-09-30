@@ -285,7 +285,7 @@ The gateway is Rust (`apps/gateway`). Its image compiles it from the repository
 at the commit the image publish runs on — the version it reports is
 version.json's, read when it is built — so there is no `@semiont/gateway` to
 stage, pin or publish. Its crates are locked in the workspace's `Cargo.lock` and
-held to the licence policy by `scripts/lint/check-gateway-crates.mjs`.
+held to the licence policy by `scripts/lint/check-image-crates.mjs`.
 
 The **Browser** publishes from a staging directory: `apps/browser/package.publish.json`
 declares **no** runtime dependencies and nothing derives them, because the
