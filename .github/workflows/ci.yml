@@ -185,7 +185,7 @@ jobs:
         run: |
           rustup toolchain install
 
-      # The gateway's release build, shared with Gateway Conformance.
+      # The workspace's release build, shared with Gateway Conformance.
       - name: Cache cargo
         uses: actions/cache@v6.1.0
         with:
@@ -198,8 +198,8 @@ jobs:
             ${{ runner.os }}-gateway-release-
 
       # The dispatcher reaches the bus only through a gateway.
-      - name: Build the gateway
-        run: cargo build --release --locked -p semiont-gateway
+      - name: Build the dispatcher and the gateway
+        run: cargo build --release --locked -p semiont-dispatcher -p semiont-gateway
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -210,12 +210,12 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The dispatcher under test is make-meaning's entry point, so every
-      # package it loads is built.
+      # The suite imports @semiont/core — its test issuer — and bundles the
+      # spec with the root's redocly. Core is the one package it builds.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build:packages
+          npm run build --workspace=@semiont/core
 
       # The dispatcher's queue is JetStream, on a real broker spawned from PATH.
       - name: Install nats-server

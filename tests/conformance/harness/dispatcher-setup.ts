@@ -16,6 +16,6 @@ export default function setup(project: TestProject): void {
   const command = project.getProvidedContext().dispatcherCommand;
   const entry = command[command.length - 1]!;
   if (!existsSync(entry)) {
-    throw new Error(`The dispatcher is not built: ${entry} does not exist. Run \`npm run build:packages\` at the repository root.`);
+    throw new Error(`The dispatcher is not built: ${entry} does not exist. Run \`cargo build --release -p semiont-dispatcher\` at the repository root.`);
   }
 }

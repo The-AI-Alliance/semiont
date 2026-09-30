@@ -45,17 +45,17 @@
     "rebuild-graph": "tsx src/cli/rebuild-graph.ts"
   },
   "dependencies": {
-    "@semiont/content": "*",
-    "@semiont/core": "*",
-    "@semiont/event-sourcing": "*",
-    "@semiont/graph": "*",
-    "@semiont/http-transport": "*",
-    "@semiont/inference": "*",
-    "@semiont/jobs": "*",
-    "@semiont/observability": "*",
-    "@semiont/ontology": "*",
-    "@semiont/sdk": "*",
-    "@semiont/vectors": "*"
+    "@semiont/content": "0.6.8",
+    "@semiont/core": "0.6.8",
+    "@semiont/event-sourcing": "0.6.8",
+    "@semiont/graph": "0.6.8",
+    "@semiont/http-transport": "0.6.8",
+    "@semiont/inference": "0.6.8",
+    "@semiont/jobs": "0.6.8",
+    "@semiont/observability": "0.6.8",
+    "@semiont/ontology": "0.6.8",
+    "@semiont/sdk": "0.6.8",
+    "@semiont/vectors": "0.6.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",
