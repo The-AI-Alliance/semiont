@@ -3,13 +3,20 @@
 # them. The desktop app's crate is its own project, outside the workspace.
 [workspace]
 resolver = "3"
-members = ["apps/gateway", "packages/core-rust", "packages/sdk-rust"]
+members = [
+    "apps/dispatcher",
+    "apps/gateway",
+    "packages/codegen-rust",
+    "packages/core-rust",
+    "packages/sdk-rust",
+]
 exclude = ["apps/desktop/src-tauri"]
 
 # Every crate a member uses, by version, once: a member names the ones it uses
 # with `.workspace = true` and adds the features it needs.
 [workspace.dependencies]
 semiont = { path = "packages/sdk-rust" }
+semiont-codegen = { path = "packages/codegen-rust" }
 semiont-core = { path = "packages/core-rust" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }

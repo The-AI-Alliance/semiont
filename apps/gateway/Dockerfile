@@ -26,9 +26,13 @@ COPY specs/src specs/src
 COPY Cargo.toml Cargo.lock ./
 COPY apps/gateway/Cargo.toml apps/gateway/
 COPY apps/gateway/src apps/gateway/src
+COPY apps/dispatcher/Cargo.toml apps/dispatcher/
+COPY apps/dispatcher/src apps/dispatcher/src
+COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
+COPY packages/codegen-rust/src packages/codegen-rust/src
 COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
 COPY packages/core-rust/src packages/core-rust/src
-COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/
+COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
 COPY packages/sdk-rust/src packages/sdk-rust/src
 # A spec that does not compile fails here, in semiont-core's build.rs, never at boot.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

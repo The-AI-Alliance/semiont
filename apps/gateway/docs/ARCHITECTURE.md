@@ -12,8 +12,9 @@ The gateway is a member of the repository's Rust workspace
 | Crate | Directory | What the gateway takes from it |
 |---|---|---|
 | `semiont-gateway` | `apps/gateway` | Everything particular to the gateway: the routes, the ledger, the signal plane, token minting, principals and limits |
-| `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document, logging, telemetry, and (its `nats` feature) reaching the broker |
-| `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: naming the knowledge base and its principals, the realm's roles, and signing in as a service account |
+| `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, logging, telemetry, and (its `nats` feature) reaching the broker |
+| `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and signing in as a service account |
+| `semiont-codegen` | [packages/codegen-rust](../../../packages/codegen-rust) | Nothing at run time: the other two crates' build scripts bundle the spec and generate their types with it |
 
 ## Built against the spec
 

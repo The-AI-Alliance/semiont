@@ -13,7 +13,10 @@ use axum::response::{IntoResponse, Response};
 use futures::StreamExt;
 use futures::task::AtomicWaker;
 use hyper_util::rt::{TokioIo, TokioTimer};
+use semiont::types::{ErrorResponse, LimitRefusal, LimitRefusalCode};
 use semiont_core::logging;
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 use std::io;
 use std::pin::Pin;
@@ -254,8 +257,9 @@ pub async fn edge(request: Request, next: Next) -> Response {
 // ── Errors ───────────────────────────────────────────────────────────────
 
 /// A JSON body.
-pub fn json_response(status: StatusCode, body: &Value) -> Response {
-    let mut response = (status, body.to_string()).into_response();
+pub fn json_response(status: StatusCode, body: &impl Serialize) -> Response {
+    let text = serde_json::to_string(body).expect("a response body serializes");
+    let mut response = (status, text).into_response();
     response.headers_mut().insert(
         header::CONTENT_TYPE,
         HeaderValue::from_static("application/json"),
@@ -263,7 +267,7 @@ pub fn json_response(status: StatusCode, body: &Value) -> Response {
     response
 }
 
-/// Every error is an ErrorResponse: `{ "error": ... }`.
+/// Every error is an ErrorResponse, or a LimitRefusal when a limit refused it.
 #[derive(Debug)]
 pub struct ApiError {
     status: StatusCode,
@@ -274,9 +278,15 @@ pub struct ApiError {
 
 impl ApiError {
     pub fn new(status: StatusCode, message: impl Into<String>) -> ApiError {
+        let body = ErrorResponse {
+            error: message.into(),
+            code: None,
+            hint: None,
+            details: None,
+        };
         ApiError {
             status,
-            body: json!({ "error": message.into() }),
+            body: serde_json::to_value(body).expect("an ErrorResponse serializes"),
             headers: Vec::new(),
         }
     }
@@ -285,15 +295,26 @@ impl ApiError {
     /// the refusal will have lifted, in whole seconds rounded up.
     pub fn limited(
         status: StatusCode,
-        code: &str,
+        code: LimitRefusalCode,
         message: impl Into<String>,
         retry_after: std::time::Duration,
     ) -> ApiError {
         let seconds = retry_after.as_secs() + u64::from(retry_after.subsec_nanos() > 0);
-        crate::metrics::record_refused(code);
+        let body = serde_json::to_value(LimitRefusal {
+            error: message.into(),
+            code,
+            hint: None,
+            details: None,
+        })
+        .expect("a LimitRefusal serializes");
+        crate::metrics::record_refused(
+            body["code"]
+                .as_str()
+                .expect("a LimitRefusal names its code"),
+        );
         ApiError {
             status,
-            body: json!({ "error": message.into(), "code": code }),
+            body,
             headers: vec![(header::RETRY_AFTER, seconds.to_string())],
         }
     }
@@ -371,13 +392,11 @@ pub async fn json_body(body: Body, operation: &str) -> Result<Value, ApiError> {
 
 /// A string field of a body its schema has already accepted: absent, the
 /// schema and this code disagree, which is the gateway's fault.
-pub fn text<'a>(body: &'a Value, field: &str) -> Result<&'a str, ApiError> {
-    body[field].as_str().ok_or_else(|| {
-        ApiError::internal(
-            "reading a validated body",
-            format!("the schema admitted a body without a string {field}"),
-        )
-    })
+/// A JSON body held to its operation's schema (`json_body`), then read as its
+/// type: once it validates, it cannot fail to decode.
+pub async fn typed_body<T: DeserializeOwned>(body: Body, operation: &str) -> Result<T, ApiError> {
+    let value = json_body(body, operation).await?;
+    serde_json::from_value(value).map_err(|e| ApiError::internal("reading a validated body", e))
 }
 
 // ── The bearer credential ────────────────────────────────────────────────

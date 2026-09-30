@@ -22,6 +22,10 @@ that package's internals to public API to satisfy a directory layout.
 
 Change the CMD only against that file.
 
+`src/` is the dispatcher's Rust port, a crate of the repository's Rust workspace. Until the
+port is complete it is a skeleton that boots, signs in and subscribes, and answers nothing; the
+image still runs the TypeScript entry point.
+
 ## What it is — a control plane, not a conduit
 
 The dispatcher answers questions about *what work is available* and *what a worker has been

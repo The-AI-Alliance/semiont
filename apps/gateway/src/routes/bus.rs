@@ -3,7 +3,7 @@
 //! publish it on the plane.
 
 use crate::app::App;
-use crate::http::{ApiError, Authenticated, json_body, json_response, text};
+use crate::http::{ApiError, Authenticated, json_response, typed_body};
 use crate::ledger::ClaimOutcome;
 use crate::principal::Principal;
 use crate::signal::{Meta, Unavailable};
@@ -15,6 +15,7 @@ use axum::response::{IntoResponse, Response};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity;
+use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
 use semiont_core::bus_log::bus_log;
 use semiont_core::logging;
 use semiont_core::spec::spec;
@@ -82,26 +83,20 @@ pub async fn emit(
     if let Err(retry_after) = app.emit_rates.admit(&principal) {
         return Err(ApiError::limited(
             StatusCode::TOO_MANY_REQUESTS,
-            "emit-rate",
+            LimitRefusalCode::EmitRate,
             "This principal's emits have used its bucket",
             retry_after,
         ));
     }
-    let request = json_body(body, "POST /bus/emit").await?;
-    let channel = text(&request, "channel")?.to_owned();
-    let scope = request["scope"].as_str().map(str::to_owned);
-    let correlation_id = request["correlationId"].as_str().map(str::to_owned);
+    let BusEmitRequest {
+        channel,
+        mut payload,
+        scope,
+        correlation_id,
+        client_id,
+    } = typed_body(body, "POST /bus/emit").await?;
     // An empty clientId is no clientId.
-    let client_id = request["clientId"]
-        .as_str()
-        .filter(|c| !c.is_empty())
-        .map(str::to_owned);
-    let Value::Object(mut payload) = request["payload"].clone() else {
-        return Err(ApiError::internal(
-            "reading a validated emit",
-            "BusEmitRequest admitted a payload that is not an object",
-        ));
-    };
+    let client_id = client_id.filter(|c| !c.is_empty());
 
     let Some(schema) = spec().channel_schema(&channel) else {
         return Err(ApiError::bad_request(format!("Unknown channel: {channel}")));
@@ -168,7 +163,7 @@ pub async fn emit(
                 let max = limits::limits().pending_replies_max;
                 return Err(ApiError::limited(
                     StatusCode::TOO_MANY_REQUESTS,
-                    "unanswered-requests",
+                    LimitRefusalCode::UnansweredRequests,
                     format!("client has {max} unanswered requests; retry when one settles"),
                     retry_after,
                 ));
@@ -212,9 +207,8 @@ pub async fn emit(
     })
     .await?;
 
-    let accepted = match dispatched {
-        Some(subscribers) => json!({ "subscribers": subscribers }),
-        None => json!({}),
+    let accepted = BusEmitAccepted {
+        subscribers: dispatched.map(|n| n as u64),
     };
     Ok(json_response(StatusCode::ACCEPTED, &accepted).into_response())
 }

@@ -13,3 +13,4 @@ pub mod logging;
 pub mod nats;
 pub mod spec;
 pub mod telemetry;
+pub mod types;

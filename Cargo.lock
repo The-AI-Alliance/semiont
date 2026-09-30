@@ -2047,10 +2047,23 @@ dependencies = [
 name = "semiont"
 version = "0.0.0"
 dependencies = [
+ "base64 0.23.1",
+ "bytes",
+ "futures",
  "percent-encoding",
  "reqwest",
+ "semiont-codegen",
+ "serde",
  "serde_json",
  "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "semiont-codegen"
+version = "0.0.0"
+dependencies = [
+ "serde_json",
 ]
 
 [[package]]
@@ -2066,9 +2079,25 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-stdout",
  "opentelemetry_sdk",
+ "semiont",
+ "semiont-codegen",
  "serde",
  "serde_json",
  "tikv-jemalloc-ctl",
+ "tokio",
+]
+
+[[package]]
+name = "semiont-dispatcher"
+version = "0.0.0"
+dependencies = [
+ "axum",
+ "reqwest",
+ "rustls",
+ "semiont",
+ "semiont-core",
+ "serde_json",
+ "tikv-jemallocator",
  "tokio",
 ]
 

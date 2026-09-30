@@ -3,10 +3,19 @@ name = "semiont"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "Semiont's Rust SDK: what a client of a knowledge base needs to name its principals, hold its roles and sign in as a service account, as specs/ states it."
+description = "Semiont's Rust SDK: the protocol's types and a client of the bus, and what a client needs to name its principals, hold its roles and sign in, as specs/ states it."
 
 [dependencies]
+base64.workspace = true
+bytes.workspace = true
+futures.workspace = true
 percent-encoding.workspace = true
-reqwest = { workspace = true, features = ["json"] }
+reqwest = { workspace = true, features = ["json", "stream"] }
+serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tokio = { workspace = true, features = ["sync"] }
+tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+uuid = { workspace = true, features = ["v4"] }
+
+[build-dependencies]
+semiont-codegen.workspace = true
+serde_json.workspace = true

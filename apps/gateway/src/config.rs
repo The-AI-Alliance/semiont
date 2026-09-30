@@ -3,7 +3,8 @@
 //! names (the image passes `/etc/semiont/gateway.json`, where the launcher
 //! mounts it) and validated against its schema before anything in it is used.
 
-use semiont_core::config::{self, ConfigError, Document, GatewayConfig, GatewayConfigSignalType};
+use semiont_core::config::{self, ConfigError, Document};
+use semiont_core::types::{GatewayConfig, GatewayConfigSignalType};
 
 pub const DOCUMENT: Document = Document {
     service: "gateway",

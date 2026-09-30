@@ -3,7 +3,7 @@
 //! carrying the active trace's `trace_id` and `span_id`; `simple`,
 //! `<timestamp> [<LEVEL>] <message>` followed by any fields as JSON.
 
-use crate::config::{LogFormat, LogLevel};
+use crate::types::{LogFormat, LogLevel};
 use opentelemetry::trace::TraceContextExt;
 use serde_json::{Map, Value, json};
 use std::io::Write;

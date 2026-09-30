@@ -1,0 +1,20 @@
+[package]
+name = "semiont-dispatcher"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "The Semiont dispatcher, in Rust: the knowledge base's job control plane, as docs/protocol/JOBS.md states it."
+
+[[bin]]
+name = "semiont-dispatcher"
+path = "src/main.rs"
+
+[dependencies]
+axum = { workspace = true, features = ["http1", "tokio"] }
+reqwest = { workspace = true, features = ["rustls-no-provider"] }
+rustls = { workspace = true, features = ["ring", "std"] }
+semiont.workspace = true
+semiont-core.workspace = true
+serde_json.workspace = true
+tikv-jemallocator.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal", "time"] }

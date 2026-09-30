@@ -11,7 +11,7 @@
 //! presence: `session:joined` and `session:left`.
 
 use crate::app::App;
-use crate::http::{ApiError, Authenticated, ConnectionAbort, json_body, text};
+use crate::http::{ApiError, Authenticated, ConnectionAbort, typed_body};
 use crate::ledger::DeliveryGate;
 use crate::limits::{self, Limits};
 use crate::metrics;
@@ -25,6 +25,7 @@ use axum::response::Response;
 use bytes::Bytes;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::types::{BusSubscribeRequest, LimitRefusalCode};
 use semiont_core::bus_log::bus_log;
 use semiont_core::logging;
 use semiont_core::spec::spec;
@@ -57,40 +58,26 @@ struct Scoped {
     last_event_id: Option<String>,
 }
 
-fn strings(value: &Value) -> Vec<String> {
-    value
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|i| i.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 pub async fn subscribe(
     State(app): State<Arc<App>>,
     Authenticated(principal): Authenticated,
     Extension(abort): Extension<ConnectionAbort>,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let request = json_body(body, "POST /bus/subscribe").await?;
-    let client_id = text(&request, "clientId")?.to_owned();
-    let global = strings(&request["global"]);
-    let mut scoped = Vec::new();
-    for entry in request["scoped"]
-        .as_array()
-        .map(Vec::as_slice)
+    let request: BusSubscribeRequest = typed_body(body, "POST /bus/subscribe").await?;
+    let client_id = request.client_id;
+    let global = request.global.unwrap_or_default();
+    let scoped: Vec<Scoped> = request
+        .scoped
         .unwrap_or_default()
-    {
-        scoped.push(Scoped {
-            scope: text(entry, "scope")?.to_owned(),
-            channels: strings(&entry["channels"]),
-            last_event_id: entry["lastEventId"].as_str().map(str::to_owned),
-        });
-    }
-    let pending_replies = strings(&request["pendingReplies"]);
+        .into_iter()
+        .map(|entry| Scoped {
+            scope: entry.scope,
+            channels: entry.channels,
+            last_event_id: entry.last_event_id,
+        })
+        .collect();
+    let pending_replies = request.pending_replies.unwrap_or_default();
     if global.is_empty() && scoped.is_empty() {
         return Err(ApiError::bad_request(
             "At least one global channel or scoped entry is required",
@@ -116,7 +103,7 @@ pub async fn subscribe(
     if app.queued_bytes.load(Ordering::SeqCst) >= app.config.capacity.queued_bytes as usize {
         return Err(ApiError::limited(
             StatusCode::SERVICE_UNAVAILABLE,
-            "capacity",
+            LimitRefusalCode::Capacity,
             "The gateway holds as many queued bytes as it can",
             Duration::from_secs(limits.heartbeat_seconds),
         ));
@@ -124,7 +111,7 @@ pub async fn subscribe(
     let lease = app.bus.streams.admit(&principal).map_err(|retry_after| {
         ApiError::limited(
             StatusCode::TOO_MANY_REQUESTS,
-            "streams",
+            LimitRefusalCode::Streams,
             "This principal holds as many streams as it may",
             retry_after,
         )

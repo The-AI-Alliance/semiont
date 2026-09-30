@@ -5,7 +5,7 @@
 //! by its JSON pointer. A secret is never a value in it: a field names the
 //! environment variable that holds one.
 //!
-//! The documents' types are generated from their schemas (build.rs).
+//! The documents' types are generated from their schemas (`crate::types`).
 
 use crate::spec::spec;
 use jsonschema::error::ValidationErrorKind;
@@ -13,8 +13,6 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use std::fmt;
 use std::path::{Path, PathBuf};
-
-include!(concat!(env!("OUT_DIR"), "/config_types.rs"));
 
 /// Which service reads a document, and the schema it answers to: what a
 /// refusal names.
@@ -177,4 +175,33 @@ pub fn from_environment(field: &str, name: &str) -> Result<String, ConfigError> 
             "{field} names the environment variable {name}, which is not set"
         ))),
     }
+}
+
+/// The service's own account at the issuer, `SEMIONT_OIDC_CLIENT_ID` and
+/// `SEMIONT_OIDC_CLIENT_SECRET`: the credential it signs in with, before it
+/// asks the gateway for its agent token. Both are required; the refusal names
+/// each one missing, and never a value.
+pub fn service_account(document: &Document) -> Result<(String, String), ConfigError> {
+    let id = std::env::var("SEMIONT_OIDC_CLIENT_ID")
+        .ok()
+        .filter(|v| !v.is_empty());
+    let secret = std::env::var("SEMIONT_OIDC_CLIENT_SECRET")
+        .ok()
+        .filter(|v| !v.is_empty());
+    if let (Some(id), Some(secret)) = (&id, &secret) {
+        return Ok((id.clone(), secret.clone()));
+    }
+    let missing: Vec<&str> = [
+        ("SEMIONT_OIDC_CLIENT_ID", id.is_none()),
+        ("SEMIONT_OIDC_CLIENT_SECRET", secret.is_none()),
+    ]
+    .into_iter()
+    .filter_map(|(name, absent)| absent.then_some(name))
+    .collect();
+    let service = document.service;
+    Err(ConfigError::Unset(format!(
+        "{} not set — this {service} has no service account to sign in with.\n\
+         The launcher passes both for each service it starts; a {service} started another way needs the client its realm registers for it (SEMIONT_OIDC_CLIENT_ID=semiont-{service}).",
+        missing.join(" and ")
+    )))
 }

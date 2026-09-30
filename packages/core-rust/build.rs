@@ -1,33 +1,35 @@
 //! Embeds the spec every Rust service is built against, refuses to build
-//! against a malformed one, and generates the types of the services'
-//! configuration documents from their schemas.
+//! against a malformed one, and generates the types of the schemas only the
+//! services read.
 //!
 //! The bundles in specs/ are gitignored build output, absent from a clean
-//! checkout, so this reads specs/src itself: it follows every file `$ref`,
-//! naming each file the root document lists under `components` by its
-//! component and inlining the rest, into one document per API — the
-//! protocol's, and the Archivist's. From the protocol's document it writes the
-//! component schemas as JSON Schema draft 7 (OpenAPI 3.0's `nullable` made a
-//! type) and compiles every one of them, so a schema that cannot be compiled
-//! fails here rather than at boot or on a request. The bus registry must name
-//! only schemas the spec has, and the version is version.json's.
+//! checkout, so this bundles specs/src itself (semiont-codegen): one document
+//! per API — the protocol's, and the Archivist's. From the protocol's document
+//! it writes the component schemas as JSON Schema draft 7 and compiles every
+//! one of them, so a schema that cannot be compiled fails here rather than at
+//! boot or on a request. The bus registry must name only schemas the spec has,
+//! and the version is version.json's.
 //!
-//! The configuration documents (`CONFIG_DOCUMENTS`) are schemas no client
-//! reads, so their Rust types are generated here, into `config_types.rs`: a
-//! struct per object, an enum per string enumeration, a field per property,
-//! optional where the schema does not require it. The generator knows the few
-//! shapes those schemas use and refuses any other, so a schema that grows a
-//! new shape fails the build rather than generating something wrong.
+//! `SERVICE_SCHEMAS` are the schemas no client reads — the configuration
+//! documents, and what a service keeps or answers of its own — generated into
+//! `service_types.rs`. A schema they reach that is the protocol's is named
+//! from the SDK (`semiont::types`), which generates it: one home for each.
 
-use serde_json::{Map, Value, json};
-use std::collections::BTreeMap;
-use std::fmt::Write as _;
+use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json, write_json};
+use semiont_codegen::types::{Generation, generate};
+use serde_json::{Value, json};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-/// The configuration documents whose types are generated: the schemas a
-/// service reads at boot, which only the services read.
-const CONFIG_DOCUMENTS: [&str; 2] = ["GatewayConfig", "DispatcherConfig"];
+/// The schemas only the services read.
+const SERVICE_SCHEMAS: [&str; 6] = [
+    "GatewayConfig",
+    "DispatcherConfig",
+    "LogLevel",
+    "LogFormat",
+    "JobRecord",
+    "DispatcherHealth",
+];
 
 fn main() {
     let crate_dir =
@@ -54,221 +56,22 @@ fn main() {
     write_json(&out.join("archivist.openapi.json"), &archivist);
     write_json(&out.join("schemas.json"), &definitions);
     fs::write(
-        out.join("config_types.rs"),
-        ConfigTypes::generate(&definitions["definitions"]),
+        out.join("service_types.rs"),
+        generate(
+            &definitions["definitions"],
+            &Generation {
+                roots: &SERVICE_SCHEMAS,
+                elsewhere: Some("semiont::types"),
+            },
+        ),
     )
-    .expect("cannot write config_types.rs");
+    .expect("cannot write service_types.rs");
 
     let version = read_json(&repo.join("version.json"));
     let version = version["version"]
         .as_str()
         .expect("version.json has a string `version`");
     println!("cargo:rustc-env=SEMIONT_VERSION={version}");
-}
-
-fn read_json(path: &Path) -> Value {
-    let text =
-        fs::read_to_string(path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
-    serde_json::from_str(&text).unwrap_or_else(|e| panic!("{} is not JSON: {e}", path.display()))
-}
-
-fn write_json(path: &Path, value: &Value) {
-    fs::write(
-        path,
-        serde_json::to_vec(value).expect("a JSON value serializes"),
-    )
-    .unwrap_or_else(|e| panic!("cannot write {}: {e}", path.display()));
-}
-
-/// One OpenAPI document with every file `$ref` resolved.
-struct Bundle {
-    /// Each file the document names as a component → (kind, name).
-    named: BTreeMap<PathBuf, (String, String)>,
-    /// The components, resolved, as they will be written.
-    components: BTreeMap<String, Map<String, Value>>,
-}
-
-impl Bundle {
-    fn of(root_file: &Path) -> Value {
-        let root_file = root_file
-            .canonicalize()
-            .unwrap_or_else(|e| panic!("{}: {e}", root_file.display()));
-        let root = read_json(&root_file);
-        let base = root_file
-            .parent()
-            .expect("a file has a directory")
-            .to_path_buf();
-        let mut bundle = Bundle {
-            named: BTreeMap::new(),
-            components: BTreeMap::new(),
-        };
-
-        let declared = root
-            .get("components")
-            .and_then(Value::as_object)
-            .cloned()
-            .unwrap_or_default();
-        for (kind, entries) in &declared {
-            let Some(entries) = entries.as_object() else {
-                continue;
-            };
-            for (name, entry) in entries {
-                if let Some(file) = entry.get("$ref").and_then(Value::as_str) {
-                    bundle.name(&base.join(file), kind, name);
-                }
-            }
-        }
-        let mut document = root.clone();
-        for (kind, entries) in &declared {
-            let Some(entries) = entries.as_object() else {
-                continue;
-            };
-            for (name, entry) in entries {
-                let resolved = match entry.get("$ref").and_then(Value::as_str) {
-                    Some(file) => bundle.load(&base.join(file)),
-                    None => {
-                        let mut inline = entry.clone();
-                        bundle.resolve(&mut inline, &base);
-                        inline
-                    }
-                };
-                bundle
-                    .components
-                    .entry(kind.clone())
-                    .or_default()
-                    .insert(name.clone(), resolved);
-            }
-        }
-        if let Some(object) = document.as_object_mut() {
-            object.remove("components");
-            for (key, value) in object.iter_mut() {
-                if key != "components" {
-                    bundle.resolve(value, &base);
-                }
-            }
-        }
-        let components: Map<String, Value> = bundle
-            .components
-            .into_iter()
-            .map(|(kind, entries)| (kind, Value::Object(entries)))
-            .collect();
-        document["components"] = Value::Object(components);
-        document
-    }
-
-    fn name(&mut self, file: &Path, kind: &str, name: &str) {
-        let file = file
-            .canonicalize()
-            .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-        if let Some((k, n)) = self.named.get(&file)
-            && (k.as_str(), n.as_str()) != (kind, name)
-        {
-            panic!("{} is named both {k}/{n} and {kind}/{name}", file.display());
-        }
-        self.named.insert(file, (kind.to_owned(), name.to_owned()));
-    }
-
-    /// A file's contents, with every `$ref` in it resolved relative to it.
-    fn load(&mut self, file: &Path) -> Value {
-        let file = file
-            .canonicalize()
-            .unwrap_or_else(|e| panic!("{}: {e}", file.display()));
-        let mut value = read_json(&file);
-        let base = file.parent().expect("a file has a directory").to_path_buf();
-        self.resolve(&mut value, &base);
-        value
-    }
-
-    fn resolve(&mut self, node: &mut Value, base: &Path) {
-        match node {
-            Value::Array(items) => items.iter_mut().for_each(|item| self.resolve(item, base)),
-            Value::Object(object) => {
-                if let Some(reference) = object
-                    .get("$ref")
-                    .and_then(Value::as_str)
-                    .map(str::to_owned)
-                {
-                    let (file, pointer) = reference
-                        .split_once('#')
-                        .unwrap_or((reference.as_str(), ""));
-                    if file.is_empty() {
-                        panic!(
-                            "an internal $ref {reference} in a file under {}: specs/src refers by file",
-                            base.display()
-                        );
-                    }
-                    if !pointer.is_empty() {
-                        panic!(
-                            "$ref {reference} under {} points into a file: specs/src refers to whole files",
-                            base.display()
-                        );
-                    }
-                    let target = base.join(file).canonicalize().unwrap_or_else(|e| {
-                        panic!("$ref {reference} under {}: {e}", base.display())
-                    });
-                    let named = self.named.get(&target).cloned().or_else(|| {
-                        let kind = target.parent()?.file_name()?.to_str()?.to_owned();
-                        let name = target.file_stem()?.to_str()?.to_owned();
-                        (kind == "schemas" || kind == "responses").then_some((kind, name))
-                    });
-                    match named {
-                        Some((kind, name)) => {
-                            if !self.named.contains_key(&target) {
-                                self.name(&target, &kind, &name);
-                                let resolved = self.load(&target);
-                                self.components
-                                    .entry(kind.clone())
-                                    .or_default()
-                                    .insert(name.clone(), resolved);
-                            }
-                            *node = json!({ "$ref": format!("#/components/{kind}/{name}") });
-                        }
-                        None => *node = self.load(&target),
-                    }
-                    return;
-                }
-                object
-                    .values_mut()
-                    .for_each(|value| self.resolve(value, base));
-            }
-            _ => {}
-        }
-    }
-}
-
-/// The document's component schemas as JSON Schema draft 7, under
-/// `definitions`: `nullable` beside a `type` adds `null` to it; beside
-/// anything else it becomes `anyOf: [{type: null}, <the rest>]`.
-fn draft7_definitions(document: &Value) -> Value {
-    let mut schemas = document["components"]["schemas"].clone();
-    fn convert(node: &mut Value) {
-        match node {
-            Value::Array(items) => items.iter_mut().for_each(convert),
-            Value::Object(object) => {
-                if let Some(Value::String(reference)) = object.get_mut("$ref")
-                    && let Some(name) = reference.strip_prefix("#/components/schemas/")
-                {
-                    *reference = format!("#/definitions/{name}");
-                }
-                if object.get("nullable") == Some(&Value::Bool(true)) {
-                    object.remove("nullable");
-                    match object.get("type").cloned() {
-                        Some(Value::String(kind)) => {
-                            object.insert("type".into(), json!([kind, "null"]));
-                        }
-                        _ => {
-                            let inner = Value::Object(std::mem::take(object));
-                            object.insert("anyOf".into(), json!([{ "type": "null" }, inner]));
-                        }
-                    }
-                }
-                object.values_mut().for_each(convert);
-            }
-            _ => {}
-        }
-    }
-    convert(&mut schemas);
-    json!({ "$schema": "http://json-schema.org/draft-07/schema#", "definitions": schemas })
 }
 
 fn compile_every_schema(definitions: &Value) {
@@ -328,192 +131,5 @@ fn check_classification(classification: &Value) {
                 "bus-classification.json: {channel} has no direction; regenerate it with scripts/bus/generate-ts.mjs"
             );
         }
-    }
-}
-
-/// The Rust types of the configuration documents, generated from their schemas.
-struct ConfigTypes<'a> {
-    definitions: &'a Value,
-    /// Every type written, by name, so a `$ref` reached twice is written once.
-    written: BTreeMap<String, String>,
-}
-
-impl<'a> ConfigTypes<'a> {
-    fn generate(definitions: &'a Value) -> String {
-        let mut types = ConfigTypes {
-            definitions,
-            written: BTreeMap::new(),
-        };
-        for name in CONFIG_DOCUMENTS {
-            types.named(name);
-        }
-        let mut out = String::from(
-            "// Generated by build.rs from the configuration documents' schemas in specs/src.\n",
-        );
-        for code in types.written.values() {
-            out.push_str(code);
-        }
-        out
-    }
-
-    /// The type a component schema names, written if it is not yet.
-    fn named(&mut self, name: &str) -> String {
-        if !self.written.contains_key(name) {
-            let schema = self
-                .definitions
-                .get(name)
-                .unwrap_or_else(|| panic!("the spec declares no schema {name}"));
-            self.written.insert(name.to_owned(), String::new());
-            let code = self.declaration(name, schema);
-            self.written.insert(name.to_owned(), code);
-        }
-        name.to_owned()
-    }
-
-    /// The Rust type of a property: a named schema's, or one declared for it,
-    /// named after its owner and itself.
-    fn type_of(&mut self, owner: &str, property: &str, schema: &Value) -> String {
-        if let Some(reference) = schema["$ref"].as_str() {
-            let name = reference
-                .strip_prefix("#/definitions/")
-                .unwrap_or_else(|| panic!("{owner}.{property}: $ref {reference} is not a schema"));
-            return self.named(name);
-        }
-        match schema["type"].as_str() {
-            Some("string") if schema.get("enum").is_some() => {
-                let name = format!("{owner}{}", pascal(property));
-                let code = self.declaration(&name, schema);
-                self.written.insert(name.clone(), code);
-                name
-            }
-            Some("object") => {
-                let name = format!("{owner}{}", pascal(property));
-                let code = self.declaration(&name, schema);
-                self.written.insert(name.clone(), code);
-                name
-            }
-            Some("string") => "String".to_owned(),
-            Some("boolean") => "bool".to_owned(),
-            Some("integer") => {
-                let minimum = schema["minimum"].as_i64();
-                let maximum = schema["maximum"].as_i64();
-                match (minimum, maximum) {
-                    (Some(min), Some(max)) if min >= 0 && max <= i64::from(u16::MAX) => "u16",
-                    (Some(min), _) if min >= 0 => "u64",
-                    _ => "i64",
-                }
-                .to_owned()
-            }
-            Some("number") => "f64".to_owned(),
-            _ => panic!(
-                "{owner}.{property}: a schema shape config_types.rs does not generate: {schema}"
-            ),
-        }
-    }
-
-    fn declaration(&mut self, name: &str, schema: &Value) -> String {
-        let mut code = String::new();
-        doc(&mut code, "", schema);
-        if let Some(values) = schema["enum"].as_array() {
-            if schema["type"] != "string" {
-                panic!("{name}: only string enumerations are generated");
-            }
-            code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize, serde::Serialize)]\n");
-            let _ = writeln!(code, "pub enum {name} {{");
-            for value in values {
-                let value = value
-                    .as_str()
-                    .unwrap_or_else(|| panic!("{name}: an enum value is not a string"));
-                let _ = writeln!(
-                    code,
-                    "    #[serde(rename = \"{value}\")]\n    {},",
-                    pascal(value)
-                );
-            }
-            code.push_str("}\n\n");
-            return code;
-        }
-        if schema["type"] != "object" {
-            panic!("{name}: a schema shape config_types.rs does not generate: {schema}");
-        }
-        let properties = schema["properties"]
-            .as_object()
-            .unwrap_or_else(|| panic!("{name}: an object with no properties"));
-        let required: Vec<&str> = schema["required"]
-            .as_array()
-            .map(|r| r.iter().filter_map(Value::as_str).collect())
-            .unwrap_or_default();
-        code.push_str("#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]\n");
-        if schema["additionalProperties"] == false {
-            code.push_str("#[serde(deny_unknown_fields)]\n");
-        }
-        let _ = writeln!(code, "pub struct {name} {{");
-        for (property, property_schema) in properties {
-            let rust_type = self.type_of(name, property, property_schema);
-            doc(&mut code, "    ", property_schema);
-            let field = snake(property);
-            if field != *property && field != format!("r#{property}") {
-                let _ = writeln!(code, "    #[serde(rename = \"{property}\")]");
-            }
-            if required.contains(&property.as_str()) {
-                let _ = writeln!(code, "    pub {field}: {rust_type},");
-            } else {
-                let _ = writeln!(
-                    code,
-                    "    #[serde(default, skip_serializing_if = \"Option::is_none\")]\n    pub {field}: Option<{rust_type}>,"
-                );
-            }
-        }
-        code.push_str("}\n\n");
-        code
-    }
-}
-
-/// A schema's description as doc comments, indented.
-fn doc(code: &mut String, indent: &str, schema: &Value) {
-    if let Some(description) = schema["description"].as_str() {
-        for line in description.lines() {
-            let _ = writeln!(code, "{indent}/// {line}");
-        }
-    }
-}
-
-/// `in-process` and `subjectClaim` as `InProcess` and `SubjectClaim`.
-fn pascal(word: &str) -> String {
-    let mut out = String::new();
-    let mut upper = true;
-    for c in word.chars() {
-        if c.is_ascii_alphanumeric() {
-            if upper {
-                out.push(c.to_ascii_uppercase());
-            } else {
-                out.push(c);
-            }
-            upper = false;
-        } else {
-            upper = true;
-        }
-    }
-    out
-}
-
-/// `subjectClaim` as `subject_claim`; a Rust keyword raw.
-fn snake(word: &str) -> String {
-    let mut out = String::new();
-    for c in word.chars() {
-        if c.is_ascii_uppercase() {
-            out.push('_');
-            out.push(c.to_ascii_lowercase());
-        } else {
-            out.push(c);
-        }
-    }
-    if matches!(
-        out.as_str(),
-        "type" | "ref" | "match" | "use" | "mod" | "move" | "self" | "crate"
-    ) {
-        format!("r#{out}")
-    } else {
-        out
     }
 }

@@ -20,6 +20,7 @@ opentelemetry = { workspace = true, features = ["trace", "metrics"] }
 opentelemetry_sdk = { workspace = true, features = ["trace", "metrics"] }
 opentelemetry-otlp = { workspace = true, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics"] }
 opentelemetry-stdout = { workspace = true, features = ["trace", "metrics"] }
+semiont.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 tikv-jemalloc-ctl = { workspace = true, features = ["stats"] }
@@ -27,4 +28,5 @@ tokio = { workspace = true, features = ["rt", "time", "macros"] }
 
 [build-dependencies]
 jsonschema.workspace = true
+semiont-codegen.workspace = true
 serde_json = { workspace = true, features = ["preserve_order"] }

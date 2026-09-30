@@ -10,6 +10,7 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::Response;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::types::CreateResourceResponse;
 use semiont_core::bus_log::bus_log;
 use semiont_core::logging;
 use semiont_core::telemetry;
@@ -53,7 +54,7 @@ pub async fn upload(
     }
     Ok(json_response(
         StatusCode::ACCEPTED,
-        &json!({ "resourceId": resource_id }),
+        &CreateResourceResponse { resource_id },
     ))
 }
 

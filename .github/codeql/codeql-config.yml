@@ -10,8 +10,10 @@ queries:
 
 paths:
   - apps/browser/src
-  # The Rust workspace: the gateway and the crates the services share
+  # The Rust workspace: its services and the crates they share
   - apps/gateway/src
+  - apps/dispatcher/src
+  - packages/codegen-rust
   - packages/core-rust
   - packages/sdk-rust
   # Go launcher — module root, not a src/ dir (main.go + internal/)
