@@ -305,9 +305,9 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     };
 
     xhr.onerror = () => {
-      // Network-level failure (DNS, TCP reset, CORS). XHR doesn't give
-      // us a useful status here; classify as `unavailable` via 0 status
-      // mapping in classifyApiCode.
+      // Network-level failure (DNS, TCP reset, CORS). XHR gives no status
+      // here, so the error carries 0, which the vocabulary maps from nowhere:
+      // its code is the unclassified `error`.
       const err = new APIError('Network error during upload', 0, 'network-error', undefined, undefined);
       onApiError(err);
       reject(err);

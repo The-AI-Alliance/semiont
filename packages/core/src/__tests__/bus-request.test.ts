@@ -157,7 +157,7 @@ describe('busRequest', () => {
     // healthy /health).
     //
     // Promoted HERE, at the one place the wire fact enters the client
-    // vocabulary — the `classifyApiCode` pattern. Left in `details.payload.code`
+    // vocabulary — the table's `wire` entries. Left in `details.payload.code`
     // instead, every consumer would reach through the nesting and there would be
     // two ways to ask the same question.
     const bus = makeBus(RESULT, FAILURE);

@@ -1,0 +1,107 @@
+{
+  "$comment": "AUTHORITY for the error codes a Semiont client reports. Every SDK generates its code types and its classifiers from this file, so a code means one thing in every language. TypeScript: scripts/spec/generate-error-codes.mjs writes packages/core/src/generated/error-codes.ts. A code belongs here only when something produces it: a member nothing emits promises a distinction the system does not make.",
+  "busRequest": {
+    "docs": "Why a bus request did not resolve. Some members restate a failure the answering peer declared on the wire (`wire` names its `CommandError.code`); the rest are facts only the requesting side knows, which is why this vocabulary and the wire's stay separate.",
+    "unrecognizedFailure": "bus.rejected",
+    "codes": [
+      {
+        "code": "bus.timeout",
+        "docs": "No reply arrived within the time the request allowed."
+      },
+      {
+        "code": "bus.rejected",
+        "docs": "The peer answered with a failure whose code this vocabulary does not name, or that states none."
+      },
+      {
+        "code": "bus.closed",
+        "docs": "The bus stopped before a reply came: its client was disposed, or its transport closed."
+      },
+      {
+        "code": "bus.not-found",
+        "wire": "not-found",
+        "docs": "The peer says this resource does not exist in its knowledge base."
+      },
+      {
+        "code": "bus.unsubscribed",
+        "docs": "THIS transport is not subscribed to the reply channel: a local misconfiguration, caught before emitting. Not to be confused with `bus.peer-unavailable`, which is the opposite end."
+      },
+      {
+        "code": "bus.peer-unavailable",
+        "wire": "peer-unavailable",
+        "docs": "The service that answers this channel is not connected. Transient by nature, a peer still starting, and therefore the one failure on this list worth retrying."
+      },
+      {
+        "code": "bus.unauthorized",
+        "wire": "unauthorized",
+        "docs": "The peer says this caller may not do what it asked: authenticated, not permitted. Retrying under the same credential cannot succeed, so a consumer surfaces it and never spins on it."
+      },
+      {
+        "code": "bus.none-pending",
+        "wire": "none-pending",
+        "docs": "The peer declined and nothing went wrong: a `job:claim` found no pending job of the requested types. The one member a consumer parks on."
+      }
+    ]
+  },
+  "transport": {
+    "docs": "Transport-neutral failure vocabulary. Every transport maps its native failures to one of these, so a routing layer matches on the code without knowing the wire kind. Over HTTP the mapping is by status: `status` is an exact status, `statusFrom` every status at or above it.",
+    "unclassified": "error",
+    "codes": [
+      {
+        "code": "unauthorized",
+        "status": 401,
+        "docs": "Authentication is required: the token is missing or expired."
+      },
+      {
+        "code": "forbidden",
+        "status": 403,
+        "docs": "Authenticated, and lacking permission."
+      },
+      {
+        "code": "not-found",
+        "status": 404,
+        "docs": "The resource is missing."
+      },
+      {
+        "code": "conflict",
+        "status": 409,
+        "docs": "A concurrent modification, a duplicate, or another conflict with current state."
+      },
+      {
+        "code": "bad-request",
+        "status": 400,
+        "docs": "The request is malformed."
+      },
+      {
+        "code": "rate-limited",
+        "status": 429,
+        "docs": "A limit refused it; the refusal's `Retry-After` says when to return."
+      },
+      {
+        "code": "unavailable",
+        "statusFrom": 500,
+        "docs": "The gateway is unreachable, the network failed, or the server answered 5xx."
+      },
+      {
+        "code": "error",
+        "docs": "A failure no other member names."
+      }
+    ]
+  },
+  "session": {
+    "docs": "Why a session itself is unusable. Per-request failures stay with their caller.",
+    "codes": [
+      {
+        "code": "session.construct-failed",
+        "docs": "A session for the knowledge base could not be built or made ready."
+      },
+      {
+        "code": "session.auth-failed",
+        "docs": "The stored credential could not be validated at startup, for a reason other than the gateway refusing it."
+      },
+      {
+        "code": "session.refresh-exhausted",
+        "docs": "The session could not be renewed: the issuer refused, or stayed unreachable until the retry budget was spent. Not a prompt to retry: retrying already happened."
+      }
+    ]
+  }
+}

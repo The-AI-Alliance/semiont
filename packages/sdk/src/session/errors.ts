@@ -9,13 +9,7 @@
  * surfaced through the SDK.
  */
 
-import { SemiontError } from '@semiont/core';
-
-export type SemiontSessionErrorCode =
-  | 'session.construct-failed'
-  | 'session.auth-failed'
-  | 'session.refresh-exhausted'
-  | 'browser.sign-in-failed';
+import { SemiontError, type SemiontSessionErrorCode } from '@semiont/core';
 
 export class SemiontSessionError extends SemiontError {
   declare code: SemiontSessionErrorCode;

@@ -104,6 +104,7 @@ export type {
   // Transport-neutral error-code vocabulary (route on `error.code`).
   TransportErrorCode,
   BusRequestErrorCode,
+  SemiontSessionErrorCode,
 } from '@semiont/core';
 export {
   // Brand-cast functions
@@ -146,7 +147,7 @@ export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection 
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
 export { SessionSignals } from './session/session-signals';
-export { SemiontSessionError, type SemiontSessionErrorCode } from './session/errors';
+export { SemiontSessionError } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
 export {
   type SessionStorage,

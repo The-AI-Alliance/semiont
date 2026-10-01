@@ -2,7 +2,7 @@
  * Unit tests for `APIError`.
  *
  * Covers the discriminated `code` field's status-to-code mapping
- * (`classifyApiCode`) and the inheritance/details wiring that lets
+ * (`transportErrorCodeForStatus`) and the inheritance/details wiring that lets
  * consumers catch broadly on `SemiontError` or narrowly on `APIError`.
  */
 
@@ -12,7 +12,7 @@ import { SemiontError, type TransportErrorCode } from '@semiont/core';
 import { APIError } from '../api-error';
 
 describe('APIError', () => {
-  describe('classifyApiCode (via constructor)', () => {
+  describe('transportErrorCodeForStatus (via constructor)', () => {
     const cases: Array<[number, TransportErrorCode]> = [
       [400, 'bad-request'],
       [401, 'unauthorized'],

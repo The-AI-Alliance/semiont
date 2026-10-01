@@ -10,18 +10,7 @@
  * predicate could only agree with one of them.
  */
 
-import { SemiontError, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
-
-function classifyApiCode(status: number): TransportErrorCode {
-  if (status === 400) return 'bad-request';
-  if (status === 401) return 'unauthorized';
-  if (status === 403) return 'forbidden';
-  if (status === 404) return 'not-found';
-  if (status === 409) return 'conflict';
-  if (status === 429) return 'rate-limited';
-  if (status >= 500) return 'unavailable';
-  return 'error';
-}
+import { SemiontError, transportErrorCodeForStatus, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
 
 export class APIError extends SemiontError {
   declare code: TransportErrorCode;
@@ -31,7 +20,7 @@ export class APIError extends SemiontError {
   readonly retryAfterMs: number | undefined;
 
   constructor(message: string, status: number, statusText: string, body: unknown, retryAfterMs: number | undefined) {
-    super(message, classifyApiCode(status), { status, statusText, body });
+    super(message, transportErrorCodeForStatus(status), { status, statusText, body });
     this.name = 'APIError';
     this.status = status;
     this.statusText = statusText;

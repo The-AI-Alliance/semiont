@@ -6,6 +6,7 @@ import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import type { CommandErrorCode } from './payload-types';
+import { busRequestCodeByWireCode, unrecognizedFailureCode, type BusRequestErrorCode } from './generated/error-codes';
 import { uuidV4 } from './id-generation';
 
 /**
@@ -21,89 +22,48 @@ export type BusReply<Op extends BusOperationKey> =
     : void;
 
 /**
- * What a failed `busRequest` can tell its caller.
+ * What a failed `busRequest` can tell its caller: `BusRequestErrorCode`,
+ * generated from specs/src/errors/codes.json, where each member is documented.
  *
- * Two kinds of member, and the split is the point. `bus.not-found` and
- * `bus.peer-unavailable` are facts the PEER stated, promoted from
- * `CommandError.code` by `WIRE_TO_CLIENT` below. The rest are facts only this
- * side knows — a timeout, a closed connection, a local misconfiguration — which
- * is why the two vocabularies stay separate rather than collapsing into one.
+ * Two kinds of member, and the split is the point. `bus.not-found`,
+ * `bus.peer-unavailable`, `bus.unauthorized` and `bus.none-pending` are facts
+ * the PEER stated, promoted from `CommandError.code` by the table's `wire`
+ * entries. The rest are facts only this side knows — a timeout, a closed
+ * connection, a local misconfiguration — which is why the two vocabularies stay
+ * separate rather than collapsing into one.
  *
- * `bus.bad-payload`, `bus.unauthorized` and `bus.forbidden` were removed here
- * (2026-09-13): zero producers, zero consumers, and the HTTP-shaped facts they
- * named already live in `TransportErrorCode` with real producers
- * (`classifyApiCode`). A member nothing can emit promises a distinction the
- * system cannot make, and the next reader has no way to tell it apart from one
- * that merely has not been reached yet. `bus.unauthorized` returned 2026-09-22
- * the moment it had a producer: the dispatcher refusing a `job:claim` from a
- * caller without the worker role — a peer's verdict, promoted from the wire
- * like the two beside it, not an HTTP status.
+ * `bus.bad-payload` and `bus.forbidden` were removed (2026-09-13): zero
+ * producers, zero consumers, and the HTTP-shaped facts they named already live
+ * in `TransportErrorCode` with a real producer (`transportErrorCodeForStatus`).
+ * A member nothing can emit promises a distinction the system cannot make.
+ * `bus.unauthorized` left with them and returned 2026-09-22, the moment it had
+ * a producer: the dispatcher refusing a `job:claim` from a caller without the
+ * worker role.
+ *
+ * The mapping has one site, the table. Left unmapped, a consumer would reach
+ * into `details.payload.code` and there would be two ways to ask the same
+ * question. The generator refuses a table that leaves a wire code unmapped, and
+ * `satisfies` repeats that here against the generated `CommandErrorCode`, so a
+ * stale generated file fails to compile rather than defaulting to
+ * `bus.rejected`.
  */
-export type BusRequestErrorCode =
-  | 'bus.timeout'
-  | 'bus.rejected'
-  | 'bus.closed'
-  /** The peer says this resource does not exist in its knowledge base. */
-  | 'bus.not-found'
-  /**
-   * THIS transport is not subscribed to the reply channel — a local
-   * misconfiguration, caught before emitting. Not to be confused with
-   * `bus.peer-unavailable`, which is the opposite end: the channel HAS no
-   * subscriber because the service that answers it has not connected yet.
-   */
-  | 'bus.unsubscribed'
-  /**
-   * The service that answers this channel is not connected. Transient by
-   * nature — a peer still starting — and therefore the one failure class on
-   * this list worth retrying.
-   */
-  | 'bus.peer-unavailable'
-  /**
-   * The peer says this caller may not do what it asked — authenticated, not
-   * permitted. A verdict about the caller: retrying under the same credential
-   * cannot succeed, so a consumer must surface it, never spin on it.
-   */
-  | 'bus.unauthorized'
-  /**
-   * The peer declined, and nothing went wrong: a `job:claim` found no pending
-   * job of the requested types. The one member a consumer PARKS on — there is
-   * nothing to do until a wake-up.
-   */
-  | 'bus.none-pending';
-
-/**
- * A failure's own `code` (CommandError, wire) → this client vocabulary.
- *
- * One mapping site, deliberately: the `classifyApiCode(status)` pattern. Left
- * unmapped, a consumer would reach into `details.payload.code` and there would be
- * two ways to ask the same question, with the next consumer picking the other.
- *
- * Keyed by the generated `CommandErrorCode`, so a new wire member fails to
- * compile here (TS2741) until someone decides what it means to a client. A
- * ternary would have let it default silently to `bus.rejected` — a mirror of a
- * spec-owned vocabulary with no gate.
- */
-const WIRE_TO_CLIENT: Record<CommandErrorCode, BusRequestErrorCode> = {
-  'peer-unavailable': 'bus.peer-unavailable',
-  'not-found': 'bus.not-found',
-  'unauthorized': 'bus.unauthorized',
-  'none-pending': 'bus.none-pending',
-};
+const WIRE_CODES = new Map<unknown, BusRequestErrorCode>(
+  Object.entries(busRequestCodeByWireCode satisfies Record<CommandErrorCode, BusRequestErrorCode>),
+);
 
 /**
  * Read as `unknown`, because that is what crosses the boundary: the value comes
  * from a peer that may be newer than this build. An unrecognized code degrades
- * to `bus.rejected` rather than being trusted through — inventing a
- * `BusRequestErrorCode` nobody handles is worse than the honest fallback.
+ * to the table's `unrecognizedFailure` rather than being trusted through —
+ * inventing a `BusRequestErrorCode` nobody handles is worse than the honest
+ * fallback.
  */
-const WIRE_CODES = new Map<unknown, BusRequestErrorCode>(Object.entries(WIRE_TO_CLIENT));
-
 function classifyFailureCode(code: unknown): BusRequestErrorCode {
-  return WIRE_CODES.get(code) ?? 'bus.rejected';
+  return WIRE_CODES.get(code) ?? unrecognizedFailureCode;
 }
 
 const CLIENT_TO_WIRE = new Map<BusRequestErrorCode, CommandErrorCode>(
-  (Object.entries(WIRE_TO_CLIENT) as [CommandErrorCode, BusRequestErrorCode][]).map(([wire, client]) => [client, wire]),
+  (Object.entries(busRequestCodeByWireCode) as [CommandErrorCode, BusRequestErrorCode][]).map(([wire, client]) => [client, wire]),
 );
 
 /**
