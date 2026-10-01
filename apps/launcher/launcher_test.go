@@ -139,7 +139,7 @@ func newScenario(t *testing.T, runtimes ...string) *scenario {
 		[]byte(kbFixtureResource(t)), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { s.killServes() })
+	t.Cleanup(func() { s.killServes(t) })
 	return s
 }
 
@@ -188,36 +188,54 @@ func (s *scenario) mustLog(t *testing.T) []byte {
 // answers kill(pid, 0) — so the old loop ran its full 3-second budget on
 // every call, about 200 times a suite. The ports are what the next test
 // needs anyway, and the kernel frees those at exit, zombie or not.
-func (s *scenario) killServes() {
+// errorReporter: what killServes needs of a testing.T.
+type errorReporter interface {
+	Helper()
+	Errorf(format string, args ...any)
+}
+
+func (s *scenario) killServes(t errorReporter) {
+	t.Helper()
 	pidfiles, _ := filepath.Glob(filepath.Join(s.fakertDir, "serve-*.pid"))
-	var ports []string
+	type held struct{ port, pidfile string }
+	var ports []held
 	for _, pf := range pidfiles {
 		b, err := os.ReadFile(pf)
 		if err != nil {
 			continue
 		}
 		// Pidfiles are "pid\n<ports>" — fakert records the ports for exactly
-		// this wait (its own `stop` does the same).
+		// this wait (its own `stop` does the same). pid <= 1 is never one of
+		// ours, and kill(-1) would signal every process.
 		lines := strings.SplitN(strings.TrimSpace(string(b)), "\n", 2)
-		if pid, err := strconv.Atoi(strings.TrimSpace(lines[0])); err == nil {
+		if pid, err := strconv.Atoi(strings.TrimSpace(lines[0])); err == nil && pid > 1 {
 			if p, err := os.FindProcess(pid); err == nil {
 				_ = p.Kill()
 			}
 		}
 		if len(lines) > 1 {
-			ports = append(ports, strings.Fields(lines[1])...)
+			for _, port := range strings.Fields(lines[1]) {
+				ports = append(ports, held{port, filepath.Base(pf)})
+			}
 		}
 		_ = os.Remove(pf)
 	}
-	deadline := time.Now().Add(3 * time.Second)
-	for _, p := range ports {
-		for time.Now().Before(deadline) {
-			ln, err := net.Listen("tcp", "127.0.0.1:"+p)
+	// Each port gets its own deadline, and one that never comes free fails
+	// THIS test, naming it: a listener left behind otherwise answers for
+	// whichever test next publishes the port.
+	for _, h := range ports {
+		freed := false
+		for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); {
+			ln, err := net.Listen("tcp", "127.0.0.1:"+h.port)
 			if err == nil {
 				_ = ln.Close()
+				freed = true
 				break
 			}
 			time.Sleep(10 * time.Millisecond)
+		}
+		if !freed {
+			t.Errorf("port %s (%s) is still held 3s after its listener was killed: a later test publishing it would reach this one's listener", h.port, h.pidfile)
 		}
 	}
 }
@@ -1027,7 +1045,7 @@ func TestStatePersistsAcrossStarts(t *testing.T) {
 	}
 	// A second start must REUSE the same dir — that is the whole feature:
 	// the mount appears in both boots' argv, same path both times.
-	s.killServes()
+	s.killServes(t)
 	_, stderr, code = s.run(t, "start")
 	if code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
@@ -1059,7 +1077,7 @@ func TestGatewayDataPersistsAcrossStarts(t *testing.T) {
 	mount := dir + "/anchored-text:/anchored-text"
 	firstBoot := strings.Count(string(s.mustLog(t)), mount)
 
-	s.killServes()
+	s.killServes(t)
 	if _, stderr, code := s.run(t, "start"); code != 0 {
 		t.Fatalf("second start: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -2621,7 +2639,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	if _, stderr, code := s.run(t, "settings", "secret", "set", "SD_OPTIONAL", "op://OSS/Optional/credential"); code != 0 {
 		t.Fatalf("secret set: exit %d\n%s", code, stderr)
 	}
-	s.killServes()
+	s.killServes(t)
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -2634,7 +2652,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 
 	// Set to the empty string is set, and wins over both the source and the
 	// default (the shared table's rule), so it is forwarded empty.
-	s.killServes()
+	s.killServes(t)
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -2647,7 +2665,7 @@ func TestStartForwardsAnOptionalReferenceOnlyWhenSet(t *testing.T) {
 	}
 
 	// The environment wins over the source.
-	s.killServes()
+	s.killServes(t)
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -2690,7 +2708,7 @@ func TestStartResolvesSecret(t *testing.T) {
 
 	// Dry-run must not reach into the vault: with the provider failing, the
 	// plan still renders, with the placeholder.
-	s.killServes()
+	s.killServes(t)
 	s.extraEnv = append(s.extraEnv, "FAKERT_OP_FAIL=1")
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
@@ -2980,7 +2998,7 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
 		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.killServes()
+	s.killServes(t)
 	if err := os.Truncate(s.log, 0); err != nil {
 		t.Fatal(err)
 	}
@@ -3008,7 +3026,7 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 
 	// A different --repo is not a mismatch — it's a SECOND stack: codespace
 	// stacks coexist, keyed by repo.
-	s.killServes()
+	s.killServes(t)
 	stdout, stderr, code = s.run(t, "start", "--runtime", "codespace", "--repo", "other/bar")
 	if code != 0 {
 		t.Fatalf("second repo: exit %d\nstderr:\n%s", code, stderr)
@@ -3019,7 +3037,7 @@ func TestCodespaceBareResumeRootless(t *testing.T) {
 
 	// With several codespace stacks and none forwarded, a bare start must
 	// be told which.
-	s.killServes()
+	s.killServes(t)
 	_, stderr, code = s.run(t, "start")
 	if code != 1 {
 		t.Fatalf("ambiguous bare start: want exit 1, got %d", code)
@@ -3146,7 +3164,7 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	}
 
 	// No premium: fall back to the largest offered, announced with the reason.
-	s.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
+	s.killServes(t) // free the parked forward: THIS test is about machine selection, not port laddering
 	s2 := newCodespaceScenario(t)
 	s2.extraEnv = append(s2.extraEnv, only("standardLinux32gb"))
 	stdout, stderr, code = s2.run(t, "start", "--runtime", "codespace")
@@ -3160,7 +3178,7 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	mustContain(t, "argv log", string(log), "--machine standardLinux32gb")
 
 	// Largest wins the fallback, not merely the first offered.
-	s2.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
+	s2.killServes(t) // free the parked forward: THIS test is about machine selection, not port laddering
 	s3 := newCodespaceScenario(t)
 	s3.extraEnv = append(s3.extraEnv, only("standardLinux32gb", "largePremiumLinux"))
 	if _, stderr, code := s3.run(t, "start", "--runtime", "codespace"); code != 0 {
@@ -3170,7 +3188,7 @@ func TestCodespaceMachinePreflight(t *testing.T) {
 	mustContain(t, "argv log", string(log), "--machine largePremiumLinux")
 
 	// Explicit and available: used, no announcement.
-	s3.killServes() // free the parked forward: THIS test is about machine selection, not port laddering
+	s3.killServes(t) // free the parked forward: THIS test is about machine selection, not port laddering
 	s4 := newCodespaceScenario(t)
 	stdout, stderr, code = s4.run(t, "start", "--runtime", "codespace", "--machine", "standardLinux32gb")
 	if code != 0 {
@@ -3219,7 +3237,7 @@ func TestCodespaceMachineInertOnResume(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
 		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.killServes()
+	s.killServes(t)
 	stdout, stderr, code := s.run(t, "start", "--runtime", "codespace", "--machine", "largePremiumLinux")
 	if code != 0 {
 		t.Fatalf("resume: exit %d\nstderr:\n%s", code, stderr)
@@ -4036,7 +4054,7 @@ func TestCodespaceStatus(t *testing.T) {
 	if _, stderr, code := s.run(t, "start", "--runtime", "codespace"); code != 0 {
 		t.Fatalf("create: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.killServes() // forward dead: status must re-establish it
+	s.killServes(t) // forward dead: status must re-establish it
 
 	// Available: identity line, healthy table through the respawned
 	// forward, credentials read fresh.
@@ -4082,7 +4100,7 @@ func TestCodespaceStatus(t *testing.T) {
 		"active: https://github.com/"+csRepo, "http://localhost:4000)")
 
 	// Stopped: honest stopped-but-existing, scriptably unhealthy.
-	s.killServes()
+	s.killServes(t)
 	s.extraEnv = append(s.extraEnv[:len(s.extraEnv)-1],
 		`FAKERT_GH_CS_LIST=[{"name":"fake-cs-1","state":"Shutdown","repository":"pingel-org/foo-kb"}]`)
 	stdout, _, code = s.run(t, "status", "--repo", csRepo)
@@ -4122,7 +4140,7 @@ func TestCodespaceGuardsAndScoping(t *testing.T) {
 	if _, _, code := s2.run(t, "start", "--runtime", "codespace"); code != 0 {
 		t.Fatal("create failed")
 	}
-	s2.killServes()
+	s2.killServes(t)
 	// A codespace stack no longer blocks a local start — they coexist (the
 	// dry-run proves the local plan renders; only the lens would contend,
 	// and it's dropped live).
@@ -4345,7 +4363,7 @@ func TestBrowserPort(t *testing.T) {
 	mustContain(t, "status stdout", stdout, "http://localhost:3001")
 
 	// Default port stays 3000, no warning.
-	s.killServes()
+	s.killServes(t)
 	stdout, _, code = s.run(t, "start", "--service", "browser")
 	if code != 0 {
 		t.Fatal("default-port browser failed")
@@ -4715,7 +4733,7 @@ func TestRootsRegistryAndRootFlag(t *testing.T) {
 	}
 
 	// --root by registered basename, from an unrelated cwd.
-	s.killServes()
+	s.killServes(t)
 	s.cwd = t.TempDir()
 	stdout, stderr, code := s.run(t, "start", "--dry-run", "--root", filepath.Base(s.kb))
 	if code != 0 {
@@ -4780,7 +4798,7 @@ func TestConfigStickiness(t *testing.T) {
 	mustContain(t, "roots.json", string(b), `"config": "anthropic"`)
 
 	// A bare start now uses it, and the banner says where it came from.
-	s.killServes()
+	s.killServes(t)
 	stdout, stderr, code := s.run(t, "start", "--service", "worker")
 	if code != 0 {
 		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
@@ -4803,7 +4821,7 @@ func TestConfigStickiness(t *testing.T) {
 	}
 
 	// An explicit flag wins over the recorded preference and re-records.
-	s.killServes()
+	s.killServes(t)
 	stdout, stderr, code = s.run(t, "start", "--service", "worker", "--config", "ollama-gemma")
 	if code != 0 {
 		t.Fatalf("override start: exit %d\nstderr:\n%s", code, stderr)
@@ -4816,7 +4834,7 @@ func TestConfigStickiness(t *testing.T) {
 	mustContain(t, "roots.json after override", string(b), `"config": "ollama-gemma"`)
 
 	// A typo'd --config fails before launching and records nothing.
-	s.killServes()
+	s.killServes(t)
 	if _, _, code := s.run(t, "start", "--service", "worker", "--config", "nope"); code != 1 {
 		t.Fatalf("bogus config: want exit 1, got %d", code)
 	}
@@ -5267,7 +5285,7 @@ func TestRuntimeStickiness(t *testing.T) {
 	if _, stderr, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.killServes()
+	s.killServes(t)
 	if _, stderr, code := s.run(t, "start", "--service", "worker", "--runtime", "docker"); code != 0 {
 		t.Fatalf("docker start: exit %d\nstderr:\n%s", code, stderr)
 	}
@@ -5278,7 +5296,7 @@ func TestRuntimeStickiness(t *testing.T) {
 	if _, stderr, code := s.run(t, "stop"); code != 0 {
 		t.Fatalf("stop: exit %d\nstderr:\n%s", code, stderr)
 	}
-	s.killServes()
+	s.killServes(t)
 	stdout, stderr, code = s.run(t, "start", "--service", "worker")
 	if code != 0 {
 		t.Fatalf("sticky start: exit %d\nstderr:\n%s", code, stderr)
@@ -5287,7 +5305,7 @@ func TestRuntimeStickiness(t *testing.T) {
 		"Container runtime: docker", "recorded from last start; override with --runtime")
 
 	// A live stack's record outranks the preference: rejoin what exists.
-	s.killServes()
+	s.killServes(t)
 	writeStackState(t, s, "container")
 	stdout, stderr, code = s.run(t, "start", "--service", "worker")
 	if code != 0 {
@@ -5299,7 +5317,7 @@ func TestRuntimeStickiness(t *testing.T) {
 	}
 
 	// A preference naming an uninstalled runtime warns and auto-detects.
-	s.killServes()
+	s.killServes(t)
 	if err := os.Remove(statePathFor(s.home)); err != nil {
 		t.Fatal(err)
 	}
@@ -5350,7 +5368,7 @@ func TestStopSweepsStrayRuntimes(t *testing.T) {
 		"docker stop semiont-gateway", "docker rm semiont-gateway")
 
 	// An explicit --runtime keeps its narrow meaning: no cross-runtime sweep.
-	s.killServes()
+	s.killServes(t)
 	if _, _, code := s.run(t, "start", "--service", "worker", "--runtime", "container"); code != 0 {
 		t.Fatal("restart failed")
 	}
@@ -5386,7 +5404,7 @@ func TestStopVerifiesPortsReleased(t *testing.T) {
 
 	// A foreign holder on a claimed port is reported, not killed; stop
 	// still exits 0 — its own work succeeded.
-	s.killServes()
+	s.killServes(t)
 	if _, _, code := s.run(t, "start", "--service", "worker"); code != 0 {
 		t.Fatal("restart failed")
 	}
@@ -6624,7 +6642,7 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	if strings.Contains(got, "gemma4:26b") {
 		t.Errorf("re-pulled a model Ollama already had:\n%s", got)
 	}
-	s.killServes() // else this fake Ollama looks like a HOST one to the next case
+	s.killServes(t) // else this fake Ollama looks like a HOST one to the next case
 
 	// Ollama unlistable: we know NOTHING, so pull nothing. Blindly pulling
 	// would re-download gigabytes the user already has.
@@ -6636,7 +6654,7 @@ func TestStartPullsMissingOllamaModels(t *testing.T) {
 	if got := pulls(s2); got != "" {
 		t.Errorf("pulled while Ollama was unlistable — unknown is not missing:\n%s", got)
 	}
-	s2.killServes()
+	s2.killServes(t)
 
 	// A failed pull warns but does not fail the stack: the rest is healthy
 	// and the user may prefer to pull by hand.
@@ -8876,7 +8894,7 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 
 	// Kept, not regenerated: a data directory keeps the password it was
 	// initialized with, so a second start must present the same one.
-	s.killServes()
+	s.killServes(t)
 	if _, stderr, code := s.run(t, "start", "--config", "ollama-gemma"); code != 0 {
 		t.Fatalf("second start: exit %d\n%s", code, stderr)
 	}

@@ -37,6 +37,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -59,7 +60,7 @@ import (
 
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "__serve" {
-		serve(os.Args[2], os.Args[3:])
+		serveDetached(os.Args[2], os.Args[3:])
 		return
 	}
 	base := filepath.Base(os.Args[0])
@@ -485,7 +486,7 @@ func ghCodespace(args []string, joined string) {
 			// contact this branch exists to model never happens.
 			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 				_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward-"+forwardLocalPort(args)+".pid"),
-					[]byte(strconv.Itoa(os.Getpid())), 0o644)
+					[]byte(strconv.Itoa(os.Getpid())+"\n"+forwardLocalPort(args)), 0o644)
 			}
 			go func() {
 				ln, err := net.Listen("tcp", "127.0.0.1:"+forwardLocalPort(args))
@@ -520,8 +521,10 @@ func ghCodespace(args []string, joined string) {
 		// Pidfile per forward (keyed by local port): several forwards run
 		// concurrently — one per codespace stack's KB.
 		if dir := os.Getenv("FAKERT_DIR"); dir != "" && len(ports) > 0 {
+			// pid, then the ports it holds, as `run -d` records them, so a
+			// cleanup waits for the ports as well as killing the process.
 			_ = os.WriteFile(filepath.Join(dir, "serve-gh-forward-"+ports[0]+".pid"),
-				[]byte(strconv.Itoa(os.Getpid())), 0o644)
+				[]byte(strconv.Itoa(os.Getpid())+"\n"+strings.Join(ports, " ")), 0o644)
 		}
 		// A codespace forward carries the KB's GATEWAY, so it serves the
 		// gateway's routes — the forward is a tunnel, not a service. Any
@@ -987,14 +990,17 @@ func psCmd(args []string) {
 	if len(args) == 4 && args[0] == "-p" && args[2] == "-o" && args[3] == "comm=" {
 		comm := os.Getenv("FAKERT_PS_" + args[1])
 		if comm == "" {
-			// A pid matching one of our own serve pidfiles IS the fake gh
+			// A pid matching one of our own forward pidfiles IS the fake gh
 			// forward — report it as gh, the comm the real forward has
-			// (the launcher's forwardAlive depends on this).
+			// (the launcher's forwardAlive depends on this). The pid is the
+			// file's first line; the ports it holds follow.
 			if dir := os.Getenv("FAKERT_DIR"); dir != "" {
-				files, _ := filepath.Glob(filepath.Join(dir, "serve-*.pid"))
+				files, _ := filepath.Glob(filepath.Join(dir, "serve-gh-forward-*.pid"))
 				for _, f := range files {
-					if b, err := os.ReadFile(f); err == nil && strings.TrimSpace(string(b)) == args[1] {
-						comm = "gh"
+					if b, err := os.ReadFile(f); err == nil {
+						if pid, _, _ := strings.Cut(strings.TrimSpace(string(b)), "\n"); strings.TrimSpace(pid) == args[1] {
+							comm = "gh"
+						}
 					}
 				}
 			}
@@ -1232,6 +1238,10 @@ func run(args []string) {
 		fmt.Fprintf(os.Stderr, "fakert run: unscripted foreground run %v\n", args)
 		os.Exit(64)
 	}
+	if len(ports) > 0 && name == "" {
+		fmt.Fprintf(os.Stderr, "fakert run: a published port needs --name: the name is how this fake knows what its image serves (%v)\n", args)
+		os.Exit(64)
+	}
 	recordContainerEnv(name, args)
 	// A start held mid-flight: this container's run parks until the test
 	// releases it, so a second start can be begun while the first is busy.
@@ -1273,31 +1283,48 @@ func run(args []string) {
 		// and the name is how it knows which image it is.
 		cmd := exec.Command(self, append([]string{"__serve", name}, ports...)...)
 		cmd.Stdout, cmd.Stderr = nil, nil
+		report, wr, err := os.Pipe()
+		if err != nil {
+			os.Exit(64)
+		}
+		cmd.ExtraFiles = []*os.File{wr} // fd 3 in the child: serveDetached's report
 		if err := cmd.Start(); err != nil {
 			fmt.Fprintf(os.Stderr, "fakert run: serve spawn: %v\n", err)
 			os.Exit(1)
 		}
-		if dir := os.Getenv("FAKERT_DIR"); dir != "" && name != "" {
+		wr.Close()
+		pidfile := ""
+		if dir := os.Getenv("FAKERT_DIR"); dir != "" {
 			// pid, then the ports it holds — `stop` waits for THOSE to be
 			// released, which is what a real stop guarantees (killServe).
-			_ = os.WriteFile(filepath.Join(dir, "serve-"+name+".pid"),
-				[]byte(strconv.Itoa(cmd.Process.Pid)+"\n"+strings.Join(ports, " ")), 0o644)
+			pidfile = filepath.Join(dir, "serve-"+name+".pid")
+			_ = os.WriteFile(pidfile, []byte(strconv.Itoa(cmd.Process.Pid)+"\n"+strings.Join(ports, " ")), 0o644)
 		}
-		// Return only once the ports ANSWER. cmd.Start() returns before the
-		// child has bound anything, so every caller's health wait used to pay
-		// the child's startup — per service, serially, in every boot test.
-		// A real `run -d` returns when the container exists; modelling the
-		// service's own startup latency is not this fake's job, and the
-		// launcher's not-ready-yet paths have their own scripted tests.
-		for _, p := range ports {
-			for i := 0; i < 400; i++ {
-				c, err := net.DialTimeout("tcp", "127.0.0.1:"+p, 200*time.Millisecond)
-				if err == nil {
-					c.Close()
-					break
-				}
-				time.Sleep(5 * time.Millisecond)
+		// Return only once the child says every port is bound, or fail the
+		// way a runtime does. A real `run -d` returns when the container
+		// exists; modelling the service's own startup latency is not this
+		// fake's job, and the launcher's not-ready-yet paths have their own
+		// scripted tests.
+		_ = report.SetReadDeadline(time.Now().Add(10 * time.Second))
+		line, _ := bufio.NewReader(report).ReadString('\n')
+		report.Close()
+		line = strings.TrimSpace(line)
+		if line != "bound" {
+			_ = cmd.Process.Kill()
+			if pidfile != "" {
+				_ = os.Remove(pidfile)
 			}
+			if port, ok := strings.CutPrefix(line, "unbound "); ok {
+				port, _, _ = strings.Cut(port, " ")
+				fmt.Fprintf(os.Stderr, "Error response from daemon: driver failed programming external connectivity on endpoint %s: Bind for 127.0.0.1:%s failed: port is already allocated\n", name, port)
+				os.Exit(125)
+			}
+			why := strings.TrimPrefix(line, "error ")
+			if why == "" {
+				why = "its listener exited without reporting"
+			}
+			fmt.Fprintf(os.Stderr, "fakert run: %s did not start: %s\n", name, why)
+			os.Exit(64)
 		}
 	}
 	// The container identifier the runtime reports — name-derived so tests
@@ -1691,7 +1718,8 @@ func killServe(name string) bool {
 		return false
 	}
 	lines := strings.SplitN(strings.TrimSpace(string(b)), "\n", 2)
-	if pid, err := strconv.Atoi(strings.TrimSpace(lines[0])); err == nil {
+	// pid <= 1 is never one of ours, and kill(-1) would signal every process.
+	if pid, err := strconv.Atoi(strings.TrimSpace(lines[0])); err == nil && pid > 1 {
 		if p, err := os.FindProcess(pid); err == nil {
 			_ = p.Kill()
 		}
@@ -1772,7 +1800,7 @@ func unsignedJWT(claims map[string]any) string {
 // succeeds. Real stacks put those on different origins, which is the whole
 // subject of BROWSER-SIGNIN-ORIGIN. Closing it belongs with the realm
 // round-trip (P3).
-func servedRoutes(container string) func(string) bool {
+func servedRoutes(container string) (func(string) bool, error) {
 	// Third-party health routes, captured 2026-09-24 against the versions
 	// pinned in the launcher's descriptor set.
 	exact := func(paths ...string) func(string) bool {
@@ -1784,17 +1812,17 @@ func servedRoutes(container string) func(string) bool {
 	}
 	switch container {
 	case "semiont-otel-collector": // otel/opentelemetry-collector 0.137.0, prometheus exporter
-		return exact("/metrics")
+		return exact("/metrics"), nil
 	case "semiont-prometheus": // prom/prometheus v3.9.1
-		return exact("/-/healthy")
+		return exact("/-/healthy"), nil
 	case "semiont-jaeger": // jaegertracing/all-in-one 1.76.0, the UI root
-		return exact("/")
+		return exact("/"), nil
 	case "semiont-qdrant": // qdrant v1.19.1
-		return exact("/readyz", "/")
+		return exact("/readyz", "/"), nil
 	case "semiont-neo4j": // neo4j 5.26.28-community, the browser on 7474
-		return exact("/")
+		return exact("/"), nil
 	case "semiont-ollama": // the rest of Ollama's API is modelled above
-		return exact("/api/version")
+		return exact("/api/version"), nil
 	case "semiont-keycloak":
 		// Keycloak serves a root document for EVERY realm it holds, which is
 		// what the launcher's readiness wait reads — it does not know which
@@ -1804,34 +1832,81 @@ func servedRoutes(container string) func(string) bool {
 		return func(p string) bool {
 			rest, ok := strings.CutPrefix(p, "/realms/")
 			return ok && rest != "" && !strings.Contains(rest, "/")
-		}
+		}, nil
 	case "semiont-postgres", "semiont-nats": // TCP only: a dial, no HTTP
-		return exact()
+		return exact(), nil
 	}
 	// One of ours: ask the image.
 	svc := strings.TrimPrefix(container, "semiont-")
 	root := os.Getenv("FAKERT_REPO")
 	if root == "" {
-		fmt.Fprintf(os.Stderr, "fakert serve: FAKERT_REPO is unset, so %s cannot read what its image serves\n", container)
-		os.Exit(64)
+		return nil, fmt.Errorf("FAKERT_REPO is unset, so %s cannot read what its image serves", container)
 	}
 	p, err := images.HealthPath(root, svc)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", container, err)
+	}
+	return exact(p), nil
+}
+
+func serve(container string, ports []string) {
+	routes, err := servedRoutes(container)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "fakert serve: %v\n", err)
 		os.Exit(64)
 	}
-	return exact(p)
+	listeners, port, err := listenAll(ports)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "fakert serve: port %s: %v\n", port, err)
+		os.Exit(1)
+	}
+	serveOn(container, routes, listeners)
 }
 
-func serve(container string, ports []string) {
-	routes := servedRoutes(container)
-	done := make(chan struct{})
+// serveDetached is the `__serve` child of `run -d`. It tells its parent on
+// fd 3 whether it is serving: "bound" once every port listens, "unbound
+// <port>" when one is taken, "error <why>" when it cannot start at all. The
+// parent returns only for a container that is really serving, as a runtime
+// does; before, it dialed the ports, and a port another process held
+// answered for a listener that had already exited.
+func serveDetached(container string, ports []string) {
+	ready := os.NewFile(3, "ready")
+	routes, err := servedRoutes(container)
+	if err != nil {
+		fmt.Fprintf(ready, "error %v\n", err)
+		os.Exit(64)
+	}
+	listeners, port, err := listenAll(ports)
+	if err != nil {
+		fmt.Fprintf(ready, "unbound %s %v\n", port, err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(ready, "bound")
+	ready.Close()
+	serveOn(container, routes, listeners)
+}
+
+// listenAll binds every port, or none: on failure it closes what it bound
+// and names the port that failed.
+func listenAll(ports []string) ([]net.Listener, string, error) {
+	var listeners []net.Listener
 	for _, p := range ports {
 		ln, err := net.Listen("tcp", "127.0.0.1:"+p)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "fakert serve: %v\n", err)
-			os.Exit(1)
+			for _, l := range listeners {
+				l.Close()
+			}
+			return nil, p, err
 		}
+		listeners = append(listeners, ln)
+	}
+	return listeners, "", nil
+}
+
+// serveOn answers on every listener until the process is killed.
+func serveOn(container string, routes func(string) bool, listeners []net.Listener) {
+	done := make(chan struct{})
+	for _, ln := range listeners {
 		go func() {
 			_ = http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				// A sick serve answers but is never ready (see the forward
