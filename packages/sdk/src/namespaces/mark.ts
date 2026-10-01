@@ -12,7 +12,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport } from '@semiont/core';
-import { busRequest } from '@semiont/core';
+import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
 import type {
   MarkNamespace as IMarkNamespace,
@@ -133,7 +133,9 @@ export class MarkNamespace implements IMarkNamespace {
                       jobId,
                       jobType: (status.type ?? 'annotation') as components['schemas']['JobType'],
                       resourceId: resourceId as string,
-                      result: status.result,
+                      // A job completed without a result is stored with an empty
+                      // one; the job:complete this stands for carried none.
+                      ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
                     },
                   });
                   subscriber.complete();

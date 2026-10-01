@@ -229,10 +229,9 @@ func flowFullStart(x executor, fc flowCtx) int {
 	if code := flowDepRole(x, "database", fc, addr); code != 0 {
 		return code
 	}
-	// The broker (NATS, when the config selects the nats signal driver or the
-	// jetstream jobs driver) precedes the gateway for the signal plane's sake;
-	// the dispatcher's JetStream queue dials the same server later. Absent
-	// config = the in-process signal plane; nothing runs.
+	// The broker (NATS: the dispatcher's JetStream queue, and the nats signal
+	// driver when [signal] selects it) precedes the gateway for the signal
+	// plane's sake; the dispatcher dials the same server later.
 	if code := flowDepRole(x, "messaging", fc, addr); code != 0 {
 		return code
 	}
@@ -431,18 +430,10 @@ func flowDepRole(x executor, role string, fc flowCtx, addr string) int {
 	if role == "embedding" && rp.Presence == presenceHostPreferred {
 		return flowOllama(x, fc, "embedding", rp, addr)
 	}
-	// jobs without a [jobs] section is a WORKING DEFAULT, not a gap: the
-	// gateway's built-in fs queue serves the stack. The generic "not
-	// configured; skipping" banner block read as a misconfiguration to the
-	// first person who saw it — say what IS running instead, in one line,
-	// no banner. Same for identity without an [identity] section: the
-	// gateway issues its own tokens.
-	if role == "messaging" && rp.Presence == presenceAbsent {
-		x.say(sayLog, "messaging — nothing to launch: jobs ride the gateway's fs queue; signals are in-process")
-		x.note("messaging: nothing to launch (jobs: fs driver; signal: in-process)")
-		x.record(role, "", "", providedNone, "", rp.Driver)
-		return 0
-	}
+	// Absent identity says what IS running instead, in one line, rather than
+	// the generic "not configured; skipping" banner block, which reads as a
+	// misconfiguration: without an [identity] section the gateway issues its
+	// own tokens.
 	if role == "identity" && rp.Presence == presenceAbsent {
 		x.say(sayLog, "identity — nothing to launch: no [identity] section; the gateway issues its own tokens")
 		x.note("identity: nothing to launch (no [identity] section; gateway-issued tokens)")
@@ -907,11 +898,10 @@ func flowLibrarian(x executor, fc flowCtx, addr, stage string, otel []string) in
 }
 
 // flowDispatcher: the Dispatcher owns the job queue and answers job:* lifecycle
-// commands (EXTRACT-JOBS). It mounts NOTHING — D7 moved its entity-type and
-// tag-schema reads onto the bus (asked of the Archivist), retiring the state
-// mount's last non-fs reason; the deployed jetstream driver holds no state tree,
-// and an fs-by-omission driver fails loud rather than writing to a fabricated
-// home. It dials the gateway for its token and the plane; it is a CONTROL PLANE
+// commands (EXTRACT-JOBS). It mounts nothing but its configuration document
+// (dispatcherdoc.go): its entity-type and tag-schema reads are asked of the
+// Archivist over the bus, and its queue is JetStream, which holds no state tree
+// here. It dials the gateway for its token and the plane; it is a CONTROL PLANE
 // (D5) and touches no bytes, so it never reads from the Archivist. Started after
 // the Librarian — health-after-pumps makes ordering against other sidecars moot
 // rather than racy.
@@ -921,7 +911,7 @@ func flowDispatcher(x executor, fc flowCtx, addr, stage string, otel []string) i
 	if !ok {
 		return 1
 	}
-	args := dispatcherArgs(stage, x.rtName(), addr, fc.plan.Roles["identity"].Port, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
+	args := dispatcherArgs(stage, x.rtName(), addr, clientSecret, fc.version, fc.envFor("dispatcher"), otel)
 	id, ok := x.runDetached(args)
 	if !ok {
 		x.say(sayFail, "Dispatcher failed to start.")

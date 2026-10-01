@@ -321,78 +321,22 @@ ${MINIMAL_TOML}`;
     expect(cfg.services.archivist).toBeUndefined();
   });
 
-  // JOB-QUEUE-DRIVER P2: jobQueueFor reads services.jobs to select the driver.
-  // The mapping is the missing middle — the same failure shape the archivist
-  // tests above pin: the cutover added the schema and the consumer, and a
-  // [jobs] section that parses but never reaches services means the driver
-  // silently stays 'fs' on every real stack, unrepresentable in unit tests
-  // that hand jobQueueFor a JobsServiceConfig literal.
-  it('maps [jobs] to services.jobs — type and servers pass through', () => {
-    const toml = `
+  // The dispatcher is Rust and reads its queue settings from the document the
+  // launcher writes from [jobs]; no TypeScript reads the section. It stays
+  // inert rather than refused: KB configs carry it. A section with no
+  // type and an unset ${VAR} still loads — nothing here resolves or checks it.
+  it('loads a config carrying [jobs] and emits no jobs service', () => {
+    const toml = `${MINIMAL_TOML}
 [environments.local.jobs]
-type = "jetstream"
-servers = "nats.internal:4222"
-${MINIMAL_TOML}`;
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
-    expect(cfg.services.jobs).toEqual({
-      type: 'jetstream',
-      servers: 'nats.internal:4222',
-    });
-  });
-
-  // SECRET-DELIVERY F2: the broker pair never left the loader, so the
-  // dispatcher's JetStream queue never authenticated, whatever the config said.
-  it('maps [jobs] user and password to services.jobs — the broker pair reaches the dispatcher', () => {
-    const toml = `
-[environments.local.jobs]
-type = "jetstream"
-servers = "nats.internal:4222"
-user = "semiont"
-password = "\${NATS_PASSWORD}"
-${MINIMAL_TOML}`;
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_PASSWORD: 's3cret' });
-    expect(cfg.services.jobs).toEqual({
-      type: 'jetstream',
-      servers: 'nats.internal:4222',
-      user: 'semiont',
-      password: 's3cret',
-    });
-  });
-
-  it("emits no jobs service when the section is absent (the consumer's 'fs' default)", () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {});
-    expect(cfg.services.jobs).toBeUndefined();
-  });
-
-  // Selection is stated, never inferred — and never silently defaulted. A
-  // [jobs] section that names no type would reach jobQueueFor as neither 'fs'
-  // nor 'jetstream' and fall through to the fs driver: exactly the silent
-  // fallback selection-by-config exists to prevent. Refuse at load, naming
-  // the fix.
-  it('refuses a [jobs] section that names no type', () => {
-    const toml = `
-[environments.local.jobs]
-servers = "nats.internal:4222"
-${MINIMAL_TOML}`;
-    expect(() => loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {}).services.jobs)
-      .toThrow(/\[environments\.local\.jobs\].*type/);
-  });
-
-  // The real config's servers value is a ${VAR} placeholder (the launcher
-  // renders the variable into the gateway's env). The loader's uniform
-  // resolution covers it like every other section — pin that end to end.
-  it('resolves ${VAR} placeholders in jobs.servers from the loader env', () => {
-    const toml = `
-[environments.local.jobs]
-type = "jetstream"
 servers = "\${NATS_HOST}:4222"
-${MINIMAL_TOML}`;
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), { NATS_HOST: '10.0.0.9' });
-    expect(cfg.services.jobs?.servers).toBe('10.0.0.9:4222');
+`;
+    const config = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(toml), {});
+
+    expect(Object.keys(config.services)).not.toContain('jobs');
   });
 
   // EXTERNAL-IDENTITY P3: the gateway reads services.identity for the issuer
-  // it trusts. Same missing-middle shape as [jobs], and every key
+  // it trusts. Same missing-middle shape as [archivist], and every key
   // the verifier needs is required — typed-but-incomplete refuses, naming the
   // key. There is no `audience` key: the audience is the KB's own resource
   // identifier, derived from its committed did:web domain.
@@ -701,9 +645,9 @@ apiKey = "\${UNSET_P5_KEY}"
   });
 
   it('a service reading a section it does not declare refuses, naming the section and the spec', () => {
-    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'dispatcher');
+    const cfg = loadTomlConfig('/project', 'local', '/home/user/.semiontconfig', makeReader(MINIMAL_TOML), {}, 'weaver');
     expect(cfg.services.identity.type).toBe('keycloak');
-    expect(() => cfg.services.vectors).toThrow(/dispatcher.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
+    expect(() => cfg.services.vectors).toThrow(/weaver.*\[environments\.local\.vectors\].*specs\/src\/service-config\/sections\.json/);
   });
 });
 
@@ -960,7 +904,7 @@ model = "nomic-embed-text"
   });
 
   it('createTomlConfigLoader hands its service to the loader', () => {
-    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'dispatcher')('/project', 'local');
-    expect(() => cfg.services.vectors).toThrow(/dispatcher/);
+    const cfg = createTomlConfigLoader(makeReader(MINIMAL_TOML), '/home/user/.semiontconfig', {}, 'weaver')('/project', 'local');
+    expect(() => cfg.services.vectors).toThrow(/weaver/);
   });
 });

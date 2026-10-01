@@ -3,21 +3,23 @@
 //! publish it on the plane.
 
 use crate::app::App;
-use crate::bus_log::bus_log;
-use crate::http::{ApiError, Authenticated, json_body, json_response, text};
-use crate::identity;
+use crate::http::{ApiError, Authenticated, json_response, typed_body};
 use crate::ledger::ClaimOutcome;
-use crate::logging;
 use crate::principal::Principal;
 use crate::signal::{Meta, Unavailable};
-use crate::spec::spec;
-use crate::telemetry;
+use crate::{limits, metrics};
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::bus_log::bus_log;
+use semiont::identity;
+use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
+use semiont_core::spec::spec;
+use semiont_observability::logging;
+use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 
@@ -81,33 +83,27 @@ pub async fn emit(
     if let Err(retry_after) = app.emit_rates.admit(&principal) {
         return Err(ApiError::limited(
             StatusCode::TOO_MANY_REQUESTS,
-            "emit-rate",
+            LimitRefusalCode::EmitRate,
             "This principal's emits have used its bucket",
             retry_after,
         ));
     }
-    let request = json_body(body, "POST /bus/emit").await?;
-    let channel = text(&request, "channel")?.to_owned();
-    let scope = request["scope"].as_str().map(str::to_owned);
-    let correlation_id = request["correlationId"].as_str().map(str::to_owned);
+    let BusEmitRequest {
+        channel,
+        mut payload,
+        scope,
+        correlation_id,
+        client_id,
+    } = typed_body(body, "POST /bus/emit").await?;
     // An empty clientId is no clientId.
-    let client_id = request["clientId"]
-        .as_str()
-        .filter(|c| !c.is_empty())
-        .map(str::to_owned);
-    let Value::Object(mut payload) = request["payload"].clone() else {
-        return Err(ApiError::internal(
-            "reading a validated emit",
-            "BusEmitRequest admitted a payload that is not an object",
-        ));
-    };
+    let client_id = client_id.filter(|c| !c.is_empty());
 
     let Some(schema) = spec().channel_schema(&channel) else {
         return Err(ApiError::bad_request(format!("Unknown channel: {channel}")));
     };
     if let Some(schema) = schema {
         let candidate = Value::Object(payload.clone());
-        if let Some(problems) = crate::spec::problems(schema, &candidate) {
+        if let Some(problems) = semiont_core::spec::problems(schema, &candidate) {
             logging::warn(
                 "Bus emit validation failed",
                 bus(
@@ -164,10 +160,10 @@ pub async fn emit(
                 ));
             }
             ClaimOutcome::AtCapacity { retry_after } => {
-                let max = spec().limits().pending_replies_max;
+                let max = limits::limits().pending_replies_max;
                 return Err(ApiError::limited(
                     StatusCode::TOO_MANY_REQUESTS,
-                    "unanswered-requests",
+                    LimitRefusalCode::UnansweredRequests,
                     format!("client has {max} unanswered requests; retry when one settles"),
                     retry_after,
                 ));
@@ -211,9 +207,8 @@ pub async fn emit(
     })
     .await?;
 
-    let accepted = match dispatched {
-        Some(subscribers) => json!({ "subscribers": subscribers }),
-        None => json!({}),
+    let accepted = BusEmitAccepted {
+        subscribers: dispatched.map(|n| n as u64),
     };
     Ok(json_response(StatusCode::ACCEPTED, &accepted).into_response())
 }
@@ -241,7 +236,7 @@ async fn answer_unanswerable(
             "No subscriber for {channel}: the service that answers it is not connected"
         )),
     );
-    telemetry::record_unanswerable(channel);
+    metrics::record_unanswerable(channel);
     logging::warn(
         "[bus UNANSWERABLE] synthesizing failure for an unsubscribed request",
         bus(json!({ "channel": channel, "failureChannel": failure_channel, "correlationId": cid })),

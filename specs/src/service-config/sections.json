@@ -3,7 +3,6 @@
   "services": {
     "archivist": ["gateway", "graph", "vectors", "embedding", "identity", "make-meaning", "actors", "workers"],
     "librarian": ["gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"],
-    "dispatcher": ["gateway", "jobs", "identity"],
     "weaver": ["gateway", "graph", "identity"],
     "smelter": ["gateway", "vectors", "embedding", "identity", "archivist"],
     "worker": ["gateway", "identity", "archivist", "workers", "inference"]

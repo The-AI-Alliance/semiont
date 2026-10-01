@@ -1,0 +1,12 @@
+{
+  "description": "A completed job's result as the dispatcher stores it: the result its worker reported with `job:complete`, or an empty object when it reported none.",
+  "anyOf": [
+    {
+      "$ref": "./JobResult.json"
+    },
+    {
+      "type": "object",
+      "maxProperties": 0
+    }
+  ]
+}

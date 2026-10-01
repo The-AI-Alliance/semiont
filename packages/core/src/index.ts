@@ -61,7 +61,18 @@ export {
 
 // The service-account role: one literal, and the predicate that reads it.
 export { SERVICE_ROLE, WORKER_ROLE, ROLES_CLAIM, hasServiceRole, hasWorkerRole } from './service-role';
-export { JOBS_SUBJECT_ROOT, JOBS_STREAM_SUBJECTS } from './job-subjects';
+export {
+  JOBS_STREAM,
+  JOBS_SUBJECT_ROOT,
+  JOBS_STREAM_SUBJECTS,
+  JOBS_CONSUMER,
+  JOBS_BUCKET,
+  JOB_TYPES,
+  JOB_CATEGORIES,
+  jobCategoryOf,
+  jobSubject,
+  type JobCategory,
+} from './generated/job-storage';
 
 // Attribution: who a record is attributed to, as a chain rather than a choice.
 
@@ -256,7 +267,7 @@ export type {
 export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
-export { busRequest, replyChannelsFor, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
+export { busRequest, replyChannelsFor, relayedFailureCode, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestErrorCode, type BusRequestPrimitive } from './bus-request';
 export { ResourceOperations, type CreateResourceInput, type Emitter } from './resource-operations';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
 export { LIMITS_OPERATIONS, type LimitsOperation } from './limits-operations';
@@ -418,7 +429,6 @@ export type {
   InferenceProvidersConfig,
   McpServiceConfig,
   ArchivistServiceConfig,
-  JobsServiceConfig,
   ServicesConfig,
   VectorsServiceConfig,
   EmbeddingServiceConfig,

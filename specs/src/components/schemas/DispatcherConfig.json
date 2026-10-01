@@ -1,0 +1,124 @@
+{
+  "type": "object",
+  "description": "Everything the dispatcher reads at boot, resolved: no ${VAR} is left in it and nothing in it is defaulted by the dispatcher. The launcher writes it for the dispatcher it starts, from the environment the knowledge base's config selects, and the dispatcher reads it from the path its `--config` flag names (its image passes `/etc/semiont/dispatcher.json`). Started without `--config`, or with a path that names no file, the dispatcher refuses to start and says which. Secrets are never values here: a field that needs one names the environment variable holding it. The dispatcher's other inputs are the environment variables specs/src/service-environment/variables.json lists for it, and the ones this document names. A document that does not validate is refused at boot, naming each failing field.",
+  "properties": {
+    "gatewayUrl": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The URL the dispatcher reaches the gateway at: its only route to the bus."
+    },
+    "identity": {
+      "type": "object",
+      "description": "The issuer the dispatcher's service account signs in at.",
+      "properties": {
+        "issuer": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The issuer URL, exactly as tokens carry it in `iss`."
+        }
+      },
+      "required": [
+        "issuer"
+      ],
+      "additionalProperties": false
+    },
+    "queue": {
+      "type": "object",
+      "description": "The JetStream broker holding the job queue, whose layout is specs/src/jobs/storage.json.",
+      "properties": {
+        "servers": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The broker's address (`host:port`, or several, comma-separated)."
+        },
+        "userEnv": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The environment variable holding the broker user, when the broker requires one."
+        },
+        "passwordEnv": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The environment variable holding the broker password, when the broker requires one."
+        }
+      },
+      "required": [
+        "servers"
+      ],
+      "additionalProperties": false
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "description": "The port the dispatcher answers `/health` on."
+    },
+    "timing": {
+      "type": "object",
+      "description": "The queue's clocks, in milliseconds. The launcher writes the values a deployment runs with; a test harness shrinks them.",
+      "properties": {
+        "tickMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How often the queue re-announces pending jobs and sweeps for dead workers. The re-announcement is insurance against a lost wake-up, not dispatch."
+        },
+        "staleRunningMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long a running job may go without progress, a checkpoint or a claim before its worker is presumed dead."
+        },
+        "ackWaitMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long the broker waits, after this dispatcher stops renewing a job's lease, before redelivering its message."
+        },
+        "retentionMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long a concluded job is kept before it is deleted."
+        },
+        "retentionSweepMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How often concluded jobs past `retentionMs` are deleted."
+        },
+        "progressWriteIntervalMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "The least time between two progress writes for one job; reports closer together than this are not written."
+        },
+        "bootDeadlineMs": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "How long the dispatcher waits at boot for the broker before it exits, so that a restart policy can retry."
+        }
+      },
+      "required": [
+        "tickMs",
+        "staleRunningMs",
+        "ackWaitMs",
+        "retentionMs",
+        "retentionSweepMs",
+        "progressWriteIntervalMs",
+        "bootDeadlineMs"
+      ],
+      "additionalProperties": false
+    },
+    "logLevel": {
+      "$ref": "./LogLevel.json"
+    },
+    "logFormat": {
+      "$ref": "./LogFormat.json"
+    }
+  },
+  "required": [
+    "gatewayUrl",
+    "identity",
+    "queue",
+    "port",
+    "timing",
+    "logLevel",
+    "logFormat"
+  ],
+  "additionalProperties": false
+}

@@ -1,4 +1,4 @@
-import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig, ArchivistServiceConfig, EnvironmentConfig, JobsServiceConfig } from '@semiont/core';
+import type { GraphServiceConfig, VectorsServiceConfig, EmbeddingServiceConfig, ArchivistServiceConfig, EnvironmentConfig } from '@semiont/core';
 
 /**
  * Inference configuration for a single actor or worker.
@@ -69,7 +69,6 @@ export interface MakeMeaningConfig {
   search: { semanticFloor: number };
   services: {
     graph?: GraphServiceConfig;
-    jobs?: JobsServiceConfig;
     /** REQUIRED (MANDATORY-EMBEDDING D0+D1, type-level per the 2026-08-12
      *  ruling): the config NAMES its store — `memory` is a first-class
      *  explicit choice, never a fallback. The TOML loader refuses configs
@@ -153,7 +152,6 @@ export function makeMeaningConfigFrom(config: EnvironmentConfig): MakeMeaningCon
       // core's ServicesConfig requires the pair, and the loader refuses a
       // config missing either at their read — nothing to re-check here.
       get graph() { return config.services.graph; },
-      get jobs() { return config.services.jobs; },
       get vectors() { return config.services.vectors; },
       get embedding() { return config.services.embedding; },
       get archivist() { return config.services.archivist; },

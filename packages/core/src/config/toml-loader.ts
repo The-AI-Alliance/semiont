@@ -167,12 +167,6 @@ interface EnvironmentSection {
     host?: string;
     port?: number;
   };
-  jobs?: {
-    type?: 'fs' | 'jetstream';
-    servers?: string;
-    user?: string;
-    password?: string;
-  };
   identity?: {
     type?: 'keycloak' | 'oidc';
     issuer?: string;
@@ -632,27 +626,6 @@ export function loadTomlConfig(
     } as EnvironmentConfig['services']['archivist'];
   }
 
-  // The job queue driver selection (JOB-QUEUE-DRIVER P2). A section that names
-  // no type refuses rather than falling through to 'fs' at the consumer:
-  // selection is stated, never inferred, never silently defaulted.
-  function jobs(): EnvironmentConfig['services']['jobs'] {
-    const j = section('jobs');
-    if (!j) return undefined;
-    if (!j.type) {
-      throw new Error(
-        `[environments.${resolvedEnvironment}.jobs] names no type — add type = "fs" or "jetstream". Semiont selects the job queue driver from config; nothing is inferred.`,
-      );
-    }
-    // The broker pair, when the section names one: the dispatcher's JetStream
-    // queue presents it (SECRET-DELIVERY F2).
-    return {
-      type: j.type,
-      ...(j.servers ? { servers: j.servers } : {}),
-      ...(j.user ? { user: j.user } : {}),
-      ...(j.password ? { password: j.password } : {}),
-    };
-  }
-
   function graph(): EnvironmentConfig['services']['graph'] {
     const g = section('graph');
     if (g) {
@@ -683,14 +656,15 @@ export function loadTomlConfig(
   // No browser service is emitted. The Browser is machine-level — one Browser
   // serves many KBs — so a KB neither knows nor affects its port or publicURL
   // (FRONTEND-IS-THE-BROWSER D5). `[browser]` and the older `[frontend]` are
-  // inert unknown sections: tolerated, never read, never refused.
+  // inert unknown sections: tolerated, never read, never refused. `[jobs]` is
+  // the launcher's alone — it writes the dispatcher's queue settings from it —
+  // so it is inert here too.
   const services: EnvironmentConfig['services'] = {
     get identity() { return once('identity', identity); },
     get vectors() { return once('vectors', vectors); },
     get embedding() { return once('embedding', embedding); },
     get gateway() { return once('gateway', gateway); },
     get archivist() { return once('archivist', archivist); },
-    get jobs() { return once('jobs', jobs); },
     get graph() { return once('graph', graph); },
     get database() { return once('database', database); },
   };

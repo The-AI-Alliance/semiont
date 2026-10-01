@@ -17,7 +17,7 @@
  */
 
 import winston from 'winston';
-import type { Logger } from '@semiont/core';
+import type { Logger, components } from '@semiont/core';
 import { getLogTraceContext } from './index.js';
 
 const traceContextFormat = winston.format((info) => {
@@ -29,9 +29,19 @@ const traceContextFormat = winston.format((info) => {
   return info;
 })();
 
-export function createProcessLogger(component: string): Logger {
-  const level = process.env.LOG_LEVEL ?? 'info';
-  const format = process.env.LOG_FORMAT === 'simple'
+/**
+ * A service configured by a document passes its `logLevel` and `logFormat`,
+ * which then govern; every other process reads `LOG_LEVEL` and `LOG_FORMAT`.
+ */
+export interface ProcessLogSettings {
+  level: components['schemas']['LogLevel'];
+  format: components['schemas']['LogFormat'];
+}
+
+export function createProcessLogger(component: string, settings?: ProcessLogSettings): Logger {
+  const level = settings?.level ?? process.env.LOG_LEVEL ?? 'info';
+  const simple = settings ? settings.format === 'simple' : process.env.LOG_FORMAT === 'simple';
+  const format = simple
     ? winston.format.combine(
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.errors({ stack: true }),

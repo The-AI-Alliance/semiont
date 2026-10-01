@@ -40,8 +40,7 @@ Options:
                    anchored-text, messaging (the NATS daemon's JetStream
                    store: the job queue and the gateway's ledger claims —
                    pending work is dropped; jobs are re-submittable), or state
-                   (views + the gateway's fs jobs queue; views rebuild from
-                   the event log on next start, queued jobs are lost)
+                   (views; they rebuild from the event log on next start)
   --root <value>   Another root: a path, a registered basename, or a state
                    key as listed by status --verbose (how orphaned state,
                    whose KB directory no longer exists, is named)

@@ -15,7 +15,6 @@ import {
   type FailedJob,
   type CancelledJob,
   type DetectionParams,
-  type DetectionProgress,
 } from '../types';
 import type { JobReferenceAnnotationResult } from '@semiont/core';
 import { jobId, entityType, userId, resourceId } from '@semiont/core';
@@ -39,7 +38,7 @@ function createPendingJob(): PendingJob<DetectionParams> {
   };
 }
 
-function createRunningJob(): RunningJob<DetectionParams, DetectionProgress> {
+function createRunningJob(): RunningJob<DetectionParams> {
   return {
     status: 'running',
     metadata: {
@@ -55,12 +54,7 @@ function createRunningJob(): RunningJob<DetectionParams, DetectionProgress> {
       entityTypes: [entityType('Person')],
     },
     startedAt: new Date().toISOString(),
-    progress: {
-      totalEntityTypes: 1,
-      processedEntityTypes: 0,
-      entitiesFound: 0,
-      entitiesEmitted: 0,
-    },
+    progress: { percentage: 0 },
   };
 }
 

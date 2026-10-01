@@ -14,37 +14,29 @@ name = "semiont-gateway"
 path = "src/main.rs"
 
 [dependencies]
-async-nats = { version = "0.50.0", default-features = false, features = ["ring", "kv", "server_2_10", "nuid"] }
-axum = { version = "0.8.9", default-features = false, features = ["http1", "tokio", "query"] }
-base64 = "0.23.1"
-bytes = "1.12.1"
-chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
-futures = "0.3.34"
-http-body = "1.1.0"
-hyper = { version = "1.11.1", features = ["server", "http1"] }
-hyper-util = { version = "0.1.21", features = ["tokio"] }
-jsonschema = { version = "0.58.1", default-features = false }
-jsonwebtoken = { version = "11.1.0", default-features = false, features = ["rust_crypto"] }
-opentelemetry = { version = "0.33.0", default-features = false, features = ["trace", "metrics"] }
-opentelemetry_sdk = { version = "0.33.0", default-features = false, features = ["trace", "metrics"] }
-opentelemetry-otlp = { version = "0.33.0", default-features = false, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics"] }
-opentelemetry-stdout = { version = "0.33.0", default-features = false, features = ["trace", "metrics"] }
-percent-encoding = "2.3.2"
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls-no-provider", "stream", "json"] }
-rustls = { version = "0.23.45", default-features = false, features = ["ring", "std"] }
-serde = { version = "1.0.229", features = ["derive"] }
-serde_json = { version = "1.0.151", features = ["preserve_order"] }
-socket2 = "0.6.5"
-tikv-jemalloc-ctl = { version = "0.7.0", features = ["stats"] }
-tikv-jemallocator = "0.7.0"
-tokio = { version = "1.53.1", features = ["rt-multi-thread", "macros", "net", "time", "signal", "sync", "io-util", "fs"] }
-tower = { version = "0.5.3", features = ["util"] }
-uuid = { version = "1.26.1", features = ["v4"] }
+async-nats = { workspace = true, features = ["ring", "kv", "server_2_10", "nuid"] }
+axum = { workspace = true, features = ["http1", "tokio", "query"] }
+base64.workspace = true
+bytes.workspace = true
+chrono = { workspace = true, features = ["clock", "std"] }
+futures.workspace = true
+http-body.workspace = true
+hyper = { workspace = true, features = ["server", "http1"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+jsonwebtoken = { workspace = true, features = ["rust_crypto"] }
+opentelemetry = { workspace = true, features = ["trace", "metrics"] }
+percent-encoding.workspace = true
+reqwest = { workspace = true, features = ["rustls-no-provider", "stream", "json"] }
+rustls = { workspace = true, features = ["ring", "std"] }
+semiont.workspace = true
+semiont-core = { workspace = true, features = ["nats"] }
+semiont-http-transport.workspace = true
+semiont-observability.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+socket2.workspace = true
+tikv-jemallocator.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "time", "signal", "sync", "io-util", "fs"] }
+tower = { workspace = true, features = ["util"] }
+uuid = { workspace = true, features = ["v4"] }
 
-[build-dependencies]
-jsonschema = { version = "0.58.1", default-features = false }
-serde_json = { version = "1.0.151", features = ["preserve_order"] }
-
-[profile.release]
-strip = true
-lto = "thin"

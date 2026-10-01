@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "description": "A job that failed and will not be retried.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "failed"
+      ]
+    },
+    "metadata": {
+      "$ref": "./JobMetadata.json"
+    },
+    "params": {
+      "$ref": "./JobParams.json"
+    },
+    "startedAt": {
+      "type": "string",
+      "description": "When the last claim was made; absent when it failed without one."
+    },
+    "completedAt": {
+      "type": "string",
+      "description": "When it failed."
+    },
+    "error": {
+      "type": "string",
+      "description": "The failure's message."
+    }
+  },
+  "required": [
+    "status",
+    "metadata",
+    "params",
+    "completedAt",
+    "error"
+  ],
+  "additionalProperties": false
+}

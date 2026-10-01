@@ -28,6 +28,12 @@ describe('generated spec validators', () => {
     expect(formatErrors(validate.errors)).toMatch(/required|target/i);
   });
 
+  it('names a property the schema does not declare', () => {
+    const validate = validators.DispatcherHealth;
+    expect(validate({ status: 'ok', queue: 'jetstream', password: 'x' })).toBe(false);
+    expect(formatErrors(validate.errors)).toBe('root: unknown property password');
+  });
+
   it('validates a discriminated union member — the shape that broke /bus/emit', () => {
     // `discriminator` is allowlisted as annotation-only, so the sibling oneOf
     // stays the validation authority (OpenAPI's own semantics for it).

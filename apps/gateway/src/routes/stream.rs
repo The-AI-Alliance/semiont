@@ -11,14 +11,12 @@
 //! presence: `session:joined` and `session:left`.
 
 use crate::app::App;
-use crate::bus_log::bus_log;
-use crate::http::{ApiError, Authenticated, ConnectionAbort, json_body, text};
+use crate::http::{ApiError, Authenticated, ConnectionAbort, typed_body};
 use crate::ledger::DeliveryGate;
-use crate::logging;
+use crate::limits::{self, Limits};
+use crate::metrics;
 use crate::signal::{ClientSubscription, Frame, ScopedChannels, Subscription};
-use crate::spec::{Limits, spec};
 use crate::stream_counts::StreamLease;
-use crate::telemetry;
 use axum::Extension;
 use axum::body::Body;
 use axum::extract::State;
@@ -27,6 +25,11 @@ use axum::response::Response;
 use bytes::Bytes;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::bus_log::bus_log;
+use semiont::types::{BusSubscribeRequest, LimitRefusalCode};
+use semiont_core::spec::spec;
+use semiont_observability::logging;
+use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::pin::Pin;
@@ -55,40 +58,26 @@ struct Scoped {
     last_event_id: Option<String>,
 }
 
-fn strings(value: &Value) -> Vec<String> {
-    value
-        .as_array()
-        .map(|items| {
-            items
-                .iter()
-                .filter_map(|i| i.as_str().map(str::to_owned))
-                .collect()
-        })
-        .unwrap_or_default()
-}
-
 pub async fn subscribe(
     State(app): State<Arc<App>>,
     Authenticated(principal): Authenticated,
     Extension(abort): Extension<ConnectionAbort>,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let request = json_body(body, "POST /bus/subscribe").await?;
-    let client_id = text(&request, "clientId")?.to_owned();
-    let global = strings(&request["global"]);
-    let mut scoped = Vec::new();
-    for entry in request["scoped"]
-        .as_array()
-        .map(Vec::as_slice)
+    let request: BusSubscribeRequest = typed_body(body, "POST /bus/subscribe").await?;
+    let client_id = request.client_id;
+    let global = request.global.unwrap_or_default();
+    let scoped: Vec<Scoped> = request
+        .scoped
         .unwrap_or_default()
-    {
-        scoped.push(Scoped {
-            scope: text(entry, "scope")?.to_owned(),
-            channels: strings(&entry["channels"]),
-            last_event_id: entry["lastEventId"].as_str().map(str::to_owned),
-        });
-    }
-    let pending_replies = strings(&request["pendingReplies"]);
+        .into_iter()
+        .map(|entry| Scoped {
+            scope: entry.scope,
+            channels: entry.channels,
+            last_event_id: entry.last_event_id,
+        })
+        .collect();
+    let pending_replies = request.pending_replies.unwrap_or_default();
     if global.is_empty() && scoped.is_empty() {
         return Err(ApiError::bad_request(
             "At least one global channel or scoped entry is required",
@@ -110,11 +99,11 @@ pub async fn subscribe(
         );
     }
 
-    let limits = spec().limits();
-    if app.queued_bytes.load(Ordering::SeqCst) >= app.config.capacity.queued_bytes {
+    let limits = limits::limits();
+    if app.queued_bytes.load(Ordering::SeqCst) >= app.config.capacity.queued_bytes as usize {
         return Err(ApiError::limited(
             StatusCode::SERVICE_UNAVAILABLE,
-            "capacity",
+            LimitRefusalCode::Capacity,
             "The gateway holds as many queued bytes as it can",
             Duration::from_secs(limits.heartbeat_seconds),
         ));
@@ -122,7 +111,7 @@ pub async fn subscribe(
     let lease = app.bus.streams.admit(&principal).map_err(|retry_after| {
         ApiError::limited(
             StatusCode::TOO_MANY_REQUESTS,
-            "streams",
+            LimitRefusalCode::Streams,
             "This principal holds as many streams as it may",
             retry_after,
         )
@@ -269,7 +258,7 @@ impl Connection {
     ) -> Arc<Connection> {
         let gate = app.bus.ledger.gate(&client_id, Some(&did));
         Arc::new(Connection {
-            limits: spec().limits(),
+            limits: limits::limits(),
             id: uuid::Uuid::new_v4().to_string(),
             app,
             did,
@@ -460,7 +449,7 @@ impl Connection {
     }
 
     fn resume_gap(self: &Arc<Self>, reason: &str, scope: &str, last_seen_id: &str) {
-        telemetry::record_resume_gap(reason);
+        metrics::record_resume_gap(reason);
         let data = json!({ "channel": "bus:resume-gap", "payload": { "reason": reason, "scope": scope, "lastSeenId": last_seen_id } });
         let id = self.next_ephemeral();
         let _delivery = locked(&self.delivery);
@@ -493,7 +482,7 @@ impl Connection {
         }
         drop(locked(&self.lease).take());
         self.gate.close();
-        telemetry::subscriber_disconnected();
+        metrics::subscriber_disconnected();
         tokio::spawn(Self::announce(
             self.app.clone(),
             "session:left",
@@ -532,7 +521,7 @@ impl Connection {
                 "scopes": scoped.iter().map(|s| json!({ "scope": s.scope, "channels": s.channels, "lastEventId": s.last_event_id })).collect::<Vec<_>>(),
             })),
         );
-        telemetry::subscriber_connected();
+        metrics::subscriber_connected();
         Self::announce(
             self.app.clone(),
             "session:joined",

@@ -5,7 +5,7 @@
     "node": ">=24.0.0"
   },
   "type": "module",
-  "description": "Filesystem-based job queue and worker infrastructure",
+  "description": "The Semiont job worker: processors for each job type, and the worker process that claims jobs over the bus",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -29,14 +29,13 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@semiont/content": "*",
-    "@semiont/core": "*",
-    "@semiont/event-sourcing": "*",
-    "@semiont/http-transport": "*",
-    "@semiont/inference": "*",
-    "@semiont/observability": "*",
-    "@semiont/sdk": "*",
-    "nats": "^2.29.3"
+    "@semiont/content": "0.6.8",
+    "@semiont/core": "0.6.8",
+    "@semiont/event-sourcing": "0.6.8",
+    "@semiont/http-transport": "0.6.8",
+    "@semiont/inference": "0.6.8",
+    "@semiont/observability": "0.6.8",
+    "@semiont/sdk": "0.6.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",

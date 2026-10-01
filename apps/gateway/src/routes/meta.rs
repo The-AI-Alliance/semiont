@@ -2,10 +2,14 @@
 
 use crate::app::App;
 use crate::http::{Authenticated, json_response};
-use crate::spec::{VERSION, spec};
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::Response;
+use semiont::types::{
+    HealthResponse, ProtectedResourceMetadata, ProtectedResourceMetadataBearerMethodsSupportedItem,
+    StatusResponse, StatusResponseFeatures, UserResponse,
+};
+use semiont_core::spec::{VERSION, spec};
 use serde_json::json;
 use std::sync::Arc;
 
@@ -13,12 +17,14 @@ use std::sync::Arc;
 pub async fn health() -> Response {
     json_response(
         StatusCode::OK,
-        &json!({
-            "status": "operational",
-            "message": "Semiont API is running",
-            "version": VERSION,
-            "timestamp": chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(),
-        }),
+        &HealthResponse {
+            status: "operational".to_owned(),
+            message: "Semiont API is running".to_owned(),
+            version: VERSION.to_owned(),
+            timestamp: chrono::Utc::now()
+                .format("%Y-%m-%dT%H:%M:%S%.3fZ")
+                .to_string(),
+        },
     )
 }
 
@@ -37,12 +43,14 @@ pub async fn openapi(State(app): State<Arc<App>>) -> Response {
 pub async fn protected_resource(State(app): State<Arc<App>>) -> Response {
     json_response(
         StatusCode::OK,
-        &json!({
-            "resource": app.issuer.audience(),
-            "authorization_servers": [app.issuer.issuer()],
-            "bearer_methods_supported": ["header"],
-            "resource_name": app.config.kb.name,
-        }),
+        &ProtectedResourceMetadata {
+            resource: app.issuer.audience().to_owned(),
+            authorization_servers: vec![app.issuer.issuer().to_owned()],
+            bearer_methods_supported: vec![
+                ProtectedResourceMetadataBearerMethodsSupportedItem::Header,
+            ],
+            resource_name: Some(app.config.kb.name.clone()),
+        },
     )
 }
 
@@ -50,13 +58,17 @@ pub async fn protected_resource(State(app): State<Arc<App>>) -> Response {
 pub async fn status(Authenticated(principal): Authenticated) -> Response {
     json_response(
         StatusCode::OK,
-        &json!({
-            "status": "operational",
-            "version": VERSION,
-            "features": { "semanticContent": "planned", "collaboration": "planned", "rbac": "planned" },
-            "message": "Ready to build the future of knowledge management!",
-            "authenticatedAs": principal.email,
-        }),
+        &StatusResponse {
+            status: "operational".to_owned(),
+            version: VERSION.to_owned(),
+            features: StatusResponseFeatures {
+                semantic_content: "planned".to_owned(),
+                collaboration: "planned".to_owned(),
+                rbac: "planned".to_owned(),
+            },
+            message: "Ready to build the future of knowledge management!".to_owned(),
+            authenticated_as: Some(principal.email),
+        },
     )
 }
 
@@ -64,12 +76,12 @@ pub async fn status(Authenticated(principal): Authenticated) -> Response {
 pub async fn me(Authenticated(principal): Authenticated) -> Response {
     json_response(
         StatusCode::OK,
-        &json!({
-            "did": principal.did,
-            "email": principal.email,
-            "name": principal.name,
-            "image": principal.image,
-            "domain": principal.domain,
-        }),
+        &UserResponse {
+            did: principal.did,
+            email: principal.email,
+            name: principal.name,
+            image: principal.image,
+            domain: principal.domain,
+        },
     )
 }

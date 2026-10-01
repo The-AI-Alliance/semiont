@@ -51,7 +51,7 @@ func secretName(field, value string) (*string, error) {
 	}
 	name := referenceName(value)
 	if name == "" {
-		return nil, fmt.Errorf("%s must be a ${VAR} reference: the gateway's configuration document carries no secret value — set it in the environment and write %s = \"${NAME}\"", field, field)
+		return nil, fmt.Errorf("%s must be a ${VAR} reference: a service's configuration document carries no secret value — set it in the environment and write %s = \"${NAME}\"", field, field)
 	}
 	return &name, nil
 }
@@ -163,7 +163,7 @@ func gatewayDocument(env *envConfig, kbName, kbDomain, rt, addr string, issuerPo
 
 	doc.LogLevel = "info"
 	if env.LogLevel != "" {
-		doc.LogLevel = semiont.GatewayConfigLogLevel(env.LogLevel)
+		doc.LogLevel = semiont.LogLevel(env.LogLevel)
 	}
 	doc.LogFormat = semiont.Json
 

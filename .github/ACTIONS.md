@@ -41,8 +41,8 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 - Scripts: TypeScript compilation and validation
 
 ### Gateway Crate Advisories (`gateway-advisories.yml`)
-**The gateway's crates against RustSec's advisory database**:
-- `cargo deny check advisories bans sources`, as `apps/gateway/deny.toml` configures it
+**The Rust workspace's crates against RustSec's advisory database**:
+- `cargo deny check advisories bans sources`, as `deny.toml` configures it
 - An advisory ignored there carries its reason; an ignore that stops matching fails the run
 - Crates must come from crates.io, named by a version; a yanked crate fails
 - Licences are not checked here: the Gateway Tests job's crate licence gate owns them
@@ -58,9 +58,9 @@ curl -H "Authorization: Bearer invalid" http://localhost:3001/api/status  # Must
 
 ### Dependabot (`dependabot.yml`)
 **Automated dependency updates**, weekly, each ecosystem with its own entry:
-- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/gateway-conformance`
+- npm: the workspaces (one entry at the root), `tests/e2e`, `tests/conformance`
 - Go modules: `apps/launcher`, `packages/sdk-go`
-- Cargo: `apps/gateway`, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `apps/gateway/rust-toolchain.toml`
+- Cargo: the Rust workspace at the root, `apps/desktop/src-tauri` (each one grouped PR); the Rust toolchain: `rust-toolchain.toml`
 - GitHub Actions, and the Docker base images of the Browser, the desktop builder and the seven service images
 - A cooldown before a new release is adopted; security updates are not held by it
 - `npm run lint:dependabot` (Architecture Compliance) fails when a tracked manifest has no entry, or an entry names a directory with none
@@ -194,7 +194,7 @@ If security tests fail:
 1. **Run security tests locally** before pushing:
    ```bash
    cd apps/browser && npm run test:security
-   (cd apps/gateway && cargo build --release) && (cd tests/gateway-conformance && npm test)
+   cargo build --release -p semiont-gateway && (cd tests/conformance && npm run test:gateway)
    ```
 
 2. **Check admin route behavior** manually:

@@ -1,20 +1,9 @@
 /**
  * @semiont/jobs
  *
- * Job queue and worker infrastructure
- *
- * Provides:
- * - JobQueue interface: backing-store-agnostic contract
- * - FsJobQueue: Filesystem-backed implementation
- * - Job processors: Extracted functions for each job type
- * - Job types: All job type definitions
+ * The job worker: the processors for each job type, the job types, and the
+ * worker process that claims jobs from the dispatcher over the bus.
  */
-
-// Job Queue
-export type { JobQueue } from './job-queue-interface';
-export { JOB_QUEUE_EMITS, TERMINAL_JOB_RETENTION_MS, TERMINAL_JOB_SWEEP_INTERVAL_MS } from './job-queue-interface';
-export { FsJobQueue } from './fs-job-queue';
-export { JetStreamJobQueue, type JetStreamJobQueueOptions } from './jetstream-job-queue';
 
 // Types
 export type {
@@ -28,23 +17,18 @@ export type {
   CommentDetectionJob,
   TagDetectionJob,
   AnyJob,
+  RunningAnyJob,
+  StoredProgress,
   PendingJob,
   RunningJob,
   CompleteJob,
   FailedJob,
   CancelledJob,
-  JobQueryFilters,
   DetectionParams,
   HighlightDetectionParams,
   AssessmentDetectionParams,
   CommentDetectionParams,
   TagDetectionParams,
-  DetectionProgress,
-  YieldProgress,
-  HighlightDetectionProgress,
-  AssessmentDetectionProgress,
-  CommentDetectionProgress,
-  TagDetectionProgress,
   GenerationResult,
 } from './types';
 

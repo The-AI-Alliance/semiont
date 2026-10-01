@@ -10,7 +10,7 @@
 
 This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/ACTOR-MODEL.md). It owns the **Knowledge Base** and the seven actors that serve it.
 
-**The actors no longer run in one process.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it keeps the HTTP surface, the bus door, and the job queue.
+**The actors no longer run in one process.** Each container entry point in this package starts the subset it owns, and the gateway constructs **none** of them — it keeps the HTTP surface and the bus door. The job queue is the dispatcher's ([apps/dispatcher](../../apps/dispatcher/README.md)).
 
 | Service | Entry point | Actors |
 | --- | --- | --- |
@@ -18,9 +18,8 @@ This package implements the actor model from [ACTOR-MODEL.md](../../docs/system/
 | **Librarian** | `@semiont/make-meaning/librarian-main` | Gatherer, Matcher |
 | **Smelter** | `@semiont/make-meaning/smelter-main` | Smelter |
 | **Weaver** | `@semiont/make-meaning/weaver-main` | Weaver |
-| **Dispatcher** | `@semiont/make-meaning/dispatcher-main` | the job queue and the `job:*` command handlers — no actor, a control plane |
 
-`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use, and it is unchanged. In the split topology no process assembles a subset: each sidecar's `*-main` composes exactly what it owns, and the gateway composes nothing from this package.
+`startMakeMeaning()` still assembles the **whole** set in one process — that is what `LocalTransport`, scripts and tests use. It runs no jobs: a script that runs them runs the stack. In the split topology no process assembles a subset: each sidecar's `*-main` composes exactly what it owns, and the gateway composes nothing from this package.
 
 ### The access actors — the bus-facing interface of the Knowledge Base
 
@@ -203,14 +202,7 @@ The EventBus is created by the gateway (or script) and passed into `startMakeMea
 
 ### Pure projection validators
 
-The dispatcher in [`src/handlers/job-commands.ts`](src/handlers/job-commands.ts) does projection-validated job creation: when a `mark.assist` (linking) or `yield.fromContext` job arrives with `entityTypes`, the dispatcher validates that every tag is registered; when a tagging job arrives with a `schemaId`, the dispatcher resolves it against the registered tag-schema set.
-
-Both rules are pure functions in [`src/views/projection-validators.ts`](src/views/projection-validators.ts):
-
-- `resolveTagSchema(schemas, schemaId)` → `{ schema } | { error }` — id lookup with the standard "Tag schema not registered" / "tag-annotation requires schemaId" error formats.
-- `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }` — set membership check that lists the offending tags in caller order.
-
-The dispatcher is the I/O shell: read the projection (via the readers in `src/views/`), pass it to the validator (pure), then either stash the resolved value or rethrow as `job:create-failed`. Validator unit tests run in single-digit milliseconds with no filesystem, no event-bus, no mock JobQueue — the dispatcher integration tests in `__tests__/handlers/job-commands.test.ts` keep the wiring covered.
+Entity types are a controlled vocabulary: the Stower refuses a `mark:update-entity-types` that adds one not registered. The rule is a pure function in [`src/views/projection-validators.ts`](src/views/projection-validators.ts): `validateEntityTypes(registered, requested)` → `{ ok: true } | { ok: false; unknown }`, a set membership check that lists the offending tags in caller order. The Stower is the I/O shell: it reads the projection (via the readers in `src/views/`), passes it to the validator, and refuses the whole request before its first append. Validator unit tests run in single-digit milliseconds with no filesystem and no event bus; `__tests__/stower-entity-types.test.ts` covers the wiring.
 
 This pattern (functional core, imperative shell) is shared with `@semiont/event-sourcing`'s projection reducers; see [`docs/system/PROJECTION-PATTERN.md`](../../docs/system/PROJECTION-PATTERN.md) for the architectural narrative, the full axiom catalog, and guidance for adding new validators.
 
@@ -276,7 +268,7 @@ The Weaver is not exported — `createKnowledgeBase()` constructs it internally 
 - **[@semiont/ontology](../ontology/)** — Schema definitions for tags
 - **[@semiont/inference](../inference/)** — AI primitives (generateText)
 - **[@semiont/vectors](../vectors/)** — Vector store abstraction (Qdrant + memory) and embedding providers (Voyage, Ollama)
-- **[@semiont/jobs](../jobs/)** — Job queue and annotation workers
+- **[@semiont/jobs](../jobs/)** — The job worker: processors and the worker process
 - **[@semiont/observability](../observability/)** — Actor spans and metrics providers
 - **[@semiont/sdk](../sdk/)** — `StateUnit` / `WorkerBus` types (used by the Smelter actor state unit)
 

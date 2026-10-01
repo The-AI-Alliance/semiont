@@ -8,23 +8,24 @@ import "sort"
 // specs/src/service-config/sections.json, which the TypeScript loader
 // enforces; TestServiceSectionsAgreeWithTheSpec holds this copy to it.
 var serviceConfigSections = map[string][]string{
-	"archivist":  {"gateway", "graph", "vectors", "embedding", "identity", "make-meaning", "actors", "workers"},
-	"librarian":  {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
-	"dispatcher": {"gateway", "jobs", "identity"},
-	"weaver":     {"gateway", "graph", "identity"},
-	"smelter":    {"gateway", "vectors", "embedding", "identity", "archivist"},
-	"worker":     {"gateway", "identity", "archivist", "workers", "inference"},
+	"archivist": {"gateway", "graph", "vectors", "embedding", "identity", "make-meaning", "actors", "workers"},
+	"librarian": {"gateway", "graph", "vectors", "embedding", "identity", "archivist", "make-meaning", "actors", "inference"},
+	"weaver":    {"gateway", "graph", "identity"},
+	"smelter":   {"gateway", "vectors", "embedding", "identity", "archivist"},
+	"worker":    {"gateway", "identity", "archivist", "workers", "inference"},
 }
 
 // launcherReads: the sections whose ${VAR} values the launcher resolves itself,
-// keyed by the role it resolves them for — the gateway's document, Keycloak's
-// external PostgreSQL password, and the remote-model check's key.
+// keyed by the role it resolves them for — the gateway's and the dispatcher's
+// documents, Keycloak's external PostgreSQL password, and the remote-model
+// check's key.
 // TestLauncherReadsAreTheSectionsTheLauncherResolves reads them from the
 // resolving calls.
 var launcherReads = map[string][]string{
-	"gateway":   {"gateway", "identity", "archivist", "signal"},
-	"identity":  {"database"},
-	"inference": {"inference"},
+	"gateway":    {"gateway", "identity", "archivist", "signal"},
+	"dispatcher": {"gateway", "identity", "jobs"},
+	"identity":   {"database"},
+	"inference":  {"inference"},
 }
 
 // readSections: the sections a start of svc reads — a Node service's own, and
@@ -101,10 +102,10 @@ func sectionRefs(envSection map[string]any, sections []string) (required, option
 }
 
 // serviceVars: for each stack service, the user variables it is handed — the
-// references in the sections it reads. The gateway reads no KB config: its
-// variables are the ones its document names.
+// references in the sections it reads. The gateway and the dispatcher read no
+// KB config: their variables are the ones their documents name.
 func serviceVars(envSection map[string]any, env *envConfig) map[string][]string {
-	out := map[string][]string{"gateway": gatewayNamedVars(env)}
+	out := map[string][]string{"gateway": gatewayNamedVars(env), "dispatcher": dispatcherNamedVars(env)}
 	for svc, sections := range serviceConfigSections {
 		required, optional := sectionRefs(envSection, sections)
 		names := append(required, optional...)
@@ -137,6 +138,9 @@ func withDaemonCredentialVars(byService map[string][]string, plan *launchPlan, s
 	}
 	if brokerRun && signalOnBroker {
 		out["gateway"] = append(out["gateway"], pair...)
+	}
+	if brokerRun {
+		out["dispatcher"] = append(out["dispatcher"], pair...)
 	}
 	return out
 }

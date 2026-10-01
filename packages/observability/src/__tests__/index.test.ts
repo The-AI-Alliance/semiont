@@ -62,7 +62,6 @@ import {
   materializeObservableGauges,
   registerCorrelationRegistryProvider,
   registerFactPumpDepthProvider,
-  registerJobQueueProvider,
   registerProcessLifetimeMetrics,
   registerRestartCountProvider,
   registerVectorIndexSizeProvider,
@@ -408,70 +407,6 @@ describe('SSE subscriber up/down counter', () => {
     expect(counter).toBeDefined();
     // Net delta after +1 +1 -1 = +1 (cumulative aggregation).
     expect(counter![0]?.value).toBe(1);
-  });
-});
-
-describe('registerJobQueueProvider', () => {
-  it('registers a callback that emits one observation per status', async () => {
-    registerJobQueueProvider(() => ({
-      pending: 5,
-      running: 2,
-      complete: 100,
-      failed: 1,
-      cancelled: 0,
-    }));
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const queue = metricsByName.get('semiont.job.queue.size');
-    expect(queue).toBeDefined();
-    const byStatus = new Map<string, number>(
-      queue!.map((d) => [d.attributes['job.status'] as string, d.value!]),
-    );
-    expect(byStatus.get('pending')).toBe(5);
-    expect(byStatus.get('running')).toBe(2);
-    expect(byStatus.get('complete')).toBe(100);
-    expect(byStatus.get('failed')).toBe(1);
-    expect(byStatus.get('cancelled')).toBe(0);
-  });
-
-  it('honors the most recently registered provider', async () => {
-    registerJobQueueProvider(() => ({
-      pending: 1,
-      running: 0,
-      complete: 0,
-      failed: 0,
-      cancelled: 0,
-    }));
-    registerJobQueueProvider(() => ({
-      pending: 99,
-      running: 0,
-      complete: 0,
-      failed: 0,
-      cancelled: 0,
-    }));
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const queue = metricsByName.get('semiont.job.queue.size')!;
-    const pending = queue.find((d) => d.attributes['job.status'] === 'pending');
-    expect(pending?.value).toBe(99);
-  });
-
-  it('supports an async provider', async () => {
-    registerJobQueueProvider(async () => ({
-      pending: 7,
-      running: 1,
-      complete: 0,
-      failed: 0,
-      cancelled: 0,
-    }));
-    await flushMetrics();
-
-    const metricsByName = collectMetrics();
-    const queue = metricsByName.get('semiont.job.queue.size')!;
-    const pending = queue.find((d) => d.attributes['job.status'] === 'pending');
-    expect(pending?.value).toBe(7);
   });
 });
 

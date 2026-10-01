@@ -665,8 +665,8 @@ export class Stower {
 
     try {
       // Entity tags are a controlled vocabulary (ratified 2026-07-09): gate
-      // ADDS against the registered set with the same machinery the job path
-      // uses (job-commands.ts) — same projection read, same error message.
+      // ADDS against the registered set, refusing in the words the
+      // dispatcher's job:create uses for the same check.
       // Removals are never gated: deleting a stale/unregistered legacy tag is
       // the cleanup path. Runs before the first append so a mixed request is
       // all-or-nothing.

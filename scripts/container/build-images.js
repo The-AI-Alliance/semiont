@@ -7,6 +7,7 @@
  * Usage:
  *   npm run container:build              # Build all images
  *   npm run container:build gateway      # Build gateway only
+ *   npm run container:build dispatcher   # Build dispatcher only
  *   npm run container:build browser     # Build browser only
  * 
  * Legacy aliases:
@@ -115,11 +116,11 @@ async function buildImage(service, dockerfile, context, buildArgs = [], runtime)
   }
 }
 
-/** The gateway compiles with the toolchain apps/gateway/rust-toolchain.toml pins. */
-async function buildGateway(runtime) {
-  const toolchain = /^channel = "(.*)"$/m.exec(readFileSync('apps/gateway/rust-toolchain.toml', 'utf-8'))?.[1];
-  if (!toolchain) throw new Error('apps/gateway/rust-toolchain.toml names no channel');
-  await buildImage('gateway', 'apps/gateway/Dockerfile', '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
+/** A Rust service compiles with the toolchain rust-toolchain.toml pins. */
+async function buildRust(service, runtime) {
+  const toolchain = /^channel = "(.*)"$/m.exec(readFileSync('rust-toolchain.toml', 'utf-8'))?.[1];
+  if (!toolchain) throw new Error('rust-toolchain.toml names no channel');
+  await buildImage(service, `apps/${service}/Dockerfile`, '.', ['--build-arg', `RUST_TOOLCHAIN=${toolchain}`], runtime);
 }
 
 async function buildBrowser(runtime) {
@@ -166,18 +167,20 @@ async function main() {
     switch (service) {
       case 'all':
         console.log('Building all services...');
-        await buildGateway(runtime);
+        await buildRust('gateway', runtime);
+        await buildRust('dispatcher', runtime);
         await buildBrowser(runtime);
         break;
       case 'gateway':
-        await buildGateway(runtime);
+      case 'dispatcher':
+        await buildRust(service, runtime);
         break;
       case 'browser':
         await buildBrowser(runtime);
         break;
       default:
         log('red', `Unknown service: ${service}`);
-        console.log('Usage: npm run container:build [all|gateway|browser]');
+        console.log('Usage: npm run container:build [all|gateway|dispatcher|browser]');
         process.exit(1);
     }
     

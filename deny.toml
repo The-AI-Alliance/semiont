@@ -1,0 +1,36 @@
+# cargo-deny's checks of the crates the workspace links. The Gateway Crate
+# Advisories workflow (.github/workflows/gateway-advisories.yml) runs
+#
+#   cargo deny --locked check -D advisory-not-detected advisories bans sources
+#
+# and not `licenses`: scripts/lint/check-image-crates.mjs holds every crate's
+# licence to .github/licenses/, the policy all the published images answer to,
+# and a second policy here would be a copy of it that drifts.
+
+[graph]
+# The platforms the image is built for.
+targets = ["x86_64-unknown-linux-musl", "aarch64-unknown-linux-musl"]
+
+[advisories]
+# RustSec's database, fetched on every run: an advisory published after this
+# file was last changed fails the next run all the same.
+yanked = "deny"
+# Each ignore is an advisory read and judged not to reach the gateway, with
+# why. One that stops matching fails the run (-D advisory-not-detected), so
+# none outlives the crate it was about.
+ignore = [
+  { id = "RUSTSEC-2023-0071", reason = "rsa (the Marvin timing attack) leaks a private key through the time its private-key operations take. The gateway holds no RSA private key: it only verifies the issuer's RS256 signatures, with public keys, and signs its own tokens with HS256. No fixed rsa release exists; it arrives through jsonwebtoken's rust_crypto backend." },
+  { id = "RUSTSEC-2024-0436", reason = "paste is unmaintained. It is a procedural macro tikv-jemalloc-ctl uses while it compiles; nothing of it is in the binary." },
+]
+
+[bans]
+# Two versions of one crate cost size, not safety.
+multiple-versions = "warn"
+wildcards = "deny"
+# The workspace's own crates name each other by path, with no version; none
+# is published, so a path is exact, not a wildcard.
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

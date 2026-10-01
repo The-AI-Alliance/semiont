@@ -1,11 +1,12 @@
 name: Gateway Crate Advisories
 
-# The crates the gateway links, held to RustSec's advisory database, and to
-# where they may come from and which versions they may be named by — cargo-deny's
-# advisories, sources and bans checks, as apps/gateway/deny.toml configures
-# them. Their licences are the Gateway Tests job's (check-gateway-crates.mjs).
+# The crates the Rust workspace links — the gateway's and the crates the
+# services share — held to RustSec's advisory database, and to where they may
+# come from and which versions they may be named by: cargo-deny's advisories,
+# sources and bans checks, as deny.toml configures them. Their licences are the
+# Gateway Tests job's (check-image-crates.mjs).
 #
-# It runs when what the gateway links changes, and daily: the database changes
+# It runs when what the workspace links changes, and daily: the database changes
 # without a commit here, so an advisory published today fails tomorrow's run,
 # on the default branch, where a scheduled run reports to whoever last changed
 # the schedule.
@@ -13,9 +14,17 @@ name: Gateway Crate Advisories
 on:
   pull_request:
     paths:
+      - Cargo.toml
+      - Cargo.lock
+      - deny.toml
       - apps/gateway/Cargo.toml
-      - apps/gateway/Cargo.lock
-      - apps/gateway/deny.toml
+      - apps/dispatcher/Cargo.toml
+      - apps/dispatcher/handlers/Cargo.toml
+      - apps/dispatcher/jetstream/Cargo.toml
+      - packages/core-rust/Cargo.toml
+      - packages/http-transport-rust/Cargo.toml
+      - packages/observability-rust/Cargo.toml
+      - packages/sdk-rust/Cargo.toml
       - .github/workflows/gateway-advisories.yml
   schedule:
     - cron: '0 6 * * *'
@@ -33,10 +42,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names.
+      # rustup installs the toolchain rust-toolchain.toml names.
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway
           rustup toolchain install
           cargo --version
 
@@ -47,17 +55,13 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cargo/bin/cargo-deny
-          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'apps/gateway/rust-toolchain.toml') }}
+          key: ${{ runner.os }}-cargo-deny-${{ hashFiles('.github/workflows/gateway-advisories.yml', 'rust-toolchain.toml') }}
 
       - name: Install cargo-deny
         if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          cd apps/gateway
-          cargo install cargo-deny --locked --version 0.20.2
+        run: cargo install cargo-deny --locked --version 0.20.2
 
       # -D advisory-not-detected: an ignore that no longer matches anything
       # fails the run, so none outlives the crate it was about.
       - name: Check advisories, bans and sources
-        run: |
-          cd apps/gateway
-          cargo deny --locked check -D advisory-not-detected advisories bans sources
+        run: cargo deny --locked check -D advisory-not-detected advisories bans sources

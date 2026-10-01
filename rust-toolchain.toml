@@ -1,0 +1,8 @@
+# The toolchain every Rust build in the repository uses: the workspace's
+# crates and the desktop app's. Scripts, CI and the images derive their Rust
+# image tag from `channel` (rust:<channel>-alpine), so the version is written
+# here and nowhere else.
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]
+profile = "minimal"

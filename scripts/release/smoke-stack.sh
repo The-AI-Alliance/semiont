@@ -25,6 +25,13 @@
 # config a new KB records are what boot. A new KB that could not start is the
 # defect this check found on its first run.
 #
+# THE RUN LEAVES NOTHING BEHIND. The launcher keeps a KB's daemon state and
+# secrets under a key derived from its domain, and the domain here is the same
+# on every run, so a run's state is the next run's unless it goes. A run cleans
+# that state before it boots (whatever an interrupted run left) and on exit
+# stops the stack, cleans the state, forgets the KB in the launcher's registry,
+# and removes the KB directory it made (never one SMOKE_KB names).
+#
 # Why this exists as a script and not as steps in a workflow: every other
 # release check in this repo is one (verify-release.sh is its closest peer),
 # and a check that only a runner can perform is a check nobody runs while
@@ -66,6 +73,15 @@ head_() { printf '\n\033[1m%s\033[0m\n' "$1"; }
 # right default and the wrong thing to assume when the point is to name a set.
 export SEMIONT_VERSION="$IMAGES"
 
+cleanup() {
+  cd / || return
+  "$SEMIONT" stop --runtime "$RUNTIME" >/dev/null 2>&1
+  "$SEMIONT" clean --root "$KB" >/dev/null 2>&1
+  "$SEMIONT" forget "$KB" >/dev/null 2>&1
+  [ -z "${SMOKE_KB:-}" ] && rm -rf "$(dirname "$KB")"
+}
+trap cleanup EXIT
+
 head_ "Knowledge base ($KB)"
 echo "  launcher: $SEMIONT ($("$SEMIONT" --version))"
 mkdir -p "$KB" && cd "$KB" || exit 1
@@ -75,6 +91,11 @@ if "$SEMIONT" init --yes --domain example.github.io:stack-smoke >/dev/null; then
   ok "init wrote a config the plan deriver accepts"
 else
   bad "init refused"; exit 1
+fi
+if "$SEMIONT" clean --root "$KB" >/dev/null; then
+  ok "no state from an earlier run remains"
+else
+  bad "clean refused the state an earlier run left"; exit 1
 fi
 
 head_ "Boot from :$IMAGES on $RUNTIME"

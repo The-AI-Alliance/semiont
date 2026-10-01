@@ -52,7 +52,7 @@ describe('makeMeaningConfigFrom', () => {
     const reads: string[] = [];
     const part = <T>(name: string, value: T) => () => { reads.push(name); return value; };
     const services = {} as Record<string, unknown>;
-    for (const [name, value] of Object.entries({ graph: SERVICES.graph, jobs: { type: 'fs' }, vectors: SERVICES.vectors, embedding: SERVICES.embedding, archivist: { host: 'a' } })) {
+    for (const [name, value] of Object.entries({ graph: SERVICES.graph, vectors: SERVICES.vectors, embedding: SERVICES.embedding, archivist: { host: 'a' } })) {
       Object.defineProperty(services, name, { get: part(name, value), enumerable: true });
     }
     const meta = {} as Record<string, unknown>;
@@ -61,11 +61,10 @@ describe('makeMeaningConfigFrom', () => {
     }
     const config = makeMeaningConfigFrom({ services, _metadata: meta } as unknown as EnvironmentConfig);
     expect(reads).toEqual([]);
-    expect(config.services.jobs).toEqual({ type: 'fs' });
     expect(config.services.archivist).toEqual({ host: 'a' });
     expect(config.actors).toEqual({ matcher: undefined });
     expect(config.workers).toEqual({ default: undefined });
-    expect(reads).toEqual(['jobs', 'archivist', 'actors', 'workers']);
+    expect(reads).toEqual(['archivist', 'actors', 'workers']);
   });
 
   it('refuses a config that bypassed the loader — no gather bound', () => {

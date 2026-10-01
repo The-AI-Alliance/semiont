@@ -25,13 +25,12 @@ import { isObject, isString } from './type-guards';
  *   stateDir        — $XDG_STATE_HOME/semiont/{name}/
  *   resourcesDir    — stateDir/resources/  (the per-resource materialized views)
  *   projectionsDir  — stateDir/projections/  (KB-global projections + the storage-uri index)
- *   jobsDir         — stateDir/jobs/
  *   anchoredTextDir — supplied by the caller; required, no default
  *   runtimeDir      — $XDG_RUNTIME_DIR/semiont/{name}/  (or $TMPDIR fallback)
  *   gatewayPidFile  — runtimeDir/gateway.pid
  *
  * Everything ephemeral that is DERIVED sits under stateDir together —
- * projections (from the event log) and jobs. The anchored-text store is
+ * the projections (from the event log). The anchored-text store is
  * derived too, but its location is declared by the deployment rather than
  * composed here (see anchoredTextDir). That is the XDG distinction, not a
  * filing habit:
@@ -79,9 +78,9 @@ export function stateDirFor(name: string): string {
  * A KB's state tree, addressed by NAME — everything that needs no working tree.
  *
  * This exists because consumers appeared that genuinely need half of
- * `SemiontProject` and cannot supply the other half: the gateway reads
- * `jobsDir` and the Librarian reads `resourcesDir`, both on the shared
- * state mount, with no readable KB root at all (SINGLE-KB-MOUNT P1/P5).
+ * `SemiontProject` and cannot supply the other half: the Librarian reads
+ * `resourcesDir` on the shared state mount, with no readable KB root at all
+ * (SINGLE-KB-MOUNT P1/P5).
  *
  * **Split rather than made optional, deliberately.** Relaxing
  * `SemiontProject`'s root-derived fields to optional-and-throw-on-read would
@@ -104,7 +103,6 @@ export class SemiontState {
   readonly stateDir: string;
   readonly resourcesDir: string;
   readonly projectionsDir: string;
-  readonly jobsDir: string;
 
   // Ephemeral — runtime
   readonly runtimeDir: string;
@@ -116,7 +114,6 @@ export class SemiontState {
     this.stateDir = stateDirFor(this.name);
     this.resourcesDir = path.join(this.stateDir, 'resources');
     this.projectionsDir = path.join(this.stateDir, 'projections');
-    this.jobsDir = path.join(this.stateDir, 'jobs');
 
     const xdgRuntime = process.env.XDG_RUNTIME_DIR;
     const runtimeBase = xdgRuntime ?? process.env.TMPDIR ?? '/tmp';

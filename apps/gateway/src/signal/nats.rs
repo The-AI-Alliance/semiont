@@ -14,7 +14,6 @@ use super::{
     ClientSubscription, Frame, IngestReceipt, Meta, SharedTable, SignalPlane, Subscription,
     TableWatcher, Unavailable,
 };
-use crate::logging;
 use async_nats::StatusCode;
 use async_nats::connection::State;
 use async_nats::jetstream::{self, kv};
@@ -23,10 +22,11 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use bytes::Bytes;
 use futures::future::BoxFuture;
 use futures::{FutureExt, StreamExt};
+use semiont_core::nats;
+use semiont_observability::logging;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 const PREFIX: &str = "sig.";
@@ -83,38 +83,18 @@ impl NatsPlane {
         user: Option<String>,
         password: Option<String>,
     ) -> Result<NatsPlane, String> {
-        let reconnecting = Arc::new(AtomicBool::new(false));
-        let watched = servers.to_owned();
-        let mut options = async_nats::ConnectOptions::new().max_reconnects(None).event_callback(move |event| {
-            let servers = watched.clone();
-            let reconnecting = reconnecting.clone();
-            async move {
-                match event {
-                    async_nats::Event::Disconnected => {
-                        reconnecting.store(true, Ordering::SeqCst);
-                        logging::warn(
-                            "[signal BROKER-DOWN] NATS connection lost; emits are refused until it is restored",
-                            json!({ "component": "signal", "servers": servers }),
-                        );
-                    }
-                    async_nats::Event::Connected if reconnecting.swap(false, Ordering::SeqCst) => {
-                        logging::info("[signal BROKER-RECONNECTED] NATS connection restored", json!({ "component": "signal", "servers": servers }));
-                    }
-                    async_nats::Event::ServerError(error) => {
-                        logging::error("[signal BROKER-REFUSED] the broker refused the gateway", json!({ "component": "signal", "servers": servers, "reason": error.to_string() }));
-                    }
-                    _ => {}
-                }
-            }
-        });
-        if user.is_some() || password.is_some() {
-            options =
-                options.user_and_password(user.unwrap_or_default(), password.unwrap_or_default());
-        }
-        let client = options
-            .connect(servers)
-            .await
-            .map_err(|e| format!("cannot connect to the NATS broker at {servers}: {e}"))?;
+        let client = nats::connect(
+            servers,
+            user,
+            password,
+            nats::Voice {
+                tag: "signal",
+                while_down: "emits are refused until it is restored",
+                refused: "the gateway",
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())?;
         Ok(NatsPlane { client })
     }
 }
@@ -268,19 +248,10 @@ impl SignalPlane for NatsPlane {
     }
 
     fn flush(&self) -> BoxFuture<'_, Result<(), String>> {
-        // One round trip through the broker: a request nobody answers comes
-        // back "no responders" once the broker has read everything this
-        // connection wrote before it — subscriptions included.
         async move {
-            match self
-                .client
-                .request(format!("{PREFIX}flush"), Bytes::new())
+            nats::flush(&self.client, format!("{PREFIX}flush"))
                 .await
-            {
-                Ok(_) => Ok(()),
-                Err(error) if error.kind() == async_nats::RequestErrorKind::NoResponders => Ok(()),
-                Err(error) => Err(error.to_string()),
-            }
+                .map_err(|e| e.to_string())
         }
         .boxed()
     }
@@ -366,50 +337,19 @@ impl SharedTable for NatsTable {
 
     fn watch(&self, on_entry: TableWatcher) -> BoxFuture<'_, Result<Subscription, String>> {
         async move {
-            // Everything after the bucket's last sequence arrives on the watch;
-            // everything up to it is read key by key. An entry both see is
-            // delivered twice, which a watcher takes as once.
-            let last = self
-                .store
-                .stream
-                .get_info()
-                .await
-                .map_err(|e| logging::chain(&e))?
-                .state
-                .last_sequence;
-            let mut entries = self
-                .store
-                .watch_all_from_revision(last + 1)
-                .await
-                .map_err(|e| logging::chain(&e))?;
-            let live = on_entry.clone();
-            let pump = tokio::spawn(async move {
-                while let Some(Ok(entry)) = entries.next().await {
-                    let Some(key) = from_b64url(&entry.key) else {
-                        continue;
-                    };
-                    match entry.operation {
-                        kv::Operation::Put => live(
+            let pump = nats::read_then_watch(
+                &self.store,
+                Arc::new(move |key, value| {
+                    if let Some(key) = from_b64url(&key) {
+                        on_entry(
                             key,
-                            Some(String::from_utf8_lossy(&entry.value).into_owned()),
-                        ),
-                        kv::Operation::Delete | kv::Operation::Purge => live(key, None),
+                            value.map(|bytes| String::from_utf8_lossy(&bytes).into_owned()),
+                        );
                     }
-                }
-            });
-            let mut keys = self.store.keys().await.map_err(|e| logging::chain(&e))?;
-            while let Some(key) = keys.next().await {
-                let key = key.map_err(|e| logging::chain(&e))?;
-                if let Some(value) = self
-                    .store
-                    .get(key.clone())
-                    .await
-                    .map_err(|e| logging::chain(&e))?
-                    && let Some(decoded) = from_b64url(&key)
-                {
-                    on_entry(decoded, Some(String::from_utf8_lossy(&value).into_owned()));
-                }
-            }
+                }),
+            )
+            .await
+            .map_err(|e| e.to_string())?;
             Ok(Subscription::new(move || pump.abort()))
         }
         .boxed()

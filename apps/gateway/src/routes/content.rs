@@ -3,16 +3,17 @@
 //! negotiated or transcoded; the JSON-LD description is its answer.
 
 use crate::app::App;
-use crate::bus_log::bus_log;
 use crate::http::{ApiError, Authenticated, MediaOrBearer, json_response};
-use crate::logging;
-use crate::telemetry;
 use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::Response;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::bus_log::bus_log;
+use semiont::types::CreateResourceResponse;
+use semiont_observability::logging;
+use semiont_observability::telemetry;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -53,7 +54,7 @@ pub async fn upload(
     }
     Ok(json_response(
         StatusCode::ACCEPTED,
-        &json!({ "resourceId": resource_id }),
+        &CreateResourceResponse { resource_id },
     ))
 }
 

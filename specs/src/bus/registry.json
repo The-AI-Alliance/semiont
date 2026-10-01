@@ -3335,16 +3335,17 @@
     },
     {
       "channel": "job:claimed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "JobClaimedResult",
       "validate": null,
-      "ts": "{ response: Record<string, unknown> }",
+      "ts": "components['schemas']['JobClaimedResult']",
       "docs": {
         "lead": [],
         "trailing": ""
       },
       "schemaDocs": {
         "lead": [],
-        "trailing": "// { correlationId; response: Record<string, unknown> }"
+        "trailing": ""
       }
     },
     {

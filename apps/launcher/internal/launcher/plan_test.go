@@ -77,6 +77,10 @@ apiKey = "${ANTHROPIC_API_KEY}"
 type = "anthropic"
 model = "claude-sonnet-4-5-20250929"
 `,
+		"jobs": `[environments.local.jobs]
+type = "jetstream"
+servers = "${NATS_HOST}:4222"
+`,
 	}
 	for k, v := range replace {
 		if v == "" {
@@ -87,7 +91,7 @@ model = "claude-sonnet-4-5-20250929"
 	}
 	var b strings.Builder
 	b.WriteString("[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n")
-	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference", "identity"} {
+	for _, k := range []string{"graph", "vectors", "database", "embedding", "inference", "identity", "jobs", "signal"} {
 		if s, ok := sections[k]; ok {
 			b.WriteString(s + "\n")
 		}
@@ -497,6 +501,26 @@ model = "gemma4:26b"
 	}
 }
 
+// The dispatcher's queue is JetStream: the plan refuses a [jobs] of any other
+// type, or none at all.
+func TestPlanRequiresAJetStreamJobsSection(t *testing.T) {
+	for label, jobs := range map[string]string{
+		"fs":      "[environments.local.jobs]\ntype = \"fs\"\nservers = \"${NATS_HOST}:4222\"\n",
+		"no type": "[environments.local.jobs]\nservers = \"${NATS_HOST}:4222\"\n",
+		"none":    "",
+	} {
+		_, err := planForBroker(t, "", jobs)
+		if err == nil {
+			t.Fatalf("%s: accepted", label)
+		}
+		for _, want := range []string{"[environments.local.jobs]", `type = "jetstream"`, "dispatcher's queue is JetStream"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("%s: the refusal does not name %s: %v", label, want, err)
+			}
+		}
+	}
+}
+
 // ── Broker credentials (INTER-COMPONENT-ACCESS P3) ──────────────────────────
 //
 // [signal] and [jobs] name ONE daemon, so their credentials reconcile the way
@@ -508,13 +532,7 @@ model = "gemma4:26b"
 
 func planForBroker(t *testing.T, signal, jobs string) (*launchPlan, error) {
 	t.Helper()
-	// NOT via variantConfig's replace map: it emits a fixed section list, so a
-	// key outside that list is accepted and silently dropped. Append instead.
-	base, err := os.ReadFile(variantConfig(t, nil))
-	if err != nil {
-		t.Fatal(err)
-	}
-	p := writeVariant(t, string(base)+"\n"+signal+"\n"+jobs+"\n")
+	p := variantConfig(t, map[string]string{"signal": signal, "jobs": jobs})
 	env, envName, _, err := loadConfig(p)
 	if err != nil {
 		t.Fatalf("loadConfig: %v", err)
@@ -586,15 +604,24 @@ func TestBrokerCredentialsMustAgreeAcrossSections(t *testing.T) {
 }
 
 // Half a credential is a misconfiguration that would otherwise present as an
-// authorization failure at boot, with nothing naming the cause.
+// authorization failure at boot, with nothing naming the cause. The refusal
+// points at the section that holds the half.
 func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
-	_, err := planForBroker(t,
-		"[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\nuser = \"semiont\"\n", "")
-	if err == nil {
-		t.Fatal("a user with no password was accepted")
-	}
-	if !strings.Contains(err.Error(), "incomplete") {
-		t.Errorf("error does not name the problem: %v", err)
+	const signal = "[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n"
+	const jobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n"
+	for section, c := range map[string]struct{ signal, jobs string }{
+		"signal": {signal + "user = \"semiont\"\n", jobs},
+		"jobs":   {signal, jobs + "user = \"semiont\"\n"},
+	} {
+		_, err := planForBroker(t, c.signal, c.jobs)
+		if err == nil {
+			t.Fatalf("%s: a user with no password was accepted", section)
+		}
+		for _, want := range []string{"[environments.local." + section + "]", "incomplete"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("%s: the refusal does not name %s: %v", section, want, err)
+			}
+		}
 	}
 }
 
@@ -603,19 +630,15 @@ func TestAHalfBrokerCredentialIsRefused(t *testing.T) {
 // the signal plane. Semiont's clients authenticate by username and password
 // only, so the pair is required.
 func TestAnExternalBrokerWithNoPairIsRefused(t *testing.T) {
-	for _, c := range []struct{ signal, jobs, section string }{
-		{"[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n",
-			"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"nats.example.com:4222\"\n", "jobs"},
-		{"[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n", "", "signal"},
-	} {
-		_, err := planForBroker(t, c.signal, c.jobs)
-		if err == nil {
-			t.Fatalf("an external broker with no user or password was accepted (%s)", c.section)
-		}
-		for _, want := range []string{"[environments.local." + c.section + "]", `"user"`, `"password"`} {
-			if !strings.Contains(err.Error(), want) {
-				t.Errorf("the refusal does not name %s: %v", want, err)
-			}
+	_, err := planForBroker(t,
+		"[environments.local.signal]\ntype = \"nats\"\nservers = \"nats.example.com:4222\"\n",
+		"[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"nats.example.com:4222\"\n")
+	if err == nil {
+		t.Fatal("an external broker with no user or password was accepted")
+	}
+	for _, want := range []string{"[environments.local.jobs]", `"user"`, `"password"`} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not name %s: %v", want, err)
 		}
 	}
 }

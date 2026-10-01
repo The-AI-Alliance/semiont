@@ -46,6 +46,9 @@ export function formatErrors(errors: ErrorObject[] | null | undefined): string {
       if (err.keyword === 'type' && 'type' in err.params) {
         return `${path}: ${message} (expected ${err.params.type})`;
       }
+      if (err.keyword === 'additionalProperties' && 'additionalProperty' in err.params) {
+        return `${path}: unknown property ${err.params.additionalProperty}`;
+      }
       if (err.keyword === 'enum' && 'allowedValues' in err.params) {
         return `${path}: must be one of [${(err.params.allowedValues as string[]).join(', ')}]`;
       }

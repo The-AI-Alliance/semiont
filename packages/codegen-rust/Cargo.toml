@@ -1,0 +1,9 @@
+[package]
+name = "semiont-codegen"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "Build-time generation from specs/: the bundled spec documents and the Rust types of their component schemas. A build dependency of semiont and semiont-core; no binary links it."
+
+[dependencies]
+serde_json = { workspace = true, features = ["preserve_order"] }

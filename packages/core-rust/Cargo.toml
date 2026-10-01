@@ -1,0 +1,27 @@
+[package]
+name = "semiont-core"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "What Semiont's Rust services share and no client needs: the spec each is built against, its configuration document, and its reach to the messaging broker."
+
+[features]
+# Reaching the messaging broker (src/nats.rs). Off unless a crate asks: one that
+# does not has no NATS client in its build.
+nats = ["dep:async-nats", "dep:bytes", "dep:futures", "dep:semiont-observability", "dep:tokio"]
+
+[dependencies]
+async-nats = { workspace = true, optional = true, features = ["ring", "kv", "server_2_10", "nuid"] }
+bytes = { workspace = true, optional = true }
+futures = { workspace = true, optional = true }
+jsonschema.workspace = true
+semiont.workspace = true
+semiont-observability = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true, features = ["preserve_order"] }
+tokio = { workspace = true, optional = true, features = ["rt", "time", "macros"] }
+
+[build-dependencies]
+jsonschema.workspace = true
+semiont-codegen.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }

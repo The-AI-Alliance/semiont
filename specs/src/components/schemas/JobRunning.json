@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "description": "A job a worker has claimed and not yet concluded.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "running"
+      ]
+    },
+    "metadata": {
+      "$ref": "./JobMetadata.json"
+    },
+    "params": {
+      "$ref": "./JobParams.json"
+    },
+    "startedAt": {
+      "type": "string",
+      "description": "When the claim that holds it was made, as an ISO 8601 timestamp."
+    },
+    "progress": {
+      "$ref": "./JobStoredProgress.json"
+    }
+  },
+  "required": [
+    "status",
+    "metadata",
+    "params",
+    "startedAt",
+    "progress"
+  ],
+  "additionalProperties": false
+}

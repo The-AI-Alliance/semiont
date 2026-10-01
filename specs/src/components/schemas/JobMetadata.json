@@ -1,0 +1,55 @@
+{
+  "type": "object",
+  "description": "What the dispatcher records about a job beside its parameters. `completedUnits` and `unitCursors` appear once a worker has checkpointed. `retryCount` counts the times the queue has put the job back to pending after a failure it classes as transient.",
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The job's id: `job-` followed by a version 4 UUID written as 32 lowercase hex digits, without dashes."
+    },
+    "type": {
+      "$ref": "./JobType.json"
+    },
+    "userId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The DID of the principal whose `job:create` created the job."
+    },
+    "created": {
+      "type": "string",
+      "description": "When the job was created, as an ISO 8601 timestamp."
+    },
+    "retryCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maxRetries": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many transient failures the queue retries: 0 for generation, whose re-run produces different content; 1 for every other type."
+    },
+    "completedUnits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "The units a worker has finished, merged across checkpoints and failures as a set."
+    },
+    "unitCursors": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "./UnitCursor.json"
+      },
+      "description": "How far each unfinished unit got, keyed by unit."
+    }
+  },
+  "required": [
+    "id",
+    "type",
+    "userId",
+    "created",
+    "retryCount",
+    "maxRetries"
+  ],
+  "additionalProperties": false
+}

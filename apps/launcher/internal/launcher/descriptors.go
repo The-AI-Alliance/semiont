@@ -220,13 +220,11 @@ var serviceDescriptors = []serviceDescriptor{
 
 	// NATS keeps its product port (tier 2). 512M ceiling: measured 26 MiB
 	// idle with JetStream on (2026-09-15); the headroom is for stream replay
-	// after restart. Runs when [jobs] selects jetstream or [signal] selects
-	// nats (SIGNAL-PLANE D9): ONE daemon, ONE shape — JetStream on, with the
-	// stamped /data store — because both drivers that select it use that
-	// store: the job queue's stream, and the signal driver's KV tables, where
+	// after restart. Every stack has one: [jobs] is the dispatcher's JetStream queue,
+	// and [signal] may select nats too (SIGNAL-PLANE D9): ONE daemon, ONE
+	// shape — JetStream on, with the stamped /data store — because both use
+	// that store: the job queue's stream, and the signal driver's KV tables, where
 	// the gateway's ledger keeps its claims (LEDGER-STATE-TO-THE-BROKER P0).
-	// JOB-QUEUE-DRIVER P2: "fs" is a valid config type but not a driver here
-	// — it runs inside the gateway and launches nothing.
 	{role: "messaging", driver: "jetstream", container: "semiont-nats", image: "nats:2.14.0-alpine", mem: "512M",
 		ports: []portNeed{{4222, "NATS"}}, display: "NATS", defaultPort: 4222, portLabel: "NATS",
 		cmd: []string{"-js", "-sd", "/data"}, health: healthProbe{tcp: true}},

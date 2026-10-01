@@ -4,7 +4,9 @@
     "jobId": {
       "type": "string"
     },
-    "type": { "$ref": "./JobType.json" },
+    "type": {
+      "$ref": "./JobType.json"
+    },
     "status": {
       "type": "string",
       "enum": [
@@ -30,8 +32,12 @@
     "error": {
       "type": "string"
     },
-    "progress": {},
-    "result": { "$ref": "./JobResult.json" }
+    "progress": {
+      "$ref": "./JobStoredProgress.json"
+    },
+    "result": {
+      "$ref": "./JobStoredResult.json"
+    }
   },
   "required": [
     "jobId",

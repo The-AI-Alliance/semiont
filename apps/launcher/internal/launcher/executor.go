@@ -371,15 +371,15 @@ var kbIdentityStaged = map[string]bool{"librarian": true}
 // of the KB's config (gatewaydoc.go). One name, staged and mounted.
 const gatewayDocumentFile = "gateway.json"
 
-// gatewayDocumentTarget: where the gateway reads that document — a constant
-// of the gateway image, which declares it as SEMIONT_GATEWAY_CONFIG (the
-// arrangement SEMIONT_ROOT and SEMIONT_ANCHORED_TEXT_DIR already have). Its
-// own name and place: a resolved JSON artifact, not the sidecars' TOML
-// ~/.semiontconfig it was derived from.
+// gatewayDocumentTarget: where the gateway reads that document — the path its
+// image passes to `--config`; TestConfigDocumentsAreWhereTheImagesLook holds
+// the two together. Its own name and place: a resolved JSON artifact, not the
+// sidecars' TOML ~/.semiontconfig it was derived from.
 const gatewayDocumentTarget = "/etc/semiont/gateway.json"
 
-// stageService writes one service's config into the stage: the gateway's
-// resolved document, or another service's patched copy of the KB config.
+// stageService writes one service's config into the stage: the gateway's or
+// the dispatcher's resolved document, or another service's patched copy of
+// the KB config.
 func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr string) bool {
 	if svc == "gateway" {
 		env, _, _, err := loadConfig(fc.configFile)
@@ -391,6 +391,20 @@ func (x *liveExec) stageService(stage, svc string, cfg []byte, fc flowCtx, addr 
 		}
 		if err != nil {
 			x.u.Fail("Writing the gateway's configuration document: %v", err)
+			return false
+		}
+		return true
+	}
+	if svc == "dispatcher" {
+		env, _, _, err := loadConfig(fc.configFile)
+		if err == nil {
+			var doc []byte
+			if doc, err = dispatcherDocument(env, x.rt, addr, fc.plan.Roles["identity"].Port, fc.userEnv, fc.plan.Roles["messaging"].Presence == presenceLauncher); err == nil {
+				err = os.WriteFile(filepath.Join(stage, dispatcherDocumentFile), doc, 0o644)
+			}
+		}
+		if err != nil {
+			x.u.Fail("Writing the dispatcher's configuration document: %v", err)
 			return false
 		}
 		return true
@@ -1346,11 +1360,12 @@ func (x *planExec) stageCollector(string) (string, bool) {
 func (x *planExec) stageAll(fc flowCtx, _ string) (string, bool) {
 	staged := make([]string, 0, len(stackServices))
 	for _, svc := range stackServices {
-		if svc != "gateway" {
+		if svc != "gateway" && svc != "dispatcher" {
 			staged = append(staged, svc+".toml")
 		}
 	}
 	x.c("write <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
+	x.c("write <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 	x.c("stage per-service config copies under <config-stage>: %s", strings.Join(staged, " "))
 	x.c("write <config-stage>/collector.yaml (launcher-owned; traces exporter iff observing)")
 	x.c("write <config-stage>/prometheus.yml (launcher-owned; scrapes the collector readout)")
@@ -1365,6 +1380,10 @@ func (x *planExec) stageAll(fc flowCtx, _ string) (string, bool) {
 func (x *planExec) stageOne(svc string, fc flowCtx, _ string) (string, bool) {
 	if svc == "gateway" {
 		x.c("write a fresh <config-stage>/%s (the gateway's configuration document: GatewayConfig, resolved)", gatewayDocumentFile)
+		return "<config-stage>", true
+	}
+	if svc == "dispatcher" {
+		x.c("write a fresh <config-stage>/%s (the dispatcher's configuration document: DispatcherConfig, resolved)", dispatcherDocumentFile)
 		return "<config-stage>", true
 	}
 	x.c("stage a fresh private config copy under <config-stage>: %s.toml", svc)

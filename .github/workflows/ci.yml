@@ -54,11 +54,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names,
-      # with rustfmt and clippy.
+      # rustup installs the toolchain rust-toolchain.toml names, with rustfmt
+      # and clippy.
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway
           rustup toolchain install
           cargo --version
 
@@ -72,8 +71,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway/target
-          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+            target
+          key: ${{ runner.os }}-gateway-dev-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-dev-
 
@@ -82,24 +81,35 @@ jobs:
       # tables, its only Rust tests.
       - name: Format, lint, and run the shared-table runners
         run: |
-          cd apps/gateway
-          cargo fmt --check
-          cargo clippy --all-targets --locked -- -D warnings
-          cargo test --locked
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets --locked -- -D warnings
+          cargo test --workspace --locked
+
+      # The broker is reached only by a crate that asks for semiont-core's
+      # `nats` feature: the SDK, its HTTP transport, observability,
+      # semiont-core itself and the dispatcher's handlers carry no NATS client.
+      - name: Check which crates can reach the broker
+        run: |
+          for crate in semiont semiont-http-transport semiont-observability semiont-core semiont-dispatcher-handlers; do
+            if cargo tree --locked -p "$crate" -e normal | grep -q '^.*async-nats '; then
+              echo "✗ $crate reaches async-nats; only a crate that enables semiont-core's nats feature may"
+              exit 1
+            fi
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
           node-version: '24'
 
-      # Every crate the binary links, on each platform the image is built for,
-      # is under a permitted licence and credited in the image's NOTICE.
-      - name: Check the crates the gateway links
+      # Every crate each service binary links, on each platform the images are
+      # built for, is under a permitted licence and credited in its image's NOTICE.
+      - name: Check the crates the service binaries link
         run: |
           for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
-            (cd apps/gateway && cargo metadata --format-version 1 --locked --filter-platform "$target") > "$RUNNER_TEMP/metadata-$target.json"
+            cargo metadata --format-version 1 --locked --filter-platform "$target" > "$RUNNER_TEMP/metadata-$target.json"
           done
-          node scripts/lint/check-gateway-crates.mjs "$RUNNER_TEMP"/metadata-*.json
+          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP"/metadata-*.json
 
   gateway-conformance:
     name: Gateway Conformance
@@ -111,7 +121,6 @@ jobs:
 
       - name: Install the pinned Rust toolchain
         run: |
-          cd apps/gateway
           rustup toolchain install
 
       # Its own key, for the release profile: see Gateway Tests.
@@ -121,15 +130,13 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway/target
-          key: ${{ runner.os }}-gateway-release-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
       - name: Build the gateway
-        run: |
-          cd apps/gateway
-          cargo build --release --locked
+        run: cargo build --release --locked -p semiont-gateway
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -138,7 +145,7 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            tests/gateway-conformance/package-lock.json
+            tests/conformance/package-lock.json
 
       # The suite imports @semiont/core — its test issuer, and the job stream's
       # subjects — and bundles the spec with the root's redocly. Core is the one
@@ -160,9 +167,71 @@ jobs:
       # Black-box: it starts gateway processes and checks them against specs/.
       - name: Run the gateway conformance suite
         run: |
-          cd tests/gateway-conformance
+          cd tests/conformance
           npm ci
-          npm test
+          npm run test:gateway
+        env:
+          CI: true
+
+  dispatcher-conformance:
+    name: Dispatcher Conformance
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7.0.1
+
+      - name: Install the pinned Rust toolchain
+        run: |
+          rustup toolchain install
+
+      # The workspace's release build, shared with Gateway Conformance.
+      - name: Cache cargo
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gateway-release-
+
+      # The dispatcher reaches the bus only through a gateway.
+      - name: Build the dispatcher and the gateway
+        run: cargo build --release --locked -p semiont-dispatcher -p semiont-gateway
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            tests/conformance/package-lock.json
+
+      # The suite imports @semiont/core — its test issuer — and bundles the
+      # spec with the root's redocly. Core is the one package it builds.
+      - name: Install dependencies
+        run: |
+          npm ci --include=optional
+          npm run build --workspace=@semiont/core
+
+      # The dispatcher's queue is JetStream, on a real broker spawned from PATH.
+      - name: Install nats-server
+        run: |
+          NATS_VERSION=v2.14.0
+          curl -sSL "https://github.com/nats-io/nats-server/releases/download/${NATS_VERSION}/nats-server-${NATS_VERSION}-linux-amd64.tar.gz" | tar xz
+          sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
+          nats-server --version
+
+      # Black-box: it starts dispatcher processes behind a gateway and meets
+      # them only on the bus and their health port.
+      - name: Run the dispatcher conformance suite
+        run: |
+          cd tests/conformance
+          npm ci
+          npm run test:dispatcher
         env:
           CI: true
 

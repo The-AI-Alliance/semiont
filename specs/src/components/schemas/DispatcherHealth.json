@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "description": "The dispatcher's liveness answer. It answers only once its queue has connected and its bus pumps are attached, so a 200 means it can take work.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "ok"
+      ]
+    },
+    "queue": {
+      "type": "string",
+      "enum": [
+        "jetstream"
+      ],
+      "description": "The queue it holds."
+    }
+  },
+  "required": [
+    "status",
+    "queue"
+  ],
+  "additionalProperties": false
+}

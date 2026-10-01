@@ -3,16 +3,19 @@
 
 use crate::app::App;
 use crate::http::{
-    ApiError, Authenticated, json_body, json_response, missing_credential, refused, text,
+    ApiError, Authenticated, json_response, missing_credential, refused, typed_body,
 };
-use crate::identity;
-use crate::logging;
 use crate::principal::authorize_minter;
-use crate::roles::WORKER_ROLE;
 use axum::body::Body;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::Response;
+use semiont::identity;
+use semiont::roles::WORKER_ROLE;
+use semiont::types::{
+    AgentTokenRequest, AgentTokenResponse, MediaTokenRequest, MediaTokenResponse,
+};
+use semiont_observability::logging;
 use serde_json::json;
 use std::sync::Arc;
 
@@ -34,8 +37,8 @@ pub async fn agent(
             logging::warn("Agent token refused", json!({ "reason": refusal.reason }));
             refused(&headers, &refusal.message)
         })?;
-    let request = json_body(body, "POST /api/tokens/agent").await?;
-    let (provider, model) = (text(&request, "provider")?, text(&request, "model")?);
+    let request: AgentTokenRequest = typed_body(body, "POST /api/tokens/agent").await?;
+    let (provider, model) = (request.provider.as_str(), request.model.as_str());
     let domain = app.keys.domain();
     let did = identity::agent_did(domain, provider, model);
     logging::info(
@@ -51,7 +54,7 @@ pub async fn agent(
     );
     Ok(json_response(
         StatusCode::OK,
-        &json!({ "token": token, "did": did }),
+        &AgentTokenResponse { token, did },
     ))
 }
 
@@ -62,10 +65,7 @@ pub async fn media(
     Authenticated(_): Authenticated,
     body: Body,
 ) -> Result<Response, ApiError> {
-    let request = json_body(body, "POST /api/tokens/media").await?;
-    let resource = text(&request, "resourceId")?;
-    Ok(json_response(
-        StatusCode::OK,
-        &json!({ "token": app.keys.media_token(resource) }),
-    ))
+    let request: MediaTokenRequest = typed_body(body, "POST /api/tokens/media").await?;
+    let token = app.keys.media_token(&request.resource_id);
+    Ok(json_response(StatusCode::OK, &MediaTokenResponse { token }))
 }

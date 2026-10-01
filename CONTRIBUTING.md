@@ -160,8 +160,11 @@ npm test
 npm test -w semiont-browser
 
 # The gateway (Rust): its own checks, then the conformance suite
-(cd apps/gateway && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test && cargo build --release)
-(cd tests/gateway-conformance && npm test)
+cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo test --workspace && cargo build --release -p semiont-gateway
+(cd tests/conformance && npm run test:gateway)
+
+# The dispatcher, black-box, behind that gateway (needs npm run build:packages)
+(cd tests/conformance && npm run test:dispatcher)
 
 # Type check
 npm run typecheck
@@ -321,7 +324,8 @@ npm test
 **Run service-specific tests:**
 ```bash
 cd apps/browser && npm test                 # Browser suite
-cd tests/gateway-conformance && npm test    # The gateway, black-box (needs `cargo build --release` in apps/gateway, and nats-server)
+cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` at the repository root, and nats-server)
+cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway built, npm run build:packages, and nats-server)
 ```
 
 ### Test Requirements for PRs

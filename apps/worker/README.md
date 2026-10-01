@@ -84,6 +84,6 @@ and where the metrics flow.
 
 ## Related
 
-- [`@semiont/jobs`](../../packages/jobs/) — the queue, the processors, and this entry point
+- [`@semiont/jobs`](../../packages/jobs/) — the processors and this entry point
 - [Job Types](../../packages/jobs/docs/JobTypes.md) — params, progress and result per type
 - [`semiont-worker` skill](../../docs/protocol/skills/semiont-worker/SKILL.md) — building your own job-claim daemon

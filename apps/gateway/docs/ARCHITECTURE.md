@@ -4,22 +4,39 @@ How the gateway is put together. What it serves is the spec's
 ([specs/src/openapi.json](../../../specs/src/openapi.json)); this is the code
 that serves it.
 
+## The crates it is built from
+
+The gateway is a member of the repository's Rust workspace
+([Cargo.toml](../../../Cargo.toml)), and is built from these of its crates:
+
+| Crate | Directory | What the gateway takes from it |
+|---|---|---|
+| `semiont-gateway` | `apps/gateway` | Everything particular to the gateway: the routes, the ledger, the signal plane, token minting, principals and limits |
+| `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, and (its `nats` feature) reaching the broker |
+| `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and the bus log |
+| `semiont-observability` | [packages/observability-rust](../../../packages/observability-rust) | Telemetry, logging and the process's readings of itself |
+| `semiont-http-transport` | [packages/http-transport-rust](../../../packages/http-transport-rust) | Signing in as a service account, to reach the Archivist |
+| `semiont-codegen` | [packages/codegen-rust](../../../packages/codegen-rust) | Nothing at run time: the core's and the SDK's build scripts bundle the spec and generate their types with it |
+
 ## Built against the spec
 
-The gateway is a Rust binary, and the spec is compiled into it.
-[build.rs](../build.rs) reads `specs/src` — the bundles in `specs/` are
-gitignored build output — and writes three documents the binary embeds: the
-gateway's OpenAPI document, the Archivist's, and the component schemas as JSON
-Schema draft 7 (OpenAPI 3.0's `nullable` made a type). It compiles every schema
-while it builds, so a malformed spec fails the build, never a boot or a request.
-The binary also embeds the bus registry and
-[src/bus-classification.json](../src/bus-classification.json), which
-`scripts/bus/generate-ts.mjs` derives from the registry beside core's TypeScript
-table. [src/spec.rs](../src/spec.rs) reads them: validators by schema name, each
-channel's schema, the registry's operations, which channels are replies and
-which write, and the limits (`x-semiont-limits`, `maxItems`). An operation that
-takes JSON names its body's schema and `maxBodyBytes` in the spec, and
-[src/http.rs](../src/http.rs)'s `json_body` reads both from there: a body its
+The spec is compiled into the binary.
+[semiont-core's build.rs](../../../packages/core-rust/build.rs) reads
+`specs/src` — the bundles in `specs/` are gitignored build output — and writes
+three documents the binary embeds: the protocol's OpenAPI document, the
+Archivist's, and the component schemas as JSON Schema draft 7 (OpenAPI 3.0's
+`nullable` made a type). It compiles every schema while it builds, so a
+malformed spec fails the build, never a boot or a request, and it generates the
+Rust types of the configuration documents from their schemas. The binary also
+embeds the bus registry and
+[bus-classification.json](../../../packages/core-rust/src/bus-classification.json),
+which `scripts/bus/generate-ts.mjs` derives from the registry beside core's
+TypeScript table. `semiont_core::spec` reads them: validators by schema name,
+each channel's schema, the registry's operations, and which channels are
+replies and which write. [src/limits.rs](../src/limits.rs) reads what the
+gateway alone enforces: the limits (`x-semiont-limits`, `maxItems`), and, for
+an operation that takes JSON, its body's schema and `maxBodyBytes`, which
+[src/http.rs](../src/http.rs)'s `json_body` holds a body to: one its
 Content-Length already puts over the limit is refused with 413 unread, and one
 without a length once it passes the limit.
 
@@ -28,10 +45,10 @@ without a length once it passes the limit.
 [src/app.rs](../src/app.rs), in order, refusing rather than degrading at each
 step — the process exits non-zero, saying what is missing and never a secret:
 
-1. **The document** — the JSON file `SEMIONT_GATEWAY_CONFIG` names
+1. **The document** — the JSON file `--config` names
    (`/etc/semiont/gateway.json` in the image), validated against `GatewayConfig`
-   ([src/config.rs](../src/config.rs)); a failing field is named by its JSON
-   pointer.
+   ([src/config.rs](../src/config.rs), reading with `semiont_core::config`); a
+   failing field is named by its JSON pointer.
 2. **The key ring** (`JWT_SECRET`) and **the service account**
    (`SEMIONT_OIDC_CLIENT_ID`, `SEMIONT_OIDC_CLIENT_SECRET`).
 3. **Logging and telemetry**, as the document and the environment say.
@@ -124,7 +141,7 @@ Opening and closing are presence: `session:joined`, `session:left`.
 What one principal may take and what one process can hold
 ([TRANSPORT-HTTP.md § Limits](../../../docs/protocol/TRANSPORT-HTTP.md#limits)).
 Nothing here asks whether a principal is a person or an agent: a limit's
-coefficient comes from the principal's roles ([src/spec.rs](../src/spec.rs)
+coefficient comes from the principal's roles ([src/limits.rs](../src/limits.rs)
 `PrincipalLimit`) — the baseline when it holds none the limit names, and
 unlimited for `semiont-service` and `semiont-worker`.
 
@@ -149,8 +166,8 @@ Every refusal names its limit in `code`, carries `Retry-After`, and counts in
 
 The Archivist holds the knowledge base's bytes and event log;
 [src/archivist.rs](../src/archivist.rs) is how the gateway reaches it, as itself
-— a token from the issuer's client-credentials grant, kept until shortly before
-it expires:
+— its service account's token (`semiont_http_transport::service_account`), from the issuer's
+client-credentials grant, kept until shortly before it expires:
 
 | Client calls the gateway | The gateway calls the Archivist |
 |---|---|
@@ -164,10 +181,12 @@ relays. The gateway makes no bus request of its own.
 
 ## Telemetry
 
-[src/telemetry.rs](../src/telemetry.rs) exports over OTLP/HTTP (protobuf) the
-spans and metrics [specs/src/gateway-telemetry/telemetry.json](../../../specs/src/gateway-telemetry/telemetry.json)
-lists, and nothing else. It reads its variables itself and configures the SDK
-from them; nothing lets a library read the environment on its own behalf.
+`semiont_observability::telemetry` exports over OTLP/HTTP (protobuf) the spans and
+metrics [specs/src/gateway-telemetry/telemetry.json](../../../specs/src/gateway-telemetry/telemetry.json)
+lists, and nothing else: the process's own readings, and the gateway's
+instruments ([src/metrics.rs](../src/metrics.rs)) made on its meter. It reads
+its variables itself and configures the SDK from them; nothing lets a library
+read the environment on its own behalf.
 
 ## Related Documentation
 

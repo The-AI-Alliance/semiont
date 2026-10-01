@@ -40,12 +40,12 @@ interface PendingJob<P> {
   params: P;
 }
 
-interface RunningJob<P, PG> {
+interface RunningJob<P> {
   status: 'running';
   metadata: JobMetadata;
   params: P;
   startedAt: string;
-  progress: PG;          // Only RunningJob has progress
+  progress: StoredProgress;  // Only RunningJob has progress
 }
 
 interface CompleteJob<P, R> {
@@ -77,20 +77,34 @@ interface CancelledJob<P> {
 
 ## Type Parameters
 
-Each job type is parameterized by three type variables:
+Each job type is parameterized by two type variables:
 
 ```typescript
-type Job<P, PG, R> =
+type Job<P, R> =
   | PendingJob<P>
-  | RunningJob<P, PG>
+  | RunningJob<P>
   | CompleteJob<P, R>
   | FailedJob<P>
   | CancelledJob<P>;
 
 // Where:
-// P  = Params (input configuration)
-// PG = Progress (intermediate state)
-// R  = Result (final outcome)
+// P = Params (input configuration)
+// R = Result (final outcome)
+```
+
+Progress is not a parameter: it has one shape for every job type.
+
+```typescript
+type StoredProgress = components['schemas']['JobRunning']['progress'];
+// = JobProgress | Record<string, never>
+```
+
+`StoredProgress` is the spec's `JobRunning.progress` — the last `JobProgress` the worker reported with `job:report-progress`, or `{}` before its first report. A claim moves a job to `running` with `progress: {}`; `recordProgress` replaces it with each report (throttled per job). `JobProgress` requires only `percentage`; `message` is a coded `JobProgressMessage`, and the other fields (`current`/`processed`/`total`, `entitiesFound`, `completedItems`, `requestParams`, …) appear on the flows that report them.
+
+`RunningAnyJob` is a job of any type in the `running` state — what `claimNextJob` returns:
+
+```typescript
+type RunningAnyJob = Extract<AnyJob, { status: 'running' }>;
 ```
 
 ## Example: Tag Annotation Job
@@ -134,18 +148,17 @@ const job: PendingJob<TagDetectionParams> = {
 ### Running State
 
 ```typescript
-const runningJob: RunningJob<TagDetectionParams, TagDetectionProgress> = {
+const runningJob: RunningJob<TagDetectionParams> = {
   status: 'running',
   metadata: job.metadata,
   params: job.params,
   startedAt: '2026-01-31T10:00:05Z',
   progress: {
-    stage: 'analyzing',
-    percentage: 35,
-    currentCategory: 'issue',
-    processedCategories: 1,
-    totalCategories: 4,
-    message: 'Analyzing issue...',
+    percentage: 38,
+    message: { code: 'analyzing-tags' },
+    current: { kind: 'category', value: 'rule' },
+    processed: 1,
+    total: 4,
   },
 };
 
@@ -156,13 +169,14 @@ const runningJob: RunningJob<TagDetectionParams, TagDetectionProgress> = {
 ### Complete State
 
 ```typescript
-const completeJob: CompleteJob<TagDetectionParams, TagDetectionResult> = {
+const completeJob: CompleteJob<TagDetectionParams, JobTagAnnotationResult> = {
   status: 'complete',
   metadata: runningJob.metadata,
   params: runningJob.params,
   startedAt: runningJob.startedAt,
   completedAt: '2026-01-31T10:01:30Z',
   result: {
+    kind: 'tag-annotation',
     tagsFound: 15,
     tagsCreated: 15,
     byCategory: { issue: 4, rule: 3, application: 5, conclusion: 3 },
@@ -180,7 +194,9 @@ const completeJob: CompleteJob<TagDetectionParams, TagDetectionResult> = {
 ```typescript
 function handleJob(job: AnyJob) {
   if (job.status === 'running') {
-    console.log(job.progress.percentage);  // Available
+    if ('percentage' in job.progress) {    // `{}` until the first report
+      console.log(job.progress.percentage);
+    }
     // console.log(job.result);            // Compile error
   }
 
@@ -196,13 +212,13 @@ function handleJob(job: AnyJob) {
 ```typescript
 function isRunningGenerationJob(
   job: AnyJob
-): job is RunningJob<GenerationJobParams, YieldProgress> {
+): job is Extract<GenerationJob, { status: 'running' }> {
   return job.status === 'running' && job.metadata.type === 'generation';
 }
 
 if (isRunningGenerationJob(job)) {
-  console.log(job.params.title);      // GenerationJobParams
-  console.log(job.progress.stage);    // YieldProgress
+  console.log(job.params.title);       // GenerationJobParams & { resourceId }
+  console.log(job.params.resourceId);
 }
 ```
 
@@ -229,7 +245,8 @@ export async function processTagJob(
   buildAnnotation: BuildAnnotation,
   onProgress: OnProgress,
   onChunkComplete: (annotations: Annotation[], checkpoint: UnitCheckpoint) => Promise<void>,
-): Promise<ProcessorResult<TagDetectionResult>> {
+  resumeCursors?: Record<string, UnitCursor>,
+): Promise<ProcessorResult<JobTagAnnotationResult>> {
   const allTags = [];
   for (const category of params.categories) {
     const categoryTags = await AnnotationDetection.detectTags(
@@ -243,6 +260,7 @@ export async function processTagJob(
 
   return {
     result: {
+      kind: 'tag-annotation',
       tagsFound: allTags.length,
       tagsCreated: annotations.length,
       byCategory: countByCategory(annotations),
@@ -266,7 +284,7 @@ export async function processTagJob(
     commitChunk,
     job.unitCursors,
   );
-  await emitEvent(session, 'job:complete', { ...lifecycleBase, result: result as never });
+  await emitEvent(session, 'job:complete', { ...terminalBase(), result });
   adapter.completeJob();
 }
 ```
@@ -281,7 +299,7 @@ function getStatusMessage(job: AnyJob): string {
     case 'pending':
       return 'Waiting to start...';
     case 'running':
-      return `${job.progress.percentage}% complete`;
+      return 'percentage' in job.progress ? `${job.progress.percentage}% complete` : 'Started';
     case 'complete':
       return 'Finished successfully';
     case 'failed':
@@ -295,7 +313,7 @@ function getStatusMessage(job: AnyJob): string {
 
 ## Job Type Definitions
 
-See [JobTypes.md](./JobTypes.md) for all parameter, progress, and result types:
+See [JobTypes.md](./JobTypes.md) for all parameter and result types:
 
 - **Reference Annotation** (`reference-annotation`) — Entity detection
 - **Generation** (`generation`) — AI content generation
@@ -308,4 +326,3 @@ See [JobTypes.md](./JobTypes.md) for all parameter, progress, and result types:
 
 - [JobTypes.md](./JobTypes.md) — All job type definitions
 - [Workers.md](./Workers.md) — Worker implementation guide
-- [JobQueue.md](./JobQueue.md) — Job queue API

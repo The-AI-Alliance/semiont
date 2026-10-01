@@ -4,9 +4,9 @@
 # fetched when the container starts: the entrypoint execs the binary.
 #
 # Built from the repository root, with the toolchain
-# apps/gateway/rust-toolchain.toml names — the one place it is written:
+# rust-toolchain.toml names — the one place it is written:
 #
-#   --build-arg RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' apps/gateway/rust-toolchain.toml)
+#   --build-arg RUST_TOOLCHAIN=$(sed -n 's/^channel = "\(.*\)"$/\1/p' rust-toolchain.toml)
 #
 # There is no default: without it the first FROM names no image and the build
 # stops, rather than building with a toolchain nothing pinned.
@@ -21,13 +21,31 @@ RUN cargo install cargo-auditable --locked --version 0.7.6
 WORKDIR /build
 COPY version.json ./
 COPY specs/src specs/src
-COPY apps/gateway/Cargo.toml apps/gateway/Cargo.lock apps/gateway/build.rs apps/gateway/
+# The workspace (Cargo.toml at the repository root): cargo loads every member
+# to build any one of them, so each member's crate is copied.
+COPY Cargo.toml Cargo.lock ./
+COPY apps/gateway/Cargo.toml apps/gateway/
 COPY apps/gateway/src apps/gateway/src
-WORKDIR /build/apps/gateway
-# A spec that does not compile fails here, in build.rs, never at boot.
+COPY apps/dispatcher/Cargo.toml apps/dispatcher/
+COPY apps/dispatcher/src apps/dispatcher/src
+COPY apps/dispatcher/handlers/Cargo.toml apps/dispatcher/handlers/
+COPY apps/dispatcher/handlers/src apps/dispatcher/handlers/src
+COPY apps/dispatcher/jetstream/Cargo.toml apps/dispatcher/jetstream/build.rs apps/dispatcher/jetstream/
+COPY apps/dispatcher/jetstream/src apps/dispatcher/jetstream/src
+COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
+COPY packages/codegen-rust/src packages/codegen-rust/src
+COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
+COPY packages/core-rust/src packages/core-rust/src
+COPY packages/http-transport-rust/Cargo.toml packages/http-transport-rust/
+COPY packages/http-transport-rust/src packages/http-transport-rust/src
+COPY packages/observability-rust/Cargo.toml packages/observability-rust/
+COPY packages/observability-rust/src packages/observability-rust/src
+COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
+COPY packages/sdk-rust/src packages/sdk-rust/src
+# A spec that does not compile fails here, in semiont-core's build.rs, never at boot.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/build/apps/gateway/target \
-    cargo auditable build --release --locked && \
+    --mount=type=cache,target=/build/target \
+    cargo auditable build --release --locked -p semiont-gateway && \
     cp target/release/semiont-gateway /semiont-gateway
 
 FROM alpine:3.24
@@ -51,8 +69,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 ENV SUPERVISE_NAME=gateway \
     SUPERVISE_PROBE=http://localhost:4000/api/health
-# Where the launcher mounts the gateway's document. On a line of its own: the
-# launcher's census (TestContainerPathsMatchTheImage) reads single ENV lines.
-ENV SEMIONT_GATEWAY_CONFIG=/etc/semiont/gateway.json
 ENTRYPOINT ["/sbin/tini", "--", "/usr/local/bin/boot.sh"]
-CMD ["/usr/local/bin/semiont-gateway"]
+# --config names where the launcher mounts the gateway's document; the
+# launcher's census (TestConfigDocumentsAreWhereTheImagesLook) reads it here.
+CMD ["/usr/local/bin/semiont-gateway", "--config", "/etc/semiont/gateway.json"]

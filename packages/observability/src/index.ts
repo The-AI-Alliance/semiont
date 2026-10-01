@@ -23,7 +23,7 @@
  *   - Metric recorders (`recordBusEmit`, `recordHandlerDuration`,
  *     `recordJobOutcome`, `recordSubscriberConnect` / `Disconnect`,
  *     `recordInferenceUsage`) and gauge providers
- *     (`registerJobQueueProvider`, `registerVectorIndexSizeProvider`).
+ *     (`registerVectorIndexSizeProvider`, `registerFactPumpDepthProvider`).
  *
  * No-op when no exporter is configured: `@opentelemetry/api`'s default
  * tracer is a no-op, so `withSpan` is essentially free until
@@ -289,21 +289,10 @@ let _inferenceCallsCounter: Counter | undefined;
 let _inferenceTokensCounter: Counter | undefined;
 let _inferenceDurationHistogram: Histogram | undefined;
 let _sseSubscribers: UpDownCounter | undefined;
-let _jobQueueGauge: ObservableGauge | undefined;
-let _jobQueueProvider: (() => Promise<JobQueueSnapshot> | JobQueueSnapshot) | undefined;
 let _vectorIndexSizeGauge: ObservableGauge | undefined;
 let _factPumpDepthGauge: ObservableGauge | undefined;
 let _factPumpDepthProvider: (() => number) | undefined;
 let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
-
-/** Snapshot of job-queue contents by status. Match `JobQueue.getStats()`. */
-export interface JobQueueSnapshot {
-  pending: number;
-  running: number;
-  complete: number;
-  failed: number;
-  cancelled: number;
-}
 
 function busEmitCounter(): Counter {
   if (!_busEmitCounter) {
@@ -569,35 +558,6 @@ export function recordSubscriberConnect(): void {
 /** Decrement on disconnect. Pair with `recordSubscriberConnect`. */
 export function recordSubscriberDisconnect(): void {
   sseSubscribersCounter().add(-1);
-}
-
-/**
- * Register a callback that returns the current job-queue snapshot.
- * Polled at the SDK's metric-collection interval. The single gauge
- * emits one observation per status (`pending`, `running`, …) tagged
- * with the `job.status` attribute. Idempotent — last registered
- * provider wins.
- */
-export function registerJobQueueProvider(
-  provider: () => Promise<JobQueueSnapshot> | JobQueueSnapshot,
-): void {
-  _jobQueueProvider = provider;
-  if (!_jobQueueGauge) {
-    buildGauge('semiont.job.queue.size', () => {
-      _jobQueueGauge = meter().createObservableGauge('semiont.job.queue.size', {
-        description: 'Job queue size by status',
-      });
-      _jobQueueGauge.addCallback(async (observer) => {
-        if (!_jobQueueProvider) return;
-        const snap = await _jobQueueProvider();
-        observer.observe(snap.pending, { 'job.status': 'pending' });
-        observer.observe(snap.running, { 'job.status': 'running' });
-        observer.observe(snap.complete, { 'job.status': 'complete' });
-        observer.observe(snap.failed, { 'job.status': 'failed' });
-        observer.observe(snap.cancelled, { 'job.status': 'cancelled' });
-      });
-    });
-  }
 }
 
 /**

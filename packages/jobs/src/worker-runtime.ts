@@ -148,9 +148,9 @@ export function buildHealthPayload(workers: ReadonlyArray<{ vitals(): AgentVital
  * wedged). The unbounded emit that caused that specific hang is now bounded
  * at the transport (`EMIT_TIMEOUT_MS`), so the loop errors instead of
  * blocking; but for any future blocked-loop bug the ONLY backstop is the
- * out-of-process one — the gateway's janitor sweeping this worker's job
- * files by mtime (`fs-job-queue.ts` `recoverStaleRunningJobs`). A liveness
- * guarantee a blocked loop defeats is not one; the janitor is the guarantee.
+ * out-of-process one — the dispatcher's sweep, which fails a running job
+ * whose worker has gone silent (docs/protocol/JOBS.md). A liveness guarantee a
+ * blocked loop defeats is not one; the sweep is the guarantee.
  */
 export const STALL_THRESHOLD_MS = 15 * 60_000;
 export const STALL_CHECK_INTERVAL_MS = 60_000;

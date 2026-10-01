@@ -3,21 +3,19 @@
 //! bytes and a resource's JSON-LD description are read back, and a scope's
 //! persisted events are read for a replay. The gateway parses none of it; it
 //! forwards, and maps the answer onto its own responses. It reaches the
-//! Archivist as itself, with a token from the issuer's client-credentials
-//! grant.
+//! Archivist as itself, with its service account's token.
 
 use crate::http::ApiError;
-use crate::identity::encode_uri_component;
-use crate::logging;
-use crate::spec::{Spec, spec};
-use crate::telemetry;
 use axum::body::Body;
 use axum::http::StatusCode;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::identity::encode_uri_component;
+use semiont_core::spec::{Spec, spec};
+use semiont_http_transport::service_account::{Credential, ServiceToken};
+use semiont_observability::logging;
+use semiont_observability::telemetry;
 use serde_json::{Value, json};
-use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
 
 /// The Archivist operations the gateway calls. The embedded Archivist
 /// document must declare each, or the gateway does not start.
@@ -28,21 +26,10 @@ const CALLS: [(&str, &str); 4] = [
     ("GET", "/events/{resourceId}"),
 ];
 
-/// Renew a service token this long before it expires.
-const RENEW_BEFORE_EXPIRY: Duration = Duration::from_secs(30);
-
-pub struct Credential {
-    pub issuer: String,
-    pub client_id: String,
-    pub client_secret: String,
-}
-
 pub struct Archivist {
     base: String,
     http: reqwest::Client,
-    credential: Credential,
-    token_endpoint: Mutex<Option<String>>,
-    token: Mutex<Option<(String, Instant)>>,
+    token: ServiceToken,
 }
 
 const UNAVAILABLE: &str = "Content store unavailable";
@@ -93,110 +80,16 @@ impl Archivist {
     pub fn new(host: &str, port: u16, credential: Credential, http: reqwest::Client) -> Archivist {
         Archivist {
             base: format!("http://{host}:{port}"),
+            token: ServiceToken::new(credential, http.clone()),
             http,
-            credential,
-            token_endpoint: Mutex::new(None),
-            token: Mutex::new(None),
         }
-    }
-
-    async fn token_endpoint(&self) -> Result<String, String> {
-        let mut known = self.token_endpoint.lock().await;
-        if let Some(endpoint) = known.as_ref() {
-            return Ok(endpoint.clone());
-        }
-        let issuer = &self.credential.issuer;
-        let base = if issuer.ends_with('/') {
-            issuer.clone()
-        } else {
-            format!("{issuer}/")
-        };
-        let url = format!("{base}.well-known/openid-configuration");
-        let response = self
-            .http
-            .get(&url)
-            .send()
-            .await
-            .map_err(|e| format!("OIDC discovery for {issuer} failed: {e}"))?;
-        if !response.status().is_success() {
-            return Err(format!(
-                "OIDC discovery for {issuer} failed: HTTP {} from {url}",
-                response.status().as_u16()
-            ));
-        }
-        let document: Value = response
-            .json()
-            .await
-            .map_err(|e| format!("OIDC discovery for {issuer} is not JSON: {e}"))?;
-        let endpoint = document["token_endpoint"]
-            .as_str()
-            .ok_or_else(|| format!("OIDC discovery for {issuer} returned no `token_endpoint`"))?;
-        *known = Some(endpoint.to_owned());
-        Ok(endpoint.to_owned())
-    }
-
-    /// This gateway's own token, renewed before it expires. The grant's
-    /// `expires_in` says how long it lives; without one it is not kept.
-    async fn authorization(&self) -> Result<String, String> {
-        let mut held = self.token.lock().await;
-        if let Some((token, expires)) = held.as_ref()
-            && Instant::now() + RENEW_BEFORE_EXPIRY < *expires
-        {
-            return Ok(format!("Bearer {token}"));
-        }
-        let endpoint = self.token_endpoint().await?;
-        let Credential {
-            issuer,
-            client_id,
-            client_secret,
-        } = &self.credential;
-        let form = format!(
-            "grant_type=client_credentials&client_id={}&client_secret={}",
-            encode_uri_component(client_id),
-            encode_uri_component(client_secret)
-        );
-        let response = self
-            .http
-            .post(&endpoint)
-            .header("content-type", "application/x-www-form-urlencoded")
-            .body(form)
-            .send()
-            .await
-            .map_err(|e| {
-                format!("Client-credentials grant for {client_id} at {issuer} failed: {e}")
-            })?;
-        if !response.status().is_success() {
-            // The status, never the body: an error body can echo the secret.
-            return Err(format!(
-                "Client-credentials grant for {client_id} at {issuer} failed (HTTP {})",
-                response.status().as_u16()
-            ));
-        }
-        let body: Value = response
-            .json()
-            .await
-            .map_err(|e| format!("Token endpoint for {issuer} did not answer JSON: {e}"))?;
-        let token = body["access_token"]
-            .as_str()
-            .ok_or_else(|| format!("Token endpoint for {issuer} returned no `access_token`"))?
-            .to_owned();
-        *held = body["expires_in"]
-            .as_f64()
-            .filter(|s| s.is_finite())
-            .map(|seconds| {
-                (
-                    token.clone(),
-                    Instant::now() + Duration::from_secs_f64(seconds.max(0.0)),
-                )
-            });
-        Ok(format!("Bearer {token}"))
     }
 
     async fn authorized(&self, operation: &str) -> Result<String, ApiError> {
-        self.authorization().await.map_err(|error| {
+        self.token.authorization().await.map_err(|error| {
             logging::error(
                 "The gateway could not obtain its own token for the Archivist",
-                client(json!({ "operation": operation, "error": error })),
+                client(json!({ "operation": operation, "error": error.to_string() })),
             );
             unavailable()
         })
@@ -355,7 +248,11 @@ impl Archivist {
         resource_id: &str,
         from_sequence: u64,
     ) -> Result<Vec<Value>, String> {
-        let authorization = self.authorization().await?;
+        let authorization = self
+            .token
+            .authorization()
+            .await
+            .map_err(|error| error.to_string())?;
         let url = format!(
             "{}{}?fromSequence={from_sequence}",
             self.base,
@@ -378,7 +275,7 @@ impl Archivist {
             .json()
             .await
             .map_err(|e| format!("Archivist replay answer is not JSON: {e}"))?;
-        if let Some(problems) = crate::spec::problems("ArchivistEventsResponse", &answer) {
+        if let Some(problems) = semiont_core::spec::problems("ArchivistEventsResponse", &answer) {
             return Err(format!(
                 "Archivist replay answer is not an ArchivistEventsResponse: {problems}"
             ));

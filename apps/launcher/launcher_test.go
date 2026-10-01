@@ -4432,7 +4432,7 @@ func TestMultiStackLocalPlusCodespace(t *testing.T) {
 // writeKBConfig drops a variant semiontconfig into the scenario's KB.
 func writeKBConfig(t *testing.T, s *scenario, name, body string) {
 	t.Helper()
-	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\n\n" + stdIdentity
+	head := "[defaults]\nenvironment = \"local\"\n\n[environments.local.gateway]\nplatform = \"posix\"\nport = 4000\npublicURL = \"http://${GATEWAY_HOST:-localhost}:4000\"\n\n" + stdIdentity + stdJobs
 	p := filepath.Join(s.kb, ".semiont", "semiontconfig", name+".toml")
 	if err := os.WriteFile(p, []byte(head+body), 0o644); err != nil {
 		t.Fatal(err)
@@ -4448,6 +4448,12 @@ const stdVectors = "[environments.local.vectors]\ntype = \"qdrant\"\nhost = \"${
 // written to prove. The launcher-run Keycloak, matching the testdata configs;
 // every variant already names a [database], which that shape requires.
 const stdIdentity = "[environments.local.identity]\ntype = \"keycloak\"\nissuer = \"http://${KEYCLOAK_HOST}:8080/realms/semiont\"\nsubjectClaim = \"sub\"\n\n"
+
+// [jobs] rides the head for the same reason: the dispatcher's queue is
+// JetStream, every `semiont init` writes this section, and the launcher refuses
+// a config without it — as it refuses one whose gateway names no publicURL,
+// the address the dispatcher dials.
+const stdJobs = "[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n"
 
 // Every config must name a vector store and an embedding provider — the
 // launcher refuses one that does not, exactly as the gateway's loader does.
@@ -8880,8 +8886,7 @@ func TestLauncherRunDaemonsGetGeneratedPasswords(t *testing.T) {
 }
 
 // The launcher-run broker is always authenticated, and its pair reaches the
-// two clients: the dispatcher through its staged [jobs], the gateway through
-// the variables its document names.
+// two clients, each through the variables its document names.
 func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	s := newScenario(t, "container")
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
@@ -8889,7 +8894,7 @@ func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
+	b = append(b, []byte("\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "broker.toml"), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -8909,9 +8914,7 @@ func TestLauncherRunBrokerIsAuthenticated(t *testing.T) {
 			t.Errorf("%s: NATS_PASSWORD=%q, want the broker's", c, v)
 		}
 	}
-	if staged := stagedFile(t, s, "dispatcher.toml"); !regexp.MustCompile(`password = ['"]\$\{NATS_PASSWORD\}['"]`).MatchString(staged) {
-		t.Errorf("the dispatcher's staged [jobs] does not read ${NATS_PASSWORD}:\n%s", staged)
-	}
+	mustContain(t, "the dispatcher's document", stagedFile(t, s, "dispatcher.json"), `"passwordEnv": "NATS_PASSWORD"`)
 	mustContain(t, "the gateway's document", stagedFile(t, s, "gateway.json"), `"passwordEnv": "NATS_PASSWORD"`)
 }
 
@@ -8980,68 +8983,28 @@ func TestSecretSetRefusesADaemonPassword(t *testing.T) {
 	mustContain(t, "stderr", stderr, "NEO4J_PASSWORD")
 }
 
-// JOB-QUEUE-DRIVER P2 (launcher lane): a config whose [environments.*.jobs]
-// section selects the jetstream driver boots NATS — stamped store, -js -sd,
-// product port 4222 — BEFORE the gateway, whose env carries NATS_HOST. The
-// no-jobs-section case is proven by every existing boot golden staying
-// byte-identical.
-func TestStartJetStreamJobsBoot(t *testing.T) {
+// The dispatcher's queue is JetStream: it holds no state tree for another
+// driver to write, so a config whose [jobs] selects any other driver is refused
+// at start, naming the driver it needs — before any container runs, where it
+// used to surface as a dispatcher that exited at boot and was given up on.
+func TestStartRefusesAJobsDriverTheDispatcherCannotRun(t *testing.T) {
 	s := newScenario(t, "container")
 	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
 	b, err := os.ReadFile(src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n")...)
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "jetstream.toml"), b, 0o644); err != nil {
+	b = []byte(strings.Replace(string(b), "type = \"jetstream\"", "type = \"fs\"", 1))
+	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "fs-jobs.toml"), b, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, stderr, code := s.run(t, "start", "--config", "jetstream"); code != 0 {
-		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
+	_, stderr, code := s.run(t, "start", "--config", "fs-jobs")
+	if code == 0 {
+		t.Fatalf("start accepted a [jobs] driver the dispatcher cannot run")
 	}
-	checkGolden(t, "start-jetstream-jobs-boot.argv", s.argv(t))
-}
-
-// A config whose [environments.*.signal] selects nats — with NO jetstream
-// jobs — still runs a NATS signal plane without adopting JetStream JOBS, which
-// is the path D9 exists to enable. Its daemon carries JetStream and its /data
-// store all the same, because the signal driver uses them itself: the
-// gateway's ledger keeps its claims in a KV bucket (LEDGER-STATE-TO-THE-BROKER
-// P0). DRIVER-SCOPED-MOUNTS — provision no space a selected driver won't use —
-// is what requires the store here now, not what forbids it. The golden is the
-// proof, asserted directly on the NATS line as well.
-func TestStartSignalOnlyBoot(t *testing.T) {
-	s := newScenario(t, "container")
-	src := filepath.Join(s.kb, ".semiont", "semiontconfig", "ollama-gemma.toml")
-	b, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"fs\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"${NATS_HOST}:4222\"\n")...)
-	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "signal-only.toml"), b, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if _, stderr, code := s.run(t, "start", "--config", "signal-only"); code != 0 {
-		t.Fatalf("start: exit %d\nstderr:\n%s", code, stderr)
-	}
-	argv := s.argv(t)
-	checkGolden(t, "start-signal-only-boot.argv", argv)
-	// On the NATS line specifically (neo4j legitimately mounts its own /data):
-	// a signal-only daemon carries JetStream and its store.
-	var natsLine string
-	for _, line := range strings.Split(argv, "\n") {
-		if strings.Contains(line, "semiont-nats") && strings.Contains(line, "run") {
-			natsLine = line
-			break
-		}
-	}
-	if natsLine == "" {
-		t.Fatalf("no semiont-nats run line in argv")
-	}
-	for _, required := range []string{"-js", "-sd", "/data"} {
-		if !strings.Contains(natsLine, required) {
-			t.Errorf("signal-only nats line lacks %q — the signal driver keeps the ledger's claims in JetStream: %s", required, natsLine)
-		}
+	mustContain(t, "fs-jobs refusal", stderr, "dispatcher", "jetstream")
+	if strings.Contains(s.argv(t), "run -d --name semiont-dispatcher") {
+		t.Errorf("the dispatcher was started before the refusal")
 	}
 }
 
@@ -9055,7 +9018,7 @@ func TestStartRefusesMismatchedMessagingServers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	b = append(b, []byte("\n[environments.local.jobs]\ntype = \"jetstream\"\nservers = \"${NATS_HOST}:4222\"\n\n[environments.local.signal]\ntype = \"nats\"\nservers = \"other.host:4222\"\n")...)
+	b = append(b, []byte("\n[environments.local.signal]\ntype = \"nats\"\nservers = \"other.host:4222\"\n")...)
 	if err := os.WriteFile(filepath.Join(s.kb, ".semiont", "semiontconfig", "mismatch.toml"), b, 0o644); err != nil {
 		t.Fatal(err)
 	}

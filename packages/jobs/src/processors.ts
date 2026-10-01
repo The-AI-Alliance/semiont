@@ -4,7 +4,7 @@
  * Pure functions that take content + inference client + params,
  * report progress via callback, and return annotations + results.
  *
- * No EventBus, no JobQueue, no side effects except calling inference.
+ * No EventBus, no queue, no side effects except calling inference.
  * Driven by the remote worker process (worker-process.ts), which claims
  * jobs over SSE and dispatches by jobType to these functions.
  */

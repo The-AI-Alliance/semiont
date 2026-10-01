@@ -20,8 +20,6 @@ import {
 import {
   ARCHIVIST_INBOUND_CHANNELS,
   ARCHIVIST_OUTBOUND_CHANNELS,
-  DISPATCHER_INBOUND_CHANNELS,
-  DISPATCHER_OUTBOUND_CHANNELS,
   LIBRARIAN_INBOUND_CHANNELS,
   LIBRARIAN_OUTBOUND_CHANNELS,
 } from '../service-channels';
@@ -61,8 +59,10 @@ interface ServiceCase {
 const SERVICES: ServiceCase[] = [
   { name: 'Archivist', inbound: ARCHIVIST_INBOUND_CHANNELS, outbound: ARCHIVIST_OUTBOUND_CHANNELS },
   { name: 'Librarian', inbound: LIBRARIAN_INBOUND_CHANNELS, outbound: LIBRARIAN_OUTBOUND_CHANNELS },
-  { name: 'Dispatcher', inbound: DISPATCHER_INBOUND_CHANNELS, outbound: DISPATCHER_OUTBOUND_CHANNELS },
 ];
+
+/** A reply the Librarian's outbound pump carries, for the cases below that need one. */
+const REPLY = LIBRARIAN_OUTBOUND_CHANNELS[0]!;
 
 /** Operations whose request is inbound and whose reply is outbound. */
 const operationsOf = (svc: ServiceCase) =>
@@ -144,19 +144,19 @@ describe('attachServicePumps — a reply the transport refuses is reported, not 
     const pumps = attachServicePumps({
       transport,
       localBus,
-      inbound: DISPATCHER_INBOUND_CHANNELS,
-      outbound: DISPATCHER_OUTBOUND_CHANNELS,
+      inbound: LIBRARIAN_INBOUND_CHANNELS,
+      outbound: LIBRARIAN_OUTBOUND_CHANNELS,
       logger: { error: (message: string, meta?: unknown) => logged.push([message, meta]) },
     });
 
     try {
-      localBus.emit('job:created', { response: { jobId: 'j-1' } } as never, { correlationId: 'cid-lost' });
+      localBus.emit(REPLY, {} as never, { correlationId: 'cid-lost' });
       await vi.waitFor(() => expect(logged).toHaveLength(1));
       expect(logged[0]![0]).toBe('Reply forwarding failed');
-      expect(logged[0]![1]).toMatchObject({ channel: 'job:created', error: { message: 'gateway answered 503' } });
+      expect(logged[0]![1]).toMatchObject({ channel: REPLY, error: { message: 'gateway answered 503' } });
 
-      localBus.emit('job:created', { response: { jobId: 'j-2' } } as never, { correlationId: 'cid-next' });
-      await vi.waitFor(() => expect(carried).toEqual(['job:created']));
+      localBus.emit(REPLY, {} as never, { correlationId: 'cid-next' });
+      await vi.waitFor(() => expect(carried).toEqual([REPLY]));
       expect(fromService[0]!.correlationId, 'the pump outlived the refusal').toBe('cid-next');
     } finally {
       for (const p of pumps) p.unsubscribe();
@@ -183,8 +183,8 @@ describe('attachServicePumps — the returned handle is the whole attachment', (
     const pumps = attachServicePumps({
       transport,
       localBus,
-      inbound: DISPATCHER_INBOUND_CHANNELS,
-      outbound: DISPATCHER_OUTBOUND_CHANNELS,
+      inbound: LIBRARIAN_INBOUND_CHANNELS,
+      outbound: LIBRARIAN_OUTBOUND_CHANNELS,
       logger: { error: vi.fn() },
     });
     return { localBus, transport, dispatch, fromService, pumps };
@@ -197,7 +197,7 @@ describe('attachServicePumps — the returned handle is the whole attachment', (
       // than channels means something stays attached after shutdown, and
       // nothing else in this file would notice.
       expect(pumps).toHaveLength(
-        DISPATCHER_INBOUND_CHANNELS.length + DISPATCHER_OUTBOUND_CHANNELS.length,
+        LIBRARIAN_INBOUND_CHANNELS.length + LIBRARIAN_OUTBOUND_CHANNELS.length,
       );
     } finally {
       for (const p of pumps) p.unsubscribe();
@@ -207,9 +207,9 @@ describe('attachServicePumps — the returned handle is the whole attachment', (
 
   it('unsubscribing stops BOTH directions, not just the one that is easy to see', () => {
     const { localBus, dispatch, fromService, pumps } = spec();
-    // Taken FROM the roster, not named here: a literal would be a second
-    // answer to what the dispatcher consumes, and it would rot on a rename.
-    const probe = DISPATCHER_INBOUND_CHANNELS[0]!;
+    // Taken FROM the rosters, not named here: a literal would be a second
+    // answer to what the Librarian consumes, and it would rot on a rename.
+    const probe = LIBRARIAN_INBOUND_CHANNELS[0]!;
     const inboundSeen: string[] = [];
     const watch = localBus.frames(probe).subscribe((f) => {
       inboundSeen.push(String(f.correlationId));
@@ -218,7 +218,7 @@ describe('attachServicePumps — the returned handle is the whole attachment', (
     try {
       // Attached: a frame crosses inbound, a reply crosses outbound.
       dispatch(probe, {}, 'cid-attached');
-      localBus.emit('job:created', { response: { jobId: 'j-attached' } } as never, { correlationId: 'cid-attached' });
+      localBus.emit(REPLY, {} as never, { correlationId: 'cid-attached' });
       expect(inboundSeen, 'inbound did not deliver while attached').toEqual(['cid-attached']);
       expect(fromService.map((f) => f.correlationId)).toEqual(['cid-attached']);
 
@@ -227,7 +227,7 @@ describe('attachServicePumps — the returned handle is the whole attachment', (
       // Detached: neither direction moves. A leak here is invisible in
       // production until a stopped service answers a request it should not.
       dispatch(probe, {}, 'cid-after');
-      localBus.emit('job:created', { response: { jobId: 'j-after' } } as never, { correlationId: 'cid-after' });
+      localBus.emit(REPLY, {} as never, { correlationId: 'cid-after' });
       expect(inboundSeen, 'the INBOUND pump outlived its unsubscribe').toEqual(['cid-attached']);
       expect(
         fromService.map((f) => f.correlationId),

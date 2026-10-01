@@ -100,6 +100,7 @@ For product framing and getting a knowledge base running, see the **[project REA
 - **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the generated bus authority: channels, payloads, operations
 - **[EVENT-BUS.md](EVENT-BUS.md)** — channel naming, `correlationId` / `_userId` conventions, `_trace` carrier, gateway injection, resource scoping
 - **[CHANNELS.md](CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts
+- **[JOBS.md](JOBS.md)** — the job protocol: the job record and its states, the nine `job:*` channels the dispatcher answers, claims, checkpoints, retries, cancellation, and the dispatcher's periodic work and health
 - **[TRANSPORT-CONTRACT.md](TRANSPORT-CONTRACT.md)** — abstract `ITransport` guarantees every transport must honor
 - **[TRANSPORT-HTTP.md](TRANSPORT-HTTP.md)** — HTTP+SSE wire format
 - **[RBAC.md](RBAC.md)** — roles and permissions

@@ -56,7 +56,7 @@ Its startup contract is strict: each unmet requirement stops it before it listen
 
 | Missing or wrong | What it says |
 |---|---|
-| `SEMIONT_GATEWAY_CONFIG`, the document's path (the image sets `/etc/semiont/gateway.json`) | `SEMIONT_GATEWAY_CONFIG is not set …` |
+| `--config`, the document's path (the image passes `/etc/semiont/gateway.json`) | `The gateway's configuration document is not named: start it with --config <path>` |
 | The configuration document at that path | `Cannot read the gateway's configuration document at …` — the launcher writes it; check the mount |
 | A field of that document | `… is not a gateway configuration document (GatewayConfig):` followed by each failing field by its JSON pointer, e.g. `/identity is missing subjectClaim` |
 | `JWT_SECRET`, or a key in it under 32 characters | `JWT_SECRET is not set …` / `JWT_SECRET must be at least 32 characters long …` |

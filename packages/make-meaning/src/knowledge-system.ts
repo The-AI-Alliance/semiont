@@ -17,7 +17,7 @@
  * graph) and the Smelter (smelter-main → vectors). The gateway keeps only
  * the Weaver's `weave:applied` fold (kb.weaveProgress).
  *
- * EventBus, JobQueue, and workers are peers to KnowledgeSystem, not members.
+ * EventBus and workers are peers to KnowledgeSystem, not members.
  */
 
 import type { KnowledgeBase }     from './knowledge-base.js';

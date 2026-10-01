@@ -771,7 +771,7 @@ are chunked, not truncated" above.)*
 Detection has no dedicated REST endpoints. `mark.assist(...)` emits a `job:create` event; the bus/job path is:
 
 - [packages/sdk/src/namespaces/mark.ts](../../../packages/sdk/src/namespaces/mark.ts) - `assist()` maps motivation → `jobType` and emits `job:create`
-- [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create` / `job:claim` handlers
+- [apps/dispatcher/handlers/src/handlers.rs](../../../apps/dispatcher/handlers/src/handlers.rs) - the dispatcher's `job:create` / `job:claim` handlers ([docs/protocol/JOBS.md](../JOBS.md))
 - [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs), [stream.rs](../../../apps/gateway/src/routes/stream.rs) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
 
 ### Browser

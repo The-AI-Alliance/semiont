@@ -138,9 +138,9 @@ describe('loadEnvironmentConfig', () => {
       '[environments.staging.identity]', 'type = "keycloak"', 'issuer = "http://localhost:8080/realms/semiont"', 'subjectClaim = "sub"', '',
     ].join('\n'));
     vi.stubEnv('HOME', home);
-    const cfg = loadEnvironmentConfig(null, { environment: 'staging', service: 'dispatcher' });
+    const cfg = loadEnvironmentConfig(null, { environment: 'staging', service: 'weaver' });
     expect(cfg._metadata?.environment).toBe('staging');
     expect(cfg.services.identity.type).toBe('keycloak');
-    expect(() => cfg.services.vectors).toThrow(/dispatcher/);
+    expect(() => cfg.services.vectors).toThrow(/weaver/);
   });
 });

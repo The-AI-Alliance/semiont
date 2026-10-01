@@ -88,9 +88,17 @@ func TestLauncherReadsAreTheSectionsTheLauncherResolves(t *testing.T) {
 		got = append(got, s)
 	}
 	sort.Strings(got)
-	var want []string
+	// A set: two roles may resolve the same section (the gateway's and the
+	// dispatcher's documents both read [gateway] and [identity]).
+	wanted := map[string]bool{}
 	for _, sections := range launcherReads {
-		want = append(want, sections...)
+		for _, s := range sections {
+			wanted[s] = true
+		}
+	}
+	var want []string
+	for s := range wanted {
+		want = append(want, s)
 	}
 	sort.Strings(want)
 	if !reflect.DeepEqual(got, want) {

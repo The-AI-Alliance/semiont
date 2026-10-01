@@ -1,0 +1,33 @@
+{
+  "type": "object",
+  "description": "A job cancelled before it concluded.",
+  "properties": {
+    "status": {
+      "type": "string",
+      "enum": [
+        "cancelled"
+      ]
+    },
+    "metadata": {
+      "$ref": "./JobMetadata.json"
+    },
+    "params": {
+      "$ref": "./JobParams.json"
+    },
+    "startedAt": {
+      "type": "string",
+      "description": "When its claim was made; absent when it was cancelled while pending."
+    },
+    "completedAt": {
+      "type": "string",
+      "description": "When it was cancelled."
+    }
+  },
+  "required": [
+    "status",
+    "metadata",
+    "params",
+    "completedAt"
+  ],
+  "additionalProperties": false
+}

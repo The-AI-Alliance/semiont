@@ -1,0 +1,58 @@
+# The Rust workspace: the services written in Rust and the crates they share.
+# One lockfile, one target/ and one toolchain (rust-toolchain.toml) for all of
+# them. The desktop app's crate is its own project, outside the workspace.
+[workspace]
+resolver = "3"
+members = [
+    "apps/dispatcher",
+    "apps/dispatcher/handlers",
+    "apps/dispatcher/jetstream",
+    "apps/gateway",
+    "packages/codegen-rust",
+    "packages/core-rust",
+    "packages/http-transport-rust",
+    "packages/observability-rust",
+    "packages/sdk-rust",
+]
+exclude = ["apps/desktop/src-tauri"]
+
+# Every crate a member uses, by version, once: a member names the ones it uses
+# with `.workspace = true` and adds the features it needs.
+[workspace.dependencies]
+semiont = { path = "packages/sdk-rust" }
+semiont-codegen = { path = "packages/codegen-rust" }
+semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
+semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
+semiont-core = { path = "packages/core-rust" }
+semiont-http-transport = { path = "packages/http-transport-rust" }
+semiont-observability = { path = "packages/observability-rust" }
+async-nats = { version = "0.50.0", default-features = false }
+axum = { version = "0.8.9", default-features = false }
+base64 = "0.23.1"
+bytes = "1.12.1"
+chrono = { version = "0.4.45", default-features = false }
+futures = "0.3.34"
+http-body = "1.1.0"
+hyper = "1.11.1"
+hyper-util = "0.1.21"
+jsonschema = { version = "0.58.1", default-features = false }
+jsonwebtoken = { version = "11.1.0", default-features = false }
+opentelemetry = { version = "0.33.0", default-features = false }
+opentelemetry_sdk = { version = "0.33.0", default-features = false }
+opentelemetry-otlp = { version = "0.33.0", default-features = false }
+opentelemetry-stdout = { version = "0.33.0", default-features = false }
+percent-encoding = "2.3.2"
+reqwest = { version = "0.13.5", default-features = false }
+rustls = { version = "0.23.45", default-features = false }
+serde = "1.0.229"
+serde_json = "1.0.151"
+socket2 = "0.6.5"
+tikv-jemalloc-ctl = "0.7.0"
+tikv-jemallocator = "0.7.0"
+tokio = "1.53.1"
+tower = "0.5.3"
+uuid = "1.26.1"
+
+[profile.release]
+strip = true
+lto = "thin"

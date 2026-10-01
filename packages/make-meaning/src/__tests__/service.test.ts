@@ -134,14 +134,6 @@ describe('Make-Meaning Service', () => {
   });
 
   describe('initialization', () => {
-    it('should initialize job queue', async () => {
-      service = await startMakeMeaning(project, config, eventBus, mockLogger);
-
-      expect(service.jobQueue).toBeDefined();
-      expect(typeof service.jobQueue.createJob).toBe('function');
-      expect(typeof service.jobQueue.getJob).toBe('function');
-    });
-
     it('should create event store', async () => {
       service = await startMakeMeaning(project, config, eventBus, mockLogger);
       const { kb } = service.knowledgeSystem;
@@ -260,7 +252,7 @@ describe('Make-Meaning Service', () => {
 
       expect(service1).toBeDefined();
       expect(service2).toBeDefined();
-      expect(service1.jobQueue).not.toBe(service2.jobQueue);
+      expect(service1.knowledgeSystem).not.toBe(service2.knowledgeSystem);
 
       await service1.stop();
       await service2.stop();

@@ -4,30 +4,32 @@
  * implements an interface in front of it, and nothing else.
  *
  * The gateway reaches the broker through its signal plane (`SignalPlane` and
- * `SharedTable`, apps/gateway/src/signal/mod.rs); the dispatcher's job queue
- * through `JobQueue` (packages/jobs/src/job-queue-interface.ts). Each has a
- * NATS implementation and a second one. A module that used the NATS client
- * beside them would tie the rest to the broker, and nothing would say so. So:
+ * `SharedTable`, apps/gateway/src/signal/mod.rs); the dispatcher's handlers
+ * through `JobQueue` (apps/dispatcher/handlers/src/queue.rs). A module that
+ * used the NATS client beside them would tie the rest to the broker, and
+ * nothing would say so. So:
  *
- *   - the `async_nats` crate is named only in the gateway's NATS plane;
+ *   - the `async_nats` crate is named only in the gateway's NATS plane, in the
+ *     dispatcher's JetStream queue, and in semiont-core's broker helpers (its
+ *     `nats` feature, which a crate must ask for; CI's crate-tree check holds
+ *     the crates that must not);
  *   - that plane (`signal::nats`, `NatsPlane`) is named only where the plane
  *     is chosen, the composition in app.rs;
- *   - the `nats` npm client (or `@nats-io/*`) is imported only by the
- *     JetStream job queue.
+ *   - no TypeScript imports the `nats` npm client (or `@nats-io/*`).
  *
  * Production code only: a test may name the broker, and the conformance
  * suite's harness starts one. Each allowed file must still use what it is
  * allowed, so an entry cannot outlive the implementation it was for.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { repositoryFiles } from './repository-files.mjs';
 import { withoutComments } from './source-text.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 
-const gatewaySource = (file) => file.startsWith('apps/gateway/src/') && file.endsWith('.rs');
+const rustSource = (file) => /^(apps|packages)\/(?!desktop\/)(?:[^/]+\/)+src\/.*\.rs$/.test(file);
 const javascriptSource = (file) =>
   /^(apps|packages)\//.test(file) &&
   /\.(ts|tsx|mts|cts|js|mjs|cjs)$/.test(file) &&
@@ -37,24 +39,24 @@ const RULES = [
   {
     what: 'the async_nats crate',
     uses: /\basync_nats\b/,
-    scope: gatewaySource,
-    allowed: ['apps/gateway/src/signal/nats.rs'],
+    scope: rustSource,
+    allowed: ['apps/gateway/src/signal/nats.rs', 'apps/dispatcher/jetstream/src/lib.rs', 'packages/core-rust/src/nats.rs'],
   },
   {
     what: "the gateway's NATS plane",
     uses: /\bsignal::nats\b|\bNatsPlane\b/,
-    scope: gatewaySource,
+    scope: rustSource,
     allowed: ['apps/gateway/src/app.rs', 'apps/gateway/src/signal/nats.rs'],
   },
   {
     what: 'the nats npm client',
     uses: /(?:\bfrom\s*|\bimport\s*\(\s*|\brequire\s*\(\s*|^\s*import\s+)['"](?:nats|@nats-io\/[^'"]+)['"]/m,
     scope: javascriptSource,
-    allowed: ['packages/jobs/src/jetstream-job-queue.ts'],
+    allowed: [],
   },
 ];
 
-const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+const tracked = repositoryFiles(ROOT);
 const text = new Map();
 const source = (file) => {
   if (!text.has(file)) text.set(file, withoutComments(readFileSync(join(ROOT, file), 'utf8')));
@@ -65,7 +67,7 @@ const problems = [];
 for (const rule of RULES) {
   for (const file of tracked) {
     if (!rule.scope(file) || rule.allowed.includes(file)) continue;
-    if (rule.uses.test(source(file))) problems.push(`${file} uses ${rule.what}, which only ${rule.allowed.join(' and ')} may`);
+    if (rule.uses.test(source(file))) problems.push(`${file} uses ${rule.what}, which ${rule.allowed.length > 0 ? `only ${rule.allowed.join(' and ')} may` : 'nothing may'}`);
   }
   for (const file of rule.allowed) {
     if (!tracked.includes(file)) problems.push(`${file} is allowed ${rule.what}, and is gone`);
@@ -76,7 +78,7 @@ for (const rule of RULES) {
 if (problems.length > 0) {
   console.error('✗ lint:broker-boundary — the broker is reached around its interface:');
   for (const p of problems) console.error(`    ${p}`);
-  console.error('  Reach the broker through SignalPlane/SharedTable (the gateway) or JobQueue (the job queue).');
+  console.error('  Reach the broker through SignalPlane/SharedTable (the gateway) or JobQueue (the dispatcher).');
   process.exit(1);
 }
-console.log('✓ lint:broker-boundary — async_nats only in the gateway\'s NATS plane, that plane chosen only in app.rs, and the nats client only in the JetStream job queue');
+console.log('✓ lint:broker-boundary — async_nats only in the gateway\'s NATS plane, the dispatcher\'s JetStream queue and semiont-core\'s broker helpers, that plane chosen only in app.rs, and no nats npm client');

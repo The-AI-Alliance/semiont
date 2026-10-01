@@ -13,7 +13,8 @@
  *   npm             package-lock.json: one entry per install root (the root's
  *                   covers its workspaces)
  *   gomod           go.mod
- *   cargo           Cargo.toml
+ *   cargo           Cargo.toml; a workspace member's is covered by the entry
+ *                   for its workspace, whose one lockfile Dependabot updates
  *   rust-toolchain  rust-toolchain.toml, rust-toolchain
  *   docker          a file whose name contains "dockerfile", in any case
  *   pip             requirements*.txt, pyproject.toml, Pipfile, setup.py
@@ -22,11 +23,11 @@
  * A kind of manifest not listed here is not seen: add its ecosystem when the
  * repository gains one.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import yaml from 'js-yaml';
+import { repositoryFiles } from './repository-files.mjs';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const CONFIG = '.github/dependabot.yml';
@@ -55,7 +56,7 @@ function matcher(directory) {
   return { directory: normal, test: (d) => new RegExp(`^${pattern}$`).test(d) };
 }
 
-const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: ROOT, encoding: 'utf8' }).split('\0').filter(Boolean);
+const tracked = repositoryFiles(ROOT);
 
 /** "ecosystem directory" → the manifests there. */
 const manifests = new Map();
@@ -75,10 +76,27 @@ for (const update of config.updates ?? []) {
   for (const directory of update.directories ?? [update.directory]) entries.push({ ecosystem, ...matcher(directory) });
 }
 
+/** The directories a Cargo workspace at `directory` lists as its members. */
+function cargoMembers(directory) {
+  const manifest = readFileSync(join(ROOT, directory, 'Cargo.toml'), 'utf8');
+  const members = /^\[workspace\][\s\S]*?^members\s*=\s*\[([^\]]*)\]/m.exec(manifest);
+  if (!members) return [];
+  return [...members[1].matchAll(/"([^"]+)"/g)].map(([, member]) => `/${join(directory, member)}`);
+}
+
+/** "cargo /member" → the workspace directory whose entry covers it. */
+const workspaceOf = new Map();
+for (const key of manifests.keys()) {
+  const [ecosystem, directory] = key.split(' ');
+  if (ecosystem !== 'cargo') continue;
+  for (const member of cargoMembers(directory.slice(1))) workspaceOf.set(`cargo ${member}`, directory);
+}
+
 const problems = [];
 for (const [key, files] of manifests) {
   const [ecosystem, directory] = key.split(' ');
-  if (!entries.some((e) => e.ecosystem === ecosystem && e.test(directory))) {
+  const covering = workspaceOf.get(key) ?? directory;
+  if (!entries.some((e) => e.ecosystem === ecosystem && e.test(covering))) {
     problems.push(`no ${ecosystem} entry covers ${directory} (${files.join(', ')})`);
   }
 }

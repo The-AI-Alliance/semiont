@@ -30,7 +30,7 @@
   },
   "dependencies": {
     "@qdrant/js-client-rest": "1.19.0",
-    "@semiont/core": "*"
+    "@semiont/core": "0.6.8"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.11",

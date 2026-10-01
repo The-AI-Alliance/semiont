@@ -139,7 +139,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7.0.1
 
-      # rustup installs the toolchain apps/gateway/rust-toolchain.toml names.
+      # rustup installs the toolchain rust-toolchain.toml names.
       - name: Install the pinned Rust toolchain
         run: rustup toolchain install
 
@@ -149,13 +149,15 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            apps/gateway/target
-          key: ${{ runner.os }}-gateway-${{ hashFiles('apps/gateway/Cargo.lock', 'apps/gateway/rust-toolchain.toml') }}
+            target
+          # The release profile's key, as Gateway Conformance builds it: a
+          # prefix shorter than the profile would also restore the dev one.
+          key: ${{ runner.os }}-gateway-release-${{ hashFiles('Cargo.lock', 'rust-toolchain.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gateway-
+            ${{ runner.os }}-gateway-release-
 
       - name: Build the gateway
-        run: cargo build --release --locked
+        run: cargo build --release --locked -p semiont-gateway
 
       - name: Write the gateway's configuration document
         run: |
@@ -180,7 +182,6 @@ jobs:
       - name: Start gateway for API security verification
         run: |
           # Start the gateway on the configuration document written above.
-          export SEMIONT_GATEWAY_CONFIG="$RUNNER_TEMP/gateway.json"
           export JWT_SECRET=test-secret-key-for-testing-32char
           # The gateway's own service account; boot refuses without it. Nothing
           # here presents it to an issuer.
@@ -188,7 +189,7 @@ jobs:
           export SEMIONT_OIDC_CLIENT_SECRET=test-gateway-client-secret
 
           echo "Starting gateway in the ci environment..."
-          nohup target/release/semiont-gateway > gateway.log 2>&1 &
+          nohup ../../target/release/semiont-gateway --config "$RUNNER_TEMP/gateway.json" > gateway.log 2>&1 &
           APP_PID=$!
           echo "GATEWAY_PID=$APP_PID" >> $GITHUB_ENV
 

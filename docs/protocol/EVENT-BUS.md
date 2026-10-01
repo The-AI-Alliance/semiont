@@ -211,7 +211,7 @@ RESOURCE_SCOPED_CHANNELS = [
 ];
 ```
 
-`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. **It is empty, and the reason is the rule rather than an accident**: `job:complete` / `job:fail` moved to global, `jobId`-keyed delivery (#847) — the dispatcher filters by `jobId`, viewers filter the same global stream by `resourceId`, so there's no scoped copy (and a client that is both no longer receives a duplicate).
+`RESOURCE_BROADCAST_TYPES` (registry data: the `resourceBroadcasts.channels` list, generated into `bus-protocol.ts`) is the extension point for *non-persisted* events that still want resource-scoped fan-out. **It is empty, and the reason is the rule rather than an accident**: `job:complete` / `job:fail` are global, `jobId`-keyed broadcasts (`audience: everyone`), emitted with no scope — the dispatcher applies them to its queue by `jobId`, the caller that created the job filters by `jobId`, and viewers filter the same global stream by `resourceId`, so there is no scoped copy and a client that is both receives each once. A worker that emitted them resource-scoped would reach neither the dispatcher nor the Stower, which subscribe globally. See [JOBS.md](JOBS.md).
 
 **Bridged and resource-scoped must stay disjoint.** A channel delivered on *both* the global subscription and a scoped one arrives twice (with different SSE ids) → a duplicate on the client bus. The `filter(t => !BRIDGED_CHANNELS.includes(t))` above guarantees disjointness for the persisted-derived part; an invariant test (`BRIDGED_CHANNELS ∩ RESOURCE_SCOPED_CHANNELS === ∅`) backstops the unfiltered `RESOURCE_BROADCAST_TYPES` extension point.
 
@@ -409,13 +409,16 @@ The job lifecycle is the only case of the second, and the reason there is no
 progress class: an operation's reply arrives once, and work that reports as it
 goes is a job rather than a longer request. `job:create` is an
 operation — one request, one correlated `job:created` reply carrying a
-`jobId` — and that exchange is over. Everything after it (`job:start`,
-`job:report-progress`, `job:complete`, `job:fail`) is a **global broadcast
+`jobId` — and that exchange is over. What the worker reports after it
+(`job:report-progress`, `job:complete`, `job:fail`) is a **global broadcast
 carrying no `correlationId`**, which consumers filter by domain key: a
 dispatching caller by `jobId` (it awaited one job), a resource viewer by
-`resourceId` (it wants anything happening to what it shows). So job progress
+`resourceId` (it wants anything happening to what it shows). (`job:start`
+carries no `correlationId` either, but is `audience: declared`: it reaches the
+Stower, whose `job:started` reaches the resource's viewers.) So job progress
 is not an operation reply that the `delivery` axis failed to classify. It is a
-different mechanism, deliberately, and `delivery` does not describe it.
+different mechanism, deliberately, and `delivery` does not describe it. The
+job lifecycle itself is specified in [JOBS.md](JOBS.md).
 
 **Do not confuse `delivery` with the SSE fan-in disciplines** in [Resource
 scoping](#resource-scoping) above: `delivery` classifies a channel's *routing
@@ -452,6 +455,7 @@ Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` cl
 ## See also
 
 - **[CHANNELS.md](./CHANNELS.md)** — channel inventory: persisted events, ephemeral signals, correlation responses, resource broadcasts, bridged channels.
+- **[JOBS.md](./JOBS.md)** — the job protocol: the job record and its states, the `job:*` channels the dispatcher answers, claims, retries, cancellation.
 - **[TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md)** — abstract `ITransport` behavioral guarantees every transport must honor.
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format; the `/bus/emit` and `/bus/subscribe` contract.
 - **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority: channels, payloads, operations.

@@ -8,7 +8,7 @@
 #      /api/health 200, inside the container, under START_BOUND_MS. The same
 #      span the conformance harness records; the runtime's own start is not in it.
 #      Its document is mounted where the image says the gateway reads it (the
-#      Dockerfile's SEMIONT_GATEWAY_CONFIG), as the launcher mounts it.
+#      path its CMD passes to --config), as the launcher mounts it.
 #   3. Its HEALTHCHECK passes against the serving gateway: the command
 #      apps/gateway/Dockerfile declares, read from there rather than restated,
 #      so this check cannot probe an address the healthcheck does not.
@@ -25,9 +25,9 @@ if [ -z "$HEALTHCHECK" ]; then
   echo "✗ $DOCKERFILE declares no HEALTHCHECK CMD"
   exit 1
 fi
-DOCUMENT=$(sed -n 's/^ENV SEMIONT_GATEWAY_CONFIG=//p' "$DOCKERFILE")
+DOCUMENT=$(sed -n 's/^CMD \[.*"--config", "\([^"]*\)".*$/\1/p' "$DOCKERFILE")
 if [ -z "$DOCUMENT" ]; then
-  echo "✗ $DOCKERFILE declares no ENV SEMIONT_GATEWAY_CONFIG line"
+  echo "✗ $DOCKERFILE's CMD passes no --config"
   exit 1
 fi
 
@@ -73,9 +73,10 @@ ms=$("$RT" run --rm --entrypoint /bin/sh \
   -e SEMIONT_OIDC_CLIENT_ID=semiont-gateway \
   -e SEMIONT_OIDC_CLIENT_SECRET=image-check \
   -e HEALTHCHECK="$HEALTHCHECK" \
+  -e DOCUMENT="$DOCUMENT" \
   "$IMAGE" -c '
   read spawned _ < /proc/uptime
-  /usr/local/bin/boot.sh /usr/local/bin/semiont-gateway >/tmp/gateway.log 2>&1 &
+  /usr/local/bin/boot.sh /usr/local/bin/semiont-gateway --config "$DOCUMENT" >/tmp/gateway.log 2>&1 &
   tries=0
   until wget -q -O /dev/null http://127.0.0.1:4000/api/health 2>/dev/null; do
     tries=$((tries + 1))

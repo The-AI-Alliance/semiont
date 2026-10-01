@@ -4,8 +4,8 @@
 //! unlimited means no bucket at all. The spec states the rate per gateway
 //! process: counting across replicas would put a broker round trip on every emit.
 
+use crate::limits::{self, EmitRate};
 use crate::principal::Principal;
-use crate::spec::{EmitRate, spec};
 use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -36,7 +36,7 @@ impl EmitRates {
     /// Take one emit from `principal`'s bucket, or say how long until one is there.
     pub fn admit(&self, principal: &Principal) -> Result<(), Duration> {
         let roles = principal.roles.as_deref().unwrap_or_default();
-        let Some(rate) = spec().limits().emits_per_principal.for_roles(roles) else {
+        let Some(rate) = limits::limits().emits_per_principal.for_roles(roles) else {
             return Ok(());
         };
         let now = Instant::now();

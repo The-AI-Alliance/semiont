@@ -90,9 +90,9 @@ exit.
 
 One document: a JSON `GatewayConfig`
 ([schema](../../specs/src/components/schemas/GatewayConfig.json)) at the path
-`SEMIONT_GATEWAY_CONFIG` names, bind-mounted read-only. The image sets that
-variable to `/etc/semiont/gateway.json`, where the launcher mounts the document;
-unset, the gateway refuses to start. The launcher writes it resolved from the knowledge base's config and
+its `--config` flag names, bind-mounted read-only. The image passes
+`/etc/semiont/gateway.json`, where the launcher mounts the document; without
+`--config`, the gateway refuses to start. The launcher writes it resolved from the knowledge base's config and
 committed identity: no `${VAR}` is left in it, and the gateway defaults nothing.
 The gateway validates it against the schema at boot, and refuses to serve —
 naming each failing field by its JSON pointer — when it does not match.
@@ -123,7 +123,7 @@ Secrets are never in it. The gateway's own are environment variables —
 broker credential is named by the variable holding it (`signal.userEnv`,
 `signal.passwordEnv`). Every environment variable the gateway reads, what
 sets it and what it changes, is in
-[`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json).
+[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json).
 
 It runs one worker thread per CPU it may use — its container's CPU limit and
 affinity — so that limit is what sizes it. No variable does: not even
@@ -157,22 +157,24 @@ downstream.
 
 ## Development
 
-The toolchain is the one [rust-toolchain.toml](rust-toolchain.toml) pins; run
-it in its image (`rust:<channel>-alpine`) as the rest of the repository runs
-its tools:
+The gateway is a member of the repository's Rust workspace
+([Cargo.toml](../../Cargo.toml) at the root), and the toolchain is the one
+[rust-toolchain.toml](../../rust-toolchain.toml) pins; run it in its image
+(`rust:<channel>-alpine`) as the rest of the repository runs its tools, from
+the repository root:
 
 ```bash
-cargo fmt --check
-cargo clippy --all-targets -- -D warnings
-cargo test               # the shared-table runners: the only Rust tests
-cargo build --release    # target/release/semiont-gateway
+cargo fmt --all --check
+cargo clippy --workspace --all-targets -- -D warnings
+cargo test --workspace                 # the shared-table runners: the only Rust tests
+cargo build --release -p semiont-gateway   # target/release/semiont-gateway
 ```
 
 The gateway's behavioural contract is the black-box
-[conformance suite](../../tests/gateway-conformance/README.md), run against the
+[conformance suite](../../tests/conformance/gateway/README.md), run against the
 built binary on both signal planes; see [TESTING.md](docs/TESTING.md). To run
-one by hand, write a `GatewayConfig` to a file, point `SEMIONT_GATEWAY_CONFIG` at
-it, and set `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
+one by hand, write a `GatewayConfig` to a file, pass its path to `--config`, and
+set `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 
 The image ([Dockerfile](Dockerfile)) compiles the crate from the repository
 with that toolchain — pass `--build-arg RUST_TOOLCHAIN=<channel>`, as

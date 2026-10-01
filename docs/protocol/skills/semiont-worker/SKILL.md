@@ -15,8 +15,8 @@ This is the daemon shape that matches `semiont-worker` and `semiont-smelter` con
 A job-claim worker is right when:
 
 - The work is a discrete, parameterized task that should run *exactly once* across a pool of identical workers (highlight detection, reference linking, summary generation, etc.).
-- The system already has a job queue carrying that job type (`@semiont/jobs`'s `FsJobQueue` is the canonical local backing store; jobs are enqueued via the `client.job` namespace).
-- Multiple workers may be running concurrently and you need at-most-once claim semantics.
+- The knowledge base's dispatcher queues that job type — it holds the queue and answers the `job:*` channels ([JOBS.md](../../JOBS.md)). Jobs are enqueued with `job:create` (`client.mark.assist` and `client.yield.fromContext` for Semiont's own types) and watched or cancelled through `client.job`.
+- Multiple workers may be running concurrently and each job must go to exactly one of them: a claim is atomic, and of any number of simultaneous claims exactly one wins each pending job.
 
 If the work is "react to every event of type X across every resource," that's a watcher daemon — use `semiont-session`.
 
@@ -32,6 +32,10 @@ Every job claimed by a worker emits the same four events on the bus, regardless 
 | `job:fail` | Throwing exit | Persisted; payload carries the error message |
 
 Annotation-scoped jobs (e.g. generation triggered by a reference) carry the source `annotationId` through every payload so the UI can attach visual feedback to that annotation. Resource-scoped jobs (bulk detection scanning a whole resource) leave `annotationId` unset.
+
+Every lifecycle event is emitted **globally** — never with a resource scope. `job:complete` and `job:fail` reach every client: the dispatcher applies them to the queue by `jobId`, the caller that created the job filters by `jobId`, and a resource's viewers filter by `resourceId`. `job:start` reaches the Stower, which records it as `job:started` for the resource's viewers.
+
+Two more channels go to the dispatcher alone: `job:checkpoint` (record finished units as they finish, so a retry resumes rather than restarts) and `job:cancel` (confirm that you stopped a job whose cancellation was requested). Their semantics, and what the dispatcher does with each lifecycle event, are in [JOBS.md](../../JOBS.md).
 
 ## Setup
 
@@ -190,29 +194,21 @@ async function handleJob(job: ActiveJob): Promise<void> {
     // ── Your work here ──
     const result = await doTheWork(job);
 
-    // job:complete is a resource broadcast — every subscriber on this
-    // resource sees it. Pass the resourceId as scope.
-    await session.client.transport.emit(
-      'job:complete',
-      { ...lifecycleBase, result },
-      resourceId,
-    );
+    // Global, like every lifecycle emit: the dispatcher concludes the job by
+    // `jobId`. A resource-scoped emit would never reach it.
+    await session.client.transport.emit('job:complete', { ...lifecycleBase, result });
 
     adapter.completeJob();
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    await session.client.transport.emit(
-      'job:fail',
-      { ...lifecycleBase, error: message },
-      resourceId,
-    );
+    await session.client.transport.emit('job:fail', { ...lifecycleBase, error: message });
     adapter.failJob(jobId, message);
     throw err;
   }
 }
 ```
 
-The third argument to `transport.emit` is the resource scope — used for `job:complete` and `job:fail` (both resource broadcasts). Other events are global; pass no scope.
+Pass no scope — `transport.emit`'s third argument — on any lifecycle emit. A resource-scoped emit reaches only clients joined to that resource's scope for that channel, and neither the dispatcher nor the Stower is: a scoped `job:complete` or `job:fail` leaves the job `running` in the queue and records nothing in the log.
 
 ## Pre-built processors
 
@@ -254,7 +250,7 @@ const { result } = await processHighlightJob(
   },
 );
 
-await session.client.transport.emit('job:complete', { ...lifecycleBase, result }, resourceId);
+await session.client.transport.emit('job:complete', { ...lifecycleBase, result });
 adapter.completeJob();
 ```
 
@@ -300,16 +296,16 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 ```
 
-If your worker is mid-job at shutdown time, the in-flight call should be allowed to finish (or be deliberately cancelled with `adapter.failJob(jobId, 'shutdown')`) before `dispose()`. Otherwise the job will sit in `running` state until another worker re-claims it — the queue's stale-claim recovery is implementation-dependent.
+If your worker is mid-job at shutdown time, the in-flight call should be allowed to finish (or be deliberately failed with a `job:fail` and `adapter.failJob(jobId, 'shutdown')`) before `dispose()`. Otherwise the job stays `running` until the dispatcher's dead-worker sweep finds it with no progress or checkpoint for 30 minutes, then re-queues it if its retry budget allows and fails it otherwise ([JOBS.md](../../JOBS.md#periodic-work)).
 
 ## Guidance for the AI assistant
 
 - **Pick the right skill for the daemon shape.** Job-claim workers use this skill; bus-event watchers use `semiont-session`. Both can run side by side, but the wiring is different.
 - **`HttpTransport` cast is intentional.** Workers are HTTP-bound. The transport cast (`session.client.transport as HttpTransport`) names the seam — don't try to abstract it; an in-process worker would build a different `WorkerBus` shim.
 - **Always emit the four lifecycle events.** UI consumers and dashboards filter by `jobType` and (optionally) `annotationId`. Skipping `job:start` or `job:complete` makes the UI think the job is stuck.
-- **Resource-scope `job:complete` and `job:fail`.** Pass the `resourceId` as the third arg to `transport.emit`. Other events emit globally with no scope.
+- **Emit every lifecycle event globally.** Never pass a scope to `transport.emit` for `job:*`: the dispatcher and the Stower subscribe globally, and a scoped `job:complete` or `job:fail` reaches neither.
 - **Use the pre-built processors when possible.** `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob`, and `processGenerationJob` from `@semiont/jobs` cover the six standard job shapes. Custom processors are fine; just keep the lifecycle protocol intact.
 - **`createProcessLogger` populates trace IDs automatically.** When OTel is initialized and a span is active, every log line gets `trace_id` / `span_id` fields — Tier 3 correlation between `tail -f` and the trace UI. Use it instead of `console.log`.
 - **Set `SEMIONT_BUS_LOG=1` first** when debugging a worker that's silently doing nothing. The most common causes are `adapter.start()` never being called (no `job:claim` on the wire at all), the cast to `HttpTransport.actor` being wrong, or every claim being refused — read `refused$`.
 - **Errors split by surface.** Per-call rejections from namespace methods extend `SemiontError` — narrow to `APIError` (HTTP) or `BusRequestError` (bus-mediated) when needed. Asynchronous session-fatal errors (`session.auth-failed`, `session.refresh-exhausted`) arrive on `SemiontBrowser.error$`; subscribe in long-running workers. See [Error Handling in Usage.md](../../../../packages/sdk/docs/Usage.md#error-handling).
-- **For the production worker reference**, see [`packages/jobs/src/worker-main.ts`](../../../../packages/jobs/src/worker-main.ts) — the standalone container entry point. It uses shared-secret auth (worker pool deployment) and a per-job-type inference client map; the skill above is the user-authored equivalent.
+- **For the production worker reference**, see [`packages/jobs/src/worker-main.ts`](../../../../packages/jobs/src/worker-main.ts) — the standalone container entry point. It signs in as its own service account (`SEMIONT_OIDC_CLIENT_ID` / `SEMIONT_OIDC_CLIENT_SECRET`), exchanges that for its agent token, and keeps a per-job-type inference client map; the skill above is the user-authored equivalent.
