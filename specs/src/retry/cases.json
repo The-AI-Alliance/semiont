@@ -1,0 +1,267 @@
+{
+  "$comment": "Whether a failed request is worth another attempt, as every implementation must answer it. `rules`: the four named rules, each for one context, asked about a response's `status` and the request's `method`; a row that omits either field leaves it unstated. `boot`: a boot pass or a bus request, where the peer is usually seconds from ready. `job`: a job's retry budget, where not retrying discards paid work. `transport`: an HTTP client that can renew its token; a 401 is retried on any method, everything else only on a method that cannot cause a second effect. `refresh`: exchanging a refresh token at its issuer, where the issuer's answer is the verdict and its absence never is. `retryAfter`: the wait a `Retry-After` header states, in milliseconds, when it gives whole seconds, the form the gateway sends; `ms` is null when it states none. TypeScript runs this in packages/core (retry-agreement.test.ts) against RETRY_RULES and retryAfterMs. The Rust SDK runs it when its transport takes these rules.",
+  "rules": [
+    {
+      "why": "429 is the server saying not now",
+      "rule": "boot",
+      "status": 429,
+      "retries": true
+    },
+    {
+      "why": "503 is a promise to recover",
+      "rule": "boot",
+      "status": 503,
+      "retries": true
+    },
+    {
+      "why": "504 is a promise to recover",
+      "rule": "boot",
+      "status": 504,
+      "retries": true
+    },
+    {
+      "why": "500 is an unclassified fault: replaying it inside a boot pass re-runs whatever broke it",
+      "rule": "boot",
+      "status": 500,
+      "retries": false
+    },
+    {
+      "why": "401 means the gateway is up and refused",
+      "rule": "boot",
+      "status": 401,
+      "retries": false
+    },
+    {
+      "why": "400 will be refused again",
+      "rule": "boot",
+      "status": 400,
+      "retries": false
+    },
+    {
+      "why": "408 is a timeout",
+      "rule": "job",
+      "status": 408,
+      "retries": true
+    },
+    {
+      "why": "429 is the server saying not now",
+      "rule": "job",
+      "status": 429,
+      "retries": true
+    },
+    {
+      "why": "500 is retried here where boot refuses it: the alternative is discarding paid work",
+      "rule": "job",
+      "status": 500,
+      "retries": true
+    },
+    {
+      "why": "503 is a promise to recover",
+      "rule": "job",
+      "status": 503,
+      "retries": true
+    },
+    {
+      "why": "400 will be refused again",
+      "rule": "job",
+      "status": 400,
+      "retries": false
+    },
+    {
+      "why": "401 will be refused again",
+      "rule": "job",
+      "status": 401,
+      "retries": false
+    },
+    {
+      "why": "404 will be refused again",
+      "rule": "job",
+      "status": 404,
+      "retries": false
+    },
+    {
+      "why": "a 401 on a POST is retried: the request was refused, not processed",
+      "rule": "transport",
+      "status": 401,
+      "method": "POST",
+      "retries": true
+    },
+    {
+      "why": "a 401 on a GET is retried",
+      "rule": "transport",
+      "status": 401,
+      "method": "GET",
+      "retries": true
+    },
+    {
+      "why": "a 401 with no method stated is retried: 401 does not depend on the method",
+      "rule": "transport",
+      "status": 401,
+      "retries": true
+    },
+    {
+      "why": "a 502 on a POST is not retried: it may already have been processed, and a repeat writes twice",
+      "rule": "transport",
+      "status": 502,
+      "method": "POST",
+      "retries": false
+    },
+    {
+      "why": "a 502 on a GET is retried",
+      "rule": "transport",
+      "status": 502,
+      "method": "GET",
+      "retries": true
+    },
+    {
+      "why": "a 503 on a PUT is retried: PUT is idempotent",
+      "rule": "transport",
+      "status": 503,
+      "method": "PUT",
+      "retries": true
+    },
+    {
+      "why": "a 500 on a DELETE is retried: DELETE is idempotent",
+      "rule": "transport",
+      "status": 500,
+      "method": "DELETE",
+      "retries": true
+    },
+    {
+      "why": "a 429 on a POST is not retried by this rule",
+      "rule": "transport",
+      "status": 429,
+      "method": "POST",
+      "retries": false
+    },
+    {
+      "why": "a 429 on a GET is retried",
+      "rule": "transport",
+      "status": 429,
+      "method": "GET",
+      "retries": true
+    },
+    {
+      "why": "a 413 on a GET is retried",
+      "rule": "transport",
+      "status": 413,
+      "method": "GET",
+      "retries": true
+    },
+    {
+      "why": "the method is read in any case",
+      "rule": "transport",
+      "status": 408,
+      "method": "get",
+      "retries": true
+    },
+    {
+      "why": "a 404 on a GET will be refused again",
+      "rule": "transport",
+      "status": 404,
+      "method": "GET",
+      "retries": false
+    },
+    {
+      "why": "a 500 with no method stated is not retried: unstated reads as unsafe",
+      "rule": "transport",
+      "status": 500,
+      "retries": false
+    },
+    {
+      "why": "no status is not retried by this rule",
+      "rule": "transport",
+      "method": "GET",
+      "retries": false
+    },
+    {
+      "why": "no response at all is the network, not the issuer: the session survives a lost packet",
+      "rule": "refresh",
+      "retries": true
+    },
+    {
+      "why": "400 is the issuer refusing the grant: terminal on the first answer",
+      "rule": "refresh",
+      "status": 400,
+      "retries": false
+    },
+    {
+      "why": "401 is the issuer refusing the client",
+      "rule": "refresh",
+      "status": 401,
+      "retries": false
+    },
+    {
+      "why": "404 on the token endpoint is a misconfiguration, not a promise to recover: unclassified is terminal",
+      "rule": "refresh",
+      "status": 404,
+      "retries": false
+    },
+    {
+      "why": "408 is not now",
+      "rule": "refresh",
+      "status": 408,
+      "retries": true
+    },
+    {
+      "why": "429 is not now",
+      "rule": "refresh",
+      "status": 429,
+      "retries": true
+    },
+    {
+      "why": "500 is retried here where boot refuses it: one idempotent exchange has no side effect to replay",
+      "rule": "refresh",
+      "status": 500,
+      "retries": true
+    },
+    {
+      "why": "503 is not now",
+      "rule": "refresh",
+      "status": 503,
+      "retries": true
+    }
+  ],
+  "retryAfter": [
+    {
+      "why": "whole seconds",
+      "header": "5",
+      "ms": 5000
+    },
+    {
+      "why": "zero seconds is a stated wait of none",
+      "header": "0",
+      "ms": 0
+    },
+    {
+      "why": "surrounding whitespace is not part of the value",
+      "header": " 7 ",
+      "ms": 7000
+    },
+    {
+      "why": "no header states no wait",
+      "header": null,
+      "ms": null
+    },
+    {
+      "why": "an empty header states no wait",
+      "header": "",
+      "ms": null
+    },
+    {
+      "why": "the HTTP-date form is not the form the gateway sends",
+      "header": "Wed, 21 Oct 2026 07:28:00 GMT",
+      "ms": null
+    },
+    {
+      "why": "a fraction is not whole seconds",
+      "header": "1.5",
+      "ms": null
+    },
+    {
+      "why": "a negative number is not a wait",
+      "header": "-1",
+      "ms": null
+    }
+  ]
+}

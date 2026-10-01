@@ -1,0 +1,144 @@
+{
+  "$comment": "How a client holds a session, as every SDK must compute it. `refreshSchedule`: how long to wait before renewing an access token, from its own claims. The margin before expiry is half the token's lifetime (`exp - iat`, or the time remaining when there is no `iat`), capped at 300 seconds; the wait is never under 10 seconds; a token with no readable `exp` schedules nothing (`delay` null). Times are in seconds; a row gives the token's `claims`, which a runner puts in any JWT, or a literal `token`. `tokenExpiry`: reading `exp` out of a token. A JWT's segments are base64url without padding, and its payload is UTF-8, so a reader that assumes plain base64 or ASCII fails for the accounts whose names produce `-`, `_` or a multi-byte character. TypeScript runs this in packages/sdk (session-agreement.test.ts). The Rust SDK runs it when its session lands. The launcher's Go holds a session too (oauth.go, session.go) and does not run this table yet.",
+  "refreshSchedule": [
+    {
+      "why": "an hour-long token just issued is renewed 300 seconds before it expires: the margin's ceiling",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800000000,
+      "delay": 3300
+    },
+    {
+      "why": "a five-minute token is renewed at half its life, not at once: a fixed 300-second margin equals this lifetime and schedules a renewal for the moment of issue, forever",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000300
+      },
+      "now": 1800000000,
+      "delay": 150
+    },
+    {
+      "why": "a one-minute token is renewed at half its life",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000060
+      },
+      "now": 1800000000,
+      "delay": 30
+    },
+    {
+      "why": "a ten-minute token sits where half its life equals the ceiling",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000600
+      },
+      "now": 1800000000,
+      "delay": 300
+    },
+    {
+      "why": "the margin comes from the lifetime the issuer chose, not from what remains of it",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800001800,
+      "delay": 1500
+    },
+    {
+      "why": "a token past its renewal point waits the floor, never zero",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800003500,
+      "delay": 10
+    },
+    {
+      "why": "an expired token waits the floor: one attempt per interval, not a loop",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800003600
+      },
+      "now": 1800003650,
+      "delay": 10
+    },
+    {
+      "why": "a token shorter than twice the floor waits the floor, though that is past its half-life",
+      "claims": {
+        "iat": 1800000000,
+        "exp": 1800000012
+      },
+      "now": 1800000000,
+      "delay": 10
+    },
+    {
+      "why": "with no iat the lifetime is what remains, and half of it is still bounded",
+      "claims": {
+        "exp": 1800000100
+      },
+      "now": 1800000000,
+      "delay": 50
+    },
+    {
+      "why": "with no iat and a long time remaining the ceiling applies",
+      "claims": {
+        "exp": 1800003600
+      },
+      "now": 1800000000,
+      "delay": 3300
+    },
+    {
+      "why": "a token with no exp schedules nothing",
+      "claims": {
+        "iat": 1800000000
+      },
+      "now": 1800000000,
+      "delay": null
+    },
+    {
+      "why": "a token that is not a JWT schedules nothing",
+      "token": "not-a-jwt",
+      "now": 1800000000,
+      "delay": null
+    }
+  ],
+  "tokenExpiry": [
+    {
+      "why": "an ASCII payload, whose length is not a multiple of four: JWTs omit the padding",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGljZSIsImV4cCI6MTkwMDAwMDAwMH0.c2lnbmF0dXJl",
+      "exp": 1900000000
+    },
+    {
+      "why": "a payload whose base64url spelling contains `_`: the name is Zoë Fauré",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiWm_DqyBGYXVyw6kiLCJleHAiOjE5MDAwMDAwMDB9.c2lnbmF0dXJl",
+      "exp": 1900000000
+    },
+    {
+      "why": "a payload whose base64url spelling contains `-`: the name is O’Connor, with a typographic apostrophe",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJuYW1lIjoiT-KAmUNvbm5vciIsImV4cCI6MTkwMDAwMDAwMH0.c2lnbmF0dXJl",
+      "exp": 1900000000
+    },
+    {
+      "why": "a payload with no exp",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhbGljZSJ9.c2lnbmF0dXJl",
+      "exp": null
+    },
+    {
+      "why": "two segments are not a JWT",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE5MDAwMDAwMDB9",
+      "exp": null
+    },
+    {
+      "why": "a payload that is not base64url",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.!!!.c2lnbmF0dXJl",
+      "exp": null
+    },
+    {
+      "why": "a payload that is not JSON",
+      "token": "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.bm90IGpzb24.c2lnbmF0dXJl",
+      "exp": null
+    }
+  ]
+}
