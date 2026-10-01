@@ -402,9 +402,8 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── Live queries ────────────────────────────────────────────────────────
   //
-  // These return `CacheObservable<T>`: subscribers see `T | undefined`
-  // (with `undefined` during initial load), and `await` resolves to the
-  // first non-undefined value.
+  // These return `CacheObservable<T>`: subscribers see `CacheState<T>`
+  // (`pending` during initial load), and `.fresh()` is the one-shot read.
 
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor> {
     return CacheObservable.from(this.withScope(resourceId, this.resourceCache.observe(resourceId)), () => this.resourceCache.fetch(resourceId));

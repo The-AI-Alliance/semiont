@@ -1,25 +1,20 @@
 /**
- * Thenable Observable subclasses.
+ * The Observable subclasses namespace methods return.
  *
- * Two thin Observable subclasses that also implement `PromiseLike<T>`. Used as
- * the public return type of namespace methods that emit streams (job
- * lifecycle, generation progress) and cache reads (Browse live queries).
+ * `StreamObservable` (job lifecycle, generation progress) and
+ * `UploadObservable` also implement `PromiseLike`, so a script can `await`
+ * the call directly without a `lastValueFrom` wrapper; reactive consumers
+ * keep using `.subscribe(...)` and `.pipe(...)`. `CacheObservable` (Browse
+ * live queries) is deliberately NOT thenable: its one-shot read is the
+ * explicit `.fresh()`.
  *
- * The point: scripts can `await` the call directly without `lastValueFrom` /
- * `firstValueFrom` wrappers; reactive consumers keep using `.subscribe(...)`
- * and `.pipe(...)` exactly as before.
- *
- * ⚠️ Pick ONE consumption per instance. These are **cold** Observables, so
- * `await` and `.subscribe(...)` each re-run the producer — doing both on the
- * same `StreamObservable`/`UploadObservable` fires the underlying job/upload
- * *twice* (`.then` calls `lastValueFrom`, which subscribes again). To get
- * progress *and* the terminal result from a single execution, use `.run(onNext)`.
- * A hot/multicast redesign that removes the footgun is proposed in
- * `.plans/MULTICAST-JOB-TRIGGERS.md`.
- *
- * The asymmetric `.then()` semantics — last-value-on-completion for streams,
- * first-non-undefined-value for caches — is encoded by the subclass name. The
- * docstring on the namespace method tells the consumer which one applies.
+ * ⚠️ Pick ONE consumption per stream or upload instance. Both are **cold**
+ * Observables, so `await` and `.subscribe(...)` each re-run the producer —
+ * doing both on the same `StreamObservable`/`UploadObservable` fires the
+ * underlying job/upload *twice* (`.then` calls `lastValueFrom`, which
+ * subscribes again). To get progress *and* the terminal result from a single
+ * execution, use `.run(onNext)`. A hot/multicast redesign that removes the
+ * footgun is proposed in `.plans/MULTICAST-JOB-TRIGGERS.md`.
  *
  * `.pipe(...)` returns a plain `Observable<T>` (RxJS doesn't propagate
  * subclasses through `pipe`). Once you compose, you've explicitly entered
@@ -82,23 +77,16 @@ export class StreamObservable<T> extends Observable<T> implements PromiseLike<T>
 }
 
 /**
- * Multicast cache observable — emits `undefined` while the underlying value
- * is loading, then the value, then re-emits when bus events invalidate the
- * cache entry. Used by Browse live-query methods (`browse.resource`,
- * `browse.annotations`, etc.).
+ * Multicast cache observable — emits the `CacheState` at a key: `pending`
+ * while the value loads, then `ready` with the value or `failed` with the
+ * error, re-emitting when bus events invalidate the cache entry. Used by
+ * Browse live-query methods (`browse.resource`, `browse.annotations`, etc.).
  *
- * Awaiting (the one-shot path) fetches a **fresh** value via the optional
- * `fetchFresh` action and rejects on failure — a re-read reflects writes
- * (#847). Subscribing yields the SWR sequence: the initial `undefined`, the
- * loaded value, and re-emits on invalidation. (Without a `fetchFresh` action
- * — e.g. a non-cache wrapper — the await falls back to the first
- * non-undefined emission.)
+ * Subscribing is the stale-while-revalidate live view. The class is not
+ * thenable: the one-shot read is `.fresh()`.
  *
- * The class is parameterized as `CacheObservable<T>` even though the
- * stream's element type is `T | undefined` — `T` is what the consumer
- * gets from `await`, and that's the contract we want to advertise. The
- * `Observable<T | undefined>` shape leaks through `.subscribe` and
- * `.pipe` in the natural way.
+ * `T` is the value type — what a `ready` state carries and what `.fresh()`
+ * resolves to. The stream's element type is `CacheState<T>`.
  */
 export class CacheObservable<T> extends Observable<CacheState<T>> {
   /**
@@ -140,15 +128,15 @@ export class CacheObservable<T> extends Observable<CacheState<T>> {
   /**
    * Wrap an existing Observable's subscribe behavior in a `CacheObservable`.
    *
-   * `fetchFresh`, when supplied, backs the await path: `await` resolves to a
-   * freshly fetched value (rejecting on failure), so a one-shot read reflects
-   * writes without a scoped subscription (#847). `.subscribe(...)` consumers
-   * keep the SWR view over `source`.
+   * `fetchFresh`, when supplied, backs `.fresh()`: it resolves to a freshly
+   * fetched value (rejecting on failure), so a one-shot read reflects writes
+   * without a scoped subscription (#847). `.subscribe(...)` consumers keep
+   * the SWR view over `source`.
    *
    * Memoizes on source identity: passing the same `source` returns the same
    * wrapper instance. The Browse cache primitive already returns a stable
    * Observable per key (its B4 contract), so this preserves that contract
-   * through the awaitable wrapping. Without the memo, every public-method
+   * through the wrapping. Without the memo, every public-method
    * call would produce a fresh wrapper and break referential-equality
    * guarantees that hook-style reactive consumers depend on.
    *
