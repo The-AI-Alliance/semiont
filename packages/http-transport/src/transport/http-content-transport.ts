@@ -254,10 +254,12 @@ function endedWithoutResponse(message: string, statusText: string, code: Transpo
 
 /**
  * XHR-based POST that exposes `xhr.upload.onprogress` byte counts and
- * supports cancellation via `AbortSignal`. Mirrors the ky path's error
- * shape: 4xx/5xx and network-level failures both surface as `APIError`,
- * and each is routed onto `transport.errors$` before the promise rejects.
- * An abort rejects too, and is not routed there.
+ * supports cancellation via `AbortSignal`. A refusal (4xx/5xx) surfaces as
+ * it does on the ky path: an `APIError` routed onto `transport.errors$`
+ * before the promise rejects. A network-level failure does the same here,
+ * which the ky path does not: with no response, ky's own error reaches the
+ * caller and `errors$` hears nothing. An abort rejects and is not routed
+ * there.
  */
 function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId }> {
   const { url, formData, headers, onProgress, signal, onApiError } = opts;
