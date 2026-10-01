@@ -347,38 +347,38 @@ they never cross the wire.
 ### The channel classification (`CHANNEL_ATTRS`)
 
 `bus-classification.ts` is a third TypeScript output of the same generator —
-one entry per channel, three orthogonal attributes read straight off registry
-facts, so a boundary that needs to reason about a channel does not re-derive
-them and cannot drift from the registry:
+one entry per channel, its attributes read straight off registry facts, so a
+boundary that needs to reason about a channel does not re-derive them and
+cannot drift from the registry:
 
 - **`recorded`** — whether the channel lands in the event log (mirrors
   `PERSISTED_EVENT_TYPES`).
 - **`direction`** — `outbound` (emitted toward the hub), `inbound` (delivered
-  from it — the fan-in set, by construction), or `in-process` (never on the
-  wire).
-- **`delivery`** — how an operation's REPLY is matched to its request, and only
-  that. One value: `correlated` (owner-addressed, keyed by `correlationId`).
-  Its absence on request, outbound and in-process channels is asserted, so it
-  is a decision rather than a gap.
+  from it), or `in-process` (never on the wire).
+- **`writes`** — on a channel that is emitted: whether emitting it changes the
+  knowledge base.
+- **`delivery`** — the channel's delivery class: what a subscriber is promised
+  about a frame on it when its stream drops, or is handed to another
+  ([TRANSPORT-CONTRACT.md § Delivery](./TRANSPORT-CONTRACT.md#delivery)).
+  `correlated` for an operation's result and failure, which reach the client
+  that asked and are sent again while retained; `positioned` for an event of
+  the record delivered on its resource's scope, which is replayed from where
+  a client left off; `passing` for every other channel that crosses the wire,
+  which nothing replays. Absent on an in-process channel, and only there.
 
-  Two sibling values are gone, for the same reason. `broadcast` restated
-  `audience: everyone` — one fact in two places, and nothing read it.
-  `streaming` classified an operation's third channel, whose frames refreshed a
-  request's liveness without being retained as the answer; it had one declared
-  member that nothing ever emitted, so every path serving it was unreachable.
-  **Who receives a frame is the `audience` axis; `delivery` is only how a reply
-  finds its request.**
+  **Who receives a frame is the `audience` axis; `delivery` is what each
+  receiver is promised.** Six channels are `recorded` and `passing` at once:
+  events of the record that every client hears, on no scope, and so with no
+  position to resume from.
 
-The three attributes are independent — a channel can be both `recorded` and
-correlated, pinned by the handful that are — and adding an operation to the
-registry classifies its reply channels with no hand edit, which is what let the
-gateway's old hand-kept `CORRELATED_CHANNELS` / `PROGRESS_CHANNELS` partitions
-be deleted (BUS-ROUTING-DECLARED P1). Consume it through `channelAttrsOf(channel)`.
+The attributes are independent, and adding an operation to the registry
+classifies its channels with no hand edit. Consume them through
+`channelAttrsOf(channel)`.
 
-**Three generated attributes, five registry axes.** `recorded`, `direction` and
-`delivery` are what `CHANNEL_ATTRS` carries. They are *derived* from what the
-registry declares: `operations`, `kind` (`command` | `event`), `audience`
-(`everyone` | `scoped` | `declared`) and `inProcess`. A channel that names no
+**Generated attributes, declared axes.** What `CHANNEL_ATTRS` carries is
+*derived* from what the registry declares: `operations`, `kind` (`command` |
+`event`), `audience` (`everyone` | `scoped` | `declared`), `inProcess`,
+`effect`, and which channels are events of the record. A channel that names no
 class refuses to generate — there is no default, because a silent fallthrough
 once classified `job:queued` as in-process and starved every worker. Declare
 the axis; read the attribute.

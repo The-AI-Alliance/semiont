@@ -289,6 +289,18 @@ const result = await lastValueFrom(
 
 `.pipe(...)` returns plain `Observable<T>` — losing the thenable is correct, because pipe is composition, and the result no longer has the well-defined "final value" or "first defined emission" semantics that the subclasses encoded.
 
+## Subscribing from a UI that mounts twice
+
+React Strict Mode runs an effect, cleans it up, and runs it again. Anything
+that observes the bus from an effect has to survive that:
+
+- Observing `browse.*` of the same resource twice costs one scope: each
+  observer takes a hold, and the scope leaves the stream only when the last
+  one lets go.
+- A state unit whose factory captures props is keyed on those props
+  (`<Inner key={rId} />`), so the factory runs again when they change.
+  `useStateUnit` does not re-run its factory across renders.
+
 ## Why this design
 
 1. **Live queries are genuinely reactive.** Browse reads represent "the current value of this resource, which changes when bus events fire." Promise can't express that. Observable can.

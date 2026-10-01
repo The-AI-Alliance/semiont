@@ -1,6 +1,6 @@
 {
   "about": "an emit the gateway could not count resolves with no count: an absence stays an absence, never a zero",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/emit; BusEmitAccepted",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Emits; BusEmitAccepted",
   "planes": ["nats"],
   "steps": [
     {"backend": "listen", "with": {"channels": ["beckon:focus"]}},

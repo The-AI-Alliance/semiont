@@ -1,6 +1,6 @@
 {
   "about": "a client remembers the ids of the last seenEventIdsCount events it delivered: a new stream that replays that many events the old one already carried delivers none of them a second time",
-  "source": "specs/src/client/timing.json seenEventIdsCount; docs/protocol/TRANSPORT-HTTP.md § Event id and resumption",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Delivering a frame once; specs/src/client/timing.json seenEventIdsCount",
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},

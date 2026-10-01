@@ -1,6 +1,6 @@
 {
   "about": "a stream that stays down becomes degraded, and opens again by itself when the gateway returns; a dropped stream is a state, never a failure on the error stream",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle; specs/src/client/timing.json degradedThresholdMs",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § State; docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle; specs/src/client/timing.json degradedThresholdMs",
   "planes": ["in-process"],
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

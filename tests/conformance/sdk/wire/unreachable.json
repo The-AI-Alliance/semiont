@@ -1,6 +1,6 @@
 {
   "about": "with the gateway unreachable, an emit and a read each fail as unavailable once their attempts are spent, and each is reported on the error stream",
-  "source": "specs/src/errors/codes.json transport; specs/src/client/timing.json emitRetry",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Failures; specs/src/errors/codes.json transport; specs/src/client/timing.json emitRetry",
   "planes": ["in-process"],
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "emitRetry": {"attempts": 2, "initialDelayMs": 10, "maxDelayMs": 10}}}},

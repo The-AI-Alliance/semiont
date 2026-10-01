@@ -1,300 +1,398 @@
 # Transport Contract
 
-Behavioral guarantees that every `ITransport` implementation must honor.
-Consumers writing portable code against `SemiontClient` rely on this
-contract; consumers that know they're running over HTTP may
-additionally depend on the HTTP-specific extensions documented at
+What a Semiont client and the bus promise each other, whatever carries the
+bus. Every SDK implements this contract, and every consumer of an SDK may
+rely on it. What the HTTP wire adds — the routes, the ids on the stream,
+the order of a replay, the limits — is
 [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
 
-If the code deviates from what's written here, the code is wrong — or
-this doc is wrong and needs updating, deliberately. No third option.
+If the code deviates from what is written here, the code is wrong, or this
+document is wrong and is corrected deliberately. There is no third option.
 
-## Scope
+**How this document is held.** Each rule ends with *Held by* and the cases
+that fail when a client or a gateway breaks it: a case of the SDK
+conformance suite ([`tests/conformance/sdk`](../../tests/conformance/sdk/README.md),
+which every SDK runs), a file of the gateway suite
+([`tests/conformance/gateway`](../../tests/conformance/gateway/README.md)), or
+a test of the reference implementation. A rule marked "Held by no case" is
+one nothing checks. `npm run lint:transport-contract` fails when a
+case named here does not exist, and when a wire case of the SDK suite is
+named by neither transport document.
 
-`ITransport` is the wire-facing seam. Namespaces (browse, mark, bind,
-gather, match, yield, beckon, job, auth, admin) consume it. The seam
-hides whether a method goes over the network or runs in-process.
+## The transport
 
-The canonical wire implementation, `HttpTransport`, lives in
-`@semiont/http-transport` and is documented in
-[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
-Other implementations (e.g. in-process variants) live alongside the
-runtime they wrap and are documented there.
+Two primitives carry everything on the bus: an **emit**, one frame out, and
+the **stream**, frames in. Beside them, plain request and response carries
+bytes (a resource's content) and the gateway's own answers (health, status,
+who the caller is, tokens).
+
+A **frame** is an envelope and a payload. The envelope says where the frame
+goes: its `channel`; a `scope`, when it belongs to one resource; a
+`correlationId`, when it is a request or the reply to one. The payload is
+the channel's own type and carries no routing.
+
+The **registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json))
+is the authority for channels. It classifies each on independent axes:
+whether it is half of an operation (a request, its result, its failure);
+otherwise its kind (a command or an event); its audience (every client, the
+clients holding a resource's scope, or only the clients that declare it);
+whether it is an event of the record; and whether emitting it writes.
+[EVENT-BUS.md](./EVENT-BUS.md) describes the axes, and
+[CHANNELS.md](./CHANNELS.md) lists the channels.
 
 ## The surface
 
+The TypeScript rendering, in `@semiont/core`, is the reference. Another
+language's SDK offers the same operations in its own idiom.
+
 ```ts
 interface ITransport {
-  // Bus primitives
-  emit(channel, payload, resourceScope?): Promise<void>;
-  on(channel, handler): () => void;
-  stream(channel): Observable<payload>;
-
-  // Lifecycle
-  subscribeToResource(resourceId): () => void;
-  bridgeInto(bus: EventBus): void;
-  dispose(): void;
-  readonly state$: Observable<ConnectionState>;
   readonly baseUrl: BaseUrl;
 
-  // Typed wire methods: auth, admin, system
-  authenticatePassword, authenticateGoogle, refreshAccessToken,
-  logout, acceptTerms, getCurrentUser, getMediaToken,
-  listUsers, getUserStats, updateUser, getOAuthConfig,
-  healthCheck, getStatus
+  // The bus
+  emit(channel, payload, envelope?: { scope?, correlationId? }): Promise<number | undefined>;
+  stream(channel): Observable<payload>;
+  frames(channel): Observable<{ payload, correlationId?, scope? }>;
+  on(channel, handler): () => void;
+  isSubscribed(channel): boolean;
+
+  // The connection
+  readonly state$: Observable<ConnectionState>;
+  readonly errors$: Observable<SemiontError>;
+  subscribeToResource(resourceId): () => void;
+  trackReply(correlationId): () => void;
+  bridgeInto(bus: EventBus): void;
+  dispose(): void;
+}
+
+// A request and its reply, over any transport
+busRequest(transport, operation, payload, timeoutMs?, signal?): Promise<response>;
+
+interface IContentTransport {
+  putBinary(request, options?): Promise<{ resourceId }>;
+  getBinary(resourceId): Promise<{ data, contentType }>;
+  getBinaryStream(resourceId): Promise<{ stream, contentType }>;
+  getResourceGraph(resourceId): Promise<GetResourceResponse>;
+  dispose(): void;
+}
+
+interface IGatewayOperations {
+  getCurrentUser(); getMediaToken(resourceId); getProtectedResourceMetadata();
+  healthCheck(); getStatus();
 }
 ```
 
-`IContentTransport` is a separate interface for resource content:
-binary I/O (`putBinary`, `getBinary`, `getBinaryStream`) plus two
-*derived* views of a resource, which are server-computed rather than
-stored bytes.
+`ITransport` is the bus. `IContentTransport` carries bytes, which never
+ride the bus, and a resource's description as linked data.
+`IGatewayOperations` is what a gateway answers for itself; a transport with
+no gateway behind it does not implement it.
 
-`getResourceGraph` dereferences the resource's JSON-LD metadata graph —
-the LD face an external linked-data client sees (the HTTP transport
-fetches `/resources/:id/jsonld`; in-process transports assemble it from
-their `KnowledgeSystem`).
+## Delivery
 
-`putAnchoredText` / `getAnchoredText` carry the resource's coordinate
-map — its recovered text plus the geometry indexing it (see
-[ANCHORING.md](../system/ANCHORING.md)). Whole-resource, like the graph:
-a producer iterates page by page, but every consumer wants one map.
-`getAnchoredText` answers `null` when none has been derived, which is
-the common case and not an error. They are their own methods rather than
-a `putBinary` of some derived media type — a coordinate map is not a
-*representation* of the resource, and dressing it as one would make a
-derived artifact indistinguishable from content a user uploaded.
+### A guarantee comes from an identity
 
-The split keeps backpressure and streaming concerns away from the
-typed-channel surface.
+A client's stream can be interrupted in two ways. It can **drop**: for a
+while there is no connection, and frames published then are not sent to it.
+Or it can be **handed over**: what the stream carries changes, a new
+connection opens before the old one closes, and for a moment both carry the
+same frames.
 
-## Delivery semantics — what every transport must honor
+What a client is promised about a frame across either depends on one thing:
+whether the frame has an identity that is the same on every connection, and
+what that identity lets the gateway and the client do.
 
-### `emit(channel, payload, resourceScope?)`
+- With a stable identity, a client recognises a frame it has already been
+  given. A handover cannot double it.
+- If that identity is also a **position** in a sequence someone keeps, the
+  gateway can be asked for everything after it. A drop cannot lose it.
+- With neither, a frame reaches whoever is connected when it passes.
 
-- **At-most-once from the caller's perspective.** The returned Promise
-  resolves when the transport has dispatched the payload. There is no
-  acknowledgement that a subscriber processed it.
-- **No ordering across emits from the same caller.** Two `emit()` calls
-  made back-to-back may reach handlers in either order. Handlers that
-  require ordering must encode it in the payload.
-- **Synchronous dispatch, asynchronous processing.** By the time the
-  Promise resolves, the transport has published the event; what
-  handlers do with it is their own clock.
-- **`resourceScope`, when set, targets resource-scoped broadcasts.**
-  Only subscribers attached to that resource's scope receive the event.
-  Ordinary commands omit it.
+### The three classes
 
-### `stream(channel)` / `on(channel, handler)`
+| | **Positioned** | **Correlated** | **Passing** |
+|---|---|---|---|
+| Which frames | an event of the record, delivered on its resource's scope | the reply to a request | every other frame |
+| Its identity | its place in that resource's record | the request it answers | none that outlives a connection |
+| Across a handover | delivered once | delivered once | delivered once per connection |
+| Across a drop | replayed: the client names, per scope, the last position it holds | sent again: the client names the replies it still awaits | **lost** |
+| Bound | what the record still holds | how long the gateway retains a reply | none |
+| Past the bound | `bus:resume-gap` names the scope | the request's own timeout | nothing: there is no signal |
+| Reaches | every client holding the scope | the one client, and principal, that asked | every client subscribed |
+| So a consumer may | apply each once, in order | await it inside its deadline | act only in ways that are safe when repeated, and when missed |
 
-- **At-most-once delivery** per subscriber. Subscribers receive events
-  published while they were subscribed. Events published before
-  `subscribe` are not delivered.
-- **Per-channel ordering within a single subscriber.** Events on a
-  single channel are delivered in the order they were published.
-  Events across channels have no ordering guarantee.
-- **No deduplication.** If the same event is published twice, each
-  subscriber sees it twice.
+A channel's class follows from the registry's axes and is generated beside
+them, as `delivery` in `CHANNEL_ATTRS` (`@semiont/core`): an operation's
+result and failure are correlated; an event of the record whose audience is
+a resource's scope is positioned; every other channel that crosses the wire
+is passing.
 
-### `subscribeToResource(resourceId)`
+- **Positioned.** A client that reopens its stream is sent each scope's
+  events after the last one it delivered, once and in order.
+  *Held by `sdk/wire/resumption`, `sdk/wire/dedup-window`, `gateway/stream.test.ts`.*
+- **Positioned, past the bound.** When the gateway cannot replay what a
+  scope missed it says so, on that scope, and delivers what it still can.
+  The client then asks again for what it holds of that scope.
+  *Held by `gateway/stream.test.ts`, `sdk/live/refresh-bus-resume-gap`.*
+- **Correlated.** A reply reaches only the client and principal that made
+  the request. One published while the requester's stream was down is sent
+  again when the stream reopens, and one carried by both connections of a
+  handover is delivered once.
+  *Held by `sdk/wire/pending-replies`, `sdk/wire/overlap-dedup`, `gateway/stream.test.ts`, `gateway/replicas.test.ts`.*
+- **Passing, across a drop.** A frame published while the stream is down is
+  not carried by the stream that reopens.
+  *Held by `sdk/wire/passing-across-drop`.*
+- **Passing, across a handover.** A frame published while both connections
+  are open is carried by both, and the client delivers both.
+  *Held by `sdk/wire/passing-across-handoff`.*
 
-- Attaches the transport to a single resource's scoped broadcast
-  stream. The returned disposer detaches when called.
-- Ref-counted **per resource**: calling twice with the same resourceId
-  returns two disposers; that resource's scope is torn down only when
-  the last one fires.
-- **Distinct resources COMPOSE.** One transport holds any number of
-  resource scopes concurrently, each with an independent ref-count and
-  release — N mounted viewers on N resources are all live at once. (The
-  historical one-scope-at-a-time floor, and its different-resource
-  throw, were removed 2026-07-29.)
-- **SDK-internal, not consumer-facing.** Application code does not call
-  this — the SDK's resource-scoped `browse.*` live queries drive it:
-  subscribing acquires the scope, the last unsubscribe releases it
-  (freshness follows observation; #847).
+Six channels carry events that are in the record and are passing all the
+same: `yield:created`, `yield:updated`, `yield:cloned`, `yield:moved`,
+`frame:entity-type-added` and `frame:tag-schema-added`. The record is kept
+per resource, and these are delivered to every client on no scope, so they
+have no position a client could resume from.
+*Held by `packages/core/src/__tests__/bus-classification.test.ts`.*
 
-### `bridgeInto(bus)`
+A **request**, as the service that answers it receives it, is a passing
+frame: a service whose stream is down when a request is published is not
+sent it later, and the requester's deadline is the bound.
+*Held by no case.*
 
-**Ownership invariant: the client owns the bus.** `SemiontClient` constructs
-its `EventBus` internally and hands a *reference* to the transport via
-`bridgeInto`. The reference flows client → transport, never the other
-way. Transports do not construct, replace, or substitute the bus; they
-adapt to it.
+### What repairs a passing frame
 
-`HttpTransport.bridgeInto(bus)` stores the reference and pumps every
-channel it receives from SSE into that bus (and any subsequent
-per-resource scoped channels opened by `subscribeToResource`).
-In-process transports adapt the same hook to whatever local source they
-wrap.
+Nothing in the transport. A consumer that keeps state from passing frames
+repairs a drop by asking:
 
-Constructors of concrete transports never accept a bus. The bus arrives
-*only* through `bridgeInto`, which is called once by `SemiontClient` at
-construction time. `SemiontClient`'s constructor signature is
-`(transport, content)` — callers do not pass a bus in. If they need to
-read it, they go through `client.bus`.
+- **The cache** asks again, when its stream reopens after a drop, for what
+  passing events feed and it holds, and asks for nothing after a handover or
+  at the first open
+  ([CACHE-SEMANTICS B13](../../packages/sdk/docs/CACHE-SEMANTICS.md), from
+  the `reopened` row of [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json)).
+  *Held by `sdk/live/missed-while-down`, `sdk/live/refresh-reopened`, `sdk/live/reconnect`, `sdk/live/first-open`.*
+- **A job's follower** asks for the job's status when the job has been
+  silent ([JOBS.md](./JOBS.md#following-a-job)).
+  *Held by `sdk/live/job-across-drop`.*
 
-## User identity — `_userId` injection
+A row of the refresh table whose trigger is a passing channel may only
+refetch, and `reopened` refetches whatever it does: the table's generator
+refuses anything else.
+*Held by `packages/core/src/__tests__/cache-refresh.test.ts`.*
 
-**Invariant:** every bus command that requires an authenticated user
-reads the emitter's DID from a gateway-injected `_userId` field on the
-payload. Clients do not set it; handlers honour no client-supplied
-identity — not a `userId`, not a `creator`, not a `generator` naming
-anyone but the emitter. `_userId` is the one identity fact on an event;
-who *requested* the work is derived from the job the write cites, never
-carried. `_roles`, stamped beside it, is the token's capabilities —
-transient authorization, never provenance.
+### Order
 
-**Mechanism is transport-specific:**
+- Frames on one channel reach a subscriber in the order they were emitted.
+  Across channels there is no order.
+  *Held by `gateway/stream.test.ts`.*
+- A subscriber receives what is published while it is subscribed, and what
+  its class replays. Nothing else.
+  *Held by `gateway/stream.test.ts`.*
 
-- `HttpTransport` — the `/bus/emit` gateway verifies the bearer token,
-  builds the principal from its claims, clears any `_roles` the caller
-  wrote, and stamps `_userId` (and `_roles`) before publishing on the
-  bus.
-- In-process transports — the host process's service principal is the
-  source; the transport injects its identity into every emitted
-  payload.
+## The connection
 
-Every command schema that needs auth context declares `_userId` with
-the description *"Authenticated user's DID, injected by the /bus/emit
-gateway. Clients do not set this."*
+A client holds **one stream**. It names the client's global channels and
+one entry per resource scope the client holds.
 
-## `busRequest` — correlation-ID request/response
-
-`busRequest(bus, operation, payload, timeoutMs?, signal?)` is a shared helper
-(in `@semiont/core`) built on the primitives:
-
-- Called with the **operation** — the request channel — and a payload.
-  It looks the result and failure channels up from the `BUS_OPERATIONS`
-  registry, generates a `correlationId`, emits with it on the frame's
-  envelope (never in the payload), and observes those reply channels
-  filtered on that correlationId.
-- **Return type inferred** from the operation's result channel — callers
-  pass neither the reply channels nor a `<TResult>` annotation. Replies
-  carry the request's correlationId on their envelope and follow the
-  standard payload shape (`{ response: T }` / `{}` / `CommandError`);
-  `busRequest` resolves `response` or rejects with a typed error.
-- **30-second timeout** by default. Applies above the transport.
-- **Return value tied to correlationId, not connection.** The caller
-  gets exactly one resolution — the first matching result or fail
-  event, or a timeout.
-- **Abandonment.** A caller that passes a `signal` can abandon the
-  request. It then rejects with the signal's reason and does nothing
-  more: what was sent stays sent, the reply stops being tracked, and a
-  reply that arrives later is reported to nobody. Abandoned while it
-  waits for the stream to open, it sends nothing.
-- **Reply tracking.** `busRequest` registers its correlationId with the
-  transport's `trackReply` BEFORE emitting and releases it on
-  every settle path. Wire transports carry the tracked set on each
-  subscribe (`pendingReplies`) so a reply published during an outage is
-  replayed from the server's bounded retention buffer on reconnect.
-  In-process transports track nothing — publishing on the same
-  in-memory bus they read from, they have no outage and no loss.
-
-## Delivery guarantees — three classes, deliberately
-
-The transport delivers three kinds of one-way traffic with DIFFERENT
-durability, and the asymmetry is the design, not a gap. A guarantee comes
-from an identity: a frame the gateway can name again can be replayed, and
-recognised when it arrives twice.
-
-- **Persisted domain events delivered on a resource's scope**: **durable,
-  effectively exactly-once** from the client's perspective. Each scope
-  carries a resumption watermark on the subscribe body; the server
-  replays the gap from the event store; replay/live overlap dedups by
-  stable id; `bus:resume-gap` is the explicit signal when replay cannot
-  cover. Survives client reloads and arbitrary offline windows (bounded
-  only by event-store retention).
-- **Correlated replies** (one-shot `busRequest` results): **at-most-once
-  publication with bounded retained redelivery** — effectively
-  exactly-once for the original requester *within its own deadline
-  envelope* (retention TTL is 2× the default `busRequest` timeout;
-  deterministic `e-<channel>:<cid>` ids dedup replay against any live
-  copy). Under the NATS signal plane the retained replies live in a
-  key-value table every gateway replica shares, so a reconnect landing on
-  another replica, or on a restarted one, recovers them; under the
-  in-process plane they live in the one gateway process, and a restart
-  loses them. A lost reply degrades to exactly the pre-retention outcome
-  (the caller's timeout), never worse.
-- **Everything else** (what every client hears: `yield:created`,
-  `yield:updated`, `yield:cloned`, `yield:moved`, `frame:entity-type-added`,
-  `frame:tag-schema-added`, a job's progress and its end, presence, UI
-  signals): **at-most-once, with no identity of its own**. A frame
-  published while a client's stream is down is lost to that client, and
-  nothing replays it; one published while a changed subscription is being
-  handed from one stream to the next is delivered twice. Six of these
-  channels carry events that are also in the record, and they are in this
-  class all the same: the record is kept per resource, and they are
-  delivered on no scope. A consumer that keeps state from this class
-  repairs a drop by asking: the cache asks again for what these events
-  feed when its stream reopens
-  ([CACHE-SEMANTICS B13](../../packages/sdk/docs/CACHE-SEMANTICS.md)), and
-  a job's follower asks for the job's status
-  ([JOBS.md](./JOBS.md#following-a-job)).
-
-Why the classes differ: a domain event matters forever — every future
-reader needs it. A reply matters only to one caller, only until that
-caller's deadline; durability past the deadline buys nothing. Consumers
-keep their defense-in-depth (the cache's bounded retry and terminal
-`failed` state), but under this contract those paths should fire
-approximately never — a `bus.timeout` that does fire is a real signal
-that the gateway is down or slow, not transport weather.
-
-## Connection state
-
-Every transport exposes `state$: Observable<ConnectionState>` with the
-same seven-state union:
+### State
 
 ```
-'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded'
-          | 'unauthenticated' | 'closed'
+'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'unauthenticated' | 'closed'
 ```
 
-`unauthenticated` means the transport is deliberately NOT attempting:
-its credential is absent, or was refused (401) and only a different one
-is worth trying. No network activity happens in this state, and the
-transport leaves it on its own when a usable credential appears (a
-re-login, a session refresh). The refusal that caused it is on the
-transport's error stream — the state answers "can the bus deliver?",
-the error stream answers "why not" (SSE-AUTH-RESILIENCE D3/D6a).
+The state answers "can the bus deliver?", and is read as a current value: a
+subscriber is given the present state at once.
 
-The state leaves `open` only when the stream **drops**. A transport that
-changes what its stream carries without missing anything (the HTTP
-transport hands a changed subscription to a new stream while the old one
-still delivers) stays `open`, so that `open` reached again always means
-something may have been missed.
+- **`open` is left only when the stream drops.** A transport that changes
+  what its stream carries without missing anything stays `open`, so `open`
+  reached again always means something may have been missed. Consumers that
+  repair a drop act on exactly that.
+  *Held by `sdk/wire/subscribe-matrix`, `sdk/wire/passing-across-handoff`, `sdk/wire/dedup-window`.*
+- **A stream that stays down** is `reconnecting`, then `degraded` once it
+  has been so for `degradedThresholdMs`, and opens again by itself. A
+  dropped stream is a state, never a failure.
+  *Held by `sdk/wire/outage`.*
+- **`unauthenticated`** means the transport is not attempting: it has no
+  credential, or the one it has was refused. A refused credential is not
+  sent again. The transport waits, with no request, and opens its stream
+  when it is given another.
+  *Held by `sdk/wire/unauthenticated`.*
+- **`closed`** is terminal: the client was disposed.
+  *Held by `sdk/wire/request-closed`.*
 
-`HttpTransport` drives all seven (see
-[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)
-for the state machine). An in-process transport is `'open'` from
-construction and never changes — consumers that show connecting /
-reconnecting UI should treat the open state as terminal.
+The timing a client keeps is [`specs/src/client/timing.json`](../../specs/src/client/timing.json),
+from which every SDK generates its constants.
 
-## Event categorization
+### Failures
 
-The bus protocol (not the transport) classifies channels into three
-kinds. Every transport preserves the categorization:
+Everything a server refused, and every request the gateway never answered,
+is reported on the error stream as it is thrown to its caller, under a code
+from [`specs/src/errors/codes.json`](../../specs/src/errors/codes.json).
 
-- **Command events** — Browser → gateway handler. Arrive un-scoped.
-  Example: `mark:create-request`, `job:create`.
-- **Correlation-ID responses** — handler → originating caller. Arrive
-  un-scoped. Example: `mark:create-ok`, `job:status-result`.
-- **Resource-bound broadcasts** — published on
-  `eventBus.scope(resourceId)`. Delivered only to subscribers attached
-  to that resource's scope via `subscribeToResource`. The scoped set is
-  *derived* — the persisted domain events that aren't globally bridged,
-  plus the (currently empty) `RESOURCE_BROADCAST_TYPES` extension point
-  in `@semiont/core`. It is **disjoint** from the bridged (global) set
-  by construction and by invariant test; a channel in both would be
-  delivered twice. See [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
+- A refused stream is reported, and opened again no sooner than the
+  refusal's `Retry-After`.
+  *Held by `sdk/wire/stream-rate-limited`, `sdk/wire/unauthenticated`.*
+- A gateway that cannot be reached fails an emit or a read as `unavailable`
+  once its attempts are spent.
+  *Held by `sdk/wire/unreachable`.*
 
-## Non-goals — what this doc is not
+### Scopes
 
-- Not an implementation guide. Each transport's source is authoritative
-  for how it delivers these guarantees.
-- Not a channel inventory. That lives in
-  [CHANNELS.md](./CHANNELS.md).
-- Not a bus-scope tutorial. See [EVENT-BUS.md § Resource scoping](./EVENT-BUS.md#resource-scoping).
-- Not the bus-versus-HTTP boundary. Which subsystem traffic rides the bus and
-  which deliberately does not — bytes, the `Last-Event-ID` replay, credential
-  exchange — is enumerated in
-  [EVENT-BUS.md § What rides the bus](./EVENT-BUS.md#what-rides-the-bus-and-the-four-things-that-deliberately-do-not).
+`subscribeToResource(resourceId)` takes one hold on a resource's scope and
+returns what lets it go.
+
+- A scope is on the stream from its first hold to its last release. Holds
+  are counted per resource.
+  *Held by `sdk/wire/subscribe-matrix`.*
+- Distinct resources compose: one stream carries any number of scopes, each
+  held and released on its own.
+  *Held by `sdk/wire/subscribe-matrix`, `gateway/stream.test.ts`.*
+- A scope keeps its position after it is let go: taken again, it resumes
+  from there.
+  *Held by `sdk/live/refresh-bus-resume-gap`.*
+
+Application code does not call this. A live query of a resource holds the
+resource's scope while it is observed: freshness follows observation.
+*Held by `sdk/live/scope-by-observation`.*
+
+## Emits
+
+`emit(channel, payload, envelope?)` sends one frame.
+
+- **It resolves when the gateway has accepted it**, with the number of
+  subscribers the frame reached, or with nothing when there is no count. An
+  absent count stays absent: it is never a zero. No subscriber has
+  acknowledged anything.
+  *Held by `sdk/wire/emit-counted`, `sdk/wire/emit-uncounted`.*
+- **Emits are unordered.** Two emits from one caller may reach a handler in
+  either order. A handler that needs an order finds it in the payload.
+  *Held by no case.*
+- **An emit refused by a limit is sent again**, no sooner than the
+  refusal's `Retry-After`, inside the budget `emitRetry`. With the budget
+  spent it fails as `rate-limited`.
+  *Held by `sdk/wire/emit-rate-limited`, `sdk/wire/emit-budget-spent`.*
+- **An emit refused outright fails** with the refusal's code, is reported
+  on the error stream, and is not sent again.
+  *Held by `sdk/wire/emit-refused`.*
+- **`scope`**, when set, makes the emit a broadcast on that resource's
+  scope: only subscribers holding the scope receive it.
+  *Held by `sdk/wire/emit-counted`, `gateway/stream.test.ts`.*
+
+## Requests
+
+`busRequest(transport, operation, payload, timeoutMs?, signal?)` is an emit
+that expects a correlated reply. The operation is its request channel; its
+result and failure channels are the registry's.
+
+- **One emit, one id.** The request carries a correlation id of the client's
+  making on its envelope, never in its payload, and resolves with the
+  response of the reply that carries the same id.
+  *Held by `sdk/wire/request-reply`, `sdk/wire/job-create`.*
+- **It is not sent before its reply can arrive.** A request waits, inside
+  its own deadline, for the stream to be `open`.
+  *Held by `sdk/wire/attach-gate`.*
+- **Its id is tracked until it settles.** A client names the replies it
+  still awaits whenever it opens a stream, and stops naming one when its
+  request has settled.
+  *Held by `sdk/wire/pending-replies`, `sdk/wire/request-timeout`.*
+- **It settles once**, with the response; or with a failure, under the
+  client code the failure's own code becomes; or as a timeout, after
+  `busRequestTimeoutMs` unless the caller gave another; or because its
+  caller abandoned it.
+  *Held by `sdk/wire/failure-codes`, `sdk/wire/request-timeout`.*
+- **A request nobody is there to answer** fails as `peer-unavailable` when
+  the gateway can tell, and as a timeout when it cannot.
+  *Held by `sdk/wire/request-unanswerable`, `gateway/emit.test.ts`.*
+- **A request whose replies the stream does not carry** fails at once as
+  `unsubscribed`, and nothing is sent.
+  *Held by `sdk/wire/request-unsubscribed`.*
+- **A request of a closed client** fails as `closed`, and nothing is sent.
+  *Held by `sdk/wire/request-closed`.*
+- **Abandonment.** A caller that passes a `signal` can abandon the request.
+  It then reports nothing more: what was sent stays sent, the reply stops
+  being tracked, and a reply that comes anyway settles nothing. Abandoned
+  while it waits for the stream, it is never sent.
+  *Held by `sdk/wire/request-abandoned`, `sdk/wire/request-abandoned-waiting`.*
+- **There is no retry.** A caller that must complete past its deadline asks
+  again.
+  *Held by no case.*
+
+## Identity
+
+Every command that needs to know who sent it reads the emitter's DID from
+`_userId`, a field stamped on the payload on its way to the bus. A client
+does not set it, and a handler honours no identity a client supplied.
+`_roles`, stamped beside it, is the token's capabilities: authorization for
+this emit, never provenance.
+
+- A gateway verifies the caller's token and stamps both, clearing whatever
+  the caller wrote there.
+  *Held by `gateway/emit.test.ts`.*
+- A transport in the same process as the services stamps the identity of
+  the process it runs as.
+  *Held by no case.*
+
+## Content and the gateway's own operations
+
+Bytes do not ride the bus.
+
+- An upload carries its bytes unchanged, each field under its own name, and
+  resolves with the id the gateway answers.
+  *Held by `sdk/wire/content-upload`.*
+- A read returns a resource's bytes unchanged with their media type, whole
+  or as a stream; a resource's description is what the gateway answers; and
+  one that is not there fails as `not-found`.
+  *Held by `sdk/wire/content-read`.*
+- Each of the gateway's own operations is one request to its own path,
+  carrying the client's token.
+  *Held by `sdk/wire/gateway-operations`.*
+
+## Telemetry
+
+A client that exports telemetry exports the spans and the count
+[`specs/src/sdk-telemetry/telemetry.json`](../../specs/src/sdk-telemetry/telemetry.json)
+lists, each of its kind and with its attributes, and nothing else under
+their names.
+*Held by `sdk/wire/telemetry`.*
+
+## The bus belongs to the client
+
+A client constructs its own local bus and hands the transport a reference
+to it with `bridgeInto`. The transport publishes into it every frame it
+delivers. The reference flows from client to transport: a transport never
+constructs, replaces or is given a bus any other way.
+*Held by no case.*
+
+## A transport with no wire
+
+A transport in the same process as the services it reaches has one
+connection, which cannot drop and is never handed over. The three classes
+collapse: every frame is delivered once.
+
+- Its state is `open` from construction until it is disposed.
+- It tracks no replies, because it can lose none.
+- It delivers every channel, so `isSubscribed` is true of each.
+- Taking a resource's scope changes nothing it delivers.
+
+*Held by no case.*
+
+## What sits above
+
+The cache ([CACHE-SEMANTICS](../../packages/sdk/docs/CACHE-SEMANTICS.md))
+takes four things from the transport, and nothing else:
+
+1. **Scope follows observation.** Observing something of a resource holds
+   that resource's scope, and positioned events for it then arrive.
+2. **An event refreshes what the cache holds** of what the event is about.
+3. **A gap refreshes what the cache holds** of the scope the gateway could
+   not cover.
+4. **A reopened stream refreshes what the cache holds** of what passing
+   events feed.
+
+Which event refreshes what is [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json).
+
+## What this document is not
+
+- Not an implementation guide. Each transport's source says how it keeps
+  these promises.
+- Not the HTTP wire. See [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md).
+- Not a channel inventory. See [CHANNELS.md](./CHANNELS.md).
+- Not the bus's own semantics: naming, payload shapes, scoping, what rides
+  the bus and what deliberately does not. See [EVENT-BUS.md](./EVENT-BUS.md).

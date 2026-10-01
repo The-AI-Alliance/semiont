@@ -1,6 +1,6 @@
 {
   "about": "the stream names the client's global channels and one entry per resource it holds; a resource joins when its first holder takes it and leaves when its last lets go; a changed subscription is handed to a new stream, and the connection stays open throughout",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/subscribe; BusSubscribeRequest",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Scopes; docs/protocol/TRANSPORT-HTTP.md § Reconnect discipline; BusSubscribeRequest",
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:focus", "browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "token": {"$var": "token"}, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus", "browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},

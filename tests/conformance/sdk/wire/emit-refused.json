@@ -1,6 +1,6 @@
 {
   "about": "an emit the gateway refuses outright fails with that refusal's code, is reported on the error stream, and is not sent again",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/emit; specs/src/retry/cases.json; specs/src/errors/codes.json",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Emits; docs/protocol/TRANSPORT-HTTP.md § Emitting; specs/src/retry/cases.json; specs/src/errors/codes.json",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

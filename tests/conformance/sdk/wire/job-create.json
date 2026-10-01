@@ -1,6 +1,6 @@
 {
   "about": "creating a job resolves with the id the dispatcher gave it, and a job the dispatcher refuses fails with that refusal rather than passing in silence",
-  "source": "docs/protocol/JOBS.md § job:create; specs/src/bus/registry.json operations",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; docs/protocol/JOBS.md § job:create; specs/src/bus/registry.json operations",
   "steps": [
     {"backend": "listen", "with": {"channels": ["job:create"]}},
     {"driver": "open", "with": {"channels": ["job:create-failed", "job:created"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

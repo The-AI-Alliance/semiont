@@ -119,6 +119,19 @@ describe('the cache-refresh generator', () => {
     refused((t) => t.refresh.splice(t.refresh.indexOf(row(t, 'mark:body-updated', 'unenriched')), 1), 'mark:body-updated is split, so it has a row for each of enriched and unenriched');
   });
 
+  it('refuses a row whose trigger nothing replays, unless reopened repairs what it refreshes', () => {
+    // `yield:created` reaches every client on no scope: one published while a
+    // stream is down is lost, and only `reopened` asks again for what it feeds.
+    refused((t) => row(t, 'yield:created').refetches!.push('referencedBy'), 'yield:created refetches referencedBy, and nothing replays it');
+    refused((t) => (row(t, 'reopened').refetches = row(t, 'reopened').refetches!.filter((q) => q !== 'entityTypes')), 'frame:entity-type-added refetches entityTypes');
+    refused((t) => t.refresh.splice(t.refresh.indexOf(row(t, 'reopened')), 1), 'has no row for `reopened`');
+  });
+
+  it('refuses a write or a removal on a trigger with no identity', () => {
+    refused((t) => (row(t, 'yield:updated').removes = ['annotation']), 'yield:updated removes annotation, and its frames have no identity');
+    refused((t) => (row(t, 'frame:tag-schema-added').writes = ['annotation']), 'frame:tag-schema-added writes annotation');
+  });
+
   it('refuses a row that states something a row does not have', () => {
     refused((t) => Object.assign(row(t, 'mark:added'), { invalidates: ['annotations'] }), 'mark:added states invalidates');
   });

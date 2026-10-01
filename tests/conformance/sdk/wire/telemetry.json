@@ -1,6 +1,6 @@
 {
   "about": "a client that exports sends the spans and the count the SDK telemetry table lists, each of its kind and carrying its attributes, and nothing else under their names",
-  "source": "specs/src/sdk-telemetry/telemetry.json",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Telemetry; specs/src/sdk-telemetry/telemetry.json",
   "planes": ["in-process"],
   "telemetry": true,
   "steps": [

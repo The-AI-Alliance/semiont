@@ -1,6 +1,6 @@
 {
   "about": "an emit refused by a limit on every attempt its budget allows fails as rate-limited, each attempt having waited the last refusal's Retry-After",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Limits; specs/src/client/timing.json emitRetry",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Emits; docs/protocol/TRANSPORT-HTTP.md § Emitting; specs/src/client/timing.json emitRetry",
   "planes": ["in-process"],
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

@@ -1,6 +1,6 @@
 {
   "about": "a client that loses its stream while it awaits a reply names that reply when it reopens, so the gateway redelivers it; once the reply has settled it is named no more",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/subscribe (pendingReplies), § HTTP-specific quirk: response-lost",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Correlated-reply retention, § Reconnect discipline",
   "steps": [
     {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},

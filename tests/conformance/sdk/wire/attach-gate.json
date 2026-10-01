@@ -1,6 +1,6 @@
 {
   "about": "a request is not sent before the stream that carries its reply is open: it waits for the stream, inside its own deadline",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle; specs/src/client/timing.json busRequestTimeoutMs",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle; specs/src/client/timing.json busRequestTimeoutMs",
   "steps": [
     {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},

@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the Semiont event bus: channels, their payloads, and the request/reply operations. TypeScript (packages/core) and Go (packages/sdk-go) are BOTH generated from this file — edit here, then run the generators. Payload schemas themselves live in the OpenAPI components; `validate` names the one a channel carries on the wire.",
+  "$comment": "AUTHORITY for the Semiont event bus: channels, their payloads, and the request/reply operations. TypeScript (packages/core) and Go (packages/sdk-go) are BOTH generated from this file — edit here, then run the generators. Payload schemas themselves live in the OpenAPI components; `validate` names the one a channel carries on the wire. A channel's delivery class (positioned, correlated or passing: what a subscriber is promised when its stream drops) is not stated here: scripts/bus/delivery.mjs derives it from `operations`, `audience` and which channels are events of the record.",
   "channelOrder": {
     "eventMap": [
       "yield:created",

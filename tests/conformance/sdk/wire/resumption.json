@@ -1,6 +1,6 @@
 {
   "about": "a stream reopened after a drop resumes each scope from the last persisted event the client delivered on it, a scope with none carrying no watermark, and what was recorded meanwhile is delivered once, in order",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Event id and resumption",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Event id and resumption",
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},

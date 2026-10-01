@@ -1,6 +1,6 @@
 {
   "about": "a request answered on its failure channel fails with the client code the failure's own code becomes; a failure stating no code, or one the client does not know, is rejected",
-  "source": "specs/src/errors/codes.json busRequest; CommandError",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; specs/src/errors/codes.json busRequest; CommandError",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

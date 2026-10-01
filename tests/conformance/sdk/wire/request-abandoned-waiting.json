@@ -1,6 +1,6 @@
 {
   "about": "a request abandoned while it waits for its stream to open is never sent",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
     {"backend": "hold", "with": {"wire": "POST /bus/subscribe"}},

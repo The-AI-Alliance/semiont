@@ -3,42 +3,51 @@
   "channels": {
     "yield:created": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "yield:cloned": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "yield:updated": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "yield:moved": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "yield:representation-added": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "yield:representation-removed": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "yield:create": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "yield:clone-persist": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "yield:update": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "yield:mv": {
       "recorded": false,
@@ -51,17 +60,20 @@
     "yield:clone-token-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "yield:clone-resource-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "yield:clone-create": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "yield:create-ok": {
       "recorded": false,
@@ -129,36 +141,44 @@
     },
     "mark:added": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:removed": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:body-updated": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:entity-tag-added": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:entity-tag-removed": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:archived": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:unarchived": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "mark:create-request": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:create": {
       "recorded": false,
@@ -167,27 +187,32 @@
     "mark:delete": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:update-body": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:archive": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:unarchive": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:update-entity-types": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:create-ok": {
       "recorded": false,
@@ -202,7 +227,8 @@
     "mark:commit": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "mark:commit-ok": {
       "recorded": false,
@@ -256,7 +282,8 @@
     },
     "mark:body-update-failed": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "mark:select-comment": {
       "recorded": false,
@@ -312,21 +339,25 @@
     },
     "frame:entity-type-added": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "frame:tag-schema-added": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "frame:add-entity-type": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "frame:add-tag-schema": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "frame:entity-type-add-ok": {
       "recorded": false,
@@ -350,12 +381,14 @@
     },
     "person:profiled": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "person:profile": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "bind:initiate": {
       "recorded": false,
@@ -364,7 +397,8 @@
     "bind:update-body": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "bind:body-updated": {
       "recorded": false,
@@ -379,7 +413,8 @@
     "match:search-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "match:search-results": {
       "recorded": false,
@@ -394,7 +429,8 @@
     "match:limits-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "match:limits-result": {
       "recorded": false,
@@ -409,7 +445,8 @@
     "gather:requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "gather:complete": {
       "recorded": false,
@@ -424,7 +461,8 @@
     "gather:resource-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "gather:resource-complete": {
       "recorded": false,
@@ -439,7 +477,8 @@
     "gather:summary-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "gather:summary-result": {
       "recorded": false,
@@ -454,7 +493,8 @@
     "gather:limits-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "gather:limits-result": {
       "recorded": false,
@@ -469,7 +509,8 @@
     "browse:resource-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:resource-result": {
       "recorded": false,
@@ -484,7 +525,8 @@
     "browse:anchored-text-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:anchored-text-result": {
       "recorded": false,
@@ -499,7 +541,8 @@
     "browse:resources-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:resources-result": {
       "recorded": false,
@@ -514,7 +557,8 @@
     "browse:annotations-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:annotations-result": {
       "recorded": false,
@@ -529,7 +573,8 @@
     "browse:annotation-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:annotation-result": {
       "recorded": false,
@@ -544,7 +589,8 @@
     "browse:events-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:events-result": {
       "recorded": false,
@@ -559,7 +605,8 @@
     "browse:annotation-history-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:annotation-history-result": {
       "recorded": false,
@@ -574,7 +621,8 @@
     "browse:annotation-context-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:annotation-context-result": {
       "recorded": false,
@@ -589,7 +637,8 @@
     "browse:referenced-by-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:referenced-by-result": {
       "recorded": false,
@@ -604,7 +653,8 @@
     "browse:entity-types-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:entity-types-result": {
       "recorded": false,
@@ -619,7 +669,8 @@
     "browse:tag-schemas-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:tag-schemas-result": {
       "recorded": false,
@@ -634,7 +685,8 @@
     "browse:agents-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:agents-result": {
       "recorded": false,
@@ -649,7 +701,8 @@
     "browse:kb-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:kb-result": {
       "recorded": false,
@@ -664,7 +717,8 @@
     "browse:directory-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "browse:directory-result": {
       "recorded": false,
@@ -678,15 +732,18 @@
     },
     "browse:click": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "browse:resource-open": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "browse:resource-viewed": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "browse:entity-type-clicked": {
       "recorded": false,
@@ -734,73 +791,89 @@
     },
     "beckon:focus": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "beckon:sparkle": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "job:started": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "job:assigned": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "job:completed": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "job:failed": {
       "recorded": true,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "positioned"
     },
     "job:start": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:assign": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:report-progress": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "job:complete": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "job:fail": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "job:checkpoint": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:queued": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "job:cancel-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:cancel": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:limits-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "job:limits-result": {
       "recorded": false,
@@ -815,17 +888,20 @@
     "job:status-requested": {
       "recorded": false,
       "direction": "outbound",
-      "writes": false
+      "writes": false,
+      "delivery": "passing"
     },
     "job:create": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:claim": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "job:status-result": {
       "recorded": false,
@@ -869,16 +945,19 @@
     },
     "weave:applied": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "smelt:settled": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "weave:rebuild": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "weave:rebuild-ok": {
       "recorded": false,
@@ -893,7 +972,8 @@
     "smelt:rebuild-anchors": {
       "recorded": false,
       "direction": "outbound",
-      "writes": true
+      "writes": true,
+      "delivery": "passing"
     },
     "smelt:rebuild-anchors-ok": {
       "recorded": false,
@@ -923,15 +1003,18 @@
     },
     "bus:resume-gap": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "session:joined": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     },
     "session:left": {
       "recorded": false,
-      "direction": "inbound"
+      "direction": "inbound",
+      "delivery": "passing"
     }
   }
 }

@@ -1,6 +1,6 @@
 {
   "about": "a stream refused as unauthorized is reported, and the refused credential is not sent again: the client waits, and opens its stream when it is given another",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle, § Reconnect discipline",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § State; docs/protocol/TRANSPORT-HTTP.md § Reconnect discipline",
   "steps": [
     {"driver": "open", "with": {"token": "not-a-token", "channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 401, "token": "not-a-token", "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},

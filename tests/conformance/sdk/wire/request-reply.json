@@ -1,6 +1,6 @@
 {
   "about": "a request is one emit carrying a correlation id of the client's making on its envelope, and resolves with the response of the reply that carries the same id",
-  "source": "docs/protocol/EVENT-BUS.md § Request and reply; specs/src/bus/registry.json operations",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; specs/src/bus/registry.json operations",
   "steps": [
     {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
     {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},

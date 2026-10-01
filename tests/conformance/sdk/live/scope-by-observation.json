@@ -1,6 +1,6 @@
 {
   "about": "a resource's scope is on the stream while anything of that resource is observed: it joins with the first observer, stays while one remains, and leaves with the last",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md § Bus-event-driven invalidation; docs/protocol/TRANSPORT-HTTP.md § POST /bus/subscribe",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md § Bus-event-driven invalidation; docs/protocol/TRANSPORT-CONTRACT.md § Scopes",
   "tier": "fleet",
   "steps": [
     {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},

@@ -1,6 +1,6 @@
 {
   "about": "an upload carries its bytes unchanged with each field under its own name, and resolves with the id the gateway answers",
-  "source": "docs/protocol/TRANSPORT-HTTP.md; specs/src/paths/resources.json",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Content and the gateway's own operations; specs/src/paths/resources.json",
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},

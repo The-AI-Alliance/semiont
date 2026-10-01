@@ -1,6 +1,6 @@
 {
   "about": "a frame with no identity of its own that is published while a changed subscription is handed from the old stream to the new is carried by both, each under an id of its own, and the client delivers it twice: nothing says the two are one. The connection stays open throughout",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Abort discipline (drain-over-abort), § Event id and resumption; specs/src/client/timing.json lingerMs",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Delivering a frame once; specs/src/client/timing.json lingerMs",
   "steps": [
     {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 5000}}},
     {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}, "as": "old"},

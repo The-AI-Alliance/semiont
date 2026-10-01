@@ -1,6 +1,6 @@
 {
   "about": "a stream refused by a limit is reported and opened again, no sooner than the refusal's Retry-After",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § Limits, § Reconnect discipline",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Failures; docs/protocol/TRANSPORT-HTTP.md § Limits, § Reconnect discipline",
   "steps": [
     {"backend": "refuse", "with": {"wire": "POST /bus/subscribe", "status": 429, "retryAfter": 1, "body": {"error": "The principal holds as many streams as it may", "code": "streams"}, "times": 1}},
     {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},

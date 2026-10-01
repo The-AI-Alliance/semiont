@@ -1,6 +1,6 @@
 {
   "about": "an emit carries its channel, payload and scope beside the client's id, and resolves with the count of subscribers the gateway reports",
-  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/emit; BusEmitRequest, BusEmitAccepted",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Emits; docs/protocol/TRANSPORT-HTTP.md § Emitting; BusEmitRequest, BusEmitAccepted",
   "planes": ["in-process"],
   "steps": [
     {"backend": "listen", "with": {"channels": ["beckon:focus"], "scope": {"$var": "r1"}}},
