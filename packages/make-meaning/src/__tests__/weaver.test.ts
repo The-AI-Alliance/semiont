@@ -29,7 +29,6 @@ const PROD_TIMING: WeaverTiming = {
   checkpointFlushMs: 5_000,
 };
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../weaver-actor-state-unit';
-import { workerBusOverEventBus } from '../worker-bus-local';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { FileWeaverCheckpoint } from '../weaver-checkpoint';
 import { busRequest } from '@semiont/core';
@@ -125,13 +124,13 @@ describe('Weaver', () => {
   let weaverUnit: WeaverActorStateUnit;
 
   const wireWeaver = async (db: GraphDatabase, checkpointPath?: string): Promise<Weaver> => {
-    const workerBus = workerBusOverEventBus(coreEventBus);
+    const workerBus = asBusRequestPrimitive(coreEventBus);
     weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
     const weaver = new Weaver(
       db,
       weaverUnit.events$,
       weaverUnit.rebuilds$,
-      asBusRequestPrimitive(coreEventBus),
+      workerBus,
       new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
       PROD_TIMING,
       mockLogger,
@@ -810,13 +809,13 @@ describe('Weaver', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localWorkerBus = workerBusOverEventBus(coreEventBus);
+      const localWorkerBus = asBusRequestPrimitive(coreEventBus);
       const localUnit = createWeaverActorStateUnit({ bus: localWorkerBus });
       const localConsumer = new Weaver(
         localGraphDb,
         localUnit.events$,
         localUnit.rebuilds$,
-        asBusRequestPrimitive(coreEventBus),
+        localWorkerBus,
         new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
         PROD_TIMING,
         mockLogger,

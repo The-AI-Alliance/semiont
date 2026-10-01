@@ -118,8 +118,8 @@ export class Weaver {
    * `rebuilds$` (the `WeaverActorStateUnit` fan-in — channel selection
    * lives there); `weave:applied` signals, rebuild replies, and the
    * catch-up's `browse:*` reads all ride the injected `BusRequestPrimitive`.
-   * In-process everything rides the core EventBus (`workerBusOverEventBus`
-   * / `asBusRequestPrimitive`); standalone it all rides the gateway.
+   * In-process everything rides the core EventBus
+   * (`asBusRequestPrimitive`); standalone it all rides the gateway.
    */
   constructor(
     private graphDb: GraphDatabase,

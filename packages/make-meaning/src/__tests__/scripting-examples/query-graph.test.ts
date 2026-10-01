@@ -26,7 +26,6 @@ const PROD_TIMING: WeaverTiming = {
   drainTimeoutMs: 30_000, drainPollMs: 25, drainStallPolls: 40, checkpointFlushMs: 5_000,
 };
 import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../../weaver-actor-state-unit';
-import { workerBusOverEventBus } from '../../worker-bus-local';
 import { asBusRequestPrimitive } from '../../bus-request-local';
 import { FileWeaverCheckpoint } from '../../weaver-checkpoint';
 import { promises as fs } from 'fs';
@@ -114,13 +113,13 @@ describe('Scripting Example: Query Graph Database', () => {
     // of the graph stack). A hermetic test that wants projection wires one
     // directly against the service's own graph instance and bus — exactly
     // what weaver-main does in a deployment.
-    const workerBus = workerBusOverEventBus(eventBus);
+    const workerBus = asBusRequestPrimitive(eventBus);
     weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
     weaver = new Weaver(
       makeMeaning.knowledgeSystem.kb.graph,
       weaverUnit.events$,
       weaverUnit.rebuilds$,
-      asBusRequestPrimitive(eventBus),
+      workerBus,
       new FileWeaverCheckpoint(join(testDir, 'weaver-checkpoint.json')),
       PROD_TIMING,
       mockLogger,

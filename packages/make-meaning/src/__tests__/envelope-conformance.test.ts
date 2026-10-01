@@ -3,8 +3,8 @@
  *
  * The gate is a runtime one because the defect is: `emit`'s third parameter is
  * optional in the interface, so an implementation that declares only two
- * typechecks, delivers every payload, and drops the correlation key. All three
- * relays here were written that way and the compiler had nothing to say — the
+ * typechecks, delivers every payload, and drops the correlation key. Every
+ * relay here was written that way and the compiler had nothing to say — the
  * symptom was `startMakeMeaning` hanging on its entity-type bootstrap, which
  * awaits a reply keyed on exactly that key.
  */
@@ -14,7 +14,6 @@ import { EventBus, userDID } from '@semiont/core';
 import { assertCarriesEnvelope } from '@semiont/core/testing';
 import { firstValueFrom, take, timeout } from 'rxjs';
 import { asBusRequestPrimitive } from '../bus-request-local';
-import { workerBusOverEventBus } from '../worker-bus-local';
 import { LocalTransport } from '../local-transport';
 
 const CHANNEL = 'frame:add-entity-type' as const;
@@ -33,21 +32,6 @@ describe('in-process relays carry the frame envelope', () => {
       const observed = firstKey(bus);
       await assertCarriesEnvelope({
         relay: asBusRequestPrimitive(bus),
-        observe: () => observed,
-        channel: CHANNEL,
-        payload: PAYLOAD,
-      });
-    } finally {
-      bus.destroy();
-    }
-  });
-
-  it('workerBusOverEventBus', async () => {
-    const bus = new EventBus();
-    try {
-      const observed = firstKey(bus);
-      await assertCarriesEnvelope({
-        relay: workerBusOverEventBus(bus),
         observe: () => observed,
         channel: CHANNEL,
         payload: PAYLOAD,

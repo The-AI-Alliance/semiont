@@ -5,7 +5,7 @@
  * Subscribes to the nine graph-relevant channels on a shared bus and
  * exposes them as a single `StoredEvent`-typed `events$` stream.
  * Transport-neutral — the caller passes a `BusRequestPrimitive` (the in-process
- * `workerBusOverEventBus` shim today, the HTTP `ActorStateUnit` once the
+ * `asBusRequestPrimitive` adapter today, the HTTP `ActorStateUnit` once the
  * Weaver runs standalone). The state unit does not own the bus and does
  * not dispose it.
  *
