@@ -1,0 +1,17 @@
+{
+  "about": "an emit the gateway refuses outright fails with that refusal's code, is reported on the error stream, and is not sent again",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/emit; specs/src/retry/cases.json; specs/src/errors/codes.json",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "emit", "with": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$join": ["claim-", {"$var": "r1"}]}}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$join": ["claim-", {"$var": "r1"}]}, "clientId": {"$var": "clientId"}}},
+
+    {"driver": "emit", "with": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$join": ["claim-", {"$var": "r1"}]}}, "fails": {"code": "conflict", "status": 409}},
+    {"wire": "POST /bus/emit", "status": 409, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$join": ["claim-", {"$var": "r1"}]}, "clientId": {"$var": "clientId"}}},
+    {"error": {"code": "conflict", "status": 409}}
+  ]
+}

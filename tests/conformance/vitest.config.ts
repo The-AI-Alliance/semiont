@@ -1,5 +1,5 @@
 import { defineConfig } from 'vitest/config';
-import { DISPATCHER_COMMAND, GATEWAY_COMMAND } from './harness/paths';
+import { DISPATCHER_COMMAND, GATEWAY_COMMAND, SDK_DRIVERS } from './harness/paths';
 
 // Every file boots its own processes, issuer, Archivist and broker on ports of
 // its own, so files run in parallel; the cases inside a file share them and
@@ -27,6 +27,15 @@ export default defineConfig({
           include: ['dispatcher/**/*.test.ts'],
           provide: { gatewayCommand: GATEWAY_COMMAND, dispatcherCommand: DISPATCHER_COMMAND },
           globalSetup: ['harness/global-setup.ts', 'harness/dispatcher-setup.ts'],
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: 'sdk',
+          include: ['sdk/**/*.test.ts'],
+          provide: { gatewayCommand: GATEWAY_COMMAND, sdkDrivers: SDK_DRIVERS },
+          globalSetup: ['harness/global-setup.ts', 'harness/sdk-setup.ts'],
         },
       },
     ],

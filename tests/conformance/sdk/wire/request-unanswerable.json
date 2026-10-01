@@ -1,0 +1,12 @@
+{
+  "about": "a request no service is there to answer fails as peer-unavailable, from the failure the gateway itself sends",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/emit; specs/src/errors/codes.json",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "fails": {"code": "bus.peer-unavailable"}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "_"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 0}}
+  ]
+}

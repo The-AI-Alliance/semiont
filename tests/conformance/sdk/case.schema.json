@@ -1,0 +1,260 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "An SDK conformance case",
+  "description": "One scenario every SDK is put through: what the client is asked to do, what the backend does around it, and the transcript a conforming client produces. README.md explains each step.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "about",
+    "source",
+    "steps"
+  ],
+  "properties": {
+    "about": {
+      "type": "string",
+      "minLength": 1,
+      "description": "What the case holds a client to, in a sentence."
+    },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where the protocol or the spec states it."
+    },
+    "planes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "in-process",
+          "nats"
+        ]
+      },
+      "description": "The signal planes the case runs on. Absent, it runs on both."
+    },
+    "steps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/definitions/step"
+      }
+    }
+  },
+  "definitions": {
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+    },
+    "step": {
+      "oneOf": [
+        {
+          "description": "Name values for later steps.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "let"
+          ],
+          "properties": {
+            "let": {
+              "type": "object",
+              "minProperties": 1
+            }
+          }
+        },
+        {
+          "description": "Ask the driver for an operation. It must succeed, with `returns` when given, or fail with `fails`. With `as`, the step does not wait: a later `settles` step does.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "driver"
+          ],
+          "not": {
+            "required": [
+              "returns",
+              "fails"
+            ]
+          },
+          "properties": {
+            "driver": {
+              "type": "string"
+            },
+            "with": {
+              "type": "object"
+            },
+            "returns": {},
+            "fails": {},
+            "as": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "An operation started with `as` settles: it succeeded, with `returns` when given, or failed with `fails`.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "settles"
+          ],
+          "not": {
+            "required": [
+              "returns",
+              "fails"
+            ]
+          },
+          "properties": {
+            "settles": {
+              "$ref": "#/definitions/name"
+            },
+            "returns": {},
+            "fails": {}
+          }
+        },
+        {
+          "description": "The next request the client put on the wire is this operation, with each field given.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "wire"
+          ],
+          "properties": {
+            "wire": {
+              "type": "string",
+              "pattern": "^(GET|POST|PUT|DELETE|PATCH) /"
+            },
+            "at": {
+              "enum": [
+                "arrival",
+                "answer",
+                "live"
+              ]
+            },
+            "status": {
+              "type": "integer"
+            },
+            "params": {
+              "type": "object"
+            },
+            "body": {},
+            "token": {},
+            "answer": {},
+            "as": {
+              "$ref": "#/definitions/name"
+            },
+            "follows": {
+              "$ref": "#/definitions/name"
+            },
+            "waited": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "The stream a wire step named has carried this frame to the client.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "carried",
+            "is"
+          ],
+          "properties": {
+            "carried": {
+              "$ref": "#/definitions/name"
+            },
+            "is": {}
+          }
+        },
+        {
+          "description": "The transport comes to report this state.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "initial",
+                "connecting",
+                "open",
+                "reconnecting",
+                "degraded",
+                "unauthenticated",
+                "closed"
+              ]
+            }
+          }
+        },
+        {
+          "description": "The next frame the client delivers on this channel is this one.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frame",
+            "is"
+          ],
+          "properties": {
+            "frame": {
+              "type": "string"
+            },
+            "is": {}
+          }
+        },
+        {
+          "description": "The next failure on the client's error stream is this one.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "error"
+          ],
+          "properties": {
+            "error": {}
+          }
+        },
+        {
+          "description": "The backend does something.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "backend"
+          ],
+          "properties": {
+            "backend": {
+              "enum": [
+                "listen",
+                "emit",
+                "record",
+                "content",
+                "description",
+                "uploaded",
+                "refuse",
+                "hold",
+                "release",
+                "rechunk",
+                "cut",
+                "down",
+                "up"
+              ]
+            },
+            "with": {
+              "type": "object"
+            }
+          }
+        },
+        {
+          "description": "The client puts nothing more on the wire for this many milliseconds.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "quiet"
+          ],
+          "properties": {
+            "quiet": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ]
+    }
+  }
+}

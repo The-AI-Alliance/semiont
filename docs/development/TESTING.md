@@ -533,6 +533,8 @@ Its `pretest` typechecks the cases first. What each check covers is in the gatew
 
 The dispatcher's behaviour is the same suite's `dispatcher` project, against make-meaning's built entry point behind a built gateway: `npm run test:dispatcher` in `tests/conformance`, after the steps above. What it checks is in its [README](../../tests/conformance/dispatcher/README.md).
 
+The SDKs' behaviour on the wire is the same suite's `sdk` project: each SDK's driver put through one corpus of cases against a built gateway, `npm run test:sdk` in `tests/conformance`, after the steps above. The driver protocol and the case format are in its [README](../../tests/conformance/sdk/README.md).
+
 Go, as CI runs them:
 
 ```bash
@@ -631,6 +633,7 @@ Node 24, with these jobs:
 | `test-gateway` | `cargo fmt --check`, `clippy -D warnings` and `cargo test` for `apps/gateway`; the crates it links held to the licence policy and its image's NOTICE |
 | `gateway-conformance` | Builds the gateway, installs `nats-server`, runs `tests/conformance`'s gateway project |
 | `dispatcher-conformance` | Builds the gateway and the packages, installs `nats-server`, runs `tests/conformance`'s dispatcher project |
+| `sdk-conformance` | Builds the gateway and `@semiont/http-transport`, installs `nats-server`, runs `tests/conformance`'s sdk project |
 | `test-comprehensive` | The Browser suite again |
 | `validate-config` | `npm ci --include=optional` + `npm run build:packages` |
 | `check-phantom-deps` | Every import in a published `dist` is declared by its package |

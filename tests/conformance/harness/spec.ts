@@ -206,6 +206,8 @@ interface RegistryOperation {
 interface Registry {
   channels: RegistryChannel[];
   operations: RegistryOperation[];
+  /** `scoped`: the channels delivered only to the subscribers of a resource's scope. */
+  audience: { scoped: string[] };
   effect: { writes: string[]; reads: string[] };
 }
 

@@ -1,0 +1,40 @@
+{
+  "about": "a request answered on its failure channel fails with the client code the failure's own code becomes; a failure stating no code, or one the client does not know, is rejected",
+  "source": "specs/src/errors/codes.json busRequest; CommandError",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked1"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid1"}, "payload": {"message": "no such resource", "code": "not-found"}}},
+    {"settles": "asked1", "fails": {"code": "bus.not-found"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked2"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid2"}, "payload": {"message": "nobody answers that", "code": "peer-unavailable"}}},
+    {"settles": "asked2", "fails": {"code": "bus.peer-unavailable"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked3"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid3"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid3"}, "payload": {"message": "not yours to ask", "code": "unauthorized"}}},
+    {"settles": "asked3", "fails": {"code": "bus.unauthorized"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked4"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid4"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid4"}, "payload": {"message": "nothing is pending", "code": "none-pending"}}},
+    {"settles": "asked4", "fails": {"code": "bus.none-pending"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked5"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid5"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid5"}, "payload": {"message": "it went wrong"}}},
+    {"settles": "asked5", "fails": {"code": "bus.rejected"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked6"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid6"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "cid6"}, "payload": {"message": "a code from the future", "code": "not-invented-yet"}}},
+    {"settles": "asked6", "fails": {"code": "bus.rejected"}}
+  ]
+}

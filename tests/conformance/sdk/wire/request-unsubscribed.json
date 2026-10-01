@@ -1,0 +1,11 @@
+{
+  "about": "a request whose reply channels the client's stream does not carry fails at once as unsubscribed, and nothing is sent",
+  "source": "specs/src/errors/codes.json bus.unsubscribed",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "fails": {"code": "bus.unsubscribed"}}
+  ]
+}

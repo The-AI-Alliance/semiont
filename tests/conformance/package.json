@@ -3,13 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Black-box conformance suites for the gateway and the dispatcher: they start the processes and check them against specs/. They import nothing from either implementation; see README.md.",
+  "description": "Black-box conformance suites for the gateway, the dispatcher and the SDKs: they start the processes and check them against specs/. They import nothing from any implementation; see README.md.",
   "scripts": {
     "typecheck": "tsc --noEmit",
     "pretest": "npm run typecheck",
     "test": "vitest run",
     "test:gateway": "npm run typecheck && vitest run --project gateway",
-    "test:dispatcher": "npm run typecheck && vitest run --project dispatcher"
+    "test:dispatcher": "npm run typecheck && vitest run --project dispatcher",
+    "test:sdk": "npm run typecheck && vitest run --project sdk"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",

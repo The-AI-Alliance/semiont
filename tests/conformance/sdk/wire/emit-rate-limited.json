@@ -1,0 +1,15 @@
+{
+  "about": "an emit refused by a limit is sent again, no sooner than the refusal's Retry-After, and then resolves as if it had never been refused",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § Limits; specs/src/client/timing.json emitRetry",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"backend": "refuse", "with": {"wire": "POST /bus/emit", "status": 429, "retryAfter": 1, "body": {"error": "The principal's emits have used its bucket", "code": "emit-rate"}, "times": 1}},
+
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "as": "emitted"},
+    {"wire": "POST /bus/emit", "status": 429, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "as": "refused"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "waited": "refused"},
+    {"settles": "emitted"}
+  ]
+}

@@ -75,6 +75,13 @@ export interface HttpTransportConfig {
    * fails fast with `bus.unsubscribed` (see `BusRequestPrimitive`).
    */
   channels?: readonly (keyof EventMap)[];
+  /**
+   * `reconnectMs` and `lazyRemoveMs` of specs/src/client/timing.json, for a
+   * caller that must not wait them out: a test, or the conformance driver.
+   * Absent, the table's values stand.
+   */
+  reconnectMs?: number;
+  lazyRemoveMs?: number;
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -281,15 +288,17 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         channels: [...globalChannels],
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
+        ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
+        ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
         // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
         // P4, D2) — the SSE connect path refreshes once before parking
         // `unauthenticated`, and no second refresh mechanism exists.
         ...(this.config.tokenRefresher ? { tokenRefresher: this.config.tokenRefresher } : {}),
       });
       // Refused connects surface on the transport's contract stream too —
-      // an SSE subscribe IS an HTTP request, and `SseConnectError` is a
-      // `SemiontError` (SSE-AUTH-RESILIENCE P4, closing P2's deferred
-      // bridge question).
+      // an SSE subscribe IS an HTTP request, refused as an `APIError` like
+      // any other (SSE-AUTH-RESILIENCE P4, closing P2's deferred bridge
+      // question).
       this._actor.errors$.subscribe((e) => this.errorsSubject.next(e));
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-subscribed set AND the resource-scoped set (disjoint by the
@@ -329,7 +338,16 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     recordBusEmit(channel as string, envelope?.scope);
     return withSpan(
       `bus.emit:${channel as string}`,
-      async () => this.actor.emit(channel, payload, envelope),
+      async () => {
+        try {
+          return await this.actor.emit(channel, payload, envelope);
+        } catch (error) {
+          // A refused emit is a transport failure like any other, so it is
+          // reported where the others are before its caller hears it.
+          if (error instanceof SemiontError) this.pushError(error);
+          throw error;
+        }
+      },
       {
         kind: SpanKind.PRODUCER,
         attrs: {
@@ -418,10 +436,11 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     if (this.disposed) return;
     this.disposed = true;
     this.scopeRefCounts.clear();
-    if (this._actor) {
-      this._actor.dispose();
-      this._actor = null;
-    }
+    // The disposed actor is kept, and built first if nothing ever touched it:
+    // a caller arriving later must find a closed bus. Dropping it let the
+    // getter build a fresh one that nothing would ever start, and a request
+    // waited out its whole timeout on a stream that could not open.
+    this.actor.dispose();
     this.errorsSubject.complete();
   }
 

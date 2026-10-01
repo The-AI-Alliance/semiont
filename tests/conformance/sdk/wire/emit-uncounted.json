@@ -1,0 +1,14 @@
+{
+  "about": "an emit the gateway could not count resolves with no count: an absence stays an absence, never a zero",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/emit; BusEmitAccepted",
+  "planes": ["nats"],
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["beckon:focus"]}},
+    {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "returns": {}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "clientId": {"$var": "clientId"}}, "answer": {}}
+  ]
+}

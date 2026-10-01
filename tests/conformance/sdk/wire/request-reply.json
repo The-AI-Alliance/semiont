@@ -1,0 +1,16 @@
+{
+  "about": "a request is one emit carrying a correlation id of the client's making on its envelope, and resolves with the response of the reply that carries the same id",
+  "source": "docs/protocol/EVENT-BUS.md § Request and reply; specs/src/bus/registry.json operations",
+  "steps": [
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "cid"}, "payload": {"response": {"$var": "response"}}}},
+    {"settles": "asked", "returns": {"response": {"$var": "response"}}}
+  ]
+}

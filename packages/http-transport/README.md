@@ -41,7 +41,6 @@ import {
   type ActorStateUnit,
   type BusEvent,
   type ActorStateUnitOptions,
-  SseConnectError,
 } from '@semiont/http-transport';
 ```
 

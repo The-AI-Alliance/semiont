@@ -8,7 +8,6 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-import { SseConnectError } from './sse-connect-error';
 import { APIError } from './api-error';
 
 export type { ConnectionState };
@@ -78,12 +77,13 @@ export interface ActorStateUnitOptions {
  */
 export interface ActorStateUnit extends StateUnit, BusRequestPrimitive {
   /**
-   * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
-   * non-2xx `/bus/subscribe` answer, carrying the HTTP status as
-   * structured data. Network-level failures (fetch rejections) have no
-   * status and do not emit here — they stay on the reconnect path.
+   * Refused connects (SSE-AUTH-RESILIENCE P2). One `APIError` per non-2xx
+   * `/bus/subscribe` answer, carrying the HTTP status and the code it maps
+   * to, as a refused request does. Network-level failures (fetch
+   * rejections) have no status and do not emit here — they stay on the
+   * reconnect path.
    */
-  errors$: Observable<SseConnectError>;
+  errors$: Observable<APIError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: readonly (keyof EventMap)[], scope?: string): void;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
@@ -145,7 +145,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
-  const errors$ = new Subject<SseConnectError>();
+  const errors$ = new Subject<APIError>();
   let currentState: ConnectionState = 'initial';
   let degradedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -412,7 +412,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
-        throw new SseConnectError(response.status, retryAfterMs(response.headers.get('retry-after')));
+        throw APIError.fromStatus(
+          `SSE connect failed: ${response.status}`,
+          response.status,
+          response.statusText,
+          undefined,
+          retryAfterMs(response.headers.get('retry-after')),
+        );
       }
 
       // Stopped/disposed while the fetch was in flight — don't proceed to open
@@ -594,7 +600,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // A refused connect carries its status out (P2). Anything else — a
       // network failure, a dropped stream — has no status to carry and
       // stays off errors$.
-      if (err instanceof SseConnectError) {
+      if (err instanceof APIError) {
         statedWait = err.retryAfterMs;
         errors$.next(err);
         // 401: re-sending THIS bearer is deterministic, so park instead of

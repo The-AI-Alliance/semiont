@@ -1,0 +1,17 @@
+{
+  "about": "a request nobody answers fails as a timeout when its time is up, and the client stops asking the gateway for its reply",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § POST /bus/subscribe (pendingReplies); specs/src/errors/codes.json",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 300}, "fails": {"code": "bus.timeout"}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "_"}, "clientId": {"$var": "clientId"}}},
+
+    {"backend": "cut"},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"}
+  ]
+}

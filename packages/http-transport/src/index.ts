@@ -38,4 +38,3 @@ export {
   type BusEvent,
   type ActorStateUnitOptions,
 } from './transport/actor-state-unit';
-export { SseConnectError } from './transport/sse-connect-error';

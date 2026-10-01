@@ -1,0 +1,29 @@
+{
+  "about": "a stream reopened after a drop resumes each scope from the last persisted event the client delivered on it, a scope with none carrying no watermark, and what was recorded meanwhile is delivered once, in order",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § Event id and resumption",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "listen", "with": {"channel": "mark:added"}},
+    {"driver": "subscribe-resource", "with": {"resource": {"$var": "r1"}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [{"scope": {"$var": "r1"}, "channels": {"$var": "resourceScopedChannels"}}], "pendingReplies": []}},
+    {"driver": "subscribe-resource", "with": {"resource": {"$var": "r2"}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "at": "live", "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [{"scope": {"$var": "r1"}, "channels": {"$var": "resourceScopedChannels"}}, {"scope": {"$var": "r2"}, "channels": {"$var": "resourceScopedChannels"}}], "pendingReplies": []}},
+
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 1, "live": true}},
+    {"frame": "mark:added", "is": {"payload": {"$var": "_"}, "scope": {"$var": "r1"}}},
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 2, "live": true}},
+    {"frame": "mark:added", "is": {"payload": {"$var": "_"}, "scope": {"$var": "r1"}}},
+
+    {"backend": "down"},
+    {"state": "reconnecting"},
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 3, "live": false}},
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 4, "live": false}},
+    {"backend": "up"},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [{"scope": {"$var": "r1"}, "channels": {"$var": "resourceScopedChannels"}, "lastEventId": {"$join": ["p-", {"$var": "r1"}, "-2"]}}, {"scope": {"$var": "r2"}, "channels": {"$var": "resourceScopedChannels"}}], "pendingReplies": []}},
+    {"frame": "mark:added", "is": {"payload": {"$var": "_"}, "scope": {"$var": "r1"}}},
+    {"frame": "mark:added", "is": {"payload": {"$var": "_"}, "scope": {"$var": "r1"}}},
+    {"state": "open"}
+  ]
+}

@@ -310,7 +310,7 @@ from construction. The HTTP state machine:
 | `open` | SSE stream is live; at least one frame received. |
 | `reconnecting` | Was open or connecting; now retrying. May be transient (mount churn, channel-set change) or sustained (network loss). |
 | `degraded` | Has been in `reconnecting` for longer than `DEGRADED_THRESHOLD_MS` (3 s). UI banner threshold — distinguishes brief churn from real disconnection. |
-| `unauthenticated` | Not attempting: the token getter returns nothing, or returned a bearer the gateway refused with 401. The tick keeps polling the GETTER (no network) and the actor reconnects by itself the moment a usable, different credential appears. The refusal is on `errors$` as a `SseConnectError` carrying the status. |
+| `unauthenticated` | Not attempting: the token getter returns nothing, or returned a bearer the gateway refused with 401. The tick keeps polling the GETTER (no network) and the actor reconnects by itself the moment a usable, different credential appears. The refusal is on `errors$` as an `APIError` carrying the status and its code. |
 | `closed` | `stop()` or `dispose()` was called. Terminal. |
 
 Transitions are enforced by an internal helper. An invalid move is
@@ -347,7 +347,7 @@ The client-side `ActorStateUnit` handles three reconnect triggers:
 
 1. **Server/network disconnect, or a refused connect.** The SSE read
    loop exits (or the subscribe POST answers non-2xx — surfaced on
-   `errors$` as a `SseConnectError` carrying the status); state
+   `errors$` as an `APIError` carrying the status and its code); state
    transitions to `reconnecting`; `connect()` is retried on an
    **equal-jitter exponential backoff**: delay ∈ [cap/2, cap] with
    cap = min(`reconnectMs`·2ⁿ, 60 s), n resetting on a successful
