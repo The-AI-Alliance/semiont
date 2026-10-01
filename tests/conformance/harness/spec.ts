@@ -222,7 +222,11 @@ export function operationFor(request: string): RegistryOperation {
 }
 
 /** The names of the environment variables `service` reads (service-environment/variables.json). */
-export function serviceEnvironment(service: 'gateway' | 'dispatcher'): string[] {
+/** A Rust service the spec's service tables (service-environment, service-telemetry) cover. */
+export type Service = 'gateway' | 'dispatcher';
+const SERVICES: readonly Service[] = ['gateway', 'dispatcher'];
+
+export function serviceEnvironment(service: Service): string[] {
   const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'service-environment/variables.json'), 'utf8'));
   const rows = isObject(table) && Array.isArray(table['variables']) ? table['variables'] : [];
   const names = rows.flatMap((row) =>
@@ -242,6 +246,8 @@ export interface TelemetryAttribute {
 
 export interface TelemetryRow {
   name: string;
+  /** The services that export it. */
+  services: Service[];
   /** A span's OTLP kind, or a metric's instrument. */
   kind: string;
   when: 'export' | 'traffic' | 'supervised' | 'fatal';
@@ -252,31 +258,49 @@ export interface TelemetryRow {
 const WHEN = ['export', 'traffic', 'supervised', 'fatal'] as const;
 const isWhen = (v: unknown): v is TelemetryRow['when'] => WHEN.some((w) => w === v);
 
+const isService = (v: unknown): v is Service => SERVICES.some((s) => s === v);
+
 function telemetryRows(rows: unknown, kindKey: 'kind' | 'instrument'): TelemetryRow[] {
-  if (!Array.isArray(rows)) throw new Error('gateway-telemetry/telemetry.json: spans and metrics must be lists');
+  if (!Array.isArray(rows)) throw new Error('service-telemetry/telemetry.json: spans and metrics must be lists');
   return rows.map((r) => {
     if (!isObject(r) || typeof r['name'] !== 'string' || typeof r[kindKey] !== 'string' || !isWhen(r['when']) || !Array.isArray(r['attributes'])) {
-      throw new Error(`gateway-telemetry/telemetry.json: a row is malformed: ${JSON.stringify(r)}`);
+      throw new Error(`service-telemetry/telemetry.json: a row is malformed: ${JSON.stringify(r)}`);
+    }
+    const services = r['services'];
+    if (!Array.isArray(services) || services.length === 0 || !services.every(isService)) {
+      throw new Error(`service-telemetry/telemetry.json: ${r['name']} names no services, or one that is not ${SERVICES.join(' or ')}`);
     }
     const attributes = r['attributes'].map((a): TelemetryAttribute => {
-      if (!isObject(a) || typeof a['key'] !== 'string') throw new Error(`gateway-telemetry/telemetry.json: ${r['name']} has a malformed attribute`);
+      if (!isObject(a) || typeof a['key'] !== 'string') throw new Error(`service-telemetry/telemetry.json: ${r['name']} has a malformed attribute`);
       const values = Array.isArray(a['values']) ? a['values'].map(String) : undefined;
       return { key: a['key'], ...(values ? { values } : {}), ...(typeof a['only'] === 'string' ? { only: a['only'] } : {}) };
     });
     const planes = Array.isArray(r['planes']) ? r['planes'].map(String) : undefined;
-    return { name: r['name'], kind: String(r[kindKey]), when: r['when'], attributes, ...(planes ? { planes } : {}) };
+    return { name: r['name'], services, kind: String(r[kindKey]), when: r['when'], attributes, ...(planes ? { planes } : {}) };
   });
 }
 
-let telemetryTable: { spans: TelemetryRow[]; metrics: TelemetryRow[] } | undefined;
+export interface Telemetry {
+  spans: TelemetryRow[];
+  metrics: TelemetryRow[];
+}
 
-/** The telemetry a gateway exports (gateway-telemetry/telemetry.json): its spans and metrics. */
-export function telemetry(): { spans: TelemetryRow[]; metrics: TelemetryRow[] } {
+let telemetryTable: Telemetry | undefined;
+
+/** Every row of service-telemetry/telemetry.json. */
+function telemetryAll(): Telemetry {
   if (telemetryTable) return telemetryTable;
-  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'gateway-telemetry/telemetry.json'), 'utf8'));
-  if (!isObject(table)) throw new Error('gateway-telemetry/telemetry.json is not an object');
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'service-telemetry/telemetry.json'), 'utf8'));
+  if (!isObject(table)) throw new Error('service-telemetry/telemetry.json is not an object');
   telemetryTable = { spans: telemetryRows(table['spans'], 'kind'), metrics: telemetryRows(table['metrics'], 'instrument') };
   return telemetryTable;
+}
+
+/** The telemetry `service` exports (service-telemetry/telemetry.json): the spans and metrics that list it. */
+export function telemetry(service: Service): Telemetry {
+  const { spans, metrics } = telemetryAll();
+  const of = (rows: TelemetryRow[]) => rows.filter((r) => r.services.includes(service));
+  return { spans: of(spans), metrics: of(metrics) };
 }
 
 /** What an exported span name looks like for a row: `{channel}` stands for any channel. */
@@ -287,7 +311,7 @@ export function spanPattern(row: TelemetryRow): RegExp {
 
 /** A span's exported name, from the row the spec lists: `spanName('bus.dispatch:{channel}', { channel })`. */
 export function spanName(template: string, fill: Record<string, string> = {}): string {
-  if (!telemetry().spans.some((r) => r.name === template)) throw new Error(`the spec lists no span ${template}`);
+  if (!telemetryAll().spans.some((r) => r.name === template)) throw new Error(`the spec lists no span ${template}`);
   return template.replace(/\{([a-z]+)\}/g, (_, key: string) => {
     const value = fill[key];
     if (value === undefined) throw new Error(`span ${template} needs a value for {${key}}`);
@@ -297,7 +321,7 @@ export function spanName(template: string, fill: Record<string, string> = {}): s
 
 /** A metric's name, as the spec lists it. */
 export function metricName(name: string): string {
-  if (!telemetry().metrics.some((r) => r.name === name)) throw new Error(`the spec lists no metric ${name}`);
+  if (!telemetryAll().metrics.some((r) => r.name === name)) throw new Error(`the spec lists no metric ${name}`);
   return name;
 }
 

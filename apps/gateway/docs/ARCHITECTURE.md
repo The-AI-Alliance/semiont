@@ -182,8 +182,8 @@ relays. The gateway makes no bus request of its own.
 ## Telemetry
 
 `semiont_observability::telemetry` exports over OTLP/HTTP (protobuf) the spans and
-metrics [specs/src/gateway-telemetry/telemetry.json](../../../specs/src/gateway-telemetry/telemetry.json)
-lists, and nothing else: the process's own readings, and the gateway's
+metrics [specs/src/service-telemetry/telemetry.json](../../../specs/src/service-telemetry/telemetry.json)
+lists for the gateway, and nothing else: the process's own readings, and the gateway's
 instruments ([src/metrics.rs](../src/metrics.rs)) made on its meter. It reads
 its variables itself and configures the SDK from them; nothing lets a library
 read the environment on its own behalf.

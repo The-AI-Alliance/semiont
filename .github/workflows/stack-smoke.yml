@@ -55,7 +55,9 @@ jobs:
 
       - name: Build the packages, images and launcher from this commit
         if: env.SEMIONT_VERSION == 'local'
-        run: scripts/ci/local-build.sh
+        # The stack boots under docker, the engine that builds the images, so
+        # they are not copied into the runner's podman as well.
+        run: scripts/ci/local-build.sh --no-fanout
 
       - uses: actions/setup-go@v7.0.0
         if: env.SEMIONT_VERSION != 'local'

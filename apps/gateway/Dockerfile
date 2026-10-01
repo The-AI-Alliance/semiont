@@ -42,11 +42,15 @@ COPY packages/observability-rust/Cargo.toml packages/observability-rust/
 COPY packages/observability-rust/src packages/observability-rust/src
 COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
 COPY packages/sdk-rust/src packages/sdk-rust/src
-# A spec that does not compile fails here, in semiont-core's build.rs, never at boot.
+# The builder stage is the same in each Rust service's Dockerfile
+# (lint:rust-images): it builds every service's binary, so an image built
+# after, or beside, another reuses its stage instead of compiling the
+# workspace again. A spec that does not compile fails here, in the build
+# scripts, never at boot.
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/build/target \
-    cargo auditable build --release --locked -p semiont-gateway && \
-    cp target/release/semiont-gateway /semiont-gateway
+    cargo auditable build --release --locked -p semiont-dispatcher -p semiont-gateway && \
+    cp target/release/semiont-dispatcher target/release/semiont-gateway /
 
 FROM alpine:3.24
 RUN apk upgrade --no-cache && apk add --no-cache tini

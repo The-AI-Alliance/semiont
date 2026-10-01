@@ -178,7 +178,9 @@ set `JWT_SECRET`, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`.
 
 The image ([Dockerfile](Dockerfile)) compiles the crate from the repository
 with that toolchain — pass `--build-arg RUST_TOOLCHAIN=<channel>`, as
-`scripts/ci/local-build.sh` and the publish workflow do — and is held to
+`scripts/ci/local-build.sh` and the publish workflow do. Its builder stage is
+the dispatcher image's too, building both binaries (`lint:rust-images`). It is
+held to
 [`scripts/container/check-gateway-image.sh`](../../scripts/container/check-gateway-image.sh):
 no source in it, and `/api/health` served within its start bound.
 

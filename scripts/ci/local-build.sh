@@ -145,9 +145,11 @@ step "Container runtime: ${BOLD}$RT${RESET}"
 SKIP_BUILD=false
 IMAGES_ONLY=false
 IMAGES_FORCED=false
+FANOUT=true
 PACKAGES=""
 START_FROM=""
-IMAGES="gateway worker smelter weaver archivist dispatcher librarian browser"
+ALL_IMAGES="gateway worker smelter weaver archivist dispatcher librarian browser"
+IMAGES="$ALL_IMAGES"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --skip-build) SKIP_BUILD=true; shift ;;
@@ -156,6 +158,7 @@ while [[ $# -gt 0 ]]; do
     --start-from) START_FROM="$2"; shift 2 ;;
     --image) IMAGES="${2//,/ }"; IMAGES_FORCED=true; shift 2 ;;
     --force-images) IMAGES_FORCED=true; shift ;;
+    --no-fanout) FANOUT=false; shift ;;
     -h|--help)
       echo "Usage: local-build.sh [options]"
       echo ""
@@ -175,12 +178,15 @@ while [[ $# -gt 0 ]]; do
       echo "  --start-from <pkg> Skip packages before this one in the build order"
       echo "  --skip-build       Skip build, publish only (reuse previous artifacts)"
       echo "  --image <list>     Comma-separated images to build (default:"
-      echo "                     gateway,worker,smelter,weaver,archivist,librarian,dispatcher,browser)."
+      echo "                     ${ALL_IMAGES// /,})."
       echo "                     Named images always build, even when unchanged"
       echo "  --force-images     Build every image even when its Dockerfile and"
       echo "                     package integrities are unchanged (images whose"
       echo "                     inputs the skip check cannot see — a moved base"
       echo "                     tag, bumped third-party deps — need this)"
+      echo "  --no-fanout        Leave the images in the building engine's store only"
+      echo "                     (a machine that runs them with that engine alone,"
+      echo "                     such as a CI runner, has no use for the copies)"
       echo "  --images-only      Build ONLY container images, against the Verdaccio a"
       echo "                     previous run left running. Skips the npm build+publish,"
       echo "                     the drift gates and the launcher. Pair with --image to"
@@ -193,12 +199,12 @@ while [[ $# -gt 0 ]]; do
       echo ""
       echo "  --images-only reuses the packages already in Verdaccio, so it picks up a"
       echo "  code change ONLY if that package was republished. Change package source"
-      echo "  and you want a full run (or --package <pkg>) first. The gateway image is"
-      echo "  the exception: it compiles apps/gateway from the working tree every time."
+      echo "  and you want a full run (or --package <pkg>) first. The gateway and"
+      echo "  dispatcher images are the exception: they compile the Rust workspace from"
+      echo "  the working tree every time."
       echo ""
-      echo "Build order:"
-      echo "  http-transport, ontology, core, content, event-sourcing, graph, inference,"
-      echo "  jobs, make-meaning, react-ui, browser"
+      echo "Packages build in the order version.json lists them; an unknown"
+      echo "--package name is refused with the list."
       exit 0
       ;;
     *) fail "Unknown argument: $1" >&2; exit 1 ;;
@@ -224,7 +230,7 @@ image_dockerfile() {
 
 for img in $IMAGES; do
   if ! image_dockerfile "$img" >/dev/null; then
-    fail "Unknown image: $img (expected gateway, worker, smelter, weaver, archivist, librarian, dispatcher, or browser)"
+    fail "Unknown image: $img (expected one of: ${ALL_IMAGES// /, })"
     exit 1
   fi
 done
@@ -699,6 +705,7 @@ banner "CONTAINER IMAGES"
 # warns once here and is skipped; an absent engine is silently ignored.
 FANOUT_RTS=""
 for rt in container docker podman; do
+  [[ "$FANOUT" == true ]] || break
   [[ "$rt" == "$RT" ]] && continue
   command -v "$rt" >/dev/null 2>&1 || continue
   if "$rt" image list >/dev/null 2>&1; then
@@ -873,20 +880,34 @@ else
   fi
 fi
 
-# Three builds at a time: ~30s of EVERY build is fixed buildkit-shim latency
-# (10s "transferring" round-trips for byte-sized payloads), which overlapping
-# absorbs. Three, not six: the builder VM has 2G, and the default image order
-# puts the three heavy builds (the gateway's compile, the dispatcher's, the
-# browser's npm) in batches of their own. Build output goes to a per-image log; a failure tails it and stops
-# the run.
+# Up to three builds at a time, and the next one starts as soon as any
+# finishes: ~30s of EVERY build is fixed buildkit-shim latency (10s
+# "transferring" round-trips for byte-sized payloads), which overlapping
+# absorbs, and the npm images build while the Rust one compiles. Three, not
+# six: the builder VM has 2G. The one heavy build is the Rust builder stage,
+# which the gateway and dispatcher images share, so it compiles once however
+# the two overlap. Build output goes to a per-image log; a failure tails it and
+# stops the run.
 # Fan-out happens after all builds, keeping the builder VM to itself.
-i=0
-while [ $i -lt ${#BUILD_IMGS[@]} ]; do
-  PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=(); NAMES=()
-  for j in 0 1 2; do
-    idx=$((i + j))
-    [ $idx -ge ${#BUILD_IMGS[@]} ] && break
-    img=${BUILD_IMGS[$idx]}
+PIDS=(); TAGS=(); LOGS=(); IMGS=(); STARTS=(); NAMES=(); DONE=()
+next=0
+running=0
+# Stop the builds still running rather than leaving them to grind against
+# whatever broke; their logs stay on disk.
+stop_builds() {
+  local k
+  for k in "${!PIDS[@]}"; do
+    [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
+  done
+}
+# A cold npm install inside these builds runs for MINUTES with nothing on
+# stdout, and --no-cache means every run pays it. Twice (2026-09-03) that
+# silence was read as a hang. Name what is still in flight every 30s so a
+# slow build is distinguishable from a stopped one without going to `ps`.
+beat=$(date +%s)
+while [ $next -lt ${#BUILD_IMGS[@]} ] || [ $running -gt 0 ]; do
+  while [ $running -lt 3 ] && [ $next -lt ${#BUILD_IMGS[@]} ]; do
+    img=${BUILD_IMGS[$next]}
     DF=$(image_dockerfile "$img")
     TAG="ghcr.io/the-ai-alliance/semiont-${img}:local"
     LOG=$(mktemp "$TMP_DIR/semiont-build-${img}.XXXXXX")
@@ -907,73 +928,59 @@ while [ $i -lt ${#BUILD_IMGS[@]} ]; do
     TAGS+=("$TAG")
     NAMES+=("$img")
     LOGS+=("$LOG")
-    IMGS+=("$idx")
+    IMGS+=("$next")
     STARTS+=("$(date +%s)")
+    DONE+=(0)
+    running=$((running + 1))
+    next=$((next + 1))
   done
-  # Reap in COMPLETION order, not index order. Waiting on PIDS[0] first means a
-  # hung build hides its siblings: on 2026-09-03 two builds failed in 15s
-  # against a dead registry and a third hung on npm's retry backoff, so the run
-  # looked stuck for 11 minutes with the real errors already on disk. bash 3.2
-  # has no `wait -n`, so poll with kill -0 and reap whoever finishes.
-  remaining=${#PIDS[@]}
-  declare -a DONE=()
-  for j in "${!PIDS[@]}"; do DONE[$j]=0; done
-  # A cold npm install inside these builds runs for MINUTES with nothing on
-  # stdout, and --no-cache means every run pays it. Twice (2026-09-03) that
-  # silence was read as a hang. Name what is still in flight every 30s so a
-  # slow build is distinguishable from a stopped one without going to `ps`.
-  beat=$(date +%s)
-  while [ "$remaining" -gt 0 ]; do
-    for j in "${!PIDS[@]}"; do
-      [ "${DONE[$j]}" -eq 1 ] && continue
-      kill -0 "${PIDS[$j]}" 2>/dev/null && continue
-      DONE[$j]=1
-      remaining=$((remaining - 1))
-      st=0
-      wait "${PIDS[$j]}" || st=$?
-      if [ "$st" -ne 0 ]; then
-        fail "${TAGS[$j]} build failed (exit $st) — last 40 lines of ${LOGS[$j]}:"
-        tail -40 "${LOGS[$j]}"
-        # Stop the siblings rather than leaving them to grind against whatever
-        # broke; their logs stay on disk.
-        for k in "${!PIDS[@]}"; do
-          [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
-        done
-        exit 1
-      fi
-      ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
-      beat=$(date +%s)
-      rm -f "${LOGS[$j]}"
-      # The Rust images carry no source and start (or refuse) quickly, or they are not built.
-      if [[ "${NAMES[$j]}" == gateway || "${NAMES[$j]}" == dispatcher ]] \
-         && ! "$REPO_ROOT/scripts/container/check-${NAMES[$j]}-image.sh" "${TAGS[$j]}" "$RT"; then
-        fail "${TAGS[$j]} does not keep the ${NAMES[$j]} image's promises (above)"
-        for k in "${!PIDS[@]}"; do
-          [ "${DONE[$k]}" -eq 0 ] && kill "${PIDS[$k]}" 2>/dev/null || true
-        done
-        exit 1
-      fi
-      idx=${IMGS[$j]}
-      if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
-        state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
-      fi
-    done
-    if [ "$remaining" -gt 0 ]; then
-      now=$(date +%s)
-      if [ $((now - beat)) -ge 30 ]; then
-        inflight=""
-        for k in "${!PIDS[@]}"; do
-          if [ "${DONE[$k]}" -eq 0 ]; then
-            inflight="$inflight ${NAMES[$k]} ($((now - ${STARTS[$k]}))s)"
-          fi
-        done
-        echo -e "${DIM}  still building:${inflight}${RESET}"
-        beat=$now
-      fi
-      sleep 1
+  # Reap in COMPLETION order, not start order. Waiting on the first build
+  # first means a hung build hides the others: on 2026-09-03 two builds failed
+  # in 15s against a dead registry and a third hung on npm's retry backoff, so
+  # the run looked stuck for 11 minutes with the real errors already on disk.
+  # bash 3.2 has no `wait -n`, so poll with kill -0 and reap whoever finishes.
+  for j in "${!PIDS[@]}"; do
+    [ "${DONE[$j]}" -eq 1 ] && continue
+    kill -0 "${PIDS[$j]}" 2>/dev/null && continue
+    DONE[$j]=1
+    running=$((running - 1))
+    st=0
+    wait "${PIDS[$j]}" || st=$?
+    if [ "$st" -ne 0 ]; then
+      fail "${TAGS[$j]} build failed (exit $st) — last 40 lines of ${LOGS[$j]}:"
+      tail -40 "${LOGS[$j]}"
+      stop_builds
+      exit 1
+    fi
+    ok "${TAGS[$j]} built ${DIM}($(( $(date +%s) - ${STARTS[$j]} ))s)${RESET}"
+    beat=$(date +%s)
+    rm -f "${LOGS[$j]}"
+    # The Rust images carry no source and start (or refuse) quickly, or they are not built.
+    if [[ "${NAMES[$j]}" == gateway || "${NAMES[$j]}" == dispatcher ]] \
+       && ! "$REPO_ROOT/scripts/container/check-${NAMES[$j]}-image.sh" "${TAGS[$j]}" "$RT"; then
+      fail "${TAGS[$j]} does not keep the ${NAMES[$j]} image's promises (above)"
+      stop_builds
+      exit 1
+    fi
+    idx=${IMGS[$j]}
+    if [[ -n "${BUILD_SIGS[$idx]}" ]]; then
+      state_put "${BUILD_IMGS[$idx]}" "${BUILD_SIGS[$idx]}"
     fi
   done
-  i=$((i + 3))
+  if [ "$running" -gt 0 ]; then
+    now=$(date +%s)
+    if [ $((now - beat)) -ge 30 ]; then
+      inflight=""
+      for k in "${!PIDS[@]}"; do
+        if [ "${DONE[$k]}" -eq 0 ]; then
+          inflight="$inflight ${NAMES[$k]} ($((now - ${STARTS[$k]}))s)"
+        fi
+      done
+      echo -e "${DIM}  still building:${inflight}${RESET}"
+      beat=$now
+    fi
+    sleep 1
+  fi
 done
 
 # Fan-out covers skipped images too: it heals the case where another runtime
@@ -1093,6 +1100,9 @@ if [[ -n "$FANOUT_FAILURES" ]]; then
   echo ""
 elif [[ -n "$FANOUT_RTS" ]]; then
   echo -e "${BOLD}Images tagged :local are in every local image store:${RESET} $RT${FANOUT_RTS}"
+  echo ""
+elif [[ "$FANOUT" != true ]]; then
+  echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (--no-fanout)"
   echo ""
 else
   echo -e "${BOLD}Images tagged :local are in the ${RT} image store${RESET} (no other engines detected)"

@@ -1,9 +1,9 @@
 /**
- * An OTLP/HTTP receiver: collects the spans a gateway exports, and for each
+ * An OTLP/HTTP receiver: collects the spans a service exports, and for each
  * metric the instrument it arrived as and the attributes and values its data
- * points carried, so a case can hold the gateway to the telemetry the spec
- * lists (specs/src/gateway-telemetry/telemetry.json). It reads either
- * encoding OTLP/HTTP has, by `Content-Type`, as a collector does.
+ * points carried, so a case can hold the service to the telemetry the spec
+ * lists (specs/src/service-telemetry/telemetry.json, by telemetry.ts). It
+ * reads either encoding OTLP/HTTP has, by `Content-Type`, as a collector does.
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
