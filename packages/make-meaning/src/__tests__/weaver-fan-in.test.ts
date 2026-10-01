@@ -1,5 +1,5 @@
 /**
- * WeaverActorStateUnit Tests (WEAVER-ISOLATION P2)
+ * weaverFanIn tests (WEAVER-ISOLATION P2)
  *
  * Domain-event fan-in for the Weaver: the 9 graph-relevant channels merged
  * into one `StoredEvent`-typed `events$`. Transport-neutral over BusRequestPrimitive.
@@ -10,8 +10,7 @@ import { BehaviorSubject, Subject } from 'rxjs';
 import { map } from 'rxjs/operators';
 import type { BusRequestPrimitive } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
-import { createWeaverActorStateUnit, WEAVER_CHANNELS, WEAVER_MANIFEST } from '../weaver-actor-state-unit';
+import { weaverFanIn, WEAVER_CHANNELS, WEAVER_MANIFEST } from '../weaver-fan-in';
 
 function fakeBus() {
   // The double carries FRAMES; `stream` is the payload view derived from
@@ -50,7 +49,7 @@ function fakeBus() {
   };
 }
 
-describe('createWeaverActorStateUnit', () => {
+describe('weaverFanIn', () => {
   let h: ReturnType<typeof fakeBus>;
 
   beforeEach(() => {
@@ -72,11 +71,11 @@ describe('createWeaverActorStateUnit', () => {
   });
 
   it('exposes weave:rebuild commands on rebuilds$ — not mixed into events$', () => {
-    const unit = createWeaverActorStateUnit({ bus: h.bus });
+    const { events$, rebuilds$ } = weaverFanIn(h.bus);
     const commands: any[] = [];
     const events: any[] = [];
-    unit.rebuilds$.subscribe((c) => commands.push(c));
-    unit.events$.subscribe((e) => events.push(e));
+    rebuilds$.subscribe((c) => commands.push(c));
+    events$.subscribe((e) => events.push(e));
 
     const cmd = { resourceId: 'res-1' };
     h.pushEvent('weave:rebuild', cmd, 'corr-1');
@@ -88,9 +87,9 @@ describe('createWeaverActorStateUnit', () => {
   });
 
   it('passes StoredEvents through verbatim — metadata intact for the fold', () => {
-    const unit = createWeaverActorStateUnit({ bus: h.bus });
+    const { events$ } = weaverFanIn(h.bus);
     const seen: any[] = [];
-    unit.events$.subscribe((e) => seen.push(e));
+    events$.subscribe((e) => seen.push(e));
 
     const stored = {
       id: 'evt-1',
@@ -108,23 +107,13 @@ describe('createWeaverActorStateUnit', () => {
   });
 
   it('merges events across channels into one stream', () => {
-    const unit = createWeaverActorStateUnit({ bus: h.bus });
+    const { events$ } = weaverFanIn(h.bus);
     const seen: string[] = [];
-    unit.events$.subscribe((e: any) => seen.push(e.type));
+    events$.subscribe((e: any) => seen.push(e.type));
 
     h.pushEvent('yield:created', { type: 'yield:created', metadata: { sequenceNumber: 1 } });
     h.pushEvent('frame:entity-type-added', { type: 'frame:entity-type-added', metadata: { sequenceNumber: 2 } });
 
     expect(seen).toEqual(['yield:created', 'frame:entity-type-added']);
-  });
-
-  describe('StateUnit axioms', () => {
-    it('satisfies the StateUnit axioms', () => {
-      // No owned surfaces and no input methods: both streams are derived from
-      // the injected bus.
-      assertStateUnitAxioms({
-        setup: () => createWeaverActorStateUnit({ bus: fakeBus().bus }),
-      });
-    });
   });
 });

@@ -5,7 +5,7 @@
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
  * authenticates with the KS via shared secret, constructs the embedding
  * provider, vector store, content transport, and HTTP transport, then
- * hands the SmelterActorStateUnit's event stream to the Smelter and runs
+ * hands the fan-in's event streams to the Smelter and runs
  * a startup reconcile. All event processing lives in `./smelter`.
  *
  * Events arrive over SSE from the gateway; bytes come over HTTP from the
@@ -22,7 +22,7 @@
  */
 
 import { archivistContentReads, createAnchoredTextStore } from '@semiont/content';
-import { SMELTER_MANIFEST, createSmelterActorStateUnit, type SmelterActorStateUnit } from './smelter-actor-state-unit';
+import { SMELTER_MANIFEST, smelterFanIn } from './smelter-fan-in';
 import { Smelter } from './smelter';
 import { HttpTransport } from '@semiont/http-transport';
 import { baseUrl as makeBaseUrl, createTomlConfigLoader, withDeadline } from '@semiont/core';
@@ -165,9 +165,7 @@ async function main() {
     // widening. See SMELTER_MANIFEST.
     channels: SMELTER_MANIFEST,
   });
-  const actorStateUnit: SmelterActorStateUnit = createSmelterActorStateUnit({
-    bus: httpTransport.actor,
-  });
+  const fanIn = smelterFanIn(httpTransport.actor);
 
   // Bytes come from the Archivist, not the gateway (SINGLE-KB-MOUNT P4).
   // The gateway's own content routes are a proxy onto this same call, so
@@ -188,8 +186,8 @@ async function main() {
   const anchoredStore = createAnchoredTextStore(anchoredTextDir, logger.child({ component: 'anchored-text-store' }));
 
   const smelter = new Smelter(
-    actorStateUnit.events$,
-    actorStateUnit.rebuildAnchors$,
+    fanIn.events$,
+    fanIn.rebuildAnchors$,
     vectorStore,
     embeddingProvider,
     contentReads,
@@ -222,7 +220,6 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down');
     session.stop();
-    actorStateUnit.dispose();
     httpTransport.dispose();
     smelter.stop();
     health.close();

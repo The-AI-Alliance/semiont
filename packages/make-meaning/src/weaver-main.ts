@@ -4,7 +4,7 @@
  * Thin wiring for the `Weaver` pipeline: loads configuration from
  * ~/.semiontconfig (TOML) via the canonical `createTomlConfigLoader`,
  * authenticates with the KS via shared secret, connects the graph
- * database, hands the WeaverActorStateUnit's streams to the Weaver, and
+ * database, hands the fan-in's streams to the Weaver, and
  * runs a startup catch-up. All event processing lives in `./weaver`.
  *
  * The weaver is a pure network peer: events and rebuild commands arrive
@@ -19,7 +19,7 @@
  *   SEMIONT_OIDC_CLIENT_SECRET   issuer; buys the agent token it shows the gateway
  */
 
-import { WEAVER_MANIFEST, createWeaverActorStateUnit, type WeaverActorStateUnit } from './weaver-actor-state-unit';
+import { WEAVER_MANIFEST, weaverFanIn } from './weaver-fan-in';
 import { Weaver, type WeaverTiming } from './weaver';
 import { FileWeaverCheckpoint } from './weaver-checkpoint';
 import { HttpTransport } from '@semiont/http-transport';
@@ -134,9 +134,7 @@ async function main() {
     // widening. See WEAVER_MANIFEST.
     channels: WEAVER_MANIFEST,
   });
-  const actorStateUnit: WeaverActorStateUnit = createWeaverActorStateUnit({
-    bus: httpTransport.actor,
-  });
+  const fanIn = weaverFanIn(httpTransport.actor);
 
   // Production timings (WEAVER-AXIOMS R0 — the axiom harness runs ~1 ms).
   const timing: WeaverTiming = {
@@ -151,8 +149,8 @@ async function main() {
 
   const weaver = new Weaver(
     graphDb,
-    actorStateUnit.events$,
-    actorStateUnit.rebuilds$,
+    fanIn.events$,
+    fanIn.rebuilds$,
     httpTransport,
     new FileWeaverCheckpoint(checkpointPath),
     timing,
@@ -185,7 +183,6 @@ async function main() {
   const shutdown = () => {
     logger.info('Shutting down');
     session.stop();
-    actorStateUnit.dispose();
     httpTransport.dispose();
     void weaver.stop().then(() => {
       health.close();

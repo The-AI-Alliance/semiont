@@ -19,7 +19,7 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
 WEAVER="packages/make-meaning/src/weaver.ts"
-UNIT="packages/make-meaning/src/weaver-actor-state-unit.ts"
+FAN_IN="packages/make-meaning/src/weaver-fan-in.ts"
 FAIL=0
 
 # ── G1 — no event-store / fs attachment ─────────────────────────────────────
@@ -73,7 +73,7 @@ if [ "$G4_COUNT" -ne 1 ]; then
 fi
 
 # ── G5 — fan-in channels ≡ fold switch cases ────────────────────────────────
-CHANNELS=$(sed -n "/export const WEAVER_CHANNELS = \[/,/\] as const;/p" "$UNIT" \
+CHANNELS=$(sed -n "/export const WEAVER_CHANNELS = \[/,/\] as const;/p" "$FAN_IN" \
   | grep -oE "'[a-z]+:[a-z-]+'" | tr -d "'" | sort -u)
 CASES=$(grep -oE "case '(yield|mark|frame):[a-z-]+'" "$WEAVER" \
   | grep -oE "'[a-z]+:[a-z-]+'" | tr -d "'" | sort -u)

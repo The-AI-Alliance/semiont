@@ -238,7 +238,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - `Gatherer` — Context assembly actor (annotation and resource gather flows; vector semantic search)
 - `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
-- `Smelter` / `createSmelterActorStateUnit` / `WorkerContentTransport` — the embedding pipeline, its domain-event fan-in, and the worker-side content transport; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `BusRequestPrimitive`
+- `Smelter` / `smelterFanIn` / `WorkerContentTransport` — the embedding pipeline, its domain-event fan-in, and the worker-side content transport; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `BusRequestPrimitive`
 
 The Weaver is not exported — `createKnowledgeBase()` constructs it internally and exposes it as `kb.weaver`.
 

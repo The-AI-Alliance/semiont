@@ -1,25 +1,24 @@
 /**
- * createSmelterActorStateUnit — unit tests.
+ * smelterFanIn — unit tests.
  *
- * The state unit takes a shared bus and attaches smelter-channel fan-in. The
- * bus is the harness fake, whose `push` is typed per channel — so these tests
- * can only put on the bus what the bus actually carries. No HTTP or SSE.
+ * The fan-in takes a shared bus and merges the smelter channels. The bus is
+ * the harness fake, whose `push` is typed per channel — so these tests can
+ * only put on the bus what the bus actually carries. No HTTP or SSE.
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
 import { take, toArray } from 'rxjs/operators';
 import {
-  createSmelterActorStateUnit,
+  smelterFanIn,
   SMELTER_MANIFEST,
   SMELTER_CHANNELS,
   SMELTER_COMMAND_CHANNELS,
   type SmelterEvent,
-} from '../smelter-actor-state-unit';
-import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
+} from '../smelter-fan-in';
 import { createFakeBus, yieldCreated, annotationEvent } from './helpers/smelter-harness';
 
-describe('createSmelterActorStateUnit', () => {
+describe('smelterFanIn', () => {
   let h: ReturnType<typeof createFakeBus>;
 
   beforeEach(() => {
@@ -27,10 +26,9 @@ describe('createSmelterActorStateUnit', () => {
   });
 
   it('every channel the fold streams is in the MANIFEST — declared, not widened', () => {
-    // Was: "extends the shared bus with all 9 smelter channels on start",
-    // counting a widening call. P2 deleted the verb — the fold's streams are
-    // built at construction, so the manifest must already contain them or
-    // the transport's own refusal throws at boot. Assert the declaration.
+    // The fan-in asks the bus for its streams the moment it is called, so the
+    // manifest must already contain them or the transport's own refusal
+    // throws at boot. Assert the declaration.
     const manifest = new Set<string>(SMELTER_MANIFEST);
     for (const channel of SMELTER_CHANNELS) {
       expect(manifest.has(channel), `${channel} missing from SMELTER_MANIFEST`).toBe(true);
@@ -41,9 +39,9 @@ describe('createSmelterActorStateUnit', () => {
   });
 
   it('passes each StoredEvent through verbatim — never re-wrapped', async () => {
-    const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
+    const { events$ } = smelterFanIn(h.bus);
 
-    const collected = firstValueFrom(stateUnit.events$.pipe(take(2), toArray()));
+    const collected = firstValueFrom(events$.pipe(take(2), toArray()));
 
     const created = yieldCreated('r-1');
     const added = annotationEvent('r-1', 'a-1', 'quoted');
@@ -56,8 +54,6 @@ describe('createSmelterActorStateUnit', () => {
     // `event.payload.annotationId` one level too shallow, silently.
     expect(first).toBe(created);
     expect(second).toBe(added);
-
-    stateUnit.dispose();
   });
 
   it('an event with no resource cannot be constructed', () => {
@@ -68,15 +64,5 @@ describe('createSmelterActorStateUnit', () => {
     // @ts-expect-error — resourceId is required
     const event: SmelterEvent = noResource;
     expect(event).toBeDefined();
-  });
-});
-
-describe('SmelterActorStateUnit — StateUnit axioms', () => {
-  it('satisfies the StateUnit axioms', () => {
-    // No owned surfaces and no input methods: both streams are derived from
-    // the injected bus.
-    assertStateUnitAxioms({
-      setup: () => createSmelterActorStateUnit({ bus: createFakeBus().bus }),
-    });
   });
 });

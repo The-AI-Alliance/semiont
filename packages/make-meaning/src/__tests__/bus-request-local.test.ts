@@ -1,7 +1,7 @@
 /**
  * asBusRequestPrimitive — the in-process `BusRequestPrimitive` over the core
  * EventBus. `busRequest` callers inside the process and the actor fan-ins
- * (`WeaverActorStateUnit`, the smelter's) both run on it.
+ * (`weaverFanIn`, the smelter's) both run on it.
  */
 
 import { describe, it, expect } from 'vitest';

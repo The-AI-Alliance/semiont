@@ -4,7 +4,7 @@
  *
  * Measured 2026-09-16, before P2: the weaver would have thrown
  * `bus.unsubscribed` on `yield:created`, `frame:entity-type-added` and
- * `weave:rebuild` at `createWeaverActorStateUnit`, and the smelter on
+ * `weave:rebuild` at `weaverFanIn`, and the smelter on
  * `yield:created`, `yield:updated` and `smelt:rebuild-anchors` — because the
  * transport was constructed with reply channels only and widened later. The
  * sidecar suites could not see it: their doubles answer every channel.
@@ -14,8 +14,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { RESOURCE_SCOPED_CHANNELS } from '@semiont/core';
-import { SMELTER_MANIFEST, SMELTER_CHANNELS, SMELTER_COMMAND_CHANNELS } from '../smelter-actor-state-unit';
-import { WEAVER_MANIFEST, WEAVER_CHANNELS, WEAVER_COMMAND_CHANNELS } from '../weaver-actor-state-unit';
+import { SMELTER_MANIFEST, SMELTER_CHANNELS, SMELTER_COMMAND_CHANNELS } from '../smelter-fan-in';
+import { WEAVER_MANIFEST, WEAVER_CHANNELS, WEAVER_COMMAND_CHANNELS } from '../weaver-fan-in';
 
 const scopable = new Set<string>(RESOURCE_SCOPED_CHANNELS);
 

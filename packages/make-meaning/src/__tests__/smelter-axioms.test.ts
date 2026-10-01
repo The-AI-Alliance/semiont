@@ -27,7 +27,7 @@ import { chunkText } from '@semiont/core';
 import type { ExtractionOutcome, ChunkingConfig } from '@semiont/core';
 import { textSourceOf } from '@semiont/core';
 import { Smelter, type SmelterTiming } from '../smelter';
-import type { SmelterEvent } from '../smelter-actor-state-unit';
+import type { SmelterEvent } from '../smelter-fan-in';
 import { partitionByType } from '../batch-utils';
 import {
   mockLogger,

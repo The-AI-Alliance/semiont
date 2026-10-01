@@ -113,7 +113,7 @@ Event-to-vector projection pipeline. Runs in its own process via `@semiont/make-
 For custom wiring on top of an existing `BusRequestPrimitive`, the package exports the pipeline and its domain-event fan-in:
 
 ```typescript
-import { Smelter, createSmelterActorStateUnit } from '@semiont/make-meaning';
+import { Smelter, smelterFanIn } from '@semiont/make-meaning';
 ```
 
 Consumes domain events:

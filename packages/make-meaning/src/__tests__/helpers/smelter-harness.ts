@@ -20,7 +20,7 @@ import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceI
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
-import type { SmelterChannel } from '../../smelter-actor-state-unit';
+import type { SmelterChannel } from '../../smelter-fan-in';
 
 // Core's ResourceDescriptor, not the raw generated one. They differ: core
 // derives `RawResourceDescriptor & { '@id': ResourceId }`, and the browse

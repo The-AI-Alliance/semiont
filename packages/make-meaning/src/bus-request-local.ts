@@ -3,7 +3,7 @@ import type { BusEnvelope, ConnectionState, EventBus, EventMap, BusRequestPrimit
 
 /**
  * Adapt a raw in-process `EventBus` to `BusRequestPrimitive`, the transport
- * seam both `busRequest` and the actor fan-ins (`WeaverActorStateUnit`, the
+ * seam both `busRequest` and the actor fan-ins (`weaverFanIn`, the
  * smelter's) consume: this adapter inside a process, the HTTP actor across
  * the gateway.
  *

@@ -199,10 +199,10 @@ Manages the lifecycle of temporary clone tokens for resource cloning. In-memory 
 
 **Implementation**: [src/weaver.ts](../src/weaver.ts), entry point [src/weaver-main.ts](../src/weaver-main.ts)
 
-The Weaver is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`WeaverActorStateUnit`](../src/weaver-actor-state-unit.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
+The Weaver is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/weaver-main`, receiving graph-relevant domain events and `weave:rebuild` commands through the [`weaverFanIn`](../src/weaver-fan-in.ts) fan-in (the graph projection is part of the graph stack, not the embedding process). It projects the nine graph-relevant event types into the graph database through an RxJS pipeline with adaptive burst buffering:
 
 ```
-WeaverActorStateUnit.events$ (9 channels, StoredEvents)
+weaverFanIn(bus).events$ (9 channels, StoredEvents)
   → Subject<StoredEvent>
     → groupBy(resourceId)        — one stream per resource
       → burstBuffer(50ms, 500, 200ms) — adaptive batching per resource
@@ -217,7 +217,7 @@ Every apply advances a per-resource high-water mark and emits a `weave:applied` 
 
 **Implementation**: [src/smelter.ts](../src/smelter.ts), entry point [src/smelter-main.ts](../src/smelter-main.ts)
 
-The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`SmelterActorStateUnit`](../src/smelter-actor-state-unit.ts) fan-in. It reads content bytes over `HttpContentTransport` (the gateway's byte path), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; the gateway's `SmeltProgress` fold (`kb.smeltProgress`) turns those into the `whenSettled` barrier the resource-gather path uses.
+The Smelter is **not started by `startMakeMeaning()`** — it runs as its own process via `@semiont/make-meaning/smelter-main`, receiving domain events through the [`smelterFanIn`](../src/smelter-fan-in.ts) fan-in. It reads content bytes over `HttpContentTransport` (the gateway's byte path), chunks them, computes embeddings via `@semiont/vectors` (Voyage or Ollama), and indexes vectors into the VectorStore (Qdrant or memory). Like the Weaver, it processes strictly in order per resource (`groupBy(resourceId)` + `concatMap`) with `burstBuffer` batching — consecutive same-type runs within a burst share a single `embedBatch()` call. Every settled decision emits a `smelt:settled` signal; the gateway's `SmeltProgress` fold (`kb.smeltProgress`) turns those into the `whenSettled` barrier the resource-gather path uses.
 
 | Domain Event | Handler |
 |--------------|---------|

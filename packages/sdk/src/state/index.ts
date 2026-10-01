@@ -13,7 +13,7 @@
 // Domain-specific worker adapters live with their domain, not here.
 // `@semiont/jobs` houses `createJobClaimAdapter` (the job-claim protocol
 // runtime).
-// `@semiont/make-meaning` houses `createSmelterActorStateUnit` (the
+// `@semiont/make-meaning` houses `smelterFanIn` (the
 // domain-event fan-in for the Smelter worker, co-located with the
 // Smelter actor and its `smelter-main` entry point).
 //
