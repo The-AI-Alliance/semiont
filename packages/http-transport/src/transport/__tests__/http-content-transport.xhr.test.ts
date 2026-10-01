@@ -91,6 +91,9 @@ class FakeXHR {
   fireNetworkError(): void {
     this.onerror?.();
   }
+  fireTimeout(): void {
+    this.ontimeout?.();
+  }
 }
 
 const testBaseUrl = baseUrl('http://test.example.com');
@@ -271,7 +274,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(err.code).toBe('unavailable');
   });
 
-  test('rejects with APIError on network failure', async () => {
+  test('rejects with APIError on network failure, classified "unavailable"', async () => {
     const { content, transport } = makeTransportAndContent();
 
     const errors: unknown[] = [];
@@ -287,7 +290,30 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
-    expect(errors).toHaveLength(1);
+    expect(err.statusText).toBe('network-error');
+    expect(err.code).toBe('unavailable');
+    expect(errors).toEqual([err]);
+  });
+
+  test('rejects with APIError on timeout, classified "unavailable"', async () => {
+    const { content, transport } = makeTransportAndContent();
+
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
+
+    const promise = content.putBinary(
+      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
+      { onProgress: vi.fn() },
+    );
+
+    FakeXHR.instances[0]!.fireTimeout();
+
+    const err = (await promise.catch((e) => e)) as APIError;
+    expect(err).toBeInstanceOf(APIError);
+    expect(err.status).toBe(0);
+    expect(err.statusText).toBe('timeout');
+    expect(err.code).toBe('unavailable');
+    expect(errors).toEqual([err]);
   });
 
   test('aborts the in-flight XHR when the AbortSignal fires', async () => {
@@ -308,6 +334,9 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
+    expect(err.statusText).toBe('aborted');
+    // The caller cancelled: nothing was unreachable, so not `unavailable`.
+    expect(err.code).toBe('error');
   });
 
   test('rejects immediately if signal is already aborted at call time', async () => {
@@ -326,6 +355,9 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
 
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
+    expect(err.status).toBe(0);
+    expect(err.statusText).toBe('aborted');
+    expect(err.code).toBe('error');
   });
 
   test('falls through to ky path when neither onProgress nor signal is set', async () => {

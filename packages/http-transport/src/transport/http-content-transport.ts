@@ -40,7 +40,7 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@semiont/core';
+import type { AccessToken, ResourceId, PutBinaryOptions, TransportErrorCode, components } from '@semiont/core';
 import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -241,6 +241,18 @@ interface XhrUploadOptions {
 }
 
 /**
+ * The error for an upload that ended with no response. XHR reports status 0
+ * for every such ending and no code maps from 0, so the code is stated by the
+ * handler that knows which ending it was: a failed network and a cancelled
+ * upload share a status and nothing else.
+ */
+function endedWithoutResponse(message: string, statusText: string, code: TransportErrorCode): APIError {
+  const err = new APIError(message, 0, statusText, undefined, undefined);
+  err.code = code;
+  return err;
+}
+
+/**
  * XHR-based POST that exposes `xhr.upload.onprogress` byte counts and
  * supports cancellation via `AbortSignal`. Mirrors the ky path's error
  * shape: 4xx/5xx and network-level failures both surface as `APIError`,
@@ -253,10 +265,19 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
-    if (signal?.aborted) {
-      const err = new APIError('Upload aborted', 0, 'aborted', undefined, undefined);
+    // Caller-initiated abort via `signal`. Emit a single APIError so the
+    // shape matches the other failure paths; consumers can disambiguate
+    // via `signal.aborted` if they need to. The code is the unclassified
+    // `error`: the caller cancelled, so nothing was unreachable and nothing
+    // was refused, and no other member names that.
+    const rejectAborted = () => {
+      const err = endedWithoutResponse('Upload aborted', 'aborted', 'error');
       onApiError(err);
       reject(err);
+    };
+
+    if (signal?.aborted) {
+      rejectAborted();
       return;
     }
 
@@ -306,27 +327,19 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
 
     xhr.onerror = () => {
       // Network-level failure (DNS, TCP reset, CORS). XHR gives no status
-      // here, so the error carries 0, which the vocabulary maps from nowhere:
-      // its code is the unclassified `error`.
-      const err = new APIError('Network error during upload', 0, 'network-error', undefined, undefined);
+      // here; the vocabulary files a failed network under `unavailable`.
+      const err = endedWithoutResponse('Network error during upload', 'network-error', 'unavailable');
       onApiError(err);
       reject(err);
     };
 
     xhr.ontimeout = () => {
-      const err = new APIError('Upload timed out', 0, 'timeout', undefined, undefined);
+      const err = endedWithoutResponse('Upload timed out', 'timeout', 'unavailable');
       onApiError(err);
       reject(err);
     };
 
-    xhr.onabort = () => {
-      // Caller-initiated abort via `signal`. Emit a single APIError so the
-      // shape matches the other failure paths; consumers can disambiguate
-      // via `signal.aborted` if they need to.
-      const err = new APIError('Upload aborted', 0, 'aborted', undefined, undefined);
-      onApiError(err);
-      reject(err);
-    };
+    xhr.onabort = rejectAborted;
 
     if (signal) {
       const onAbort = () => xhr.abort();
