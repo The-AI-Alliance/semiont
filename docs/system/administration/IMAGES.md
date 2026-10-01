@@ -67,18 +67,20 @@ session model; see [HUMAN-UI.md](../HUMAN-UI.md)).
 
 [![ghcr](https://img.shields.io/badge/ghcr-latest-blue)](https://github.com/orgs/The-AI-Alliance/packages?repo_name=semiont)
 
-The seven service images are published as runtime images. The six sidecars
+The seven service images are published as runtime images. The five sidecars
 **bundle the published `@semiont/*` npm packages** at the requested version —
 the publish workflow refuses to build them until every published `@semiont/*`
 package at that version is installable — its tarball fetchable, not merely
 listed in the registry metadata — so an image version always equals the npm
-version it carries. The five that bundle `@semiont/make-meaning` run `node:24-alpine`,
+version it carries. The four that bundle `@semiont/make-meaning` run `node:24-alpine`,
 held there by the qdrant client they carry; the worker and the Browser carry no
 qdrant client and run `node:26-alpine`.
-The gateway is Rust: its image compiles `apps/gateway` from the commit the
-workflow runs on, with the toolchain `rust-toolchain.toml` pins,
-and ships the binary on `alpine` — no source, no toolchain, and nothing built
-or fetched when it starts.
+The gateway and the dispatcher are Rust: each image compiles the workspace from
+the commit the workflow runs on, with the toolchain `rust-toolchain.toml` pins,
+and ships its binary on `alpine` — no source, no toolchain, and nothing built
+or fetched when it starts. The two Dockerfiles share one builder stage, which
+builds both binaries, so the second image built on a machine reuses it rather
+than compiling again; `lint:rust-images` keeps the stages the same.
 
 | Image | What runs | Bundled packages | Port | Dockerfile |
 |---|---|---|---|---|
@@ -88,7 +90,7 @@ or fetched when it starts.
 | `semiont-worker` | annotation/generation worker pool | `@semiont/jobs` | 24100 | [apps/worker/Dockerfile](../../../apps/worker/Dockerfile) |
 | `semiont-smelter` | embedding/vector pipeline actor | `@semiont/make-meaning` | 24101 | [apps/smelter/Dockerfile](../../../apps/smelter/Dockerfile) |
 | `semiont-weaver` | graph-projection actor | `@semiont/make-meaning` | 24102 | [apps/weaver/Dockerfile](../../../apps/weaver/Dockerfile) |
-| `semiont-dispatcher` | job dispatcher (owns the queue, answers `job:*`) | `@semiont/make-meaning` | 24105 | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
+| `semiont-dispatcher` | job dispatcher (owns the queue, answers `job:*`) | none — compiled from `apps/dispatcher` | 24105 | [apps/dispatcher/Dockerfile](../../../apps/dispatcher/Dockerfile) |
 
 **Configuration is runtime, not build-time.** The images contain no KB
 config; consuming stacks bind-mount their per-service TOML at run time.

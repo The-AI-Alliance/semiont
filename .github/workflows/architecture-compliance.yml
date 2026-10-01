@@ -77,6 +77,7 @@ jobs:
           npm run lint:spec-protocol || fail=1
           npm run lint:spec-jobs || fail=1
           npm run lint:service-environment || fail=1
+          npm run lint:rust-images || fail=1
           echo "::endgroup::"
           exit $fail
 

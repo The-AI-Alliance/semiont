@@ -31,11 +31,11 @@ images (the same production Dockerfiles the publish workflows use), tagged
 `ghcr.io/the-ai-alliance/semiont-<svc>:local` (local-only, never pushed).
 Built images are loaded into every responsive container engine on the machine
 (container/docker/podman), so the KB's `--runtime` choice is independent of
-who built — `CONTAINER_RUNTIME` picks the *build* engine only:
+who built — `CONTAINER_RUNTIME` picks the *build* engine only, and
+`--no-fanout` leaves them in that engine's store alone:
 
 ```bash
-# 1. Build all packages, publish to local Verdaccio, build all five images
-#    (gateway, worker, smelter, weaver, browser)
+# 1. Build all packages, publish to local Verdaccio, build every image
 ./scripts/ci/local-build.sh
 
 # 2. Run the full stack from your KB against the :local images
@@ -54,25 +54,10 @@ container rm -f semiont-verdaccio
 
 ## local-build.sh Options
 
-```
-Usage:
-  local-build.sh [options]
+`./scripts/ci/local-build.sh --help` lists them.
 
-Options:
-  --package <list>   Comma-separated packages to build (default: all)
-  --start-from <pkg> Skip packages before this one in the build order
-  --skip-build       Skip build, publish only (reuse previous build artifacts)
-  --image <list>     Comma-separated images to build
-                     (default: gateway,worker,smelter,weaver,browser)
-```
-
-Package names for `--package`:
-
-| Libraries | Apps |
-|-----------|------|
-| http-transport, ontology, core, content | gateway |
-| event-sourcing, graph, inference | browser |
-| jobs, make-meaning, react-ui | |
+The names `--package` takes, and the order they build in, are `version.json`'s
+packages; an unknown name is refused with the list.
 
 The publish step always publishes all packages regardless of `--package`.
 
