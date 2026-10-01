@@ -6,6 +6,7 @@ import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
+import { clipboard } from '../../lib/clipboard';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../contexts/LineNumbersContext';
 
@@ -85,9 +86,10 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
     };
   }, [annotation, showLineNumbers]);
 
-  const handleCopyToClipboard = async () => {
+  const copyTo = clipboard();
+  const handleCopyToClipboard = async (to: Clipboard) => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(annotation, null, 2));
+      await to.writeText(JSON.stringify(annotation, null, 2));
     } catch (err) {
       console.error('Failed to copy JSON-LD:', err);
     }
@@ -107,13 +109,15 @@ export function JsonLdView({ annotation, onBack }: JsonLdViewProps) {
         <h3 className="semiont-jsonld-view__title">
           JSON-LD
         </h3>
-        <button
-          onClick={handleCopyToClipboard}
-          className="semiont-jsonld-view__copy-button"
-          title="Copy to clipboard"
-        >
-          📋 Copy
-        </button>
+        {copyTo && (
+          <button
+            onClick={() => handleCopyToClipboard(copyTo)}
+            className="semiont-jsonld-view__copy-button"
+            title="Copy to clipboard"
+          >
+            📋 Copy
+          </button>
+        )}
       </div>
 
       {/* JSON-LD content rendered with CodeMirror */}

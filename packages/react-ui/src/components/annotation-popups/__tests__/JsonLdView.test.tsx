@@ -178,6 +178,16 @@ describe('JsonLdView', () => {
   });
 
   describe('Copy to clipboard', () => {
+    it('renders no copy control where the page has no Clipboard API, as on an origin that is not a secure context', () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, writable: true, configurable: true });
+
+      renderWithProviders(<JsonLdView annotation={createMockAnnotation()} onBack={vi.fn()} />);
+
+      // A control that would fail silently is worse than none.
+      expect(screen.queryByText(/Copy/)).not.toBeInTheDocument();
+      expect(screen.getByText('JSON-LD')).toBeInTheDocument();
+    });
+
     it('should copy annotation JSON to clipboard when copy button is clicked', async () => {
       const annotation = createMockAnnotation();
       renderWithProviders(<JsonLdView annotation={annotation} onBack={vi.fn()} />);

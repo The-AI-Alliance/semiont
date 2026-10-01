@@ -70,9 +70,43 @@ afterEach(() => {
 });
 
 describe('PKCE', () => {
-  it('derives the S256 challenge of RFC 7636 appendix B', async () => {
-    expect(await codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'))
+  it('derives the S256 challenge of RFC 7636 appendix B', () => {
+    expect(codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'))
       .toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+  });
+});
+
+// A page served over plain http from any host but localhost is not a secure
+// context: the browser gives it `crypto.getRandomValues` and withholds
+// `crypto.subtle`. The launcher registers such an origin (the host's LAN
+// address), so a sign-in has to work there. These run under exactly that
+// environment: a `crypto` global with `getRandomValues` and nothing else.
+describe('PKCE in an insecure browsing context (no crypto.subtle)', () => {
+  beforeEach(() => {
+    const real = globalThis.crypto;
+    vi.stubGlobal('crypto', { getRandomValues: real.getRandomValues.bind(real) });
+  });
+
+  it('the stub reproduces the broken environment', () => {
+    expect(crypto.getRandomValues).toBeTypeOf('function');
+    expect((crypto as { subtle?: unknown }).subtle).toBeUndefined();
+  });
+
+  it('derives the same challenge of RFC 7636 appendix B', () => {
+    expect(codeChallenge('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'))
+      .toBe('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+  });
+
+  it('begins a sign-in: the authorization URL carries the challenge of the verifier it remembered', async () => {
+    const storage = new InMemorySessionStorage();
+
+    const url = new URL(await beginAuthorization({ target: TARGET, redirectUri: REDIRECT }, storage));
+
+    const record = JSON.parse(storage.get(PENDING_AUTHORIZATION_KEY)!) as { verifier: string };
+    // 48 random bytes: the 64 characters production hashes, and no other length.
+    expect(record.verifier).toHaveLength(64);
+    expect(url.searchParams.get('code_challenge')).toBe(codeChallenge(record.verifier));
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
   });
 });
 
@@ -119,7 +153,7 @@ describe('the authorization-code grant', () => {
     expect(url.searchParams.get('scope')).toContain('offline_access');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
     expect(url.searchParams.get('state')).toBe(record.state);
-    expect(url.searchParams.get('code_challenge')).toBe(await codeChallenge(record.verifier));
+    expect(url.searchParams.get('code_challenge')).toBe(codeChallenge(record.verifier));
     expect(record).toMatchObject({ target: TARGET, redirectUri: REDIRECT, expectedDid: 'did:web:kb.example', expectedName: 'KB' });
     expect(record.issuer.token).toBe(`${ISSUER}/token`);
   });

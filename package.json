@@ -72,7 +72,8 @@
     "lint:notice": "node scripts/lint/check-notice-components.mjs",
     "lint:dependabot": "node scripts/lint/check-dependabot-coverage.mjs",
     "lint:broker-boundary": "node scripts/lint/check-broker-boundary.mjs",
-    "lint:placeholder-readers": "node scripts/lint/check-placeholder-readers.mjs"
+    "lint:placeholder-readers": "node scripts/lint/check-placeholder-readers.mjs",
+    "lint:secure-context-apis": "node scripts/lint/check-secure-context-apis.mjs"
   },
   "engines": {
     "node": ">=24.15.0",
