@@ -1,8 +1,11 @@
 {
-  "$comment": "The telemetry a gateway exports over OTLP, in any language: every span and metric, its kind, and the attributes it carries. A gateway exports these and no others. The conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row here, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a row arrives on. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum) or `gauge`.",
+  "$comment": "The telemetry each Semiont service exports over OTLP, in any language: every span and metric, the services that export it, its kind, and the attributes it carries. A service exports the rows that list it and no others. Each service's conformance suite holds it to this table from outside, in both directions: every span and metric its observability cases receive must be a row listing the service, of the listed kind, carrying only listed attribute keys (and, where a row lists values, only those values); and every row listing it whose `when` is `export` or `traffic` must arrive, with every attribute not marked `only`. `when`: `export` — whenever export is on; `traffic` — once the service's observability cases' traffic has run; `supervised` — only under the supervisor (SUPERVISE_EVENTS and SUPERVISE_NAME set), checked by the environment cases; `fatal` — only on a fatal error, which no case causes. `planes`, where given, names the only signal planes a gateway row arrives on. A `bus.emit` and `bus.recv` span, and the `semiont.bus.emit` count on a client, come from the bus client's transport, so a service that talks to the bus through one exports them. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum), `up-down counter` (a non-monotonic sum) or `gauge`.",
   "spans": [
     {
       "name": "bus.dispatch:{channel}",
+      "services": [
+        "gateway"
+      ],
       "kind": "server",
       "when": "traffic",
       "meaning": "An emit the gateway accepted, in the caller's trace when the request carried one.",
@@ -14,6 +17,9 @@
     },
     {
       "name": "sse.deliver:{channel}",
+      "services": [
+        "gateway"
+      ],
       "kind": "producer",
       "when": "traffic",
       "meaning": "A correlated reply written to the stream of the client whose request it answers.",
@@ -32,6 +38,9 @@
     },
     {
       "name": "content.get.server",
+      "services": [
+        "gateway"
+      ],
       "kind": "server",
       "when": "traffic",
       "meaning": "A read of a resource's bytes.",
@@ -43,6 +52,9 @@
     },
     {
       "name": "content.put.server",
+      "services": [
+        "gateway"
+      ],
       "kind": "server",
       "when": "traffic",
       "meaning": "An upload.",
@@ -50,6 +62,9 @@
     },
     {
       "name": "archivist.resources.record",
+      "services": [
+        "gateway"
+      ],
       "kind": "client",
       "when": "traffic",
       "meaning": "An upload forwarded to the Archivist.",
@@ -64,6 +79,9 @@
     },
     {
       "name": "archivist.resources.describe",
+      "services": [
+        "gateway"
+      ],
       "kind": "client",
       "when": "traffic",
       "meaning": "A JSON-LD description asked of the Archivist.",
@@ -78,6 +96,9 @@
     },
     {
       "name": "archivist.content.get",
+      "services": [
+        "gateway"
+      ],
       "kind": "client",
       "when": "traffic",
       "meaning": "Bytes read from the Archivist.",
@@ -92,6 +113,9 @@
     },
     {
       "name": "archivist.events.replay",
+      "services": [
+        "gateway"
+      ],
       "kind": "client",
       "when": "traffic",
       "meaning": "A scope's persisted events read from the Archivist for a replay.",
@@ -103,14 +127,54 @@
           ]
         }
       ]
+    },
+    {
+      "name": "bus.emit:{channel}",
+      "services": [
+        "dispatcher"
+      ],
+      "kind": "producer",
+      "when": "traffic",
+      "meaning": "A frame the service sent, in the trace of the work that sent it.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on a frame in a resource scope"
+        }
+      ]
+    },
+    {
+      "name": "bus.recv:{channel}",
+      "services": [
+        "dispatcher"
+      ],
+      "kind": "consumer",
+      "when": "traffic",
+      "meaning": "A frame the service received, and the work done for it, in the trace the frame was sent under.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on a frame in a resource scope"
+        }
+      ]
     }
   ],
   "metrics": [
     {
       "name": "semiont.bus.emit",
+      "services": [
+        "gateway",
+        "dispatcher"
+      ],
       "instrument": "counter",
       "when": "traffic",
-      "meaning": "Emits accepted.",
+      "meaning": "Emits: each the gateway accepted, and each a service sent through its bus client.",
       "attributes": [
         {
           "key": "bus.channel"
@@ -123,6 +187,9 @@
     },
     {
       "name": "semiont.bus.reply.suppressed",
+      "services": [
+        "gateway"
+      ],
       "instrument": "counter",
       "when": "traffic",
       "meaning": "Correlated replies withheld from a subscriber that did not ask for them.",
@@ -134,6 +201,9 @@
     },
     {
       "name": "semiont.bus.resume_gap",
+      "services": [
+        "gateway"
+      ],
       "instrument": "counter",
       "when": "traffic",
       "meaning": "Resumes answered with a gap, by the gap's reason.",
@@ -145,6 +215,9 @@
     },
     {
       "name": "semiont.bus.unanswerable",
+      "services": [
+        "gateway"
+      ],
       "instrument": "counter",
       "when": "traffic",
       "meaning": "Requests no participant could answer; only a plane that can count subscribers counts them.",
@@ -159,6 +232,9 @@
     },
     {
       "name": "semiont.sse.subscribers",
+      "services": [
+        "gateway"
+      ],
       "instrument": "up-down counter",
       "when": "traffic",
       "meaning": "Open bus streams.",
@@ -166,6 +242,9 @@
     },
     {
       "name": "semiont.gateway.refused",
+      "services": [
+        "gateway"
+      ],
       "instrument": "counter",
       "when": "traffic",
       "meaning": "Requests a limit refused — a principal's streams or emit bucket, a client's unanswered requests, the process's queued bytes — and connections closed at its connection cap.",
@@ -184,6 +263,9 @@
     },
     {
       "name": "semiont.bus.correlation.size",
+      "services": [
+        "gateway"
+      ],
       "instrument": "gauge",
       "when": "export",
       "meaning": "Outstanding request claims, and the cap on them.",
@@ -199,6 +281,10 @@
     },
     {
       "name": "semiont.process.start_time",
+      "services": [
+        "gateway",
+        "dispatcher"
+      ],
       "instrument": "gauge",
       "when": "export",
       "meaning": "When the process started.",
@@ -206,6 +292,10 @@
     },
     {
       "name": "semiont.runtime.event_loop.lag",
+      "services": [
+        "gateway",
+        "dispatcher"
+      ],
       "instrument": "gauge",
       "when": "export",
       "meaning": "Time the process could not serve anything, over the last export interval.",
@@ -222,6 +312,10 @@
     },
     {
       "name": "semiont.runtime.heap",
+      "services": [
+        "gateway",
+        "dispatcher"
+      ],
       "instrument": "gauge",
       "when": "export",
       "meaning": "Memory in use, allocated, allowed, and resident.",
@@ -239,6 +333,10 @@
     },
     {
       "name": "semiont.process.restarts",
+      "services": [
+        "gateway",
+        "dispatcher"
+      ],
       "instrument": "gauge",
       "when": "supervised",
       "meaning": "Lives the supervisor recorded, less one.",
@@ -246,6 +344,10 @@
     },
     {
       "name": "semiont.process.abnormal_exit",
+      "services": [
+        "gateway",
+        "dispatcher"
+      ],
       "instrument": "counter",
       "when": "fatal",
       "meaning": "A fatal error, just before the process exits.",
@@ -255,6 +357,27 @@
           "values": [
             "uncaughtException",
             "unhandledRejection"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "semiont.job.queue.size",
+      "services": [
+        "dispatcher"
+      ],
+      "instrument": "gauge",
+      "when": "export",
+      "meaning": "The jobs in the queue, by status.",
+      "attributes": [
+        {
+          "key": "job.status",
+          "values": [
+            "pending",
+            "running",
+            "complete",
+            "failed",
+            "cancelled"
           ]
         }
       ]

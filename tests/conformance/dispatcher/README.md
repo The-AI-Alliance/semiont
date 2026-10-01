@@ -32,6 +32,8 @@ the next.
 
 ## What it checks
 
+- **A job's life** (`lifecycle.test.ts`): admitted, announced, claimed and
+  recorded, completed, and read back, end to end.
 - **Admission** (`create.test.ts`): every check `job:create` makes and its
   refusal, the resource a job is recorded under, the two reads, and a refusal
   that carries `peer-unavailable` when the Archivist is gone.
@@ -48,14 +50,23 @@ the next.
   change of credentials.
 - **Boot** (`boot.test.ts`): every refusal to start, the health answer, and a
   clean stop.
+- **Environment** (`environment.test.ts`): what each variable
+  [`specs/src/service-environment/variables.json`](../../../specs/src/service-environment/variables.json)
+  lists for the dispatcher changes, and that a reply continues its request's
+  trace.
+- **Telemetry** (`observability.test.ts`): the `bus.recv` and `bus.emit` spans
+  a job's frames make, the queue's size by every status the spec gives a job,
+  and, last, everything exported held to the rows of
+  [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  that list the dispatcher, in both directions.
 
 Behaviour JOBS.md lists as a known defect is not pinned by any case.
 
 ## Running it
 
 ```bash
-cargo build --release -p semiont-gateway
-npm run build:packages
+cargo build --release -p semiont-gateway -p semiont-dispatcher
+npm run build --workspace=@semiont/core
 cd tests/conformance
 npm ci
 npm run test:dispatcher

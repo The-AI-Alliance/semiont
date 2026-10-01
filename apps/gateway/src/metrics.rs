@@ -1,5 +1,5 @@
 //! The gateway's own instruments, made on the service's meter: the metrics
-//! specs/src/gateway-telemetry/telemetry.json lists beside the process's and
+//! specs/src/service-telemetry/telemetry.json lists for it beside the process's and
 //! the ones every process shares (`semiont.bus.emit`, observability's).
 
 use opentelemetry::KeyValue;

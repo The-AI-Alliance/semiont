@@ -33,11 +33,12 @@ headers and SSE `_trace` payload fields.
 | `content.{put,get}`    | `HttpContentTransport.*` / `LocalContentTransport.*` | client / internal |
 | `job:<type>`           | Worker `handleJob`                        | consumer |
 
-The gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
-`content.{get,put}.server` and the `archivist.*` client spans — with their kinds
-and attributes are specified in
-[`specs/src/gateway-telemetry/telemetry.json`](../../../specs/src/gateway-telemetry/telemetry.json),
-which the gateway conformance suite holds the gateway to in both directions.
+What the Rust services export is specified, with kinds and attributes, in
+[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
+the gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
+`content.{get,put}.server` and the `archivist.*` client spans — and the
+dispatcher's, the `bus.emit` and `bus.recv` spans its bus client makes. Each
+service's conformance suite holds it to its rows in both directions.
 
 The `archivist.*` spans are the third hop. `content.{put,get}` and the
 gateway's `content.{put,get}.server` are a client/server pair that once covered
@@ -220,14 +221,13 @@ through the same OTLP endpoint. No extra config required — the
 | `semiont.detection.call.items` | histogram      | same as `semiont.detection.calls`                       | Annotations returned per call — against input size, this is yield |
 | `semiont.detection.call.tokens` | histogram     | same, plus `detection.direction` (`input`/`output`)     | Provider-reported tokens per detection call; kept separate from `semiont.inference.tokens` because that series carries no subdivision depth |
 | `semiont.detection.anchors`  | counter          | `detection.label`, `anchor.method` (`unique-match`/`context-recovered`/`first-of-many`/`fuzzy-match`) | Every annotation anchoring — the degraded-method **rate** is the precision signal, so clean outcomes are counted too |
-| `semiont.job.queue.size`     | observable gauge | `job.status` (`pending`/`running`/`complete`/`failed`/`cancelled`) | Dispatcher `JobQueue.getStats()` — exported by the dispatcher, not the gateway, since the queue moved |
 | `semiont.process.restarts`   | observable gauge | (none)                                                  | Every supervised service — times the in-container supervisor restarted the process, read back from the supervisor's event log. The series exists only when the run set `SEMIONT_SUPERVISE` (local stacks); absent, not `0`, everywhere else |
 
-The gateway's metrics — the bus counters, `semiont.sse.subscribers`,
-`semiont.bus.correlation.size`, and the process and runtime gauges every Node
-service exports — are specified, with their instruments, attributes and
-attribute values, in
-[`specs/src/gateway-telemetry/telemetry.json`](../../../specs/src/gateway-telemetry/telemetry.json).
+The gateway's and the dispatcher's metrics — the bus counters,
+`semiont.sse.subscribers`, `semiont.bus.correlation.size`,
+`semiont.job.queue.size`, and the process and runtime gauges — are specified,
+with their instruments, attributes and attribute values, in
+[`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
 
 Additional vars:
 

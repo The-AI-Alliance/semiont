@@ -35,6 +35,7 @@
     "lint:spec-jobs": "node scripts/spec/check-jobs.mjs",
     "lint:service-environment": "node scripts/lint/check-service-environment.mjs",
     "lint:rust-images": "node scripts/lint/check-rust-images.mjs",
+    "lint:conformance-readmes": "node scripts/lint/check-conformance-readmes.mjs",
     "version:show": "node scripts/release/version.mjs show",
     "version:sync": "node scripts/release/version.mjs sync",
     "version:bump": "./scripts/release/version-bump.sh",

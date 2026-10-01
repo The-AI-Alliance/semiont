@@ -36,18 +36,28 @@ configured another way).
   that operation requires, and every reply the stand-in Archivist gives must
   match its declaration ([harness/archivist.ts](../harness/archivist.ts)).
   A violation fails the case whatever it was about.
-- **Hand-written**, each citing the text it checks: credentials, content and
-  uploads, emitting (stamping, claims, profiles, unanswerable requests), the
-  stream (delivery, reply routing, replay and every gap reason, recovery,
-  presence, the heartbeat), the connection bounds, replicas sharing a broker,
-  a broker outage, boot refusals (broker credentials among them) and the
-  signing key ring, and the headers on every response.
+- **Hand-written**, each citing the text it checks:
+  - credentials, the bearer and media-token schemes (`tokens.test.ts`);
+  - content and uploads, and the JSON-LD description (`content.test.ts`);
+  - emitting: stamping, claims, profiles and unanswerable requests
+    (`emit.test.ts`);
+  - the stream: delivery, reply routing, replay and every gap reason,
+    recovery, presence and the heartbeat (`stream.test.ts`);
+  - the bounds on one connection (`bounds.test.ts`), on one principal by role
+    (`principal-limits.test.ts`), and on one process (`capacity.test.ts`);
+  - replicas sharing a broker (`replicas.test.ts`), a broker outage
+    (`outage.test.ts`), and what the gateway leaves on the broker it shares
+    with the dispatcher (`broker.test.ts`);
+  - boot refusals, broker credentials among them, and the signing key ring
+    (`boot.test.ts`);
+  - the headers on every response, and the routes that describe the gateway
+    and the knowledge base (`edge.test.ts`).
 - **Telemetry** (`observability.test.ts`): each plane exports to its own
   receiver — which reads OTLP/HTTP as JSON or protobuf, as a collector does,
   held to OpenTelemetry's own serializers by `harness/otlp.test.ts` — and its
   last case holds everything received to
-  [`specs/src/gateway-telemetry/telemetry.json`](../../../specs/src/gateway-telemetry/telemetry.json)
-  in both directions — every span and metric a listed row of the listed kind,
+  the rows of [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
+  that list the gateway, in both directions — every span and metric a listed row of the listed kind,
   carrying listed attributes, and every row the cases' traffic can produce arrived.
 - **Principals** (`tokens.test.ts`): every person and agent case in
   [`specs/src/principals/cases.json`](../../../specs/src/principals/cases.json), named
