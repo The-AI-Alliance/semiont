@@ -13,7 +13,9 @@
 //! - `error_codes.rs`: the codes a client reports and what maps onto them
 //!   (errors/codes.json);
 //! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
-//!   keeps (client/timing.json).
+//!   keeps (client/timing.json);
+//! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
+//!   dropped stream, does to a client's cache (client/refresh.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
 use semiont_codegen::types::{Generation, generate, pascal};
@@ -181,6 +183,139 @@ fn main() {
         timing(&read_json(&specs.join("client/timing.json"))),
     )
     .expect("cannot write timing.rs");
+    fs::write(
+        out.join("cache_refresh.rs"),
+        cache_refresh(&read_json(&specs.join("client/refresh.json"))),
+    )
+    .expect("cannot write cache_refresh.rs");
+}
+
+/// The refresh table as its queries, its triggers and each trigger's rows.
+/// The table's own generator (scripts/spec/generate-cache-refresh.mjs) is
+/// where it is held to account; this refuses only what it cannot render.
+fn cache_refresh(table: &Value) -> String {
+    let mut code = String::from("// Generated from specs/src/client/refresh.json; do not edit.\n");
+    let queries: Vec<&str> = list(&table["queries"], "queries")
+        .iter()
+        .map(|query| text(query, "name", "a query"))
+        .collect();
+    code.push_str("/// The live queries a client's cache answers.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum CacheQuery {\n");
+    for query in list(&table["queries"], "queries") {
+        let name = text(query, "name", "a query");
+        let _ = writeln!(
+            code,
+            "    /// {}\n    {},",
+            text(query, "docs", name),
+            pascal(name)
+        );
+    }
+    code.push_str("}\n\nimpl CacheQuery {\n    /// Every query, in the table's order.\n    pub const ALL: &'static [CacheQuery] = &[\n");
+    for name in &queries {
+        let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
+    }
+    code.push_str("    ];\n\n    /// The query's name, as the table and every SDK spell it.\n    pub const fn name(self) -> &'static str {\n        match self {\n");
+    for name in &queries {
+        let _ = writeln!(
+            code,
+            "            CacheQuery::{} => {name:?},",
+            pascal(name)
+        );
+    }
+    code.push_str("        }\n    }\n}\n\n");
+
+    // A trigger per distinct `on`, in the table's order, with its rows.
+    let mut triggers: Vec<(&str, Vec<&Value>)> = Vec::new();
+    for row in list(&table["refresh"], "refresh") {
+        let on = text(row, "on", "a refresh row");
+        match triggers.iter_mut().find(|(named, _)| *named == on) {
+            Some((_, rows)) => rows.push(row),
+            None => triggers.push((on, vec![row])),
+        }
+    }
+    code.push_str("/// What refreshes a cache: the events of a channel, or `Reopened`, the stream open again after a drop.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum RefreshTrigger {\n");
+    for (on, rows) in &triggers {
+        let docs: Vec<&str> = rows.iter().map(|row| text(row, "docs", on)).collect();
+        let _ = writeln!(code, "    /// {}\n    {},", docs.join(" "), pascal(on));
+    }
+    code.push_str("}\n\nimpl RefreshTrigger {\n    /// Every trigger, in the table's order.\n    pub const ALL: &'static [RefreshTrigger] = &[\n");
+    for (on, _) in &triggers {
+        let _ = writeln!(code, "        RefreshTrigger::{},", pascal(on));
+    }
+    code.push_str("    ];\n\n    /// The channel whose events are this trigger; none of `Reopened`, which is the stream's own.\n    pub const fn channel(self) -> Option<&'static str> {\n        match self {\n");
+    for (on, _) in &triggers {
+        if *on == "reopened" {
+            let _ = writeln!(code, "            RefreshTrigger::{} => None,", pascal(on));
+        } else {
+            let _ = writeln!(
+                code,
+                "            RefreshTrigger::{} => Some({on:?}),",
+                pascal(on)
+            );
+        }
+    }
+    code.push_str("        }\n    }\n\n    /// What this trigger does: one row, or two for a channel whose events come two ways.\n    pub const fn rows(self) -> &'static [CacheRefresh] {\n        match self {\n");
+    let listed = |row: &Value, key: &str, on: &str| -> String {
+        let named: Vec<String> = match &row[key] {
+            Value::Null => Vec::new(),
+            stated => list(stated, key)
+                .iter()
+                .map(|query| {
+                    let name = query
+                        .as_str()
+                        .unwrap_or_else(|| panic!("{on}: a {key} entry is not a query's name"));
+                    if !queries.contains(&name) {
+                        panic!("{on} {key} {name}, which is no query of the table");
+                    }
+                    // What this SDK can do without asking: an event carries
+                    // an annotation's new value, and says an annotation is
+                    // gone. A row that says more needs code that reads it.
+                    let able = match key {
+                        "writes" => matches!(name, "annotations" | "annotation"),
+                        "removes" => name == "annotation",
+                        _ => true,
+                    };
+                    if !able {
+                        panic!("{on} {key} {name}, which no event this SDK reads says how to");
+                    }
+                    format!("CacheQuery::{}", pascal(name))
+                })
+                .collect(),
+        };
+        format!("&[{}]", named.join(", "))
+    };
+    for (on, rows) in &triggers {
+        let rendered: Vec<String> = rows
+            .iter()
+            .map(|row| {
+                let when = match row["when"].as_str() {
+                    None => "None".to_owned(),
+                    Some(when @ ("enriched" | "unenriched")) => {
+                        format!("Some(RefreshWhen::{})", pascal(when))
+                    }
+                    Some(other) => panic!("{on}: `when` is {other}, which is neither kind of event"),
+                };
+                let reach = match row["reach"].as_str() {
+                    None | Some("subject") => "Subject",
+                    Some("held") => "Held",
+                    Some(other) => panic!("{on}: `reach` is {other}, which is neither"),
+                };
+                format!(
+                    "CacheRefresh {{ when: {when}, reach: Reach::{reach}, refetches: {}, writes: {}, removes: {} }}",
+                    listed(row, "refetches", on),
+                    listed(row, "writes", on),
+                    listed(row, "removes", on)
+                )
+            })
+            .collect();
+        let _ = writeln!(
+            code,
+            "            RefreshTrigger::{} => &[{}],",
+            pascal(on),
+            rendered.join(", ")
+        );
+    }
+    code.push_str("        }\n    }\n}\n");
+    code
 }
 
 fn text<'a>(value: &'a Value, key: &str, of: &str) -> &'a str {

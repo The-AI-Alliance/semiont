@@ -2,7 +2,7 @@
 //! methods that create one: `mark.assist` and `yield_.from_context`. And a
 //! client's end.
 
-use semiont::client::{ClientTiming, SemiontClient};
+use semiont::client::{ClientOptions, SemiontClient};
 use semiont::errors::SemiontError;
 use semiont::namespaces::{JobEvent, MarkAssistOptions, stall_deadline};
 use semiont::running::Running;
@@ -26,7 +26,7 @@ fn client_over(transport: &FaultyTransport) -> Arc<SemiontClient> {
         Arc::new(transport.clone()),
         Arc::new(InMemoryContent::new()),
         None,
-        ClientTiming::default(),
+        ClientOptions::default(),
     ))
 }
 

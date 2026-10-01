@@ -32,12 +32,15 @@ use crate::types::{
     JobCreatedResult, JobFailCommand, JobProgress, JobReportProgressCommand, JobStatusRequest,
     JobStatusResponse, JobStatusResponseStatus, JobStoredResult,
 };
+use serde::{Deserialize, Serialize};
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::Instant;
 
-/// What a followed job reports, and how it ends.
-#[derive(Debug, Clone, PartialEq)]
+/// What a followed job reports, and how it ends. As JSON it is
+/// `{"kind": "progress", "data": …}`, the same event in every SDK.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+#[serde(tag = "kind", content = "data", rename_all = "lowercase")]
 pub enum JobEvent {
     /// The job's progress.
     Progress(JobProgress),

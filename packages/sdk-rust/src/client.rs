@@ -10,9 +10,13 @@
 //! `auth` and `system` are there when the client was given a gateway: a
 //! transport with no gateway behind it has neither.
 //!
-//! `close` is the graceful end: the transport stops, every stream ends and
-//! every request still pending fails as closed. A client that is only dropped
-//! ends its own bus; its transport stops when the last holder of it lets go.
+//! `close` is the graceful end: the queries end and save what they owed, the
+//! transport stops, every stream ends and every request still pending fails
+//! as closed. A client that is only dropped ends its queries and its own
+//! bus; its transport stops when the last holder of it lets go.
+//!
+//! A client is built inside a Tokio runtime: it listens, from the moment it
+//! exists, for the events that keep its queries true.
 
 use crate::bus::{Bus, payload_of};
 use crate::channels::{Channel, Request};
@@ -22,7 +26,8 @@ use crate::namespaces::{
     AuthNamespace, BeckonNamespace, BindNamespace, BrowseNamespace, FrameNamespace,
     GatherNamespace, JobNamespace, MarkNamespace, MatchNamespace, SystemNamespace, YieldNamespace,
 };
-use crate::timing::{BUS_REQUEST_TIMEOUT, JOB_SILENCE, JOB_STATUS_POLL};
+use crate::storage::SessionStorage;
+use crate::timing::{BUS_REQUEST_TIMEOUT, INVALIDATION_WINDOW, JOB_SILENCE, JOB_STATUS_POLL};
 use crate::transport::{ConnectionState, ContentTransport, Envelope, GatewayOperations, Transport};
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,6 +43,8 @@ pub struct ClientTiming {
     pub job_silence: Duration,
     /// How often a silent job's status is asked for after that.
     pub job_status_poll: Duration,
+    /// How long the refetches events ask of one cached key fold into one.
+    pub invalidation_window: Duration,
 }
 
 impl Default for ClientTiming {
@@ -46,8 +53,26 @@ impl Default for ClientTiming {
             bus_request: BUS_REQUEST_TIMEOUT,
             job_silence: JOB_SILENCE,
             job_status_poll: JOB_STATUS_POLL,
+            invalidation_window: INVALIDATION_WINDOW,
         }
     }
+}
+
+/// Where a client keeps its small caches so the next client for the same
+/// knowledge base shows them at once: a storage, and a prefix for its keys,
+/// which is what tells one knowledge base's from another's.
+#[derive(Clone)]
+pub struct CachePersistence {
+    pub storage: Arc<dyn SessionStorage>,
+    pub key_prefix: String,
+}
+
+/// What a client is built with, beyond what it speaks through.
+#[derive(Clone, Default)]
+pub struct ClientOptions {
+    pub timing: ClientTiming,
+    /// Absent, the client's caches live as long as it does.
+    pub cache_persistence: Option<CachePersistence>,
 }
 
 /// What every namespace reaches the knowledge base through.
@@ -135,20 +160,24 @@ impl SemiontClient {
         transport: Arc<dyn Transport>,
         content: Arc<dyn ContentTransport>,
         gateway: Option<Arc<dyn GatewayOperations>>,
-        timing: ClientTiming,
+        options: ClientOptions,
     ) -> SemiontClient {
         let own = EventBus::new();
         transport.bridge_into(Arc::new(own.clone()));
         let links = Links {
             wire: Bus::new(transport.clone()),
             own: own.clone(),
-            timing,
+            timing: options.timing,
         };
         SemiontClient {
             transport,
             own,
             frame: FrameNamespace::new(links.clone()),
-            browse: BrowseNamespace::new(links.clone(), content.clone()),
+            browse: BrowseNamespace::new(
+                links.clone(),
+                content.clone(),
+                options.cache_persistence.as_ref(),
+            ),
             mark: MarkNamespace::new(links.clone()),
             bind: BindNamespace::new(links.clone()),
             gather: GatherNamespace::new(links.clone()),
@@ -183,10 +212,12 @@ impl SemiontClient {
         self.transport.state()
     }
 
-    /// Stop. The transport closes, so every stream ends and every request
-    /// still pending fails as closed; then the client's own bus ends.
-    /// Closing twice is closing once.
+    /// Stop. The queries end first, so nothing they had in flight asks
+    /// again of a transport that is going; then the transport closes, so
+    /// every stream ends and every request still pending fails as closed;
+    /// then the client's own bus ends. Closing twice is closing once.
     pub async fn close(&self) {
+        self.browse.dispose();
         self.transport.close().await;
         self.own.destroy();
     }

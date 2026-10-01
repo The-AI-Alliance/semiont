@@ -1,13 +1,9 @@
 [package]
-name = "semiont-wire-driver"
+name = "semiont-conformance-drivers"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "The Rust wire driver for the SDK conformance suite (tests/conformance/sdk): the suite's operations as calls on semiont-http-transport's public API."
-
-[[bin]]
-name = "semiont-wire-driver"
-path = "src/main.rs"
+description = "The Rust drivers for the SDK conformance suite (tests/conformance/sdk): the suite's operations as calls on the public API of semiont-http-transport (the wire driver) and of semiont's client over it (the live driver)."
 
 [dependencies]
 base64.workspace = true
@@ -18,5 +14,6 @@ rustls = { workspace = true, features = ["ring", "std"] }
 semiont.workspace = true
 semiont-http-transport.workspace = true
 semiont-observability.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "io-std", "io-util", "sync", "time"] }

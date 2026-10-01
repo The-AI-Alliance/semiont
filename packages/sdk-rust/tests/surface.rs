@@ -9,7 +9,7 @@
 //! client's own bus.
 
 use bytes::Bytes;
-use semiont::client::{ClientTiming, SemiontClient};
+use semiont::client::{ClientOptions, SemiontClient};
 use semiont::namespaces::{MarkAssistOptions, ResourceFilters};
 use semiont::testing::{ContentCall, FaultyTransport, InMemoryContent, StubGateway};
 use semiont::transport::{Envelope, Frame, PutBinaryRequest};
@@ -93,7 +93,7 @@ fn world() -> World {
         Arc::new(transport.clone()),
         Arc::new(content.clone()),
         Some(Arc::new(gateway.clone())),
-        ClientTiming::default(),
+        ClientOptions::default(),
     ));
     World {
         client,

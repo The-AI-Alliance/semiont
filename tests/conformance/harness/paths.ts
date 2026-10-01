@@ -51,6 +51,7 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   },
   rust: {
     wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
+    live: { command: [join(REPO_ROOT, 'target/release/semiont-live-driver')], tier: 'parity' },
   },
 };
 

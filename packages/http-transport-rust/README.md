@@ -19,16 +19,17 @@ A knowledge base over its gateway's HTTP surface
 - `sse` — the stream's framing.
 - `content` — `HttpContentTransport`: a resource's bytes up, with progress
   and cancellation, and down, whole or as a stream.
-- `client` — `client(config, timing)`: the SDK's `SemiontClient` over this
+- `client` — `client(config, options)`: the SDK's `SemiontClient` over this
   crate's transport under all three contracts, so its `auth` and `system`
   namespaces are there.
 - `service_account` and `session` — signing in: a service account's
   client-credentials grant at the issuer, exchanged at the gateway for the
   token of the agent the work runs as, and renewed before it expires.
 
-[conformance/](conformance) is the wire driver the SDK conformance suite
-([tests/conformance/sdk](../../tests/conformance/sdk/README.md)) runs in this
-crate's place; [tests/stream.rs](tests/stream.rs) holds the liveness axioms
+[conformance/](conformance) holds the two drivers the SDK conformance suite
+([tests/conformance/sdk](../../tests/conformance/sdk/README.md)) runs:
+`semiont-wire-driver`, in this crate's place, and `semiont-live-driver`, in
+the place of the SDK's client over it. [tests/stream.rs](tests/stream.rs) holds the liveness axioms
 and the stream's handoffs against a stand-in gateway that misbehaves on cue.
 
 Not yet published.

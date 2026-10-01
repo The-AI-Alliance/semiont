@@ -1,0 +1,387 @@
+//! The Rust live driver for the SDK conformance suite (tests/conformance/sdk):
+//! the SDK's client, its live queries and their cache, driven one operation
+//! per line on stdin, reporting each observer's states on stdout;
+//! tests/conformance/sdk/README.md is the protocol.
+//!
+//! It reaches the SDK only as an application does, through what `semiont` and
+//! `semiont-http-transport` export.
+
+use semiont::cache::CacheState;
+use semiont::cached::Observed;
+use semiont::client::{CachePersistence, ClientOptions, ClientTiming, SemiontClient};
+use semiont::namespaces::{MarkAssistOptions, ResourceFilters};
+use semiont::storage::InMemorySessionStorage;
+use semiont::transport::ConnectionState;
+use semiont_conformance_drivers::{
+    Arguments, Driver, Ended, Running, count, failed, failure, locked, object, say, serve, text,
+};
+use semiont_http_transport::client::client;
+use semiont_http_transport::transport::{HttpTransportConfig, Timing};
+use serde::Serialize;
+use serde_json::{Value, json};
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::sync::watch;
+use tokio::task::{AbortHandle, JoinSet};
+
+/// The client, kept once closed: what a closed client does is part of what
+/// the suite asks.
+struct Open {
+    client: Arc<SemiontClient>,
+    closed: bool,
+    /// The credential the client uses, held so its source stays open.
+    _token: watch::Sender<Option<String>>,
+}
+
+#[derive(Default)]
+struct Live {
+    /// What a cache persists to, kept across `close` and the next `open`: a
+    /// reload, to the client.
+    storage: Arc<InMemorySessionStorage>,
+    open: Mutex<Option<Open>>,
+    /// Each observer's task, by the name the suite gave it.
+    observers: Mutex<HashMap<String, AbortHandle>>,
+    /// The state last reported, and the tasks that report what the client
+    /// observes.
+    reported: Mutex<Option<ConnectionState>>,
+    reporters: Mutex<JoinSet<()>>,
+}
+
+fn value<T: Serialize>(of: &T) -> Result<Value, Ended> {
+    serde_json::to_value(of)
+        .map_err(|e| Ended::Misuse(format!("a value that does not serialize: {e}")))
+}
+
+/// The filters a case states for a list of resources.
+fn filters(query: &Arguments) -> Result<ResourceFilters, Ended> {
+    let stated = match query.get("filters") {
+        None => &Arguments::new(),
+        Some(_) => object(query, "filters")?,
+    };
+    Ok(ResourceFilters {
+        limit: stated.get("limit").and_then(Value::as_i64),
+        archived: stated.get("archived").and_then(Value::as_bool),
+        search: stated
+            .get("search")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        entity_type: stated
+            .get("entityType")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+    })
+}
+
+/// Do `$then` with the live query a case names, as `$cached`.
+macro_rules! with_query {
+    ($client:expr, $query:expr, |$cached:ident| $then:expr) => {{
+        let query: &Arguments = $query;
+        let browse = &$client.browse;
+        let resource = || text(query, "resource");
+        match text(query, "query")? {
+            "resource" => {
+                let $cached = browse.resource(resource()?);
+                $then
+            }
+            "annotations" => {
+                let $cached = browse.annotations(resource()?);
+                $then
+            }
+            "annotation" => {
+                let $cached = browse.annotation(resource()?, text(query, "annotation")?);
+                $then
+            }
+            "events" => {
+                let $cached = browse.events(resource()?);
+                $then
+            }
+            "referencedBy" => {
+                let $cached = browse.referenced_by(resource()?);
+                $then
+            }
+            "resources" => {
+                let $cached = browse.resources(filters(query)?);
+                $then
+            }
+            "entityTypes" => {
+                let $cached = browse.entity_types();
+                $then
+            }
+            "tagSchemas" => {
+                let $cached = browse.tag_schemas();
+                $then
+            }
+            "agents" => {
+                let $cached = browse.agents();
+                $then
+            }
+            other => return Err(Ended::Misuse(format!("no live query {other}"))),
+        }
+    }};
+}
+
+impl Live {
+    fn client(&self) -> Result<Arc<SemiontClient>, Ended> {
+        locked(&self.open)
+            .as_ref()
+            .map(|open| open.client.clone())
+            .ok_or_else(|| Ended::Misuse("no client is open".to_owned()))
+    }
+
+    /// Report the state the transport is in, unless it is the one last reported.
+    fn report(&self, state: ConnectionState) {
+        let mut reported = locked(&self.reported);
+        if *reported != Some(state) {
+            *reported = Some(state);
+            say(json!({ "state": state.as_str() }));
+        }
+    }
+
+    fn open(self: &Arc<Self>, args: &Arguments) -> Result<Value, Ended> {
+        if locked(&self.open).as_ref().is_some_and(|open| !open.closed) {
+            return Err(Ended::Misuse("a client is already open".to_owned()));
+        }
+        let mut wire = Timing::default();
+        let mut timing = ClientTiming::default();
+        let stated = match args.get("timing") {
+            None => &Arguments::new(),
+            Some(_) => object(args, "timing")?,
+        };
+        let ms = |name: &str| count(stated, name).map(Duration::from_millis);
+        for name in stated.keys() {
+            match name.as_str() {
+                "reconnectMs" => wire.reconnect = ms(name)?,
+                "lazyRemoveMs" => wire.lazy_remove = ms(name)?,
+                "lingerMs" => wire.linger = ms(name)?,
+                "busRequestTimeoutMs" => timing.bus_request = ms(name)?,
+                "invalidationWindowMs" => timing.invalidation_window = ms(name)?,
+                "jobSilenceMs" => timing.job_silence = ms(name)?,
+                "jobStatusPollMs" => timing.job_status_poll = ms(name)?,
+                other => {
+                    return Err(Ended::Misuse(format!(
+                        "this driver cannot override {other}"
+                    )));
+                }
+            }
+        }
+        let (token, tokens) = watch::channel(Some(text(args, "token")?.to_owned()));
+        let client = Arc::new(client(
+            HttpTransportConfig {
+                base_url: text(args, "baseUrl")?.to_owned(),
+                token: tokens,
+                refresher: None,
+                channels: None,
+                http: reqwest::Client::new(),
+                timing: wire,
+            },
+            ClientOptions {
+                timing,
+                cache_persistence: (args.get("persist") == Some(&Value::Bool(true))).then(|| {
+                    CachePersistence {
+                        storage: self.storage.clone(),
+                        key_prefix: "conformance".to_owned(),
+                    }
+                }),
+            },
+        ));
+
+        locked(&self.observers).clear();
+        *locked(&self.reported) = None;
+        let mut reporters = locked(&self.reporters);
+        let mut state = client.state();
+        let driver = self.clone();
+        reporters.spawn(async move {
+            loop {
+                let current = *state.borrow_and_update();
+                driver.report(current);
+                if state.changed().await.is_err() {
+                    driver.report(*state.borrow());
+                    return;
+                }
+            }
+        });
+        let mut failures = client.transport().failures();
+        reporters.spawn(async move {
+            while let Some(reported) = failures.next().await {
+                match reported {
+                    Ok(error) => say(json!({
+                        "error": failure(error.code.as_str(), error.status, error.message)
+                    })),
+                    Err(lagged) => eprintln!("the error stream: {lagged}"),
+                }
+            }
+        });
+        drop(reporters);
+
+        *locked(&self.open) = Some(Open {
+            client,
+            closed: false,
+            _token: token,
+        });
+        Ok(Value::Null)
+    }
+
+    async fn close(&self) -> Result<Value, Ended> {
+        let client = self.client()?;
+        client.close().await;
+        if let Some(open) = locked(&self.open).as_mut() {
+            open.closed = true;
+        }
+        Ok(Value::Null)
+    }
+
+    /// Report each state `observed` gives, as the observer `name`, and its end.
+    fn reporting<T: Serialize + Send + 'static>(
+        &self,
+        name: String,
+        mut observed: Observed<T>,
+    ) -> AbortHandle {
+        locked(&self.reporters).spawn(async move {
+            while let Some(state) = observed.next().await {
+                let state = match state {
+                    CacheState::Pending => json!({ "status": "pending" }),
+                    CacheState::Ready(value) => json!({ "status": "ready", "value": value }),
+                    CacheState::Failed(error) => {
+                        json!({ "status": "failed", "error": failed(&error) })
+                    }
+                };
+                say(json!({ "emission": { "observer": name, "state": state } }));
+            }
+            say(json!({ "completed": name }));
+        })
+    }
+
+    fn observe(&self, args: &Arguments) -> Result<Value, Ended> {
+        let client = self.client()?;
+        let observer = text(args, "observer")?.to_owned();
+        if locked(&self.observers).contains_key(&observer) {
+            return Err(Ended::Misuse(format!("{observer} is already observing")));
+        }
+        let reporting = with_query!(client, object(args, "query")?, |cached| self
+            .reporting(observer.clone(), cached.watch()));
+        locked(&self.observers).insert(observer, reporting);
+        Ok(Value::Null)
+    }
+
+    fn unobserve(&self, args: &Arguments) -> Result<Value, Ended> {
+        let observer = text(args, "observer")?;
+        match locked(&self.observers).remove(observer) {
+            Some(reporting) => {
+                reporting.abort();
+                Ok(Value::Null)
+            }
+            None => Err(Ended::Misuse(format!("{observer} is not observing"))),
+        }
+    }
+
+    /// A one-shot read of the live query a case names.
+    async fn fresh(&self, query: &Arguments) -> Result<Value, Ended> {
+        let client = self.client()?;
+        let read = with_query!(client, query, |cached| value(&cached.fresh().await?)?);
+        Ok(json!({ "value": read }))
+    }
+
+    fn invalidate(&self, query: &Arguments) -> Result<Value, Ended> {
+        let client = self.client()?;
+        with_query!(client, query, |cached| cached.invalidate());
+        Ok(Value::Null)
+    }
+
+    /// A job followed to its end, observed as a live query is: each event it
+    /// reports is a `ready` state, its failure a `failed` one, its end a
+    /// completion.
+    fn assist(&self, args: &Arguments) -> Result<Value, Ended> {
+        let client = self.client()?;
+        let observer = text(args, "observer")?.to_owned();
+        let mut observers = locked(&self.observers);
+        if observers.contains_key(&observer) {
+            return Err(Ended::Misuse(format!("{observer} is already observing")));
+        }
+        let motivation =
+            serde_json::from_value(args.get("motivation").cloned().unwrap_or(Value::Null))
+                .map_err(|e| Ended::Misuse(format!("motivation: {e}")))?;
+        let options: MarkAssistOptions =
+            serde_json::from_value(Value::Object(object(args, "options")?.clone()))
+                .map_err(|e| Ended::Misuse(format!("options: {e}")))?;
+        let mut following = client
+            .mark
+            .assist(text(args, "resource")?, motivation, options);
+        let name = observer.clone();
+        let task = locked(&self.reporters).spawn(async move {
+            while let Some(reported) = following.next().await {
+                let state = match reported {
+                    Ok(event) => json!({ "status": "ready", "value": event }),
+                    Err(error) => json!({ "status": "failed", "error": failed(&error) }),
+                };
+                say(json!({ "emission": { "observer": name, "state": state } }));
+            }
+            say(json!({ "completed": name }));
+        });
+        observers.insert(observer, task);
+        Ok(Value::Null)
+    }
+
+    async fn operation(self: &Arc<Self>, op: &str, args: Arguments) -> Result<Value, Ended> {
+        match op {
+            "open" => self.open(&args),
+            "close" => self.close().await,
+            "observe" => self.observe(&args),
+            "unobserve" => self.unobserve(&args),
+            "fresh" => self.fresh(object(&args, "query")?).await,
+            "invalidate" => self.invalidate(object(&args, "query")?),
+            "assist" => self.assist(&args),
+            "delete" => {
+                let client = self.client()?;
+                client
+                    .mark
+                    .delete(text(&args, "resource")?, text(&args, "annotation")?)
+                    .await?;
+                Ok(Value::Null)
+            }
+            // Answers after everything the client reported before it: the
+            // suite's way to know it has read every state an observer was in.
+            "sync" => Ok(Value::Null),
+            other => Err(Ended::Misuse(format!(
+                "{other} is not an operation of this driver"
+            ))),
+        }
+    }
+}
+
+impl Driver for Live {
+    const OPERATIONS: &'static [&'static str] = &[
+        "open",
+        "close",
+        "observe",
+        "unobserve",
+        "fresh",
+        "invalidate",
+        "assist",
+        "delete",
+        "sync",
+    ];
+
+    async fn run(
+        self: Arc<Self>,
+        _running: Arc<Running>,
+        _id: u64,
+        op: String,
+        args: Arguments,
+    ) -> Result<Value, Ended> {
+        self.operation(&op, args).await
+    }
+
+    async fn finish(self: Arc<Self>) {
+        if let Ok(client) = self.client() {
+            client.close().await;
+        }
+        let mut reporters = std::mem::take(&mut *locked(&self.reporters));
+        while reporters.join_next().await.is_some() {}
+    }
+}
+
+#[tokio::main]
+async fn main() {
+    serve(Live::default()).await;
+}

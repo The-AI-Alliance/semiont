@@ -8,7 +8,12 @@ use semiont::types::Motivation;
 
 // A client over a gateway is `semiont_http_transport::client::client`.
 let resource = client.browse.resource("res-1").fresh().await?;
-let annotations = client.browse.annotations("res-1").fresh().await?;
+
+// A query is watched for its state as the knowledge base changes.
+let mut annotations = client.browse.annotations("res-1").watch();
+while let Some(state) = annotations.next().await {
+    println!("{state:?}"); // Pending, then Ready(…), again on each change
+}
 
 // A long-running operation is awaited for its final value, or read as a
 // stream for what it reports on the way.
@@ -20,11 +25,15 @@ client.close().await;
 ```
 
 - `client` — `SemiontClient`: one concrete type over a `Transport`, a
-  `ContentTransport` and, when there is one, a gateway. Its namespaces are
+  `ContentTransport` and, when there is one, a gateway. It is built inside a
+  Tokio runtime. Its namespaces are
   fields: `frame`, `browse`, `mark`, `bind`, `gather`, `match_`, `yield_`,
   `beckon`, `job`, and `auth` and `system` when it has a gateway. `yield` and
   `match` are Rust's own words, so those two take a trailing underscore.
-  `close` is the graceful end; a client that is only dropped ends its own bus.
+  `close` is the graceful end; a client that is only dropped ends its
+  queries and its own bus. With `ClientOptions::cache_persistence`, its small
+  caches are kept in a `SessionStorage`, and the next client for the same
+  knowledge base shows them at once.
 - `namespaces` — the methods. Each one's name, the shape of what it returns
   and what calling it does are a row of
   [`specs/src/client/surface.json`](../../specs/src/client/surface.json),
@@ -36,7 +45,7 @@ client.close().await;
   | `async fn … -> Result<T, SemiontError>` | asked once, answered once | `.await?` |
   | `Running<T>` | a long-running operation | `.await` for its final value; `.next()` for each report and then the final value; `.run(f)` for both |
   | `Upload` | an upload in flight | `.await` for the resource created; as a stream, its progress; dropped, cancelled |
-  | `Cached<T>` | a query, built without touching the wire | `.fresh().await?` |
+  | `Cached<T>` | a query, built without touching the wire | `.watch()` for its state now and as it changes; `.fresh().await?` for a one-shot read; `.invalidate()` to ask again |
   | nothing, from a plain `fn` | a signal to the client's own parts | called |
   | `async fn … -> Result<Option<u64>, SemiontError>` | a drive at the other participants | `.await?`: how many the gateway reached, `None` when it kept no count |
   | `Typed<C, BusFrames>` | one channel's events, from now on | `.next()` |
@@ -45,12 +54,32 @@ client.close().await;
   never started twice; nothing is sent until one is first polled, and
   dropping one abandons it.
 
+  A watched query (`Observed<T>`) gives `CacheState<T>`: `Pending`,
+  `Ready(value)` or `Failed(error)`. `Failed` is a state, not the end of the
+  stream: the next watcher, or `invalidate`, tries again. While a query of
+  one resource is watched the client holds that resource's scope, and lets
+  go of it when the watcher is dropped. A watcher that falls behind is given
+  the latest state, not each one it missed.
+
   Two things differ from the TypeScript client. `browse.resource_content`
   decodes UTF-8 and refuses any other charset by name;
   `browse.resource_representation` gives the bytes. And `yield_` has no
   `create_from_token`: a clone's format and stored name come from a
   media-type registry only TypeScript has, which the table records.
 - `running` and `cached` — those two shapes.
+- `cache` — what the queries answer from
+  ([CACHE-SEMANTICS](../sdk/docs/CACHE-SEMANTICS.md)): one state per key, the
+  same for every observer; a value shown while a newer one is fetched; one
+  retry of a failed fetch; `set` and `remove` for what an event already
+  says. `CachePersister` keeps a cache's values for a later one, and
+  `StoragePersister` is that over a `SessionStorage`.
+- `refresh` — what each event on the bus, and the reopening of a dropped
+  stream, does to the cache, generated from
+  [`specs/src/client/refresh.json`](../../specs/src/client/refresh.json).
+  `browse` applies it. A row added there with nothing here that reads its
+  event does not compile.
+- `storage` — `SessionStorage`, where a client keeps what must outlive it,
+  and `InMemorySessionStorage`.
 - `types` — the protocol's types, generated from the spec when the crate is
   built: the body of every request and response the API declares (but the
   ones a service only passes through), every schema the bus's channels carry,
@@ -93,4 +122,8 @@ A stream of events says when it fell behind (`Lagged`) instead of dropping
 frames silently. No HTTP and no telemetry library: those are its transport's
 and the process's, and CI fails if the crate links either. Not yet published.
 Its consumers are the Rust services, which is also what proves it: the
-dispatcher conformance suite runs against a dispatcher built on it.
+dispatcher conformance suite runs against a dispatcher built on it. The SDK
+conformance suite ([tests/conformance/sdk](../../tests/conformance/sdk/README.md))
+holds its transport to the wire corpus and its client's queries to the live
+corpus, at full parity with TypeScript's; [tests/cache.rs](tests/cache.rs)
+and [tests/queries.rs](tests/queries.rs) hold the cache clause by clause.

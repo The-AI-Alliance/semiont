@@ -84,6 +84,8 @@ struct Inner {
     replies: Mutex<HashMap<String, VecDeque<Option<Value>>>>,
     log: Mutex<Vec<RequestLogEntry>>,
     emitted: Mutex<Vec<Frame>>,
+    /// How many holds each resource's scope has.
+    held: Mutex<HashMap<String, usize>>,
     requests: AtomicUsize,
     hub: FrameHub,
     router: Arc<ReplyRouter>,
@@ -156,6 +158,7 @@ impl FaultyTransport {
                 replies: Mutex::new(HashMap::new()),
                 log: Mutex::new(Vec::new()),
                 emitted: Mutex::new(Vec::new()),
+                held: Mutex::new(HashMap::new()),
                 requests: AtomicUsize::new(0),
                 hub: FrameHub::new(),
                 router: ReplyRouter::new(),
@@ -186,6 +189,21 @@ impl FaultyTransport {
     /// only sent.
     pub fn emitted(&self) -> Vec<Frame> {
         locked(&self.inner.emitted).clone()
+    }
+
+    /// How many holds there are on a resource's scope.
+    pub fn holds(&self, resource_id: &str) -> usize {
+        locked(&self.inner.held)
+            .get(resource_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// The resources whose scope is held, in name order.
+    pub fn scopes(&self) -> Vec<String> {
+        let mut scopes: Vec<String> = locked(&self.inner.held).keys().cloned().collect();
+        scopes.sort();
+        scopes
     }
 
     /// The correlation ids of the replies still awaited.
@@ -309,9 +327,23 @@ impl Transport for FaultyTransport {
         true
     }
 
-    /// Nothing here is delivered by scope, so a hold changes nothing.
-    fn subscribe_to_resource(&self, _resource_id: &str) -> ResourceHold {
-        ResourceHold::new(|| {})
+    /// Nothing here is delivered by scope, so a hold changes only the count
+    /// of them (`holds`).
+    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold {
+        *locked(&self.inner.held)
+            .entry(resource_id.to_owned())
+            .or_insert(0) += 1;
+        let inner = self.inner.clone();
+        let resource_id = resource_id.to_owned();
+        ResourceHold::new(move || {
+            let mut held = locked(&inner.held);
+            if let Some(holds) = held.get_mut(&resource_id) {
+                *holds -= 1;
+                if *holds == 0 {
+                    held.remove(&resource_id);
+                }
+            }
+        })
     }
 
     fn state(&self) -> watch::Receiver<ConnectionState> {

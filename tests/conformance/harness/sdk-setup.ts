@@ -19,9 +19,10 @@ declare module 'vitest' {
 
 export default function setup(project: TestProject): void {
   const drivers = project.getProvidedContext().sdkDrivers;
-  const rust = drivers['rust']?.wire?.[0];
-  if (rust !== undefined && !existsSync(rust)) {
-    throw new Error(`The Rust wire driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-wire-driver\` at the repository root.`);
+  for (const rust of [drivers['rust']?.wire?.[0], drivers['rust']?.live?.command[0]]) {
+    if (rust !== undefined && !existsSync(rust)) {
+      throw new Error(`A Rust driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-conformance-drivers\` at the repository root.`);
+    }
   }
   if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.
