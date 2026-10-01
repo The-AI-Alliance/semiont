@@ -178,11 +178,11 @@ gateway. Clients do not set this."*
   gets exactly one resolution — the first matching result or fail
   event, or a timeout.
 - **Reply tracking.** `busRequest` registers its correlationId with the
-  transport's optional `trackReply` BEFORE emitting and releases it on
+  transport's `trackReply` BEFORE emitting and releases it on
   every settle path. Wire transports carry the tracked set on each
   subscribe (`pendingReplies`) so a reply published during an outage is
   replayed from the server's bounded retention buffer on reconnect.
-  In-process transports omit the surface — publishing on the same
+  In-process transports track nothing — publishing on the same
   in-memory bus they read from, they have no outage and no loss.
 
 ## Delivery guarantees — two tiers, deliberately

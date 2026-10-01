@@ -200,6 +200,7 @@ function makeFakeSessionAndAdapter() {
           // else holds every busRequest until it times out.
           state$: new BehaviorSubject('open'),
           isSubscribed: () => true,
+          trackReply: () => () => {},
           removeChannels: vi.fn(),
         },
       },

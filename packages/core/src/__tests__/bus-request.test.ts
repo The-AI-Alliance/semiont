@@ -80,6 +80,7 @@ function makeBus(
     // 2026-09-16 they had to, because omitting the member skipped the check
     // entirely — the compatibility layer this default replaces.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     // The envelope view this double answers from its own scripted subjects.
     frames: vi.fn((channel: keyof EventMap) => {
       const subject =
@@ -707,15 +708,6 @@ describe('busRequest reply tracking (correlated-reply retention, client side)', 
     await expect(busRequest(bus, EMIT, {}, 20)).rejects.toMatchObject({ code: 'bus.timeout' });
     expect(bus.emit).not.toHaveBeenCalled();
     expect(tracked).toEqual([]);
-  });
-
-  it('a primitive without trackReply behaves exactly as today', async () => {
-    const bus = makeBus(RESULT, FAILURE);
-    const promise = busRequest(bus, EMIT, {});
-    await Promise.resolve();
-    const cid = bus.emitEnvelope!.correlationId as string;
-    bus.resultSubject.next({ correlationId: cid, payload: { response: { ok: 1 } } });
-    expect(await promise).toEqual({ ok: 1 });
   });
 });
 

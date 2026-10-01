@@ -31,6 +31,10 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
     // is required rather than omitted.
     isSubscribed: () => true,
 
+    // Nothing to track: a reply published on this bus cannot be lost to an
+    // outage, so there is none to ask for again.
+    trackReply: () => () => {},
+
     // In-process delivery is synchronous — there is no attach window to
     // lose a reply in, so `'open'` is the true state, not a stub. Post-
     // destroy use is guarded upstream: `eventBus.on()` throws on a
@@ -42,7 +46,7 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
       channel: K,
       payload: EventMap[K],
       envelope?: BusEnvelope,
-    ): Promise<number> => {
+    ): Promise<undefined> => {
       // Two casts gone with the signature: `channel as EventName` and
       // `payload as EventMap[EventName]`. Under one `K` the bus agrees.
       //
@@ -50,8 +54,8 @@ export function workerBusOverEventBus(eventBus: EventBus): BusRequestPrimitive {
       // `frame.correlationId`, and a narrower `emit` that dropped it would
       // still typecheck while stranding every request until its timeout.
       eventBus.emit(channel, payload, envelope);
-      // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
-      return -1;
+      // In-process: no subscriber accounting, so no count.
+      return undefined;
     },
   };
 }

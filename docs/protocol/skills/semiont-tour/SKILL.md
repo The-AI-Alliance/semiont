@@ -207,9 +207,9 @@ The pairing is the rule worth remembering: **`browse.X()` does it for me, `becko
 it for everyone else.** `browse.openResource()` and `browse.click()` are this viewer's own
 local fan-out; their `beckon` twins are the wire drives a tour uses.
 
-Every drive resolves with the subscriber count (`-1` = unknown) — the same signal the
-launcher's tour verbs print. `n === 0` means the room is empty, and the script can say so
-instead of touring nobody.
+Every drive resolves with the subscriber count — the same signal the launcher's tour verbs
+print — or with `undefined` when the gateway cannot count. `n === 0` means the room is empty,
+and the script can say so instead of touring nobody.
 
 The unmarked local members stay local by design: `browse.openResource()`, `browse.click()`
 and `beckon.sparkle()` are this viewer's own fan-out — from a Node script they reach nobody,

@@ -448,7 +448,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBeUndefined();
     await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-2' })).resolves.toBe(0);
 
     stateUnit.dispose();
@@ -465,7 +465,7 @@ describe('createActorStateUnit', () => {
       channels: [],
     });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBeUndefined();
 
     stateUnit.dispose();
   });
@@ -474,7 +474,7 @@ describe('createActorStateUnit', () => {
     // The gateway 400s an emit that fails request validation (e.g. a
     // MatchSearchRequest whose embedded annotations are malformed —
     // .plans/bugs/match-search-hangs-on-neo4j-datetime-annotations.md).
-    // Resolving `-1` here swallows the refusal: the busRequest caller keeps
+    // Resolving "no count" here swallows the refusal: the busRequest caller keeps
     // waiting for a reply that can never come. bus-request.ts's contract
     // ("An emit rejection (e.g. /bus/emit 4xx) propagates to the caller")
     // requires the transport to reject.
@@ -507,7 +507,7 @@ describe('createActorStateUnit', () => {
 
     const stateUnit = createActorStateUnit({ baseUrl: 'http://localhost:4000', token: 'tok', channels: [] });
 
-    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBe(-1);
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).resolves.toBeUndefined();
     expect(mockFetch).toHaveBeenCalledTimes(2);
 
     stateUnit.dispose();

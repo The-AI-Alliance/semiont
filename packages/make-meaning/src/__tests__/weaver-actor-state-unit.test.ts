@@ -36,12 +36,13 @@ function fakeBus() {
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
     // and against the real worker manifest by this plan's P3.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     // In-process fixture: replies are pushed synchronously onto the streams
     // above, so 'open' is the truth, not a stub (BUS-ATTACH-GATE.md).
     state$: new BehaviorSubject<ConnectionState>('open'),
     // Required by the BusRequestPrimitive shape; the fan-in never emits — the Weaver
     // itself emits weave:applied through its own bus handle.
-    emit: vi.fn(async () => -1),
+    emit: vi.fn(async () => undefined),
   };
 
   return {

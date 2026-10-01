@@ -15,9 +15,9 @@ set -euo pipefail
 # legitimate awaiting op, so the live target set is empty; its job is to keep it that way.
 #
 # A deliberate THIRD shape exists outside this gate's grep (SDK-REMOTE-SIGNALS D2): the
-# beckon wire drives return `Promise<number>` — a round trip that returns INFORMATION
-# (the /bus/emit subscriber count, -1 = unknown), neither fire-and-forget `void` nor an
-# ack `Promise<void>`. If more `Promise<number>` emitters appear, that is the pattern
+# beckon wire drives return `Promise<number | undefined>` — a round trip that returns
+# INFORMATION (the /bus/emit subscriber count, absent when the gateway cannot count),
+# neither fire-and-forget `void` nor an ack `Promise<void>`. If more such emitters appear, that is the pattern
 # they are following, not a convention violation.
 #
 # Scope: `packages/sdk/src/namespaces/*.ts`.

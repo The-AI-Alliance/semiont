@@ -35,7 +35,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
-| `Promise<number>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count (`-1` = unknown), so a driver can tell an empty room from a full one |
+| `Promise<number \| undefined>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count, or `undefined` when the gateway cannot count, so a driver can tell an empty room from a full one |
 
 Streams and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
@@ -447,9 +447,9 @@ semiont.match.search(resourceId, referenceId, gatheredContext, {
 ## Beckon
 
 Attention coordination, with two audiences the return type states. Local signals (`void`)
-are this viewer's own fan-out. Wire drives (`Promise<number>`) beckon every **other**
-participant — the guided-tour moves — and resolve with the subscriber count (`-1` =
-unknown), so a driver can tell an empty room from a full one.
+are this viewer's own fan-out. Wire drives (`Promise<number | undefined>`) beckon every
+**other** participant — the guided-tour moves — and resolve with the subscriber count, or
+`undefined` when the gateway cannot count, so a driver can tell an empty room from a full one.
 
 ```typescript
 // Wire drives — every other participant's viewer

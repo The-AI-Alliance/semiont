@@ -156,11 +156,10 @@ export class FaultyTransport implements ITransport {
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
-  ): Promise<number> {
+  ): Promise<number | undefined> {
     // The double models exactly one connected participant, so a delivered
-    // emit reports `1`; post-dispose it is inert and reports the `-1`
-    // "count unknown" sentinel.
-    if (this.disposed) return -1;
+    // emit reports `1`; post-dispose it is inert and reports no count.
+    if (this.disposed) return undefined;
     const name = channel as string;
     if (!isOperation(name)) {
       // Non-request channel: forward as-is (scoped or global).

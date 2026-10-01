@@ -167,8 +167,9 @@ export function createFakeWorkerBus() {
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
     // and against the real worker manifest by this plan's P3.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     state$: new BehaviorSubject<ConnectionState>('open'),
-    emit: vi.fn(async () => -1),
+    emit: vi.fn(async () => undefined),
   };
   return {
     bus,
@@ -305,6 +306,7 @@ export function createFakeKsBus(
     // This fake delivers whatever a test queues at it, so `true` is the truth
     // about it — it models no narrowed set.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     // In-process fake — replies are queued on emit, so 'open' is the truth.
     state$: new BehaviorSubject<ConnectionState>('open'),
     async emit<K extends keyof EventMap>(name: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {

@@ -34,7 +34,7 @@ const annotations = await firstValueFrom(
 
 // Programmatically direct attention — broadcasts across participants
 // via the bus gateway. Each wire drive resolves with the subscriber
-// count at dispatch (-1 = unknown).
+// count at dispatch (undefined when the gateway cannot count).
 await client.beckon.attention(resourceId, annotations[0].id);  // point at it
 await client.beckon.click(annotations[0].id);                  // OPEN it
 

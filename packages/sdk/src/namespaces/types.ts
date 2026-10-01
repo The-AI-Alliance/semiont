@@ -3,7 +3,7 @@
  *
  * These interfaces define the public API of `@semiont/sdk`, organized by
  * the 7 domain flows (Browse, Mark, Bind, Gather, Match, Yield, Beckon)
- * plus infrastructure namespaces (Job, Auth, Admin).
+ * plus infrastructure namespaces (Frame, Job, Auth, System).
  *
  * Each namespace maps 1:1 to a flow. Each flow maps to a clear actor on
  * the gateway. The frontend calls `client.mark.annotation()` and the
@@ -11,7 +11,7 @@
  *
  * Return type conventions:
  * - Browse live queries → `CacheObservable<T>` (bus-driven, cached;
- *   subscribe yields `T | undefined`, await yields `T` after first load)
+ *   subscribe yields `CacheState<T>`, `.fresh()` is the one-shot read)
  * - Browse one-shot reads → `Promise<T>` (fetch once, no cache)
  * - Commands (mark, bind, yield.resource) → `Promise<T>` (atomic ops)
  * - Long-running ops (gather, match, yield.fromContext, mark.assist)
@@ -19,12 +19,13 @@
  *   emit, await yields the last one)
  * - Ephemeral signals, local (beckon.hover/sparkle, browse.click, …) → `void`
  * - Wire drives at other participants (beckon.attention/click/openResource/
- *   sparkleAll) → `Promise<number>`: the /bus/emit subscriber count
- *   (`-1` = unknown) — information, not an ack (X5's third shape)
+ *   sparkleAll) → `Promise<number | undefined>`: the /bus/emit subscriber
+ *   count, absent when the gateway cannot count — information, not an ack
+ *   (X5's third shape)
  *
- * `StreamObservable` and `CacheObservable` are `Observable` subclasses
- * that also implement `PromiseLike<T>` — `await client.X.Y(...)` works
- * directly without `lastValueFrom`/`firstValueFrom` wrappers.
+ * `StreamObservable` is an `Observable` subclass that also implements
+ * `PromiseLike<T>` — `await client.X.Y(...)` works directly without a
+ * `lastValueFrom` wrapper. `CacheObservable` is deliberately not thenable.
  * `.pipe(...)` returns a plain `Observable<T>` (the thenable subclass
  * does not propagate through pipe — by design).
  */
@@ -524,11 +525,12 @@ export interface YieldNamespace {
  */
 export interface BeckonNamespace {
   // Wire drives — beckon OTHER participants (guided-tour moves). Each
-  // resolves with the subscriber count (`-1` = unknown; ITransport.emit).
-  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number>;
-  click(annotationId: AnnotationId): Promise<number>;
-  openResource(resourceId: ResourceId): Promise<number>;
-  sparkleAll(annotationId: AnnotationId): Promise<number>;
+  // resolves with the subscriber count, absent when there is none
+  // (ITransport.emit).
+  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number | undefined>;
+  click(annotationId: AnnotationId): Promise<number | undefined>;
+  openResource(resourceId: ResourceId): Promise<number | undefined>;
+  sparkleAll(annotationId: AnnotationId): Promise<number | undefined>;
   // Local signals — this viewer's own fan-out; never the wire.
   hover(annotationId: AnnotationId | null): void;
   sparkle(annotationId: AnnotationId): void;

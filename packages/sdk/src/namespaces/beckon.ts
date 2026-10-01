@@ -10,12 +10,12 @@ export class BeckonNamespace implements IBeckonNamespace {
 
   // ── Wire drives — beckon OTHER participants (the guided-tour moves) ────
   //
-  // Each resolves with the subscriber count from `/bus/emit` (`-1` =
-  // unknown; see `ITransport.emit`), so a driver can tell an empty room
-  // from a full one. Arrivals come back bridged like any remote emit —
+  // Each resolves with the subscriber count from `/bus/emit`, or with
+  // `undefined` when there is none (see `ITransport.emit`), so a driver can
+  // tell an empty room from a full one and from one nobody counted. Arrivals come back bridged like any remote emit —
   // these methods never loop back onto the local bus.
 
-  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number> {
+  attention(resourceId: ResourceId, annotationId: AnnotationId): Promise<number | undefined> {
     return this.transport.emit('beckon:focus', { annotationId, resourceId });
   }
 
@@ -24,7 +24,7 @@ export class BeckonNamespace implements IBeckonNamespace {
    * `browse:resource-open` — the launcher's tour channel). The local
    * counterpart is `browse.openResource()`: this viewer's own panels.
    */
-  openResource(resourceId: ResourceId): Promise<number> {
+  openResource(resourceId: ResourceId): Promise<number | undefined> {
     return this.transport.emit('browse:resource-open', { resourceId });
   }
 
@@ -38,7 +38,7 @@ export class BeckonNamespace implements IBeckonNamespace {
    * distinction, the same reason `openResource` needs none and `sparkleAll`
    * does.
    */
-  click(annotationId: AnnotationId): Promise<number> {
+  click(annotationId: AnnotationId): Promise<number | undefined> {
     return this.transport.emit('browse:click', { annotationId });
   }
 
@@ -49,7 +49,7 @@ export class BeckonNamespace implements IBeckonNamespace {
    * local (GUIDED-TOUR D6: a wire emit here would broadcast one viewer's
    * own UI moment to the room).
    */
-  sparkleAll(annotationId: AnnotationId): Promise<number> {
+  sparkleAll(annotationId: AnnotationId): Promise<number | undefined> {
     return this.transport.emit('beckon:sparkle', { annotationId });
   }
 

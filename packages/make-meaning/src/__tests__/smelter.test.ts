@@ -827,6 +827,7 @@ describe('Smelter.reconcile', () => {
       },
       // Nothing is outside this fixture's reach — the emit is what fails here.
       isSubscribed: () => true,
+      trackReply: () => () => {},
       // 'open' so the attach gate lets the emit proceed — this fixture's
       // failure mode is the emit itself throwing, not a detached stream.
       state$: new BehaviorSubject<ConnectionState>('open'),

@@ -12,14 +12,14 @@ import type { BusEnvelope, ConnectionState, EventBus, EventMap, BusRequestPrimit
  */
 export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
   return {
-    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {
+    emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<undefined> {
       // The envelope rides through. `busRequest` mints the correlation key
       // onto it and matches the reply on `frame.correlationId`, so an emit
       // that dropped it here would strand every in-process request until
       // its timeout — silently, since a narrower `emit` is still assignable.
       eventBus.emit(channel, payload, envelope);
-      // In-process: no subscriber accounting — the ITransport "unknown" sentinel.
-      return Promise.resolve(-1);
+      // In-process: no subscriber accounting, so no count.
+      return Promise.resolve(undefined);
     },
     stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]> {
       return eventBus.on(channel);
@@ -31,6 +31,9 @@ export function asBusRequestPrimitive(eventBus: EventBus): BusRequestPrimitive {
     // path carries anything asked of it. The true answer, which is why this
     // is a required member rather than an omitted one.
     isSubscribed: () => true,
+    // Nothing to track: a reply published on this bus cannot be lost to an
+    // outage, so there is none to ask for again.
+    trackReply: () => () => {},
     // In-process delivery is synchronous — no attach window, so `'open'` is
     // the true state (.plans/BUS-ATTACH-GATE.md). A destroyed bus throws at
     // `eventBus.on()` before the gate could matter. Published read-only

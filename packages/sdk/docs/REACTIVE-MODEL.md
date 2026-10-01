@@ -80,9 +80,9 @@ Namespace methods return one of exactly five shapes:
 - **`StreamObservable<T>`** (or **`UploadObservable`** for `yield.resource`) — long-running operations with progress events plus a final value.
 - **`CacheObservable<T>`** — live queries with stale-while-revalidate semantics.
 - **`void`** — LOCAL collaboration signals; observation happens on the bus.
-- **`Promise<number>`** — wire drives at other participants (`beckon.attention` /
+- **`Promise<number | undefined>`** — wire drives at other participants (`beckon.attention` /
   `click` / `openResource` / `sparkleAll`): resolves with the `/bus/emit` subscriber
-  count (`-1` = unknown). Information, not an ack — neither fire-and-forget `void`
+  count, or `undefined` when there is none. Information, not an ack — neither fire-and-forget `void`
   nor a confirmed write, which is why it is its own row (the X5 gate names it as
   the third shape).
 
@@ -100,7 +100,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `StreamObservable<T>` (or `UploadObservable` / future bounded-stream subclasses)
 - `CacheObservable<T>`
 - `void`
-- `Promise<number>` (wire drives only)
+- `Promise<number | undefined>` (wire drives only)
 
 Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
 
@@ -198,11 +198,11 @@ const done = await semiont.mark.assist(rId, 'linking', {}).run((event) => {
 
 These produce no return value at the call site — observation happens on the bus side via `session.subscribe(channel, handler)` or `client.bus.on(channel)`. A Browser state unit emits `mark.changeShape('rectangle')`; a different participant subscribed to `mark:shape-changed` reacts.
 
-**Wire drives** (return `Promise<number>`; emit over the transport at every other participant):
+**Wire drives** (return `Promise<number | undefined>`; emit over the transport at every other participant):
 
 - `beckon.attention`, `beckon.openResource`, `beckon.sparkleAll`
 
-These are the guided-tour moves: they drive *other* participants' viewers, and they resolve with the `/bus/emit` subscriber count (`-1` = unknown — a gateway on a broker signal plane, which cannot count, or an in-process transport; never conflated with a genuine zero). Neither fire-and-forget nor an ack: the count is *information* — a tour script can tell an empty room from a full one before its next move. The count is **exact for a broadcast and an upper bound for a correlated channel**: a reply is delivered only to the client that issued the request, so on those channels the number says how many subscribers were eligible to be considered, not how many were written to.
+These are the guided-tour moves: they drive *other* participants' viewers, and they resolve with the `/bus/emit` subscriber count, or with `undefined` when there is none (a gateway on a broker signal plane, which cannot count, or an in-process transport; never conflated with a genuine zero). Neither fire-and-forget nor an ack: the count is *information* — a tour script can tell an empty room from a full one before its next move. The count is **exact for a broadcast and an upper bound for a correlated channel**: a reply is delivered only to the client that issued the request, so on those channels the number says how many subscribers were eligible to be considered, not how many were written to.
 
 **Plain `Observable<T>` / `BehaviorSubject<T>`** (no thenable wrapper, by design — observed continuously, not awaited):
 

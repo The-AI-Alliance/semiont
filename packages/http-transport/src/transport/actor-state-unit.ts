@@ -147,7 +147,7 @@ export interface ActorStateUnit extends StateUnit {
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
   /** The envelope view: the same SSE frame, envelope included. */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number>;
+  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number | undefined>;
   state$: Observable<ConnectionState>;
   /**
    * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
@@ -843,7 +843,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       );
     },
 
-    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> => {
+    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number | undefined> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
@@ -907,17 +907,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         }
         return attempt;
       }, isRetryableRequestError, EMIT_RETRY);
-      // `-1` = count unknown, the same sentinel as the Go client, and never a
-      // zero: an absent `subscribers` is the gateway saying it could not count
-      // (a broker signal plane), and an unreadable body says nothing at all.
-      // Either way the emit was accepted, so neither may read as an empty room.
+      // No count is reported as no count, never as a zero: an absent
+      // `subscribers` is the gateway saying it could not count (a broker
+      // signal plane), and an unreadable body says nothing at all. Either way
+      // the emit was accepted, so neither may read as an empty room.
       let accepted: components['schemas']['BusEmitAccepted'];
       try {
         accepted = await res.json();
       } catch {
-        return -1;
+        return undefined;
       }
-      return accepted.subscribers === undefined ? -1 : accepted.subscribers;
+      return accepted.subscribers;
     },
 
     state$: state$.asObservable(),

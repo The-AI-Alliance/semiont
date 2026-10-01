@@ -88,6 +88,7 @@ function inMemoryTransport(
     bridgeInto: () => {},
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     isSubscribed: () => true,
+    trackReply: () => () => {},
     errors$: new Subject<SemiontError>().asObservable(),
     dispose: () => {},
   };

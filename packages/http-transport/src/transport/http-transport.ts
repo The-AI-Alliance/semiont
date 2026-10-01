@@ -324,7 +324,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
-  ): Promise<number> {
+  ): Promise<number | undefined> {
     busLog('EMIT', channel as string, payload, envelope?.scope, envelope?.correlationId);
     recordBusEmit(channel as string, envelope?.scope);
     return withSpan(

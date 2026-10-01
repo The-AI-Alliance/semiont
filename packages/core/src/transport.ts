@@ -110,18 +110,19 @@ export interface ITransport {
    * had to be smuggled inside the payload.
    *
    * Resolves with the number of subscribers the emit reached
-   * (`/bus/emit` responds `{subscribers: n}`; GUIDED-TOUR P1), or `-1`
-   * when the count is unknown — a gateway on a broker signal plane, which
-   * cannot count and omits `subscribers`, an unreadable body, or an
-   * in-process transport where the question does not apply. `-1` is the
-   * same sentinel the Go client uses: an uncounted emit must stay
-   * distinguishable from a genuine empty room.
+   * (`/bus/emit` responds `{subscribers: n}`; GUIDED-TOUR P1), or with
+   * `undefined` when there is no count — a gateway on a broker signal plane,
+   * which cannot count and omits `subscribers`, an unreadable body, or an
+   * in-process transport where the question does not apply. The absence is
+   * carried through as an absence: an uncounted emit must stay
+   * distinguishable from a genuine empty room, and a number standing in for
+   * "unknown" would compare, add and print as a count.
    */
   emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
-  ): Promise<number>;
+  ): Promise<number | undefined>;
   on<K extends keyof EventMap>(channel: K, handler: (payload: EventMap[K]) => void): () => void;
   stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
 
@@ -173,10 +174,11 @@ export interface ITransport {
    * emitting and releases on settle; a wire transport includes the
    * tracked set as `pendingReplies` on each subscribe body so a reply
    * published while the connection was down replays from the server's
-   * retention buffer. OPTIONAL: in-process transports that cannot lose
-   * replies omit it.
+   * retention buffer. Required of every transport: one that cannot lose a
+   * reply (in-process) has nothing to track and returns a disposer that does
+   * nothing, which is its true answer.
    */
-  trackReply?(correlationId: string): () => void;
+  trackReply(correlationId: string): () => void;
 
   /**
    * Whether this transport's receive path delivers `channel`

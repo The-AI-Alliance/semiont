@@ -123,15 +123,15 @@ export function replyChannelsFor(channels: readonly string[]): EventName[] {
  */
 export interface BusRequestPrimitive {
   /**
-   * Matches `ITransport.emit`'s return: the subscriber count (`-1` =
-   * unknown). `busRequest` itself ignores it — the reply channel is its
+   * Matches `ITransport.emit`'s return: the subscriber count, absent when
+   * there is none. `busRequest` itself ignores it — the reply channel is its
    * ack — but the primitive must stay assignable from every ITransport.
    */
   emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
-  ): Promise<number>;
+  ): Promise<number | undefined>;
   /**
    * The ENVELOPE view. `busRequest` matches a reply on `frame.correlationId`,
    * which is why the key never needs to enter a channel's domain type
@@ -159,10 +159,11 @@ export interface BusRequestPrimitive {
    * a wire transport includes the currently-tracked ids as
    * `pendingReplies` in each subscribe body, so a reply published while
    * the connection was down is replayed from the server's retention
-   * buffer on reconnect. OPTIONAL: an in-process transport that cannot
-   * lose replies omits the surface and `busRequest` behaves as before.
+   * buffer on reconnect. Required, not optional, for the reason `frames`
+   * and `isSubscribed` are: an in-process transport that cannot lose a reply
+   * returns a disposer that does nothing, and `busRequest` has one path.
    */
-  trackReply?(correlationId: string): () => void;
+  trackReply(correlationId: string): () => void;
   /**
    * Whether this transport's receive path delivers `channel` — i.e. a reply
    * published there can actually reach this process. A transport whose
@@ -372,7 +373,7 @@ export async function busRequest<Op extends BusOperationKey>(
   // reach this line, so they never track.
   let releaseTracking: (() => void) | undefined;
   if (emitAllowed) {
-    releaseTracking = bus.trackReply?.(correlationId);
+    releaseTracking = bus.trackReply(correlationId);
     try {
       // The key goes on the ENVELOPE. A responder reads it from there and
       // echoes it back on one; no channel's domain type ever carries it.
