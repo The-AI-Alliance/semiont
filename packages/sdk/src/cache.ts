@@ -3,7 +3,8 @@
  *
  * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B20).
  *
- * Framework-agnostic: no React, no dependency on any namespace. Used by
+ * Framework-agnostic: no React, no dependency on any namespace; of the bus it
+ * knows one thing, the code a closed one fails with (B16). Used by
  * `BrowseNamespace` to back its per-key stores, but equally usable from
  * CLI, MCP, or worker code.
  *
@@ -24,7 +25,8 @@
  *   - `invalidate(key)`: stale-while-revalidate — keeps the current value
  *     visible to observers, clears the in-flight guard, starts a fresh
  *     fetch. Recovers an orphaned fetch (SSE torn down, response lost).
- *   - `remove(key)`: drops the cache entry entirely (B13a). No refetch.
+ *   - `remove(key, gone)`: the entity is gone (B13a): the value is dropped and
+ *     the key is `failed` with `gone`, for every observer. No refetch.
  *   - `set(key, value)`: write-through without a fetch (B13b).
  *   - `invalidateAll()`: per-key SWR refetch of every currently-cached entry.
  *   - `dispose()`: terminal and inert (B16) — completes every per-key
@@ -49,6 +51,7 @@
  *     set() clears it. Keys WITH a value keep B6 stale-beats-error.
  */
 
+import { BusRequestError } from '@semiont/core';
 import {
   BehaviorSubject,
   Observable,
@@ -123,7 +126,7 @@ export interface Cache<K, V> {
    */
   known(key: K): boolean;
 
-  /** Iterator of currently-cached keys. For invalidateAll and diagnostics. */
+  /** Every key the cache knows (B20): what `known` is true of. */
   keys(): K[];
 
   /**
@@ -132,13 +135,17 @@ export interface Cache<K, V> {
    */
   invalidate(key: K): void;
 
-  /** Drop the entry from the cache. No refetch. */
-  remove(key: K): void;
+  /**
+   * The entity is gone (B13a): drop the value and fail the key with `gone`,
+   * for every observer of it. No refetch: an observer arriving later starts
+   * one, as it does at any failed key (B15), and is told by the service.
+   */
+  remove(key: K, gone: Error): void;
 
   /** Write-through: set the value directly without a fetch. */
   set(key: K, value: V): void;
 
-  /** Per-key SWR refetch of every currently-cached entry. */
+  /** `invalidate` of every key the cache knows. */
   invalidateAll(): void;
 
   /**
@@ -355,6 +362,8 @@ export function createCache<K, V>(
     });
   };
 
+  const knownKeys = (): K[] => [...new Set([...store$.value.keys(), ...failures$.value.keys(), ...inflight.keys()])];
+
   return {
     observe(key: K): Observable<CacheState<V>> {
       // B4: return a stable Observable per key.
@@ -423,8 +432,9 @@ export function createCache<K, V>(
 
     fetch(key: K): Promise<V> {
       // B16: surfaced, not silent — the await path's caller owns retry
-      // policy (B14 boundary 1), so it gets a rejection it can see.
-      if (disposed) return Promise.reject(new Error('Cache disposed'));
+      // policy (B14 boundary 1), so it gets a rejection it can see, under the
+      // code a request of a closed bus fails with.
+      if (disposed) return Promise.reject(new BusRequestError('The client is closed', 'bus.closed'));
       return runFetch(key);
     },
 
@@ -436,9 +446,7 @@ export function createCache<K, V>(
       return store$.value.has(key) || failures$.value.has(key) || inflight.has(key);
     },
 
-    keys(): K[] {
-      return [...store$.value.keys()];
-    },
+    keys: knownKeys,
 
     invalidate(key: K): void {
       if (disposed) return; // B16
@@ -451,15 +459,17 @@ export function createCache<K, V>(
       runFetchSWR(key);
     },
 
-    remove(key: K): void {
+    remove(key: K, gone: Error): void {
       if (disposed) return; // B16
       rehydrated.delete(key); // B18: nothing left to revalidate
-      // B13a: drop the entry. The value is gone; observers see `undefined`.
+      inflight.delete(key);
+      // B13a: the failure first, so the key goes from `ready` straight to
+      // `failed`: dropping the value first would show `pending` between, a
+      // state with no request behind it.
+      setFailure(key, gone);
       const next = new Map(store$.value);
       next.delete(key);
       store$.next(next);
-      inflight.delete(key);
-      clearFailure(key);
     },
 
     set(key: K, value: V): void {
@@ -477,10 +487,9 @@ export function createCache<K, V>(
 
     invalidateAll(): void {
       if (disposed) return; // B16
-      // Per-key SWR refetch of every currently-cached entry. Each entry
-      // keeps its stale value until its refetch resolves.
-      for (const key of store$.value.keys()) {
+      for (const key of knownKeys()) {
         inflight.delete(key);
+        clearFailure(key);
         runFetchSWR(key);
       }
     },

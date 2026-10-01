@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { map, firstValueFrom, filter } from 'rxjs';
+import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
 import { EventBus, resourceId, annotationId, isObject } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
 import { isReady } from '../../cache';
-import type { ITransport, IContentTransport } from '@semiont/core';
+import type { ConnectionState, ITransport, IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
 import type { ResourceDescriptor } from '@semiont/core';
@@ -31,8 +31,9 @@ function mockResource(id: string): ResourceDescriptor {
 
 type ResponseMap = Record<string, (payload: Record<string, unknown>) => { resultChannel: string; response: Record<string, unknown> }>;
 
-function createMockTransport(responses: ResponseMap): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn> } {
+function createMockTransport(responses: ResponseMap): { transport: ITransport; emitSpy: ReturnType<typeof vi.fn>; state$: BehaviorSubject<ConnectionState> } {
   const transportBus = new EventBus();
+  const state$ = new BehaviorSubject<ConnectionState>('open');
   const emitSpy = vi.fn().mockImplementation(async (channel: string, payload: Record<string, unknown>, envelope?: { correlationId?: string }) => {
     const handler = responses[channel];
     if (handler) {
@@ -48,10 +49,11 @@ function createMockTransport(responses: ResponseMap): { transport: ITransport; e
     ...inMemoryTransport({
       bus: transportBus,
       onEmit: (channel, payload, envelope) => { void emitSpy(channel, payload, envelope); },
+      state$,
     }),
   };
 
-  return { transport, emitSpy };
+  return { transport, emitSpy, state$ };
 }
 
 function defaultResponses(): ResponseMap {
@@ -128,6 +130,7 @@ describe('BrowseNamespace', () => {
   let content: IContentTransport;
   let browse: BrowseNamespace;
   let emitSpy: ReturnType<typeof vi.fn>;
+  let state$: BehaviorSubject<ConnectionState>;
   const RID = resourceId('res-1');
   const AID = annotationId('ann-1');
 
@@ -136,6 +139,7 @@ describe('BrowseNamespace', () => {
     content = makeContent();
     const mock = createMockTransport(defaultResponses());
     emitSpy = mock.emitSpy;
+    state$ = mock.state$;
     browse = new BrowseNamespace(mock.transport, eventBus, content);
   });
 
@@ -518,11 +522,11 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('bus:resume-gap (no scope) → invalidates the KB-wide registries the cache knows', async () => {
-      // The KB-wide registries refetch on a gap whether or not a specific
-      // scope was named — see browse.ts subscription — each of them the cache
-      // knows (B20): here the two that were observed, and not the collaborator
-      // directory, which nothing asked for.
+    it('the stream reopening after a drop → invalidates the KB-wide registries the cache knows', async () => {
+      // Nothing replays what every client hears, so a drop is answered by
+      // asking again, of each registry the cache knows (B20): here the two
+      // that were observed, and not the collaborator directory, which
+      // nothing asked for.
       const fetches = (channel: string) =>
         emitSpy.mock.calls.filter((call: unknown[]) => call[0] === channel).length;
 
@@ -531,7 +535,9 @@ describe('BrowseNamespace', () => {
       expect(fetches('browse:entity-types-requested')).toBe(1);
       expect(fetches('browse:tag-schemas-requested')).toBe(1);
 
-      eventBus.emit('bus:resume-gap', {} as any);
+      state$.next('reconnecting');
+      state$.next('connecting');
+      state$.next('open');
       await firstDefined(browse.entityTypes());
       await firstDefined(browse.tagSchemas());
       expect(fetches('browse:entity-types-requested')).toBe(2);
@@ -539,8 +545,10 @@ describe('BrowseNamespace', () => {
       expect(fetches('browse:agents-requested')).toBe(0);
     });
 
-    it('bus:resume-gap fetches no registry nothing has asked for (B20)', async () => {
-      eventBus.emit('bus:resume-gap', {} as any);
+    it('the stream reopening fetches no registry nothing has asked for (B20)', async () => {
+      state$.next('reconnecting');
+      state$.next('connecting');
+      state$.next('open');
       await new Promise((r) => setTimeout(r, 0));
       expect(emitSpy).not.toHaveBeenCalled();
     });

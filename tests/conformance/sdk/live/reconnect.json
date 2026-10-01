@@ -1,5 +1,5 @@
 {
-  "about": "a stream that drops and reopens with nothing missed costs no request: what is observed keeps its value (B13)",
+  "about": "a stream that drops and reopens costs no request for what a scope's own events feed: they are replayed from where the client left off, and what it observes keeps its value (B13)",
   "source": "packages/sdk/docs/CACHE-SEMANTICS.md B13",
   "tier": "parity",
   "steps": [

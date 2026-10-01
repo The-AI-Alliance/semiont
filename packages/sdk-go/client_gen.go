@@ -2505,13 +2505,13 @@ type BusPingMessageEvent string
 // BusResumeGap The payload of `bus:resume-gap`: a scope's `lastEventId` could not be honoured, so the client cannot trust that it has every persisted event of that scope and must refetch what it caches for it. Written by the gateway, never by a participant.
 type BusResumeGap struct {
 	// LastSeenId The watermark the entry carried.
-	LastSeenId *string `json:"lastSeenId,omitempty"`
+	LastSeenId string `json:"lastSeenId"`
 
 	// Reason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
 	Reason BusResumeGapReason `json:"reason"`
 
 	// Scope The scope of the subscription entry whose watermark failed.
-	Scope *string `json:"scope,omitempty"`
+	Scope string `json:"scope"`
 }
 
 // BusResumeGapReason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.

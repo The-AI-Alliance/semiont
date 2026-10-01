@@ -15,7 +15,7 @@ import { EventBus, INVALIDATION_WINDOW_MS, resourceId, annotationId } from '@sem
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
 import { BrowseNamespace } from '../browse';
-import { isReady, readyValue } from '../../cache';
+import { isReady, readyValue, type CacheState } from '../../cache';
 import type { IContentTransport } from '@semiont/core';
 
 import type { Annotation } from '@semiont/core';
@@ -105,8 +105,15 @@ function fakeMarkBodyUpdated(
   };
 }
 
-function fakeBusResumeGap(scope: string | undefined, reason: EventMap['bus:resume-gap']['reason']): EventMap['bus:resume-gap'] {
-  return scope === undefined ? { reason } : { scope, reason };
+function fakeBusResumeGap(scope: string, reason: EventMap['bus:resume-gap']['reason']): EventMap['bus:resume-gap'] {
+  return { scope, lastSeenId: `p-${scope}-1`, reason };
+}
+
+/** The stream drops and is open again: the states a drop reports, and a handoff never does. */
+function reopen(state$: BehaviorSubject<ConnectionState>): void {
+  state$.next('reconnecting');
+  state$.next('connecting');
+  state$.next('open');
 }
 
 /**
@@ -632,72 +639,100 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
     });
   });
 
-  describe('B13 — reconnect gap-detection (post-BUS-RESUMPTION)', () => {
-    it('a bare state machine reconnect cycle does NOT refetch — resumption handles it', async () => {
+  describe('B13 — a stream that reopens', () => {
+    const requests = (emitSpy: ReturnType<typeof createHarness>['emitSpy'], channel: string) =>
+      emitSpy.mock.calls.filter(([ch]) => ch === channel).length;
+
+    it('after a drop, asks again for what events without a position feed, and not for what a scope replays', async () => {
       const state$ = new BehaviorSubject<ConnectionState>('open');
       const { browse, emitSpy } = createHarness({ state$ });
 
       await firstDefined(browse.resource(RID));
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      await firstDefined(browse.resources());
+      await firstDefined(browse.entityTypes());
+      expect(emitSpy).toHaveBeenCalledTimes(4);
 
-      // Simulate a full reconnect lifecycle: open → reconnecting →
-      // connecting → open. Nothing here asks for invalidation —
-      // resumption is assumed to have covered any gap.
-      state$.next('reconnecting');
-      state$.next('connecting');
+      reopen(state$);
+      await flush();
+
+      // `yield:*` and `frame:*` reach every client with no position: what was
+      // published while the stream was down is lost, and nothing replays it.
+      expect(requests(emitSpy, 'browse:resource-requested')).toBe(2);
+      expect(requests(emitSpy, 'browse:resources-requested')).toBe(2);
+      expect(requests(emitSpy, 'browse:entity-types-requested')).toBe(2);
+      // A scope's own events are replayed from where the client left off.
+      expect(requests(emitSpy, 'browse:annotations-requested')).toBe(1);
+    });
+
+    it('asks for nothing it does not hold (B20)', async () => {
+      const state$ = new BehaviorSubject<ConnectionState>('open');
+      const { browse, emitSpy } = createHarness({ state$ });
+      await firstDefined(browse.annotations(RID));
+
+      reopen(state$);
+      await flush();
+
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for nothing while the state stays open, which is all a handoff shows', async () => {
+      const state$ = new BehaviorSubject<ConnectionState>('open');
+      const { browse, emitSpy } = createHarness({ state$ });
+      await firstDefined(browse.resource(RID));
+      await firstDefined(browse.resources());
+
       state$.next('open');
       await flush();
 
-      // No new fetches — the client assumes resumption covered the gap.
-      // Old contract (pre-BUS-RESUMPTION) would have refetched everything.
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('`bus:resume-gap` with a scope invalidates only keys for that scope', async () => {
+    it('asks for nothing more at the first open: there was no stream to miss anything on', async () => {
+      const state$ = new BehaviorSubject<ConnectionState>('initial');
+      const { browse, emitSpy } = createHarness({ state$ });
+      const sub = browse.resources().subscribe(() => {});
+
+      state$.next('connecting');
+      state$.next('open');
+      await firstDefined(browse.resources());
+      await flush();
+
+      // The one request the observer itself cost, which waited for the stream.
+      expect(requests(emitSpy, 'browse:resources-requested')).toBe(1);
+      sub.unsubscribe();
+    });
+
+    it('`bus:resume-gap` asks again for what is held of that scope, and of nothing else', async () => {
       const { browse, eventBus, emitSpy } = createHarness();
       const RID_A = resourceId('res-A');
       const RID_B = resourceId('res-B');
+      const AID_A = annotationId('ann-A');
       await firstDefined(browse.resource(RID_A));
       await firstDefined(browse.annotations(RID_A));
+      await firstDefined(browse.annotation(RID_A, AID_A));
       await firstDefined(browse.resource(RID_B));
+      await firstDefined(browse.annotation(RID_B, AID));
       await firstDefined(browse.entityTypes());
-      expect(emitSpy).toHaveBeenCalledTimes(4);
+      expect(emitSpy).toHaveBeenCalledTimes(6);
 
       eventBus.emit('bus:resume-gap', fakeBusResumeGap(RID_A, 'retention-exceeded'));
       await flush();
 
-      // Keys in scope A refetched; key in scope B untouched (aside from
-      // the entity-types refetch that fires on any gap).
-      const channels = emitSpy.mock.calls.map(([ch]) => ch);
-      // Count post-gap resource fetches by scope.
-      const postGap = channels.slice(4);
-      expect(postGap.filter((c) => c === 'browse:resource-requested').length).toBe(1);
-      expect(postGap.filter((c) => c === 'browse:annotations-requested').length).toBe(1);
-      expect(postGap.filter((c) => c === 'browse:entity-types-requested').length).toBe(1);
-    });
-
-    it('`bus:resume-gap` without a scope invalidates every live key (fallback)', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
-      await firstDefined(browse.resource(RID));
-      await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
-
-      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'unparseable-last-event-id'));
-      await flush();
-
-      const channels = emitSpy.mock.calls.map(([ch]) => ch);
-      const refetchCount = channels.filter((c) =>
-        c === 'browse:resource-requested' || c === 'browse:annotations-requested',
-      ).length;
-      expect(refetchCount).toBeGreaterThanOrEqual(4);
+      const asked = emitSpy.mock.calls.slice(6).map(([channel, payload]) => [channel, payload]);
+      expect(asked).toHaveLength(3);
+      expect(asked).toContainEqual(['browse:resource-requested', { resourceId: RID_A }]);
+      expect(asked).toContainEqual(['browse:annotations-requested', { resourceId: RID_A }]);
+      // The scope's annotations too: its events are what feed them.
+      expect(asked).toContainEqual(['browse:annotation-requested', { resourceId: RID_A, annotationId: AID_A }]);
     });
   });
 
-  describe('B13a — remove vs invalidate', () => {
-    it('removeAnnotationDetail drops the entry and does not refetch (no cached observer)', async () => {
+  describe('B13a — an annotation that is gone', () => {
+    it('fails its observers as not-found, and asks for nothing', async () => {
       const { browse, eventBus, emitSpy } = createHarness();
-      // Seed the detail cache via initial observation.
+      const seen: CacheState<Annotation>[] = [];
+      const sub = browse.annotation(RID, AID).subscribe((s) => seen.push(s));
       await firstDefined(browse.annotation(RID, AID));
       expect(emitSpy).toHaveBeenCalledTimes(1);
 
@@ -706,12 +741,57 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       eventBus.emit('mark:delete-ok', deleteOkPayload);
       await flush();
 
-      // Nothing else was fetched after the remove: no refetch side effect.
+      const last = seen.at(-1)!;
+      expect(last.status).toBe('failed');
+      expect(last.status === 'failed' && last.error).toMatchObject({ code: 'bus.not-found' });
+      // Never `pending` on the way: no request stands behind a removal.
+      expect(seen.map((s) => s.status)).toEqual(['pending', 'ready', 'failed']);
       expect(emitSpy).toHaveBeenCalledTimes(1);
+      sub.unsubscribe();
+    });
+
+    it('an observer arriving afterwards asks the service', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.annotation(RID, AID));
+      eventBus.emit('mark:delete-ok', { response: { annotationId: AID } });
+      await flush();
+
+      await firstDefined(browse.annotation(RID, AID));
+      expect(emitSpy.mock.calls.filter(([ch]) => ch === 'browse:annotation-requested')).toHaveLength(2);
+    });
+
+    it('marks nothing about an annotation the client never asked for (B20)', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      eventBus.emit('mark:delete-ok', { response: { annotationId: AID } });
+      await flush();
+
+      // Its first observer is simply the first: pending, one request, ready.
+      const seen: string[] = [];
+      const sub = browse.annotation(RID, AID).subscribe((s) => seen.push(s.status));
+      await firstDefined(browse.annotation(RID, AID));
+      expect(seen).toEqual(['pending', 'ready']);
+      expect(emitSpy).toHaveBeenCalledTimes(1);
+      sub.unsubscribe();
     });
   });
 
   describe('B13c — an unenriched body update revalidates instead of going stale', () => {
+    it('asks again for the annotation itself, and goes on showing what it has', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      const seen: string[] = [];
+      const sub = browse.annotation(RID, AID).subscribe((s) => seen.push(s.status));
+      await firstDefined(browse.annotation(RID, AID));
+
+      eventBus.emit('mark:body-updated', fakeMarkBodyUpdated(RID, mockAnnotation(AID, 'res-1')));
+      await flush();
+
+      expect(emitSpy.mock.calls.filter(([ch]) => ch === 'browse:annotation-requested')).toHaveLength(2);
+      // The update is not a removal: the value stays until the new one arrives.
+      expect(seen).not.toContain('failed');
+      expect(seen.filter((status) => status === 'pending')).toHaveLength(1);
+      sub.unsubscribe();
+    });
+
     it('refetches the list when mark:body-updated arrives without its annotation', async () => {
       const { browse, eventBus, emitSpy } = createHarness();
       // An active observer, so invalidation revalidates (B7).
@@ -1002,13 +1082,14 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       expect(events.filter((e) => e === 'next').length).toBeGreaterThan(0);
     });
 
-    it('bus:resume-gap refetches the roster alongside the other KB-wide singletons', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
+    it('a stream that reopens refetches the roster alongside the other KB-wide singletons', async () => {
+      const state$ = new BehaviorSubject<ConnectionState>('open');
+      const { browse, emitSpy } = createHarness({ state$ });
       await firstDefined(browse.agents());
 
       // The roster's one real staleness event — a gateway restart with a
-      // changed TOML — necessarily presents as an SSE gap.
-      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'retention-exceeded'));
+      // changed TOML — presents as a dropped stream.
+      reopen(state$);
       await flush();
 
       const agentFetches = emitSpy.mock.calls.filter(([ch]) => ch === 'browse:agents-requested').length;
@@ -1044,12 +1125,13 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       expect(entries.find((e) => e.agent.model === 'claude-haiku-4-5')).not.toHaveProperty('limits');
     });
 
-    it('bus:resume-gap asks the key holders again', async () => {
-      const { browse, eventBus, emitSpy } = createHarness();
+    it('a stream that reopens asks the key holders again', async () => {
+      const state$ = new BehaviorSubject<ConnectionState>('open');
+      const { browse, emitSpy } = createHarness({ state$ });
       await firstDefined(browse.agents());
       await flush();
 
-      eventBus.emit('bus:resume-gap', fakeBusResumeGap(undefined, 'retention-exceeded'));
+      reopen(state$);
       await flush();
 
       for (const op of ['job:limits-requested', 'gather:limits-requested', 'match:limits-requested']) {

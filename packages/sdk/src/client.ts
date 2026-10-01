@@ -133,6 +133,13 @@ export class SemiontClient {
        * omits it; a test or the conformance driver passes a small value.
        */
       invalidationWindowMs?: number;
+      /**
+       * How long a followed job may be silent before its status is asked for,
+       * and how often after that: `jobSilenceMs` and `jobStatusPollMs` of
+       * specs/src/client/timing.json. Production omits them.
+       */
+      jobSilenceMs?: number;
+      jobStatusPollMs?: number;
     },
   ) {
     this.transport = transport;
@@ -148,11 +155,15 @@ export class SemiontClient {
       ...(options?.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
       ...(options?.invalidationWindowMs !== undefined ? { invalidationWindowMs: options.invalidationWindowMs } : {}),
     });
-    this.mark   = new MarkNamespace(this.transport, this.bus);
+    const jobFollowTiming = {
+      ...(options?.jobSilenceMs !== undefined ? { jobSilenceMs: options.jobSilenceMs } : {}),
+      ...(options?.jobStatusPollMs !== undefined ? { jobStatusPollMs: options.jobStatusPollMs } : {}),
+    };
+    this.mark   = new MarkNamespace(this.transport, this.bus, jobFollowTiming);
     this.bind   = new BindNamespace(this.transport, this.bus);
     this.gather = new GatherNamespace(this.transport, this.bus);
     this.match  = new MatchNamespace(this.transport, this.bus);
-    this.yield  = new YieldNamespace(this.transport, this.bus, this.content);
+    this.yield  = new YieldNamespace(this.transport, this.bus, this.content, jobFollowTiming);
     this.beckon = new BeckonNamespace(this.transport, this.bus);
     this.job    = new JobNamespace(this.transport, this.bus);
     this.auth   = gateway ? new AuthNamespace(gateway)  : undefined;

@@ -190,12 +190,14 @@ gateway. Clients do not set this."*
   In-process transports track nothing — publishing on the same
   in-memory bus they read from, they have no outage and no loss.
 
-## Delivery guarantees — two tiers, deliberately
+## Delivery guarantees — three classes, deliberately
 
-The transport delivers two kinds of one-way traffic with DIFFERENT
-durability, and the asymmetry is the design, not a gap:
+The transport delivers three kinds of one-way traffic with DIFFERENT
+durability, and the asymmetry is the design, not a gap. A guarantee comes
+from an identity: a frame the gateway can name again can be replayed, and
+recognised when it arrives twice.
 
-- **Persisted domain events** (the event-store-backed set): **durable,
+- **Persisted domain events delivered on a resource's scope**: **durable,
   effectively exactly-once** from the client's perspective. Each scope
   carries a resumption watermark on the subscribe body; the server
   replays the gap from the event store; replay/live overlap dedups by
@@ -213,8 +215,23 @@ durability, and the asymmetry is the design, not a gap:
   in-process plane they live in the one gateway process, and a restart
   loses them. A lost reply degrades to exactly the pre-retention outcome
   (the caller's timeout), never worse.
+- **Everything else** (what every client hears: `yield:created`,
+  `yield:updated`, `yield:cloned`, `yield:moved`, `frame:entity-type-added`,
+  `frame:tag-schema-added`, a job's progress and its end, presence, UI
+  signals): **at-most-once, with no identity of its own**. A frame
+  published while a client's stream is down is lost to that client, and
+  nothing replays it; one published while a changed subscription is being
+  handed from one stream to the next is delivered twice. Six of these
+  channels carry events that are also in the record, and they are in this
+  class all the same: the record is kept per resource, and they are
+  delivered on no scope. A consumer that keeps state from this class
+  repairs a drop by asking: the cache asks again for what these events
+  feed when its stream reopens
+  ([CACHE-SEMANTICS B13](../../packages/sdk/docs/CACHE-SEMANTICS.md)), and
+  a job's follower asks for the job's status
+  ([JOBS.md](./JOBS.md#following-a-job)).
 
-Why the tiers differ: a domain event matters forever — every future
+Why the classes differ: a domain event matters forever — every future
 reader needs it. A reply matters only to one caller, only until that
 caller's deadline; durability past the deadline buys nothing. Consumers
 keep their defense-in-depth (the cache's bounded retry and terminal
@@ -239,6 +256,12 @@ transport leaves it on its own when a usable credential appears (a
 re-login, a session refresh). The refusal that caused it is on the
 transport's error stream — the state answers "can the bus deliver?",
 the error stream answers "why not" (SSE-AUTH-RESILIENCE D3/D6a).
+
+The state leaves `open` only when the stream **drops**. A transport that
+changes what its stream carries without missing anything (the HTTP
+transport hands a changed subscription to a new stream while the old one
+still delivers) stays `open`, so that `open` reached again always means
+something may have been missed.
 
 `HttpTransport` drives all seven (see
 [TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)

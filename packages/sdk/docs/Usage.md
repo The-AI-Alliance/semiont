@@ -563,13 +563,16 @@ Scopes COMPOSE (multi-resource scope, 2026-07-29): one connection holds every ob
 resource's scope simultaneously — N mounted viewers on N resources are all
 fully live, each ref-counted and released independently.
 
-For HTTP, the underlying connection auto-reconnects (fixed retry interval,
-with a `degraded` state signal after ~3 s of reconnecting). Reconnects are
-make-before-break and cheap on the caches: the client resumes each scope
-from its persisted-event watermark, the server replays only what was missed,
-and outstanding `busRequest` replies are re-requested from the server's
-retention buffer (`pendingReplies`) — blanket invalidation happens only when
-the server signals `bus:resume-gap`. See
+For HTTP, the underlying connection auto-reconnects (backing off between
+attempts, with a `degraded` state signal after ~3 s of reconnecting). A
+changed subscription is handed to a new stream make-before-break, with the
+state `open` throughout and nothing missed. After a drop the client resumes
+each scope from its persisted-event watermark, the server replays only what
+was missed (or signals `bus:resume-gap`, and the scope's caches are asked for
+again), outstanding `busRequest` replies are re-requested from the server's
+retention buffer (`pendingReplies`), and the caches fed by events with no
+watermark — lists of resources, resources, entity types, tag schemas, the
+collaborator directory — are asked for again. See
 [TRANSPORT-HTTP.md](../../../docs/protocol/TRANSPORT-HTTP.md) for the wire
 contract.
 
@@ -624,12 +627,12 @@ import type { ConnectionState } from '@semiont/core';
 const httpTransport = session.client.transport as HttpTransport;
 
 httpTransport.state$.subscribe((state: ConnectionState) => {
-  // 'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'closed'
+  // 'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'unauthenticated' | 'closed'
   logger.info('transport state', { state });
 });
 ```
 
-`degraded` is the threshold to escalate — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a brief mount-churn cycle. `closed` is terminal (`stop()` / `dispose()` was called).
+`degraded` is the threshold to escalate — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a blip. `closed` is terminal (`stop()` / `dispose()` was called).
 
 **Worker-specific gotcha.** A job-claim adapter widens the SSE channel set on `start()` to include `job:queued` and the other channels it needs. If your worker is silently doing nothing, the most common cause is `adapter.start()` not being called — `SEMIONT_BUS_LOG=1` makes this immediately visible (no `RECV job:queued` lines).
 

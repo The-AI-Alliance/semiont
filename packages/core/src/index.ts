@@ -271,6 +271,10 @@ export { busRequest, replyChannelsFor, relayedFailureCode, BusRequestError, type
 // The client's deadlines, retry budgets and stream cadence, generated from
 // specs/src/client/timing.json — the table every SDK generates from.
 export * from './generated/client-timing';
+
+// What each event on the bus refreshes in a client's cache, generated from
+// specs/src/client/refresh.json — the table every SDK generates from.
+export * from './generated/cache-refresh';
 // The client error vocabularies and their classifiers, generated from
 // specs/src/errors/codes.json — the table every SDK generates from.
 export {

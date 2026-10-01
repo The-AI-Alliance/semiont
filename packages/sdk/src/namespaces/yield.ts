@@ -1,9 +1,8 @@
 import { merge } from 'rxjs';
-import { filter, takeUntil } from 'rxjs/operators';
+import { takeUntil } from 'rxjs/operators';
 import type {
   ResourceId,
   EventBus,
-  components,
   GatheredContext,
   GenerationJobParams,
 } from '@semiont/core';
@@ -13,6 +12,7 @@ import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
 import { GenerationStallError, deriveStallDeadlineMs } from './generation-stall';
+import { JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -28,6 +28,7 @@ export class YieldNamespace implements IYieldNamespace {
     private readonly transport: ITransport,
     private readonly bus: EventBus,
     private readonly content: IContentTransport,
+    private readonly timing: JobFollowTiming = {},
   ) {}
 
   resource(data: CreateResourceInput): UploadObservable {
@@ -153,9 +154,9 @@ export class YieldNamespace implements IYieldNamespace {
    * (jobType `generation`) with the supplied `params` — typed as the WIRE's
    * `GenerationJobParams`, so the write side and the worker's guard share one
    * contract — then streams the unified
-   * `job:report-progress`/`job:complete`/`job:fail` lifecycle (with a polled
-   * `job:status` fallback) as `YieldGenerationEvent`s, resolving on the
-   * terminal `complete`.
+   * `job:report-progress`/`job:complete`/`job:fail` lifecycle (with the status
+   * poll that stands in for a frame the stream did not carry) as
+   * `YieldGenerationEvent`s, resolving on the terminal `complete`.
    */
   /** `resourceId` is CLIENT-side display only (the poll-synthesized complete
    *  event, D4) — it is deliberately NOT sent on the wire. `stallMs` is the
@@ -168,8 +169,6 @@ export class YieldNamespace implements IYieldNamespace {
   ): StreamObservable<YieldGenerationEvent> {
     return new StreamObservable<YieldGenerationEvent>((subscriber) => {
       let done = false;
-      let pollTimer: ReturnType<typeof setTimeout> | null = null;
-      let pollInterval: ReturnType<typeof setInterval> | null = null;
       let stallTimer: ReturnType<typeof setTimeout> | null = null;
 
       // `job:report-progress`, `job:complete`, and `job:fail` reach us on the
@@ -180,47 +179,37 @@ export class YieldNamespace implements IYieldNamespace {
       // `browse.*` results in the reconnect gap. Symmetric with `mark.assist`.
       // See Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
 
+      const poll = new JobStatusPoll(
+        this.transport,
+        (status) => {
+          if (done) return;
+          if (status.status === 'complete') {
+            cleanup();
+            // The `complete` event the stream did not carry, from the status.
+            subscriber.next({
+              kind: 'complete',
+              data: {
+                jobId: status.jobId,
+                jobType: status.type,
+                resourceId: resourceId as string,
+                // A job completed without a result is stored with an empty
+                // one; the job:complete this stands for carried none.
+                ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
+              },
+            });
+            subscriber.complete();
+          } else if (status.status === 'failed') {
+            cleanup();
+            subscriber.error(new Error(status.error ?? 'Generation failed'));
+          }
+        },
+        this.timing,
+      );
+
       const cleanup = () => {
         done = true;
-        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        poll.stop();
         if (stallTimer) { clearTimeout(stallTimer); stallTimer = null; }
-      };
-
-      const resetPollTimer = (jid: string) => {
-        if (pollTimer) clearTimeout(pollTimer);
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-        pollTimer = setTimeout(() => {
-          if (done) return;
-          pollInterval = setInterval(() => {
-            if (done) return;
-            busRequest(
-              this.transport, 'job:status-requested', { jobId: jid },
-            ).then((status) => {
-                if (done) return;
-                if (status.status === 'complete') {
-                  cleanup();
-                  // Synthesize a `complete` event from polled status.
-                  subscriber.next({
-                    kind: 'complete',
-                    data: {
-                      jobId: jid,
-                      jobType: (status.type ?? 'generation') as components['schemas']['JobType'],
-                      resourceId: resourceId as string,
-                      // A job completed without a result is stored with an empty
-                      // one; the job:complete this stands for carried none.
-                      ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
-                    },
-                  });
-                  subscriber.complete();
-                } else if (status.status === 'failed') {
-                  cleanup();
-                  subscriber.error(new Error(status.error ?? 'Generation failed'));
-                }
-              })
-              .catch(() => {});
-          }, 5_000);
-        }, 10_000);
       };
 
       // Subscribe to the unified job lifecycle filtered by this job's
@@ -230,15 +219,10 @@ export class YieldNamespace implements IYieldNamespace {
       // is present — not here, because the generated resource id is
       // assigned by Stower, not by the worker.
       let activeJobId: string | null = null;
-      const progress$ = this.bus.on('job:report-progress').pipe(
-        filter((e) => e.jobId === activeJobId),
-      );
-      const complete$ = this.bus.on('job:complete').pipe(
-        filter((e) => e.jobId === activeJobId),
-      );
-      const fail$ = this.bus.on('job:fail').pipe(
-        filter((e) => e.jobId === activeJobId),
-      );
+      const frames = new JobFrames(this.bus);
+      const progress$ = frames.of('job:report-progress');
+      const complete$ = frames.of('job:complete');
+      const fail$ = frames.of('job:fail');
 
       // The ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): armed at
       // subscribe, re-armed on every event, cleared by any terminal. Firing
@@ -264,7 +248,7 @@ export class YieldNamespace implements IYieldNamespace {
         .pipe(takeUntil(merge(complete$, fail$)))
         .subscribe((e) => {
           if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
-          if (activeJobId) resetPollTimer(activeJobId);
+          if (activeJobId) poll.heard(activeJobId);
           armStall();
         });
 
@@ -291,7 +275,8 @@ export class YieldNamespace implements IYieldNamespace {
       ).then(({ jobId }) => {
         if (jobId && !done) {
           activeJobId = jobId;
-          resetPollTimer(jobId);
+          poll.heard(jobId);
+          frames.started(jobId);
         }
       }).catch((error) => {
         // If the StreamObservable has already completed (job:complete arrived

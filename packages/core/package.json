@@ -63,7 +63,7 @@
     "copy-spec": "cp ../../specs/openapi.json openapi.json",
     "generate:openapi": "npm run bundle-spec && npm run copy-spec && openapi-typescript openapi.json -o src/types.ts",
     "generate:types": "tsx scripts/generate-types.ts",
-    "prebuild": "npm run generate:openapi && npm run generate:types && npm run generate:validators && npm run generate:limits && npm run generate:error-codes && npm run generate:client-timing && npm run generate:service-config-sections && npm run generate:job-storage",
+    "prebuild": "npm run generate:openapi && npm run generate:types && npm run generate:validators && npm run generate:limits && npm run generate:error-codes && npm run generate:client-timing && npm run generate:cache-refresh && npm run generate:service-config-sections && npm run generate:job-storage",
     "typecheck": "tsc --noEmit",
     "build": "npm run typecheck && tsup && tsc -p tsconfig.build.json && rollup -c rollup.dts.config.mjs && rm -rf dist-types",
     "watch": "tsup --watch",
@@ -75,6 +75,7 @@
     "generate:limits": "node ../../scripts/spec/generate-limits.mjs",
     "generate:error-codes": "node ../../scripts/spec/generate-error-codes.mjs",
     "generate:client-timing": "node ../../scripts/spec/generate-client-timing.mjs",
+    "generate:cache-refresh": "node ../../scripts/spec/generate-cache-refresh.mjs",
     "generate:service-config-sections": "node ../../scripts/spec/generate-service-config-sections.mjs",
     "generate:job-storage": "node ../../scripts/spec/generate-job-storage.mjs"
   },

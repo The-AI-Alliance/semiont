@@ -1,14 +1,16 @@
 /**
  * The live layer: every SDK with a live layer, through its driver, put through
- * the cases in sdk/live/ of the tier it is held to, against a real gateway on
- * each signal plane. README.md states the driver protocol and the case format;
- * case.ts runs one case.
+ * the cases of the tier it is held to, against a real gateway on each signal
+ * plane: those in sdk/live/, and one built from each row of
+ * specs/src/client/refresh.json (refresh-cases.ts). README.md states the
+ * driver protocol and the case format; case.ts runs one case.
  */
 import { inject, it } from 'vitest';
 import { eachPlane } from '../harness/world';
 import { cases, runCase } from './case';
+import { refreshCases } from './refresh-cases';
 
-const corpus = cases('live');
+const corpus = [...cases('live'), ...refreshCases()];
 
 for (const [sdk, { live }] of Object.entries(inject('sdkDrivers'))) {
   if (!live) continue;

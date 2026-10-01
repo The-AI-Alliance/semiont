@@ -125,6 +125,7 @@ before it. Frames and failures are sequences: every one, in order.
 | `graph` | `resource` | the description the gateway answered |
 | `health`, `status`, `current-user`, `protected-resource-metadata` | | what the gateway answered |
 | `media-token` | `resource` | what the gateway answered |
+| `sync` | | `null`, after everything the transport reported before it |
 
 One driver holds one client: a second `open` is misuse.
 
@@ -142,12 +143,18 @@ closed client for something. Its operations:
 | `unobserve` | `observer`: it stops | `null` |
 | `fresh` | `query`: a one-shot read | `{"value": ...}` |
 | `invalidate` | `query`: the caller says the key is out of date | `null` |
+| `delete` | `resource`, `annotation`: the client deletes the annotation | `null` |
+| `assist` | `observer`, `resource`, `motivation`, `options`: the client creates a job and the observer follows it to its end | `null` |
 | `sync` | | `null`, after everything the client reported before it |
 
 A `query` names what is observed: `{"query": "resource", "resource": id}`,
 and likewise `annotations`, `events`, `referencedBy`; `annotation` with
 `resource` and `annotation`; `resources` with optional `filters`;
-`entityTypes`; `tagSchemas`.
+`entityTypes`; `tagSchemas`; `agents`.
+
+A job's follower is reported as an observer is: each event it is given is a
+`ready` state whose value is the event, its failure a `failed` state, and
+its end a completion.
 
 It writes, as they happen:
 
@@ -161,8 +168,9 @@ one to be reached, and never counts the ones before it, so an SDK whose
 observers see only the latest state conforms. A case makes each state last by
 holding back the answer that would end it.
 
-Its `timing` overrides `busRequestTimeoutMs` and `invalidationWindowMs`
-beside the transport's `reconnectMs`, `lazyRemoveMs` and `lingerMs`.
+Its `timing` overrides `busRequestTimeoutMs`, `invalidationWindowMs`,
+`jobSilenceMs` and `jobStatusPollMs` beside the transport's `reconnectMs`,
+`lazyRemoveMs` and `lingerMs`.
 
 While a client hands its subscription from one stream to the next, both
 streams carry every event sent to all clients, and the client is given each
@@ -172,7 +180,7 @@ stream to have closed.
 
 `open`'s `timing` overrides entries of
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json) by
-name, so a case does not wait out a production delay. The cases override
+name, so a case does not wait out a production delay. The wire cases override
 `reconnectMs`, `lazyRemoveMs`, `lingerMs` and `emitRetry`; a driver must honour
 all four, and answers `misuse` to a name it cannot override.
 
@@ -214,7 +222,9 @@ Steps run in order, each waiting for what it states:
 | `{"wire": "POST /bus/emit", ...}` | the client's next request is this operation of the spec, with each of `status`, `params`, `body`, `token`, `answer` given |
 | `{"carried": "name", "is": frame}` | the stream a wire step named has carried this frame to the client |
 | `{"state": "open"}` | the transport reaches this state |
+| `{"stays": "open"}` | the transport is in this state and has reported no other since the case last read its state |
 | `{"frame": "<channel>", "is": {...}}` | the next frame delivered on the channel is this one |
+| `{"frames": "<channel>", "count": 512}` | the client delivers this many more frames on the channel |
 | `{"error": {...}}` | the next failure on the error stream is this one |
 | `{"backend": "<directive>", "with": {...}}` | the backend does something |
 | `{"quiet": 300}` | the client sends nothing more for this many milliseconds |
@@ -274,7 +284,7 @@ no other.
 |---|---|---|
 | `listen` | `channels`, `scope` | the participant subscribes: globally, or to one scope |
 | `emit` | `channel`, `payload`, `scope`, `correlationId` | the participant emits; the gateway must accept it |
-| `record` | `resource`, `channel`, `sequence`, `live`, `payload`, `enriched`, `unscoped` | a persisted event, with `payload` when given, enters the resource's record; with `live`, it is also published, with the fields of `enriched` added, on the resource's scope, or to every client with `unscoped` |
+| `record` | `resource`, `channel`, `sequence`, `count`, `live`, `payload`, `enriched`, `unscoped` | a persisted event, with `payload` when given, enters the resource's record, or `count` of them at the sequence numbers from `sequence` on; with `live`, each is also published, with the fields of `enriched` added, on the resource's scope, or to every client with `unscoped` |
 | `archivist` | `replayFails` | the Archivist fails, or stops failing, the gateway's reads of a record |
 | `content` | `resource`, `mediaType`, `bytes` | the Archivist holds these bytes for the resource |
 | `description` | `resource`, `graph` | the Archivist holds this description of the resource |
@@ -286,6 +296,19 @@ no other.
 | `cut` | | every connection the client has ends |
 | `down`, `up` | | the gateway is unreachable; it is back |
 
+## Cases built from a table
+
+[`specs/src/client/refresh.json`](../../../specs/src/client/refresh.json)
+says what each event on the bus, and the reopening of a dropped stream, does
+to a client's cache. [refresh-cases.ts](refresh-cases.ts) builds a live case
+from each row, named `refresh-<trigger>`, and `live.test.ts` runs them beside
+the cases in `live/`. Each has a client observe every live query the table
+names, on two resources; causes the row's trigger; and expects exactly what
+the row says: a request for each query it refetches, of the keys it reaches,
+the written value where it writes, `bus.not-found` where it removes, and
+nothing else. A row is held by being built: a trigger the builder cannot
+cause, or a query it does not observe, fails the suite.
+
 ## What the live layer cannot show
 
 A clause of CACHE-SEMANTICS that no case holds, and why:
@@ -294,9 +317,8 @@ A clause of CACHE-SEMANTICS that no case holds, and why:
 |---|---|
 | B4, one observable per key | It is the identity of an object in the client's own language; nothing of it crosses to the suite. What it is for, shared work, is B3. |
 | B11, observables live as long as the cache | It is memory the client keeps, with no effect an observer or the wire can see. |
-| B12, handlers are additive | It is a rule about how the code is written. Its effect is the `event-*` cases, each holding one event to exactly what it refreshes. |
+| B12, handlers are additive | It is a rule about how the code is written. Its effect is the `refresh-*` cases, each holding one trigger to exactly what it refreshes. |
 | B17, the save's debounce, the storage document's version, sync between contexts | They are the storage adapter's, below what a driver's `persist` reaches. `rehydration` holds what they are for: a value saved by one client is the next one's. |
-| A one-shot read of a closed client | TypeScript rejects it with an error that carries no code, which this suite cannot accept from any SDK. |
 
 ## Cases that restate a table
 
@@ -304,7 +326,8 @@ Where a case states what a spec table already states, `wire.test.ts` holds
 the case to the table, so a table that changes fails the case rather than
 leaving it to agree with a client about the old value: `failure-codes`
 against the wire codes and their client codes, `emit-budget-spent` against
-the emit budget.
+the emit budget, `dedup-window` against the number of event ids a client
+remembers.
 
 ## Adding an SDK
 

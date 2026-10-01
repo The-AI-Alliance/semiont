@@ -76,14 +76,16 @@ export interface HttpTransportConfig {
    */
   channels?: readonly (keyof EventMap)[];
   /**
-   * `reconnectMs`, `lazyRemoveMs`, `lingerMs` and `emitRetry` of
-   * specs/src/client/timing.json, for a caller that must not wait them out: a
-   * test, or the conformance driver. Absent, the table's values stand.
+   * `reconnectMs`, `lazyRemoveMs`, `lingerMs`, `emitRetry` and
+   * `seenEventIdsCount` of specs/src/client/timing.json, for a caller that
+   * must not wait them out: a test, or the conformance driver. Absent, the
+   * table's values stand.
    */
   reconnectMs?: number;
   lazyRemoveMs?: number;
   lingerMs?: number;
   emitRetry?: RetryPolicy;
+  seenEventIdsCount?: number;
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -308,6 +310,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
         ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
         ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
+        ...(this.config.seenEventIdsCount !== undefined ? { seenEventIdsCount: this.config.seenEventIdsCount } : {}),
         // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
         // P4, D2) — the SSE connect path refreshes once before parking
         // `unauthenticated`, and no second refresh mechanism exists.

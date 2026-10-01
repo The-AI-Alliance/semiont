@@ -28,6 +28,7 @@ Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP 
 | `lazyRemoveMs` | `number` | no | Overrides `lazyRemoveMs` of the same table: how long a removal from the subscription waits before the stream is reopened without it. |
 | `lingerMs` | `number` | no | Overrides `lingerMs` of the same table: how long a superseded connection keeps draining after a handoff. |
 | `emitRetry` | `RetryPolicy` | no | Overrides `emitRetry` of the same table: the retry budget of one emit. |
+| `seenEventIdsCount` | `number` | no | Overrides `seenEventIdsCount` of the same table: how many of the event ids delivered last are remembered, to drop a frame that arrives a second time. |
 
 ### `TokenRefresher`
 

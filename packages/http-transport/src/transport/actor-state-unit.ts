@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -60,6 +60,8 @@ export interface ActorStateUnitOptions {
   emitRetry?: RetryPolicy;
   /** How long a superseded connection keeps draining after a handoff. Default `LINGER_MS`. */
   lingerMs?: number;
+  /** How many of the event ids delivered last are remembered. Default `SEEN_EVENT_IDS_COUNT`. */
+  seenEventIdsCount?: number;
   /**
    * B17 (LOCAL-STORAGE) — IO-abstracted persistence of the last seen
    * PERSISTED event id PER SCOPE, so a reloaded client resumes each
@@ -102,11 +104,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
   connecting:   ['open', 'reconnecting', 'unauthenticated', 'closed'],
   open:         ['reconnecting', 'closed'],
   reconnecting: ['connecting', 'degraded', 'unauthenticated', 'closed'],
-  // `degraded → reconnecting` is a legitimate recovery edge: a channel-set
-  // change (`addChannels`/`removeChannels`) schedules a reconnect that can
-  // fire while the connection is degraded. Omitting it made `reconnect()`
-  // throw a fatal, uncaught exception from the reconnect timer (#844).
-  degraded:     ['connecting', 'reconnecting', 'unauthenticated', 'closed'],
+  degraded:     ['connecting', 'unauthenticated', 'closed'],
   // Leaving `unauthenticated` takes a usable credential (the gate saw a
   // different, non-empty token) → straight to `connecting`; or teardown.
   unauthenticated: ['connecting', 'closed'],
@@ -114,7 +112,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, seenEventIdsCount = SEEN_EVENT_IDS_COUNT, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -160,8 +158,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * that takes down the host process (#844). A bad edge means a bug in the
    * reconnect loop, but degrading gracefully (keep the current state, warn)
    * is strictly better than killing a long-running job. The permitted edges
-   * — including the `degraded → reconnecting` recovery edge — are in
-   * `ALLOWED_TRANSITIONS`.
+   * are in `ALLOWED_TRANSITIONS`.
    *
    * Side effect: manages the `degraded` timer. Enters on
    * `reconnecting`, cleared on exit.
@@ -217,6 +214,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const lingerTimers = new Set<ReturnType<typeof setTimeout>>();
 
   /**
+   * The connection whose stream the actor reads as its own: set when a connect
+   * opens, cleared when that stream ends. While it is set the state is `open`.
+   * A changed subscription is a HANDOFF: a second connection opened beside
+   * this one and swapped in once it is open, which never leaves `open`,
+   * because nothing is missed across it. Only this stream ending is a DROP,
+   * and only a drop moves the state. A consumer that asks again for what a
+   * drop may have lost (CACHE-SEMANTICS B13) tells the two apart by that.
+   */
+  let live: AbortController | null = null;
+
+  /**
    * The connect whose fetch has not answered yet. Reconnects asked for
    * meanwhile wait for it and are served by ONE follow-up once it opens —
    * which reads the channel set then, so it carries every change — rather
@@ -236,31 +244,23 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   /**
-   * Recently-delivered event ids, to dedup the make-before-break overlap: the
-   * brief window where the old and new connection both deliver the same live
-   * event during a scope-change handoff. Persisted ids (`p-<scope>-<seq>`) are
-   * stable across connections, so this collapses such an overlap to a single
-   * emission. Ephemeral ids (`e-<connectionId>-<counter>`) are per-connection,
-   * so a cross-connection ephemeral duplicate is NOT caught here — its
-   * consumers tolerate the rare double (a correlation reply is taken with
-   * `take(1)`; cache invalidations and job-completion are idempotent/terminal).
-   * Bounded FIFO (insertion-ordered Set) to cap memory.
+   * The ids of the events delivered last, `seenEventIdsCount` of them: a frame
+   * whose id is here has been delivered, and is dropped. That is what makes a
+   * frame both streams of a handoff carry, or one replayed to the new stream,
+   * arrive once. It works for a frame whose id is its own, the same on every
+   * connection: a persisted event's (`p-<scope>-<seq>`) and a reply's
+   * (`e-<channel>:<cid>`). Any other frame is given an id per connection
+   * (`e-<connectionId>-<counter>`), so its two copies across a handoff are two
+   * frames here, and both are delivered.
    *
-   * Cost note: this is *always-on* — every delivered event does a has/add here
-   * — yet a duplicate is only possible during a handoff overlap; in steady
-   * state there's a single connection and nothing can collide. So every
-   * consumer of this transport carries a small standing structure for a path
-   * that fires only on (now-rare) scope changes. It's left unconditional
-   * because the per-event cost is negligible next to the JSON.parse + trace
-   * span already on this path. If that ever stops being true, scope it to the
-   * overlap (build on handoff start, drop once the old read loop exits) or
-   * track a high-water `Map<scope, maxSeq>` instead of every id.
+   * Always on, though a second copy can only come during a handoff: a has/add
+   * per event is negligible beside the JSON.parse and the span on this path.
+   * Bounded FIFO (insertion-ordered Set).
    */
   const seenEventIds = new Set<string>();
-  const SEEN_EVENT_IDS_MAX = 512;
   const rememberEventId = (id: string): void => {
     seenEventIds.add(id);
-    if (seenEventIds.size > SEEN_EVENT_IDS_MAX) {
+    if (seenEventIds.size > seenEventIdsCount) {
       const oldest = seenEventIds.values().next().value;
       if (oldest !== undefined) seenEventIds.delete(oldest);
     }
@@ -278,6 +278,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       try { c.abort(); } catch { /* noop */ }
     }
     inflightControllers.clear();
+    live = null;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     for (const t of lingerTimers) clearTimeout(t);
     lingerTimers.clear();
@@ -350,16 +351,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     const token = getToken();
     if (!token || token === refusedToken) {
       if (running) {
-        if (currentState !== 'unauthenticated') transition('unauthenticated');
+        // With a stream still live the state stays `open`: only the change of
+        // subscription is waiting for a credential, and that stream's own end
+        // is what reports an outage.
+        if (live === null && currentState !== 'unauthenticated') transition('unauthenticated');
         scheduleRetry(reconnectMs, keepPrevious);
       }
       return;
     }
     refusedToken = null; // a different credential — worth attempting
-
-    // Transition to `connecting` from whichever reconnect-ish state
-    // we're currently in (`initial`, `reconnecting`, `degraded`).
-    transition('connecting');
 
     // Snapshot the connections this connect() supersedes.
     //   - keepPrevious=false (initial connect / drop-recovery): there is no
@@ -376,7 +376,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         try { c.abort(); } catch { /* noop */ }
       }
       inflightControllers.clear();
+      live = null;
     }
+
+    // Opening beside a live stream is a handoff, and the state stays `open`.
+    // With none, this is `connecting`, from whichever state the actor was
+    // waiting in (`initial`, `reconnecting`, `degraded`, `unauthenticated`).
+    if (live === null) transition('connecting');
 
     // POST subscription matrix (MULTI-RESOURCE-SCOPE): global channels plus
     // one entry per scope, each carrying its own resumption watermark.
@@ -454,6 +460,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         lingerTimers.add(lingerTimer);
       }
 
+      live = controller;
       transition('open');
       retryAttempt = 0; // a success resets the backoff ladder
       refreshBurned = false; // …and re-arms the refresh-once (P4)
@@ -615,7 +622,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         if (err.status === 401 && running && !superseded.has(controller)) {
           refusedToken = token;
           retryAttempt = 0;
-          if (currentState !== 'unauthenticated') transition('unauthenticated');
+          if (live === null && currentState !== 'unauthenticated') transition('unauthenticated');
           // P4: refresh ONCE before staying parked — the same hook the HTTP
           // beforeRetry path uses (D2). Parked state is truthful while the
           // refresh call is in flight. On success the refresher's owner has
@@ -644,16 +651,29 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       settleConnect(controller, false);
     }
 
-    // If we reached here without an AbortError, the connection dropped
-    // or the fetch failed (a 401 already diverted to `unauthenticated`
-    // above). Transition to reconnecting and schedule a retry on the
-    // backoff ladder — unless this was a SUPERSEDED (lingering)
-    // connection ending: its termination is expected teardown, not a drop
-    // of the live stream, and must not restart the reconnect machinery.
-    if (running && !superseded.has(controller)) {
-      transition('reconnecting');
-      scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0));
+    // Reached without an AbortError: the stream ended or the connect failed
+    // (a 401 already diverted above). A SUPERSEDED (lingering) connection
+    // ending is expected teardown and restarts nothing.
+    if (!running || superseded.has(controller)) return;
+
+    if (live !== null && live !== controller) {
+      // A handoff that could not open. The stream it was to replace is still
+      // live, so nothing has dropped: the handoff is tried again, on the
+      // backoff ladder, and the state does not move.
+      scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0), true);
+      return;
     }
+
+    // A drop: the live stream ended, or a connect failed with none live.
+    live = null;
+    transition('reconnecting');
+    if (connecting !== null) {
+      // A handoff's connect is still in flight. It is the recovery now; if it
+      // fails it comes back through here and schedules the retry.
+      transition('connecting');
+      return;
+    }
+    scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0));
   };
 
   const reconnect = () => {
@@ -662,17 +682,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       reconnectOwed = true;
       return;
     }
-    // Transition to `reconnecting` BEFORE aborting the current
-    // connection. This matches the pre-state-machine contract where
-    // gap-detection relied on seeing a "dropped" signal before a
-    // subsequent "connected" signal; with the state machine, the
-    // transition sequence `open → reconnecting → connecting → open`
-    // is what BrowseNamespace's gap-detection (pre-BUS-RESUMPTION
-    // code path) watches for.
-    if (currentState === 'open' || currentState === 'connecting' || currentState === 'degraded') {
-      transition('reconnecting');
-    }
-    // Make-before-break: do NOT abort the live connection here. Cancel only a
+    // Make-before-break: do NOT abort the live connection here, and do not
+    // move the state: the stream stays open across a handoff. Cancel only a
     // pending drop-recovery retry, then connect — `connect(keepPrevious=true)`
     // retires the old connection after the new one is open (no gap).
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }

@@ -55,7 +55,9 @@ export type Step =
   | { wire: string; at?: 'arrival' | 'answer' | 'live'; status?: number; params?: unknown; body?: unknown; token?: unknown; answer?: unknown; as?: string; follows?: string; waited?: string }
   | { carried: string; is: unknown }
   | { state: string }
+  | { stays: string }
   | { frame: string; is: unknown }
+  | { frames: string; count: number }
   | { error: unknown }
   | { backend: string; with?: Record<string, unknown> }
   | { quiet: number }
@@ -89,18 +91,21 @@ export interface Case extends CaseDocument {
   name: string;
 }
 
+const validate = new Ajv({ allErrors: true }).compile<CaseDocument>(JSON.parse(readFileSync(join(HERE, 'case.schema.json'), 'utf8')) as object);
+
+/** `document`, named, once case.schema.json accepts it. */
+export function caseOf(name: string, document: unknown): Case {
+  if (!validate(document)) throw new Error(`${name} is not a case: ${errorsOf(validate)}`);
+  return { name, ...document };
+}
+
 /** Every case in `sdk/<layer>/`, each checked against case.schema.json. */
 export function cases(layer: string): Case[] {
-  const validate = new Ajv({ allErrors: true }).compile<CaseDocument>(JSON.parse(readFileSync(join(HERE, 'case.schema.json'), 'utf8')) as object);
   const dir = join(HERE, layer);
   return readdirSync(dir)
     .filter((file) => file.endsWith('.json'))
     .sort()
-    .map((file) => {
-      const document: unknown = JSON.parse(readFileSync(join(dir, file), 'utf8'));
-      if (!validate(document)) throw new Error(`${layer}/${file} is not a case: ${errorsOf(validate)}`);
-      return { name: file.slice(0, -'.json'.length), ...document };
-    });
+    .map((file) => caseOf(file.slice(0, -'.json'.length), JSON.parse(readFileSync(join(dir, file), 'utf8'))));
 }
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -261,9 +266,7 @@ class Run {
     } else if ('reaches' in step) {
       await this.reaches(step.reaches, step.state);
     } else if ('holds' in step) {
-      // Everything the client reported before it answers this is read by then.
-      const id = this.driver.send('sync', {});
-      this.judge('sync', await this.driver.outcome(id, 'sync to settle', WAIT_MS), {});
+      await this.sync();
       const states = this.driver.emissions.get(step.holds) ?? [];
       const latest = states.at(-1);
       if (!latest) throw new Error(`${step.holds} has reported no state`);
@@ -276,6 +279,15 @@ class Run {
         return index < 0 ? undefined : index;
       }, WAIT_MS);
       this.stateCursor = at + 1;
+    } else if ('stays' in step) {
+      await this.sync();
+      const since = this.driver.states.slice(this.stateCursor);
+      if (since.length > 0) throw new Error(`the transport did not stay ${step.stays}: since the case last read its state it reported ${since.join(', ')}`);
+      if (this.driver.states.at(-1) !== step.stays) throw new Error(`the transport is ${this.driver.states.at(-1) ?? 'in no state'}, not ${step.stays}`);
+    } else if ('frames' in step) {
+      const cursor = this.frameCursor.get(step.frames) ?? 0;
+      await this.driver.until(`${step.count} more frames on ${step.frames}`, () => ((this.driver.frames.get(step.frames)?.length ?? 0) >= cursor + step.count ? true : undefined), WAIT_MS);
+      this.frameCursor.set(step.frames, cursor + step.count);
     } else if ('frame' in step) {
       const cursor = this.frameCursor.get(step.frame) ?? 0;
       const frame = await this.driver.until(`a frame on ${step.frame}`, () => this.driver.frames.get(step.frame)?.[cursor], WAIT_MS);
@@ -324,6 +336,12 @@ class Run {
           throw new Error(`${error instanceof Error ? error.message : String(error)}: it names ${JSON.stringify(named)}, not ${JSON.stringify(expected)}`);
         });
     }
+  }
+
+  /** Everything the client reported before it answers this is read by the time it does. */
+  private async sync(): Promise<void> {
+    const id = this.driver.send('sync', {});
+    this.judge('sync', await this.driver.outcome(id, 'sync to settle', WAIT_MS), {});
   }
 
   /** A state as a case reads it: a failure by its code, without the SDK's own words for it. */
@@ -508,15 +526,19 @@ class Run {
         return;
       }
       case 'record': {
-        allowed('resource', 'channel', 'sequence', 'live', 'payload', 'enriched', 'unscoped');
+        allowed('resource', 'channel', 'sequence', 'count', 'live', 'payload', 'enriched', 'unscoped');
         const resource = text('resource');
-        const event = { ...storedEvent(text('channel'), resource, number('sequence')), ...(isObject(args['payload']) ? { payload: args['payload'] } : {}) };
-        this.world.archivist.events.set(resource, [...(this.world.archivist.events.get(resource) ?? []), event]);
-        // Published as the record's own service publishes it: with what it
-        // enriched the event with, and on the resource's scope unless the
-        // channel is one every client hears.
-        const published = { ...event, ...(isObject(args['enriched']) ? args['enriched'] : {}) };
-        if (args['live'] === true) await emit({ channel: event.type, payload: published, ...(args['unscoped'] === true ? {} : { scope: resource }) });
+        const first = number('sequence');
+        // `count` events, at the sequence numbers from `sequence` on.
+        for (let sequence = first; sequence < first + (args['count'] === undefined ? 1 : number('count')); sequence++) {
+          const event = { ...storedEvent(text('channel'), resource, sequence), ...(isObject(args['payload']) ? { payload: args['payload'] } : {}) };
+          this.world.archivist.events.set(resource, [...(this.world.archivist.events.get(resource) ?? []), event]);
+          // Published as the record's own service publishes it: with what it
+          // enriched the event with, and on the resource's scope unless the
+          // channel is one every client hears.
+          const published = { ...event, ...(isObject(args['enriched']) ? args['enriched'] : {}) };
+          if (args['live'] === true) await emit({ channel: event.type, payload: published, ...(args['unscoped'] === true ? {} : { scope: resource }) });
+        }
         return;
       }
       case 'archivist': {

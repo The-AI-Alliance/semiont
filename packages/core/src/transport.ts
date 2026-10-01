@@ -49,11 +49,15 @@ type GetResourceResponse = components['schemas']['GetResourceResponse'];
  *   initial         ─ pre-`start()`; never enters subscribers' streams
  *                     except as the first replayed value
  *   connecting      ─ in-flight initial open
- *   open            ─ healthy, delivering events
+ *   open            ─ healthy, delivering events. Left only when the
+ *                     stream DROPS: a transport that changes what its
+ *                     stream carries without missing anything stays
+ *                     `open`, so `open` reached again always means
+ *                     something may have been missed
  *   reconnecting    ─ open → dropped, retrying; may be transient
  *   degraded        ─ has been reconnecting for > DEGRADED_THRESHOLD_MS;
- *                     UI banner threshold; distinguishes brief mount-
- *                     churn cycles from sustained disconnection
+ *                     UI banner threshold; distinguishes a blip from
+ *                     sustained disconnection
  *   unauthenticated ─ not attempting: the credential is absent, or was
  *                     refused (401) and only a DIFFERENT one is worth
  *                     trying. No network activity; recovers on its own

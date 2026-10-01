@@ -795,42 +795,10 @@ describe('createActorStateUnit', () => {
     vi.useRealTimers();
   });
 
-  it('addChannels goes open → reconnecting → connecting → open', async () => {
-    // Regression: abort-driven reconnects used to return early from the
-    // connect loop on AbortError, skipping the disconnect signal. The
-    // state machine formalizes the reconnect lifecycle: every reconnect
-    // must visit `reconnecting` so observers (state-change handlers)
-    // can react.
-    mockSSEResponse();
-    mockSSEResponse();
-
-    const stateUnit = createActorStateUnit({
-      baseUrl: 'http://localhost:4000',
-      token: 'tok',
-      channels: ['beckon:hover'],
-    });
-
-    const states: string[] = [];
-    stateUnit.state$.subscribe((s) => states.push(s));
-
-    stateUnit.start();
-    await vi.waitFor(() => expect(states).toContain('open'));
-
-    // Clear and observe only the transitions that follow addChannels.
-    const openIdx = states.lastIndexOf('open');
-    stateUnit.addChannels(['mark:added'], 'res-1');
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() => expect(states.lastIndexOf('open')).toBeGreaterThan(openIdx));
-
-    const afterAddChannels = states.slice(openIdx + 1);
-    expect(afterAddChannels).toContain('reconnecting');
-    expect(afterAddChannels).toContain('connecting');
-    expect(afterAddChannels[afterAddChannels.length - 1]).toBe('open');
-
-    stateUnit.dispose();
-  });
-
-  it('removeChannels also drives reconnecting → connecting → open (on the lazy cadence)', async () => {
+  it('a changed subscription is handed over without leaving `open`', async () => {
+    // A handoff misses nothing: the old stream delivers until the new one is
+    // open. The state says so by not moving, which is how a consumer that
+    // asks again after a DROP tells the two apart.
     mockSSEResponse();
     mockSSEResponse();
     mockSSEResponse();
@@ -840,24 +808,84 @@ describe('createActorStateUnit', () => {
       token: 'tok',
       channels: ['beckon:hover'],
       lazyRemoveMs: 150,
+      lingerMs: 20,
     });
 
     stateUnit.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
-    stateUnit.addChannels(['mark:added'], 'res-1');
-    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
-
     const states: string[] = [];
     stateUnit.state$.subscribe((s) => states.push(s));
+    await vi.waitFor(() => expect(states).toEqual(['open']));
 
+    // An addition, on the fast cadence…
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    // …and a removal, on the lazy one.
     stateUnit.removeChannels(['mark:added'], 'res-1');
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
-    await vi.waitFor(() => expect(states.lastIndexOf('open')).toBeGreaterThan(states.indexOf('reconnecting')));
+    await new Promise((r) => setTimeout(r, 60));
 
-    expect(states).toContain('reconnecting');
-    expect(states).toContain('connecting');
-    expect(states[states.length - 1]).toBe('open');
+    expect(states).toEqual(['open']);
+
+    stateUnit.dispose();
+  });
+
+  it('a handoff that cannot open is tried again, and the stream it was to replace stays `open`', async () => {
+    mockSSEResponse();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['beckon:hover'],
+      reconnectMs: 20,
+    });
+    const states: string[] = [];
+    const failures: number[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+    stateUnit.errors$.subscribe((e) => failures.push(e.status));
+    stateUnit.start();
+    await vi.waitFor(() => expect(states).toContain('open'));
+    const before = states.length;
+
+    // The handoff's connect is refused; the next one opens.
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 503, statusText: 'Service Unavailable', headers: new Headers(), body: null });
+    mockSSEResponse();
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(failures).toEqual([503]);
+    expect(states.slice(before)).toEqual([]);
+    // The retry carried the changed subscription.
+    expect(JSON.parse(mockFetch.mock.calls[2]![1].body).scoped).toEqual([{ scope: 'res-1', channels: ['mark:added'] }]);
+
+    stateUnit.dispose();
+  });
+
+  it('the live stream ending while a handoff is opening is a drop, and the handoff is its recovery', async () => {
+    const sse1 = mockSSEResponse();
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: ['beckon:hover'],
+      reconnectMs: 10_000,
+    });
+    const states: string[] = [];
+    stateUnit.state$.subscribe((s) => states.push(s));
+    stateUnit.start();
+    await vi.waitFor(() => expect(states).toContain('open'));
+    const before = states.length;
+
+    const c2 = mockConn({ defer: true });
+    stateUnit.addChannels(['mark:added'], 'res-1');
+    await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    sse1.close();
+    await vi.waitFor(() => expect(states.slice(before)).toEqual(['reconnecting', 'connecting']));
+
+    // No retry is owed, with reconnectMs far off: the connect in flight opens the stream.
+    c2.open();
+    await vi.waitFor(() => expect(states.slice(before)).toEqual(['reconnecting', 'connecting', 'open']));
+    expect(mockFetch).toHaveBeenCalledTimes(2);
 
     stateUnit.dispose();
   });
@@ -944,10 +972,10 @@ describe('createActorStateUnit', () => {
 
   it('recovers (does not crash) when a channel-set change fires while degraded (#844)', { timeout: 12_000 }, async () => {
     // Regression for #844: a channel-set change while `degraded` scheduled a
-    // reconnect whose `degraded → reconnecting` transition the state machine
-    // rejected — `transition()` threw from inside the reconnect timer, an
-    // uncaught exception that killed the host process. The connection must
-    // instead treat it as a legitimate recovery edge and head back to `open`.
+    // reconnect whose transition the state machine rejected — `transition()`
+    // threw from inside the reconnect timer, an uncaught exception that killed
+    // the host process. With no stream live, the change's connect is the
+    // recovery: `degraded → connecting → open`.
     const sse1 = mockSSEResponse();
     mockSSEResponse(); // for the recovery reconnect
 
@@ -984,9 +1012,10 @@ describe('createActorStateUnit', () => {
       // Channel-set change while degraded → schedules a reconnect.
       stateUnit.addChannels(['mark:added'], 'res-1');
 
-      // Must attempt a reconnect (new fetch) and head back to `open` —
-      // not throw a fatal `degraded → reconnecting`.
+      // Must attempt a reconnect (new fetch) and head back to `open`, by the
+      // one edge that leaves `degraded` for a connect.
       await vi.waitFor(() => expect(states[states.length - 1]).toBe('open'), { timeout: 3_000 });
+      expect(states.slice(states.indexOf('degraded'))).toEqual(['degraded', 'connecting', 'open']);
       expect(mockFetch.mock.calls.length).toBeGreaterThan(fetchesBefore);
       expect(uncaught.map((e) => e.message)).toEqual([]);
     } finally {
@@ -1109,13 +1138,14 @@ describe('createActorStateUnit', () => {
     stateUnit.addChannels(['mark:added'], 'res-1');
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     c2.open();
-    await vi.waitFor(() => expect(states[states.length - 1]).toBe('open'));
+    // The state never left `open`, so wait out the swap itself.
+    await new Promise((r) => setTimeout(r, 20));
 
     // The lingering old connection ends naturally mid-drain.
     c1.sse.close();
     await new Promise((r) => setTimeout(r, 150));
 
-    expect(states[states.length - 1]).toBe('open'); // no reconnecting blip
+    expect(states.filter((state) => state === 'reconnecting')).toEqual([]);
     expect(mockFetch).toHaveBeenCalledTimes(2); // no retry connect scheduled
 
     stateUnit.dispose();

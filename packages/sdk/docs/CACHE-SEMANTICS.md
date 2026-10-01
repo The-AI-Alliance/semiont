@@ -338,9 +338,9 @@ a key's state is computed from), and stuns all later acts:
 
 1. Post-dispose `observe()` returns a stream that completes immediately
    and issues NO fetch. `invalidate`/`invalidateAll`/`set`/`remove` are
-   no-ops. `fetch()` rejects (`Cache disposed`) without invoking the
-   fetch function — surfaced, not silent, since the await path's caller
-   owns retry policy (B14 boundary 1).
+   no-ops. `fetch()` rejects with the code `bus.closed`, as a request of
+   a closed bus does, without invoking the fetch function — surfaced, not
+   silent, since the await path's caller owns retry policy (B14 boundary 1).
 2. A fetch/retry chain that STRADDLES disposal dies quietly at its next
    resumption point: no B14 re-issue, no breadcrumb, no B15 failure. The
    `disposed` flag is checked at every async resumption, not just at
@@ -428,26 +428,34 @@ coalesce because every key was distinct. Likewise a `mark:added` on an
 open resource fetched its event history for a viewer that never showed
 one.
 
-### B13a — Remove is distinct from invalidate
+### B13a — Remove ends the key
 
-Some bus events signal that the underlying entity no longer exists
-(`mark:delete-ok`, `mark:removed`). For these, the cache entry
-should be **dropped**, not invalidated. Dropping means:
+Some bus events say the underlying entity no longer exists
+(`mark:removed`, `mark:delete-ok`). For these the key is **ended**, not
+invalidated:
 
 1. Clear the in-flight guard.
-2. Delete the entry from the store (via copy-on-write; A3).
+2. The key's state becomes `failed`, with the code `bus.not-found`, for
+   every observer of it. It goes there straight from `ready`: there is no
+   `pending` between, because no request stands behind a removal.
 3. Do NOT re-fetch.
+4. Only a key the cache holds is ended (B20). An event about an annotation
+   nothing has asked for marks nothing.
+
+A removed key is a failed key in every other respect (B15): an observer
+arriving at it starts a fresh chain, every observer is `pending` while it
+runs, and the service answers for itself. For an entity that is gone it
+answers not-found, and the key is `failed` again with the service's own
+error.
 
 Conventional method name: `remove<Entity>(key)` (not `invalidate`).
 
-This is distinct from B7 (invalidate = SWR): invalidate keeps the
-value and refetches; remove drops the value and does not.
+This is distinct from B7 (invalidate = SWR): invalidate keeps the value
+and asks again; remove drops the value and asks for nothing.
 
-Mixing the two was the original sin of the hand-rolled cache —
-`invalidateAnnotationDetail` deleted without refetching (which is
-the remove semantic) while being named `invalidate` (which suggests
-refetch). Consumers that assumed refetch broke; consumers that
-assumed removal worked by accident.
+Why `failed` and not an empty key: an observer left on `pending` with no
+request in flight waits for something nothing will send, the state
+liveness axiom L1 forbids everywhere else.
 
 ### B13b — Update-in-place for entities whose new value is known
 
@@ -462,78 +470,76 @@ avoids the roundtrip of an invalidate-triggered refetch. It also
 ensures both related caches stay in sync when a handler has reason
 to update more than one.
 
-### B13 — Reconnect gap-detection is server-driven, not edge-driven
+### B13 — A stream that reopens
 
-A bare `connected$: false → true` transition does NOT trigger cache
-invalidation. The server stamps every persisted event on
-`/bus/subscribe` with `id: p-<scope>-<seq>`; the client tracks a
-watermark PER SCOPE and sends each as `lastEventId` on that scope's
-entry in the subscribe-matrix body (multi-resource scope, 2026-07-29 — there is no
-`Last-Event-ID` header); the server replays each scope's persisted
-events missed during the gap. The usual reconnect path (mount-churn,
-scope-change, brief network blip) finishes with **zero events missed**
-— no cache invalidation needed.
+What a client must do when its stream is open again depends on how each
+event that feeds its cache is delivered. There are two ways.
 
-When the server can't cover a scope's gap — retention window exceeded,
-watermark unparseable, scope mismatch — it emits a scoped
-`bus:resume-gap` event. On that event, the cache MUST invalidate:
+**Events with a position.** Every persisted event of a resource is
+delivered on that resource's scope under `id: p-<scope>-<seq>`. The client
+tracks a watermark PER SCOPE and sends each as `lastEventId` on that
+scope's entry in the subscribe-matrix body, and the server replays what
+the scope missed. For what these events feed, a reopened stream needs **no
+cache action**: the replayed events refresh the cache as live ones do.
 
-- If `scope` is provided: every key related to that scope
-  (`annotationList[scope]`, `resourceDetail[scope]`,
-  `resourceEvents[scope]`, `referencedBy[scope]`) plus the KB-wide
-  `entityTypes`.
-- If `scope` is omitted: every live key in every cache (the
-  pre-resumption blanket behavior).
+When the server cannot cover a scope's gap — retention window exceeded,
+watermark unparseable, scope mismatch, the record unreadable — it emits
+`bus:resume-gap` naming the scope. On that event the cache asks again for
+everything it holds of that scope: the resource, its annotations (the list
+and each one held), its event history and what refers to it.
 
-The `entityTypes` singleton always refetches on any gap because the
-resumption protocol currently covers only resource-scoped events.
+**Events without one.** `yield:created`, `yield:updated`, `yield:cloned`,
+`yield:moved`, `frame:entity-type-added` and `frame:tag-schema-added` reach
+every client, on no scope, and so carry no position. One published while
+the stream is down is lost, and nothing replays it. So when the stream is
+open again **after a drop**, the cache asks again for everything those
+events feed and it holds: every list of resources, every resource, the
+entity types and the tag schemas. The collaborator directory, which no
+event feeds, is asked for again here too: a gateway restarted with a
+changed roster presents as a drop.
 
-With B7 (SWR), these invalidations are not destructive — observers
-keep seeing their stale data until the refetches return. Only
-network work is wasted, not UX.
+**A handoff is not a drop.** A changed subscription is handed from the old
+stream to a new one, and the old delivers until the new is open: nothing
+is missed, and the cache does nothing. A transport tells the two apart
+by its connection state, which stays `open` across a handoff and leaves it
+only for a drop.
 
-## Mapping: bus events → cache invalidations
+Each of these is for a key the cache holds (B20) and goes through that
+key's window (B19). With B7 (SWR) they are not destructive: observers keep
+what they have until the new value arrives. The cost is requests, never
+what is shown.
 
-The current subscription table in `BrowseNamespace.subscribeToEvents()`.
-Updating this table is an API-impact change; keep it in sync with the
-code. Every invalidation below is for a key the cache holds (B20), and
-goes through its key's window (B19); removes and in-place updates do
-neither.
+## What refreshes what
 
-| Bus event | Effect |
-|---|---|
-| `actor.connected$: false → true` | **no effect** — resumption handles the gap (B13) |
-| `bus:resume-gap` | scope-targeted invalidation (if `scope`) or full blanket (if not); always refetch `entityTypes` (B13) |
-| `mark:delete-ok` | **remove** `annotationDetail[annotationId]` (B13a — the entity is gone; drop the entry, don't refetch) |
-| `mark:added` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]` |
-| `mark:removed` | invalidate `annotationList[resourceId]`, `resourceEvents[resourceId]`, `annotationDetail[annotationId]` |
-| `mark:body-updated` | in-place update (write-through, B13b) `annotationList` entry **and** `annotationDetail[annotationId]`, invalidate `resourceEvents[resourceId]` |
-| `mark:entity-tag-added` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
-| `mark:entity-tag-removed` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
-| `yield:create-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
-| `yield:update-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
-| `mark:archived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
-| `mark:unarchived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
-| `frame:entity-type-added` | invalidate `entityTypes` |
-| `frame:tag-schema-added` | invalidate `tagSchemas` |
+[`specs/src/client/refresh.json`](../../../specs/src/client/refresh.json)
+is the authority: a row per trigger, saying which live queries it acts on.
+A trigger is a channel of the bus, or `reopened`, the stream open again
+after a drop (B13). `BrowseNamespace` applies the table generated from it
+(`CACHE_REFRESH` in `@semiont/core`), and states for itself only what each
+event names: its resource, its annotation, the value it carries.
 
-Observations from this table:
+| A row says | The cache does | Behavior |
+|---|---|---|
+| `refetches` | asks again, showing what it has meanwhile | B7 |
+| `writes` | writes the value the event carries, with no request | B13b |
+| `removes` | ends the key as `bus.not-found`, with no request | B13a |
 
-- **`resourceList` (all filters)** is invalidated by wholesale
-  replacement (`resourceList$.next(new Map())`), not key-by-key.
-  This is because invalidation events don't know which filter
-  combinations would be affected. Trade-off: in-flight filter
-  variants are refetched lazily on next observation.
-- **No events invalidate `annotationList` by annotation-id alone.**
-  The only per-annotation cache is `annotationDetail`; changes to an
-  annotation always also invalidate the list that contains it. This
-  is B10-consistent.
-- **`yield:create-ok` invalidates** (it does not write-through). It shares the
-  `invalidateMutatedResource` path with `yield:update-ok` / `mark:archived` /
-  `mark:unarchived` — invalidate `resourceDetail[resourceId]` and the whole
-  `resourceList`. A just-created resource has nothing cached yet, so the
-  `resourceDetail` invalidate is dropped (B20); the `resourceList`
-  invalidate is what surfaces the new resource to list views.
+A row's `reach` is `subject`, the keys the event names, or `held`, every
+key the cache holds. Every act is on a key the cache holds (B20); each
+refetch goes through its key's window (B19); writes and removes do neither.
+
+The SDK conformance suite builds a live case from every row
+([`tests/conformance/sdk`](../../../tests/conformance/sdk/README.md)), so a
+row is a statement every SDK is held to.
+
+Two things the table's shape follows from:
+
+- **Lists of resources are refreshed as a whole.** An event does not say
+  which filter combinations it affects, so every list the cache holds is
+  asked for again.
+- **Nothing refreshes an annotation list by annotation alone.** A change
+  to an annotation also refreshes, or writes, the list that contains it
+  (B10-consistent).
 
 ## Required audits in the implementation
 
@@ -549,19 +555,6 @@ For each `invalidate*` method, confirm:
 2. The store is NOT written with a deletion before the fetch
    (satisfies B7 step 3 — don't flash empty).
 3. A fetch is issued (satisfies B7 step 2).
-
-`invalidateAnnotationDetail` is currently a naming violation: it
-implements B13a (remove) while named `invalidate`. Rename to
-`removeAnnotationDetail`. For its `mark:body-updated` caller,
-switch to a new `updateAnnotationDetailInPlace` (B13b) — the
-event payload contains the full annotation, so a refetch is
-wasteful.
-
-`invalidateResourceLists` wholesale-replaces the store with an
-empty Map. This violates B7: observers see `pending` until the
-next observation. The fix is per-key SWR: iterate the current
-filter keys, clear guards, issue refetches, keep values in the
-map until refetches return.
 
 ### A2 — Every fetching* guard is cleared on all exit paths
 
@@ -620,8 +613,8 @@ cache durable, per-KB rehydration:
      scope's persisted watermark (`lastEventId` on that scope's
      subscribe-matrix entry — persisted `p-*` ids only; ephemeral `e-*`
      ids carry no replay meaning and are never saved), replayed events
-     invalidate through the normal handlers, and scoped `bus:resume-gap`
-     blanket-invalidates as always. The persisted watermark record is
+     invalidate through the normal handlers, and `bus:resume-gap` asks again
+     for what is held of its scope (B13). The persisted watermark record is
      COUPLED to the cache flush (`coupledLastEventId`): stashed per
      event under its scope, written only alongside a cache-document
      write, and **only while every persisted cache is quiescent**
@@ -744,3 +737,23 @@ background request per observed key.
   observer arrives, or `invalidate` is called), the observers already
   present see `pending` again before the outcome. Nothing else changed:
   an arriving observer still starts recovery and still begins at `pending`.
+- 2026-10-01 — **B13 and B13a restated; the mapping table moved to the
+  spec.** Three declared behavior changes, each found by a live conformance
+  case. (1) B13: a stream that reopens after a drop asks again for what
+  events without a position feed (lists of resources, held resources,
+  entity types, tag schemas, the collaborator directory). It asked for
+  nothing, on the claim that resumption covered every gap, which is true
+  only of events delivered on a scope. A handoff still costs nothing, and
+  the transport's state now says which is which: it stays `open` across a
+  handoff. `bus:resume-gap` refreshes its own scope, the scope's held
+  annotations included, and no longer the KB-wide singletons, which the
+  reopening covers; its scope-less branch is gone, the gateway never having
+  sent one (`scope` is required in the schema). (2) B13a: a removed key is
+  `failed` with `bus.not-found`; it was left with no value and no request,
+  its observers `pending` for good. An unenriched `mark:body-updated`
+  asks again for the annotation instead of removing it: the event says it
+  changed, not that it is gone. (3) B16: a one-shot read of a closed
+  client rejects as `bus.closed`; it rejected with no code. The "Mapping"
+  section is replaced by `specs/src/client/refresh.json`, from which the
+  handlers are generated; `keys()` and `invalidateAll()` cover every key
+  the cache knows (B20), a failed one included.

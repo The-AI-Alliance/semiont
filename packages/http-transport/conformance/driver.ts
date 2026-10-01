@@ -103,7 +103,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     if (transport) throw new Misuse('a transport is already open');
     const timing = args['timing'] === undefined ? {} : object(args, 'timing');
     for (const name of Object.keys(timing)) {
-      if (!['reconnectMs', 'lazyRemoveMs', 'lingerMs', 'emitRetry'].includes(name)) throw new Misuse(`this driver cannot override ${name}`);
+      if (!['reconnectMs', 'lazyRemoveMs', 'lingerMs', 'emitRetry', 'seenEventIdsCount'].includes(name)) throw new Misuse(`this driver cannot override ${name}`);
     }
     token$ = new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token')));
     transport = new HttpTransport({
@@ -114,6 +114,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
       ...(timing['lazyRemoveMs'] === undefined ? {} : { lazyRemoveMs: count(timing, 'lazyRemoveMs') }),
       ...(timing['lingerMs'] === undefined ? {} : { lingerMs: count(timing, 'lingerMs') }),
       ...(timing['emitRetry'] === undefined ? {} : { emitRetry: budget(timing) }),
+      ...(timing['seenEventIdsCount'] === undefined ? {} : { seenEventIdsCount: count(timing, 'seenEventIdsCount') }),
     });
     transport.state$.subscribe((state) => say({ state }));
     transport.errors$.subscribe((error) => say({ error: failure(error) }));
@@ -245,6 +246,10 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
   'protected-resource-metadata'() {
     return opened().getProtectedResourceMetadata();
   },
+
+  // Answers after everything the transport reported before it: the suite's
+  // way to know it has read every state the connection was in.
+  sync() {},
 };
 
 async function run(line: string): Promise<void> {

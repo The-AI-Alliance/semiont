@@ -55,6 +55,16 @@ describe('the corpus against the tables it restates', () => {
     const scripted = steps.find((step) => 'backend' in step && step.backend === 'refuse');
     expect(scripted && 'with' in scripted ? scripted.with?.['times'] : undefined).toBe(budget.attempts);
   });
+
+  it('dedup-window has the new stream replay as many events as specs/src/client/timing.json has a client remember', () => {
+    const { timing } = table<{ timing: Array<{ name: string; value: unknown }> }>('client/timing.json');
+    const remembered = timing.find((entry) => entry.name === 'seenEventIdsCount')?.value;
+    const steps = named('dedup-window').steps;
+    const replayed = steps.find((step) => 'backend' in step && step.backend === 'record' && step.with?.['count'] !== undefined);
+    expect(replayed && 'with' in replayed ? replayed.with?.['count'] : undefined).toBe(remembered);
+    const delivered = steps.find((step) => 'frames' in step);
+    expect(delivered && 'count' in delivered ? delivered.count : undefined).toBe(remembered);
+  });
 });
 
 for (const [sdk, { wire }] of Object.entries(inject('sdkDrivers'))) {

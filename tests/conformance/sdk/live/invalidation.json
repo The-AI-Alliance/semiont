@@ -1,6 +1,6 @@
 {
   "about": "an event on an observed resource makes the client ask again for what is observed, which keeps its value until the new one arrives; what nobody has observed is not asked for, and an event on a resource nobody observes never reaches the client (B7)",
-  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B7, § Mapping: bus events → cache invalidations",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B7; specs/src/client/refresh.json",
   "tier": "fleet",
   "steps": [
     {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},

@@ -1,5 +1,5 @@
 {
-  "$comment": "AUTHORITY for the timing a Semiont client keeps: its deadlines, its retry budgets and the cadence of its stream. Every SDK generates its constants from this file, so one client waits as long, and tries as often, as another. A name ending in `Ms` is a duration in milliseconds; one ending in `Retry` is a budget of `attempts` with a backoff that starts at `initialDelayMs` and doubles to `maxDelayMs`. TypeScript: scripts/spec/generate-client-timing.mjs writes packages/core/src/generated/client-timing.ts. An SDK's testing surface may override any of these; these are what it does unasked. Which failures are worth an attempt is specs/src/retry/cases.json.",
+  "$comment": "AUTHORITY for the timing a Semiont client keeps: its deadlines, its retry budgets and the cadence of its stream. Every SDK generates its constants from this file, so one client waits as long, and tries as often, as another. A name ending in `Ms` is a duration in milliseconds; one ending in `Retry` is a budget of `attempts` with a backoff that starts at `initialDelayMs` and doubles to `maxDelayMs`; one ending in `Count` is a whole number of things. TypeScript: scripts/spec/generate-client-timing.mjs writes packages/core/src/generated/client-timing.ts. An SDK's testing surface may override any of these; these are what it does unasked. Which failures are worth an attempt is specs/src/retry/cases.json.",
   "timing": [
     {
       "name": "busRequestTimeoutMs",
@@ -38,7 +38,12 @@
     {
       "name": "lingerMs",
       "value": 1000,
-      "docs": "How long a superseded connection keeps draining after a make-before-break handoff. Closing it the instant its replacement opens discards replies already written to the old socket and not yet read. The overlap is safe: event ids are stable, so a frame delivered on both is seen once."
+      "docs": "How long a superseded connection keeps draining after a make-before-break handoff. Closing it the instant its replacement opens discards replies already written to the old socket and not yet read. The overlap is safe for a frame with an identity of its own: delivered on both, it is seen once (`seenEventIdsCount`)."
+    },
+    {
+      "name": "seenEventIdsCount",
+      "value": 512,
+      "docs": "How many of the event ids it delivered last a client remembers. A frame whose id is among them is one it has delivered already, and is dropped: that is what makes a frame carried by both streams of a handoff, or replayed to the new one, arrive once. A client that remembers fewer delivers twice whenever more than that many events pass between the two copies."
     },
     {
       "name": "reconnectDebounceMs",
@@ -73,6 +78,16 @@
       "name": "invalidationWindowMs",
       "value": 1000,
       "docs": "How long bus-driven invalidations of one cache key fold together (CACHE-SEMANTICS B19). The first runs at once; any more inside the window become one refetch at its end. Each refetch is a request the session's principal pays for, and another principal's bulk write invalidates an observed key once per event."
+    },
+    {
+      "name": "jobSilenceMs",
+      "value": 10000,
+      "docs": "How long a job a client is following may say nothing before the client asks for its status. A job's progress and its end reach the client as frames with no identity, which a dropped stream loses and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every frame of the job starts the wait again."
+    },
+    {
+      "name": "jobStatusPollMs",
+      "value": 5000,
+      "docs": "How often a client asks for the status of a job that has been silent for `jobSilenceMs`, until the job says something or its status is an end."
     }
   ]
 }

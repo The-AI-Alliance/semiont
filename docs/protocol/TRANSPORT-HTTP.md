@@ -300,16 +300,16 @@ subscribers never disconnect during a call — and omits `trackReply`.
 ## Connection lifecycle (HTTP only)
 
 The shared contract exposes `state$: Observable<ConnectionState>` with
-six states. HTTP drives all six; local transports sit at `'connected'`
+seven states. HTTP drives all seven; an in-process transport is `'open'`
 from construction. The HTTP state machine:
 
 | State | Meaning |
 |---|---|
 | `initial` | Before `start()` has been called. |
 | `connecting` | `fetch()` is in flight; no bytes received yet. |
-| `open` | SSE stream is live; at least one frame received. |
-| `reconnecting` | Was open or connecting; now retrying. May be transient (mount churn, channel-set change) or sustained (network loss). |
-| `degraded` | Has been in `reconnecting` for longer than `DEGRADED_THRESHOLD_MS` (3 s). UI banner threshold — distinguishes brief churn from real disconnection. |
+| `open` | An SSE stream is live. A changed subscription is handed to a new stream while this state holds: it leaves `open` only when the stream drops. |
+| `reconnecting` | The stream dropped, or a connect failed with none live; now retrying. May be a blip or sustained (network loss). |
+| `degraded` | Has been in `reconnecting` for longer than `DEGRADED_THRESHOLD_MS` (3 s). UI banner threshold — distinguishes a blip from real disconnection. |
 | `unauthenticated` | Not attempting: the token getter returns nothing, or returned a bearer the gateway refused with 401. The tick keeps polling the GETTER (no network) and the actor reconnects by itself the moment a usable, different credential appears. The refusal is on `errors$` as an `APIError` carrying the status and its code. |
 | `closed` | `stop()` or `dispose()` was called. Terminal. |
 
@@ -326,20 +326,23 @@ initial         → connecting | unauthenticated | closed
 connecting      → open | reconnecting | unauthenticated | closed
 open            → reconnecting | closed
 reconnecting    → connecting | degraded | unauthenticated | closed
-degraded        → connecting | reconnecting | unauthenticated | closed
+degraded        → connecting | unauthenticated | closed
 unauthenticated → connecting | closed
 closed          → (terminal)
 ```
 
-`degraded → reconnecting` is the #844 recovery edge: a channel-set
-change can schedule a reconnect while the connection is degraded.
+A channel-set change while the connection is degraded connects at once:
+`degraded → connecting` (#844).
 `unauthenticated` is entered from any non-open state — at the gate
 (empty or still-refused token) or when a connect lands 401 — and left
 only for `connecting`, when the getter yields a usable, different
 credential.
 
-Gap detection is handled by the resumption protocol (see "Event id and
-resumption"), not by consumers interpreting state edges.
+`open` reached again after any other state is a stream reopened after a
+**drop**. A consumer that keeps a cache acts on it: events delivered on a
+scope are replayed (see "Event id and resumption"), and what every other
+event feeds is asked for again
+([CACHE-SEMANTICS B13](../../packages/sdk/docs/CACHE-SEMANTICS.md)).
 
 ### Reconnect discipline (client side)
 
@@ -375,22 +378,24 @@ The client-side `ActorStateUnit` handles three reconnect triggers:
    still-live old connection instead of dropped in a gap, and replies
    already written to the old socket but not yet read survive the
    handoff. Reconnects are **debounced 100 ms** so React Strict Mode's
-   mount → cleanup → mount sequence collapses into one reconnect. State
-   cycles `open → reconnecting → connecting → open` without reaching
-   `degraded` (the round-trip is sub-second). A superseded connection's
-   read loop ending — naturally or via the linger abort — does NOT
-   restart the reconnect machinery; that belongs to the live connection
-   only.
+   mount → cleanup → mount sequence collapses into one reconnect. The
+   state **stays `open`** throughout: a handoff misses nothing, and a
+   consumer must be able to tell it from a drop. A handoff whose connect
+   fails is tried again on the backoff ladder while the old stream stays
+   live. A superseded connection's read loop ending — naturally or via
+   the linger abort — does NOT restart the reconnect machinery; that
+   belongs to the live connection only.
 3. **Explicit `stop()` / `dispose()`.** State transitions to `closed`;
    the observable completes. No retry.
 
 On every reconnect, the client sends each scope's last persisted id as
 that entry's `lastEventId` in the subscribe body. For a clean reconnect
 (no persisted events missed), the server replays nothing and live
-delivery resumes.
-Consumers should NOT revalidate caches on the `reconnecting → open`
-transition — that work is driven by `bus:resume-gap`, which the server
-emits only when it genuinely can't cover the gap.
+delivery resumes. A scope the server cannot cover gets a
+`bus:resume-gap`, and the consumer revalidates what it holds of that
+scope. Events that are not delivered on a scope have no id to resume
+from: a consumer revalidates what they feed whenever the stream reopens
+after a drop.
 
 **Connection handoff (make-before-break + linger-drain).** On a
 channel-set change the client keeps the previous connection(s) live
@@ -450,7 +455,9 @@ actor-state-unit):
 
 - Persisted ids (`p-<scope>-<seq>`) are stable across connections → deduped to a single emission.
 - Correlation-reply ids (`e-<channel>:<cid>`) are deterministic → **also deduped**, so a reply landing on both the old and new connection is delivered once. (This closed a real duplicate-delivery bug: a per-connection id tagged the same reply differently on each connection and the dedup missed it — see how the gateway stamps ids in `apps/gateway/src/routes/stream.rs`.)
-- Other ephemeral ids (`e-<connectionId>-<counter>`) carry no `correlationId` and remain per-connection, so they aren't deduped — but their consumers tolerate a rare double (cache invalidations and job-completion are idempotent/terminal).
+- Every other id (`e-<connectionId>-<counter>`) is per-connection, so the two copies of such a frame are not recognised as one: a frame published while both connections are open is **delivered twice**. Consumers of these channels are idempotent (a cache refresh) or take the first (a job's end).
+
+The client remembers the last `seenEventIdsCount` ids it delivered ([`specs/src/client/timing.json`](../../specs/src/client/timing.json)).
 
 ## Wire framing and client parser obligations
 
@@ -528,9 +535,12 @@ A consumer that wants correctness over HTTP must assume:
 - Every SSE event is live unless delivered as part of a replay: a
   scope's persisted events after the `lastEventId` its entry carried, or
   a retained reply `pendingReplies` named. Nothing else is replayed.
-- A bare reconnect (no gap) requires no cache action. A gap the server
-  couldn't cover arrives as a `bus:resume-gap` event; on that event,
-  the consumer must revalidate state for the affected scope.
+- A stream reopened after a drop has missed every event that is not
+  delivered on a scope: nothing replays them, and the consumer must
+  revalidate what they feed. For events delivered on a scope it requires
+  no action, unless the server could not cover the gap: that arrives as
+  a `bus:resume-gap` event, and the consumer must revalidate state for
+  the affected scope.
 - `busRequest` has a 30s timeout and no retry. A reconnect during the
   request window loses nothing while the reply is retained; a caller
   that must complete past that still needs (a) a cache-layer refetch,

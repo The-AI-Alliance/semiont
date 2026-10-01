@@ -227,32 +227,47 @@ describe('Cache<K, V>', () => {
       cache.invalidate('k');
       await flush();
       expect(cache.observe('k')).toBe(obs);
-      cache.remove('k');
+      cache.remove('k', new Error('gone'));
       expect(cache.observe('k')).toBe(obs);
       cache.set('k', 'direct');
       expect(cache.observe('k')).toBe(obs);
     });
   });
 
-  describe('B13a — remove drops the entry without a refetch', () => {
+  describe('B13a — remove ends the key: failed with what it was given, and no refetch', () => {
     it('remove clears the cached value and does not issue a fetch', async () => {
       const fetchFn = vi.fn().mockResolvedValue('v1');
       const cache = createCache<string, string>(fetchFn);
       await firstDefined(cache.observe('k'));
       expect(fetchFn).toHaveBeenCalledTimes(1);
-      cache.remove('k');
+      cache.remove('k', new Error('gone'));
       expect(cache.get('k')).toBeUndefined();
       // No refetch happened.
       expect(fetchFn).toHaveBeenCalledTimes(1);
     });
 
-    it('observer sees undefined after remove', async () => {
+    it('its observer goes from ready straight to failed, with the error remove was given', async () => {
       const cache = createCache<string, string>(vi.fn().mockResolvedValue('v1'));
-      const seen: Array<string | undefined | Error> = [];
-      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      const seen: Array<CacheState<string>> = [];
+      cache.observe('k').subscribe((s) => seen.push(s));
       await firstDefined(cache.observe('k'));
-      cache.remove('k');
-      expect(seen[seen.length - 1]).toBeUndefined();
+      const gone = new Error('gone');
+      cache.remove('k', gone);
+      // Never `pending` between: that would be a wait with no request behind it (L1).
+      expect(seen.map((s) => s.status)).toEqual(['pending', 'ready', 'failed']);
+      expect(seen.at(-1)).toEqual({ status: 'failed', error: gone });
+    });
+
+    it('the key is still known, and an observer arriving at it asks again (B15)', async () => {
+      const fetchFn = vi.fn().mockResolvedValue('v1');
+      const cache = createCache<string, string>(fetchFn);
+      await firstDefined(cache.observe('k'));
+      cache.remove('k', new Error('gone'));
+      expect(cache.known('k')).toBe(true);
+      expect(cache.keys()).toEqual(['k']);
+
+      await firstDefined(cache.observe('k'));
+      expect(fetchFn).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -297,16 +312,38 @@ describe('Cache<K, V>', () => {
     });
   });
 
-  describe('keys() — diagnostic access', () => {
-    it('reflects currently-cached keys only (not in-flight)', async () => {
+  describe('keys() — every key the cache knows (B20)', () => {
+    it('lists a key from the moment it is asked for: being fetched, then holding its value', async () => {
       let resolveFetch!: (v: string) => void;
       const fetchFn = vi.fn().mockImplementation(() => new Promise<string>((r) => { resolveFetch = r; }));
       const cache = createCache<string, string>(fetchFn);
-      cache.observe('k').subscribe(() => {});
       expect(cache.keys()).toEqual([]);
+      cache.observe('k').subscribe(() => {});
+      expect(cache.keys()).toEqual(['k']);
       resolveFetch('v');
       await flush();
       expect(cache.keys()).toEqual(['k']);
+    });
+
+    it('lists a failed key, which invalidateAll then asks for again', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        const fetchFn = vi.fn().mockRejectedValue(new Error('down'));
+        const cache = createCache<string, string>(fetchFn);
+        const seen: string[] = [];
+        cache.observe('k').subscribe((s) => seen.push(s.status));
+        await flush();
+        await flush();
+        expect(seen.at(-1)).toBe('failed');
+        expect(cache.keys()).toEqual(['k']);
+
+        fetchFn.mockResolvedValue('v');
+        cache.invalidateAll();
+        await flush();
+        expect(seen.at(-1)).toBe('ready');
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 
@@ -685,7 +722,8 @@ describe('Cache<K, V>', () => {
 
       cache.invalidate('k');
       cache.invalidateAll();
-      await expect(cache.fetch('k')).rejects.toThrow(/disposed/);
+      // The code a request of a closed bus fails with.
+      await expect(cache.fetch('k')).rejects.toMatchObject({ code: 'bus.closed' });
       await flush();
 
       expect(fetchFn).toHaveBeenCalledTimes(1); // only the pre-dispose fetch

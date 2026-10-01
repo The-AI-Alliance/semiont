@@ -10,7 +10,7 @@
  */
 import { createInterface } from 'node:readline';
 import { BehaviorSubject, type Subscription } from 'rxjs';
-import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken } from '@semiont/core';
+import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type Motivation } from '@semiont/core';
 import {
   HttpContentTransport,
   HttpTransport,
@@ -89,6 +89,8 @@ function live(query: Arguments): CacheObservable<unknown> {
       return browse.entityTypes();
     case 'tagSchemas':
       return browse.tagSchemas();
+    case 'agents':
+      return browse.agents();
     default:
       throw new Misuse(`no live query ${String(query['query'])}`);
   }
@@ -101,7 +103,7 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
   open(args) {
     if (client && !closed) throw new Misuse('a client is already open');
     const timing = args['timing'] === undefined ? {} : object(args, 'timing');
-    const known = ['busRequestTimeoutMs', 'invalidationWindowMs', 'reconnectMs', 'lazyRemoveMs', 'lingerMs'];
+    const known = ['busRequestTimeoutMs', 'invalidationWindowMs', 'reconnectMs', 'lazyRemoveMs', 'lingerMs', 'jobSilenceMs', 'jobStatusPollMs'];
     for (const name of Object.keys(timing)) if (!known.includes(name)) throw new Misuse(`this driver cannot override ${name}`);
     const override = (name: string) => (timing[name] === undefined ? undefined : count(timing, name));
     const reconnectMs = override('reconnectMs');
@@ -109,6 +111,8 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     const lingerMs = override('lingerMs');
     const busTimeoutMs = override('busRequestTimeoutMs');
     const invalidationWindowMs = override('invalidationWindowMs');
+    const jobSilenceMs = override('jobSilenceMs');
+    const jobStatusPollMs = override('jobStatusPollMs');
 
     const transport = new HttpTransport({
       baseUrl: baseUrl(text(args, 'baseUrl')),
@@ -120,6 +124,8 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     client = new SemiontClient(transport, new HttpContentTransport(transport), transport, {
       ...(busTimeoutMs === undefined ? {} : { busTimeoutMs }),
       ...(invalidationWindowMs === undefined ? {} : { invalidationWindowMs }),
+      ...(jobSilenceMs === undefined ? {} : { jobSilenceMs }),
+      ...(jobStatusPollMs === undefined ? {} : { jobStatusPollMs }),
       ...(args['persist'] === true ? { cachePersistence: { storage, keyPrefix: 'conformance' } } : {}),
     });
     closed = false;
@@ -151,6 +157,27 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     if (!subscription) throw new Misuse(`${observer} is not observing`);
     subscription.unsubscribe();
     observers.delete(observer);
+  },
+
+  // A job followed to its end, observed as a live query is: each event it
+  // reports is a `ready` state, its failure a `failed` one, its end a completion.
+  assist(args) {
+    const observer = text(args, 'observer');
+    if (observers.has(observer)) throw new Misuse(`${observer} is already observing`);
+    observers.set(
+      observer,
+      opened()
+        .mark.assist(resourceId(text(args, 'resource')), text(args, 'motivation') as Motivation, object(args, 'options'))
+        .subscribe({
+          next: (event) => say({ emission: { observer, state: { status: 'ready', value: event } } }),
+          error: (error: unknown) => say({ emission: { observer, state: { status: 'failed', error: failure(error) } } }),
+          complete: () => say({ completed: observer }),
+        }),
+    );
+  },
+
+  async delete(args) {
+    await opened().mark.delete(resourceId(text(args, 'resource')), annotationId(text(args, 'annotation')));
   },
 
   async fresh(args) {

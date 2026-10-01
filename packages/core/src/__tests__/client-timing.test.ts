@@ -69,7 +69,22 @@ describe('the client-timing generator', () => {
     expect(run.stderr).toContain('lingerMs is stated twice');
   });
 
-  it('refuses a name that says neither duration nor budget', () => {
+  it('names a count as a constant', () => {
+    const run = generate(() => {});
+    expect(readFileSync(run.out, 'utf8')).toContain('export const SEEN_EVENT_IDS_COUNT = 512;');
+  });
+
+  it('refuses a count that is not a whole number above zero', () => {
+    for (const value of [0, -5, 1.5, '512']) {
+      const run = generate((t) => {
+        entry(t, 'seenEventIdsCount').value = value;
+      });
+      expect(run.status, JSON.stringify(value)).toBe(1);
+      expect(run.stderr).toContain('seenEventIdsCount is a count');
+    }
+  });
+
+  it('refuses a name that says neither duration nor budget nor count', () => {
     const run = generate((t) => {
       entry(t, 'lingerMs').name = 'linger';
     });

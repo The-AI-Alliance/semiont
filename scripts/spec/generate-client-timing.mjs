@@ -1,5 +1,6 @@
-// Generate the client's timing constants from specs/src/client/timing.json:
-// its deadlines, its retry budgets, and the cadence of its stream.
+// Generate the client's constants from specs/src/client/timing.json: its
+// deadlines, its retry budgets, the cadence of its stream, and what it keeps
+// count of.
 //
 // The table is the authority every SDK generates from. A number restated in
 // each language drifts, and nothing notices: the Rust transport's first
@@ -29,7 +30,7 @@ function refuse(message) {
   process.exit(1);
 }
 
-const wholeMs = (n) => Number.isInteger(n) && n > 0;
+const whole = (n) => Number.isInteger(n) && n > 0;
 
 const { timing } = JSON.parse(readFileSync(TABLE, 'utf8'));
 if (!Array.isArray(timing) || timing.length === 0) refuse('lists no timing');
@@ -37,14 +38,18 @@ if (!Array.isArray(timing) || timing.length === 0) refuse('lists no timing');
 const seen = new Set();
 for (const entry of timing) {
   const { name, value, docs } = entry;
-  if (typeof name !== 'string' || !/^[a-z][A-Za-z]*(Ms|Retry)$/.test(name)) {
-    refuse(`${JSON.stringify(name)} is not a name: camelCase, ending in Ms for a duration or Retry for a budget`);
+  if (typeof name !== 'string' || !/^[a-z][A-Za-z]*(Ms|Retry|Count)$/.test(name)) {
+    refuse(`${JSON.stringify(name)} is not a name: camelCase, ending in Ms for a duration, Retry for a budget or Count for a count`);
   }
   if (seen.has(name)) refuse(`${name} is stated twice`);
   seen.add(name);
   if (typeof docs !== 'string' || docs === '') refuse(`${name} has no docs`);
   if (name.endsWith('Ms')) {
-    if (!wholeMs(value)) refuse(`${name} is a duration, so its value is a whole number of milliseconds above zero`);
+    if (!whole(value)) refuse(`${name} is a duration, so its value is a whole number of milliseconds above zero`);
+    continue;
+  }
+  if (name.endsWith('Count')) {
+    if (!whole(value)) refuse(`${name} is a count, so its value is a whole number above zero`);
     continue;
   }
   const fields = value === null || typeof value !== 'object' ? [] : Object.keys(value).sort();
@@ -52,7 +57,7 @@ for (const entry of timing) {
     refuse(`${name} is a budget, so its value is exactly attempts, initialDelayMs and maxDelayMs`);
   }
   if (!Number.isInteger(value.attempts) || value.attempts < 1) refuse(`${name} allows no attempt`);
-  if (!wholeMs(value.initialDelayMs) || !wholeMs(value.maxDelayMs)) {
+  if (!whole(value.initialDelayMs) || !whole(value.maxDelayMs)) {
     refuse(`${name}'s delays are whole numbers of milliseconds above zero`);
   }
   if (value.initialDelayMs > value.maxDelayMs) refuse(`${name}'s backoff starts above its ceiling`);
@@ -63,9 +68,9 @@ const constantName = (name) => name.replace(/([A-Z])/g, '_$1').toUpperCase();
 const doc = (text) => `/** ${text.replaceAll('*/', '*\\/')} */`;
 
 const lines = timing.map(({ name, value, docs }) =>
-  name.endsWith('Ms')
-    ? `${doc(docs)}\nexport const ${constantName(name)} = ${value};\n`
-    : `${doc(docs)}\nexport const ${constantName(name)}: RetryPolicy = { attempts: ${value.attempts}, initialDelayMs: ${value.initialDelayMs}, maxDelayMs: ${value.maxDelayMs} };\n`,
+  name.endsWith('Retry')
+    ? `${doc(docs)}\nexport const ${constantName(name)}: RetryPolicy = { attempts: ${value.attempts}, initialDelayMs: ${value.initialDelayMs}, maxDelayMs: ${value.maxDelayMs} };\n`
+    : `${doc(docs)}\nexport const ${constantName(name)} = ${value};\n`,
 );
 
 mkdirSync(dirname(OUT), { recursive: true });
@@ -80,4 +85,4 @@ import type { RetryPolicy } from '../retry';
 ${lines.join('\n')}`,
 );
 
-console.log(`generated ${timing.length} client timing constants → ${OUT}`);
+console.log(`generated ${timing.length} client constants → ${OUT}`);

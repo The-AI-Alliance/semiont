@@ -18,9 +18,9 @@ export interface UseCollaboratorsResult {
  * session, and the batteries-included page passes `session.client`.
  *
  * SUBSCRIBES rather than fetching once. `browse.agents()` is a `CacheObservable`
- * whose only refresh triggers are `bus:resume-gap` and an explicit `fresh()` —
- * a gateway restart with a changed roster necessarily presents as an SSE gap, so
- * a one-shot read would pin the UI to a roster that no longer exists. Awaiting
+ * whose only refresh triggers are its stream reopening after a drop and an
+ * explicit `fresh()` — a gateway restart with a changed roster presents as a
+ * drop, so a one-shot read would pin the UI to a roster that no longer exists. Awaiting
  * it instead would also force a network round trip on every mount, which is
  * exactly what the cache exists to avoid.
  *

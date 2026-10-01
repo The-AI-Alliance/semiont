@@ -228,6 +228,27 @@
           }
         },
         {
+          "description": "The transport is in this state and has reported no other since the case last read its state.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "stays"
+          ],
+          "properties": {
+            "stays": {
+              "enum": [
+                "initial",
+                "connecting",
+                "open",
+                "reconnecting",
+                "degraded",
+                "unauthenticated",
+                "closed"
+              ]
+            }
+          }
+        },
+        {
           "description": "The next frame the client delivers on this channel is this one.",
           "type": "object",
           "additionalProperties": false,
@@ -240,6 +261,24 @@
               "type": "string"
             },
             "is": {}
+          }
+        },
+        {
+          "description": "The client delivers this many more frames on this channel. What they are is held, as every frame is, to what the gateway sent.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "frames",
+            "count"
+          ],
+          "properties": {
+            "frames": {
+              "type": "string"
+            },
+            "count": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         },
         {
