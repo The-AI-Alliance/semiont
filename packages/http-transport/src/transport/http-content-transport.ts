@@ -333,12 +333,6 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
       reject(err);
     };
 
-    xhr.ontimeout = () => {
-      const err = endedWithoutResponse('Upload timed out', 'timeout', 'unavailable');
-      onApiError(err);
-      reject(err);
-    };
-
     xhr.onabort = rejectAborted;
 
     if (signal) {

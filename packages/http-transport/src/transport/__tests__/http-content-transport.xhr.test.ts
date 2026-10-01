@@ -5,8 +5,8 @@
  * `http-transport.http-paths.test.ts`).
  *
  * We stub `globalThis.XMLHttpRequest` with a fake that exposes the same
- * event surface (`upload.onprogress`, `onload`, `onerror`, `ontimeout`,
- * `onabort`) and lets each test drive the lifecycle deterministically.
+ * event surface (`upload.onprogress`, `onload`, `onerror`, `onabort`) and
+ * lets each test drive the lifecycle deterministically.
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -37,7 +37,6 @@ class FakeXHR {
   upload = { onprogress: null as ((e: ProgressEvent) => void) | null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  ontimeout: (() => void) | null = null;
   onabort: (() => void) | null = null;
 
   status = 0;
@@ -90,9 +89,6 @@ class FakeXHR {
   }
   fireNetworkError(): void {
     this.onerror?.();
-  }
-  fireTimeout(): void {
-    this.ontimeout?.();
   }
 }
 
@@ -291,27 +287,6 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
     expect(err.statusText).toBe('network-error');
-    expect(err.code).toBe('unavailable');
-    expect(errors).toEqual([err]);
-  });
-
-  test('rejects with APIError on timeout, classified "unavailable"', async () => {
-    const { content, transport } = makeTransportAndContent();
-
-    const errors: unknown[] = [];
-    transport.errors$.subscribe((e) => errors.push(e));
-
-    const promise = content.putBinary(
-      { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
-      { onProgress: vi.fn() },
-    );
-
-    FakeXHR.instances[0]!.fireTimeout();
-
-    const err = (await promise.catch((e) => e)) as APIError;
-    expect(err).toBeInstanceOf(APIError);
-    expect(err.status).toBe(0);
-    expect(err.statusText).toBe('timeout');
     expect(err.code).toBe('unavailable');
     expect(errors).toEqual([err]);
   });
