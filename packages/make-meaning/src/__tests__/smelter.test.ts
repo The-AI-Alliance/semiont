@@ -1246,7 +1246,6 @@ describe('Smelter behind the real actor — live annotation events reach their h
     await vectorStore.connect();
     wire = createFakeBus();
     const actor = createSmelterActorStateUnit({ bus: wire.bus });
-    actor.start();
     smelter = new Smelter(
       actor.events$,
       EMPTY,

@@ -575,11 +575,11 @@ contract.
 
 ### Worker / actor adapters
 
-Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
+Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is exported by `@semiont/jobs`; `createSmelterActorStateUnit` by `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). A worker hands the adapter the HTTP actor like this:
 
 ```typescript no-check
 import type { HttpTransport } from '@semiont/sdk';
-import { createJobClaimAdapter } from './job-claim-adapter.js';
+import { createJobClaimAdapter } from '@semiont/jobs';
 
 // session.client.transport is the bus-shaped ITransport. For HTTP-backed
 // workers, narrow to HttpTransport to access the underlying ActorStateUnit.

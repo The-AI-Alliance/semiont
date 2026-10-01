@@ -159,8 +159,6 @@ async function main() {
     logger,
   );
   await weaver.initialize();
-
-  actorStateUnit.start();
   logger.info('Subscribed to graph-relevant events and rebuild commands');
 
   let catchUpState: BootPassState = { phase: 'pending' };

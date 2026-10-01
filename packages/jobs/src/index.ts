@@ -58,6 +58,17 @@ export { AnnotationDetection } from './workers/annotation-detection';
 // Generation utilities
 export { generateResourceFromTopic } from './workers/generation/resource-generation';
 
+// The job-claim protocol runtime: what a worker built outside this package
+// claims jobs with (docs/protocol/skills/semiont-worker).
+export {
+  createJobClaimAdapter,
+  type JobClaimAdapter,
+  type JobClaimAdapterOptions,
+  type ActiveJob,
+  type ClaimRefusal,
+  type WorkerVitals,
+} from './job-claim-adapter';
+
 // Worker liveness bounds (WORKER-LIVENESS P3). STALL_THRESHOLD_MS also
 // participates in the A4 nesting assertion at make-meaning's composition
 // root: gather read-barrier budgets must degrade before this watchdog

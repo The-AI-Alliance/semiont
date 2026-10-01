@@ -125,7 +125,6 @@ describe('Scripting Example: Query Graph Database', () => {
       mockLogger,
     );
     await weaver.initialize();
-    weaverUnit.start();
   });
 
   afterEach(async () => {

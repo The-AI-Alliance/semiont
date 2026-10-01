@@ -4,15 +4,10 @@
  *
  * Subscribes to the nine graph-relevant channels on a shared bus and
  * exposes them as a single `StoredEvent`-typed `events$` stream.
- * Transport-neutral — the caller passes a `BusRequestPrimitive` (the in-process
- * `asBusRequestPrimitive` adapter today, the HTTP `ActorStateUnit` once the
- * Weaver runs standalone). The state unit does not own the bus and does
- * not dispose it.
- *
- * `start()` widens the bus's channel-subscription set to include the
- * weaver channels. On HTTP this extends the SSE subscription URL; on the
- * in-process shim it is a no-op (the underlying `EventBus` already
- * delivers every emit).
+ * Transport-neutral — the caller passes a `BusRequestPrimitive` (the HTTP
+ * `ActorStateUnit` in `weaver-main`, the in-process `asBusRequestPrimitive`
+ * adapter elsewhere). The state unit does not own the bus and does not
+ * dispose it.
  */
 
 import { Observable, merge } from 'rxjs';
@@ -43,13 +38,12 @@ export interface WeaverActorStateUnit extends StateUnit {
   events$: Observable<StoredEvent>;
   /** `weave:rebuild` commands (WEAVER-ISOLATION D3) — never mixed into the fold. */
   rebuilds$: Observable<BusFrame<EventMap['weave:rebuild']>>;
-  start(): void;
 }
 
 /**
  * The Weaver's complete subscription manifest — what `weaver-main`
  * constructs its transport with, stated once. See SMELTER_MANIFEST for why
- * the whole set must exist before construction rather than after `start()`.
+ * the whole set must exist before this unit is constructed.
  */
 export const WEAVER_MANIFEST: readonly (keyof EventMap)[] = [
   ...WEAVER_REPLY_CHANNELS,
@@ -59,7 +53,6 @@ export const WEAVER_MANIFEST: readonly (keyof EventMap)[] = [
 
 export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions): WeaverActorStateUnit {
   const { bus } = options;
-  let started = false;
 
   // Domain channels carry full `StoredEvent`s on every transport —
   // in-process Subjects and the SSE gateway alike (EVENT-BUS.md, payload
@@ -75,14 +68,9 @@ export function createWeaverActorStateUnit(options: WeaverActorStateUnitOptions)
   return {
     events$,
     rebuilds$,
-    start: () => {
-      if (started) return;
-      started = true;
-    },
     dispose: () => {
-      // The bus is owned by the caller; the state unit only releases its own
-      // local state, of which there is none beyond the `started` flag.
-      started = false;
+      // The bus is owned by the caller and both streams are derived from it,
+      // so this unit holds nothing of its own to release.
     },
   };
 }

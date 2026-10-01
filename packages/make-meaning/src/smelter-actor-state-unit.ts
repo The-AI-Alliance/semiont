@@ -6,11 +6,6 @@
  * the caller passes a `BusRequestPrimitive` (HTTP `ActorStateUnit` today, an in-process
  * bus shim if/when one exists). The state unit does not own the bus and does
  * not dispose it.
- *
- * `start()` widens the bus's channel-subscription set to include the
- * smelter channels. On HTTP this extends the SSE subscription URL;
- * on an in-process bus this is a no-op (the underlying `EventBus`
- * already delivers every emit).
  */
 
 import { Observable, merge } from 'rxjs';
@@ -56,7 +51,6 @@ export interface SmelterActorStateUnit extends StateUnit {
   events$: Observable<SmelterEvent>;
   /** `smelt:rebuild-anchors` commands (PERSIST-ANCHORS P0) — see the command-channel note above. */
   rebuildAnchors$: Observable<BusFrame<EventMap['smelt:rebuild-anchors']>>;
-  start(): void;
 }
 
 /**
@@ -64,9 +58,10 @@ export interface SmelterActorStateUnit extends StateUnit {
  * constructs its transport with, stated once.
  *
  * The fold's streams are built AT CONSTRUCTION, so every channel must be in
- * the set before this unit exists; widening in `start()` left a window where
- * consumption outran declaration, and P1's `stream` refusal rejected
- * `yield:created` outright (globally bridged, so not scopable either).
+ * the set before this unit exists: a set widened afterwards leaves a window
+ * where consumption outruns declaration, and the transport's `stream`
+ * refusal rejects `yield:created` outright (globally bridged, so not
+ * scopable either).
  */
 export const SMELTER_MANIFEST: readonly (keyof EventMap)[] = [
   ...SMELTER_REPLY_CHANNELS,
@@ -76,7 +71,6 @@ export const SMELTER_MANIFEST: readonly (keyof EventMap)[] = [
 
 export function createSmelterActorStateUnit(options: SmelterActorStateUnitOptions): SmelterActorStateUnit {
   const { bus } = options;
-  let started = false;
 
   const events$ = merge(
     ...SMELTER_CHANNELS.map((channel) => bus.stream(channel)),
@@ -87,14 +81,9 @@ export function createSmelterActorStateUnit(options: SmelterActorStateUnitOption
   return {
     events$,
     rebuildAnchors$,
-    start: () => {
-      if (started) return;
-      started = true;
-    },
     dispose: () => {
-      // The bus is owned by the caller; the state unit only releases its own
-      // local state, of which there is none beyond the `started` flag.
-      started = false;
+      // The bus is owned by the caller and both streams are derived from it,
+      // so this unit holds nothing of its own to release.
     },
   };
 }

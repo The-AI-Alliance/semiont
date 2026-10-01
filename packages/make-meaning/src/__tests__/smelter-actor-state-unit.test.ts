@@ -42,7 +42,6 @@ describe('createSmelterActorStateUnit', () => {
 
   it('passes each StoredEvent through verbatim — never re-wrapped', async () => {
     const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
-    stateUnit.start();
 
     const collected = firstValueFrom(stateUnit.events$.pipe(take(2), toArray()));
 
@@ -70,30 +69,14 @@ describe('createSmelterActorStateUnit', () => {
     const event: SmelterEvent = noResource;
     expect(event).toBeDefined();
   });
-
-  it('start() is idempotent — one fold, not two', () => {
-    const stateUnit = createSmelterActorStateUnit({ bus: h.bus });
-    const seen: string[] = [];
-    stateUnit.events$.subscribe((e) => seen.push(e.type));
-    stateUnit.start();
-    stateUnit.start();
-
-    // This counted `addChannels` calls until P2 deleted the widening verb.
-    // The real property was always this: a second start() must not deliver
-    // every event twice.
-    h.push('yield:created', yieldCreated('r-1'));
-    expect(seen).toEqual(['yield:created']);
-
-    stateUnit.dispose();
-  });
 });
 
 describe('SmelterActorStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
-    // No owned surfaces: `events$` is derived from the injected bus's `on$`.
+    // No owned surfaces and no input methods: both streams are derived from
+    // the injected bus.
     assertStateUnitAxioms({
       setup: () => createSmelterActorStateUnit({ bus: createFakeBus().bus }),
-      invocations: (u) => [() => u.start()],
     });
   });
 });

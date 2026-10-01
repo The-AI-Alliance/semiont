@@ -2,9 +2,7 @@
  * WeaverActorStateUnit Tests (WEAVER-ISOLATION P2)
  *
  * Domain-event fan-in for the Weaver: the 9 graph-relevant channels merged
- * into one `StoredEvent`-typed `events$`. Transport-neutral over BusRequestPrimitive —
- * in-process today (core EventBus via the local shim), the bus gateway after
- * the split, with this unit unchanged.
+ * into one `StoredEvent`-typed `events$`. Transport-neutral over BusRequestPrimitive.
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -59,10 +57,7 @@ describe('createWeaverActorStateUnit', () => {
     h = fakeBus();
   });
 
-  it('extends the shared bus with all 9 graph-relevant channels plus the rebuild command on start', () => {
-    const unit = createWeaverActorStateUnit({ bus: h.bus });
-    unit.start();
-
+  it('all 9 graph-relevant channels plus the rebuild command are in the MANIFEST', () => {
     for (const channel of [
       'yield:created',
       'mark:archived', 'mark:unarchived',
@@ -82,7 +77,6 @@ describe('createWeaverActorStateUnit', () => {
     const events: any[] = [];
     unit.rebuilds$.subscribe((c) => commands.push(c));
     unit.events$.subscribe((e) => events.push(e));
-    unit.start();
 
     const cmd = { resourceId: 'res-1' };
     h.pushEvent('weave:rebuild', cmd, 'corr-1');
@@ -97,7 +91,6 @@ describe('createWeaverActorStateUnit', () => {
     const unit = createWeaverActorStateUnit({ bus: h.bus });
     const seen: any[] = [];
     unit.events$.subscribe((e) => seen.push(e));
-    unit.start();
 
     const stored = {
       id: 'evt-1',
@@ -118,7 +111,6 @@ describe('createWeaverActorStateUnit', () => {
     const unit = createWeaverActorStateUnit({ bus: h.bus });
     const seen: string[] = [];
     unit.events$.subscribe((e: any) => seen.push(e.type));
-    unit.start();
 
     h.pushEvent('yield:created', { type: 'yield:created', metadata: { sequenceNumber: 1 } });
     h.pushEvent('frame:entity-type-added', { type: 'frame:entity-type-added', metadata: { sequenceNumber: 2 } });
@@ -126,26 +118,12 @@ describe('createWeaverActorStateUnit', () => {
     expect(seen).toEqual(['yield:created', 'frame:entity-type-added']);
   });
 
-  it('start() is idempotent — one fold, not two', () => {
-    const unit = createWeaverActorStateUnit({ bus: h.bus });
-    const seen: string[] = [];
-    unit.events$.subscribe((e: any) => seen.push(e.type));
-    unit.start();
-    unit.start();
-
-    // This counted `addChannels` calls until P2 deleted the widening verb.
-    // The real property was always this: a second start() must not deliver
-    // every event twice.
-    h.pushEvent('yield:created', { type: 'yield:created', metadata: { sequenceNumber: 1 } });
-    expect(seen).toEqual(['yield:created']);
-  });
-
   describe('StateUnit axioms', () => {
     it('satisfies the StateUnit axioms', () => {
-      // No owned surfaces: `events$` is derived from the injected bus's `on$`.
+      // No owned surfaces and no input methods: both streams are derived from
+      // the injected bus.
       assertStateUnitAxioms({
         setup: () => createWeaverActorStateUnit({ bus: fakeBus().bus }),
-        invocations: (u) => [() => u.start()],
       });
     });
   });

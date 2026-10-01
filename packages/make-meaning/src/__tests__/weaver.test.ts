@@ -136,7 +136,6 @@ describe('Weaver', () => {
       mockLogger,
     );
     await weaver.initialize();
-    weaverUnit.start();
     return weaver;
   };
 
@@ -821,7 +820,6 @@ describe('Weaver', () => {
         mockLogger,
       );
       await localConsumer.initialize();
-      localUnit.start();
 
       const docId = resourceId(`lifecycle-stop-${Date.now()}`);
 

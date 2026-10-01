@@ -1,11 +1,6 @@
 /**
  * A bus method's types come from the channel name (WORKER-BUS-TYPED-BY-CHANNEL P1).
  *
- * Moved here from `@semiont/sdk` with its subject: the `WorkerBus` interface
- * it guarded was deleted in CLIENT-SUBSCRIPTION-MANIFEST P2 once its one
- * distinguishing member (`addChannels`) went, leaving a bare alias of this
- * primitive. The gate follows the type it gates.
- *
  * `on$<T = Record<string, unknown>>(channel: string)` let every caller name
  * its own payload type, checked against nothing — and the default made
  * "nobody typed this" indistinguishable from "this is typed". One consumer

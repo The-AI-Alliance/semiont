@@ -200,8 +200,6 @@ async function main() {
     logger,
   );
   smelter.initialize();
-
-  actorStateUnit.start();
   logger.info('Subscribed to domain events');
 
   const health = createServer((req, res) => {

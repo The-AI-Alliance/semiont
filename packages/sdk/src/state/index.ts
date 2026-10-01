@@ -8,12 +8,11 @@
 //              The eighth flow, Frame, has no state unit — its MVP methods
 //              are atomic `Promise<void>` writes with no progress
 //              observables; a Frame state unit lands when the surface earns one.
-//   lib/     — substrate (`StateUnit` disposable interface, search pipeline,
-//              `BusRequestPrimitive` channel-IO interface)
+//   lib/     — substrate (`createDisposer`, search pipeline)
 //
 // Domain-specific worker adapters live with their domain, not here.
 // `@semiont/jobs` houses `createJobClaimAdapter` (the job-claim protocol
-// runtime, internal to its worker process).
+// runtime).
 // `@semiont/make-meaning` houses `createSmelterActorStateUnit` (the
 // domain-event fan-in for the Smelter worker, co-located with the
 // Smelter actor and its `smelter-main` entry point).
