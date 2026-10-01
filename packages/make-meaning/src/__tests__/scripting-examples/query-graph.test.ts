@@ -113,13 +113,13 @@ describe('Scripting Example: Query Graph Database', () => {
     // of the graph stack). A hermetic test that wants projection wires one
     // directly against the service's own graph instance and bus — exactly
     // what weaver-main does in a deployment.
-    const workerBus = asBusRequestPrimitive(eventBus);
-    weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
+    const bus = asBusRequestPrimitive(eventBus);
+    weaverUnit = createWeaverActorStateUnit({ bus });
     weaver = new Weaver(
       makeMeaning.knowledgeSystem.kb.graph,
       weaverUnit.events$,
       weaverUnit.rebuilds$,
-      workerBus,
+      bus,
       new FileWeaverCheckpoint(join(testDir, 'weaver-checkpoint.json')),
       PROD_TIMING,
       mockLogger,

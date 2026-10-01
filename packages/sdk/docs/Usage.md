@@ -575,7 +575,7 @@ contract.
 
 ### Worker / actor adapters
 
-Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is `BusRequestPrimitive` plus one method: `stream(channel)`, `emit(channel, payload)`, `state$`, and an optional `addChannels(...)` — the only thing an SSE connection needs that an in-process bus does not. Both are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. (`stream` was `on$` until 0.5.x; renaming it is what let the adapter that existed only to rename it be deleted.) The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
+Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
 
 ```typescript no-check
 import type { HttpTransport } from '@semiont/sdk';
@@ -591,7 +591,7 @@ const adapter = createJobClaimAdapter({
 adapter.start();
 ```
 
-The cast names the seam: today only HTTP workers exist. The adapter itself is transport-neutral — when an in-process worker emerges, it builds its own `WorkerBus` shim and the cast goes away.
+The cast names the seam: today only HTTP workers exist. The adapter itself is transport-neutral — an in-process worker would pass its own `BusRequestPrimitive`, and the cast goes away.
 
 ## Debugging the bus
 

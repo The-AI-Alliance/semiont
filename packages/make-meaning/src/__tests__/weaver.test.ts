@@ -124,13 +124,13 @@ describe('Weaver', () => {
   let weaverUnit: WeaverActorStateUnit;
 
   const wireWeaver = async (db: GraphDatabase, checkpointPath?: string): Promise<Weaver> => {
-    const workerBus = asBusRequestPrimitive(coreEventBus);
-    weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
+    const bus = asBusRequestPrimitive(coreEventBus);
+    weaverUnit = createWeaverActorStateUnit({ bus });
     const weaver = new Weaver(
       db,
       weaverUnit.events$,
       weaverUnit.rebuilds$,
-      workerBus,
+      bus,
       new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
       PROD_TIMING,
       mockLogger,
@@ -809,13 +809,13 @@ describe('Weaver', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localWorkerBus = asBusRequestPrimitive(coreEventBus);
-      const localUnit = createWeaverActorStateUnit({ bus: localWorkerBus });
+      const localBus = asBusRequestPrimitive(coreEventBus);
+      const localUnit = createWeaverActorStateUnit({ bus: localBus });
       const localConsumer = new Weaver(
         localGraphDb,
         localUnit.events$,
         localUnit.rebuilds$,
-        localWorkerBus,
+        localBus,
         new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
         PROD_TIMING,
         mockLogger,

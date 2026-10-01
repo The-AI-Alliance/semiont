@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -71,28 +71,12 @@ export interface ActorStateUnitOptions {
   saveLastEventId?: (scope: string, id: string) => void;
 }
 
-export interface ActorStateUnit extends StateUnit {
-  /**
-   * These two restate `BusRequestPrimitive` (WORKER-BUS-TYPED-BY-CHANNEL D3), and they
-   * cannot stop: `BusRequestPrimitive` lives in `@semiont/sdk`, and **sdk depends on
-   * this package, not the reverse** — importing it here would invert the
-   * dependency. So the copy is a MIRROR that cannot be derived, and it is
-   * GATED instead: `sdk/state/lib/__tests__/worker-bus-types.test.ts` fails to
-   * compile if `ActorStateUnit` stops satisfying `BusRequestPrimitive`. Keep them in
-   * step by hand; the gate says when you have not.
-   *
-   * Until the signature was typed, this copy also *insulated* this package —
-   * its own `on$` calls resolved against the loose local declaration, so
-   * narrowing `BusRequestPrimitive` never reached them.
-   *
-   * `envelope?.scope` is the one genuine addition, so `emit` widens rather than
-   * merely repeating.
-   */
-  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
-  /** The envelope view: the same SSE frame, envelope included. */
-  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number | undefined>;
-  state$: Observable<ConnectionState>;
+/**
+ * `BusRequestPrimitive` over one SSE connection and `/bus/emit`, plus what
+ * only a wire connection has: refused connects, a subscription matrix that
+ * changes while it runs, and a start/stop lifecycle.
+ */
+export interface ActorStateUnit extends StateUnit, BusRequestPrimitive {
   /**
    * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
    * non-2xx `/bus/subscribe` answer, carrying the HTTP status as
@@ -102,24 +86,8 @@ export interface ActorStateUnit extends StateUnit {
   errors$: Observable<SseConnectError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: readonly (keyof EventMap)[], scope?: string): void;
-  /**
-   * Whether `channel` is in the current GLOBAL subscription set — i.e. the
-   * gateway delivers it on this connection. Correlated replies always ride
-   * global channels, so this is `busRequest`'s fail-fast probe on a
-   * narrowed-subscription transport (see `BusRequestPrimitive.isSubscribed`).
-   */
-  isSubscribed(channel: keyof EventMap): boolean;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: string): void;
-  /**
-   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
-   * SDK-DEBT S1): register a busRequest correlationId as awaiting its
-   * reply. Every connect body includes the currently-tracked set as
-   * `pendingReplies`, so a reply published while the connection was down
-   * is replayed from the server's retention buffer. The returned disposer
-   * (idempotent) removes the id on settle.
-   */
-  trackReply(correlationId: string): () => void;
   start(): void;
   stop(): void;
 }

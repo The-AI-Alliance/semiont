@@ -17,13 +17,13 @@ import {
   type SmelterEvent,
 } from '../smelter-actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
-import { createFakeWorkerBus, yieldCreated, annotationEvent } from './helpers/smelter-harness';
+import { createFakeBus, yieldCreated, annotationEvent } from './helpers/smelter-harness';
 
 describe('createSmelterActorStateUnit', () => {
-  let h: ReturnType<typeof createFakeWorkerBus>;
+  let h: ReturnType<typeof createFakeBus>;
 
   beforeEach(() => {
-    h = createFakeWorkerBus();
+    h = createFakeBus();
   });
 
   it('every channel the fold streams is in the MANIFEST — declared, not widened', () => {
@@ -92,7 +92,7 @@ describe('SmelterActorStateUnit — StateUnit axioms', () => {
   it('satisfies the StateUnit axioms', () => {
     // No owned surfaces: `events$` is derived from the injected bus's `on$`.
     assertStateUnitAxioms({
-      setup: () => createSmelterActorStateUnit({ bus: createFakeWorkerBus().bus }),
+      setup: () => createSmelterActorStateUnit({ bus: createFakeBus().bus }),
       invocations: (u) => [() => u.start()],
     });
   });

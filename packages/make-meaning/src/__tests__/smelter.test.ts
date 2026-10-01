@@ -55,7 +55,7 @@ import {
   createMockContentTransport,
   createContentTransport,
   createFakeKsBus, memoryAnchoredStore, type Emitted,
-  createFakeWorkerBus, markRemoved,
+  createFakeBus, markRemoved,
   yieldCreated, yieldUpdated, yieldRepresentationAdded, markArchived, markUnarchived, markEntityTagAdded, markEntityTagRemoved } from './helpers/smelter-harness';
 import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
@@ -1238,13 +1238,13 @@ describe('Smelter decisions not to index are readable', () => {
  */
 describe('Smelter behind the real actor — live annotation events reach their handlers', () => {
   let vectorStore: MemoryVectorStore;
-  let wire: ReturnType<typeof createFakeWorkerBus>;
+  let wire: ReturnType<typeof createFakeBus>;
   let smelter: Smelter;
 
   beforeEach(async () => {
     vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
-    wire = createFakeWorkerBus();
+    wire = createFakeBus();
     const actor = createSmelterActorStateUnit({ bus: wire.bus });
     actor.start();
     smelter = new Smelter(

@@ -153,7 +153,7 @@ export const markEntityTagRemoved = (resourceId: string, entityType: string): Ev
  * A `BusRequestPrimitive` whose domain channels are fed by `push` — typed per channel,
  * so a test can only put on the bus what the bus actually carries.
  */
-export function createFakeWorkerBus() {
+export function createFakeBus() {
   // A real `EventBus` rather than a `Map<string, Subject<unknown>>`: core's
   // bus is already typed per channel, so the fake needs no cast and is truer
   // to what production hands the state unit. The map version forced the one

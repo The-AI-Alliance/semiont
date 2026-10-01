@@ -238,7 +238,7 @@ This pattern (functional core, imperative shell) is shared with `@semiont/event-
 - `Gatherer` — Context assembly actor (annotation and resource gather flows; vector semantic search)
 - `Matcher` — Search/link actor (context-driven candidate search with structural + semantic scoring)
 - `CloneTokenManager` — Clone token lifecycle actor (yield domain)
-- `Smelter` / `createSmelterActorStateUnit` / `WorkerContentTransport` — the embedding pipeline, its domain-event fan-in, and the worker-side content transport; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `WorkerBus`
+- `Smelter` / `createSmelterActorStateUnit` / `WorkerContentTransport` — the embedding pipeline, its domain-event fan-in, and the worker-side content transport; wired together by the standalone `@semiont/make-meaning/smelter-main` entry point, and exported for callers that run the pipeline on their own `BusRequestPrimitive`
 
 The Weaver is not exported — `createKnowledgeBase()` constructs it internally and exposes it as `kb.weaver`.
 
@@ -260,7 +260,7 @@ The Weaver is not exported — `createKnowledgeBase()` constructs it internally 
 
 ## Dependencies
 
-- **[@semiont/core](../core/)** — Core types, EventBus, utilities
+- **[@semiont/core](../core/)** — Core types, EventBus, `StateUnit` / `BusRequestPrimitive`, utilities
 - **[@semiont/http-transport](../http-transport/)** — OpenAPI-generated types
 - **[@semiont/event-sourcing](../event-sourcing/)** — Event store and view storage
 - **[@semiont/content](../content/)** — Content-addressed storage
@@ -270,7 +270,7 @@ The Weaver is not exported — `createKnowledgeBase()` constructs it internally 
 - **[@semiont/vectors](../vectors/)** — Vector store abstraction (Qdrant + memory) and embedding providers (Voyage, Ollama)
 - **[@semiont/jobs](../jobs/)** — The job worker: processors and the worker process
 - **[@semiont/observability](../observability/)** — Actor spans and metrics providers
-- **[@semiont/sdk](../sdk/)** — `StateUnit` / `WorkerBus` types (used by the Smelter actor state unit)
+- **[@semiont/sdk](../sdk/)** — `parseJwtExpiry` / `refreshDelayMs`, the token refresh schedule (used by the sidecars' agent session)
 
 ## Testing
 
