@@ -503,6 +503,111 @@ describe('Cache<K, V>', () => {
     });
   });
 
+  describe('one state per key — every observer of a key holds the same state', () => {
+    // `failed` used to be an event pushed to whoever was subscribed at
+    // exhaustion, beside a store that held only values. So an observer that
+    // stayed held `failed` while one that arrived a moment later held
+    // `pending`: two answers to "what state is this key in". The cache holds
+    // the failure now, and a key has one state.
+
+    const exhaust = () =>
+      vi.fn().mockRejectedValueOnce(new Error('lost')).mockRejectedValueOnce(new Error('lost'));
+
+    /** A fetch the test settles by hand. */
+    function deferred(): { promise: Promise<string>; resolve: (v: string) => void; reject: (e: Error) => void } {
+      let resolve!: (v: string) => void;
+      let reject!: (e: Error) => void;
+      const promise = new Promise<string>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+
+    it('an arriving observer starts recovery, and the one already there sees pending too', async () => {
+      const fetchFn = exhaust();
+      const cache = createCache<string, string>(fetchFn);
+      const stayed: string[] = [];
+      cache.observe('k').subscribe((s) => stayed.push(s.status));
+      await flush();
+      expect(stayed).toEqual(['pending', 'failed']);
+
+      const recovery = deferred();
+      fetchFn.mockReturnValueOnce(recovery.promise);
+      const arrived: string[] = [];
+      cache.observe('k').subscribe((s) => arrived.push(s.status));
+      // A fetch is in flight for the key, so the key is pending, for both.
+      expect(arrived).toEqual(['pending']);
+      expect(stayed).toEqual(['pending', 'failed', 'pending']);
+
+      recovery.resolve('recovered');
+      await flush();
+      expect(stayed).toEqual(['pending', 'failed', 'pending', 'ready']);
+      expect(arrived).toEqual(['pending', 'ready']);
+    });
+
+    it('a recovery that fails again returns every observer to failed', async () => {
+      const fetchFn = exhaust().mockRejectedValue(new Error('still lost'));
+      const cache = createCache<string, string>(fetchFn);
+      const stayed: string[] = [];
+      cache.observe('k').subscribe((s) => stayed.push(s.status));
+      await flush();
+      const arrived: string[] = [];
+      cache.observe('k').subscribe((s) => arrived.push(s.status));
+      await flush();
+      expect(stayed).toEqual(['pending', 'failed', 'pending', 'failed']);
+      expect(arrived).toEqual(['pending', 'failed']);
+    });
+
+    it('invalidate of a failed key returns its observers to pending (B8)', async () => {
+      const fetchFn = exhaust();
+      const cache = createCache<string, string>(fetchFn);
+      const states: string[] = [];
+      cache.observe('k').subscribe((s) => states.push(s.status));
+      await flush();
+
+      const refetch = deferred();
+      fetchFn.mockReturnValueOnce(refetch.promise);
+      cache.invalidate('k');
+      expect(states).toEqual(['pending', 'failed', 'pending']);
+      refetch.resolve('v');
+      await flush();
+      expect(states).toEqual(['pending', 'failed', 'pending', 'ready']);
+    });
+
+    it('a value arriving at a failed key moves it straight to ready, with no pending between', async () => {
+      const viaFetch = exhaust().mockResolvedValueOnce('fetched');
+      const fetched = createCache<string, string>(viaFetch);
+      const afterFetch: string[] = [];
+      fetched.observe('k').subscribe((s) => afterFetch.push(s.status));
+      await flush();
+      await fetched.fetch('k');
+      expect(afterFetch).toEqual(['pending', 'failed', 'ready']);
+
+      const written = createCache<string, string>(exhaust());
+      const afterSet: string[] = [];
+      written.observe('k').subscribe((s) => afterSet.push(s.status));
+      await flush();
+      written.set('k', 'written');
+      expect(afterSet).toEqual(['pending', 'failed', 'ready']);
+    });
+
+    it('a late observer of a failed key is told the failure of its own recovery, not the old one', async () => {
+      const fetchFn = exhaust()
+        .mockRejectedValueOnce(new Error('second chain, first try'))
+        .mockRejectedValueOnce(new Error('second chain, retry'));
+      const cache = createCache<string, string>(fetchFn);
+      cache.observe('k').subscribe(() => {});
+      await flush();
+      const seen: Array<string | undefined | Error> = [];
+      cache.observe('k').subscribe((s) => seen.push(st(s)));
+      await flush();
+      expect(seen).toHaveLength(2);
+      expect(seen[0]).toBeUndefined();
+      expect((seen[1] as Error).message).toBe('second chain, retry');
+    });
+  });
+
   describe('dispose()', () => {
     it('completes the store and observers receive no further values', async () => {
       const cache = createCache<string, string>(vi.fn().mockResolvedValue('v'));

@@ -15,8 +15,9 @@ Three rules carry most of the contract (all landed 2026-07-29):
 
 1. **`failed` is an EMISSION, not an RxJS error.** The stream never errors
    and never terminates on failure, so one subscription can live through
-   `pending → failed`, and a NEW subscription runs the recovery chain (the
-   per-subscribe decision clears the failure marker — see B15).
+   `pending → failed`. A key has ONE state, the same for every observer of
+   it: a NEW subscription runs the recovery chain, which returns the key to
+   `pending` for all of them (see B15).
 2. **One-shot reads are `.fresh()`** — the thenable is dead. `await
    client.browse.x(...)` does not compile; the network round trip is always
    spelled explicitly.
@@ -292,23 +293,28 @@ suite ([browse-liveness.property.test.ts](../src/__tests__/browse-liveness.prope
 Changing the retry count is a policy change that must edit L2's budget
 visibly, not drift past it.
 
-### B15 — Terminal failure of a value-less key is a `failed` EMISSION
+### B15 — Terminal failure of a value-less key is its `failed` state
 
 When the B14 retry ALSO fails and the key holds **no cached value**, the
-key is marked failed and the failure MUST be delivered to that key's
-observers as a **`{ status: 'failed', error }` emission** — never
-`pending` forever, and never an RxJS error (the stream does not die):
+key's state MUST become **`{ status: 'failed', error }`** — never
+`pending` forever, and never an RxJS error (the stream does not die).
 
-1. Subscribers attached at exhaustion time receive the `failed` state
-   (push). Their subscription stays alive — a later recovery on the
-   same key flows to them without resubscribing.
-2. A subscriber ARRIVING at a failed key runs RECOVERY, not replay
-   (D3): the subscribe-time decision clears the marker and starts a
-   fresh attempt chain — so a component remount recovers by
-   construction.
-3. The marker is also cleared by `invalidate`, `set`, `remove`, or any
-   fetch success. The failed state is always retriable; nothing is
-   latched.
+**A key has one state, held by the cache, and every observer of the key
+holds it.** No observer sees `failed` while another sees `pending`.
+
+1. Observers present at exhaustion see `failed`. Their subscription
+   stays alive — a later recovery on the same key flows to them without
+   resubscribing.
+2. An observer ARRIVING at a failed key runs RECOVERY (D3): the
+   subscribe-time decision clears the failure and starts a fresh attempt
+   chain — so a component remount recovers by construction. The key is
+   `pending` again, for the observer arriving and for those already
+   present, because a fetch is in flight for all of them. It then becomes
+   `ready`, or `failed` with the new chain's error.
+3. The failure is also cleared by `invalidate` (the key returns to
+   `pending`, B8), `set`, `remove`, or any fetch success. A value arriving
+   at a failed key moves it straight to `ready`, with no `pending`
+   between. The failed state is always retriable; nothing is latched.
 4. Keys WITH a cached value never come here — B6 stale-beats-error is
    unchanged.
 
@@ -327,8 +333,8 @@ wiring error callbacks whose streams then have to be re-created. The
 ### B16 — Disposal is terminal and inert
 
 `dispose()` completes every per-key observable (subscribers receive
-`complete` and detach cleanly — `store$` AND `failure$`, the
-merge-completion edge), and stuns all later acts:
+`complete` and detach cleanly — the store AND the failures, both of which
+a key's state is computed from), and stuns all later acts:
 
 1. Post-dispose `observe()` returns a stream that completes immediately
    and issues NO fetch. `invalidate`/`invalidateAll`/`set`/`remove` are
@@ -336,9 +342,9 @@ merge-completion edge), and stuns all later acts:
    fetch function — surfaced, not silent, since the await path's caller
    owns retry policy (B14 boundary 1).
 2. A fetch/retry chain that STRADDLES disposal dies quietly at its next
-   resumption point: no B14 re-issue, no breadcrumb, no B15 push. The
+   resumption point: no B14 re-issue, no breadcrumb, no B15 failure. The
    `disposed` flag is checked at every async resumption, not just at
-   entry — and a late `failure$.next` would land on a completed subject
+   entry — and a late failure would land on a completed subject
    regardless (structural no-op, belt and braces).
 3. `dispose()` is idempotent.
 4. At the namespace level, `BrowseNamespace.dispose()` (called by
@@ -348,13 +354,13 @@ merge-completion edge), and stuns all later acts:
 
 Rationale: a B14 retry straddling client teardown resolves `bus.closed`
 (`busRequest`'s disposed-bus path) — a teardown artifact, not a data
-failure. Pre-B16 the B15 push then errored observers at shutdown
+failure. Pre-B16 the B15 failure then reached observers at shutdown
 (disposal noise; it escaped as a flaky unhandled rejection in a
 make-meaning test — a 2026-07-05 CI escape). B16 makes the push structurally impossible after disposal
 instead of special-casing the `bus.closed` error code, which would have
 carved a silent exception into liveness axiom L1 (whose standing rule is:
 policy changes must edit the axiom visibly, not drift). L1 holds
-unconditionally: live client → terminal failures error observers (B15);
+unconditionally: live client → a terminal failure is the key's state (B15);
 disposed client → observers were completed at disposal, so none exist
 to starve.
 
@@ -568,7 +574,7 @@ once per `SemiontClient`.
 ## Test-parity
 
 A `cache-semantics.test.ts` in `packages/sdk/src/namespaces/__tests__/`
-asserts each of B1–B16 against the current implementation. Adding a
+asserts each behavior against the current implementation. Adding a
 new behavior here must be accompanied by a new test case referencing
 its number (`// B7 — invalidate preserves stale value`). Removing or
 changing a behavior must update both this doc and the test.
@@ -699,4 +705,11 @@ background request per observed key.
   visible: a 1,000-event import refetched each observed key 1,000
   times. B12's additivity test now waits out the window for its second
   event's refetches: the count it asserts is unchanged, only its timing.
-
+- 2026-10-01 — **B15: one state per key.** `failed` was an event pushed to
+  the observers present at exhaustion, beside a store that held only
+  values, so an observer that stayed held `failed` while one that arrived
+  held `pending`. The cache holds the failure now, and a key's state is the
+  same for every observer. Observable difference: when recovery starts (an
+  observer arrives, or `invalidate` is called), the observers already
+  present see `pending` again before the outcome. Nothing else changed:
+  an arriving observer still starts recovery and still begins at `pending`.
