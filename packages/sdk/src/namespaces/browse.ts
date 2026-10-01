@@ -19,7 +19,7 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest, LIMITS_OPERATIONS } from '@semiont/core';
+import { busRequest, INVALIDATION_WINDOW_MS, LIMITS_OPERATIONS } from '@semiont/core';
 import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
@@ -48,17 +48,6 @@ type ResourceListFilters = {
 };
 
 /** Sentinel key for the singleton entity-types cache. */
-/**
- * B19 — how long bus-driven invalidations of one key fold together. The first
- * fires at once; any more inside the window become one refetch at its end.
- * Every refetch is a `browse:*` request, an emit this session's principal pays
- * for, and another principal's bulk write invalidates the keys this session
- * observes once per event: a window caps a storm at one refetch per observed
- * key per window, however fast the events come, and an isolated write is
- * still seen at once.
- */
-export const INVALIDATION_WINDOW_MS = 1_000;
-
 /**
  * B19 — per key, the first invalidation runs at once and opens a window; any
  * more inside it are owed, and run as one when it closes, which opens the next.

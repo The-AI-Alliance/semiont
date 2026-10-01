@@ -1,0 +1,78 @@
+{
+  "$comment": "AUTHORITY for the timing a Semiont client keeps: its deadlines, its retry budgets and the cadence of its stream. Every SDK generates its constants from this file, so one client waits as long, and tries as often, as another. A name ending in `Ms` is a duration in milliseconds; one ending in `Retry` is a budget of `attempts` with a backoff that starts at `initialDelayMs` and doubles to `maxDelayMs`. TypeScript: scripts/spec/generate-client-timing.mjs writes packages/core/src/generated/client-timing.ts. An SDK's testing surface may override any of these; these are what it does unasked. Which failures are worth an attempt is specs/src/retry/cases.json.",
+  "timing": [
+    {
+      "name": "busRequestTimeoutMs",
+      "value": 30000,
+      "docs": "How long a bus request waits for its reply. The gateway keeps a reply for redelivery at least twice this long (`replyRetentionSeconds` on POST /bus/subscribe), so a reply published during an outage is still there when the requester reconnects inside its own deadline."
+    },
+    {
+      "name": "emitTimeoutMs",
+      "value": 30000,
+      "docs": "The deadline on one POST /bus/emit. The gateway accepts an emit promptly; one still unanswered here means the gateway is unresponsive, and the emit is rejected rather than awaited forever. Without it a worker's emit to a wedged gateway hung its loop."
+    },
+    {
+      "name": "emitRetry",
+      "value": {
+        "attempts": 4,
+        "initialDelayMs": 1000,
+        "maxDelayMs": 4000
+      },
+      "docs": "The retry budget of ONE emit. Per request, never per boot pass: re-running a whole catch-up pass to recover from one refusal re-sends hundreds of emits that already succeeded. Small on purpose: an emit a caller awaits must fail while the caller still cares, and the patience for a gateway that is down belongs to the pass above it."
+    },
+    {
+      "name": "reconnectMs",
+      "value": 5000,
+      "docs": "The first wait before a failed stream is opened again. Each further failure doubles it, up to `maxReconnectMs`, and a successful open resets it. Also the cadence at which a transport with no usable credential checks for one, which costs no request."
+    },
+    {
+      "name": "maxReconnectMs",
+      "value": 60000,
+      "docs": "The ceiling of the reconnect backoff: a long outage settles at about one attempt a minute instead of growing without bound."
+    },
+    {
+      "name": "degradedThresholdMs",
+      "value": 3000,
+      "docs": "How long a stream may be reconnecting before its state becomes degraded."
+    },
+    {
+      "name": "lingerMs",
+      "value": 1000,
+      "docs": "How long a superseded connection keeps draining after a make-before-break handoff. Closing it the instant its replacement opens discards replies already written to the old socket and not yet read. The overlap is safe: event ids are stable, so a frame delivered on both is seen once."
+    },
+    {
+      "name": "reconnectDebounceMs",
+      "value": 100,
+      "docs": "How long additions to the subscription are gathered before the stream is reopened with them. Short, because a new scope needs to be live now."
+    },
+    {
+      "name": "lazyRemoveMs",
+      "value": 5000,
+      "docs": "How long a removal from the subscription waits before the stream is reopened without it. Removal only narrows delivery, and reopening on every scope a viewer brushes past would churn the connection."
+    },
+    {
+      "name": "refreshRetry",
+      "value": {
+        "attempts": 4,
+        "initialDelayMs": 500,
+        "maxDelayMs": 4000
+      },
+      "docs": "The retry budget of one token renewal: long enough to ride out a gateway restart or a rolling deploy, short enough that a user with no connectivity is told within seconds rather than a minute."
+    },
+    {
+      "name": "refreshBeforeExpMs",
+      "value": 300000,
+      "docs": "The LARGEST margin before expiry at which a token is proactively renewed. A ceiling, not the margin: the margin is half the token's own lifetime, capped here. As a fixed margin it equalled the five-minute lifetime Keycloak mints by default, so every renewal was already due, and an idle signed-in page sent 1418 token requests in ten seconds."
+    },
+    {
+      "name": "minRefreshDelayMs",
+      "value": 10000,
+      "docs": "The shortest the proactive renewal ever waits. A timer due now that reschedules itself on arrival is a closed loop; a floor makes that impossible, so even an issuer minting expired tokens gets one attempt per interval. Waiting is cheap here: a 401 still drives a renewal."
+    },
+    {
+      "name": "invalidationWindowMs",
+      "value": 1000,
+      "docs": "How long bus-driven invalidations of one cache key fold together (CACHE-SEMANTICS B19). The first runs at once; any more inside the window become one refetch at its end. Each refetch is a request the session's principal pays for, and another principal's bulk write invalidates an observed key once per event."
+    }
+  ]
+}

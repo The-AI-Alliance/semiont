@@ -267,7 +267,10 @@ export type {
 export { BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS, type BridgedChannel } from './bridged-channels';
 
 // Request/reply over the bus — the transport-neutral primitive (relocated from @semiont/sdk).
-export { busRequest, replyChannelsFor, relayedFailureCode, BUS_REQUEST_TIMEOUT_MS, BusRequestError, type BusRequestPrimitive } from './bus-request';
+export { busRequest, replyChannelsFor, relayedFailureCode, BusRequestError, type BusRequestPrimitive } from './bus-request';
+// The client's deadlines, retry budgets and stream cadence, generated from
+// specs/src/client/timing.json — the table every SDK generates from.
+export * from './generated/client-timing';
 // The client error vocabularies and their classifiers, generated from
 // specs/src/errors/codes.json — the table every SDK generates from.
 export {

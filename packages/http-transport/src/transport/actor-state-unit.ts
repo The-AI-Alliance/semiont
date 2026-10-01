@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -34,7 +34,7 @@ export interface ActorStateUnitOptions {
    * Base of the failure-retry backoff ladder AND the flat cadence of the
    * `unauthenticated` waiting tick (which polls the token getter, no
    * network). A failure retry waits jitter(min(reconnectMs·2ⁿ, 60 s));
-   * n resets on a successful open. Default 5 s.
+   * n resets on a successful open. Default `RECONNECT_MS`.
    */
   reconnectMs?: number;
   /**
@@ -70,62 +70,6 @@ export interface ActorStateUnitOptions {
   loadLastEventIds?: () => Record<string, string> | null;
   saveLastEventId?: (scope: string, id: string) => void;
 }
-
-/** Time in the `reconnecting` state before transitioning to `degraded`. */
-export const DEGRADED_THRESHOLD_MS = 3_000;
-
-/**
- * Ceiling for the failure-retry backoff (SSE-AUTH-RESILIENCE P3, D1a): the
- * exponential ladder from `reconnectMs` caps here, so a long outage settles
- * into roughly one attempt per minute rather than growing without bound.
- */
-const MAX_RECONNECT_MS = 60_000;
-
-/**
- * Deadline on the `/bus/emit` POST (JOB-RESTART-SAFETY P7). The gateway
- * accepts an emit and returns 202 promptly; a POST that has not resolved by
- * here means the gateway is unresponsive (mid-restart, overwhelmed), and the
- * emit is rejected rather than awaited forever. This is the transport-level
- * bound behind the 2026-09-03 finalization hang: a worker's mark:create /
- * job:complete emit to a wedged gateway used to hang the worker loop with no
- * timeout of its own. The rejection surfaces as a job failure the queue
- * classifies transient (an unreachable gateway is not the request's fault),
- * so the work retries instead of wedging. Covers EVERY emit and every job
- * type — not just the reference-annotation persist P6 bounded.
- */
-export const EMIT_TIMEOUT_MS = 30_000;
-
-/**
- * Retry budget for ONE `/bus/emit` POST (SIDECAR-BOOT-RESILIENCE D3).
- *
- * Per request, deliberately — not per boot pass. "Retry when one settles" is
- * advice about a single request; re-running a whole catch-up pass to recover
- * from one refusal re-sends hundreds of already-successful emits, which is the
- * amplification that wedged the weaver in the first place.
- *
- * Small on purpose. `EMIT_TIMEOUT_MS` bounds each attempt, so the worst case
- * here is 4 attempts plus up to ~7s of jittered waiting, and an emit that a
- * caller is awaiting must fail while the caller still cares. The patience for a
- * gateway that is genuinely down belongs to the boot pass above it, not here.
- */
-export const EMIT_RETRY: RetryPolicy = {
-  attempts: 4,
-  initialDelayMs: 1_000,
-  maxDelayMs: 4_000,
-};
-
-/**
- * How long a superseded connection keeps DRAINING after a make-before-break
- * handoff before being aborted. Aborting the old connection the instant the
- * new one opened discarded replies already written to the old socket but not
- * yet read by the client (a freshly-hydrating page's main thread is busy —
- * exactly the N-concurrent-loaders-at-connect repro in
- * .plans/bugs/concurrent-browse-resource-starvation.md). The overlap is safe:
- * persisted ids are stable and correlated-reply ids are deterministic
- * (`e-<channel>:<cid>`, routes/bus.ts), so `seenEventIds` dedups double
- * delivery.
- */
-export const LINGER_MS = 1_000;
 
 export interface ActorStateUnit extends StateUnit {
   /**
@@ -198,7 +142,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -774,7 +718,6 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   // pending lazy one, and a lazy schedule never preempts a pending fast one.
   let reconnectTimer2: ReturnType<typeof setTimeout> | null = null;
   let lazyReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  const RECONNECT_DEBOUNCE_MS = 100;
   const scheduleReconnect = () => {
     if (lazyReconnectTimer) { clearTimeout(lazyReconnectTimer); lazyReconnectTimer = null; }
     if (reconnectTimer2) clearTimeout(reconnectTimer2);

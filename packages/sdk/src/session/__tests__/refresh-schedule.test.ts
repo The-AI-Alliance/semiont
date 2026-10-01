@@ -15,9 +15,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS } from '@semiont/core';
 import {
-  REFRESH_BEFORE_EXP_MS,
-  MIN_REFRESH_DELAY_MS,
   refreshDelayMs,
   parseJwtExpiry,
   isJwtExpired,

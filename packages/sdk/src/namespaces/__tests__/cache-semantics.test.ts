@@ -11,10 +11,10 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { map, firstValueFrom, filter, BehaviorSubject } from 'rxjs';
-import { EventBus, resourceId, annotationId } from '@semiont/core';
+import { EventBus, INVALIDATION_WINDOW_MS, resourceId, annotationId } from '@semiont/core';
 import type { components, StoredEvent, EventOfType, EventMetadata, UserId, ResourceId, EventMap } from '@semiont/core';
 import type { ConnectionState } from '@semiont/core';
-import { BrowseNamespace, INVALIDATION_WINDOW_MS } from '../browse';
+import { BrowseNamespace } from '../browse';
 import { isReady, readyValue } from '../../cache';
 import type { IContentTransport } from '@semiont/core';
 

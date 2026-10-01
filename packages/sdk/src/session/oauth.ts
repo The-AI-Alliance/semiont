@@ -9,12 +9,12 @@
 
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import {
+  REFRESH_RETRY,
   RETRY_RULES,
   baseUrl,
   isObject,
   isString,
   retryWithBackoff,
-  type RetryPolicy,
 } from '@semiont/core';
 import type { HttpEndpoint } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
@@ -319,16 +319,6 @@ export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, r
   });
   return { access: tokens.access, refresh: tokens.refresh ?? refreshToken };
 }
-
-/**
- * How hard to try before a renewal is declared unrenewable
- * (REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P0.2). Four attempts with ceilings of
- * 0.5 s, 1 s, 2 s — long enough to ride out a gateway restart or a rolling
- * deploy, short enough that a user with no connectivity waits seconds rather
- * than a minute before being told. Not `STARTUP_FETCH_RETRY`: that one is sized
- * for a cold stack, and a refresh rides an already-running one.
- */
-const REFRESH_RETRY: RetryPolicy = { attempts: 4, initialDelayMs: 500, maxDelayMs: 4_000 };
 
 /**
  * Renew a stored session at its issuer and persist the rotation.
