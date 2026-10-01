@@ -199,8 +199,6 @@
       "settings:line-numbers-toggled",
       "settings:locale-changed",
       "settings:hover-delay-changed",
-      "stream-connected",
-      "replay-window-exceeded",
       "bus:resume-gap",
       "session:joined",
       "session:left"
@@ -403,8 +401,6 @@
       "smelt:rebuild-anchors",
       "smelt:rebuild-anchors-ok",
       "smelt:rebuild-anchors-failed",
-      "stream-connected",
-      "replay-window-exceeded",
       "bus:resume-gap",
       "session:joined",
       "session:left"
@@ -416,7 +412,6 @@
       "shape": "storedEvent",
       "event": "yield:created",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'yield:created'>>",
       "docs": {
         "lead": [
           "",
@@ -442,7 +437,6 @@
       "shape": "storedEvent",
       "event": "yield:cloned",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'yield:cloned'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -457,7 +451,6 @@
       "shape": "storedEvent",
       "event": "yield:updated",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'yield:updated'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -472,7 +465,6 @@
       "shape": "storedEvent",
       "event": "yield:moved",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'yield:moved'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -487,7 +479,6 @@
       "shape": "storedEvent",
       "event": "yield:representation-added",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'yield:representation-added'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -502,7 +493,6 @@
       "shape": "storedEvent",
       "event": "yield:representation-removed",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'yield:representation-removed'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -517,7 +507,6 @@
       "shape": "schema",
       "schema": "YieldCreateCommand",
       "validate": "YieldCreateCommand",
-      "ts": "components['schemas']['YieldCreateCommand']",
       "docs": {
         "lead": [
           "",
@@ -540,7 +529,6 @@
       "shape": "schema",
       "schema": "YieldClonePersistCommand",
       "validate": "YieldClonePersistCommand",
-      "ts": "components['schemas']['YieldClonePersistCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -555,7 +543,6 @@
       "shape": "schema",
       "schema": "YieldUpdateCommand",
       "validate": "YieldUpdateCommand",
-      "ts": "components['schemas']['YieldUpdateCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -570,7 +557,6 @@
       "shape": "schema",
       "schema": "YieldMvCommand",
       "validate": "YieldMvCommand",
-      "ts": "components['schemas']['YieldMvCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -584,7 +570,6 @@
       "channel": "yield:clone",
       "shape": "void",
       "validate": null,
-      "ts": "void",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -599,7 +584,6 @@
       "shape": "schema",
       "schema": "YieldCloneTokenRequest",
       "validate": "YieldCloneTokenRequest",
-      "ts": "components['schemas']['YieldCloneTokenRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -614,7 +598,6 @@
       "shape": "schema",
       "schema": "YieldCloneResourceRequest",
       "validate": "YieldCloneResourceRequest",
-      "ts": "components['schemas']['YieldCloneResourceRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -629,7 +612,6 @@
       "shape": "schema",
       "schema": "YieldCloneCreateCommand",
       "validate": "YieldCloneCreateCommand",
-      "ts": "components['schemas']['YieldCloneCreateCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -644,7 +626,6 @@
       "shape": "schema",
       "schema": "YieldCreateOk",
       "validate": "YieldCreateOk",
-      "ts": "components['schemas']['YieldCreateOk']",
       "docs": {
         "lead": [
           "",
@@ -662,7 +643,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -677,7 +657,6 @@
       "shape": "schema",
       "schema": "YieldClonePersistOk",
       "validate": "YieldClonePersistOk",
-      "ts": "components['schemas']['YieldClonePersistOk']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -692,7 +671,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -707,7 +685,6 @@
       "shape": "schema",
       "schema": "YieldUpdateOk",
       "validate": "YieldUpdateOk",
-      "ts": "components['schemas']['YieldUpdateOk']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -722,7 +699,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -734,9 +710,9 @@
     },
     {
       "channel": "yield:move-failed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "YieldMoveFailed",
       "validate": null,
-      "ts": "{ fromUri: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -751,7 +727,6 @@
       "shape": "envelope",
       "schema": "CloneResourceWithTokenResponse",
       "validate": null,
-      "ts": "{ response: components['schemas']['CloneResourceWithTokenResponse'] }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -766,7 +741,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -781,7 +755,6 @@
       "shape": "envelope",
       "schema": "GetResourceByTokenResponse",
       "validate": null,
-      "ts": "{ response: components['schemas']['GetResourceByTokenResponse'] }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -796,7 +769,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -811,7 +783,6 @@
       "shape": "schema",
       "schema": "YieldCloneCreated",
       "validate": "YieldCloneCreated",
-      "ts": "components['schemas']['YieldCloneCreated']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -826,7 +797,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -842,7 +812,6 @@
       "event": "mark:added",
       "enriched": true,
       "validate": null,
-      "ts": "EnrichedEvent<EventOfType<'mark:added'>>",
       "docs": {
         "lead": [
           "",
@@ -867,7 +836,6 @@
       "shape": "storedEvent",
       "event": "mark:removed",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'mark:removed'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -883,7 +851,6 @@
       "event": "mark:body-updated",
       "enriched": true,
       "validate": null,
-      "ts": "EnrichedEvent<EventOfType<'mark:body-updated'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -898,7 +865,6 @@
       "shape": "storedEvent",
       "event": "mark:entity-tag-added",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'mark:entity-tag-added'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -913,7 +879,6 @@
       "shape": "storedEvent",
       "event": "mark:entity-tag-removed",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'mark:entity-tag-removed'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -928,7 +893,6 @@
       "shape": "storedEvent",
       "event": "mark:archived",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'mark:archived'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -943,7 +907,6 @@
       "shape": "storedEvent",
       "event": "mark:unarchived",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'mark:unarchived'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -958,7 +921,6 @@
       "shape": "schema",
       "schema": "MarkCreateRequest",
       "validate": "MarkCreateRequest",
-      "ts": "components['schemas']['MarkCreateRequest']",
       "docs": {
         "lead": [
           "",
@@ -982,7 +944,6 @@
       "shape": "schema",
       "schema": "MarkCreateCommand",
       "validate": "MarkCreateCommand",
-      "ts": "components['schemas']['MarkCreateCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -994,9 +955,10 @@
     },
     {
       "channel": "mark:delete",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "MarkDeleteCommand",
       "validate": "MarkDeleteCommand",
-      "ts": "MarkDeleteCommand",
+      "tsRefinement": "MarkDeleteCommand",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1008,9 +970,10 @@
     },
     {
       "channel": "mark:update-body",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "MarkUpdateBodyCommand",
       "validate": "MarkUpdateBodyCommand",
-      "ts": "MarkUpdateBodyCommand",
+      "tsRefinement": "MarkUpdateBodyCommand",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1025,7 +988,6 @@
       "shape": "schema",
       "schema": "MarkArchiveCommand",
       "validate": "MarkArchiveCommand",
-      "ts": "components['schemas']['MarkArchiveCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1040,7 +1002,6 @@
       "shape": "schema",
       "schema": "MarkUnarchiveCommand",
       "validate": "MarkUnarchiveCommand",
-      "ts": "components['schemas']['MarkUnarchiveCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1055,7 +1016,6 @@
       "shape": "schema",
       "schema": "MarkUpdateEntityTypesCommand",
       "validate": "MarkUpdateEntityTypesCommand",
-      "ts": "components['schemas']['MarkUpdateEntityTypesCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1070,7 +1030,6 @@
       "shape": "schema",
       "schema": "MarkCreateOk",
       "validate": "MarkCreateOk",
-      "ts": "components['schemas']['MarkCreateOk']",
       "docs": {
         "lead": [
           "",
@@ -1088,7 +1047,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1103,7 +1061,6 @@
       "shape": "schema",
       "schema": "MarkCommitCommand",
       "validate": "MarkCommitCommand",
-      "ts": "components['schemas']['MarkCommitCommand']",
       "schemaDocs": {
         "lead": [],
         "trailing": ""
@@ -1127,7 +1084,6 @@
       "shape": "schema",
       "schema": "MarkCommitOk",
       "validate": "MarkCommitOk",
-      "ts": "components['schemas']['MarkCommitOk']",
       "schemaDocs": {
         "lead": [],
         "trailing": ""
@@ -1142,7 +1098,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "schemaDocs": {
         "lead": [],
         "trailing": ""
@@ -1157,7 +1112,6 @@
       "shape": "schema",
       "schema": "MarkDeleteOk",
       "validate": "MarkDeleteOk",
-      "ts": "components['schemas']['MarkDeleteOk']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1172,7 +1126,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1184,9 +1137,8 @@
     },
     {
       "channel": "mark:archive-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [
           "  // archive/unarchive confirmed-write replies (bridged) — correlation-keyed",
@@ -1205,7 +1157,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1217,9 +1168,8 @@
     },
     {
       "channel": "mark:unarchive-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1234,7 +1184,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1246,9 +1195,8 @@
     },
     {
       "channel": "mark:update-entity-types-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [
           "  // update-entity-types confirmed-write reply (bridged) — correlation-keyed ack",
@@ -1267,7 +1215,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1282,7 +1229,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1297,7 +1243,6 @@
       "shape": "schema",
       "schema": "SelectionData",
       "validate": "SelectionData",
-      "ts": "components['schemas']['SelectionData']",
       "docs": {
         "lead": [
           "",
@@ -1315,7 +1260,6 @@
       "shape": "schema",
       "schema": "SelectionData",
       "validate": "SelectionData",
-      "ts": "components['schemas']['SelectionData']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1330,7 +1274,6 @@
       "shape": "schema",
       "schema": "SelectionData",
       "validate": "SelectionData",
-      "ts": "components['schemas']['SelectionData']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1345,7 +1288,6 @@
       "shape": "schema",
       "schema": "SelectionData",
       "validate": "SelectionData",
-      "ts": "components['schemas']['SelectionData']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1360,7 +1302,6 @@
       "shape": "schema",
       "schema": "MarkRequestedEvent",
       "validate": "MarkRequestedEvent",
-      "ts": "components['schemas']['MarkRequestedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1374,7 +1315,6 @@
       "channel": "mark:cancel-pending",
       "shape": "void",
       "validate": null,
-      "ts": "void",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1389,7 +1329,6 @@
       "shape": "schema",
       "schema": "MarkSubmitEvent",
       "validate": "MarkSubmitEvent",
-      "ts": "components['schemas']['MarkSubmitEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1404,7 +1343,6 @@
       "shape": "schema",
       "schema": "MarkAssistRequestEvent",
       "validate": "MarkAssistRequestEvent",
-      "ts": "components['schemas']['MarkAssistRequestEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1418,7 +1356,6 @@
       "channel": "mark:progress-dismiss",
       "shape": "void",
       "validate": null,
-      "ts": "void",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1430,9 +1367,9 @@
     },
     {
       "channel": "mark:assist-timeout",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "MarkAssistTimeoutEvent",
       "validate": null,
-      "ts": "{ resourceId: string; motivation: components['schemas']['Motivation'] }",
       "docs": {
         "lead": [
           "  // Client-local: the assist Observable went silent past its deadline (no",
@@ -1449,9 +1386,9 @@
     },
     {
       "channel": "mark:create-error",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "ResourceErrorEvent",
       "validate": null,
-      "ts": "{ resourceId: string; message: string }",
       "docs": {
         "lead": [
           "  // Client-local UI notifications for annotation command failures, emitted by",
@@ -1471,9 +1408,9 @@
     },
     {
       "channel": "mark:delete-error",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "ResourceErrorEvent",
       "validate": null,
-      "ts": "{ resourceId: string; message: string }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1485,9 +1422,9 @@
     },
     {
       "channel": "bind:body-error",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "ResourceErrorEvent",
       "validate": null,
-      "ts": "{ resourceId: string; message: string }",
       "docs": {
         "lead": [
           "  // Same pattern for bind body updates initiated by callers that cannot toast",
@@ -1506,7 +1443,6 @@
       "shape": "storedEvent",
       "event": "frame:entity-type-added",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'frame:entity-type-added'>>",
       "docs": {
         "lead": [
           "",
@@ -1529,7 +1465,6 @@
       "shape": "storedEvent",
       "event": "frame:tag-schema-added",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'frame:tag-schema-added'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1544,7 +1479,6 @@
       "shape": "schema",
       "schema": "FrameAddEntityTypeCommand",
       "validate": "FrameAddEntityTypeCommand",
-      "ts": "components['schemas']['FrameAddEntityTypeCommand']",
       "docs": {
         "lead": [
           "",
@@ -1562,7 +1496,6 @@
       "shape": "schema",
       "schema": "FrameAddTagSchemaCommand",
       "validate": "FrameAddTagSchemaCommand",
-      "ts": "components['schemas']['FrameAddTagSchemaCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1574,9 +1507,8 @@
     },
     {
       "channel": "frame:entity-type-add-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [
           "",
@@ -1597,7 +1529,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1609,9 +1540,8 @@
     },
     {
       "channel": "frame:tag-schema-add-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1626,7 +1556,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1641,7 +1570,6 @@
       "shape": "storedEvent",
       "event": "person:profiled",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'person:profiled'>>",
       "docs": {
         "lead": [
           "",
@@ -1666,7 +1594,6 @@
       "shape": "schema",
       "schema": "PersonProfileCommand",
       "validate": "PersonProfileCommand",
-      "ts": "components['schemas']['PersonProfileCommand']",
       "docs": {
         "lead": [
           "",
@@ -1681,9 +1608,10 @@
     },
     {
       "channel": "bind:initiate",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BindInitiateCommand",
       "validate": "BindInitiateCommand",
-      "ts": "BindInitiateCommand",
+      "tsRefinement": "BindInitiateCommand",
       "docs": {
         "lead": [
           "",
@@ -1704,9 +1632,10 @@
     },
     {
       "channel": "bind:update-body",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BindUpdateBodyCommand",
       "validate": "BindUpdateBodyCommand",
-      "ts": "BindUpdateBodyCommand",
+      "tsRefinement": "BindUpdateBodyCommand",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1721,7 +1650,6 @@
       "shape": "schema",
       "schema": "BindBodyUpdated",
       "validate": "BindBodyUpdated",
-      "ts": "components['schemas']['BindBodyUpdated']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1736,7 +1664,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1751,7 +1678,6 @@
       "shape": "schema",
       "schema": "MatchSearchRequest",
       "validate": "MatchSearchRequest",
-      "ts": "components['schemas']['MatchSearchRequest']",
       "docs": {
         "lead": [
           "",
@@ -1775,7 +1701,6 @@
       "shape": "schema",
       "schema": "MatchSearchResult",
       "validate": "MatchSearchResult",
-      "ts": "components['schemas']['MatchSearchResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1790,7 +1715,6 @@
       "shape": "schema",
       "schema": "MatchSearchFailed",
       "validate": "MatchSearchFailed",
-      "ts": "components['schemas']['MatchSearchFailed']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1805,7 +1729,6 @@
       "shape": "schema",
       "schema": "InferenceLimitsRequest",
       "validate": "InferenceLimitsRequest",
-      "ts": "components['schemas']['InferenceLimitsRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1820,7 +1743,6 @@
       "shape": "schema",
       "schema": "InferenceLimitsResult",
       "validate": "InferenceLimitsResult",
-      "ts": "components['schemas']['InferenceLimitsResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1835,7 +1757,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1850,7 +1771,6 @@
       "shape": "schema",
       "schema": "GatherAnnotationRequest",
       "validate": "GatherAnnotationRequest",
-      "ts": "components['schemas']['GatherAnnotationRequest']",
       "docs": {
         "lead": [
           "",
@@ -1874,7 +1794,6 @@
       "shape": "schema",
       "schema": "GatherAnnotationComplete",
       "validate": "GatherAnnotationComplete",
-      "ts": "components['schemas']['GatherAnnotationComplete']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1886,9 +1805,9 @@
     },
     {
       "channel": "gather:failed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "GatherFailed",
       "validate": null,
-      "ts": "{ annotationId: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1903,7 +1822,6 @@
       "shape": "schema",
       "schema": "GatherResourceRequest",
       "validate": "GatherResourceRequest",
-      "ts": "components['schemas']['GatherResourceRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1918,7 +1836,6 @@
       "shape": "schema",
       "schema": "GatherResourceComplete",
       "validate": "GatherResourceComplete",
-      "ts": "components['schemas']['GatherResourceComplete']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1930,9 +1847,9 @@
     },
     {
       "channel": "gather:resource-failed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "GatherResourceFailed",
       "validate": null,
-      "ts": "{ resourceId: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1947,7 +1864,6 @@
       "shape": "schema",
       "schema": "GatherSummaryRequest",
       "validate": "GatherSummaryRequest",
-      "ts": "components['schemas']['GatherSummaryRequest']",
       "docs": {
         "lead": [
           ""
@@ -1961,9 +1877,9 @@
     },
     {
       "channel": "gather:summary-result",
-      "shape": "custom",
+      "shape": "envelope",
+      "schema": "ContextualSummaryResponse",
       "validate": null,
-      "ts": "{ response: Record<string, unknown> }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1978,7 +1894,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -1993,7 +1908,6 @@
       "shape": "schema",
       "schema": "InferenceLimitsRequest",
       "validate": "InferenceLimitsRequest",
-      "ts": "components['schemas']['InferenceLimitsRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2008,7 +1922,6 @@
       "shape": "schema",
       "schema": "InferenceLimitsResult",
       "validate": "InferenceLimitsResult",
-      "ts": "components['schemas']['InferenceLimitsResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2023,7 +1936,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2038,7 +1950,6 @@
       "shape": "schema",
       "schema": "BrowseResourceRequest",
       "validate": "BrowseResourceRequest",
-      "ts": "components['schemas']['BrowseResourceRequest']",
       "docs": {
         "lead": [
           "",
@@ -2067,9 +1978,10 @@
     },
     {
       "channel": "browse:resource-result",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowseResourceResult",
       "validate": "BrowseResourceResult",
-      "ts": "{\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {\n      resource: ResourceDescriptor;\n      annotations: Annotation[];\n      entityReferences: Annotation[];\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2084,7 +1996,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2099,7 +2010,6 @@
       "shape": "schema",
       "schema": "BrowseAnchoredTextRequest",
       "validate": "BrowseAnchoredTextRequest",
-      "ts": "components['schemas']['BrowseAnchoredTextRequest']",
       "docs": {
         "lead": [
           "",
@@ -2122,7 +2032,6 @@
       "channel": "browse:anchored-text-result",
       "shape": "schema",
       "validate": "BrowseAnchoredTextResult",
-      "ts": "components['schemas']['BrowseAnchoredTextResult']",
       "docs": {
         "lead": [
           "",
@@ -2144,7 +2053,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2159,7 +2067,6 @@
       "shape": "schema",
       "schema": "BrowseResourcesRequest",
       "validate": "BrowseResourcesRequest",
-      "ts": "components['schemas']['BrowseResourcesRequest']",
       "docs": {
         "lead": [
           ""
@@ -2173,9 +2080,10 @@
     },
     {
       "channel": "browse:resources-result",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowseResourcesResult",
       "validate": "BrowseResourcesResult",
-      "ts": "{\n    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {\n      resources: ResourceDescriptor[];\n    };\n  }",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {\n      resources: ResourceDescriptor[];\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2190,7 +2098,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2205,7 +2112,6 @@
       "shape": "schema",
       "schema": "BrowseAnnotationsRequest",
       "validate": "BrowseAnnotationsRequest",
-      "ts": "components['schemas']['BrowseAnnotationsRequest']",
       "docs": {
         "lead": [
           ""
@@ -2219,9 +2125,10 @@
     },
     {
       "channel": "browse:annotations-result",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowseAnnotationsResult",
       "validate": "BrowseAnnotationsResult",
-      "ts": "{\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {\n      annotations: Annotation[];\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2236,7 +2143,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2251,7 +2157,6 @@
       "shape": "schema",
       "schema": "BrowseAnnotationRequest",
       "validate": "BrowseAnnotationRequest",
-      "ts": "components['schemas']['BrowseAnnotationRequest']",
       "docs": {
         "lead": [
           ""
@@ -2265,9 +2170,10 @@
     },
     {
       "channel": "browse:annotation-result",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowseAnnotationResult",
       "validate": "BrowseAnnotationResult",
-      "ts": "{\n    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {\n      annotation: Annotation;\n      resource: ResourceDescriptor | null;\n      resolvedResource: ResourceDescriptor | null;\n    };\n  }",
+      "tsRefinement": "{\n    response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {\n      annotation: Annotation;\n      resource: ResourceDescriptor | null;\n      resolvedResource: ResourceDescriptor | null;\n    };\n  }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2282,7 +2188,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2297,7 +2202,6 @@
       "shape": "schema",
       "schema": "BrowseEventsRequest",
       "validate": "BrowseEventsRequest",
-      "ts": "components['schemas']['BrowseEventsRequest']",
       "docs": {
         "lead": [
           ""
@@ -2314,7 +2218,6 @@
       "shape": "schema",
       "schema": "BrowseEventsResult",
       "validate": "BrowseEventsResult",
-      "ts": "components['schemas']['BrowseEventsResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2329,7 +2232,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2344,7 +2246,6 @@
       "shape": "schema",
       "schema": "BrowseAnnotationHistoryRequest",
       "validate": "BrowseAnnotationHistoryRequest",
-      "ts": "components['schemas']['BrowseAnnotationHistoryRequest']",
       "docs": {
         "lead": [
           ""
@@ -2361,7 +2262,6 @@
       "shape": "schema",
       "schema": "BrowseAnnotationHistoryResult",
       "validate": "BrowseAnnotationHistoryResult",
-      "ts": "components['schemas']['BrowseAnnotationHistoryResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2376,7 +2276,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2391,7 +2290,6 @@
       "shape": "schema",
       "schema": "BrowseAnnotationContextRequest",
       "validate": "BrowseAnnotationContextRequest",
-      "ts": "components['schemas']['BrowseAnnotationContextRequest']",
       "docs": {
         "lead": [
           ""
@@ -2405,9 +2303,9 @@
     },
     {
       "channel": "browse:annotation-context-result",
-      "shape": "custom",
+      "shape": "envelope",
+      "schema": "AnnotationContextResponse",
       "validate": null,
-      "ts": "{ response: Record<string, unknown> }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2422,7 +2320,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2437,7 +2334,6 @@
       "shape": "schema",
       "schema": "BrowseReferencedByRequest",
       "validate": "BrowseReferencedByRequest",
-      "ts": "components['schemas']['BrowseReferencedByRequest']",
       "docs": {
         "lead": [
           ""
@@ -2454,7 +2350,6 @@
       "shape": "schema",
       "schema": "BrowseReferencedByResult",
       "validate": "BrowseReferencedByResult",
-      "ts": "components['schemas']['BrowseReferencedByResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2469,7 +2364,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2484,7 +2378,6 @@
       "shape": "schema",
       "schema": "BrowseEntityTypesRequest",
       "validate": "BrowseEntityTypesRequest",
-      "ts": "components['schemas']['BrowseEntityTypesRequest']",
       "docs": {
         "lead": [
           ""
@@ -2501,7 +2394,6 @@
       "shape": "schema",
       "schema": "BrowseEntityTypesResult",
       "validate": "BrowseEntityTypesResult",
-      "ts": "components['schemas']['BrowseEntityTypesResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2516,7 +2408,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2531,7 +2422,6 @@
       "shape": "schema",
       "schema": "BrowseTagSchemasRequest",
       "validate": "BrowseTagSchemasRequest",
-      "ts": "components['schemas']['BrowseTagSchemasRequest']",
       "docs": {
         "lead": [
           ""
@@ -2548,7 +2438,6 @@
       "shape": "schema",
       "schema": "BrowseTagSchemasResult",
       "validate": "BrowseTagSchemasResult",
-      "ts": "components['schemas']['BrowseTagSchemasResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2563,7 +2452,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2578,7 +2466,6 @@
       "shape": "schema",
       "schema": "BrowseAgentsRequest",
       "validate": "BrowseAgentsRequest",
-      "ts": "components['schemas']['BrowseAgentsRequest']",
       "docs": {
         "lead": [
           ""
@@ -2595,7 +2482,6 @@
       "shape": "schema",
       "schema": "BrowseAgentsResult",
       "validate": "BrowseAgentsResult",
-      "ts": "components['schemas']['BrowseAgentsResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2610,7 +2496,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2625,7 +2510,6 @@
       "shape": "schema",
       "schema": "BrowseKbRequest",
       "validate": "BrowseKbRequest",
-      "ts": "components['schemas']['BrowseKbRequest']",
       "docs": {
         "lead": [
           ""
@@ -2642,7 +2526,6 @@
       "shape": "schema",
       "schema": "BrowseKbResult",
       "validate": "BrowseKbResult",
-      "ts": "components['schemas']['BrowseKbResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2657,7 +2540,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2672,7 +2554,6 @@
       "shape": "schema",
       "schema": "BrowseDirectoryRequest",
       "validate": "BrowseDirectoryRequest",
-      "ts": "components['schemas']['BrowseDirectoryRequest']",
       "docs": {
         "lead": [
           ""
@@ -2689,7 +2570,6 @@
       "shape": "schema",
       "schema": "BrowseDirectoryResult",
       "validate": "BrowseDirectoryResult",
-      "ts": "components['schemas']['BrowseDirectoryResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2701,9 +2581,9 @@
     },
     {
       "channel": "browse:directory-failed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowseDirectoryFailed",
       "validate": null,
-      "ts": "{ path: string } & components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2718,7 +2598,7 @@
       "shape": "schema",
       "schema": "BrowseClickEvent",
       "validate": "BrowseClickEvent",
-      "ts": "components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect }",
+      "tsRefinement": "components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect }",
       "docs": {
         "lead": [
           "",
@@ -2736,7 +2616,6 @@
       "shape": "schema",
       "schema": "BrowseResourceOpenEvent",
       "validate": "BrowseResourceOpenEvent",
-      "ts": "components['schemas']['BrowseResourceOpenEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2751,7 +2630,6 @@
       "shape": "schema",
       "schema": "BrowseResourceViewedEvent",
       "validate": "BrowseResourceViewedEvent",
-      "ts": "components['schemas']['BrowseResourceViewedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2766,7 +2644,6 @@
       "shape": "schema",
       "schema": "BrowseEntityTypeClickedEvent",
       "validate": "BrowseEntityTypeClickedEvent",
-      "ts": "components['schemas']['BrowseEntityTypeClickedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2781,7 +2658,6 @@
       "shape": "schema",
       "schema": "BrowsePanelToggleEvent",
       "validate": "BrowsePanelToggleEvent",
-      "ts": "components['schemas']['BrowsePanelToggleEvent']",
       "docs": {
         "lead": [
           "",
@@ -2804,9 +2680,10 @@
     },
     {
       "channel": "panel:open",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowsePanelOpenEvent",
       "validate": null,
-      "ts": "components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect }",
+      "tsRefinement": "components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2820,7 +2697,6 @@
       "channel": "panel:close",
       "shape": "void",
       "validate": null,
-      "ts": "void",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2834,7 +2710,6 @@
       "channel": "shell:sidebar-toggle",
       "shape": "void",
       "validate": null,
-      "ts": "void",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2849,7 +2724,6 @@
       "shape": "schema",
       "schema": "BrowseResourceCloseEvent",
       "validate": "BrowseResourceCloseEvent",
-      "ts": "components['schemas']['BrowseResourceCloseEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2864,7 +2738,6 @@
       "shape": "schema",
       "schema": "BrowseResourceReorderEvent",
       "validate": "BrowseResourceReorderEvent",
-      "ts": "components['schemas']['BrowseResourceReorderEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2879,7 +2752,6 @@
       "shape": "schema",
       "schema": "BrowseLinkClickedEvent",
       "validate": "BrowseLinkClickedEvent",
-      "ts": "components['schemas']['BrowseLinkClickedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2894,7 +2766,6 @@
       "shape": "schema",
       "schema": "BrowseRouterPushEvent",
       "validate": "BrowseRouterPushEvent",
-      "ts": "components['schemas']['BrowseRouterPushEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2906,9 +2777,10 @@
     },
     {
       "channel": "nav:external",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "BrowseExternalNavigateEvent",
       "validate": null,
-      "ts": "components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void }",
+      "tsRefinement": "components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2923,7 +2795,6 @@
       "shape": "schema",
       "schema": "BeckonHoverEvent",
       "validate": "BeckonHoverEvent",
-      "ts": "components['schemas']['BeckonHoverEvent']",
       "docs": {
         "lead": [
           "",
@@ -2947,7 +2818,6 @@
       "shape": "schema",
       "schema": "BeckonFocusEvent",
       "validate": "BeckonFocusEvent",
-      "ts": "components['schemas']['BeckonFocusEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2962,7 +2832,6 @@
       "shape": "schema",
       "schema": "BeckonSparkleEvent",
       "validate": "BeckonSparkleEvent",
-      "ts": "components['schemas']['BeckonSparkleEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -2977,7 +2846,6 @@
       "shape": "storedEvent",
       "event": "job:started",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'job:started'>>",
       "docs": {
         "lead": [
           "",
@@ -3002,7 +2870,6 @@
       "shape": "storedEvent",
       "event": "job:assigned",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'job:assigned'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3017,7 +2884,6 @@
       "shape": "storedEvent",
       "event": "job:completed",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'job:completed'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3032,7 +2898,6 @@
       "shape": "storedEvent",
       "event": "job:failed",
       "validate": null,
-      "ts": "StoredEvent<EventOfType<'job:failed'>>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3047,7 +2912,6 @@
       "shape": "schema",
       "schema": "JobStartCommand",
       "validate": "JobStartCommand",
-      "ts": "components['schemas']['JobStartCommand']",
       "docs": {
         "lead": [
           "",
@@ -3065,7 +2929,6 @@
       "shape": "schema",
       "schema": "JobAssignCommand",
       "validate": "JobAssignCommand",
-      "ts": "components['schemas']['JobAssignCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3080,7 +2943,6 @@
       "shape": "schema",
       "schema": "JobReportProgressCommand",
       "validate": "JobReportProgressCommand",
-      "ts": "components['schemas']['JobReportProgressCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3095,7 +2957,6 @@
       "shape": "schema",
       "schema": "JobCompleteCommand",
       "validate": "JobCompleteCommand",
-      "ts": "components['schemas']['JobCompleteCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3110,7 +2971,6 @@
       "shape": "schema",
       "schema": "JobFailCommand",
       "validate": "JobFailCommand",
-      "ts": "components['schemas']['JobFailCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3125,7 +2985,6 @@
       "shape": "schema",
       "schema": "JobCheckpointCommand",
       "validate": "JobCheckpointCommand",
-      "ts": "components['schemas']['JobCheckpointCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3140,7 +2999,6 @@
       "shape": "schema",
       "schema": "JobQueuedEvent",
       "validate": "JobQueuedEvent",
-      "ts": "components['schemas']['JobQueuedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3155,7 +3013,6 @@
       "shape": "schema",
       "schema": "JobCancelRequest",
       "validate": "JobCancelRequest",
-      "ts": "components['schemas']['JobCancelRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3170,7 +3027,6 @@
       "shape": "schema",
       "schema": "JobCancelCommand",
       "validate": "JobCancelCommand",
-      "ts": "components['schemas']['JobCancelCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3185,7 +3041,6 @@
       "shape": "schema",
       "schema": "InferenceLimitsRequest",
       "validate": "InferenceLimitsRequest",
-      "ts": "components['schemas']['InferenceLimitsRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3200,7 +3055,6 @@
       "shape": "schema",
       "schema": "InferenceLimitsResult",
       "validate": "InferenceLimitsResult",
-      "ts": "components['schemas']['InferenceLimitsResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3215,7 +3069,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3230,7 +3083,6 @@
       "shape": "schema",
       "schema": "JobStatusRequest",
       "validate": "JobStatusRequest",
-      "ts": "components['schemas']['JobStatusRequest']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3245,7 +3097,6 @@
       "shape": "schema",
       "schema": "JobCreateCommand",
       "validate": "JobCreateCommand",
-      "ts": "components['schemas']['JobCreateCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3260,7 +3111,6 @@
       "shape": "schema",
       "schema": "JobClaimCommand",
       "validate": "JobClaimCommand",
-      "ts": "components['schemas']['JobClaimCommand']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3275,7 +3125,6 @@
       "shape": "schema",
       "schema": "JobStatusResult",
       "validate": "JobStatusResult",
-      "ts": "components['schemas']['JobStatusResult']",
       "docs": {
         "lead": [
           "",
@@ -3293,7 +3142,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3308,7 +3156,6 @@
       "shape": "schema",
       "schema": "JobCreatedResult",
       "validate": "JobCreatedResult",
-      "ts": "components['schemas']['JobCreatedResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3323,7 +3170,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3338,7 +3184,6 @@
       "shape": "schema",
       "schema": "JobClaimedResult",
       "validate": null,
-      "ts": "components['schemas']['JobClaimedResult']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3353,7 +3198,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": null,
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3365,9 +3209,9 @@
     },
     {
       "channel": "job:cancel-ok",
-      "shape": "custom",
+      "shape": "envelope",
+      "schema": "JobCancelResult",
       "validate": null,
-      "ts": "{ response: { cancelled: number } }",
       "docs": {
         "lead": [
           "  // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled",
@@ -3386,7 +3230,6 @@
       "shape": "schema",
       "schema": "CommandError",
       "validate": "CommandError",
-      "ts": "components['schemas']['CommandError']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3398,9 +3241,9 @@
     },
     {
       "channel": "weave:applied",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "WeaveApplied",
       "validate": null,
-      "ts": "{ resourceId: string; sequenceNumber: number }",
       "docs": {
         "lead": [
           "",
@@ -3429,9 +3272,9 @@
     },
     {
       "channel": "smelt:settled",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "SmeltSettled",
       "validate": null,
-      "ts": "{ resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped'; reason?: 'no-extractor' | 'empty' | 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large' }",
       "docs": {
         "lead": [
           "",
@@ -3458,7 +3301,6 @@
       "shape": "schema",
       "schema": "WeaveRebuildCommand",
       "validate": "WeaveRebuildCommand",
-      "ts": "components['schemas']['WeaveRebuildCommand']",
       "docs": {
         "lead": [
           "",
@@ -3477,9 +3319,8 @@
     },
     {
       "channel": "weave:rebuild-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3491,9 +3332,9 @@
     },
     {
       "channel": "weave:rebuild-failed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "CommandError",
       "validate": null,
-      "ts": "{ message: string }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3508,7 +3349,6 @@
       "shape": "schema",
       "schema": "SmeltRebuildAnchorsCommand",
       "validate": "SmeltRebuildAnchorsCommand",
-      "ts": "components['schemas']['SmeltRebuildAnchorsCommand']",
       "docs": {
         "lead": [
           "",
@@ -3527,9 +3367,8 @@
     },
     {
       "channel": "smelt:rebuild-anchors-ok",
-      "shape": "custom",
+      "shape": "empty",
       "validate": null,
-      "ts": "Record<string, never>",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3541,9 +3380,9 @@
     },
     {
       "channel": "smelt:rebuild-anchors-failed",
-      "shape": "custom",
+      "shape": "schema",
+      "schema": "CommandError",
       "validate": null,
-      "ts": "{ message: string }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3558,7 +3397,6 @@
       "shape": "schema",
       "schema": "SettingsThemeChangedEvent",
       "validate": "SettingsThemeChangedEvent",
-      "ts": "components['schemas']['SettingsThemeChangedEvent']",
       "docs": {
         "lead": [
           "",
@@ -3581,7 +3419,6 @@
       "channel": "settings:line-numbers-toggled",
       "shape": "void",
       "validate": null,
-      "ts": "void",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3596,7 +3433,6 @@
       "shape": "schema",
       "schema": "SettingsLocaleChangedEvent",
       "validate": "SettingsLocaleChangedEvent",
-      "ts": "components['schemas']['SettingsLocaleChangedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3611,7 +3447,6 @@
       "shape": "schema",
       "schema": "SettingsHoverDelayChangedEvent",
       "validate": "SettingsHoverDelayChangedEvent",
-      "ts": "components['schemas']['SettingsHoverDelayChangedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3619,43 +3454,6 @@
       "schemaDocs": {
         "lead": [],
         "trailing": ""
-      }
-    },
-    {
-      "channel": "stream-connected",
-      "shape": "custom",
-      "validate": null,
-      "ts": "Record<string, never>",
-      "docs": {
-        "lead": [
-          "",
-          "  // ========================================================================",
-          "  // SSE infrastructure",
-          "  // ========================================================================",
-          ""
-        ],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [
-          "",
-          "  // ── SSE infrastructure ──────────────────────────────────────────"
-        ],
-        "trailing": "// Record<string, never>"
-      }
-    },
-    {
-      "channel": "replay-window-exceeded",
-      "shape": "custom",
-      "validate": null,
-      "ts": "{ resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string }",
-      "docs": {
-        "lead": [],
-        "trailing": ""
-      },
-      "schemaDocs": {
-        "lead": [],
-        "trailing": "// inline payload"
       }
     },
     {
@@ -3663,9 +3461,13 @@
       "shape": "schema",
       "schema": "BusResumeGap",
       "validate": null,
-      "ts": "components['schemas']['BusResumeGap']",
       "docs": {
         "lead": [
+          "",
+          "  // ========================================================================",
+          "  // SSE infrastructure",
+          "  // ========================================================================",
+          "",
           "  /**",
           "   * Written by the `/bus/subscribe` handler when a scoped entry's",
           "   * `lastEventId` cannot be honoured — the watermark is unparseable or",
@@ -3677,7 +3479,10 @@
         "trailing": ""
       },
       "schemaDocs": {
-        "lead": [],
+        "lead": [
+          "",
+          "  // ── SSE infrastructure ──────────────────────────────────────────"
+        ],
         "trailing": ""
       }
     },
@@ -3686,7 +3491,6 @@
       "shape": "schema",
       "schema": "SessionJoinedEvent",
       "validate": "SessionJoinedEvent",
-      "ts": "components['schemas']['SessionJoinedEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -3701,7 +3505,6 @@
       "shape": "schema",
       "schema": "SessionLeftEvent",
       "validate": "SessionLeftEvent",
-      "ts": "components['schemas']['SessionLeftEvent']",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -4191,9 +3994,7 @@
       "settings:theme-changed",
       "settings:line-numbers-toggled",
       "settings:locale-changed",
-      "settings:hover-delay-changed",
-      "stream-connected",
-      "replay-window-exceeded"
+      "settings:hover-delay-changed"
     ]
   },
   "kind": {

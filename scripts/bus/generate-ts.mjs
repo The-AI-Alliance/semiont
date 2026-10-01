@@ -55,7 +55,8 @@ const BANNER = `// ⚠ GENERATED FILE — do not edit.
 // Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
 //
 // Payload schemas themselves live in the OpenAPI components; the registry
-// names which one each channel carries. Add or change a channel THERE.
+// names which one each channel carries, and every payload type here is
+// derived from that. Add or change a channel THERE.
 
 `;
 
@@ -81,12 +82,36 @@ function channelOr(ch, where) {
   return c;
 }
 
+/** The TypeScript type of a channel's payload, DERIVED from its shape. The
+ *  registry states the payload once, in a form every language reads; this is
+ *  that statement in TypeScript, never a second one to keep in step. */
+const schemaType = (name) => `components['schemas']['${name}']`;
+function payloadType(c) {
+  switch (c.shape) {
+    case 'schema':
+      return schemaType(c.schema);
+    case 'envelope':
+      return `{ response: ${schemaType(c.schema)} }`;
+    case 'storedEvent':
+      return `${c.enriched === true ? 'EnrichedEvent' : 'StoredEvent'}<EventOfType<'${c.event}'>>`;
+    case 'void':
+      return 'void';
+    case 'empty':
+      return 'Record<string, never>';
+    default:
+      throw new Error(`registry: "${c.channel}" has no payload type for shape ${JSON.stringify(c.shape)}`);
+  }
+}
+/** A refined channel is typed by its refinement, held to the schema's type. */
+const channelType = (c) =>
+  c.tsRefinement === undefined ? payloadType(c) : `Refines<${payloadType(c)}, ${c.tsRefinement}>`;
+
 const eventMapLines = emitLines(
   reg.channelOrder.eventMap.map((ch) => {
     const c = channelOr(ch, 'eventMap');
     return { ...c, lead: c.docs.lead, trailing: c.docs.trailing };
   }),
-  (e) => `  '${e.channel}': ${e.ts};${e.trailing ? ` ${e.trailing}` : ''}`,
+  (e) => `  '${e.channel}': ${channelType(e)};${e.trailing ? ` ${e.trailing}` : ''}`,
 );
 
 const schemaLines = emitLines(
@@ -126,6 +151,11 @@ const protocol =
   'export type EventMap = {' +
   [...eventMapLines, ...reg.preamble.eventMapTail].join('\n') +
   '\n};\n\n' +
+  // The gate on every `tsRefinement`: the constraint is checked where the
+  // refinement is used, so one that is not a narrowing of its schema's type
+  // fails to compile on its own EventMap line.
+  '/** `Refined`, which must narrow `Schema`: what TypeScript adds to a payload the spec states. */\n' +
+  'type Refines<Schema, Refined extends Schema> = Refined;\n\n' +
   // AnchorRect and friends live in the hand-written companion module; the
   // re-export keeps every existing `from './bus-protocol'` import working.
   "export type { AnchorRect } from './bus-ui-types';\n\n" +

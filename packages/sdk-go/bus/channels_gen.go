@@ -453,6 +453,9 @@ const (
 	// payload: BrowsePanelToggleEvent
 	PanelToggle Channel = "panel:toggle"
 
+	// not emittable (no registered schema)
+	PanelOpen Channel = "panel:open"
+
 	// no payload — not emittable
 	PanelClose Channel = "panel:close"
 
@@ -470,6 +473,9 @@ const (
 
 	// payload: BrowseRouterPushEvent
 	NavPush Channel = "nav:push"
+
+	// not emittable (no registered schema)
+	NavExternal Channel = "nav:external"
 
 	// payload: BeckonHoverEvent
 	BeckonHover Channel = "beckon:hover"
@@ -596,12 +602,6 @@ const (
 
 	// payload: SettingsHoverDelayChangedEvent
 	SettingsHoverDelayChanged Channel = "settings:hover-delay-changed"
-
-	// not emittable (no registered schema)
-	StreamConnected Channel = "stream-connected"
-
-	// not emittable (no registered schema)
-	ReplayWindowExceeded Channel = "replay-window-exceeded"
 
 	// not emittable (no registered schema)
 	BusResumeGap Channel = "bus:resume-gap"

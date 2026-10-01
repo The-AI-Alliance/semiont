@@ -54,7 +54,7 @@ Every channel is `verb:action` or `verb:action-state`. The verb is one of the ei
 | `job:` | `job:start`, `job:report-progress`, `job:complete` | Worker job lifecycle |
 | `panel:`, `tabs:`, `nav:`, `shell:` | `panel:toggle`, `nav:push` | App-shell UI events (Browser only) |
 | `settings:` | `settings:theme-changed`, `settings:locale-changed` | Browser preferences |
-| `bus:`, `stream-`, `replay-` | `bus:resume-gap`, `stream-connected` | SSE infrastructure |
+| `bus:` | `bus:resume-gap` | SSE infrastructure |
 
 State suffixes follow a small vocabulary:
 
@@ -74,9 +74,9 @@ Each channel falls into one of five payload categories. The category tells you w
 |---|---|---|---|---|
 | **Domain event** (`StoredEvent<...>`; `EnrichedEvent<...>` where the EventStore enriches) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
 | **Command** | OpenAPI schema (`components['schemas']`) | yes — `/bus/emit` | no | `yield:create`, `mark:archive`, `match:search-requested` |
-| **Result / failure** | OpenAPI schema or inline `{ response, ... }`; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
+| **Result / failure** | OpenAPI schema, wrapped as `{ response }` for some results; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:selection-changed` |
-| **SSE infrastructure** | inline | no | no | `stream-connected`, `bus:resume-gap` |
+| **SSE infrastructure** | OpenAPI schema | no | no | `bus:resume-gap` |
 
 `CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
 

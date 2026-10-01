@@ -250,19 +250,53 @@ export function validateRegistry(reg) {
     }
   }
 
-  // ── a stored event's ts is its shape, event and enrichment, spelled out ─
-  // `ts` is emitted verbatim into EventMap, so it restates facts the entry
-  // already declares. Hold it to them: a channel marked `enriched` whose ts
-  // still says StoredEvent types every subscriber as if the EventStore attached
-  // nothing, and producer and consumer go back to casting across the gap.
+  // ── a payload is stated in a form every language can read ───────────────
+  // A channel says what it carries by its `shape`, and by the component
+  // schema or stored event that shape names. Every SDK generates its payload
+  // type from that. The entry used to carry the TypeScript type as a `ts`
+  // string as well, and 34 `custom` channels carried nothing else, so no
+  // other language could type them.
+  //
+  // `tsRefinement` is what remains of it: TypeScript narrowing a schema's
+  // type (a branded id for a string, a DOM rectangle, a callback). It never
+  // states the payload; the generated EventMap holds each one to its schema's
+  // type, so a refinement that is not a narrowing fails to compile.
+  const SHAPES = {
+    schema: 'a component schema',
+    envelope: '`{ response }` around a component schema',
+    storedEvent: 'a persisted event',
+    void: 'no payload',
+    empty: 'the empty object',
+  };
   for (const c of reg.channels) {
+    if (!Object.hasOwn(SHAPES, c.shape)) {
+      problems.push(`"${c.channel}" has shape ${JSON.stringify(c.shape)} — a payload is one of: ${Object.keys(SHAPES).join(', ')}`);
+      continue;
+    }
+    if (c.ts !== undefined) {
+      problems.push(`"${c.channel}" carries a ts string — the TypeScript type is derived from its shape; a narrowing goes in tsRefinement`);
+    }
+    const namesSchema = c.shape === 'schema' || c.shape === 'envelope';
+    if (namesSchema !== (typeof c.schema === 'string' && c.schema !== '')) {
+      problems.push(`"${c.channel}" is ${SHAPES[c.shape]}, so it ${namesSchema ? 'must name its schema' : 'names no schema'}`);
+    }
+    if ((c.shape === 'storedEvent') !== (c.event !== undefined)) {
+      problems.push(`"${c.channel}" is ${SHAPES[c.shape]}, so it ${c.shape === 'storedEvent' ? 'must name its event' : 'names no event'}`);
+    }
+    if (c.shape === 'storedEvent' && c.event !== c.channel) {
+      problems.push(`"${c.channel}" is a stored event named ${JSON.stringify(c.event)} — a persisted event is published on the channel of its own type`);
+    }
     if (c.enriched !== undefined && (c.enriched !== true || c.shape !== 'storedEvent')) {
       problems.push(`"${c.channel}" sets enriched: ${JSON.stringify(c.enriched)} — it is a flag (true or absent), and only a stored event can carry it`);
     }
-    if (c.shape !== 'storedEvent') continue;
-    const expected = `${c.enriched === true ? 'EnrichedEvent' : 'StoredEvent'}<EventOfType<'${c.event}'>>`;
-    if (c.ts !== expected) {
-      problems.push(`"${c.channel}" is a${c.enriched === true ? 'n enriched' : ''} stored event, so its ts must be ${expected} — found ${c.ts}`);
+    if (c.tsRefinement !== undefined && !namesSchema) {
+      problems.push(`"${c.channel}" has a tsRefinement and is ${SHAPES[c.shape]} — a refinement narrows a schema's type, and there is none`);
+    }
+    if (c.shape === 'schema' && c.validate !== null && c.validate !== c.schema) {
+      problems.push(`"${c.channel}" carries ${c.schema} and validates against ${c.validate} — one channel, one schema`);
+    }
+    if (c.shape !== 'schema' && c.validate !== null) {
+      problems.push(`"${c.channel}" is ${SHAPES[c.shape]} and names a validate schema — only a channel that carries a schema can be validated against one`);
     }
   }
 

@@ -870,6 +870,33 @@
       },
       "DispatcherHealth": {
         "$ref": "components/schemas/DispatcherHealth.json"
+      },
+      "YieldMoveFailed": {
+        "$ref": "components/schemas/YieldMoveFailed.json"
+      },
+      "GatherFailed": {
+        "$ref": "components/schemas/GatherFailed.json"
+      },
+      "GatherResourceFailed": {
+        "$ref": "components/schemas/GatherResourceFailed.json"
+      },
+      "BrowseDirectoryFailed": {
+        "$ref": "components/schemas/BrowseDirectoryFailed.json"
+      },
+      "MarkAssistTimeoutEvent": {
+        "$ref": "components/schemas/MarkAssistTimeoutEvent.json"
+      },
+      "ResourceErrorEvent": {
+        "$ref": "components/schemas/ResourceErrorEvent.json"
+      },
+      "JobCancelResult": {
+        "$ref": "components/schemas/JobCancelResult.json"
+      },
+      "WeaveApplied": {
+        "$ref": "components/schemas/WeaveApplied.json"
+      },
+      "SmeltSettled": {
+        "$ref": "components/schemas/SmeltSettled.json"
       }
     }
   }

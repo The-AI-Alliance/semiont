@@ -921,14 +921,6 @@
       "recorded": false,
       "direction": "in-process"
     },
-    "stream-connected": {
-      "recorded": false,
-      "direction": "in-process"
-    },
-    "replay-window-exceeded": {
-      "recorded": false,
-      "direction": "in-process"
-    },
     "bus:resume-gap": {
       "recorded": false,
       "direction": "inbound"

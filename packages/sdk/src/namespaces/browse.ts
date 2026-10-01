@@ -844,12 +844,6 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.on('mark:entity-tag-added', this.onEntityTagChanged);
     this.on('mark:entity-tag-removed', this.onEntityTagChanged);
 
-    this.on('replay-window-exceeded', (event) => {
-      if (event.resourceId) {
-        this.onBus.annotations(event.resourceId as ResourceId);
-      }
-    });
-
     // Cross-client resource invalidation rides the PERSISTED DOMAIN EVENTS,
     // not the request replies (CORRELATED-REPLY-ROUTING D6, the
     // `frame:entity-type-added` precedent). A `yield:*-ok` reply reaches only

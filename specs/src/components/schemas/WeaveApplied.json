@@ -1,0 +1,18 @@
+{
+  "type": "object",
+  "description": "The payload of `weave:applied`: the Weaver has applied a resource's events to the graph up to this sequence number. Emitted after applying an event, or a batch's last event.",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "The resource whose events were applied."
+    },
+    "sequenceNumber": {
+      "type": "integer",
+      "description": "The resource-stream sequence of the last applied event."
+    }
+  },
+  "required": [
+    "resourceId",
+    "sequenceNumber"
+  ]
+}

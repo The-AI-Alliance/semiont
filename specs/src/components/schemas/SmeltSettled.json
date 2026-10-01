@@ -1,0 +1,38 @@
+{
+  "type": "object",
+  "description": "The payload of `smelt:settled`: the Smelter's decision for one resource's content, keyed by the checksum of the bytes it inspected. `indexed`: the content is in the vector index. `skipped`: it declined, and `reason` says why.",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "The resource whose content was inspected."
+    },
+    "contentChecksum": {
+      "type": "string",
+      "description": "The checksum of the bytes inspected."
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "indexed",
+        "skipped"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "enum": [
+        "no-extractor",
+        "empty",
+        "no-text-layer",
+        "encrypted",
+        "corrupt",
+        "too-large"
+      ],
+      "description": "Why the content was skipped."
+    }
+  },
+  "required": [
+    "resourceId",
+    "contentChecksum",
+    "outcome"
+  ]
+}

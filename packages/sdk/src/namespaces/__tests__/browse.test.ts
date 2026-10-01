@@ -429,14 +429,6 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.resource(RID));
       expect(emitSpy).toHaveBeenCalledTimes(5);
     });
-
-    it('replay-window-exceeded → invalidates annotation list', async () => {
-      await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
-      eventBus.emit('replay-window-exceeded', { resourceId: 'res-1', lastEventId: 1, missedCount: 5000, cap: 1000, message: 'exceeded' });
-      await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(2);
-    });
   });
 
   // ── EventBus reactions (resource) ─────────────────────────────────────

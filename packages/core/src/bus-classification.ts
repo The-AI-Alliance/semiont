@@ -5,7 +5,8 @@
 // Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
 //
 // Payload schemas themselves live in the OpenAPI components; the registry
-// names which one each channel carries. Add or change a channel THERE.
+// names which one each channel carries, and every payload type here is
+// derived from that. Add or change a channel THERE.
 
 import type { EventName } from './bus-protocol';
 
@@ -249,8 +250,6 @@ export const CHANNEL_ATTRS = {
   'settings:line-numbers-toggled':    { recorded: false, direction: 'in-process' },
   'settings:locale-changed':          { recorded: false, direction: 'in-process' },
   'settings:hover-delay-changed':     { recorded: false, direction: 'in-process' },
-  'stream-connected':                 { recorded: false, direction: 'in-process' },
-  'replay-window-exceeded':           { recorded: false, direction: 'in-process' },
   'bus:resume-gap':                   { recorded: false, direction: 'inbound' },
   'session:joined':                   { recorded: false, direction: 'inbound' },
   'session:left':                     { recorded: false, direction: 'inbound' },

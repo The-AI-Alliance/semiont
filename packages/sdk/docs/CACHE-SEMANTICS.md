@@ -480,7 +480,6 @@ removes and in-place updates do not.
 | `mark:body-updated` | in-place update (write-through, B13b) `annotationList` entry **and** `annotationDetail[annotationId]`, invalidate `resourceEvents[resourceId]` |
 | `mark:entity-tag-added` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
 | `mark:entity-tag-removed` | invalidate `annotationList[resourceId]`, `resourceDetail[resourceId]`, `resourceEvents[resourceId]` |
-| `replay-window-exceeded` | invalidate `annotationList[resourceId]` |
 | `yield:create-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `yield:update-ok` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
 | `mark:archived` | invalidate `resourceDetail[resourceId]`, invalidate `resourceList` (entire) |
