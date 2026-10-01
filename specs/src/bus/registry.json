@@ -411,6 +411,7 @@
       "channel": "yield:created",
       "shape": "storedEvent",
       "event": "yield:created",
+      "payload": "ResourceCreatedPayload",
       "validate": null,
       "docs": {
         "lead": [
@@ -436,6 +437,7 @@
       "channel": "yield:cloned",
       "shape": "storedEvent",
       "event": "yield:cloned",
+      "payload": "ResourceClonedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -450,6 +452,7 @@
       "channel": "yield:updated",
       "shape": "storedEvent",
       "event": "yield:updated",
+      "payload": "ResourceUpdatedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -464,6 +467,7 @@
       "channel": "yield:moved",
       "shape": "storedEvent",
       "event": "yield:moved",
+      "payload": "ResourceMovedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -478,6 +482,7 @@
       "channel": "yield:representation-added",
       "shape": "storedEvent",
       "event": "yield:representation-added",
+      "payload": "RepresentationAddedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -492,6 +497,7 @@
       "channel": "yield:representation-removed",
       "shape": "storedEvent",
       "event": "yield:representation-removed",
+      "payload": "RepresentationRemovedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -810,8 +816,10 @@
       "channel": "mark:added",
       "shape": "storedEvent",
       "event": "mark:added",
+      "payload": "AnnotationAddedPayload",
       "enriched": true,
       "validate": null,
+      "tsRefinement": "components['schemas']['AnnotationAddedPayload'] & { annotation: Annotation }",
       "docs": {
         "lead": [
           "",
@@ -835,7 +843,9 @@
       "channel": "mark:removed",
       "shape": "storedEvent",
       "event": "mark:removed",
+      "payload": "AnnotationRemovedPayload",
       "validate": null,
+      "tsRefinement": "components['schemas']['AnnotationRemovedPayload'] & { annotationId: AnnotationId }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -849,8 +859,10 @@
       "channel": "mark:body-updated",
       "shape": "storedEvent",
       "event": "mark:body-updated",
+      "payload": "AnnotationBodyUpdatedPayload",
       "enriched": true,
       "validate": null,
+      "tsRefinement": "components['schemas']['AnnotationBodyUpdatedPayload'] & { annotationId: AnnotationId }",
       "docs": {
         "lead": [],
         "trailing": ""
@@ -864,6 +876,7 @@
       "channel": "mark:entity-tag-added",
       "shape": "storedEvent",
       "event": "mark:entity-tag-added",
+      "payload": "EntityTagChangedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -878,6 +891,7 @@
       "channel": "mark:entity-tag-removed",
       "shape": "storedEvent",
       "event": "mark:entity-tag-removed",
+      "payload": "EntityTagChangedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -892,6 +906,7 @@
       "channel": "mark:archived",
       "shape": "storedEvent",
       "event": "mark:archived",
+      "payload": "ResourceArchivedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -906,6 +921,7 @@
       "channel": "mark:unarchived",
       "shape": "storedEvent",
       "event": "mark:unarchived",
+      "payload": "ResourceUnarchivedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -1442,6 +1458,8 @@
       "channel": "frame:entity-type-added",
       "shape": "storedEvent",
       "event": "frame:entity-type-added",
+      "payload": "EntityTypeAddedPayload",
+      "system": true,
       "validate": null,
       "docs": {
         "lead": [
@@ -1464,6 +1482,8 @@
       "channel": "frame:tag-schema-added",
       "shape": "storedEvent",
       "event": "frame:tag-schema-added",
+      "payload": "TagSchemaAddedPayload",
+      "system": true,
       "validate": null,
       "docs": {
         "lead": [],
@@ -1569,6 +1589,8 @@
       "channel": "person:profiled",
       "shape": "storedEvent",
       "event": "person:profiled",
+      "payload": "PersonProfiledPayload",
+      "system": true,
       "validate": null,
       "docs": {
         "lead": [
@@ -2845,6 +2867,7 @@
       "channel": "job:started",
       "shape": "storedEvent",
       "event": "job:started",
+      "payload": "JobStartedPayload",
       "validate": null,
       "docs": {
         "lead": [
@@ -2869,6 +2892,7 @@
       "channel": "job:assigned",
       "shape": "storedEvent",
       "event": "job:assigned",
+      "payload": "JobAssignedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -2883,6 +2907,7 @@
       "channel": "job:completed",
       "shape": "storedEvent",
       "event": "job:completed",
+      "payload": "JobCompletedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -2897,6 +2922,7 @@
       "channel": "job:failed",
       "shape": "storedEvent",
       "event": "job:failed",
+      "payload": "JobFailedPayload",
       "validate": null,
       "docs": {
         "lead": [],
@@ -3939,7 +3965,7 @@
     }
   ],
   "preamble": {
-    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and Browser UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { EnrichedEvent, StoredEvent } from './event-base';\nimport type { EventOfType, PersistedEventType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Annotation-mutating events: EnrichedEvent<Interface> — the stored event\n *   plus the annotation the EventStore attaches before publishing\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
+    "protocolHeader": "/**\n * Bus Protocol\n *\n * The complete EventMap for the RxJS EventBus. Every channel name and\n * its payload type is defined here — domain events, commands, reads,\n * results, SSE stream payloads, and Browser UI events.\n *\n * Identifier discipline: where a payload carries an annotation or\n * resource id, the TypeScript layer narrows the OpenAPI `string` to the\n * branded type (`AnnotationId`, `ResourceId`, `UserId`). The runtime\n * wire shape is unchanged (brands have no runtime representation);\n * what this buys us is that command handlers don't have to re-brand\n * at every seam. Brand once at the entry boundary (HTTP route handler,\n * DOM attribute read, URL param parse), not at every bus hop in\n * between. See `.plans/BRAND-UPSTREAM.md` for the rationale.\n *\n * Organized by flow (verb), then by category within each flow.\n */\n\nimport type { components } from './types';\nimport type { AnnotationId, ResourceId } from './identifiers';\nimport type { Annotation } from './annotation-types';\nimport type { ResourceDescriptor } from './graph';\nimport type { EnrichedEvent, Refines, StoredEvent } from './event-base';\nimport type { EventOfType, PersistedEventType } from './persisted-events';\nimport type { AnchorRect } from './bus-ui-types';\n\n// Branded overrides for OpenAPI command payloads that carry identifier\n// fields. Narrows `string` → branded at the TypeScript layer.\n//\n// `_userId` is the gateway-injected authenticated DID (string at the\n// schema layer); handlers that need a `UserId` brand it locally.\ntype MarkDeleteCommand =\n  components['schemas']['MarkDeleteCommand'] & {\n    annotationId: AnnotationId;\n    resourceId?: ResourceId;\n  };\ntype MarkUpdateBodyCommand =\n  components['schemas']['MarkUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindInitiateCommand =\n  components['schemas']['BindInitiateCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\ntype BindUpdateBodyCommand =\n  components['schemas']['BindUpdateBodyCommand'] & {\n    annotationId: AnnotationId;\n    resourceId: ResourceId;\n  };\n\n/**\n * The unified EventMap — every channel on the EventBus.\n *\n * Convention:\n * - Domain events (past tense): StoredEvent<Interface> — branded types\n * - Annotation-mutating events: EnrichedEvent<Interface> — the stored event\n *   plus the annotation the EventStore attaches before publishing\n * - Commands/reads/results/UI: OpenAPI schema refs — plain strings\n * - void: UI-only signals with no payload\n */\n\n\n",
     "eventMapTail": [],
     "schemasTail": [],
     "operationsHeader": "import type { EventName, EmittableChannel } from './bus-protocol';\n\n/**\n * BUS_OPERATIONS — the request/reply operations registry (Tier 1).\n *\n * Each entry declares ONE operation as the triple that was previously three\n * loose, independently-maintained facts spread across call sites:\n *   - the request channel (the key — an `EmittableChannel`),\n *   - the `result` channel (success reply),\n *   - and the `failure` channel.\n *\n * `BridgedChannel` / `BRIDGED_CHANNELS` are DERIVED from this map\n * (bridged-channels.ts): every reply lands in the bridged fan-in set by\n * construction, so \"a reply channel forgotten from BRIDGED_CHANNELS\" — the\n * recurring bug class (gather:resource-complete, frame:*-add-failed) — is no\n * longer representable. See .plans/BUS-OPERATIONS-REGISTRY.md.\n *\n * `Partial<Record<EmittableChannel, …>>` enforces that every key is a real\n * emittable request. `result`/`failure` stay `EventName` rather than\n * `BridgedChannel` to avoid a circular reference (BridgedChannel derives from\n * this map); the derivation closes the loop instead.\n */\nexport interface BusOperationSpec {\n  result: EventName;\n  failure: EventName;\n}\n\n",

@@ -5,7 +5,7 @@
  * EventBase is the common shape for all domain events.
  * StoredEvent wraps an event with persistence metadata.
  *
- * These types are referenced by event-catalog.ts (domain events)
+ * These types are referenced by persisted-events.ts (domain events)
  * and bus-protocol.ts (the full EventMap).
  */
 
@@ -30,24 +30,34 @@ import type { PersistedEvent } from './persisted-events';
 export type Brand<T, Overrides> =
   Omit<T, keyof Overrides> & Overrides;
 
+/**
+ * `Refined`, which must narrow `Schema`: what TypeScript adds to a payload the
+ * spec states. The bus registry's `tsRefinement` entries are emitted through
+ * this, so a refinement that is not a narrowing of its schema's type fails to
+ * compile on the line that uses it.
+ */
+export type Refines<Schema, Refined extends Schema> = Refined;
+
 // ── Core event shape ─────────────────────────────────────────────────────────
 
 /**
- * Fields common to ALL domain events (system and resource-scoped).
+ * Fields common to ALL domain events (system and resource-scoped): the spec's
+ * `StoredEventResponse` without what each event type states for itself (`type`,
+ * `payload`) and what persistence adds (`metadata`), with its identifiers
+ * branded.
  *
  * `userId` is the one identity fact an event carries: the verified emitter,
  * stamped by the gateway from the token at `emit`. Who *requested* the work
  * and what *produced* it are not fields here — they are derived by joining
  * this event to the job it cites, whose own events carry their own verified
  * emitters (VERIFIED-PROVENANCE).
+ *
+ * `timestamp` is for humans. Ordering is `metadata.sequenceNumber`'s.
  */
-export interface EventBase {
-  id: string;                    // Unique event ID (UUID)
-  timestamp: string;             // ISO 8601 timestamp (for humans, NOT for ordering)
-  resourceId?: ResourceId;       // Present for resource-scoped events, absent for system events
-  userId: UserId;                // The verified emitter. DID format.
-  version: number;               // Event schema version
-}
+export type EventBase = Brand<
+  Omit<components['schemas']['StoredEventResponse'], 'type' | 'payload' | 'metadata'>,
+  { resourceId?: ResourceId; userId: UserId }
+>;
 
 /** Persistence metadata attached to every stored event. */
 export type EventMetadata = components['schemas']['EventMetadata'];

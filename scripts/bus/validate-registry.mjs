@@ -259,8 +259,12 @@ export function validateRegistry(reg) {
   //
   // `tsRefinement` is what remains of it: TypeScript narrowing a schema's
   // type (a branded id for a string, a DOM rectangle, a callback). It never
-  // states the payload; the generated EventMap holds each one to its schema's
+  // states the payload; the generated code holds each one to its schema's
   // type, so a refinement that is not a narrowing fails to compile.
+  //
+  // A stored event's payload is a schema too. Which payload belongs to which
+  // event, and which events belong to no resource (`system`), were a
+  // hand-written TypeScript catalog; they are the entry's now.
   const SHAPES = {
     schema: 'a component schema',
     envelope: '`{ response }` around a component schema',
@@ -286,10 +290,16 @@ export function validateRegistry(reg) {
     if (c.shape === 'storedEvent' && c.event !== c.channel) {
       problems.push(`"${c.channel}" is a stored event named ${JSON.stringify(c.event)} — a persisted event is published on the channel of its own type`);
     }
+    if ((c.shape === 'storedEvent') !== (typeof c.payload === 'string' && c.payload !== '')) {
+      problems.push(`"${c.channel}" is ${SHAPES[c.shape]}, so it ${c.shape === 'storedEvent' ? 'must name its payload schema' : 'names no payload'}`);
+    }
+    if (c.system !== undefined && (c.system !== true || c.shape !== 'storedEvent')) {
+      problems.push(`"${c.channel}" sets system: ${JSON.stringify(c.system)} — it is a flag (true or absent), and only a stored event can carry it`);
+    }
     if (c.enriched !== undefined && (c.enriched !== true || c.shape !== 'storedEvent')) {
       problems.push(`"${c.channel}" sets enriched: ${JSON.stringify(c.enriched)} — it is a flag (true or absent), and only a stored event can carry it`);
     }
-    if (c.tsRefinement !== undefined && !namesSchema) {
+    if (c.tsRefinement !== undefined && !namesSchema && c.shape !== 'storedEvent') {
       problems.push(`"${c.channel}" has a tsRefinement and is ${SHAPES[c.shape]} — a refinement narrows a schema's type, and there is none`);
     }
     if (c.shape === 'schema' && c.validate !== null && c.validate !== c.schema) {

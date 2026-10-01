@@ -3,6 +3,7 @@
 // specs/src/bus/registry.json.
 //
 //   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
+//   packages/core/src/persisted-events.ts    (the persisted-event catalog)
 //   packages/core/src/bus-operations.ts      (BUS_OPERATIONS)
 //   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/delivery)
 //   packages/core-rust/src/bus-classification.json (the same attributes, for the Rust services)
@@ -20,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
+const PERSISTED = resolve(ROOT, 'packages/core/src/persisted-events.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
@@ -102,9 +104,14 @@ function payloadType(c) {
       throw new Error(`registry: "${c.channel}" has no payload type for shape ${JSON.stringify(c.shape)}`);
   }
 }
-/** A refined channel is typed by its refinement, held to the schema's type. */
-const channelType = (c) =>
-  c.tsRefinement === undefined ? payloadType(c) : `Refines<${payloadType(c)}, ${c.tsRefinement}>`;
+/** A refinement, held to the type it narrows: `Refines` (event-base.ts) checks
+ *  the constraint where it is used, so a refinement that is not a narrowing
+ *  fails to compile on its own line. */
+const refined = (c, type) => (c.tsRefinement === undefined ? type : `Refines<${type}, ${c.tsRefinement}>`);
+
+/** A refined channel is typed by its refinement. A stored event's refinement
+ *  narrows its PAYLOAD, in the persisted-event catalog, not the channel. */
+const channelType = (c) => (c.shape === 'storedEvent' ? payloadType(c) : refined(c, payloadType(c)));
 
 const eventMapLines = emitLines(
   reg.channelOrder.eventMap.map((ch) => {
@@ -151,11 +158,6 @@ const protocol =
   'export type EventMap = {' +
   [...eventMapLines, ...reg.preamble.eventMapTail].join('\n') +
   '\n};\n\n' +
-  // The gate on every `tsRefinement`: the constraint is checked where the
-  // refinement is used, so one that is not a narrowing of its schema's type
-  // fails to compile on its own EventMap line.
-  '/** `Refined`, which must narrow `Schema`: what TypeScript adds to a payload the spec states. */\n' +
-  'type Refines<Schema, Refined extends Schema> = Refined;\n\n' +
   // AnchorRect and friends live in the hand-written companion module; the
   // re-export keeps every existing `from './bus-protocol'` import working.
   "export type { AnchorRect } from './bus-ui-types';\n\n" +
@@ -179,6 +181,67 @@ const protocol =
   '\nexport type EmittableChannel = {\n' +
   '  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K\n' +
   '}[EventName];\n';
+
+// ── persisted-events.ts ────────────────────────────────────────────────
+// The catalog is the registry's stored-event channels, in their order: the
+// payload each names, and the `system` flag of the ones that belong to no
+// resource. It was a hand-written type with a hand-written runtime list
+// beside it and a compile-time check that the two agreed.
+const stored = reg.channels.filter((c) => c.shape === 'storedEvent');
+const persisted =
+  BANNER +
+  `/**
+ * Persisted Events
+ *
+ * The event types that get appended to the JSONL event log, each with the
+ * component schema of its payload. The PersistedEvent union derives from this
+ * catalog.
+ */
+
+import type { components } from './types';
+import type { AnnotationId, ResourceId } from './identifiers';
+import type { Annotation } from './annotation-types';
+import type { EventBase, Refines } from './event-base';
+
+/**
+ * Each persisted event type and the payload it carries. A \`Refines\` entry
+ * narrows the schema's type to this layer's branded one, so consumers read
+ * \`payload.annotation.id\` as \`AnnotationId\` without an upcast at every seam.
+ */
+type PersistedEventCatalog = {
+` +
+  stored.map((c) => `  '${c.event}': ${refined(c, schemaType(c.payload))};`).join('\n') +
+  `
+};
+
+/** System event types — persisted events that have no resourceId. */
+type SystemEventType = ` +
+  stored.filter((c) => c.system === true).map((c) => `'${c.event}'`).join(' | ') +
+  `;
+
+/** Extract the concrete persisted event type for a given type string. */
+export type EventOfType<K extends keyof PersistedEventCatalog> =
+  K extends SystemEventType
+    ? EventBase & { type: K; payload: PersistedEventCatalog[K] }
+    : EventBase & { type: K; resourceId: ResourceId; payload: PersistedEventCatalog[K] };
+
+/** The union of all persisted event types. Discriminated on \`type\`. */
+export type PersistedEvent = {
+  [K in keyof PersistedEventCatalog]: EventOfType<K>
+}[keyof PersistedEventCatalog];
+
+export type PersistedEventType = PersistedEvent['type'];
+
+/** Every persisted event type, for code that enumerates them at runtime. */
+export const PERSISTED_EVENT_TYPES = [
+` +
+  stored.map((c) => `  '${c.event}',`).join('\n') +
+  `
+] as const satisfies readonly PersistedEventType[];
+
+/** Input type for appendEvent — PersistedEvent without id/timestamp (assigned at persistence time). */
+export type EventInput = Omit<PersistedEvent, 'id' | 'timestamp'>;
+`;
 
 // ── bus-operations.ts ──────────────────────────────────────────────────
 const opsLines = emitLines(
@@ -368,6 +431,7 @@ export const channelWrites = (channel: string): boolean => BY_CHANNEL.get(channe
 
 const outputs = [
   [PROTOCOL, protocol],
+  [PERSISTED, persisted],
   [OPERATIONS, operations],
   [BRIDGED, bridged],
   [CLASSIFICATION, classification],

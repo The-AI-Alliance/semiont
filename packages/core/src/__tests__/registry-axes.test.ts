@@ -186,8 +186,20 @@ describe('registry payloads — stated by shape, never as a TypeScript string', 
     const stored = baseRegistry();
     const reg = {
       ...stored,
-      channels: [...stored.channels, { channel: 'demo:stored', shape: 'storedEvent', event: 'demo:stored', validate: null }],
-      inProcess: { doc: [], channels: [...stored.inProcess.channels, 'demo:stored'] },
+      channels: [
+        ...stored.channels,
+        { channel: 'demo:stored', shape: 'storedEvent', event: 'demo:stored', payload: 'DemoStoredPayload', validate: null },
+        { channel: 'demo:system', shape: 'storedEvent', event: 'demo:system', payload: 'DemoSystemPayload', system: true, validate: null },
+        {
+          channel: 'demo:branded',
+          shape: 'storedEvent',
+          event: 'demo:branded',
+          payload: 'DemoBrandedPayload',
+          validate: null,
+          tsRefinement: "components['schemas']['DemoBrandedPayload'] & { id: DemoId }",
+        },
+      ],
+      inProcess: { doc: [], channels: [...stored.inProcess.channels, 'demo:stored', 'demo:system', 'demo:branded'] },
     };
     expect(problemsFor(reg)).toBe('');
   });
@@ -227,7 +239,25 @@ describe('registry payloads — stated by shape, never as a TypeScript string', 
   });
 
   test('refuses a stored event published on a channel other than its own type', () => {
-    const reg = withChannel({ shape: 'storedEvent', event: 'demo:other', validate: null });
+    const reg = withChannel({ shape: 'storedEvent', event: 'demo:other', payload: 'DemoPayload', validate: null });
     expect(complains(reg, 'published on the channel of its own type')).toBe(true);
+  });
+
+  // Which payload belongs to which event was a hand-written TypeScript
+  // catalog, so no other language could type a stored event.
+  test('refuses a stored event that names no payload schema', () => {
+    const reg = withChannel({ shape: 'storedEvent', event: 'demo:extra', validate: null });
+    expect(complains(reg, 'must name its payload schema')).toBe(true);
+  });
+
+  test('refuses a payload on a channel that is not a stored event', () => {
+    const reg = withChannel({ shape: 'schema', schema: 'DemoExtra', payload: 'DemoExtra', validate: null });
+    expect(complains(reg, 'names no payload')).toBe(true);
+  });
+
+  test('refuses the system flag anywhere but on a stored event, and as anything but true', () => {
+    expect(complains(withChannel({ shape: 'empty', system: true, validate: null }), 'only a stored event can carry it')).toBe(true);
+    const reg = withChannel({ shape: 'storedEvent', event: 'demo:extra', payload: 'DemoPayload', system: false, validate: null });
+    expect(complains(reg, 'it is a flag (true or absent)')).toBe(true);
   });
 });

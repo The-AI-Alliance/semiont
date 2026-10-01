@@ -31,7 +31,7 @@ import type { components } from './types';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { Annotation } from './annotation-types';
 import type { ResourceDescriptor } from './graph';
-import type { EnrichedEvent, StoredEvent } from './event-base';
+import type { EnrichedEvent, Refines, StoredEvent } from './event-base';
 import type { EventOfType, PersistedEventType } from './persisted-events';
 import type { AnchorRect } from './bus-ui-types';
 
@@ -515,9 +515,6 @@ export type EventMap = {
   'session:joined': components['schemas']['SessionJoinedEvent'];
   'session:left': components['schemas']['SessionLeftEvent'];
 };
-
-/** `Refined`, which must narrow `Schema`: what TypeScript adds to a payload the spec states. */
-type Refines<Schema, Refined extends Schema> = Refined;
 
 export type { AnchorRect } from './bus-ui-types';
 
