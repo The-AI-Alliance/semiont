@@ -5,12 +5,27 @@ publish = false
 license = "Apache-2.0"
 description = "Semiont's Rust SDK: the protocol's types, the transport contract and a client of the bus over it, and what a client needs to name its principals and hold its roles, as specs/ states it."
 
+[features]
+# The doubles and the axiom harnesses a consumer's tests use.
+testing = ["dep:proptest", "tokio/test-util"]
+
 [dependencies]
+base64.workspace = true
+bytes.workspace = true
+futures-core.workspace = true
 percent-encoding.workspace = true
+proptest = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tokio = { workspace = true, features = ["sync", "time", "macros"] }
+tokio = { workspace = true, features = ["sync", "time", "macros", "rt"] }
+tokio-stream = { workspace = true, features = ["sync"] }
 uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+base64.workspace = true
+# This crate's own tests use its testing surface.
+semiont = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["test-util"] }
 
 [build-dependencies]
 semiont-codegen.workspace = true

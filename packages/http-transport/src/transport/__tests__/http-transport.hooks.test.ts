@@ -26,13 +26,21 @@ vi.mock('ky', () => {
       this.response = response;
     }
   }
+  class NetworkError extends Error {
+    override name = 'NetworkError';
+  }
+  class TimeoutError extends Error {
+    override name = 'TimeoutError';
+  }
   return {
     default: { create: vi.fn(), stop: Symbol('ky.stop') },
     HTTPError,
+    NetworkError,
+    TimeoutError,
   };
 });
 
-import ky, { HTTPError } from 'ky';
+import ky, { HTTPError, NetworkError, TimeoutError } from 'ky';
 import { RETRY_RULES } from '@semiont/core';
 import { HttpTransport } from '../http-transport';
 import { APIError } from '../api-error';
@@ -124,7 +132,35 @@ describe('HttpTransport ky hooks', () => {
     expect(emitted).toHaveLength(1);
   });
 
-  test('beforeError passes a non-HTTP error through untouched (no emission)', async () => {
+  test.each([
+    ['the connection failed', () => Object.assign(Object.create(NetworkError.prototype) as Error, { message: 'fetch failed', name: 'NetworkError' })],
+    ['the deadline passed', () => Object.assign(Object.create(TimeoutError.prototype) as Error, { message: 'Request timed out', name: 'TimeoutError' })],
+  ])('beforeError reports a request the gateway never answered (%s) as unavailable, on errors$, and throws it', async (_why, unanswered) => {
+    const beforeError = hooks.beforeError![0]!;
+    type State = Parameters<typeof beforeError>[0];
+    const emitted: SemiontError[] = [];
+    const sub = transport.errors$.subscribe((e) => emitted.push(e));
+
+    const thrown = await Promise.resolve(
+      beforeError({
+        request: { method: 'GET', url: 'http://localhost:4000/api/status' } as unknown as State['request'],
+        options: {} as unknown as State['options'],
+        error: unanswered(),
+        retryCount: 0,
+      }),
+    ).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    sub.unsubscribe();
+
+    expect(thrown).toBeInstanceOf(APIError);
+    expect((thrown as APIError).code).toBe('unavailable');
+    expect((thrown as APIError).message).toMatch(/^GET \/api\/status got no answer: /);
+    expect(emitted).toEqual([thrown]);
+  });
+
+  test('beforeError passes an error that is neither through untouched (no emission)', async () => {
     const beforeError = hooks.beforeError![0]!;
     type State = Parameters<typeof beforeError>[0];
 
@@ -318,12 +354,11 @@ describe('HttpTransport beforeRetry — refresh only, once a retry is confirmed'
 // harness; the ky mock above is irrelevant to the SSE path).
 
 import { BehaviorSubject } from 'rxjs';
-import { accessToken, type AccessToken } from '@semiont/core';
-import { SseConnectError } from '../sse-connect-error';
+import { accessToken, busRequest, type AccessToken } from '@semiont/core';
 import { mockFetch } from './helpers/mock-conn';
 
 describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
-  test('a refused SSE connect surfaces on the transport errors$ as a SseConnectError', async () => {
+  test('a refused SSE connect surfaces on the transport errors$ under the code its status maps to', async () => {
     mockFetch.mockReset();
     mockFetch.mockImplementation(async () => ({ ok: false, headers: new Headers(), status: 401, body: null }));
 
@@ -337,9 +372,61 @@ describe('HttpTransport errors$ bridge (SSE connect refusals)', () => {
 
     transport.actor.start();
     await vi.waitFor(() => expect(seen).toHaveLength(1));
-    expect(seen[0]).toBeInstanceOf(SseConnectError);
-    expect((seen[0] as SseConnectError).status).toBe(401);
+    // The error a refused request is, with a code from
+    // specs/src/errors/codes.json: a consumer routing on `unauthorized` hears
+    // a refused stream as it hears a refused request.
+    expect(seen[0]).toBeInstanceOf(APIError);
+    expect((seen[0] as APIError).status).toBe(401);
+    expect(seen[0]!.code).toBe('unauthorized');
 
     transport.dispose();
+  });
+});
+
+describe('HttpTransport errors$ bridge (refused emits)', () => {
+  test('an emit the gateway refuses is reported on errors$ and thrown to its caller, as one error', async () => {
+    mockFetch.mockReset();
+    mockFetch.mockImplementation(async () => ({
+      ok: false,
+      status: 400,
+      statusText: 'Bad Request',
+      headers: new Headers(),
+      text: async () => 'payload does not match',
+    }));
+
+    // No token: the stream never opens, so the only request is the emit.
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    const seen: SemiontError[] = [];
+    transport.errors$.subscribe((e) => seen.push(e));
+
+    const thrown = await transport.emit('beckon:focus', {}).catch((error: unknown) => error);
+    expect(thrown).toBeInstanceOf(APIError);
+    expect((thrown as APIError).code).toBe('bad-request');
+    expect(seen).toEqual([thrown]);
+
+    transport.dispose();
+  });
+});
+
+describe('HttpTransport after dispose', () => {
+  const request = (transport: HttpTransport) =>
+    busRequest(transport, 'browse:resource-requested', { resourceId: 'r' }, 200).catch((error: unknown) => error);
+
+  test('a request fails as closed at once: the transport does not build itself a new, unopened bus to wait on', async () => {
+    mockFetch.mockReset();
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    transport.actor.start();
+    transport.dispose();
+
+    expect(await request(transport)).toMatchObject({ code: 'bus.closed' });
+    expect(mockFetch.mock.calls.filter(([url]) => String(url).endsWith('/bus/emit'))).toEqual([]);
+  });
+
+  test('the same holds for a transport disposed before it ever touched its bus', async () => {
+    mockFetch.mockReset();
+    const transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10_000 });
+    transport.dispose();
+
+    expect(await request(transport)).toMatchObject({ code: 'bus.closed' });
   });
 });

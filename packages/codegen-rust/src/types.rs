@@ -1,14 +1,15 @@
 //! Rust types from component schemas (JSON Schema draft 7, as
 //! `draft7_definitions` writes them): a struct per object, an enum per string
-//! enumeration, an untagged enum per `oneOf` or `anyOf`, a field per property,
-//! optional where the schema does not require it. It knows the shapes the
-//! spec's schemas use and refuses any other, so a schema that grows a new
-//! shape fails the build rather than generating something wrong.
+//! enumeration, an untagged enum per `oneOf` or `anyOf`, an alias per named
+//! string, a field per property, optional where the schema does not require
+//! it. It knows the shapes the spec's schemas use and refuses any other, so a
+//! schema that grows a new shape fails the build rather than generating
+//! something wrong.
 //!
-//! A union is untagged: each member of the spec's unions carries its own
-//! single-valued discriminant (`status`, `kind`, `code`), or is the empty
-//! object beside a non-empty one, so the first member that decodes is the one
-//! meant. What the schema says that a type cannot — a pattern, a length, a
+//! A union is untagged, and the first member that decodes is the one meant.
+//! Its members are told apart by what they are — text, a list, an object — or,
+//! between objects, by a single-valued discriminant each carries (`status`,
+//! `kind`, `code`) or by one being the empty object. What the schema says that a type cannot — a pattern, a length, a
 //! bound — is the validators' to hold at the boundary, before a value is
 //! decoded.
 
@@ -26,6 +27,8 @@ pub struct Generation<'a> {
 }
 
 const EMPTY_OBJECT: &str = "EmptyObject";
+/// The key the `stated` helper is written under: no schema is named so.
+const STATED: &str = "fn stated";
 
 /// The Rust source of a generation's types, from `definitions` (the
 /// `definitions` object of `draft7_definitions`' output).
@@ -78,6 +81,17 @@ impl Types<'_> {
         name.to_owned()
     }
 
+    /// The name of the type of `owner`'s property `property`, when its schema
+    /// is written in place: the two names together, and `Value` after them
+    /// for as long as a component schema already has that name.
+    fn inline_name(&self, owner: &str, property: &str) -> String {
+        let mut name = format!("{owner}{}", pascal(property));
+        while self.definitions.get(&name).is_some() {
+            name.push_str("Value");
+        }
+        name
+    }
+
     fn inline(&mut self, name: &str, schema: &Value) -> String {
         let code = self.declaration(name, schema);
         self.written.insert(name.to_owned(), code);
@@ -113,18 +127,28 @@ impl Types<'_> {
         if let Some(inner) = without_null(schema) {
             return self.type_of(owner, property, &inner);
         }
+        // An `allOf` of one schema is that schema: the form a `$ref` takes
+        // when something is said beside it.
+        if let Some([only]) = schema["allOf"].as_array().map(Vec::as_slice)
+            && reference(only).is_some()
+            && schema
+                .as_object()
+                .is_some_and(|o| o.keys().all(|k| k == "allOf" || k == "description"))
+        {
+            return self.type_of(owner, property, only);
+        }
         if schema.get("allOf").is_some() {
-            return self.inline(&format!("{owner}{}", pascal(property)), schema);
+            return self.inline(&self.inline_name(owner, property), schema);
         }
         if let Some(members) = union(schema) {
             if members.iter().all(|m| self.is_string(m)) {
                 return "String".to_owned();
             }
-            return self.inline(&format!("{owner}{}", pascal(property)), schema);
+            return self.inline(&self.inline_name(owner, property), schema);
         }
         match schema["type"].as_str() {
             Some("string") if schema.get("enum").is_some() || schema.get("const").is_some() => {
-                self.inline(&format!("{owner}{}", pascal(property)), schema)
+                self.inline(&self.inline_name(owner, property), schema)
             }
             Some("string") => "String".to_owned(),
             Some("boolean") => "bool".to_owned(),
@@ -146,12 +170,12 @@ impl Types<'_> {
             Some("object") => {
                 let properties = schema["properties"].as_object().filter(|p| !p.is_empty());
                 match (properties, &schema["additionalProperties"]) {
-                    (Some(_), _) => self.inline(&format!("{owner}{}", pascal(property)), schema),
+                    (Some(_), _) => self.inline(&self.inline_name(owner, property), schema),
                     (None, Value::Bool(false)) if schema["maxProperties"] == 0 => {
                         self.empty_object()
                     }
                     (None, Value::Bool(false)) => {
-                        self.inline(&format!("{owner}{}", pascal(property)), schema)
+                        self.inline(&self.inline_name(owner, property), schema)
                     }
                     (None, Value::Null | Value::Bool(true)) if schema["maxProperties"] == 0 => {
                         self.empty_object()
@@ -203,6 +227,10 @@ impl Types<'_> {
             code.push_str("}\n\n");
             return code;
         }
+        if self.is_string(schema) {
+            let _ = writeln!(code, "pub type {name} = String;\n");
+            return code;
+        }
         if schema["type"] != "object" {
             panic!("{name}: a schema shape the generator does not know: {schema}");
         }
@@ -246,9 +274,15 @@ impl Types<'_> {
             } else if required.contains(&property.as_str()) {
                 let _ = writeln!(code, "    pub {field}: {rust_type},");
             } else if nullable {
-                panic!(
-                    "{name}.{property}: optional and nullable, which the generator does not know"
+                // Absent, null and a value are three things: the outer option
+                // is whether it was stated, the inner whether it was null.
+                let _ = writeln!(
+                    code,
+                    "    #[serde(default, deserialize_with = \"stated\", skip_serializing_if = \"Option::is_none\")]\n    pub {field}: Option<Option<{rust_type}>>,"
                 );
+                self.written.entry(STATED.to_owned()).or_insert_with(|| {
+                    "/// A property that was stated, whatever it stated: null is `Some(None)`.\nfn stated<'de, T: serde::Deserialize<'de>, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Option<T>>, D::Error> {\n    serde::Deserialize::deserialize(deserializer).map(Some)\n}\n\n".to_owned()
+                });
             } else {
                 let _ = writeln!(
                     code,
@@ -312,8 +346,23 @@ impl Types<'_> {
                 None if member["type"] == "object" && member["maxProperties"] == 0 => {
                     ("Empty".to_owned(), self.empty_object())
                 }
+                None if self.is_string(member) => ("Text".to_owned(), "String".to_owned()),
+                None if member["type"] == "array" => {
+                    let item = self.type_of(name, "Item", &member["items"]);
+                    ("List".to_owned(), format!("Vec<{item}>"))
+                }
+                None if member["type"] == "object" => {
+                    // An inline member is named by the one value its
+                    // discriminant takes, when it has one.
+                    let variant = discriminant(member).map_or("Object".to_owned(), pascal);
+                    let rust_type = self.type_of(name, &variant, member);
+                    (variant, rust_type)
+                }
                 None => panic!("{name}: a union member the generator does not know: {member}"),
             };
+            if variants.iter().any(|(taken, _)| *taken == variant) {
+                panic!("{name}: two union members would both be the variant {variant}");
+            }
             variants.push((variant, rust_type));
         }
         code.push_str("#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]\n#[serde(untagged)]\n");
@@ -326,9 +375,18 @@ impl Types<'_> {
     }
 }
 
-/// A schema that also admits null (`type: [T, "null"]`, draft 7's form of
-/// OpenAPI's `nullable`), as the schema of T.
+/// A schema that also admits null (`type: [T, "null"]` or a union with a
+/// `null` member, draft 7's forms of OpenAPI's `nullable`), as the schema
+/// without it.
 fn without_null(schema: &Value) -> Option<Value> {
+    if let Some(members) = union(schema) {
+        let others: Vec<&Value> = members.iter().filter(|m| m["type"] != "null").collect();
+        return match others.as_slice() {
+            _ if others.len() == members.len() => None,
+            [only] => Some((*only).clone()),
+            _ => Some(serde_json::json!({ "anyOf": others })),
+        };
+    }
     let types = schema["type"].as_array()?;
     let others: Vec<&Value> = types.iter().filter(|t| *t != "null").collect();
     if others.len() != 1 || others.len() == types.len() {
@@ -337,6 +395,24 @@ fn without_null(schema: &Value) -> Option<Value> {
     let mut inner = schema.clone();
     inner["type"] = others[0].clone();
     Some(inner)
+}
+
+/// The single value an object's discriminating property takes: the first of
+/// its properties that admits exactly one string.
+fn discriminant(object: &Value) -> Option<&str> {
+    object["properties"]
+        .as_object()?
+        .values()
+        .find_map(|property| {
+            match (
+                property["enum"].as_array().map(Vec::as_slice),
+                &property["const"],
+            ) {
+                (Some([only]), _) => only.as_str(),
+                (None, Value::String(only)) => Some(only.as_str()),
+                _ => None,
+            }
+        })
 }
 
 fn reference(schema: &Value) -> Option<&str> {
@@ -438,5 +514,127 @@ pub fn snake(word: &str) -> String {
         format!("r#{out}")
     } else {
         out
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn generated(definitions: Value, root: &str) -> String {
+        generate(
+            &definitions,
+            &Generation {
+                roots: &[root],
+                elsewhere: None,
+            },
+        )
+    }
+
+    #[test]
+    fn a_union_names_each_member_by_what_it_is() {
+        let code = generated(
+            json!({
+                "Target": { "type": "object", "properties": { "source": { "type": "string" } }, "required": ["source"] },
+                "Holder": { "type": "object", "required": ["target"], "properties": { "target": { "oneOf": [
+                    { "type": "string" },
+                    { "$ref": "#/definitions/Target" },
+                    { "type": "array", "items": { "$ref": "#/definitions/Target" } },
+                    { "type": "object", "additionalProperties": true }
+                ] } } }
+            }),
+            "Holder",
+        );
+        assert!(code.contains("pub enum HolderTarget {\n    Text(String),\n    Target(Target),\n    List(Vec<Target>),\n    Object(serde_json::Map<String, serde_json::Value>),\n}"), "{code}");
+    }
+
+    #[test]
+    fn inline_members_are_named_by_their_discriminants() {
+        let code = generated(
+            json!({ "Focus": { "oneOf": [
+                { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string", "enum": ["annotation"] } } },
+                { "type": "object", "required": ["kind"], "properties": { "kind": { "type": "string", "enum": ["resource"] } } }
+            ] } }),
+            "Focus",
+        );
+        assert!(code.contains("pub enum Focus {\n    Annotation(FocusAnnotation),\n    Resource(FocusResource),\n}"), "{code}");
+    }
+
+    #[test]
+    #[should_panic(expected = "two union members would both be the variant Text")]
+    fn two_members_nothing_tells_apart_are_refused() {
+        generated(
+            json!({ "Twice": { "oneOf": [
+                { "type": "string" },
+                { "type": "string", "description": "another" },
+                { "type": "array", "items": { "type": "string" } }
+            ] } }),
+            "Twice",
+        );
+    }
+
+    #[test]
+    fn a_named_string_is_an_alias() {
+        let code = generated(
+            json!({ "MediaType": { "type": "string", "description": "A MIME type." } }),
+            "MediaType",
+        );
+        assert!(
+            code.contains("/// A MIME type.\npub type MediaType = String;"),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn an_optional_nullable_property_keeps_absent_and_null_apart() {
+        let code = generated(
+            json!({ "Page": { "type": "object", "properties": { "cursor": { "type": ["string", "null"] } } } }),
+            "Page",
+        );
+        assert!(code.contains("deserialize_with = \"stated\""), "{code}");
+        assert!(
+            code.contains("pub cursor: Option<Option<String>>,"),
+            "{code}"
+        );
+        assert!(code.contains("fn stated<"), "{code}");
+    }
+
+    #[test]
+    fn a_nullable_reference_is_the_referenced_type_and_not_a_copy_of_it() {
+        let code = generated(
+            json!({
+                "Resource": { "type": "object", "properties": { "name": { "type": "string" } } },
+                "Answer": { "type": "object", "required": ["resource"], "properties": { "resource": { "anyOf": [
+                    { "type": "null" },
+                    { "allOf": [{ "$ref": "#/definitions/Resource" }], "description": "The resource, if any." }
+                ] } } }
+            }),
+            "Answer",
+        );
+        assert!(code.contains("pub resource: Option<Resource>,"), "{code}");
+        assert!(!code.contains("AnswerResource"), "{code}");
+    }
+
+    #[test]
+    fn a_type_written_in_place_takes_a_name_no_schema_has() {
+        let code = generated(
+            json!({
+                "NoteBody": { "type": "object", "properties": { "value": { "type": "string" } } },
+                "Note": { "type": "object", "properties": { "body": { "oneOf": [
+                    { "$ref": "#/definitions/NoteBody" },
+                    { "type": "array", "items": { "$ref": "#/definitions/NoteBody" } }
+                ] } } }
+            }),
+            "Note",
+        );
+        assert!(code.contains("pub struct NoteBody {"), "{code}");
+        assert!(
+            code.contains(
+                "pub enum NoteBodyValue {\n    NoteBody(NoteBody),\n    List(Vec<NoteBody>),\n}"
+            ),
+            "{code}"
+        );
+        assert!(code.contains("pub body: Option<NoteBodyValue>,"), "{code}");
     }
 }

@@ -153,7 +153,7 @@ it('should render component', () => {
 **With Custom Providers:**
 
 ```tsx
-import { renderWithProviders, createMockTranslationManager, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createMockTranslationManager, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 
 it('should work with authenticated client', () => {
   const translations = createMockTranslationManager({
@@ -166,9 +166,8 @@ it('should work with authenticated client', () => {
   renderWithProviders(<MyComponent />, {
     apiBaseUrl: 'https://api.test.com',
     translationManager: translations,
-    browser: createMockKnowledgeBaseSession({
-      sessionExpiredAt: Date.now(),
-      sessionExpiredMessage: 'Token expired',
+    browser: createTestBrowserWithSignals({
+      sessionExpired: { message: 'Token expired' },
     }),
   });
 
@@ -199,7 +198,7 @@ const translations = createMockTranslationManager({
 renderWithProviders(<Toolbar />, { translationManager: translations });
 ```
 
-### createMockKnowledgeBaseSession
+### createTestBrowserWithSignals
 
 Builds a fake `SemiontBrowser` with the active `SessionSignals` observables
 pre-populated, so modal tests can control the modal-driving flags without
@@ -208,11 +207,10 @@ driving a real session through its state machine. Tests pass it via the
 modal flags and their acknowledgement callbacks:
 
 ```tsx
-import { createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
+import { createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 
-const browser = createMockKnowledgeBaseSession({
-  sessionExpiredAt: Date.now(),
-  sessionExpiredMessage: 'Token expired at 5pm',
+const browser = createTestBrowserWithSignals({
+  sessionExpired: { message: 'Token expired at 5pm' },
   acknowledgeSessionExpired: vi.fn(),
 });
 
@@ -222,9 +220,8 @@ renderWithProviders(<SessionExpiredModal />, { browser });
 Permission-denied modal tests follow the same shape:
 
 ```tsx
-const browser = createMockKnowledgeBaseSession({
-  permissionDeniedAt: Date.now(),
-  permissionDeniedMessage: 'Not allowed',
+const browser = createTestBrowserWithSignals({
+  permissionDenied: { message: 'Not allowed' },
   acknowledgePermissionDenied: vi.fn(),
 });
 
@@ -333,18 +330,17 @@ it('should render with namespace.key format', () => {
 
 ## Testing Session State
 
-`createMockKnowledgeBaseSession` drives the modal flags on the active
-`SessionSignals`. Set `sessionExpiredAt` (or `permissionDeniedAt`) to
+`createTestBrowserWithSignals` drives the modal flags on the active
+`SessionSignals`. Set `sessionExpired` (or `permissionDenied`) to
 raise the corresponding modal, and pass the result via the `browser` option:
 
 ```tsx
-import { renderWithProviders, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 
 describe('SessionExpiredModal', () => {
   it('should show when the session has expired', () => {
-    const browser = createMockKnowledgeBaseSession({
-      sessionExpiredAt: Date.now(),
-      sessionExpiredMessage: 'Token expired',
+    const browser = createTestBrowserWithSignals({
+      sessionExpired: { message: 'Token expired' },
     });
 
     renderWithProviders(<SessionExpiredModal />, { browser });
@@ -353,7 +349,7 @@ describe('SessionExpiredModal', () => {
   });
 
   it('should not show when no expiry flag is raised', () => {
-    const browser = createMockKnowledgeBaseSession();
+    const browser = createTestBrowserWithSignals();
 
     renderWithProviders(<SessionExpiredModal />, { browser });
 
@@ -368,12 +364,12 @@ Open-resource mutations live on the `SemiontBrowser`. Inject a browser
 whose mutation is a `vi.fn()` via the `browser` option, then assert on it:
 
 ```tsx
-import { renderWithProviders, screen, createMockKnowledgeBaseSession } from '@semiont/react-ui/test-utils';
+import { renderWithProviders, screen, createTestBrowserWithSignals } from '@semiont/react-ui/test-utils';
 import { userEvent } from '@testing-library/user-event';
 
 it('should call addOpenResource when button clicked', async () => {
   const user = userEvent.setup();
-  const browser = createMockKnowledgeBaseSession();
+  const browser = createTestBrowserWithSignals();
 
   renderWithProviders(<AddDocumentButton />, { browser });
 

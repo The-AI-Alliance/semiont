@@ -98,6 +98,47 @@ describe('mark.assist — no SSE churn (Link 1)', () => {
   });
 });
 
+describe('mark.assist — frames that arrive before the job has its id', () => {
+  let bus: EventBus;
+  const rId = makeResourceId('res-1');
+
+  beforeEach(() => {
+    bus = new EventBus();
+  });
+
+  afterEach(() => {
+    bus.destroy();
+  });
+
+  it('are held, and this job\'s delivered in order once the reply to job:create has settled', async () => {
+    const { transport } = makeFakeTransport();
+    const mark = new MarkNamespace(transport, bus);
+
+    const kinds: string[] = [];
+    let completed = false;
+    mark.assist(rId, 'linking', { entityTypes: ['Person'] }).subscribe({
+      next: (e) => kinds.push(e.kind),
+      complete: () => {
+        completed = true;
+      },
+      error: () => {},
+    });
+
+    // The job's first frames are read from the stream alongside the reply
+    // that names it: the follower does not know the id yet.
+    bus.emit('job:report-progress', { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation', percentage: 10, progress: { percentage: 10 } });
+    bus.emit('job:complete', { resourceId: rId, jobId: 'job-2', jobType: 'reference-annotation' });
+    bus.emit('job:complete', { resourceId: rId, jobId: 'job-1', jobType: 'reference-annotation' });
+    expect(kinds).toEqual([]);
+
+    await flush();
+
+    // Another job's end is not this one's; this one's frames are, in order.
+    expect(kinds).toEqual(['progress', 'complete']);
+    expect(completed).toBe(true);
+  });
+});
+
 describe('job:complete dual-delivery contract (Link 1 / approach A)', () => {
   let bus: EventBus;
   const rId = makeResourceId('res-1');

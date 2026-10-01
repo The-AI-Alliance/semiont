@@ -1,0 +1,95 @@
+{
+  "$comment": "The telemetry a Semiont SDK's transports export over OTLP, in any language, when the process they run in exports at all: every span and metric, the transport it comes from, its kind, and the attributes it carries. `transport` is `bus` (the stream and emits) or `content` (uploads and reads). The SDK conformance suite holds each SDK to this table from outside: every row must arrive from its driver, of the listed kind, with every attribute not marked `only`, and whatever arrives under a row's name must carry only that row's attributes. A service that reaches the bus through an SDK exports these rows too; specs/src/service-telemetry/telemetry.json names such services under `sdk`, and their suites hold them to both tables. `semiont.bus.sent` counts the emits a client sent; the emits a gateway accepted are `semiont.bus.emit`, a row of that table, so that neither is counted as the other and the difference between them shows. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum).",
+  "spans": [
+    {
+      "name": "bus.emit:{channel}",
+      "transport": "bus",
+      "kind": "producer",
+      "meaning": "A frame the client sent, in the trace of the work that sent it.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on a frame in a resource scope"
+        }
+      ]
+    },
+    {
+      "name": "bus.recv:{channel}",
+      "transport": "bus",
+      "kind": "consumer",
+      "meaning": "A frame the client received, and the work done for it, in the trace the frame was sent under.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on a frame in a resource scope"
+        }
+      ]
+    },
+    {
+      "name": "content.put",
+      "transport": "content",
+      "kind": "client",
+      "meaning": "An upload.",
+      "attributes": [
+        {
+          "key": "content.format"
+        },
+        {
+          "key": "content.size_bytes"
+        }
+      ]
+    },
+    {
+      "name": "content.get",
+      "transport": "content",
+      "kind": "client",
+      "meaning": "A read of a resource's bytes.",
+      "attributes": [
+        {
+          "key": "resource.id"
+        },
+        {
+          "key": "content.stream",
+          "values": [
+            "true"
+          ],
+          "only": "on a read taken as a stream"
+        }
+      ]
+    },
+    {
+      "name": "content.get_graph",
+      "transport": "content",
+      "kind": "client",
+      "meaning": "A read of a resource's description.",
+      "attributes": [
+        {
+          "key": "resource.id"
+        }
+      ]
+    }
+  ],
+  "metrics": [
+    {
+      "name": "semiont.bus.sent",
+      "transport": "bus",
+      "instrument": "counter",
+      "meaning": "Emits the client sent.",
+      "attributes": [
+        {
+          "key": "bus.channel"
+        },
+        {
+          "key": "bus.scope",
+          "only": "on an emit in a resource scope"
+        }
+      ]
+    }
+  ]
+}

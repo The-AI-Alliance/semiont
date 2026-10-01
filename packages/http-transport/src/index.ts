@@ -29,7 +29,7 @@ export { HttpContentTransport } from './transport/http-content-transport';
 
 // `actor-state-unit` is HttpTransport's SSE machinery. Exposed for domain-side
 // worker adapters (`createJobClaimAdapter` in `@semiont/jobs`,
-// `createSmelterActorStateUnit` in `@semiont/make-meaning`) that build
+// `smelterFanIn` in `@semiont/make-meaning`) that build
 // worker-flavored variants on top of it. Application code should not
 // import these directly.
 export {
@@ -37,6 +37,4 @@ export {
   type ActorStateUnit,
   type BusEvent,
   type ActorStateUnitOptions,
-  DEGRADED_THRESHOLD_MS,
 } from './transport/actor-state-unit';
-export { SseConnectError } from './transport/sse-connect-error';

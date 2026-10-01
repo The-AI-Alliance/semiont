@@ -35,10 +35,9 @@ validateRegistryFormat(registryText);
 const reg = JSON.parse(registryText);
 validateRegistry(reg);
 
-/** TS-only payloads: functions or DOM geometry — never wire vocabulary. */
-const TS_ONLY = /=>|AnchorRect/;
-const wireChannels = reg.channels.filter((c) => !(c.shape === 'custom' && TS_ONLY.test(c.ts)));
-const skipped = reg.channels.length - wireChannels.length;
+// Every channel has a Go name. Whether one may be emitted is ChannelSchemas'
+// to say, not this list's.
+const wireChannels = reg.channels;
 
 /** `mark:assist-timeout` → `MarkAssistTimeout` */
 const goName = (channel) =>
@@ -187,6 +186,6 @@ for (const [name, text] of [
   if (!CHECK) writeFileSync(path, text);
 }
 console.log(
-  `channels: ${wireChannels.length} wire (${skipped} TS-only excluded), emittable: ${emittable.length}, operations: ${reg.operations.length}`,
+  `channels: ${wireChannels.length}, emittable: ${emittable.length}, operations: ${reg.operations.length}`,
 );
 if (CHECK && drift) process.exit(1);

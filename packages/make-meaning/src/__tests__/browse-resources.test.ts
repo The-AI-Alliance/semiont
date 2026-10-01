@@ -34,6 +34,7 @@ function scriptedBus(replies: ScriptedReply[]) {
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
     // This double answers every channel from its scripted subjects.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     // The key arrives on the ENVELOPE and goes back on one, which is what a
     // real responder does. It used to be read out of the payload and copied
     // into the reply payload; the payload no longer carries it.

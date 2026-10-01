@@ -15,7 +15,7 @@ Past-tense `-ed` channels appended to the event store. These drive materialized 
 - `yield:representation-added`, `yield:representation-removed`
 - `job:started`, `job:assigned`, `job:completed`, `job:failed`
 
-The authoritative list is `PERSISTED_EVENT_TYPES` in [`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts). The typecheck enforces that every `StoredEvent`-typed entry in `EventMap` is in this list.
+The authoritative list is the registry's `storedEvent` channels, each naming its payload schema. `PERSISTED_EVENT_TYPES` and the event catalog in [`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts) are generated from them.
 
 ## System-wide broadcasts
 
@@ -64,5 +64,5 @@ In-process transports do the same fan-in via `LocalTransport.bridgeInto(bus)`.
 - **[TRANSPORT-HTTP.md](./TRANSPORT-HTTP.md)** — HTTP+SSE wire format
 - **[`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)** — the authority (channels, payloads, operations)
 - **[`packages/core/src/bus-protocol.ts`](../../packages/core/src/bus-protocol.ts)** — GENERATED `EventMap` and `CHANNEL_SCHEMAS`
-- **[`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts)** — `PERSISTED_EVENT_TYPES`
+- **[`packages/core/src/persisted-events.ts`](../../packages/core/src/persisted-events.ts)** — GENERATED event catalog and `PERSISTED_EVENT_TYPES`
 - **[`packages/core/src/bridged-channels.ts`](../../packages/core/src/bridged-channels.ts)** — `BRIDGED_CHANNELS`

@@ -328,6 +328,17 @@ Reads one job. Reads `jobId`
 `retryCount`, `maxRetries`, the checkpoint and `params` are not exposed. A record is readable until
 retention deletes it.
 
+#### Following a job
+
+`job:report-progress`, `job:complete` and `job:fail` reach the client that created the job as frames
+with no identity of their own: a stream that is down when one is published does not carry it later,
+and nothing redelivers it ([TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md#delivery)).
+`job:status-requested` is how a follower learns what it was not sent. A client that has heard nothing
+of a job it follows for `jobSilenceMs` asks for the job's status, and asks again every
+`jobStatusPollMs` until the job says something or its status is an end; a status of `complete` or
+`failed` is that end, reported as the frame would have been
+([`specs/src/client/timing.json`](../../specs/src/client/timing.json)).
+
 ## What the dispatcher emits on its own
 
 ### `job:queued`

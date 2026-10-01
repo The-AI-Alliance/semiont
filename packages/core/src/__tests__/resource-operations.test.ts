@@ -29,10 +29,11 @@ const ALICE = userId('did:web:kb.example:users:alice');
 
 function inProcess(bus: EventBus): BusRequestPrimitive {
   return {
-    emit: async (channel, payload, envelope) => { bus.emit(channel, payload, envelope); return -1; },
+    emit: async (channel, payload, envelope) => { bus.emit(channel, payload, envelope); return undefined; },
     stream: (channel) => bus.on(channel),
     frames: (channel) => bus.frames(channel),
     isSubscribed: () => true,
+    trackReply: () => () => {},
     state$: new BehaviorSubject<ConnectionState>('open').asObservable(),
   };
 }

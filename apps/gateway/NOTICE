@@ -190,7 +190,6 @@ components:
     tokio-rustls - MIT OR Apache-2.0
     tokio-stream - MIT
     tokio-util - MIT
-    tokio-websockets - MIT
     tower - MIT
     tower-http - MIT
     tower-layer - MIT
@@ -208,7 +207,6 @@ components:
     uuid-simd - MIT
     vsimd - MIT
     want - MIT
-    webpki-roots - CDLA-Permissive-2.0
     writeable - Unicode-3.0
     yoke - Unicode-3.0
     zerocopy - BSD-2-Clause OR Apache-2.0 OR MIT

@@ -22,7 +22,7 @@ import { MemoryVectorStore } from '@semiont/vectors';
 import type { AnchoredTextStore } from '@semiont/content';
 import type { ExtractionOutcome, IContentTransport, Logger } from '@semiont/core';
 import { Smelter } from '../smelter';
-import type { SmelterEvent } from '../smelter-actor-state-unit';
+import type { SmelterEvent } from '../smelter-fan-in';
 import {
   createMockEmbeddingProvider,
   createContentTransport,

@@ -1,0 +1,17 @@
+{
+  "about": "an emit carries its channel, payload and scope beside the client's id, and resolves with the count of subscribers the gateway reports",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Emits; docs/protocol/TRANSPORT-HTTP.md § Emitting; BusEmitRequest, BusEmitAccepted",
+  "planes": ["in-process"],
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["beckon:focus"], "scope": {"$var": "r1"}}},
+    {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "scope": {"$var": "r1"}}, "returns": {"subscribers": 1}},
+    {"wire": "POST /bus/emit", "status": 202, "token": {"$var": "token"}, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}, "scope": {"$var": "r1"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 1}},
+
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-2"}, "scope": {"$var": "r2"}}, "returns": {"subscribers": 0}},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "beckon:focus", "payload": {"annotationId": "a-2"}, "scope": {"$var": "r2"}, "clientId": {"$var": "clientId"}}, "answer": {"subscribers": 0}}
+  ]
+}

@@ -38,6 +38,8 @@ COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rus
 COPY packages/core-rust/src packages/core-rust/src
 COPY packages/http-transport-rust/Cargo.toml packages/http-transport-rust/
 COPY packages/http-transport-rust/src packages/http-transport-rust/src
+COPY packages/http-transport-rust/conformance/Cargo.toml packages/http-transport-rust/conformance/
+COPY packages/http-transport-rust/conformance/src packages/http-transport-rust/conformance/src
 COPY packages/observability-rust/Cargo.toml packages/observability-rust/
 COPY packages/observability-rust/src packages/observability-rust/src
 COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/

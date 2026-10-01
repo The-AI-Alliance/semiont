@@ -67,6 +67,7 @@ function fakeBus(initialState: ConnectionState = 'open') {
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
     // and against the real worker manifest by this plan's P3.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     state$,
     emit: vi.fn(async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope) => {
       // TypeScript correlates `channel` with `payload` on READ (see
@@ -77,7 +78,7 @@ function fakeBus(initialState: ConnectionState = 'open') {
       // the harness's single assertion, and it is what buys narrowing at
       // every read site.
       emits.push({ channel, payload, correlationId: envelope?.correlationId } as Emitted);
-      return -1;
+      return undefined;
     }),
   };
 

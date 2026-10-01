@@ -1,10 +1,11 @@
 /**
- * A service held to the telemetry specs/src/service-telemetry/telemetry.json
- * lists for it, from what its OTLP receiver got, in both directions.
+ * A service, or an SDK, held to the telemetry the spec lists for it
+ * (specs/src/service-telemetry/telemetry.json, specs/src/sdk-telemetry/telemetry.json),
+ * from what its OTLP receiver got, in both directions.
  */
 import { eventually } from './net';
 import type { OtlpReceiver } from './otlp';
-import { spanPattern, telemetry, type Service, type TelemetryRow } from './spec';
+import { sdkTelemetry, spanPattern, telemetry, type Service, type Telemetry, type TelemetryRow } from './spec';
 
 /** OTLP's span kinds, by the names the spec uses. */
 export const SPAN_KIND: Record<string, number> = { internal: 1, server: 2, client: 3, producer: 4, consumer: 5 };
@@ -21,8 +22,22 @@ export function expectedOn(rows: TelemetryRow[], plane?: string): TelemetryRow[]
  * carrying an attribute or value outside its row. Judged on everything the
  * receiver got, so run it after the cases that make the traffic.
  */
-export async function outsideTheTable(otlp: OtlpReceiver, service: Service, plane?: string): Promise<string[]> {
-  const { spans, metrics } = telemetry(service);
+export function outsideTheTable(otlp: OtlpReceiver, service: Service, plane?: string): Promise<string[]> {
+  return heldTo(otlp, telemetry(service), `the ${service}`, plane, true);
+}
+
+/**
+ * The same for an SDK, from what its driver exported, against
+ * specs/src/sdk-telemetry/telemetry.json — with one difference. A service is
+ * its whole process, so anything it exports that no row names is a finding. A
+ * driver's process is the SDK and whatever else the driver runs, so what no
+ * row names is not the SDK's to answer for; what arrives under a row's name is.
+ */
+export function outsideTheSdkTable(otlp: OtlpReceiver): Promise<string[]> {
+  return heldTo(otlp, sdkTelemetry(), 'an SDK', undefined, false);
+}
+
+async function heldTo(otlp: OtlpReceiver, { spans, metrics }: Telemetry, who: string, plane: string | undefined, whole: boolean): Promise<string[]> {
   for (const row of expectedOn(spans, plane)) {
     const pattern = spanPattern(row);
     await eventually(`a ${row.name} span`, 15_000, () => otlp.spans.find((s) => pattern.test(s.name)));
@@ -50,7 +65,7 @@ export async function outsideTheTable(otlp: OtlpReceiver, service: Service, plan
   for (const span of otlp.spans) {
     const row = spans.find((r) => spanPattern(r).test(span.name));
     if (!row) {
-      unlisted.push(`a span ${span.name}, which the spec does not list for the ${service}`);
+      if (whole) unlisted.push(`a span ${span.name}, which the spec does not list for ${who}`);
       continue;
     }
     if (span.kind !== SPAN_KIND[row.kind]) unlisted.push(`${span.name} is of kind ${span.kind}, not ${row.kind}`);
@@ -59,7 +74,7 @@ export async function outsideTheTable(otlp: OtlpReceiver, service: Service, plan
   for (const [name, metric] of otlp.metrics) {
     const row = metrics.find((r) => r.name === name);
     if (!row) {
-      unlisted.push(`a metric ${name}, which the spec does not list for the ${service}`);
+      if (whole) unlisted.push(`a metric ${name}, which the spec does not list for ${who}`);
       continue;
     }
     for (const instrument of metric.instruments) if (instrument !== row.kind) unlisted.push(`${name} arrived as a ${instrument}, not a ${row.kind}`);

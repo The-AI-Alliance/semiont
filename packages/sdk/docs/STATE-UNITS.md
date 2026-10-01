@@ -1,6 +1,6 @@
 # State units
 
-`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the connection actor in `@semiont/http-transport` (`createActorStateUnit`), the smelter actor in `@semiont/make-meaning` (`createSmelterActorStateUnit`), and the per-feature page state units in `@semiont/react-ui` are all instances of it.
+`@semiont/sdk` exposes a single foundational pattern called a **state unit**. The flow state units (`createMarkStateUnit`, `createGatherStateUnit`, `createMatchStateUnit`, `createYieldStateUnit`, `createBeckonStateUnit`), the connection actor in `@semiont/http-transport` (`createActorStateUnit`), and the per-feature page state units in `@semiont/react-ui` are all instances of it.
 
 This doc covers what state units do, why they help, how they're shaped, and the conventions that keep them composable.
 

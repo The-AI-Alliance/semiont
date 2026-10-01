@@ -5,7 +5,8 @@
 // Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
 //
 // Payload schemas themselves live in the OpenAPI components; the registry
-// names which one each channel carries. Add or change a channel THERE.
+// names which one each channel carries, and every payload type here is
+// derived from that. Add or change a channel THERE.
 
 /**
  * Bus Protocol
@@ -30,7 +31,7 @@ import type { components } from './types';
 import type { AnnotationId, ResourceId } from './identifiers';
 import type { Annotation } from './annotation-types';
 import type { ResourceDescriptor } from './graph';
-import type { EnrichedEvent, StoredEvent } from './event-base';
+import type { EnrichedEvent, Refines, StoredEvent } from './event-base';
 import type { EventOfType, PersistedEventType } from './persisted-events';
 import type { AnchorRect } from './bus-ui-types';
 
@@ -108,7 +109,7 @@ export type EventMap = {
   'yield:clone-persist-failed': components['schemas']['CommandError'];
   'yield:update-ok': components['schemas']['YieldUpdateOk'];
   'yield:update-failed': components['schemas']['CommandError'];
-  'yield:move-failed': { fromUri: string } & components['schemas']['CommandError'];
+  'yield:move-failed': components['schemas']['YieldMoveFailed'];
   'yield:clone-token-generated': { response: components['schemas']['CloneResourceWithTokenResponse'] };
   'yield:clone-token-failed': components['schemas']['CommandError'];
   'yield:clone-resource-result': { response: components['schemas']['GetResourceByTokenResponse'] };
@@ -138,8 +139,8 @@ export type EventMap = {
   // Commands
   'mark:create-request': components['schemas']['MarkCreateRequest'];
   'mark:create': components['schemas']['MarkCreateCommand'];
-  'mark:delete': MarkDeleteCommand;
-  'mark:update-body': MarkUpdateBodyCommand;
+  'mark:delete': Refines<components['schemas']['MarkDeleteCommand'], MarkDeleteCommand>;
+  'mark:update-body': Refines<components['schemas']['MarkUpdateBodyCommand'], MarkUpdateBodyCommand>;
   'mark:archive': components['schemas']['MarkArchiveCommand'];
   'mark:unarchive': components['schemas']['MarkUnarchiveCommand'];
   'mark:update-entity-types': components['schemas']['MarkUpdateEntityTypesCommand'];
@@ -188,7 +189,7 @@ export type EventMap = {
   // progress, no completion, no job:fail). Emitted by mark-state-unit so the
   // outcome-notification layer can tell the user; a real job failure arrives
   // as job:fail instead and never produces this.
-  'mark:assist-timeout': { resourceId: string; motivation: components['schemas']['Motivation'] };
+  'mark:assist-timeout': components['schemas']['MarkAssistTimeoutEvent'];
   // Client-local UI notifications for annotation command failures, emitted by
   // the awaiting catch (mark-state-unit), which inherently knows whose command
   // failed on which resource. Distinct from the `mark:create-failed` /
@@ -196,12 +197,12 @@ export type EventMap = {
   // plumbing (CommandError, matched by correlationId, bridged to every
   // client) and are NOT for UI consumption — subscribing to them raw
   // double-toasts the requester and leaks other users' failures.
-  'mark:create-error': { resourceId: string; message: string };
-  'mark:delete-error': { resourceId: string; message: string };
+  'mark:create-error': components['schemas']['ResourceErrorEvent'];
+  'mark:delete-error': components['schemas']['ResourceErrorEvent'];
   // Same pattern for bind body updates initiated by callers that cannot toast
   // directly (e.g. ReferenceEntry's unlink); awaiting callers with their own
   // toast surface (the reference wizard) surface failures themselves instead.
-  'bind:body-error': { resourceId: string; message: string };
+  'bind:body-error': components['schemas']['ResourceErrorEvent'];
 
   // ========================================================================
   // FRAME FLOW — schema-layer vocabulary (entity types; future tag schemas,
@@ -242,8 +243,8 @@ export type EventMap = {
   // BIND FLOW — reference linking
   // ========================================================================
 
-  'bind:initiate': BindInitiateCommand;
-  'bind:update-body': BindUpdateBodyCommand;
+  'bind:initiate': Refines<components['schemas']['BindInitiateCommand'], BindInitiateCommand>;
+  'bind:update-body': Refines<components['schemas']['BindUpdateBodyCommand'], BindUpdateBodyCommand>;
   'bind:body-updated': components['schemas']['BindBodyUpdated'];
   'bind:body-update-failed': components['schemas']['CommandError'];
 
@@ -264,13 +265,13 @@ export type EventMap = {
 
   'gather:requested': components['schemas']['GatherAnnotationRequest'];
   'gather:complete': components['schemas']['GatherAnnotationComplete'];
-  'gather:failed': { annotationId: string } & components['schemas']['CommandError'];
+  'gather:failed': components['schemas']['GatherFailed'];
   'gather:resource-requested': components['schemas']['GatherResourceRequest'];
   'gather:resource-complete': components['schemas']['GatherResourceComplete'];
-  'gather:resource-failed': { resourceId: string } & components['schemas']['CommandError'];
+  'gather:resource-failed': components['schemas']['GatherResourceFailed'];
 
   'gather:summary-requested': components['schemas']['GatherSummaryRequest'];
-  'gather:summary-result': { response: Record<string, unknown> };
+  'gather:summary-result': { response: components['schemas']['ContextualSummaryResponse'] };
   'gather:summary-failed': components['schemas']['CommandError'];
   'gather:limits-requested': components['schemas']['InferenceLimitsRequest'];
   'gather:limits-result': components['schemas']['InferenceLimitsResult'];
@@ -289,13 +290,13 @@ export type EventMap = {
   // what the protocol already guarantees. Field overrides via Omit +
   // intersection; envelope shape per .plans/REPLY-SHAPE-STANDARD.md.
   'browse:resource-requested': components['schemas']['BrowseResourceRequest'];
-  'browse:resource-result': {
+  'browse:resource-result': Refines<components['schemas']['BrowseResourceResult'], {
     response: Omit<components['schemas']['GetResourceResponse'], 'resource' | 'annotations' | 'entityReferences'> & {
       resource: ResourceDescriptor;
       annotations: Annotation[];
       entityReferences: Annotation[];
     };
-  };
+  }>;
   'browse:resource-failed': components['schemas']['CommandError'];
 
   // A resource's derived coordinate map — the text recovered from its bytes
@@ -315,29 +316,29 @@ export type EventMap = {
   'browse:anchored-text-failed': components['schemas']['CommandError'];
 
   'browse:resources-requested': components['schemas']['BrowseResourcesRequest'];
-  'browse:resources-result': {
+  'browse:resources-result': Refines<components['schemas']['BrowseResourcesResult'], {
     response: Omit<components['schemas']['ListResourcesResponse'], 'resources'> & {
       resources: ResourceDescriptor[];
     };
-  };
+  }>;
   'browse:resources-failed': components['schemas']['CommandError'];
 
   'browse:annotations-requested': components['schemas']['BrowseAnnotationsRequest'];
-  'browse:annotations-result': {
+  'browse:annotations-result': Refines<components['schemas']['BrowseAnnotationsResult'], {
     response: Omit<components['schemas']['GetAnnotationsResponse'], 'annotations'> & {
       annotations: Annotation[];
     };
-  };
+  }>;
   'browse:annotations-failed': components['schemas']['CommandError'];
 
   'browse:annotation-requested': components['schemas']['BrowseAnnotationRequest'];
-  'browse:annotation-result': {
+  'browse:annotation-result': Refines<components['schemas']['BrowseAnnotationResult'], {
     response: Omit<components['schemas']['GetAnnotationResponse'], 'annotation' | 'resource' | 'resolvedResource'> & {
       annotation: Annotation;
       resource: ResourceDescriptor | null;
       resolvedResource: ResourceDescriptor | null;
     };
-  };
+  }>;
   'browse:annotation-failed': components['schemas']['CommandError'];
 
   'browse:events-requested': components['schemas']['BrowseEventsRequest'];
@@ -349,7 +350,7 @@ export type EventMap = {
   'browse:annotation-history-failed': components['schemas']['CommandError'];
 
   'browse:annotation-context-requested': components['schemas']['BrowseAnnotationContextRequest'];
-  'browse:annotation-context-result': { response: Record<string, unknown> };
+  'browse:annotation-context-result': { response: components['schemas']['AnnotationContextResponse'] };
   'browse:annotation-context-failed': components['schemas']['CommandError'];
 
   'browse:referenced-by-requested': components['schemas']['BrowseReferencedByRequest'];
@@ -374,10 +375,10 @@ export type EventMap = {
 
   'browse:directory-requested': components['schemas']['BrowseDirectoryRequest'];
   'browse:directory-result': components['schemas']['BrowseDirectoryResult'];
-  'browse:directory-failed': { path: string } & components['schemas']['CommandError'];
+  'browse:directory-failed': components['schemas']['BrowseDirectoryFailed'];
 
   // UI events (session-scoped — fire on the client bus, tied to a KB)
-  'browse:click': components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect };
+  'browse:click': Refines<components['schemas']['BrowseClickEvent'], components['schemas']['BrowseClickEvent'] & { anchorRect?: AnchorRect }>;
   'browse:resource-open': components['schemas']['BrowseResourceOpenEvent'];
   'browse:resource-viewed': components['schemas']['BrowseResourceViewedEvent'];
   'browse:entity-type-clicked': components['schemas']['BrowseEntityTypeClickedEvent'];
@@ -389,14 +390,14 @@ export type EventMap = {
   // ========================================================================
 
   'panel:toggle': components['schemas']['BrowsePanelToggleEvent'];
-  'panel:open': components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect };
+  'panel:open': Refines<components['schemas']['BrowsePanelOpenEvent'], components['schemas']['BrowsePanelOpenEvent'] & { anchorRect?: AnchorRect }>;
   'panel:close': void;
   'shell:sidebar-toggle': void;
   'tabs:close': components['schemas']['BrowseResourceCloseEvent'];
   'tabs:reorder': components['schemas']['BrowseResourceReorderEvent'];
   'nav:link-clicked': components['schemas']['BrowseLinkClickedEvent'];
   'nav:push': components['schemas']['BrowseRouterPushEvent'];
-  'nav:external': components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void };
+  'nav:external': Refines<components['schemas']['BrowseExternalNavigateEvent'], components['schemas']['BrowseExternalNavigateEvent'] & { cancelFallback: () => void }>;
 
   // ========================================================================
   // BECKON FLOW — annotation attention
@@ -443,7 +444,7 @@ export type EventMap = {
   // cancel-by-type confirmed-write reply: the count of *pending* jobs cancelled
   // (running jobs finish — there's no worker-kill channel). Failure surfaces a
   // queue error instead of the old silent swallow (.plans/bugs/BRIDGE-GAPS.md).
-  'job:cancel-ok': { response: { cancelled: number } };
+  'job:cancel-ok': { response: components['schemas']['JobCancelResult'] };
   'job:cancel-failed': components['schemas']['CommandError'];
 
   // ========================================================================
@@ -458,7 +459,7 @@ export type EventMap = {
    * `whenApplied` barrier awaits. In-process signal today; crosses the
    * bus gateway after WEAVER-ISOLATION.
    */
-  'weave:applied': { resourceId: string; sequenceNumber: number };
+  'weave:applied': components['schemas']['WeaveApplied'];
 
   // Signal — the vector projection's per-resource decision report: emitted
   // by the Smelter after indexing a resource's content ('indexed') or after
@@ -470,7 +471,7 @@ export type EventMap = {
   // a decision (SMELTER-INDEX-SYNC A2). Consumed by the gateway-local
   // `SmeltProgress` fold behind the gather-side barrier. This is the
   // Smelter's single outbound signal (SMELTER-AXIOMS D3, as amended).
-  'smelt:settled': { resourceId: string; contentChecksum: string; outcome: 'indexed' | 'skipped'; reason?: 'no-extractor' | 'empty' | 'no-text-layer' | 'encrypted' | 'corrupt' | 'too-large' };
+  'smelt:settled': components['schemas']['SmeltSettled'];
 
   // Command — rebuild the graph projection from the event log (full when
   // resourceId is absent, one resource when present). Served by the Weaver;
@@ -479,7 +480,7 @@ export type EventMap = {
   // request/reply via the BUS_OPERATIONS registry.
   'weave:rebuild': components['schemas']['WeaveRebuildCommand'];
   'weave:rebuild-ok': Record<string, never>;
-  'weave:rebuild-failed': { message: string };
+  'weave:rebuild-failed': components['schemas']['CommandError'];
 
   // Command — rebuild anchored-text artifacts by re-running extraction
   // (every geometry-capable resource when resourceId is absent, one when
@@ -488,7 +489,7 @@ export type EventMap = {
   // (PERSIST-ANCHORS P0). Correlated request/reply via BUS_OPERATIONS.
   'smelt:rebuild-anchors': components['schemas']['SmeltRebuildAnchorsCommand'];
   'smelt:rebuild-anchors-ok': Record<string, never>;
-  'smelt:rebuild-anchors-failed': { message: string };
+  'smelt:rebuild-anchors-failed': components['schemas']['CommandError'];
 
   // ========================================================================
   // SETTINGS (Browser-only)
@@ -503,8 +504,6 @@ export type EventMap = {
   // SSE infrastructure
   // ========================================================================
 
-  'stream-connected': Record<string, never>;
-  'replay-window-exceeded': { resourceId?: string; lastEventId: number; missedCount: number; cap: number; message: string };
   /**
    * Written by the `/bus/subscribe` handler when a scoped entry's
    * `lastEventId` cannot be honoured — the watermark is unparseable or
@@ -829,8 +828,6 @@ export const CHANNEL_SCHEMAS = {
   'smelt:rebuild-anchors-failed':     null, // { correlationId; message }
 
   // ── SSE infrastructure ──────────────────────────────────────────
-  'stream-connected':                 null, // Record<string, never>
-  'replay-window-exceeded':           null, // inline payload
   'bus:resume-gap':                   null,
   'session:joined':                   'SessionJoinedEvent',
   'session:left':                     'SessionLeftEvent',

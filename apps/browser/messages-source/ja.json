@@ -206,7 +206,8 @@
     "connectedToOther": "{{expected}} ではなく {{actual}} に接続されています。",
     "identityCheckFailed": "サインイン済みですが、アイデンティティの確認でこのナレッジベースに到達できませんでした。",
     "identityNotReported": "サインイン済みですが、このナレッジベースはアイデンティティを報告しませんでした。",
-    "lastReadAt": "{{time}} 時点"
+    "lastReadAt": "{{time}} 時点",
+    "answeringInstead": "このアドレスでは {{name}} が応答しています"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ナレッジベースがありません",

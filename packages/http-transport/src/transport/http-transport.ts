@@ -10,7 +10,7 @@
  * once at construction.
  */
 
-import ky, { HTTPError, type KyInstance } from 'ky';
+import ky, { HTTPError, NetworkError, TimeoutError, type KyInstance } from 'ky';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type {
   AccessToken,
@@ -26,7 +26,7 @@ import {
   busLog,
   relayFrames,
 } from '@semiont/core';
-import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
+import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
 import { APIError } from './api-error';
 import type {
@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs } from '@semiont/core';
+import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs, type RetryPolicy } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -75,6 +75,17 @@ export interface HttpTransportConfig {
    * fails fast with `bus.unsubscribed` (see `BusRequestPrimitive`).
    */
   channels?: readonly (keyof EventMap)[];
+  /**
+   * `reconnectMs`, `lazyRemoveMs`, `lingerMs`, `emitRetry` and
+   * `seenEventIdsCount` of specs/src/client/timing.json, for a caller that
+   * must not wait them out: a test, or the conformance driver. Absent, the
+   * table's values stand.
+   */
+  reconnectMs?: number;
+  lazyRemoveMs?: number;
+  lingerMs?: number;
+  emitRetry?: RetryPolicy;
+  seenEventIdsCount?: number;
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -240,7 +251,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                   error: body.message || `HTTP ${response.status}: ${response.statusText}`,
                 });
               }
-              const apiError = new APIError(
+              const apiError = APIError.fromStatus(
                 body.message || `HTTP ${response.status}: ${response.statusText}`,
                 response.status,
                 response.statusText,
@@ -249,6 +260,20 @@ export class HttpTransport implements ITransport, IGatewayOperations {
               );
               this.errorsSubject.next(apiError);
               throw apiError;
+            }
+            // The gateway never answered: the connection failed, or the
+            // request's own deadline passed. Reported under `unavailable`, as
+            // the vocabulary files it, and on `errors$` like a refusal.
+            // Anything else — the caller's own abort, a fault in a hook — is
+            // not the gateway's doing and passes as it is.
+            if (error instanceof NetworkError || error instanceof TimeoutError) {
+              const unanswered = APIError.withoutResponse(
+                `${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`,
+                'unavailable',
+                error.name,
+              );
+              this.errorsSubject.next(unanswered);
+              throw unanswered;
             }
             return error;
           },
@@ -281,15 +306,20 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         channels: [...globalChannels],
         ...(this.config.loadLastEventIds ? { loadLastEventIds: this.config.loadLastEventIds } : {}),
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
+        ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
+        ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
+        ...(this.config.lingerMs !== undefined ? { lingerMs: this.config.lingerMs } : {}),
+        ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
+        ...(this.config.seenEventIdsCount !== undefined ? { seenEventIdsCount: this.config.seenEventIdsCount } : {}),
         // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
         // P4, D2) — the SSE connect path refreshes once before parking
         // `unauthenticated`, and no second refresh mechanism exists.
         ...(this.config.tokenRefresher ? { tokenRefresher: this.config.tokenRefresher } : {}),
       });
       // Refused connects surface on the transport's contract stream too —
-      // an SSE subscribe IS an HTTP request, and `SseConnectError` is a
-      // `SemiontError` (SSE-AUTH-RESILIENCE P4, closing P2's deferred
-      // bridge question).
+      // an SSE subscribe IS an HTTP request, refused as an `APIError` like
+      // any other (SSE-AUTH-RESILIENCE P4, closing P2's deferred bridge
+      // question).
       this._actor.errors$.subscribe((e) => this.errorsSubject.next(e));
       // One fan-in per channel, wired once for the actor's lifetime — the
       // globally-subscribed set AND the resource-scoped set (disjoint by the
@@ -324,12 +354,21 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
-  ): Promise<number> {
+  ): Promise<number | undefined> {
     busLog('EMIT', channel as string, payload, envelope?.scope, envelope?.correlationId);
-    recordBusEmit(channel as string, envelope?.scope);
+    recordBusSent(channel as string, envelope?.scope);
     return withSpan(
       `bus.emit:${channel as string}`,
-      async () => this.actor.emit(channel, payload, envelope),
+      async () => {
+        try {
+          return await this.actor.emit(channel, payload, envelope);
+        } catch (error) {
+          // A refused emit is a transport failure like any other, so it is
+          // reported where the others are before its caller hears it.
+          if (error instanceof SemiontError) this.pushError(error);
+          throw error;
+        }
+      },
       {
         kind: SpanKind.PRODUCER,
         attrs: {
@@ -418,10 +457,11 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     if (this.disposed) return;
     this.disposed = true;
     this.scopeRefCounts.clear();
-    if (this._actor) {
-      this._actor.dispose();
-      this._actor = null;
-    }
+    // The disposed actor is kept, and built first if nothing ever touched it:
+    // a caller arriving later must find a closed bus. Dropping it let the
+    // getter build a fresh one that nothing would ever start, and a request
+    // waited out its whole timeout on a stream that could not open.
+    this.actor.dispose();
     this.errorsSubject.complete();
   }
 

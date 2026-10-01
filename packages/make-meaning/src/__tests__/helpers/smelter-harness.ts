@@ -20,7 +20,7 @@ import { EventBus, annotationId as makeAnnotationId, resourceId as makeResourceI
 import type { AnchoredTextStore } from '@semiont/content';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive } from '@semiont/core';
-import type { SmelterChannel } from '../../smelter-actor-state-unit';
+import type { SmelterChannel } from '../../smelter-fan-in';
 
 // Core's ResourceDescriptor, not the raw generated one. They differ: core
 // derives `RawResourceDescriptor & { '@id': ResourceId }`, and the browse
@@ -153,7 +153,7 @@ export const markEntityTagRemoved = (resourceId: string, entityType: string): Ev
  * A `BusRequestPrimitive` whose domain channels are fed by `push` — typed per channel,
  * so a test can only put on the bus what the bus actually carries.
  */
-export function createFakeWorkerBus() {
+export function createFakeBus() {
   // A real `EventBus` rather than a `Map<string, Subject<unknown>>`: core's
   // bus is already typed per channel, so the fake needs no cast and is truer
   // to what production hands the state unit. The map version forced the one
@@ -167,8 +167,9 @@ export function createFakeWorkerBus() {
     // NARROWED set; that behavior is proven against the real ActorStateUnit,
     // and against the real worker manifest by this plan's P3.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     state$: new BehaviorSubject<ConnectionState>('open'),
-    emit: vi.fn(async () => -1),
+    emit: vi.fn(async () => undefined),
   };
   return {
     bus,
@@ -305,6 +306,7 @@ export function createFakeKsBus(
     // This fake delivers whatever a test queues at it, so `true` is the truth
     // about it — it models no narrowed set.
     isSubscribed: () => true,
+    trackReply: () => () => {},
     // In-process fake — replies are queued on emit, so 'open' is the truth.
     state$: new BehaviorSubject<ConnectionState>('open'),
     async emit<K extends keyof EventMap>(name: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> {

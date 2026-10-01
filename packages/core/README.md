@@ -117,7 +117,7 @@ function handle(event: PersistedEvent) {
 }
 ```
 
-`PERSISTED_EVENT_TYPES` is the runtime list of every persisted event type, with a compile-time exhaustiveness check against the catalog.
+`PERSISTED_EVENT_TYPES` is the runtime list of every persisted event type, generated with the catalog from the bus registry's `storedEvent` channels.
 
 ### EventBus
 

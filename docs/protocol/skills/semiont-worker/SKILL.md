@@ -39,7 +39,7 @@ Two more channels go to the dispatcher alone: `job:checkpoint` (record finished 
 
 ## Setup
 
-A worker needs a `SemiontSession` (long-running token refresh + lifecycle), a cast of `session.client.transport` to `HttpTransport` (to reach the actor that satisfies `WorkerBus`), the `createJobClaimAdapter` from `@semiont/jobs`, and a process logger from `@semiont/observability`.
+A worker needs a `SemiontSession` (long-running token refresh + lifecycle), a cast of `session.client.transport` to `HttpTransport` (to reach its actor, the `BusRequestPrimitive` the adapter consumes), the `createJobClaimAdapter` from `@semiont/jobs`, and a process logger from `@semiont/observability`.
 
 Workers are inherently HTTP-bound today — local in-process workers don't make sense as a deployment shape. The cast names the seam.
 
@@ -112,8 +112,8 @@ const session = SemiontSession.fromHttp({
   onError: (err) => logger.error('session error', { code: err.code, message: err.message }),
 });
 
-// The adapter consumes a WorkerBus. HttpTransport.actor satisfies it
-// structurally. The cast is the documented seam between
+// The adapter consumes a BusRequestPrimitive (from @semiont/core), and
+// HttpTransport.actor is one. The cast is the documented seam between
 // transport-neutral worker code and HTTP-only deployment.
 const httpTransport = session.client.transport as HttpTransport;
 
@@ -301,7 +301,7 @@ If your worker is mid-job at shutdown time, the in-flight call should be allowed
 ## Guidance for the AI assistant
 
 - **Pick the right skill for the daemon shape.** Job-claim workers use this skill; bus-event watchers use `semiont-session`. Both can run side by side, but the wiring is different.
-- **`HttpTransport` cast is intentional.** Workers are HTTP-bound. The transport cast (`session.client.transport as HttpTransport`) names the seam — don't try to abstract it; an in-process worker would build a different `WorkerBus` shim.
+- **`HttpTransport` cast is intentional.** Workers are HTTP-bound. The transport cast (`session.client.transport as HttpTransport`) names the seam — don't try to abstract it; an in-process worker would pass a different `BusRequestPrimitive`.
 - **Always emit the four lifecycle events.** UI consumers and dashboards filter by `jobType` and (optionally) `annotationId`. Skipping `job:start` or `job:complete` makes the UI think the job is stuck.
 - **Emit every lifecycle event globally.** Never pass a scope to `transport.emit` for `job:*`: the dispatcher and the Stower subscribe globally, and a scoped `job:complete` or `job:fail` reaches neither.
 - **Use the pre-built processors when possible.** `processHighlightJob`, `processCommentJob`, `processAssessmentJob`, `processReferenceJob`, `processTagJob`, and `processGenerationJob` from `@semiont/jobs` cover the six standard job shapes. Custom processors are fine; just keep the lifecycle protocol intact.

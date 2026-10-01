@@ -1,0 +1,17 @@
+{
+  "type": "object",
+  "description": "The payload of `mark:assist-timeout`, a client-local signal: an assist went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.",
+  "properties": {
+    "resourceId": {
+      "type": "string",
+      "description": "The resource the assist was run on."
+    },
+    "motivation": {
+      "$ref": "./Motivation.json"
+    }
+  },
+  "required": [
+    "resourceId",
+    "motivation"
+  ]
+}

@@ -115,11 +115,11 @@ export class Weaver {
   /**
    * Transport-blind by construction (WEAVER-ISOLATION P2/P3): graph-relevant
    * events arrive as an injected `events$` and rebuild commands as
-   * `rebuilds$` (the `WeaverActorStateUnit` fan-in — channel selection
+   * `rebuilds$` (the `weaverFanIn` fan-in — channel selection
    * lives there); `weave:applied` signals, rebuild replies, and the
    * catch-up's `browse:*` reads all ride the injected `BusRequestPrimitive`.
-   * In-process everything rides the core EventBus (`workerBusOverEventBus`
-   * / `asBusRequestPrimitive`); standalone it all rides the gateway.
+   * In-process everything rides the core EventBus
+   * (`asBusRequestPrimitive`); standalone it all rides the gateway.
    */
   constructor(
     private graphDb: GraphDatabase,
@@ -1102,7 +1102,7 @@ export class Weaver {
   } {
     return {
       // One injected source stream since WEAVER-ISOLATION P2 — channel
-      // fan-in (9 channels) lives in WeaverActorStateUnit.
+      // fan-in (9 channels) lives in weaverFanIn.
       subscriptions: this.sourceSubscription ? 1 : 0,
       // A count, deliberately not the map: serializing every per-resource
       // sequence made /health an O(resources) payload (#845 scalability).

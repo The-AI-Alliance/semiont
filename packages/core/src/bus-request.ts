@@ -1,4 +1,4 @@
-import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
+import { Observable, firstValueFrom, merge, race, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
@@ -6,6 +6,8 @@ import type { BusEnvelope, BusFrame } from './event-bus';
 import type { ConnectionState } from './transport';
 import { BUS_OPERATIONS, type BusOperationKey } from './bus-operations';
 import type { CommandErrorCode } from './payload-types';
+import { busRequestCodeByWireCode, unrecognizedFailureCode, type BusRequestErrorCode } from './generated/error-codes';
+import { BUS_REQUEST_TIMEOUT_MS } from './generated/client-timing';
 import { uuidV4 } from './id-generation';
 
 /**
@@ -21,89 +23,48 @@ export type BusReply<Op extends BusOperationKey> =
     : void;
 
 /**
- * What a failed `busRequest` can tell its caller.
+ * What a failed `busRequest` can tell its caller: `BusRequestErrorCode`,
+ * generated from specs/src/errors/codes.json, where each member is documented.
  *
- * Two kinds of member, and the split is the point. `bus.not-found` and
- * `bus.peer-unavailable` are facts the PEER stated, promoted from
- * `CommandError.code` by `WIRE_TO_CLIENT` below. The rest are facts only this
- * side knows — a timeout, a closed connection, a local misconfiguration — which
- * is why the two vocabularies stay separate rather than collapsing into one.
+ * Two kinds of member, and the split is the point. `bus.not-found`,
+ * `bus.peer-unavailable`, `bus.unauthorized` and `bus.none-pending` are facts
+ * the PEER stated, promoted from `CommandError.code` by the table's `wire`
+ * entries. The rest are facts only this side knows — a timeout, a closed
+ * connection, a local misconfiguration — which is why the two vocabularies stay
+ * separate rather than collapsing into one.
  *
- * `bus.bad-payload`, `bus.unauthorized` and `bus.forbidden` were removed here
- * (2026-09-13): zero producers, zero consumers, and the HTTP-shaped facts they
- * named already live in `TransportErrorCode` with real producers
- * (`classifyApiCode`). A member nothing can emit promises a distinction the
- * system cannot make, and the next reader has no way to tell it apart from one
- * that merely has not been reached yet. `bus.unauthorized` returned 2026-09-22
- * the moment it had a producer: the dispatcher refusing a `job:claim` from a
- * caller without the worker role — a peer's verdict, promoted from the wire
- * like the two beside it, not an HTTP status.
+ * `bus.bad-payload` and `bus.forbidden` were removed (2026-09-13): zero
+ * producers, zero consumers, and the HTTP-shaped facts they named already live
+ * in `TransportErrorCode` with a real producer (`transportErrorCodeForStatus`).
+ * A member nothing can emit promises a distinction the system cannot make.
+ * `bus.unauthorized` left with them and returned 2026-09-22, the moment it had
+ * a producer: the dispatcher refusing a `job:claim` from a caller without the
+ * worker role.
+ *
+ * The mapping has one site, the table. Left unmapped, a consumer would reach
+ * into `details.payload.code` and there would be two ways to ask the same
+ * question. The generator refuses a table that leaves a wire code unmapped, and
+ * `satisfies` repeats that here against the generated `CommandErrorCode`, so a
+ * stale generated file fails to compile rather than defaulting to
+ * `bus.rejected`.
  */
-export type BusRequestErrorCode =
-  | 'bus.timeout'
-  | 'bus.rejected'
-  | 'bus.closed'
-  /** The peer says this resource does not exist in its knowledge base. */
-  | 'bus.not-found'
-  /**
-   * THIS transport is not subscribed to the reply channel — a local
-   * misconfiguration, caught before emitting. Not to be confused with
-   * `bus.peer-unavailable`, which is the opposite end: the channel HAS no
-   * subscriber because the service that answers it has not connected yet.
-   */
-  | 'bus.unsubscribed'
-  /**
-   * The service that answers this channel is not connected. Transient by
-   * nature — a peer still starting — and therefore the one failure class on
-   * this list worth retrying.
-   */
-  | 'bus.peer-unavailable'
-  /**
-   * The peer says this caller may not do what it asked — authenticated, not
-   * permitted. A verdict about the caller: retrying under the same credential
-   * cannot succeed, so a consumer must surface it, never spin on it.
-   */
-  | 'bus.unauthorized'
-  /**
-   * The peer declined, and nothing went wrong: a `job:claim` found no pending
-   * job of the requested types. The one member a consumer PARKS on — there is
-   * nothing to do until a wake-up.
-   */
-  | 'bus.none-pending';
-
-/**
- * A failure's own `code` (CommandError, wire) → this client vocabulary.
- *
- * One mapping site, deliberately: the `classifyApiCode(status)` pattern. Left
- * unmapped, a consumer would reach into `details.payload.code` and there would be
- * two ways to ask the same question, with the next consumer picking the other.
- *
- * Keyed by the generated `CommandErrorCode`, so a new wire member fails to
- * compile here (TS2741) until someone decides what it means to a client. A
- * ternary would have let it default silently to `bus.rejected` — a mirror of a
- * spec-owned vocabulary with no gate.
- */
-const WIRE_TO_CLIENT: Record<CommandErrorCode, BusRequestErrorCode> = {
-  'peer-unavailable': 'bus.peer-unavailable',
-  'not-found': 'bus.not-found',
-  'unauthorized': 'bus.unauthorized',
-  'none-pending': 'bus.none-pending',
-};
+const WIRE_CODES = new Map<unknown, BusRequestErrorCode>(
+  Object.entries(busRequestCodeByWireCode satisfies Record<CommandErrorCode, BusRequestErrorCode>),
+);
 
 /**
  * Read as `unknown`, because that is what crosses the boundary: the value comes
  * from a peer that may be newer than this build. An unrecognized code degrades
- * to `bus.rejected` rather than being trusted through — inventing a
- * `BusRequestErrorCode` nobody handles is worse than the honest fallback.
+ * to the table's `unrecognizedFailure` rather than being trusted through —
+ * inventing a `BusRequestErrorCode` nobody handles is worse than the honest
+ * fallback.
  */
-const WIRE_CODES = new Map<unknown, BusRequestErrorCode>(Object.entries(WIRE_TO_CLIENT));
-
 function classifyFailureCode(code: unknown): BusRequestErrorCode {
-  return WIRE_CODES.get(code) ?? 'bus.rejected';
+  return WIRE_CODES.get(code) ?? unrecognizedFailureCode;
 }
 
 const CLIENT_TO_WIRE = new Map<BusRequestErrorCode, CommandErrorCode>(
-  (Object.entries(WIRE_TO_CLIENT) as [CommandErrorCode, BusRequestErrorCode][]).map(([wire, client]) => [client, wire]),
+  (Object.entries(busRequestCodeByWireCode) as [CommandErrorCode, BusRequestErrorCode][]).map(([wire, client]) => [client, wire]),
 );
 
 /**
@@ -138,12 +99,6 @@ export class BusRequestError extends SemiontError {
  * (forward exactly the replies of the operations it answers). Restating a
  * reply channel by hand was the recurring unbridged-reply bug class.
  */
-/**
- * The caller's request deadline. ONE home for the 30 s fact: `busRequest`'s
- * default, and the gateway's retention-relationship assertion
- * (SIGNAL-PLANE P0.1 q4 — retention ≥ 2× this), both derive from it.
- */
-export const BUS_REQUEST_TIMEOUT_MS = 30_000;
 
 export function replyChannelsFor(channels: readonly string[]): EventName[] {
   const out = new Set<EventName>();
@@ -163,15 +118,15 @@ export function replyChannelsFor(channels: readonly string[]): EventName[] {
  */
 export interface BusRequestPrimitive {
   /**
-   * Matches `ITransport.emit`'s return: the subscriber count (`-1` =
-   * unknown). `busRequest` itself ignores it — the reply channel is its
+   * Matches `ITransport.emit`'s return: the subscriber count, absent when
+   * there is none. `busRequest` itself ignores it — the reply channel is its
    * ack — but the primitive must stay assignable from every ITransport.
    */
   emit<K extends keyof EventMap>(
     channel: K,
     payload: EventMap[K],
     envelope?: BusEnvelope,
-  ): Promise<number>;
+  ): Promise<number | undefined>;
   /**
    * The ENVELOPE view. `busRequest` matches a reply on `frame.correlationId`,
    * which is why the key never needs to enter a channel's domain type
@@ -199,10 +154,11 @@ export interface BusRequestPrimitive {
    * a wire transport includes the currently-tracked ids as
    * `pendingReplies` in each subscribe body, so a reply published while
    * the connection was down is replayed from the server's retention
-   * buffer on reconnect. OPTIONAL: an in-process transport that cannot
-   * lose replies omits the surface and `busRequest` behaves as before.
+   * buffer on reconnect. Required, not optional, for the reason `frames`
+   * and `isSubscribed` are: an in-process transport that cannot lose a reply
+   * returns a disposer that does nothing, and `busRequest` has one path.
    */
-  trackReply?(correlationId: string): () => void;
+  trackReply(correlationId: string): () => void;
   /**
    * Whether this transport's receive path delivers `channel` — i.e. a reply
    * published there can actually reach this process. A transport whose
@@ -230,6 +186,15 @@ export interface BusRequestPrimitive {
   isSubscribed(channel: keyof EventMap): boolean;
 }
 
+/** Fails with the signal's reason when its owner abandons the request; says nothing until then. */
+function abandonment(signal: AbortSignal): Observable<never> {
+  return new Observable<never>((subscriber) => {
+    const abandon = () => subscriber.error(signal.reason);
+    signal.addEventListener('abort', abandon, { once: true });
+    return () => signal.removeEventListener('abort', abandon);
+  });
+}
+
 /**
  * Request/reply over the bus, keyed by the operation's request channel.
  *
@@ -246,13 +211,22 @@ export interface BusRequestPrimitive {
  * channel's `response` type, or `void`) — callers never annotate it. Every reply
  * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void); see
  * .plans/REPLY-SHAPE-STANDARD.md. `busRequest` reads `e.response`.
+ *
+ * `signal` lets the caller ABANDON the request. Abandoned, it rejects with the
+ * signal's reason, as an abortable API does, and that is all it does: what
+ * was already sent stays sent, the reply stops being tracked, and a reply
+ * that arrives later is reported to nobody. Abandoned before the stream that
+ * carries its reply opened, it sends nothing. The rejection carries no
+ * `BusRequestErrorCode`: it states the caller's own act, not a failure.
  */
 export async function busRequest<Op extends BusOperationKey>(
   bus: BusRequestPrimitive,
   operation: Op,
   payload: Record<string, unknown>,
   timeoutMs = BUS_REQUEST_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<BusReply<Op>> {
+  signal?.throwIfAborted();
   const correlationId = uuidV4();
   const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
 
@@ -272,7 +246,7 @@ export async function busRequest<Op extends BusOperationKey>(
 
   // Matched on the ENVELOPE. The payload is read only for what it means —
   // the response, or the failure's message and code — never for routing.
-  const result$ = merge(
+  const settled$ = merge(
     bus.frames(resultChannel as keyof EventMap).pipe(
       filter((frame) => frame.correlationId === correlationId),
       map(({ payload: e }) => ({
@@ -327,7 +301,14 @@ export async function busRequest<Op extends BusOperationKey>(
 
   // Subscribe before emitting so we don't miss an instantaneous reply
   // (which can happen with an in-process LocalTransport bus).
-  const resultPromise = firstValueFrom(result$);
+  const resultPromise = firstValueFrom(signal ? race(settled$, abandonment(signal)) : settled$);
+  // It rejects on a timeout or an abandonment, and is read only where it is
+  // awaited, at the tail. Every path that leaves before then — a closed bus, a
+  // refused emit — leaves it rejected with nobody holding it, which a Node
+  // process treats as fatal (found by the liveness harness's reject-emit
+  // schedules, .plans/LIVENESS-AXIOMS.md P1). Marked handled once, here; the
+  // await at the tail still throws what it rejected with.
+  resultPromise.catch(() => {});
 
   // ── Attach gate (.plans/BUS-ATTACH-GATE.md) ─────────────────────────────
   // No correlated emit before the reply path exists: the measured failure was
@@ -338,16 +319,11 @@ export async function busRequest<Op extends BusOperationKey>(
   // 2026-07-29): only `'open'` delivers; `'degraded'` is a dropped stream by
   // definition and waits like `connecting`/`reconnecting`. `'closed'` fails
   // fast — a request against a closed bus should not burn a timeout.
-  const closedBeforeEmit = () => {
-    // Detach the reply promise before throwing, same discipline as the emit
-    // rejection path below: nobody will await it, and it must not surface
-    // later as an unhandled rejection.
-    resultPromise.catch(() => {});
-    return new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
+  const closedBeforeEmit = () =>
+    new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
       channel: operation,
       correlationId,
     });
-  };
 
   // Synchronous fast path: `state$` is BehaviorSubject-backed (see the
   // interface contract), so the current state lands during subscribe. Already
@@ -383,8 +359,6 @@ export async function busRequest<Op extends BusOperationKey>(
       ),
     ]);
     if (outcome === 'closed') {
-      // The abandoned race arm cannot reject (filter + defaultIfEmpty), so
-      // only the reply promise needs detaching — closedBeforeEmit does it.
       throw closedBeforeEmit();
     }
     // 'open' → the one emit below. 'settled' → skip the emit; awaiting the
@@ -394,14 +368,7 @@ export async function busRequest<Op extends BusOperationKey>(
     emitAllowed = outcome === 'open';
   }
 
-  // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller — but the
-  // caller then never awaits `resultPromise`, which is already subscribed and
-  // will REJECT with `bus.timeout` at `timeoutMs` (the request never left, so
-  // no reply can save it). Detach it before rethrowing so the doomed promise
-  // can't surface later as an unhandled rejection. (`defaultIfEmpty` covers
-  // only the disposed-bus case, where the stream completes and the promise
-  // *resolves* `bus.closed`.) Found by the liveness harness's reject-emit
-  // schedules (.plans/LIVENESS-AXIOMS.md, P1).
+  // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller.
   //
   // Reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1): register the
   // cid BEFORE the emit — a reconnect body built while the emit is in flight
@@ -412,7 +379,7 @@ export async function busRequest<Op extends BusOperationKey>(
   // reach this line, so they never track.
   let releaseTracking: (() => void) | undefined;
   if (emitAllowed) {
-    releaseTracking = bus.trackReply?.(correlationId);
+    releaseTracking = bus.trackReply(correlationId);
     try {
       // The key goes on the ENVELOPE. A responder reads it from there and
       // echoes it back on one; no channel's domain type ever carries it.
@@ -420,7 +387,6 @@ export async function busRequest<Op extends BusOperationKey>(
     } catch (emitError) {
       releaseTracking?.();
       releaseTracking = undefined;
-      resultPromise.catch(() => {});
       throw emitError;
     }
   }

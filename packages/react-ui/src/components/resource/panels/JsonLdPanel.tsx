@@ -6,6 +6,7 @@ import { EditorState } from '@codemirror/state';
 import { json } from '@codemirror/lang-json';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { syntaxHighlighting } from '@codemirror/language';
+import { clipboard } from '../../../lib/clipboard';
 import { jsonLightTheme, jsonLightHighlightStyle } from '../../../lib/codemirror-json-theme';
 import { useLineNumbers } from '../../../contexts/LineNumbersContext';
 import { useResourceGraph } from '../../../hooks/useResourceGraph';
@@ -73,10 +74,11 @@ export function JsonLdPanel({ resourceId }: Props) {
     };
   }, [documentText, showLineNumbers]);
 
-  const handleCopyToClipboard = async () => {
+  const copyTo = clipboard();
+  const handleCopyToClipboard = async (to: Clipboard) => {
     if (!documentText) return;
     try {
-      await navigator.clipboard.writeText(documentText);
+      await to.writeText(documentText);
     } catch (err) {
       console.error('Failed to copy JSON-LD:', err);
     }
@@ -89,14 +91,16 @@ export function JsonLdPanel({ resourceId }: Props) {
         <h3 className="semiont-jsonld-panel__title">
           JSON-LD
         </h3>
-        <button
-          onClick={handleCopyToClipboard}
-          className="semiont-button semiont-button-icon"
-          title="Copy to clipboard"
-          disabled={!graph}
-        >
-          📋 Copy
-        </button>
+        {copyTo && (
+          <button
+            onClick={() => handleCopyToClipboard(copyTo)}
+            className="semiont-button semiont-button-icon"
+            title="Copy to clipboard"
+            disabled={!graph}
+          >
+            📋 Copy
+          </button>
+        )}
       </div>
 
       {loading && (

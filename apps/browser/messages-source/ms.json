@@ -206,7 +206,8 @@
     "connectedToOther": "Disambungkan ke {{actual}}, bukan {{expected}}.",
     "identityCheckFailed": "Telah log masuk, tetapi semakan identiti tidak dapat menghubungi pangkalan pengetahuan ini.",
     "identityNotReported": "Telah log masuk, tetapi pangkalan pengetahuan ini tidak melaporkan sebarang identiti.",
-    "lastReadAt": "Setakat {{time}}"
+    "lastReadAt": "Setakat {{time}}",
+    "answeringInstead": "{{name}} sedang menjawab di alamat ini"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Tiada pangkalan pengetahuan",

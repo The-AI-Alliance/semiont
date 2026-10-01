@@ -91,8 +91,6 @@ HTTP adapter is re-exported here for convenience; the in-process transport is
 - **Flow state machines** — closure-based factories (`createMarkStateUnit`, `…Gather…`,
   `…Match…`, `…Yield…`, `…Beckon…`) wrapping each long-running flow with `loading$`/`error$`/
   progress observables; UI-shape-agnostic ([`docs/STATE-UNITS.md`](https://github.com/The-AI-Alliance/semiont/blob/main/packages/sdk/docs/STATE-UNITS.md)).
-- **`WorkerBus`** — the transport-neutral bus interface worker adapters consume (the adapters
-  live with their domains: `@semiont/jobs`, `@semiont/make-meaning`).
 - **KB discovery** — the consumer side of the launcher's published KB view:
   `httpDiscovery` (polls the Browser origin's `DISCOVERY_URL_PATH` with ETag/304),
   `textDiscovery` (bring-your-own IO — the sdk never imports `fs`), and

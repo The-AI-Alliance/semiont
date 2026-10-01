@@ -181,7 +181,7 @@ describe('UI signal wrappers', () => {
 
   // ── SDK-REMOTE-SIGNALS P2: the beckon wire drives ───────────────────────
   // These drive OTHER participants (the guided-tour moves) and resolve with
-  // the subscriber count from /bus/emit (`-1` = unknown; ITransport.emit).
+  // the subscriber count from /bus/emit (absent when unknown; ITransport.emit).
 
   describe('beckon.openResource (wire drive)', () => {
     it('emits browse:resource-open over the TRANSPORT and resolves the subscriber count', async () => {

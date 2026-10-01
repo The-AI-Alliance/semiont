@@ -1,0 +1,25 @@
+{
+  "about": "creating a job resolves with the id the dispatcher gave it, and a job the dispatcher refuses fails with that refusal rather than passing in silence",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; docs/protocol/JOBS.md § job:create; specs/src/bus/registry.json operations",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["job:create"]}},
+    {"driver": "open", "with": {"channels": ["job:create-failed", "job:created"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["job:create-failed", "job:created"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "job:create", "payload": {"jobType": "generation", "params": {"title": "A generated page"}}, "timeoutMs": 10000}, "as": "job1"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:create", "payload": {"jobType": "generation", "params": {"title": "A generated page"}}, "correlationId": {"$var": "jobCid1"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:created", "correlationId": {"$var": "jobCid1"}, "payload": {"response": {"jobId": "job-1"}}}},
+    {"settles": "job1", "returns": {"response": {"jobId": "job-1"}}},
+
+    {"driver": "request", "with": {"operation": "job:create", "payload": {"jobType": "generation", "params": {"title": "A generated page"}}, "timeoutMs": 10000}, "as": "job2"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:create", "payload": {"jobType": "generation", "params": {"title": "A generated page"}}, "correlationId": {"$var": "jobCid2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:create-failed", "correlationId": {"$var": "jobCid2"}, "payload": {"message": "generation job:create must omit resourceId"}}},
+    {"settles": "job2", "fails": {"code": "bus.rejected"}},
+
+    {"driver": "request", "with": {"operation": "job:create", "payload": {"jobType": "generation", "params": {"title": "A generated page"}}, "timeoutMs": 10000}, "as": "job3"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "job:create", "payload": {"jobType": "generation", "params": {"title": "A generated page"}}, "correlationId": {"$var": "jobCid3"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "job:create-failed", "correlationId": {"$var": "jobCid3"}, "payload": {"message": "No subscriber for frame:entity-types-requested: the service that answers it is not connected", "code": "peer-unavailable"}}},
+    {"settles": "job3", "fails": {"code": "bus.peer-unavailable"}}
+  ]
+}

@@ -14,6 +14,7 @@ import type {
 import type { ITransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
+import { JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
@@ -25,6 +26,7 @@ export class MarkNamespace implements IMarkNamespace {
   constructor(
     private readonly transport: ITransport,
     private readonly bus: EventBus,
+    private readonly timing: JobFollowTiming = {},
   ) {}
 
   async annotation(input: CreateAnnotationInput): Promise<{ annotationId: AnnotationId }> {
@@ -93,8 +95,6 @@ export class MarkNamespace implements IMarkNamespace {
   assist(resourceId: ResourceId, motivation: Motivation, options: MarkAssistOptions): StreamObservable<MarkAssistEvent> {
     return new StreamObservable<MarkAssistEvent>((subscriber) => {
       let done = false;
-      let pollTimer: ReturnType<typeof setTimeout> | null = null;
-      let pollInterval: ReturnType<typeof setInterval> | null = null;
 
       // `job:report-progress`, `job:complete`, and `job:fail` all reach us
       // on the always-on global bridge — the worker dual-emits the
@@ -107,63 +107,46 @@ export class MarkNamespace implements IMarkNamespace {
       // and dropped in-flight `browse.*` results in the reconnect gap. See
       // Link 1 in .plans/SEMIONT-BUG-browse-annotations.md.
 
+      const poll = new JobStatusPoll(
+        this.transport,
+        (status) => {
+          if (done) return;
+          if (status.status === 'complete') {
+            cleanup();
+            // The `complete` event the stream did not carry, from the status.
+            subscriber.next({
+              kind: 'complete',
+              data: {
+                jobId: status.jobId,
+                jobType: status.type,
+                resourceId: resourceId as string,
+                // A job completed without a result is stored with an empty
+                // one; the job:complete this stands for carried none.
+                ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
+              },
+            });
+            subscriber.complete();
+          } else if (status.status === 'failed') {
+            cleanup();
+            subscriber.error(new Error(status.error ?? 'Job failed'));
+          }
+        },
+        this.timing,
+      );
+
       const cleanup = () => {
         done = true;
-        if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+        poll.stop();
       };
 
-      const resetPollTimer = (jobId: string) => {
-        if (pollTimer) clearTimeout(pollTimer);
-        if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
-        pollTimer = setTimeout(() => {
-          if (done) return;
-          pollInterval = setInterval(() => {
-            if (done) return;
-            busRequest(
-              this.transport, 'job:status-requested', { jobId },
-            ).then((status) => {
-                if (done) return;
-                if (status.status === 'complete') {
-                  cleanup();
-                  // Synthesize a `complete` event from polled status.
-                  subscriber.next({
-                    kind: 'complete',
-                    data: {
-                      jobId,
-                      jobType: (status.type ?? 'annotation') as components['schemas']['JobType'],
-                      resourceId: resourceId as string,
-                      // A job completed without a result is stored with an empty
-                      // one; the job:complete this stands for carried none.
-                      ...(isReportedJobResult(status.result) ? { result: status.result } : {}),
-                    },
-                  });
-                  subscriber.complete();
-                } else if (status.status === 'failed') {
-                  cleanup();
-                  subscriber.error(new Error(status.error ?? 'Job failed'));
-                }
-              })
-              .catch(() => {});
-          }, 5_000);
-        }, 10_000);
-      };
-
-      // Subscribe to the unified job lifecycle filtered by the jobId
-      // we're about to be assigned. Safe to subscribe before the job
-      // exists: early events for an unknown jobId simply never arrive,
-      // and the `activeJobId` guard on the filter keeps each Observable
-      // isolated to its own job.
+      // Subscribe to the unified job lifecycle before the job exists:
+      // `JobFrames` holds what arrives until the job's id is known, and
+      // delivers only this job's.
       let activeJobId: string | null = null;
-      const progress$ = this.bus.on('job:report-progress').pipe(
-        filter((e) => e.jobId === activeJobId),
-      );
-      const complete$ = this.bus.on('job:complete').pipe(
-        filter((e) => e.jobId === activeJobId),
-      );
-      const fail$ = this.bus.on('job:fail').pipe(
-        filter((e) => e.jobId === activeJobId),
-      );
+      const frames = new JobFrames(this.bus);
+      const progress$ = frames.of('job:report-progress');
+      const complete$ = frames.of('job:complete');
+      const fail$ = frames.of('job:fail');
 
       // Only a TERMINAL failure ends the progress stream. `takeUntil(fail$)`
       // silenced progress on a retryable failure too, so a run that recovered
@@ -173,7 +156,7 @@ export class MarkNamespace implements IMarkNamespace {
         .pipe(takeUntil(merge(complete$, terminalFail$)))
         .subscribe((e) => {
           if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
-          if (activeJobId) resetPollTimer(activeJobId);
+          if (activeJobId) poll.heard(activeJobId);
         });
 
       const completeSub = complete$.subscribe((e) => {
@@ -191,10 +174,9 @@ export class MarkNamespace implements IMarkNamespace {
         // that ends early is visible, one that never ends is not (L1).
         if (e.willRetry === true) {
           subscriber.next({ kind: 'failed', data: e });
-          // The poll fallback must not fire for the dead attempt; the retried
-          // attempt re-arms it on its first progress frame.
-          if (pollTimer) { clearTimeout(pollTimer); pollTimer = null; }
-          if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+          // The status poll must not fire for the dead attempt; the retried
+          // attempt starts it again on its first progress frame.
+          poll.stop();
           return;
         }
         cleanup();
@@ -205,7 +187,8 @@ export class MarkNamespace implements IMarkNamespace {
         .then(({ jobId }) => {
           if (jobId && !done) {
             activeJobId = jobId;
-            resetPollTimer(jobId);
+            poll.heard(jobId);
+            frames.started(jobId);
           }
         })
         .catch((error) => {

@@ -1,19 +1,17 @@
 /**
- * workerBusOverEventBus Tests (WEAVER-ISOLATION P2)
- *
- * The in-process BusRequestPrimitive shim over the core EventBus — the "in-process
- * bus shim" the smelter's fan-in anticipated. Lets any BusRequestPrimitive consumer
- * (WeaverActorStateUnit today) run inside the gateway unchanged.
+ * asBusRequestPrimitive — the in-process `BusRequestPrimitive` over the core
+ * EventBus. `busRequest` callers inside the process and the actor fan-ins
+ * (`weaverFanIn`, the smelter's) both run on it.
  */
 
 import { describe, it, expect } from 'vitest';
 import { EventBus } from '@semiont/core';
-import { workerBusOverEventBus } from '../worker-bus-local';
+import { asBusRequestPrimitive } from '../bus-request-local';
 
-describe('workerBusOverEventBus', () => {
-  it('on$ delivers what the EventBus carries, verbatim', () => {
+describe('asBusRequestPrimitive', () => {
+  it('stream delivers what the EventBus carries, verbatim', () => {
     const eventBus = new EventBus();
-    const bus = workerBusOverEventBus(eventBus);
+    const bus = asBusRequestPrimitive(eventBus);
 
     const seen: unknown[] = [];
     bus.stream('mark:added').subscribe((e) => seen.push(e));
@@ -27,7 +25,7 @@ describe('workerBusOverEventBus', () => {
 
   it('emit lands on EventBus subscribers', async () => {
     const eventBus = new EventBus();
-    const bus = workerBusOverEventBus(eventBus);
+    const bus = asBusRequestPrimitive(eventBus);
 
     const seen: unknown[] = [];
     eventBus.on('weave:applied').subscribe((e) => seen.push(e));
@@ -35,6 +33,22 @@ describe('workerBusOverEventBus', () => {
     await bus.emit('weave:applied', { resourceId: 'r1', sequenceNumber: 4 });
 
     expect(seen).toEqual([{ resourceId: 'r1', sequenceNumber: 4 }]);
+  });
+
+  // `emit` returns a promise, so a failure is a rejection. The Weaver's
+  // `weave:applied` signal is fire-and-forget with a `.catch` attached
+  // (weaver.ts), and the bus under it can be destroyed first at teardown: a
+  // synchronous throw would escape that `.catch` into the event handler.
+  it('emit on a destroyed bus rejects; it never throws', async () => {
+    const eventBus = new EventBus();
+    const bus = asBusRequestPrimitive(eventBus);
+    eventBus.destroy();
+
+    let emitted: Promise<unknown> | undefined;
+    expect(() => {
+      emitted = bus.emit('weave:applied', { resourceId: 'r1', sequenceNumber: 4 });
+    }).not.toThrow();
+    await expect(emitted).rejects.toThrow(/destroyed bus/);
   });
 
   // RED (CLIENT-SUBSCRIPTION-MANIFEST P1, D1) — every transport ANSWERS.
@@ -48,7 +62,7 @@ describe('workerBusOverEventBus', () => {
   // on the implementation rather than on the truth.
   it('answers isSubscribed for every channel — an in-process bus delivers them all', () => {
     const eventBus = new EventBus();
-    const bus = workerBusOverEventBus(eventBus);
+    const bus = asBusRequestPrimitive(eventBus);
 
     expect(bus.isSubscribed('job:queued')).toBe(true);
     expect(bus.isSubscribed('mark:added')).toBe(true);
@@ -56,7 +70,7 @@ describe('workerBusOverEventBus', () => {
 
   it('streams any channel — nothing is outside a set that has no bound', () => {
     const eventBus = new EventBus();
-    const bus = workerBusOverEventBus(eventBus);
+    const bus = asBusRequestPrimitive(eventBus);
 
     const seen: unknown[] = [];
     expect(() => bus.stream('job:queued').subscribe((e) => seen.push(e))).not.toThrow();

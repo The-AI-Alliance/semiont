@@ -1,0 +1,22 @@
+{
+  "about": "a frame with no identity of its own that is published while the stream is down is lost: the stream that reopens does not carry it, and the client delivers what came before and after",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes",
+  "steps": [
+    {"let": {"lost": "ann-published-while-down"}},
+    {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+    {"driver": "listen", "with": {"channel": "beckon:sparkle"}},
+    {"backend": "emit", "with": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}}}},
+    {"frame": "beckon:sparkle", "is": {"payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
+
+    {"backend": "down"},
+    {"state": "reconnecting"},
+    {"backend": "emit", "with": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "lost"}}}},
+    {"backend": "up"},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}, "at": "live"},
+    {"state": "open"},
+    {"backend": "emit", "with": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a2"}}}},
+    {"frame": "beckon:sparkle", "is": {"payload": {"annotationId": {"$var": "a2"}, "_userId": {"$var": "participant"}}}}
+  ]
+}

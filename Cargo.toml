@@ -11,6 +11,7 @@ members = [
     "packages/codegen-rust",
     "packages/core-rust",
     "packages/http-transport-rust",
+    "packages/http-transport-rust/conformance",
     "packages/observability-rust",
     "packages/sdk-rust",
 ]
@@ -32,7 +33,9 @@ base64 = "0.23.1"
 bytes = "1.12.1"
 chrono = { version = "0.4.45", default-features = false }
 futures = "0.3.34"
+futures-core = "0.3.34"
 http-body = "1.1.0"
+http-body-util = "0.1.5"
 hyper = "1.11.1"
 hyper-util = "0.1.21"
 jsonschema = { version = "0.58.1", default-features = false }
@@ -42,6 +45,7 @@ opentelemetry_sdk = { version = "0.33.0", default-features = false }
 opentelemetry-otlp = { version = "0.33.0", default-features = false }
 opentelemetry-stdout = { version = "0.33.0", default-features = false }
 percent-encoding = "2.3.2"
+proptest = { version = "1.11.0", default-features = false, features = ["std"] }
 reqwest = { version = "0.13.5", default-features = false }
 rustls = { version = "0.23.45", default-features = false }
 serde = "1.0.229"
@@ -50,6 +54,7 @@ socket2 = "0.6.5"
 tikv-jemalloc-ctl = "0.7.0"
 tikv-jemallocator = "0.7.0"
 tokio = "1.53.1"
+tokio-stream = { version = "0.1.19", default-features = false }
 tower = "0.5.3"
 uuid = "1.26.1"
 

@@ -1,0 +1,209 @@
+{
+  "$comment": "AUTHORITY for what a Semiont client asks again for, and when. A client's live queries answer from a cache (packages/sdk/docs/CACHE-SEMANTICS.md); this table says what each event on the bus, and the reopening of a dropped stream, does to it. `queries` names the live queries: the operation each one `asks`, and what one is kept `per` (a resource, an annotation, a set of filters; absent, the knowledge base has one). `refresh` has a row per trigger: `on` is a channel of specs/src/bus/registry.json, or `reopened`, the stream open again after a drop (never after a handoff, which misses nothing). A row `refetches` queries (asks again, keeping the value shown meanwhile), `writes` those whose new value the event itself carries, and `removes` those whose entity the event says is gone, which then fail as `bus.not-found`. `reach` says which keys: `subject`, the resource the event names and, of that resource's annotations, the one it names, or each the client holds when it names none; or `held`, every key the client holds. `when` splits a channel whose events come two ways: `enriched` with the annotation's new value, `unenriched` without. A client acts only on keys it holds (B20). TypeScript: scripts/spec/generate-cache-refresh.mjs writes packages/core/src/generated/cache-refresh.ts. tests/conformance/sdk builds a live case from every row.",
+  "queries": [
+    {
+      "name": "resource",
+      "per": "resource",
+      "asks": "browse:resource-requested",
+      "docs": "A resource's description."
+    },
+    {
+      "name": "annotations",
+      "per": "resource",
+      "asks": "browse:annotations-requested",
+      "docs": "The annotations of a resource."
+    },
+    {
+      "name": "annotation",
+      "per": "annotation",
+      "asks": "browse:annotation-requested",
+      "docs": "One annotation."
+    },
+    {
+      "name": "events",
+      "per": "resource",
+      "asks": "browse:events-requested",
+      "docs": "The recorded history of a resource."
+    },
+    {
+      "name": "referencedBy",
+      "per": "resource",
+      "asks": "browse:referenced-by-requested",
+      "docs": "The annotations elsewhere that refer to a resource."
+    },
+    {
+      "name": "resources",
+      "per": "filters",
+      "asks": "browse:resources-requested",
+      "docs": "A list of resources, one per set of filters asked for. It is a query's answer, kept fresh by what every client hears and by the events of the resources whose scope the client holds, and by nothing else: a resource archived, unarchived or retagged elsewhere, by someone else, does not refresh it."
+    },
+    {
+      "name": "entityTypes",
+      "asks": "browse:entity-types-requested",
+      "docs": "The knowledge base's entity types."
+    },
+    {
+      "name": "tagSchemas",
+      "asks": "browse:tag-schemas-requested",
+      "docs": "The knowledge base's tag schemas."
+    },
+    {
+      "name": "agents",
+      "asks": "browse:agents-requested",
+      "docs": "The collaborator directory, joined with the limits each inference key holder reports: asking again asks every `<flow>:limits-requested` operation of the registry again too."
+    }
+  ],
+  "refresh": [
+    {
+      "on": "reopened",
+      "reach": "held",
+      "refetches": [
+        "resources",
+        "resource",
+        "entityTypes",
+        "tagSchemas",
+        "agents"
+      ],
+      "docs": "The stream is open again after a drop. Events every client hears carry no position, so the ones published meanwhile are lost and nothing replays them: the client asks again for everything they feed. What a resource's own scope feeds needs nothing here: its events are replayed from where the client left off, or `bus:resume-gap` says they could not be."
+    },
+    {
+      "on": "bus:resume-gap",
+      "refetches": [
+        "annotations",
+        "annotation",
+        "resource",
+        "events",
+        "referencedBy"
+      ],
+      "docs": "The gateway could not replay what a scope missed: everything held of that resource, and of its annotations, is asked for again."
+    },
+    {
+      "on": "mark:added",
+      "refetches": [
+        "annotations",
+        "events"
+      ],
+      "docs": "An annotation was added to the resource."
+    },
+    {
+      "on": "mark:removed",
+      "refetches": [
+        "annotations",
+        "events"
+      ],
+      "removes": [
+        "annotation"
+      ],
+      "docs": "An annotation was removed from the resource."
+    },
+    {
+      "on": "mark:delete-ok",
+      "removes": [
+        "annotation"
+      ],
+      "docs": "The reply to this client's own deletion: the annotation is gone whether or not the client holds the scope that would tell it so."
+    },
+    {
+      "on": "mark:body-updated",
+      "when": "enriched",
+      "writes": [
+        "annotations",
+        "annotation"
+      ],
+      "refetches": [
+        "events"
+      ],
+      "docs": "An annotation's body changed, and the event carries the annotation as it now is."
+    },
+    {
+      "on": "mark:body-updated",
+      "when": "unenriched",
+      "refetches": [
+        "annotations",
+        "annotation",
+        "events"
+      ],
+      "docs": "An annotation's body changed, and the event could not say what it now is."
+    },
+    {
+      "on": "mark:entity-tag-added",
+      "refetches": [
+        "annotations",
+        "resource",
+        "events"
+      ],
+      "docs": "An entity tag was added to the resource."
+    },
+    {
+      "on": "mark:entity-tag-removed",
+      "refetches": [
+        "annotations",
+        "resource",
+        "events"
+      ],
+      "docs": "An entity tag was removed from the resource."
+    },
+    {
+      "on": "mark:archived",
+      "refetches": [
+        "resource",
+        "resources"
+      ],
+      "docs": "The resource was archived, which its description states and lists filter on."
+    },
+    {
+      "on": "mark:unarchived",
+      "refetches": [
+        "resource",
+        "resources"
+      ],
+      "docs": "The resource was unarchived."
+    },
+    {
+      "on": "yield:created",
+      "refetches": [
+        "resource",
+        "resources"
+      ],
+      "docs": "A resource was created."
+    },
+    {
+      "on": "yield:updated",
+      "refetches": [
+        "resource",
+        "resources"
+      ],
+      "docs": "A resource was updated."
+    },
+    {
+      "on": "yield:cloned",
+      "refetches": [
+        "resource",
+        "resources"
+      ],
+      "docs": "A resource was created as a clone."
+    },
+    {
+      "on": "yield:moved",
+      "refetches": [
+        "resource",
+        "resources"
+      ],
+      "docs": "A resource was renamed or moved."
+    },
+    {
+      "on": "frame:entity-type-added",
+      "refetches": [
+        "entityTypes"
+      ],
+      "docs": "An entity type was added to the knowledge base."
+    },
+    {
+      "on": "frame:tag-schema-added",
+      "refetches": [
+        "tagSchemas"
+      ],
+      "docs": "A tag schema was added to the knowledge base."
+    }
+  ]
+}

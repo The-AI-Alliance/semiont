@@ -609,7 +609,11 @@ testing the transport contract itself.
 Deterministic time: pass `busTimeoutMs` (e.g. `40`) when a test drives the cache's
 retry/exhaustion path through timeouts. The cache's own breadcrumbs
 (`[cache RETRY]`, `[cache IDLE]`) landing on `console.warn` are your proof the real
-path ran.
+path ran. `invalidationWindowMs` is the same kind of knob for B19's window: a test that
+sends a key two events passes a small value, and does not wait a second for the refetch the
+window owes. `jobSilenceMs` and `jobStatusPollMs` are the same for a followed job: how long it
+may be silent before `mark.assist` or `yield.fromContext` asks for its status, and how often
+after that.
 
 ---
 

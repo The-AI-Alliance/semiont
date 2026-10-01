@@ -208,37 +208,7 @@ describe('Unified Stream Integration (Phase 8b)', () => {
     expect(isOriginator).toBe(true);
   });
 
-  // ── Test 3: replay-window-exceeded signal ─────────────────────────────
-
-  it('replay-window-exceeded emits when gap exceeds the cap', async () => {
-    const rId = resourceId('8b-replay');
-    const received: any[] = [];
-
-    const sub = eventBus.on('replay-window-exceeded').subscribe((e) => {
-      received.push(e);
-    });
-
-    // Simulate the gateway emitting replay-window-exceeded
-    // (In production this is emitted by the events-stream route when
-    // Last-Event-ID is older than REPLAY_WINDOW_CAP)
-    eventBus.emit('replay-window-exceeded', {
-      resourceId: String(rId),
-      lastEventId: 5,
-      missedCount: 150,
-      cap: 100,
-      message: 'Replay window exceeded: 150 events missed (cap: 100)',
-    });
-
-    await new Promise((r) => setTimeout(r, 10));
-    sub.unsubscribe();
-
-    expect(received).toHaveLength(1);
-    expect(received[0].resourceId).toBe(String(rId));
-    expect(received[0].missedCount).toBe(150);
-    expect(received[0].cap).toBe(100);
-  });
-
-  // ── Test 4: event ordering guarantee ──────────────────────────────────
+  // ── Test 3: event ordering guarantee ──────────────────────────────────
 
   it('appendEvent materializes view before publishing to scoped bus', async () => {
     const rId = resourceId('8b-ordering');

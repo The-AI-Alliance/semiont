@@ -1,0 +1,20 @@
+{
+  "description": "The payload of `gather:failed`: a CommandError that names the annotation whose context could not be gathered.",
+  "allOf": [
+    {
+      "$ref": "./CommandError.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "annotationId": {
+          "type": "string",
+          "description": "The annotation the gather was asked for."
+        }
+      },
+      "required": [
+        "annotationId"
+      ]
+    }
+  ]
+}

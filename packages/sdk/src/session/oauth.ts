@@ -9,16 +9,23 @@
 
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import {
+  REFRESH_RETRY,
   RETRY_RULES,
   baseUrl,
   isObject,
   isString,
   retryWithBackoff,
-  type RetryPolicy,
 } from '@semiont/core';
 import type { HttpEndpoint } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
+import { sha256 } from './sha256';
 import { getStoredSession, kbGatewayUrl, setStoredSession } from './storage';
+
+// All of `crypto` this module may use: what a browser gives every page.
+// `crypto.subtle` and `crypto.randomUUID` exist only in a secure context, and
+// a sign-in has to work from an origin that is not one, so reaching for either
+// here does not compile.
+declare const crypto: { getRandomValues<T extends ArrayBufferView>(array: T): T };
 
 /** The Browser's registration at every issuer: authorization code with PKCE. */
 export const BROWSER_CLIENT_ID = 'semiont-browser';
@@ -129,9 +136,8 @@ function randomUrlSafe(bytes: number): string {
 }
 
 /** RFC 7636 §4.2: BASE64URL(SHA-256(verifier)). */
-export async function codeChallenge(verifier: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
-  return base64url(new Uint8Array(digest));
+export function codeChallenge(verifier: string): string {
+  return base64url(sha256(new TextEncoder().encode(verifier)));
 }
 
 // ---------- Authorization code with PKCE (a browser) ----------
@@ -188,7 +194,7 @@ export async function beginAuthorization(opts: BeginAuthorizationOptions, pendin
   url.searchParams.set('redirect_uri', opts.redirectUri);
   url.searchParams.set('scope', SCOPE);
   url.searchParams.set('state', state);
-  url.searchParams.set('code_challenge', await codeChallenge(verifier));
+  url.searchParams.set('code_challenge', codeChallenge(verifier));
   url.searchParams.set('code_challenge_method', 'S256');
   return url.toString();
 }
@@ -319,16 +325,6 @@ export async function refreshAtIssuer(tokenEndpoint: string, clientId: string, r
   });
   return { access: tokens.access, refresh: tokens.refresh ?? refreshToken };
 }
-
-/**
- * How hard to try before a renewal is declared unrenewable
- * (REFRESH-FAILURE-TRANSIENT-VS-TERMINAL P0.2). Four attempts with ceilings of
- * 0.5 s, 1 s, 2 s — long enough to ride out a gateway restart or a rolling
- * deploy, short enough that a user with no connectivity waits seconds rather
- * than a minute before being told. Not `STARTUP_FETCH_RETRY`: that one is sized
- * for a cold stack, and a refresh rides an already-running one.
- */
-const REFRESH_RETRY: RetryPolicy = { attempts: 4, initialDelayMs: 500, maxDelayMs: 4_000 };
 
 /**
  * Renew a stored session at its issuer and persist the rotation.

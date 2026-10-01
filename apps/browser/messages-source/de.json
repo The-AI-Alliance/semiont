@@ -206,7 +206,8 @@
     "connectedToOther": "Verbunden mit {{actual}}, nicht mit {{expected}}.",
     "identityCheckFailed": "Angemeldet, aber die Identitätsprüfung konnte diese Wissensbasis nicht erreichen.",
     "identityNotReported": "Angemeldet, aber diese Wissensbasis hat keine Identität gemeldet.",
-    "lastReadAt": "Stand: {{time}}"
+    "lastReadAt": "Stand: {{time}}",
+    "answeringInstead": "Unter dieser Adresse antwortet {{name}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Keine Wissensbasen",

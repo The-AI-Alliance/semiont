@@ -1,0 +1,13 @@
+{
+  "about": "a request made of a client that has been closed fails as closed, and nothing is sent",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; specs/src/errors/codes.json bus.closed",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "close"},
+    {"state": "closed"},
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 2000}, "fails": {"code": "bus.closed"}}
+  ]
+}

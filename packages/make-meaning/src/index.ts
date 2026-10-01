@@ -56,7 +56,7 @@ export type { CreateResourceResult } from './stower';
 export { Browser } from './browser';
 export { CloneTokenManager } from './clone-token-manager';
 
-// Smelter — event-to-vector pipeline plus its domain-event fan-in state unit.
+// Smelter — event-to-vector pipeline plus its domain-event fan-in.
 // `smelter-main` (the standalone container entry point) wires the two together;
 // both are exported for callers that want to run the pipeline on top of their
 // own `BusRequestPrimitive`.
@@ -69,11 +69,10 @@ export {
   type SmelterInput,
 } from './smelter';
 export {
-  createSmelterActorStateUnit,
-  type SmelterActorStateUnit,
-  type SmelterActorStateUnitOptions,
+  smelterFanIn,
+  type SmelterFanIn,
   type SmelterEvent,
-} from './smelter-actor-state-unit';
+} from './smelter-fan-in';
 
 // Annotation operations
 export { AnnotationOperations } from './annotation-operations';

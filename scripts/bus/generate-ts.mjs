@@ -3,8 +3,9 @@
 // specs/src/bus/registry.json.
 //
 //   packages/core/src/bus-protocol.ts        (EventMap + CHANNEL_SCHEMAS)
+//   packages/core/src/persisted-events.ts    (the persisted-event catalog)
 //   packages/core/src/bus-operations.ts      (BUS_OPERATIONS)
-//   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/delivery)
+//   packages/core/src/bus-classification.ts  (CHANNEL_ATTRS — recorded/direction/writes/delivery)
 //   packages/core-rust/src/bus-classification.json (the same attributes, for the Rust services)
 //
 // Byte-identical output is the CUTOVER PROOF: regenerate over the committed
@@ -12,6 +13,7 @@
 // faithful" a demonstration rather than a claim. Run with --check to diff
 // without writing (the CI drift gate).
 
+import { deliveryClasses } from './delivery.mjs';
 import { validateRegistry, validateRegistryFormat } from './validate-registry.mjs';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -20,6 +22,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const REGISTRY = resolve(ROOT, 'specs/src/bus/registry.json');
 const PROTOCOL = resolve(ROOT, 'packages/core/src/bus-protocol.ts');
+const PERSISTED = resolve(ROOT, 'packages/core/src/persisted-events.ts');
 const BRIDGED = resolve(ROOT, 'packages/core/src/bridged-channels.ts');
 const OPERATIONS = resolve(ROOT, 'packages/core/src/bus-operations.ts');
 const CLASSIFICATION = resolve(ROOT, 'packages/core/src/bus-classification.ts');
@@ -55,7 +58,8 @@ const BANNER = `// ⚠ GENERATED FILE — do not edit.
 // Go counterpart: node scripts/bus/generate-go.mjs → packages/sdk-go/bus
 //
 // Payload schemas themselves live in the OpenAPI components; the registry
-// names which one each channel carries. Add or change a channel THERE.
+// names which one each channel carries, and every payload type here is
+// derived from that. Add or change a channel THERE.
 
 `;
 
@@ -81,12 +85,41 @@ function channelOr(ch, where) {
   return c;
 }
 
+/** The TypeScript type of a channel's payload, DERIVED from its shape. The
+ *  registry states the payload once, in a form every language reads; this is
+ *  that statement in TypeScript, never a second one to keep in step. */
+const schemaType = (name) => `components['schemas']['${name}']`;
+function payloadType(c) {
+  switch (c.shape) {
+    case 'schema':
+      return schemaType(c.schema);
+    case 'envelope':
+      return `{ response: ${schemaType(c.schema)} }`;
+    case 'storedEvent':
+      return `${c.enriched === true ? 'EnrichedEvent' : 'StoredEvent'}<EventOfType<'${c.event}'>>`;
+    case 'void':
+      return 'void';
+    case 'empty':
+      return 'Record<string, never>';
+    default:
+      throw new Error(`registry: "${c.channel}" has no payload type for shape ${JSON.stringify(c.shape)}`);
+  }
+}
+/** A refinement, held to the type it narrows: `Refines` (event-base.ts) checks
+ *  the constraint where it is used, so a refinement that is not a narrowing
+ *  fails to compile on its own line. */
+const refined = (c, type) => (c.tsRefinement === undefined ? type : `Refines<${type}, ${c.tsRefinement}>`);
+
+/** A refined channel is typed by its refinement. A stored event's refinement
+ *  narrows its PAYLOAD, in the persisted-event catalog, not the channel. */
+const channelType = (c) => (c.shape === 'storedEvent' ? payloadType(c) : refined(c, payloadType(c)));
+
 const eventMapLines = emitLines(
   reg.channelOrder.eventMap.map((ch) => {
     const c = channelOr(ch, 'eventMap');
     return { ...c, lead: c.docs.lead, trailing: c.docs.trailing };
   }),
-  (e) => `  '${e.channel}': ${e.ts};${e.trailing ? ` ${e.trailing}` : ''}`,
+  (e) => `  '${e.channel}': ${channelType(e)};${e.trailing ? ` ${e.trailing}` : ''}`,
 );
 
 const schemaLines = emitLines(
@@ -150,6 +183,67 @@ const protocol =
   '  [K in EventName]: typeof CHANNEL_SCHEMAS[K] extends null ? never : K\n' +
   '}[EventName];\n';
 
+// ── persisted-events.ts ────────────────────────────────────────────────
+// The catalog is the registry's stored-event channels, in their order: the
+// payload each names, and the `system` flag of the ones that belong to no
+// resource. It was a hand-written type with a hand-written runtime list
+// beside it and a compile-time check that the two agreed.
+const stored = reg.channels.filter((c) => c.shape === 'storedEvent');
+const persisted =
+  BANNER +
+  `/**
+ * Persisted Events
+ *
+ * The event types that get appended to the JSONL event log, each with the
+ * component schema of its payload. The PersistedEvent union derives from this
+ * catalog.
+ */
+
+import type { components } from './types';
+import type { AnnotationId, ResourceId } from './identifiers';
+import type { Annotation } from './annotation-types';
+import type { EventBase, Refines } from './event-base';
+
+/**
+ * Each persisted event type and the payload it carries. A \`Refines\` entry
+ * narrows the schema's type to this layer's branded one, so consumers read
+ * \`payload.annotation.id\` as \`AnnotationId\` without an upcast at every seam.
+ */
+type PersistedEventCatalog = {
+` +
+  stored.map((c) => `  '${c.event}': ${refined(c, schemaType(c.payload))};`).join('\n') +
+  `
+};
+
+/** System event types — persisted events that have no resourceId. */
+type SystemEventType = ` +
+  stored.filter((c) => c.system === true).map((c) => `'${c.event}'`).join(' | ') +
+  `;
+
+/** Extract the concrete persisted event type for a given type string. */
+export type EventOfType<K extends keyof PersistedEventCatalog> =
+  K extends SystemEventType
+    ? EventBase & { type: K; payload: PersistedEventCatalog[K] }
+    : EventBase & { type: K; resourceId: ResourceId; payload: PersistedEventCatalog[K] };
+
+/** The union of all persisted event types. Discriminated on \`type\`. */
+export type PersistedEvent = {
+  [K in keyof PersistedEventCatalog]: EventOfType<K>
+}[keyof PersistedEventCatalog];
+
+export type PersistedEventType = PersistedEvent['type'];
+
+/** Every persisted event type, for code that enumerates them at runtime. */
+export const PERSISTED_EVENT_TYPES = [
+` +
+  stored.map((c) => `  '${c.event}',`).join('\n') +
+  `
+] as const satisfies readonly PersistedEventType[];
+
+/** Input type for appendEvent — PersistedEvent without id/timestamp (assigned at persistence time). */
+export type EventInput = Omit<PersistedEvent, 'id' | 'timestamp'>;
+`;
+
 // ── bus-operations.ts ──────────────────────────────────────────────────
 const opsLines = emitLines(
   reg.operations.map((o) => ({ ...o, lead: o.docs.lead, trailing: o.docs.trailing })),
@@ -194,31 +288,16 @@ const bridged =
   '\n] as const satisfies readonly EventName[];\n';
 
 // ── bus-classification.ts ──────────────────────────────────────────────
-// BUS-ROUTING-DECLARED D3/P1: three orthogonal attributes per channel,
-// derived from fields the registry already has. NOT one enum — recorded and
-// delivered are independent facts, and delivery exists only for the fan-in
-// set. The gateway's local partitions (CORRELATED_CHANNELS,
-// PROGRESS_CHANNELS) are consumers of this, not siblings.
+// Attributes per channel, each derived from fields the registry already has.
+// NOT one enum: recorded, direction and delivery are independent facts.
+// `delivery` is the channel's delivery class (delivery.mjs), present on every
+// channel that crosses the wire.
 const requestSet = new Set(reg.operations.map((o) => o.request));
-const deliveryOf = new Map();
-const setDelivery = (ch, d) => {
-  const prior = deliveryOf.get(ch);
-  if (prior && prior !== d) {
-    throw new Error(`registry: channel "${ch}" classified as both ${prior} and ${d}`);
-  }
-  deliveryOf.set(ch, d);
-};
-for (const o of reg.operations) {
-  setDelivery(o.result, 'correlated');
-  setDelivery(o.failure, 'correlated');
-}
-// `delivery` describes the OPERATION-reply modes only, and there is one:
-// 'correlated'. It carried two others that are gone for the same reason —
-// 'broadcast' restated `audience: everyone`, and 'streaming' had a single
-// declared member that nothing ever emitted (2026-09-17). Who receives a frame
-// is the audience axis; delivery is how a REPLY is matched to its request.
+const deliveryOf = deliveryClasses(reg);
+/** The channels of an operation's replies, which are what makes a channel inbound when it has no audience. */
+const replySet = new Set(reg.operations.flatMap((o) => [o.result, o.failure]));
 for (const ch of requestSet) {
-  if (deliveryOf.has(ch)) throw new Error(`registry: "${ch}" is both a request and a delivered channel`);
+  if (replySet.has(ch)) throw new Error(`registry: "${ch}" is both a request and a reply`);
 }
 
 // Direction is DECLARED, never defaulted. The old fallthrough ("not a
@@ -254,7 +333,7 @@ const attrs = reg.channelOrder.eventMap.map((ch) => {
   const audienceOf = new Set([...reg.audience.everyone, ...reg.audience.scoped, ...reg.audience.declared]);
   const direction =
     requestSet.has(ch) || commandSet.has(ch) ? 'outbound'
-    : delivery || audienceOf.has(ch) ? 'inbound'
+    : replySet.has(ch) || audienceOf.has(ch) ? 'inbound'
     : inProcessSet.has(ch) ? 'in-process'
     : (() => {
         throw new Error(
@@ -299,13 +378,25 @@ const classification =
  *  the wire at all. */
 export type ChannelDirection = 'outbound' | 'inbound' | 'in-process';
 
-/** How an INBOUND channel is delivered: owner-addressed to the client whose
- *  request minted the correlationId. ONLY an operation's replies carry this —
- *  who receives a frame is the audience axis. Two sibling values are gone for
- *  the same reason: 'broadcast' restated audience everyone with no consumer
- *  (WIRE-CROSSING-MODEL P1), and 'streaming' had one declared member that
- *  nothing ever emitted (2026-09-17). Absence is a decision, not a gap. */
-export type ChannelDelivery = 'correlated';
+/**
+ * A channel's delivery class: what a subscriber is promised about a frame on
+ * it when its stream drops, or is handed to another. The promise comes from
+ * the frame's identity (docs/protocol/TRANSPORT-CONTRACT.md § Delivery).
+ *
+ *   positioned — a recorded event delivered on its resource's scope. Its id
+ *                is its place in that resource's record: a subscriber that
+ *                names the last one it holds is sent what it missed.
+ *   correlated — the reply to a claimed request, routed to the client that
+ *                asked. Its id is the request's: it is recognised when it
+ *                arrives twice, and sent again while it is retained.
+ *   passing    — every other frame. Nothing replays it.
+ *
+ * Derived from the registry's axes, never declared: an operation's replies
+ * are correlated; a recorded event whose audience is \`scoped\` is positioned;
+ * everything else that crosses the wire is passing. Who RECEIVES a frame is
+ * the audience axis, and a different question.
+ */
+export type ChannelDelivery = 'positioned' | 'correlated' | 'passing';
 
 export interface ChannelAttrs {
   /** In PERSISTED_EVENT_TYPES — lands in the event log, the system of record. */
@@ -314,6 +405,7 @@ export interface ChannelAttrs {
 ` +
   reg.effect.doc.replace(/^/gm, '  ') + `
   readonly writes?: boolean;
+  /** Absent exactly when the channel never crosses the wire (\`in-process\`). */
   readonly delivery?: ChannelDelivery;
 }
 
@@ -338,6 +430,7 @@ export const channelWrites = (channel: string): boolean => BY_CHANNEL.get(channe
 
 const outputs = [
   [PROTOCOL, protocol],
+  [PERSISTED, persisted],
   [OPERATIONS, operations],
   [BRIDGED, bridged],
   [CLASSIFICATION, classification],

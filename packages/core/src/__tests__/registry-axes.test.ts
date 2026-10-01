@@ -34,11 +34,11 @@ void require;
 function baseRegistry() {
   return {
     channels: [
-      { channel: 'demo:requested', shape: 'schema', validate: 'DemoRequest' },
-      { channel: 'demo:result', shape: 'schema', validate: 'DemoResult' },
-      { channel: 'demo:failed', shape: 'schema', validate: 'CommandError' },
-      { channel: 'demo:happened', shape: 'schema', validate: 'DemoEvent' },
-      { channel: 'demo:internal', shape: 'schema', validate: 'DemoInternal' },
+      { channel: 'demo:requested', shape: 'schema', schema: 'DemoRequest', validate: 'DemoRequest' },
+      { channel: 'demo:result', shape: 'schema', schema: 'DemoResult', validate: 'DemoResult' },
+      { channel: 'demo:failed', shape: 'schema', schema: 'CommandError', validate: 'CommandError' },
+      { channel: 'demo:happened', shape: 'schema', schema: 'DemoEvent', validate: 'DemoEvent' },
+      { channel: 'demo:internal', shape: 'schema', schema: 'DemoInternal', validate: 'DemoInternal' },
     ],
     operations: [{ request: 'demo:requested', result: 'demo:result', failure: 'demo:failed' }],
     kind: { doc: [], command: [] as string[], event: ['demo:happened'] as string[] },
@@ -117,7 +117,7 @@ describe('registry axes — a channel declares HOW it crosses, or refuses to gen
     // expressible would leave it untested: a directive for one handler,
     // broadcast to every browser.
     const reg = baseRegistry();
-    reg.channels.push({ channel: 'demo:do-it', shape: 'schema', validate: 'DemoCommand' });
+    reg.channels.push({ channel: 'demo:do-it', shape: 'schema', schema: 'DemoCommand', validate: 'DemoCommand' });
     reg.kind.command = ['demo:do-it'];
     reg.audience.everyone = [...reg.audience.everyone, 'demo:do-it'];
     expect(complains(reg, 'demo:do-it')).toBe(true);
@@ -153,4 +153,111 @@ describe('registry axes — a channel declares HOW it crosses, or refuses to gen
     ).toBe(true);
   });
 
+});
+
+/**
+ * A channel states its payload in a form every language can read: a `shape`,
+ * and the component schema or stored event that shape names. The registry used
+ * to carry the TypeScript type of every channel as a `ts` string, and for 34
+ * `custom` channels that string was the only statement there was, so no other
+ * SDK could type them.
+ */
+describe('registry payloads — stated by shape, never as a TypeScript string', () => {
+  /** The base registry with one more in-process channel, as given. */
+  function withChannel(entry: Record<string, unknown>) {
+    const reg = baseRegistry();
+    return {
+      ...reg,
+      channels: [...reg.channels, { channel: 'demo:extra', ...entry }],
+      inProcess: { doc: [], channels: [...reg.inProcess.channels, 'demo:extra'] },
+    };
+  }
+
+  test('accepts each of the five shapes', () => {
+    for (const entry of [
+      { shape: 'schema', schema: 'DemoExtra', validate: null },
+      { shape: 'schema', schema: 'DemoExtra', validate: null, tsRefinement: 'DemoExtraRefined' },
+      { shape: 'envelope', schema: 'DemoExtra', validate: null },
+      { shape: 'void', validate: null },
+      { shape: 'empty', validate: null },
+    ]) {
+      expect(problemsFor(withChannel(entry)), JSON.stringify(entry)).toBe('');
+    }
+    const stored = baseRegistry();
+    const reg = {
+      ...stored,
+      channels: [
+        ...stored.channels,
+        { channel: 'demo:stored', shape: 'storedEvent', event: 'demo:stored', payload: 'DemoStoredPayload', validate: null },
+        { channel: 'demo:system', shape: 'storedEvent', event: 'demo:system', payload: 'DemoSystemPayload', system: true, validate: null },
+        {
+          channel: 'demo:branded',
+          shape: 'storedEvent',
+          event: 'demo:branded',
+          payload: 'DemoBrandedPayload',
+          validate: null,
+          tsRefinement: "components['schemas']['DemoBrandedPayload'] & { id: DemoId }",
+        },
+      ],
+      inProcess: { doc: [], channels: [...stored.inProcess.channels, 'demo:stored', 'demo:system', 'demo:branded'] },
+    };
+    expect(problemsFor(reg)).toBe('');
+  });
+
+  test('refuses the custom shape — a payload only TypeScript can read', () => {
+    expect(complains(withChannel({ shape: 'custom', validate: null }), 'has shape "custom"')).toBe(true);
+  });
+
+  test('refuses a ts string — the TypeScript type is derived', () => {
+    const reg = withChannel({ shape: 'schema', schema: 'DemoExtra', validate: null, ts: "components['schemas']['DemoExtra']" });
+    expect(complains(reg, 'carries a ts string')).toBe(true);
+  });
+
+  test('refuses a schema-carrying shape that names no schema', () => {
+    expect(complains(withChannel({ shape: 'schema', validate: null }), 'must name its schema')).toBe(true);
+    expect(complains(withChannel({ shape: 'envelope', validate: null }), 'must name its schema')).toBe(true);
+  });
+
+  test('refuses a schema on a shape that carries none', () => {
+    expect(complains(withChannel({ shape: 'void', schema: 'DemoExtra', validate: null }), 'names no schema')).toBe(true);
+    expect(complains(withChannel({ shape: 'empty', schema: 'DemoExtra', validate: null }), 'names no schema')).toBe(true);
+  });
+
+  test('refuses a refinement with no schema to narrow', () => {
+    const reg = withChannel({ shape: 'empty', validate: null, tsRefinement: 'Whatever' });
+    expect(complains(reg, 'a refinement narrows a schema')).toBe(true);
+  });
+
+  test('refuses a channel that carries one schema and validates against another', () => {
+    const reg = withChannel({ shape: 'schema', schema: 'DemoExtra', validate: 'DemoOther' });
+    expect(complains(reg, 'one channel, one schema')).toBe(true);
+  });
+
+  test('refuses a validate schema on a channel that carries no schema', () => {
+    const reg = withChannel({ shape: 'empty', validate: 'DemoExtra' });
+    expect(complains(reg, 'only a channel that carries a schema can be validated')).toBe(true);
+  });
+
+  test('refuses a stored event published on a channel other than its own type', () => {
+    const reg = withChannel({ shape: 'storedEvent', event: 'demo:other', payload: 'DemoPayload', validate: null });
+    expect(complains(reg, 'published on the channel of its own type')).toBe(true);
+  });
+
+  // Which payload belongs to which event was a hand-written TypeScript
+  // catalog, so no other language could type a stored event.
+  test('refuses a stored event that names no payload schema', () => {
+    const reg = withChannel({ shape: 'storedEvent', event: 'demo:extra', validate: null });
+    expect(complains(reg, 'must name its payload schema')).toBe(true);
+  });
+
+  test('refuses a payload on a channel that is not a stored event', () => {
+    const reg = withChannel({ shape: 'schema', schema: 'DemoExtra', payload: 'DemoExtra', validate: null });
+    expect(complains(reg, 'names no payload')).toBe(true);
+  });
+
+  test('refuses the system flag anywhere but on a stored event, and as anything but true', () => {
+    expect(complains(withChannel({ shape: 'empty', system: true, validate: null }), 'only a stored event can carry it')).toBe(true);
+    const reg = withChannel({ shape: 'storedEvent', event: 'demo:extra', payload: 'DemoPayload', system: false, validate: null });
+    expect(complains(reg, 'it is a flag (true or absent)')).toBe(true);
+  });
 });

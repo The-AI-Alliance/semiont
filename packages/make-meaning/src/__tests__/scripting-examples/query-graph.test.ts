@@ -25,8 +25,7 @@ const PROD_TIMING: WeaverTiming = {
   burstWindowMs: 50, maxBatchSize: 500, idleTimeoutMs: 200,
   drainTimeoutMs: 30_000, drainPollMs: 25, drainStallPolls: 40, checkpointFlushMs: 5_000,
 };
-import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../../weaver-actor-state-unit';
-import { workerBusOverEventBus } from '../../worker-bus-local';
+import { weaverFanIn } from '../../weaver-fan-in';
 import { asBusRequestPrimitive } from '../../bus-request-local';
 import { FileWeaverCheckpoint } from '../../weaver-checkpoint';
 import { promises as fs } from 'fs';
@@ -67,7 +66,6 @@ describe('Scripting Example: Query Graph Database', () => {
   let makeMeaning: Awaited<ReturnType<typeof startMakeMeaning>>;
   let eventBus: EventBus;
   let weaver: Weaver;
-  let weaverUnit: WeaverActorStateUnit;
 
   async function create(
     opts: { name: string; content: Buffer; format: SupportedMediaType; language?: string },
@@ -114,19 +112,18 @@ describe('Scripting Example: Query Graph Database', () => {
     // of the graph stack). A hermetic test that wants projection wires one
     // directly against the service's own graph instance and bus — exactly
     // what weaver-main does in a deployment.
-    const workerBus = workerBusOverEventBus(eventBus);
-    weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
+    const bus = asBusRequestPrimitive(eventBus);
+    const fanIn = weaverFanIn(bus);
     weaver = new Weaver(
       makeMeaning.knowledgeSystem.kb.graph,
-      weaverUnit.events$,
-      weaverUnit.rebuilds$,
-      asBusRequestPrimitive(eventBus),
+      fanIn.events$,
+      fanIn.rebuilds$,
+      bus,
       new FileWeaverCheckpoint(join(testDir, 'weaver-checkpoint.json')),
       PROD_TIMING,
       mockLogger,
     );
     await weaver.initialize();
-    weaverUnit.start();
   });
 
   afterEach(async () => {
@@ -134,7 +131,6 @@ describe('Scripting Example: Query Graph Database', () => {
     if (weaver) {
       await weaver.stop();
     }
-    weaverUnit?.dispose();
 
     // Stop service
     if (makeMeaning) {

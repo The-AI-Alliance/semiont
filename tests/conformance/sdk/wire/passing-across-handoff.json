@@ -1,0 +1,18 @@
+{
+  "about": "a frame with no identity of its own that is published while a changed subscription is handed from the old stream to the new is carried by both, each under an id of its own, and the client delivers it twice: nothing says the two are one. The connection stays open throughout",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Delivering a frame once; specs/src/client/timing.json lingerMs",
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:sparkle"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 5000}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [], "pendingReplies": []}, "as": "old"},
+    {"state": "open"},
+    {"driver": "listen", "with": {"channel": "beckon:sparkle"}},
+    {"driver": "subscribe-resource", "with": {"resource": {"$var": "r1"}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:sparkle"], "scoped": [{"scope": {"$var": "r1"}, "channels": {"$var": "resourceScopedChannels"}}], "pendingReplies": []}, "at": "live", "as": "new"},
+    {"backend": "emit", "with": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}}}},
+    {"carried": "old", "is": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
+    {"carried": "new", "is": {"channel": "beckon:sparkle", "payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
+    {"frame": "beckon:sparkle", "is": {"payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
+    {"frame": "beckon:sparkle", "is": {"payload": {"annotationId": {"$var": "a1"}, "_userId": {"$var": "participant"}}}},
+    {"stays": "open"}
+  ]
+}

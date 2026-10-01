@@ -1,0 +1,28 @@
+{
+  "about": "while a changed subscription is handed from the old stream to the new, both carry a reply and the client delivers it once",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § The three classes; docs/protocol/TRANSPORT-HTTP.md § Abort discipline, § Delivering a frame once; specs/src/client/timing.json lingerMs",
+  "steps": [
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}, "as": "old"},
+    {"state": "open"},
+    {"driver": "listen", "with": {"channel": "browse:resource-result"}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid"}, "clientId": {"$var": "clientId"}}},
+    {"driver": "subscribe-resource", "with": {"resource": {"$var": "r1"}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "at": "live", "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [{"scope": {"$var": "r1"}, "channels": {"$var": "resourceScopedChannels"}}], "pendingReplies": [{"$var": "cid"}]}, "as": "new"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "cid"}, "payload": {"response": {"$var": "response"}}}},
+    {"carried": "old", "is": {"channel": "browse:resource-result", "payload": {"$var": "_"}, "correlationId": {"$var": "cid"}}},
+    {"carried": "new", "is": {"channel": "browse:resource-result", "payload": {"$var": "_"}, "correlationId": {"$var": "cid"}}},
+    {"settles": "asked", "returns": {"response": {"$var": "response"}}},
+    {"frame": "browse:resource-result", "is": {"payload": {"$var": "_"}, "correlationId": {"$var": "cid"}}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "again"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid2"}, "clientId": {"$var": "clientId"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "cid2"}, "payload": {"response": {"$var": "response"}}}},
+    {"settles": "again", "returns": {"response": {"$var": "response"}}},
+    {"frame": "browse:resource-result", "is": {"payload": {"$var": "_"}, "correlationId": {"$var": "cid2"}}}
+  ]
+}

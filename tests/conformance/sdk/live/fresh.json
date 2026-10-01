@@ -1,0 +1,30 @@
+{
+  "about": "a one-shot read always asks: it costs a request though the key has a value, gives its observers the new value too, shares one request with a read made alongside it, and when it fails says so, once, to its caller alone",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md § Two consumption paths, B14 boundary 1",
+  "tier": "parity",
+  "steps": [
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
+    {"driver": "fresh", "with": {"query": {"query": "resource", "resource": {"$var": "r1"}}}, "as": "x"},
+    {"driver": "fresh", "with": {"query": {"query": "resource", "resource": {"$var": "r1"}}}, "as": "y"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"settles": "x", "returns": {"value": {"$var": "two"}}},
+    {"settles": "y", "returns": {"value": {"$var": "two"}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "two"}}},
+
+    {"driver": "fresh", "with": {"query": {"query": "resource", "resource": {"$var": "r1"}}}, "as": "z"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f3"},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "f3"}, "payload": {"message": "it went wrong"}}},
+    {"settles": "z", "fails": {"code": "bus.rejected"}},
+    {"quiet": 300},
+    {"holds": "a", "state": {"status": "ready", "value": {"$var": "two"}}}
+  ]
+}

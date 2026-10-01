@@ -35,7 +35,7 @@ Three framings hold the SDK's surface together. Skim them once and the per-names
 | `StreamObservable<T>` | plain verb (`mark.assist`, `gather.annotation`) | long-running progress streams — `await` for the final value, `.subscribe(...)` for every emit |
 | `CacheObservable<T>` | plain noun (`browse.resource`, `browse.annotations`) | live queries — `.subscribe(...)` for `CacheState` emissions (`pending`/`ready`/`failed`, kept live), `.fresh()` for an explicit one-shot fetch |
 | `void` | imperative or progressive verb (`beckon.hover`, `mark.changeShape`) | collaboration signals — fire-and-forget onto the bus, observed by other participants |
-| `Promise<number>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count (`-1` = unknown), so a driver can tell an empty room from a full one |
+| `Promise<number \| undefined>` | imperative verb aimed at other participants (`beckon.openResource`, `beckon.sparkleAll`) | wire drives — beckon every other participant's viewer; resolves with the `/bus/emit` subscriber count, or `undefined` when the gateway cannot count, so a driver can tell an empty room from a full one |
 
 Streams and uploads are thenable, so `await` works without learning RxJS. Live queries are deliberately NOT thenable — the one-shot network read is always spelled `.fresh()`, and subscribing yields typed states rather than `T | undefined`. Full design in [REACTIVE-MODEL.md](./REACTIVE-MODEL.md).
 
@@ -447,9 +447,9 @@ semiont.match.search(resourceId, referenceId, gatheredContext, {
 ## Beckon
 
 Attention coordination, with two audiences the return type states. Local signals (`void`)
-are this viewer's own fan-out. Wire drives (`Promise<number>`) beckon every **other**
-participant — the guided-tour moves — and resolve with the subscriber count (`-1` =
-unknown), so a driver can tell an empty room from a full one.
+are this viewer's own fan-out. Wire drives (`Promise<number | undefined>`) beckon every
+**other** participant — the guided-tour moves — and resolve with the subscriber count, or
+`undefined` when the gateway cannot count, so a driver can tell an empty room from a full one.
 
 ```typescript
 // Wire drives — every other participant's viewer
@@ -563,23 +563,26 @@ Scopes COMPOSE (multi-resource scope, 2026-07-29): one connection holds every ob
 resource's scope simultaneously — N mounted viewers on N resources are all
 fully live, each ref-counted and released independently.
 
-For HTTP, the underlying connection auto-reconnects (fixed retry interval,
-with a `degraded` state signal after ~3 s of reconnecting). Reconnects are
-make-before-break and cheap on the caches: the client resumes each scope
-from its persisted-event watermark, the server replays only what was missed,
-and outstanding `busRequest` replies are re-requested from the server's
-retention buffer (`pendingReplies`) — blanket invalidation happens only when
-the server signals `bus:resume-gap`. See
+For HTTP, the underlying connection auto-reconnects (backing off between
+attempts, with a `degraded` state signal after ~3 s of reconnecting). A
+changed subscription is handed to a new stream make-before-break, with the
+state `open` throughout and nothing missed. After a drop the client resumes
+each scope from its persisted-event watermark, the server replays only what
+was missed (or signals `bus:resume-gap`, and the scope's caches are asked for
+again), outstanding `busRequest` replies are re-requested from the server's
+retention buffer (`pendingReplies`), and the caches fed by events with no
+watermark — lists of resources, resources, entity types, tag schemas, the
+collaborator directory — are asked for again. See
 [TRANSPORT-HTTP.md](../../../docs/protocol/TRANSPORT-HTTP.md) for the wire
 contract.
 
 ### Worker / actor adapters
 
-Worker-side adapters live with their domain and consume the transport-neutral `WorkerBus` interface that `@semiont/sdk` exports. `createJobClaimAdapter` is in `@semiont/jobs` (internal to its worker process, not exported from the package root); `createSmelterActorStateUnit` is in `@semiont/make-meaning`. `WorkerBus` is `BusRequestPrimitive` plus one method: `stream(channel)`, `emit(channel, payload)`, `state$`, and an optional `addChannels(...)` — the only thing an SSE connection needs that an in-process bus does not. Both are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. (`stream` was `on$` until 0.5.x; renaming it is what let the adapter that existed only to rename it be deleted.) The HTTP `ActorStateUnit` from `@semiont/http-transport` satisfies it structurally; an in-process worker can wrap an `EventBus` in a small shim. Inside the `@semiont/jobs` worker process, the adapter reaches for the HTTP actor like this:
+Worker-side adapters live with their domain and consume `BusRequestPrimitive`, the transport-neutral bus interface that `@semiont/core` exports. `createJobClaimAdapter` is exported by `@semiont/jobs`; `smelterFanIn` by `@semiont/make-meaning`. The primitive has six members: `emit(channel, payload, envelope?)`; `stream(channel)` and `frames(channel)`, the payload and envelope views of a channel; `state$`; `trackReply(correlationId)`; and `isSubscribed(channel)`. `emit`, `stream` and `frames` are typed by the channel name, so the payload comes from `EventMap[channel]` rather than from a type argument a caller supplies. The HTTP `ActorStateUnit` from `@semiont/http-transport` extends it; in-process code gets one from an `EventBus` with `asBusRequestPrimitive` (`@semiont/make-meaning`). A worker hands the adapter the HTTP actor like this:
 
 ```typescript no-check
 import type { HttpTransport } from '@semiont/sdk';
-import { createJobClaimAdapter } from './job-claim-adapter.js';
+import { createJobClaimAdapter } from '@semiont/jobs';
 
 // session.client.transport is the bus-shaped ITransport. For HTTP-backed
 // workers, narrow to HttpTransport to access the underlying ActorStateUnit.
@@ -591,7 +594,7 @@ const adapter = createJobClaimAdapter({
 adapter.start();
 ```
 
-The cast names the seam: today only HTTP workers exist. The adapter itself is transport-neutral — when an in-process worker emerges, it builds its own `WorkerBus` shim and the cast goes away.
+The cast names the seam: today only HTTP workers exist. The adapter itself is transport-neutral — an in-process worker would pass its own `BusRequestPrimitive`, and the cast goes away.
 
 ## Debugging the bus
 
@@ -624,12 +627,12 @@ import type { ConnectionState } from '@semiont/core';
 const httpTransport = session.client.transport as HttpTransport;
 
 httpTransport.state$.subscribe((state: ConnectionState) => {
-  // 'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'closed'
+  // 'initial' | 'connecting' | 'open' | 'reconnecting' | 'degraded' | 'unauthenticated' | 'closed'
   logger.info('transport state', { state });
 });
 ```
 
-`degraded` is the threshold to escalate — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a brief mount-churn cycle. `closed` is terminal (`stop()` / `dispose()` was called).
+`degraded` is the threshold to escalate — it means the SSE has been reconnecting for >`DEGRADED_THRESHOLD_MS` and isn't a blip. `closed` is terminal (`stop()` / `dispose()` was called).
 
 **Worker-specific gotcha.** A job-claim adapter widens the SSE channel set on `start()` to include `job:queued` and the other channels it needs. If your worker is silently doing nothing, the most common cause is `adapter.start()` not being called — `SEMIONT_BUS_LOG=1` makes this immediately visible (no `RECV job:queued` lines).
 

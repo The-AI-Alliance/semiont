@@ -206,7 +206,8 @@
     "connectedToOther": "Connesso a {{actual}}, non {{expected}}.",
     "identityCheckFailed": "Accesso effettuato, ma il controllo dell'identità non è riuscito a raggiungere questa base di conoscenza.",
     "identityNotReported": "Accesso effettuato, ma questa base di conoscenza non ha riportato un'identità.",
-    "lastReadAt": "Aggiornato al {{time}}"
+    "lastReadAt": "Aggiornato al {{time}}",
+    "answeringInstead": "{{name}} risponde a questo indirizzo"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Nessuna base di conoscenza",

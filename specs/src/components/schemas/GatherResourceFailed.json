@@ -1,0 +1,20 @@
+{
+  "description": "The payload of `gather:resource-failed`: a CommandError that names the resource whose context could not be gathered.",
+  "allOf": [
+    {
+      "$ref": "./CommandError.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "resourceId": {
+          "type": "string",
+          "description": "The resource the gather was asked for."
+        }
+      },
+      "required": [
+        "resourceId"
+      ]
+    }
+  ]
+}

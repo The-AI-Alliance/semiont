@@ -4,7 +4,7 @@
  * waits for it, so a caller that times out and reconnects still finds it.
  */
 import { describe, expect, it } from 'vitest';
-import { BUS_REQUEST_TIMEOUT_MS } from '../bus-request';
+import { BUS_REQUEST_TIMEOUT_MS } from '../generated/client-timing';
 import { operationLimits } from '../openapi';
 
 describe('protocol limits', () => {

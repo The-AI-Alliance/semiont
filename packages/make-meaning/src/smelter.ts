@@ -2,7 +2,7 @@
  * Smelter — event-to-vector pipeline for the standalone smelter worker.
  *
  * Consumes the smelter-relevant domain events surfaced by
- * `SmelterActorStateUnit.events$`, reads resource content via the injected
+ * `smelterFanIn(bus).events$`, reads resource content via the injected
  * `ContentReads` (in the fleet, the Archivist's byte route — the stored
  * bytes, untouched), chunks and embeds it via the configured
  * EmbeddingProvider, and indexes vectors into the VectorStore (Qdrant).
@@ -51,7 +51,7 @@ import { busRequest, type BusRequestPrimitive } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { partitionByType } from './batch-utils';
 import { browseAllResources, type RESOURCES_CHANNEL } from './browse-resources';
-import type { SmelterEvent } from './smelter-actor-state-unit';
+import type { SmelterEvent } from './smelter-fan-in';
 
 /**
  * Census declarations (`SMELTER_AWAITED_OPERATIONS`, service-channels.ts) for
@@ -271,7 +271,7 @@ export class Smelter {
 
   constructor(
     private events$: Observable<SmelterEvent>,
-    /** `smelt:rebuild-anchors` commands — a separate stream, never the event mailbox (see SmelterActorStateUnit). */
+    /** `smelt:rebuild-anchors` commands — a separate stream, never the event mailbox (see smelterFanIn). */
     private rebuildAnchors$: Observable<BusFrame<EventMap['smelt:rebuild-anchors']>>,
     private vectorStore: VectorStore,
     private embeddingProvider: EmbeddingProvider,

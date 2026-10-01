@@ -1,7 +1,7 @@
 /**
  * PermissionDeniedModal Tests
  *
- * The modal renders content when `permissionDeniedAt` is non-null on the
+ * The modal renders content when `permissionDenied$` holds a notice on the
  * KnowledgeBaseSession context, and is hidden otherwise. Button clicks call
  * `acknowledgePermissionDenied()` and navigate the window or history.
  */
@@ -50,21 +50,19 @@ afterEach(() => {
 
 describe('PermissionDeniedModal', () => {
   describe('initial render', () => {
-    it('does not render modal content when permissionDeniedAt is null', () => {
+    it('does not render modal content when nothing is raised', () => {
       renderWithProviders(<PermissionDeniedModal />, {
-        browser: createTestBrowserWithSignals({
-          permissionDeniedAt: null,
-        }),
+        browser: createTestBrowserWithSignals(),
       });
       expect(screen.queryByText('Access Denied')).not.toBeInTheDocument();
     });
   });
 
-  describe('when permissionDeniedAt is set', () => {
+  describe('when permission-denied is raised', () => {
     it('shows modal with default message when no message provided', () => {
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDeniedAt: Date.now(),
+          permissionDenied: { message: null },
         }),
       });
 
@@ -72,11 +70,10 @@ describe('PermissionDeniedModal', () => {
       expect(screen.getByText('You do not have permission to perform this action.')).toBeInTheDocument();
     });
 
-    it('shows custom message from permissionDeniedMessage', () => {
+    it('shows custom message from the notice', () => {
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDeniedAt: Date.now(),
-          permissionDeniedMessage: 'Admin access required for this resource',
+          permissionDenied: { message: 'Admin access required for this resource' },
         }),
       });
 
@@ -86,7 +83,7 @@ describe('PermissionDeniedModal', () => {
     it('renders all three action buttons', () => {
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDeniedAt: Date.now(),
+          permissionDenied: { message: null },
         }),
       });
 
@@ -101,8 +98,7 @@ describe('PermissionDeniedModal', () => {
       const ack = vi.fn();
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDeniedAt: Date.now(),
-          permissionDeniedMessage: 'denied',
+          permissionDenied: { message: 'denied' },
           acknowledgePermissionDenied: ack,
         }),
       });
@@ -117,8 +113,7 @@ describe('PermissionDeniedModal', () => {
       const ack = vi.fn();
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDeniedAt: Date.now(),
-          permissionDeniedMessage: 'denied',
+          permissionDenied: { message: 'denied' },
           acknowledgePermissionDenied: ack,
         }),
       });
@@ -134,8 +129,7 @@ describe('PermissionDeniedModal', () => {
       mockLocation.pathname = '/admin/users';
       renderWithProviders(<PermissionDeniedModal />, {
         browser: createTestBrowserWithSignals({
-          permissionDeniedAt: Date.now(),
-          permissionDeniedMessage: 'denied',
+          permissionDenied: { message: 'denied' },
           acknowledgePermissionDenied: ack,
         }),
       });

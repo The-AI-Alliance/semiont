@@ -119,6 +119,16 @@ describe('JsonLdPanel Component', () => {
   });
 
   describe('Copy to clipboard', () => {
+    it('renders no copy control where the page has no Clipboard API, as on an origin that is not a secure context', () => {
+      Object.defineProperty(navigator, 'clipboard', { value: undefined, writable: true, configurable: true });
+
+      render(<JsonLdPanel resourceId={RID} />);
+
+      // A control that would fail silently is worse than none.
+      expect(screen.queryByText(/Copy/)).not.toBeInTheDocument();
+      expect(screen.getByText('JSON-LD')).toBeInTheDocument();
+    });
+
     it('copies the full graph — not the bare descriptor', async () => {
       render(<JsonLdPanel resourceId={RID} />);
       await userEvent.click(screen.getByText(/Copy/));

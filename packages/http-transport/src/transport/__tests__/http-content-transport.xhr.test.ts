@@ -5,8 +5,8 @@
  * `http-transport.http-paths.test.ts`).
  *
  * We stub `globalThis.XMLHttpRequest` with a fake that exposes the same
- * event surface (`upload.onprogress`, `onload`, `onerror`, `ontimeout`,
- * `onabort`) and lets each test drive the lifecycle deterministically.
+ * event surface (`upload.onprogress`, `onload`, `onerror`, `onabort`) and
+ * lets each test drive the lifecycle deterministically.
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -37,7 +37,6 @@ class FakeXHR {
   upload = { onprogress: null as ((e: ProgressEvent) => void) | null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  ontimeout: (() => void) | null = null;
   onabort: (() => void) | null = null;
 
   status = 0;
@@ -271,7 +270,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(err.code).toBe('unavailable');
   });
 
-  test('rejects with APIError on network failure', async () => {
+  test('rejects with APIError on network failure, classified "unavailable"', async () => {
     const { content, transport } = makeTransportAndContent();
 
     const errors: unknown[] = [];
@@ -287,12 +286,17 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
-    expect(errors).toHaveLength(1);
+    expect(err.statusText).toBe('network-error');
+    expect(err.code).toBe('unavailable');
+    expect(errors).toEqual([err]);
   });
 
   test('aborts the in-flight XHR when the AbortSignal fires', async () => {
-    const { content } = makeTransportAndContent();
+    const { content, transport } = makeTransportAndContent();
     const controller = new AbortController();
+
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
 
     const promise = content.putBinary(
       { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
@@ -308,12 +312,20 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
     expect(err.status).toBe(0);
+    expect(err.statusText).toBe('aborted');
+    // The caller cancelled: nothing was unreachable, so not `unavailable`.
+    expect(err.code).toBe('error');
+    // A cancel the caller asked for is theirs alone, not a transport error.
+    expect(errors).toEqual([]);
   });
 
   test('rejects immediately if signal is already aborted at call time', async () => {
-    const { content } = makeTransportAndContent();
+    const { content, transport } = makeTransportAndContent();
     const controller = new AbortController();
     controller.abort();
+
+    const errors: unknown[] = [];
+    transport.errors$.subscribe((e) => errors.push(e));
 
     const promise = content.putBinary(
       { name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' },
@@ -326,6 +338,10 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
 
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
+    expect(err.status).toBe(0);
+    expect(err.statusText).toBe('aborted');
+    expect(err.code).toBe('error');
+    expect(errors).toEqual([]);
   });
 
   test('falls through to ky path when neither onProgress nor signal is set', async () => {

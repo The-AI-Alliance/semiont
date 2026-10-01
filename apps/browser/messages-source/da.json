@@ -206,7 +206,8 @@
     "connectedToOther": "Forbundet til {{actual}}, ikke {{expected}}.",
     "identityCheckFailed": "Logget ind, men identitetstjekket kunne ikke nå denne videnbase.",
     "identityNotReported": "Logget ind, men denne videnbase rapporterede ingen identitet.",
-    "lastReadAt": "Pr. {{time}}"
+    "lastReadAt": "Pr. {{time}}",
+    "answeringInstead": "{{name}} svarer på denne adresse"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen videnbaser",

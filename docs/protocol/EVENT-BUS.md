@@ -54,7 +54,7 @@ Every channel is `verb:action` or `verb:action-state`. The verb is one of the ei
 | `job:` | `job:start`, `job:report-progress`, `job:complete` | Worker job lifecycle |
 | `panel:`, `tabs:`, `nav:`, `shell:` | `panel:toggle`, `nav:push` | App-shell UI events (Browser only) |
 | `settings:` | `settings:theme-changed`, `settings:locale-changed` | Browser preferences |
-| `bus:`, `stream-`, `replay-` | `bus:resume-gap`, `stream-connected` | SSE infrastructure |
+| `bus:` | `bus:resume-gap` | SSE infrastructure |
 
 State suffixes follow a small vocabulary:
 
@@ -74,9 +74,9 @@ Each channel falls into one of five payload categories. The category tells you w
 |---|---|---|---|---|
 | **Domain event** (`StoredEvent<...>`; `EnrichedEvent<...>` where the EventStore enriches) | branded TypeScript wrapper | no — handlers emit | yes | `yield:created`, `mark:added`, `job:completed` |
 | **Command** | OpenAPI schema (`components['schemas']`) | yes — `/bus/emit` | no | `yield:create`, `mark:archive`, `match:search-requested` |
-| **Result / failure** | OpenAPI schema or inline `{ response, ... }`; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
+| **Result / failure** | OpenAPI schema, wrapped as `{ response }` for some results; the `correlationId` rides the envelope | sometimes (whitelisted set) | no | `yield:create-ok`, `match:search-results`, `gather:failed` |
 | **UI signal** | OpenAPI schema or `void` | yes when schema-typed | no | `beckon:hover`, `panel:toggle`, `mark:selection-changed` |
-| **SSE infrastructure** | inline | no | no | `stream-connected`, `bus:resume-gap` |
+| **SSE infrastructure** | OpenAPI schema | no | no | `bus:resume-gap` |
 
 `CHANNEL_SCHEMAS` — declared in [the registry](../../specs/src/bus/registry.json), generated into `bus-protocol.ts` — maps every channel to its OpenAPI schema name (or `null` when validation isn't applicable — `StoredEvent` wrappers, `void` signals, compound inline types). The `/bus/emit` route reads this map and rejects payloads that don't validate.
 
@@ -230,9 +230,9 @@ The rule, by event kind:
 
 Domain events (past-tense `-ed` channels) are the only events that get appended to the event store. They're typed as `StoredEvent<EventOfType<...>>` in the EventMap rather than as OpenAPI schemas — they carry storage metadata (sequence number, stream position) on top of the domain payload.
 
-The channels the registry marks `"enriched": true` are typed `EnrichedEvent<EventOfType<...>>`: the stored event plus, at the top level, the annotation as it stands in the view, which the EventStore attaches after materializing and before publishing. Subscribers read it to update a cached annotation in place rather than refetch — `mark:body-updated`, for instance, carries only the body operations, not the annotation they produce. It is optional: enrichment declines when the view no longer holds the annotation. **The flag is the list** — `validate-registry.mjs` holds every stored event's `ts` to its shape, and the generated `ENRICHED_EVENT_TYPES` is what the enricher dispatches on, so a flag without a case fails to compile rather than silently never arriving.
+The channels the registry marks `"enriched": true` are typed `EnrichedEvent<EventOfType<...>>`: the stored event plus, at the top level, the annotation as it stands in the view, which the EventStore attaches after materializing and before publishing. Subscribers read it to update a cached annotation in place rather than refetch — `mark:body-updated`, for instance, carries only the body operations, not the annotation they produce. It is optional: enrichment declines when the view no longer holds the annotation. **The flag is the list** — the generator derives every stored event's type from its `event` and `enriched`, and the generated `ENRICHED_EVENT_TYPES` is what the enricher dispatches on, so a flag without a case fails to compile rather than silently never arriving.
 
-`PERSISTED_EVENT_TYPES` in [persisted-events.ts](../../packages/core/src/persisted-events.ts) is the list of channels the event-sourcing layer treats as durable. Adding a new domain event means adding it to that list — a `StoredEvent`-typed entry in `EventMap` that isn't in `PERSISTED_EVENT_TYPES` will fail typecheck.
+`PERSISTED_EVENT_TYPES` in [persisted-events.ts](../../packages/core/src/persisted-events.ts) is the list of channels the event-sourcing layer treats as durable. It is generated from the registry's `storedEvent` channels, so adding a domain event means adding its channel there, with the schema of its `payload`.
 
 Commands, results, and UI signals are transient. They flow across the bus, drive handlers, and disappear. Only their downstream `-ed` events get recorded.
 
@@ -347,38 +347,38 @@ they never cross the wire.
 ### The channel classification (`CHANNEL_ATTRS`)
 
 `bus-classification.ts` is a third TypeScript output of the same generator —
-one entry per channel, three orthogonal attributes read straight off registry
-facts, so a boundary that needs to reason about a channel does not re-derive
-them and cannot drift from the registry:
+one entry per channel, its attributes read straight off registry facts, so a
+boundary that needs to reason about a channel does not re-derive them and
+cannot drift from the registry:
 
 - **`recorded`** — whether the channel lands in the event log (mirrors
   `PERSISTED_EVENT_TYPES`).
 - **`direction`** — `outbound` (emitted toward the hub), `inbound` (delivered
-  from it — the fan-in set, by construction), or `in-process` (never on the
-  wire).
-- **`delivery`** — how an operation's REPLY is matched to its request, and only
-  that. One value: `correlated` (owner-addressed, keyed by `correlationId`).
-  Its absence on request, outbound and in-process channels is asserted, so it
-  is a decision rather than a gap.
+  from it), or `in-process` (never on the wire).
+- **`writes`** — on a channel that is emitted: whether emitting it changes the
+  knowledge base.
+- **`delivery`** — the channel's delivery class: what a subscriber is promised
+  about a frame on it when its stream drops, or is handed to another
+  ([TRANSPORT-CONTRACT.md § Delivery](./TRANSPORT-CONTRACT.md#delivery)).
+  `correlated` for an operation's result and failure, which reach the client
+  that asked and are sent again while retained; `positioned` for an event of
+  the record delivered on its resource's scope, which is replayed from where
+  a client left off; `passing` for every other channel that crosses the wire,
+  which nothing replays. Absent on an in-process channel, and only there.
 
-  Two sibling values are gone, for the same reason. `broadcast` restated
-  `audience: everyone` — one fact in two places, and nothing read it.
-  `streaming` classified an operation's third channel, whose frames refreshed a
-  request's liveness without being retained as the answer; it had one declared
-  member that nothing ever emitted, so every path serving it was unreachable.
-  **Who receives a frame is the `audience` axis; `delivery` is only how a reply
-  finds its request.**
+  **Who receives a frame is the `audience` axis; `delivery` is what each
+  receiver is promised.** Six channels are `recorded` and `passing` at once:
+  events of the record that every client hears, on no scope, and so with no
+  position to resume from.
 
-The three attributes are independent — a channel can be both `recorded` and
-correlated, pinned by the handful that are — and adding an operation to the
-registry classifies its reply channels with no hand edit, which is what let the
-gateway's old hand-kept `CORRELATED_CHANNELS` / `PROGRESS_CHANNELS` partitions
-be deleted (BUS-ROUTING-DECLARED P1). Consume it through `channelAttrsOf(channel)`.
+The attributes are independent, and adding an operation to the registry
+classifies its channels with no hand edit. Consume them through
+`channelAttrsOf(channel)`.
 
-**Three generated attributes, five registry axes.** `recorded`, `direction` and
-`delivery` are what `CHANNEL_ATTRS` carries. They are *derived* from what the
-registry declares: `operations`, `kind` (`command` | `event`), `audience`
-(`everyone` | `scoped` | `declared`) and `inProcess`. A channel that names no
+**Generated attributes, declared axes.** What `CHANNEL_ATTRS` carries is
+*derived* from what the registry declares: `operations`, `kind` (`command` |
+`event`), `audience` (`everyone` | `scoped` | `declared`), `inProcess`,
+`effect`, and which channels are events of the record. A channel that names no
 class refuses to generate — there is no default, because a silent fallthrough
 once classified `job:queued` as in-process and starved every worker. Declare
 the axis; read the attribute.
@@ -435,8 +435,8 @@ with the registry, naming the command to run.
 
 The compile-time discipline is strict by design. A new channel requires changes in two places (the registry and the OpenAPI schema), plus an SDK method to call it:
 
-1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload (`shape` plus the OpenAPI schema name, or `storedEvent` / `void` — a stored event that mutates an annotation also takes `"enriched": true`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree, and `validate-registry.mjs` refuses a stored event whose `ts` disagrees with its `shape`, `event` and `enriched`.
-2. **`PERSISTED_EVENT_TYPES`** (only if it's a `StoredEvent` domain event) and, for SSE delivery, the routing: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is declared **`audience: everyone`** in the registry (and one that should reach only viewers of a resource, `audience: scoped`). You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
+1. **The registry** ([`specs/src/bus/registry.json`](../../specs/src/bus/registry.json)) — add the channel with its payload: a `shape` (`schema`, `envelope`, `storedEvent`, `void` or `empty`) and the OpenAPI schema it names (`schema`, or `payload` for a stored event — one that mutates an annotation also takes `"enriched": true`, and one that belongs to no resource `"system": true`), and its `validate` entry: the schema the `/bus/emit` route enforces, or `null` for non-validated. Then run `npm run generate:bus`, which writes the `EventMap` and `CHANNEL_SCHEMAS` entries in both languages. The generated `satisfies Record<EventName, ...>` clause still fails the typecheck if the two maps disagree, and `validate-registry.mjs` refuses a payload stated any other way.
+2. **The routing**, for SSE delivery: a request/reply operation is declared as an `operations` entry in the **registry** (generated into `BUS_OPERATIONS`) (which *derives* its reply channels into `BRIDGED_CHANNELS`); a non-request/reply broadcast that should reach every client is declared **`audience: everyone`** in the registry (and one that should reach only viewers of a resource, `audience: scoped`). You never hand-edit `BRIDGED_CHANNELS` — replies are derived, and broadcasts are registry data. Each list has its own completeness check, an equality test pins the derived bridged set, and `validate-registry.mjs` refuses a broadcast entry that is really an operation's reply.
 
 Then for the OpenAPI schema:
 
@@ -450,7 +450,7 @@ And for the SDK:
 7. Add a namespace method that wraps `transport.emit(channel, ...)` or `busRequest(...)` for the new operation.
 8. Update [packages/sdk/docs/Usage.md](../../packages/sdk/docs/Usage.md) under the right verb.
 
-Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` clause and the `PERSISTED_EVENT_TYPES` exhaustiveness check make incomplete additions fail the typecheck loud and clear.
+Skipping any step is caught at build time — `CHANNEL_SCHEMAS`'s `satisfies` clause and `validate-registry.mjs` make incomplete additions fail loud and clear.
 
 ## See also
 

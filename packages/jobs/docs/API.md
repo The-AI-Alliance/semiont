@@ -30,6 +30,24 @@ const adapter = startWorkerProcess({
 | `comment-annotation` | `processCommentJob` |
 | `tag-annotation` | `processTagJob` |
 
+### `createJobClaimAdapter(options): JobClaimAdapter`
+
+The claim runtime itself is exported from the package root, with its types (`JobClaimAdapter`, `JobClaimAdapterOptions`, `ActiveJob`, `ClaimRefusal`, `WorkerVitals`), for a worker written outside this package. It takes a `BusRequestPrimitive` (`@semiont/core`) and the job types to claim:
+
+```typescript
+import { createJobClaimAdapter } from '@semiont/jobs';
+
+const adapter = createJobClaimAdapter({
+  bus: httpTransport.actor,             // HttpTransport's ActorStateUnit
+  jobTypes: ['highlight-annotation'],
+});
+adapter.activeJob$.subscribe((job) => { /* null between jobs */ });
+adapter.refused$.subscribe((refusal) => { /* a claim refused for a reason other than an empty queue */ });
+adapter.start();
+```
+
+The caller emits the lifecycle events and reports each outcome with `adapter.completeJob()` or `adapter.failJob(jobId, message)`, which pulls the next job. The [`semiont-worker` skill](../../../docs/protocol/skills/semiont-worker/SKILL.md) walks through a complete worker.
+
 ### Processors
 
 Each processor is transport-agnostic. Detection processors take `(content, inferenceClient, params, buildAnnotation, onProgress, onChunkComplete, resumeCursors?)` — `processReferenceJob` additionally takes `logger`, an `onUnitComplete` checkpoint callback and an abort `signal`, and its `onChunkComplete` is optional — and return `{ result }`. Annotations are committed per chunk through `onChunkComplete`, not returned, and no user identity reaches a processor. `processGenerationJob` takes `(inferenceClient, params, onProgress, logger)` and returns `{ content, title, format, citations, result }`. Detection logic lives in the `AnnotationDetection` class (`src/workers/annotation-detection.ts`); generation synthesis in `generateResourceFromTopic()` (`src/workers/generation/resource-generation.ts`).

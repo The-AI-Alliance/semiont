@@ -23,6 +23,8 @@
     }
   },
   "required": [
+    "scope",
+    "lastSeenId",
     "reason"
   ],
   "additionalProperties": false

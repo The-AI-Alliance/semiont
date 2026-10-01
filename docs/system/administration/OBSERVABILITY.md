@@ -36,9 +36,14 @@ headers and SSE `_trace` payload fields.
 What the Rust services export is specified, with kinds and attributes, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json):
 the gateway's own spans — `bus.dispatch:<channel>`, `sse.deliver:<channel>`,
-`content.{get,put}.server` and the `archivist.*` client spans — and the
-dispatcher's, the `bus.emit` and `bus.recv` spans its bus client makes. Each
-service's conformance suite holds it to its rows in both directions.
+`content.{get,put}.server` and the `archivist.*` client spans. What an SDK's
+transports export, in any language, is specified in
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
+the `bus.emit` and `bus.recv` spans, the `content.*` client spans, and the
+count of emits a client sends. The dispatcher reaches the bus through the Rust
+SDK, so it exports the bus rows of that table beside its own. Each service's
+conformance suite holds it to its rows in both directions, and the SDK suite
+holds each SDK to the SDK table.
 
 The `archivist.*` spans are the third hop. `content.{put,get}` and the
 gateway's `content.{put,get}.server` are a client/server pair that once covered
@@ -209,7 +214,7 @@ through the same OTLP endpoint. No extra config required — the
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.bus.emit`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (Browser, in-process, server) |
+| `semiont.bus.sent`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (Browser, in-process, server): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
 | `semiont.job.outcome`        | counter          | `job.type`, `job.outcome` (`completed` / `failed`)      | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.outcome`                               | Worker `handleJob`                            |
@@ -228,6 +233,9 @@ The gateway's and the dispatcher's metrics — the bus counters,
 `semiont.job.queue.size`, and the process and runtime gauges — are specified,
 with their instruments, attributes and attribute values, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
+The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
+`semiont.bus.emit` is the gateway's count of the emits it accepted.
 
 Additional vars:
 

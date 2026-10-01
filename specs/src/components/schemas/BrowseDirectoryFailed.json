@@ -1,0 +1,20 @@
+{
+  "description": "The payload of `browse:directory-failed`: a CommandError that names the directory that could not be read.",
+  "allOf": [
+    {
+      "$ref": "./CommandError.json"
+    },
+    {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "description": "The path the read was asked for."
+        }
+      },
+      "required": [
+        "path"
+      ]
+    }
+  ]
+}

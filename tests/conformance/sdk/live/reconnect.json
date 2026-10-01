@@ -1,0 +1,22 @@
+{
+  "about": "a stream that drops and reopens costs no request for what a scope's own events feed: they are replayed from where the client left off, and what it observes keeps its value (B13)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B13",
+  "tier": "parity",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"annotations": [], "total": 0}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": []}},
+    {"scopes": [{"$var": "r1"}]},
+    {"backend": "cut"},
+    {"state": "reconnecting"},
+    {"state": "open"},
+    {"scopes": [{"$var": "r1"}]},
+    {"quiet": 400},
+    {"holds": "a", "state": {"status": "ready", "value": []}}
+  ]
+}

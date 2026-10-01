@@ -11,7 +11,7 @@
  * - Startup reconciliation against a fake KS catalog
  *
  * Drives the pipeline with a plain RxJS Subject standing in for the
- * SmelterActorStateUnit's events$, a mock IContentTransport standing in
+ * fan-in's events$, a mock IContentTransport standing in
  * for the content store, and a fake bus serving the browse RPC channels.
  * Uses MemoryVectorStore and a mock EmbeddingProvider.
  */
@@ -44,7 +44,7 @@ import { MemoryVectorStore } from '@semiont/vectors';
 import type { EmbeddingProvider } from '@semiont/vectors';
 import type { BusRequestPrimitive, ConnectionState } from '@semiont/core';
 import { Smelter } from '../smelter';
-import { createSmelterActorStateUnit, type SmelterEvent } from '../smelter-actor-state-unit';
+import { smelterFanIn, type SmelterEvent } from '../smelter-fan-in';
 import {
   mockLogger,
   deterministicEmbed,
@@ -55,7 +55,7 @@ import {
   createMockContentTransport,
   createContentTransport,
   createFakeKsBus, memoryAnchoredStore, type Emitted,
-  createFakeWorkerBus, markRemoved,
+  createFakeBus, markRemoved,
   yieldCreated, yieldUpdated, yieldRepresentationAdded, markArchived, markUnarchived, markEntityTagAdded, markEntityTagRemoved } from './helpers/smelter-harness';
 import { NATIVE_PDF, SCANNED_PDF, TABLE_PDF } from './helpers/pdf-fixtures';
 
@@ -827,6 +827,7 @@ describe('Smelter.reconcile', () => {
       },
       // Nothing is outside this fixture's reach — the emit is what fails here.
       isSubscribed: () => true,
+      trackReply: () => () => {},
       // 'open' so the attach gate lets the emit proceed — this fixture's
       // failure mode is the emit itself throwing, not a detached stream.
       state$: new BehaviorSubject<ConnectionState>('open'),
@@ -1226,28 +1227,26 @@ describe('Smelter decisions not to index are readable', () => {
 });
 
 /**
- * Live annotation events, driven through the REAL actor.
+ * Live annotation events, driven through the REAL fan-in.
  *
  * Every other test here pushes events straight into the Smelter, which skips
- * the one seam where this bug lived: the actor turning a bus message into what
+ * the one seam where this bug lived: the fan-in turning a bus message into what
  * the Smelter reads. It wrapped the whole `StoredEvent` as its own `payload`,
  * so handlers reading `event.payload.annotationId` reached one level too
  * shallow. Removals were silent no-ops, and additions worked only because the
  * Archivist's enricher also copies the annotation to the top level.
  */
-describe('Smelter behind the real actor — live annotation events reach their handlers', () => {
+describe('Smelter behind the real fan-in — live annotation events reach their handlers', () => {
   let vectorStore: MemoryVectorStore;
-  let wire: ReturnType<typeof createFakeWorkerBus>;
+  let wire: ReturnType<typeof createFakeBus>;
   let smelter: Smelter;
 
   beforeEach(async () => {
     vectorStore = new MemoryVectorStore();
     await vectorStore.connect();
-    wire = createFakeWorkerBus();
-    const actor = createSmelterActorStateUnit({ bus: wire.bus });
-    actor.start();
+    wire = createFakeBus();
     smelter = new Smelter(
-      actor.events$,
+      smelterFanIn(wire.bus).events$,
       EMPTY,
       vectorStore,
       createMockEmbeddingProvider(),

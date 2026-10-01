@@ -104,6 +104,7 @@ export type {
   // Transport-neutral error-code vocabulary (route on `error.code`).
   TransportErrorCode,
   BusRequestErrorCode,
+  SemiontSessionErrorCode,
 } from '@semiont/core';
 export {
   // Brand-cast functions
@@ -125,7 +126,7 @@ export {
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
-export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome } from './session/semiont-browser';
+export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome, type KbReadVerdict } from './session/semiont-browser';
 export {
   BROWSER_CLIENT_ID,
   SCRIPT_CLIENT_ID,
@@ -146,7 +147,7 @@ export { IdentityUnverifiableError, type ConnectionIdentity, describeConnection 
 export type { SessionFactory, SessionFactoryOptions } from './session/session-factory';
 export { createHttpSessionFactory } from './session/http-session-factory';
 export { SessionSignals } from './session/session-signals';
-export { SemiontSessionError, type SemiontSessionErrorCode } from './session/errors';
+export { SemiontSessionError } from './session/errors';
 export { getBrowser, type GetBrowserOptions } from './session/registry';
 export {
   type SessionStorage,
@@ -185,8 +186,8 @@ export * from './state';
 // RxJS bridges — re-exported so consumers can unwrap our Observables to
 // Promises without a separate `import { firstValueFrom } from 'rxjs'`.
 // `mark.assist`, `gather.annotation`, `match.search`, `yield.fromContext`
-// all return Observables that consumers typically `lastValueFrom` to await
-// the final value, or `firstValueFrom` to grab the first non-undefined emit.
+// are awaitable as returned; the bridges are for what `.pipe(...)` gives
+// back, which is a plain Observable.
 export { firstValueFrom, lastValueFrom } from 'rxjs';
 
 // Browser ↔ launcher KB discovery (BROWSER-KB-DISCOVERY P3): the domain

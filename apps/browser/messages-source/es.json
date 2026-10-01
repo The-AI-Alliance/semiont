@@ -206,7 +206,8 @@
     "connectedToOther": "Conectado a {{actual}}, no a {{expected}}.",
     "identityCheckFailed": "Sesión iniciada, pero la verificación de identidad no pudo alcanzar esta base de conocimiento.",
     "identityNotReported": "Sesión iniciada, pero esta base de conocimiento no informó ninguna identidad.",
-    "lastReadAt": "A fecha de {{time}}"
+    "lastReadAt": "A fecha de {{time}}",
+    "answeringInstead": "{{name}} responde en esta dirección"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Sin bases de conocimiento",

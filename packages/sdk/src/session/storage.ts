@@ -13,7 +13,7 @@
  * whatever the passed-in `SessionStorage` does.
  */
 
-import { isObject, isString, uuidV4 } from '@semiont/core';
+import { MIN_REFRESH_DELAY_MS, REFRESH_BEFORE_EXP_MS, isObject, isString, uuidV4 } from '@semiont/core';
 
 import type { HttpEndpoint, KbRead, KnowledgeBase } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
@@ -31,33 +31,6 @@ export const OPEN_RESOURCES_BY_KB_KEY = 'semiont.openResourcesByKb';
  * previously active KB's resource, which the new gateway 404s.
  */
 export const LAST_VIEWED_RESOURCE_BY_KB_KEY = 'semiont.lastViewedResourceByKb';
-
-/**
- * The LARGEST margin the proactive refresh will use. A ceiling, not the
- * margin itself — see {@link refreshDelayMs}, which shrinks it to fit the
- * token when the token is short-lived.
- *
- * It was the margin outright until 2026-09-23, and that was correct for as
- * long as this client's tokens came from a gateway minting hour-long ones.
- * Keycloak's default `accessTokenLifespan` is also exactly five minutes, so
- * `exp - margin` landed on `iat` — always in the past, so the delay was always
- * zero and each refresh scheduled the next immediately. An idle signed-in page
- * issued 1418 successful `POST /token` in ten seconds.
- */
-export const REFRESH_BEFORE_EXP_MS = 5 * 60 * 1000;
-
-/**
- * The shortest the proactive refresh will ever wait.
- *
- * `Math.max(0, …)` permitted a timer scheduled for "now" that rescheduled
- * itself on arrival — a closed loop at whatever rate the event loop allowed.
- * A floor makes that structurally impossible rather than merely unlikely: even
- * an issuer minting already-expired tokens gets one attempt per interval, not
- * a storm. Ten seconds because this timer is an optimisation, never the last
- * line of defence — a 401 still drives a reactive refresh — so waiting is
- * cheap and spinning is not.
- */
-export const MIN_REFRESH_DELAY_MS = 10 * 1000;
 
 /**
  * How long to wait before proactively refreshing `token`, or `null` when it

@@ -62,7 +62,7 @@ Per-KB lifetime object. Owns:
   via `session.client.emit(...)` / `session.client.on(...)` /
   `session.client.stream(...)`.
 - `token$`, `user$` — observable auth state.
-- Modal state: `sessionExpiredAt$`, `permissionDeniedAt$` with messages.
+- Modal state: `sessionExpired$`, `permissionDenied$` and `kbIdentityConflict$`, each null until raised.
 - `refresh()` — token refresh entrypoint.
 
 The session is **not** a bus wrapper. It does not forward `emit`/`on` —

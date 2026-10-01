@@ -19,7 +19,8 @@ import type {
   components,
 } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
-import { busRequest, LIMITS_OPERATIONS } from '@semiont/core';
+import { busRequest, BusRequestError, CACHE_REFRESH, INVALIDATION_WINDOW_MS, LIMITS_OPERATIONS } from '@semiont/core';
+import type { CacheQuery, CacheRefresh, CacheRefreshTrigger, CacheRefreshWhen } from '@semiont/core';
 import { createCache, type CacheState, type Cache, type CachePersister } from '../cache';
 import { sessionStoragePersister } from '../cache-persister';
 import type { SessionStorage } from '../session/session-storage';
@@ -47,24 +48,14 @@ type ResourceListFilters = {
   entityType?: string;
 };
 
-/** Sentinel key for the singleton entity-types cache. */
-/**
- * B19 — how long bus-driven invalidations of one key fold together. The first
- * fires at once; any more inside the window become one refetch at its end.
- * Every refetch is a `browse:*` request, an emit this session's principal pays
- * for, and another principal's bulk write invalidates the keys this session
- * observes once per event: a window caps a storm at one refetch per observed
- * key per window, however fast the events come, and an isolated write is
- * still seen at once.
- */
-export const INVALIDATION_WINDOW_MS = 1_000;
-
 /**
  * B19 — per key, the first invalidation runs at once and opens a window; any
  * more inside it are owed, and run as one when it closes, which opens the next.
  */
 class InvalidationWindows {
   private readonly open = new Map<string, { owed: (() => void) | null; timer: ReturnType<typeof setTimeout> }>();
+
+  constructor(private readonly windowMs: number) {}
 
   run(key: string, invalidate: () => void): void {
     const window = this.open.get(key);
@@ -77,7 +68,7 @@ class InvalidationWindows {
       const owed = this.open.get(key)?.owed;
       this.open.delete(key);
       if (owed) this.run(key, owed);
-    }, INVALIDATION_WINDOW_MS);
+    }, this.windowMs);
     this.open.set(key, { owed: null, timer });
   }
 
@@ -88,6 +79,7 @@ class InvalidationWindows {
   }
 }
 
+/** Sentinel key for the singleton entity-types cache. */
 const ENTITY_TYPES_KEY = '_';
 
 /** Sentinel key for the singleton tag-schemas cache. */
@@ -97,6 +89,46 @@ const TAG_SCHEMAS_KEY = '_';
 const AGENTS_KEY = '_';
 
 type InferencePairLimits = components['schemas']['InferencePairLimits'];
+
+/** What a trigger names: which of a split channel's rows it is, the keys a `subject` reach acts on, and the value an enriched event carries. */
+interface RefreshSubject {
+  when?: CacheRefreshWhen;
+  resource?: ResourceId;
+  annotation?: AnnotationId;
+  written?: Annotation;
+}
+
+/** The channels specs/src/client/refresh.json has a row for. */
+type RefreshChannel = Exclude<CacheRefreshTrigger, 'reopened'>;
+
+/**
+ * What each channel's event names. What follows from it is the table's to
+ * say (`CACHE_REFRESH`), so a row added there with no entry here does not
+ * compile.
+ */
+const SUBJECT_OF: { [K in RefreshChannel]: (event: EventMap[K]) => RefreshSubject } = {
+  'bus:resume-gap': (gap) => ({ resource: makeResourceId(gap.scope) }),
+  'mark:added': (stored) => ({ resource: stored.resourceId }),
+  'mark:removed': (stored) => ({ resource: stored.resourceId, annotation: makeAnnotationId(stored.payload.annotationId) }),
+  'mark:delete-ok': (reply) => ({ annotation: makeAnnotationId(reply.response.annotationId) }),
+  'mark:body-updated': (stored) =>
+    stored.annotation
+      ? { when: 'enriched', resource: stored.resourceId, annotation: makeAnnotationId(stored.annotation.id), written: stored.annotation }
+      : { when: 'unenriched', resource: stored.resourceId, annotation: stored.payload.annotationId },
+  'mark:entity-tag-added': (stored) => ({ resource: stored.resourceId }),
+  'mark:entity-tag-removed': (stored) => ({ resource: stored.resourceId }),
+  'mark:archived': (stored) => ({ resource: stored.resourceId }),
+  'mark:unarchived': (stored) => ({ resource: stored.resourceId }),
+  // Cross-client resource refresh rides the persisted domain events, never
+  // the request replies: a `yield:*-ok` reply reaches only the client that
+  // asked, and would leave every other viewer's list stale.
+  'yield:created': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
+  'yield:updated': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
+  'yield:cloned': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
+  'yield:moved': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
+  'frame:entity-type-added': () => ({}),
+  'frame:tag-schema-added': () => ({}),
+};
 
 /** The directory with each reported model's limits on its entries. */
 function joinLimits(directory: CollaboratorEntry[], reported: InferencePairLimits[]): Collaborator[] {
@@ -178,22 +210,27 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly busSubs: Array<{ unsubscribe(): void }> = [];
 
-  private readonly invalidationWindows = new InvalidationWindows();
+  private readonly invalidationWindows: InvalidationWindows;
 
   /**
-   * B19 — the invalidations bus events ask for, each through its key's window.
-   * The public `invalidate*` methods stay immediate for direct callers.
+   * Ask again for one key, as a row of the refresh table says to. Only a key
+   * the cache knows (B20): an event about a key nothing has asked for has
+   * nothing to refresh, and refreshing it anyway cost every viewer a request
+   * per resource another principal imported. Each goes through its key's
+   * window (B19). The public `invalidate*` methods stay immediate, and fetch
+   * whatever the key holds (B8), for direct callers.
    */
-  private readonly onBus = {
-    annotations: (rId: ResourceId) => this.invalidationWindows.run(`annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
-    resource: (rId: ResourceId) => this.invalidationWindows.run(`resource/${rId}`, () => this.invalidateResourceDetail(rId)),
-    events: (rId: ResourceId) => this.invalidationWindows.run(`events/${rId}`, () => this.invalidateResourceEvents(rId)),
-    referencedBy: (rId: ResourceId) => this.invalidationWindows.run(`referenced-by/${rId}`, () => this.invalidateReferencedBy(rId)),
-    resourceLists: () => this.invalidationWindows.run('resource-lists', () => this.invalidateResourceLists()),
-    entityTypes: () => this.invalidationWindows.run('entity-types', () => this.invalidateEntityTypes()),
-    tagSchemas: () => this.invalidationWindows.run('tag-schemas', () => this.invalidateTagSchemas()),
-    agents: () => this.invalidationWindows.run('agents', () => this.invalidateAgents()),
+  private readonly refetchKey = {
+    resource: (rId: ResourceId) => this.held(this.resourceCache, rId, `resource/${rId}`, () => this.invalidateResourceDetail(rId)),
+    annotations: (rId: ResourceId) => this.held(this.annotationListCache, rId, `annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
+    annotation: (aId: AnnotationId) => this.held(this.annotationDetailCache, aId, `annotation/${aId}`, () => this.annotationDetailCache.invalidate(aId)),
+    events: (rId: ResourceId) => this.held(this.resourceEventsCache, rId, `events/${rId}`, () => this.invalidateResourceEvents(rId)),
+    referencedBy: (rId: ResourceId) => this.held(this.referencedByCache, rId, `referenced-by/${rId}`, () => this.invalidateReferencedBy(rId)),
   };
+
+  private held<K>(cache: { known(key: K): boolean }, key: K, window: string, invalidate: () => void): void {
+    if (cache.known(key)) this.invalidationWindows.run(window, invalidate);
+  }
 
   /**
    * B17-Q — the persisted caches, registered at construction, for the
@@ -209,6 +246,12 @@ export class BrowseNamespace implements IBrowseNamespace {
     options?: {
       busTimeoutMs?: number;
       /**
+       * B19's window, `invalidationWindowMs` of specs/src/client/timing.json,
+       * for a caller that must not wait it out: a test, or the conformance
+       * driver. Absent, the table's value stands.
+       */
+      invalidationWindowMs?: number;
+      /**
        * B17 — opt into cache persistence through the environment's
        * SessionStorage adapter. keyPrefix is the KB id (cache data is
        * KB-specific). Omitted = in-memory-only, today's behavior.
@@ -217,6 +260,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     },
   ) {
     this.busTimeoutMs = options?.busTimeoutMs;
+    this.invalidationWindows = new InvalidationWindows(options?.invalidationWindowMs ?? INVALIDATION_WINDOW_MS);
 
     // The opt-in table (see .plans/LOCAL-STORAGE.md): small, first-paint
     // caches persist; lists, event histories, and the collaborator
@@ -402,9 +446,8 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   // ── Live queries ────────────────────────────────────────────────────────
   //
-  // These return `CacheObservable<T>`: subscribers see `T | undefined`
-  // (with `undefined` during initial load), and `await` resolves to the
-  // first non-undefined value.
+  // These return `CacheObservable<T>`: subscribers see `CacheState<T>`
+  // (`pending` during initial load), and `.fresh()` is the one-shot read.
 
   resource(resourceId: ResourceId): CacheObservable<ResourceDescriptor> {
     return CacheObservable.from(this.withScope(resourceId, this.resourceCache.observe(resourceId)), () => this.resourceCache.fetch(resourceId));
@@ -450,8 +493,8 @@ export class BrowseNamespace implements IBrowseNamespace {
    * KB's worker/actor config, with `servesJobTypes` capabilities) and — once
    * Persons land — its members. KB-wide singleton, cached for the client's
    * lifetime; no membership-change event exists, so the only refresh triggers
-   * are `bus:resume-gap` (a gateway restart with a changed roster necessarily
-   * presents as an SSE gap) and a fresh `await` (which always fetches).
+   * are the stream reopening after a drop (a gateway restart with a changed
+   * roster presents as one) and a fresh `await` (which always fetches).
    */
   agents(): CacheObservable<Collaborator[]> {
     return CacheObservable.from(this.collaborators$, async () => {
@@ -619,7 +662,8 @@ export class BrowseNamespace implements IBrowseNamespace {
   //    other namespaces that know about specific updates) ─────────────────
   //
   //  - `invalidate*`     — SWR refetch (B7). Keeps prior value visible.
-  //  - `removeAnnotationDetail` — drops the entry (B13a: entity gone).
+  //  - `removeAnnotationDetail` — the annotation is gone: its key fails as
+  //    `bus.not-found` (B13a).
   //  - `updateAnnotationInPlace` — write-through (B13b: new value known).
 
   invalidateAnnotationList(resourceId: ResourceId): void {
@@ -627,8 +671,13 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   removeAnnotationDetail(annotationId: AnnotationId): void {
-    this.annotationDetailCache.remove(annotationId);
-    this.annotationResources.delete(annotationId);
+    // The routing hint stays: an observer arriving at the failed key asks the
+    // service (B15), and the request needs the annotation's resource.
+    if (!this.annotationDetailCache.known(annotationId)) return;
+    this.annotationDetailCache.remove(
+      annotationId,
+      new BusRequestError(`Annotation ${annotationId} was removed`, 'bus.not-found', { annotationId }),
+    );
   }
 
   invalidateResourceDetail(id: ResourceId): void {
@@ -672,20 +721,24 @@ export class BrowseNamespace implements IBrowseNamespace {
   }
 
   updateAnnotationInPlace(resourceId: ResourceId, annotation: Annotation): void {
-    // Write-through to the per-resource list cache (splicing the
-    // updated annotation into the in-memory list response).
-    const currentList = this.annotationListCache.get(resourceId);
-    if (currentList) {
-      const idx = currentList.annotations.findIndex((a) => a.id === annotation.id);
-      const nextAnnotations =
-        idx >= 0
-          ? currentList.annotations.map((a, i) => (i === idx ? annotation : a))
-          : [...currentList.annotations, annotation];
-      this.annotationListCache.set(resourceId, { ...currentList, annotations: nextAnnotations });
-    }
+    this.writeAnnotationIntoList(resourceId, annotation);
+    this.writeAnnotationDetail(resourceId, annotation);
+  }
 
-    // And to the per-annotation detail cache, so observers of
-    // `annotation(id)` see the new value without a refetch.
+  /** Write-through to the per-resource list, when the client holds it: the annotation spliced in where it was, or added. */
+  private writeAnnotationIntoList(resourceId: ResourceId, annotation: Annotation): void {
+    const currentList = this.annotationListCache.get(resourceId);
+    if (!currentList) return;
+    const idx = currentList.annotations.findIndex((a) => a.id === annotation.id);
+    const nextAnnotations =
+      idx >= 0
+        ? currentList.annotations.map((a, i) => (i === idx ? annotation : a))
+        : [...currentList.annotations, annotation];
+    this.annotationListCache.set(resourceId, { ...currentList, annotations: nextAnnotations });
+  }
+
+  /** Write-through to the annotation's own key, so its observers see the new value without a refetch. */
+  private writeAnnotationDetail(resourceId: ResourceId, annotation: Annotation): void {
     const aId = makeAnnotationId(annotation.id);
     this.annotationResources.set(aId, resourceId);
     this.annotationDetailCache.set(aId, annotation);
@@ -736,136 +789,101 @@ export class BrowseNamespace implements IBrowseNamespace {
     this.annotationListObs.clear();
   }
 
-  /**
-   * Handler shared by `mark:entity-tag-added` and `mark:entity-tag-removed`.
-   * Both events carry the same effect: the annotation list, the
-   * resource descriptor, and the event log for that resource all may
-   * now reflect different entity tagging, so invalidate all three.
-   */
-  private onEntityTagChanged = (stored: { resourceId?: ResourceId }): void => {
-    if (!stored.resourceId) return;
-    this.onBus.annotations(stored.resourceId);
-    this.onBus.resource(stored.resourceId);
-    this.onBus.events(stored.resourceId);
-  };
+  // ── What the bus, and the stream itself, do to the cache ────────────────
+  //
+  // specs/src/client/refresh.json says what each trigger does; this applies it.
 
-  /**
-   * Handler shared by `mark:archived` and `mark:unarchived`. Both
-   * change a resource's archived flag, which is stored on the resource
-   * descriptor and affects the resource-list filter.
-   */
-  private onArchiveToggled = (stored: { resourceId?: ResourceId }): void => {
-    if (!stored.resourceId) return;
-    this.onBus.resource(stored.resourceId);
-    this.onBus.resourceLists();
-  };
+  /** Apply the table's row for `trigger` to what `subject` names. */
+  private refresh(trigger: CacheRefreshTrigger, subject: RefreshSubject = {}): void {
+    const rows: readonly CacheRefresh[] = CACHE_REFRESH[trigger];
+    const row = rows.find((candidate) => candidate.when === subject.when);
+    if (!row) throw new Error(`The refresh table has no row for ${trigger}${subject.when ? ` (${subject.when})` : ''}`);
+    for (const query of row.writes) this.write(query, subject);
+    for (const query of row.removes) this.remove(query, subject);
+    for (const query of row.refetches) this.refetch(query, subject, row.reach);
+  }
 
-  /**
-   * Invalidate caches for a created/updated resource. `yield:create-ok` and
-   * `yield:update-ok` both drive this and carry the resourceId at the same path
-   * (`response.resourceId`) — both are correlation replies for busRequest.
-   */
-  private invalidateMutatedResource = (resourceId: string): void => {
-    const rId = makeResourceId(resourceId);
-    this.onBus.resource(rId);
-    this.onBus.resourceLists();
-  };
+  /** B13b: the event carries the value. */
+  private write(query: CacheQuery, { resource, written }: RefreshSubject): void {
+    if (!resource || !written) throw new Error(`An event that writes ${query} names a resource and carries the annotation`);
+    switch (query) {
+      case 'annotations':
+        return this.writeAnnotationIntoList(resource, written);
+      case 'annotation':
+        return this.writeAnnotationDetail(resource, written);
+      default:
+        throw new Error(`The refresh table writes ${query}, which no event carries a value for`);
+    }
+  }
+
+  /** B13a: the event says the entity is gone. */
+  private remove(query: CacheQuery, { annotation }: RefreshSubject): void {
+    if (query !== 'annotation') throw new Error(`The refresh table removes ${query}, which no event reports gone`);
+    if (!annotation) throw new Error('An event that removes an annotation names it');
+    this.removeAnnotationDetail(annotation);
+  }
+
+  /** B7: ask again, for the keys the row reaches, keeping what is shown meanwhile. */
+  private refetch(query: CacheQuery, subject: RefreshSubject, reach: CacheRefresh['reach']): void {
+    const resources = (cache: { keys(): ResourceId[] }): ResourceId[] =>
+      reach === 'held' ? cache.keys() : subject.resource ? [subject.resource] : [];
+    switch (query) {
+      case 'resource':
+        return resources(this.resourceCache).forEach(this.refetchKey.resource);
+      case 'annotations':
+        return resources(this.annotationListCache).forEach(this.refetchKey.annotations);
+      case 'events':
+        return resources(this.resourceEventsCache).forEach(this.refetchKey.events);
+      case 'referencedBy':
+        return resources(this.referencedByCache).forEach(this.refetchKey.referencedBy);
+      case 'annotation':
+        return this.annotationsReached(subject, reach).forEach(this.refetchKey.annotation);
+      case 'resources':
+        // Its keys are the lists the cache knows: `invalidateAll` reaches no other.
+        return this.invalidationWindows.run('resource-lists', () => this.invalidateResourceLists());
+      case 'entityTypes':
+        return this.held(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes());
+      case 'tagSchemas':
+        return this.held(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas());
+      case 'agents':
+        return this.held(this.agentsCache, AGENTS_KEY, 'agents', () => this.invalidateAgents());
+    }
+  }
+
+  /** The annotation the event names; when it names none, each one held of the resource it names. */
+  private annotationsReached({ annotation, resource }: RefreshSubject, reach: CacheRefresh['reach']): AnnotationId[] {
+    if (reach === 'held') return this.annotationDetailCache.keys();
+    if (annotation) return [annotation];
+    return [...this.annotationResources].flatMap(([held, of]) => (of === resource ? [held] : []));
+  }
+
+  /** Subscribe `channel`'s row of the refresh table to its events. */
+  private refreshOn<K extends RefreshChannel>(channel: K): void {
+    const subjectOf: (event: EventMap[K]) => RefreshSubject = SUBJECT_OF[channel];
+    this.on(channel, (event) => this.refresh(channel, subjectOf(event)));
+  }
 
   private subscribeToEvents(): void {
-    // Gap-detection contract:
-    //
-    // The server stamps persisted events on `/bus/subscribe` with
-    // `id: p-<scope>-<seq>`. The client sends the last seen id back as
-    // `Last-Event-ID` on reconnect; the server replays persisted events
-    // missed during the gap. No blanket invalidation is needed on the
-    // `reconnecting → open` state-machine transition — the usual case
-    // is a clean resume with zero missed events.
-    //
-    // The server emits a `bus:resume-gap` event when it can't cover the
-    // gap (retention window exceeded, scope mismatch, or unparseable
-    // `Last-Event-ID`). Receiving one means the client's caches for the
-    // affected scope may be stale — fall back to blanket invalidation
-    // for that scope (or all scopes, if the gap carries no scope).
-    this.on('bus:resume-gap', (event) => {
-      const gapScope = event.scope;
-      if (gapScope) {
-        const rId = gapScope as ResourceId;
-        this.onBus.annotations(rId);
-        this.onBus.resource(rId);
-        this.onBus.events(rId);
-        this.onBus.referencedBy(rId);
-      } else {
-        this.onBus.resourceLists();
-        for (const rId of this.annotationListCache.keys()) this.onBus.annotations(rId);
-        for (const rId of this.resourceCache.keys()) this.onBus.resource(rId);
-        for (const rId of this.resourceEventsCache.keys()) this.onBus.events(rId);
-        for (const rId of this.referencedByCache.keys()) this.onBus.referencedBy(rId);
-      }
-      // Entity-types, tag-schemas, and the collaborator directory are KB-wide
-      // lists — always refetch on any gap. (For the directory, a gap is its one
-      // real staleness signal: a roster change means a gateway restart, which
-      // presents as an SSE gap.)
-      this.onBus.entityTypes();
-      this.onBus.tagSchemas();
-      this.onBus.agents();
-    });
+    for (const channel of Object.keys(SUBJECT_OF) as RefreshChannel[]) this.refreshOn(channel);
 
-    this.on('mark:delete-ok', (event) => {
-      this.removeAnnotationDetail(makeAnnotationId(event.response.annotationId));
-    });
-
-    this.on('mark:added', (stored) => {
-      if (stored.resourceId) {
-        this.onBus.annotations(stored.resourceId);
-        this.onBus.events(stored.resourceId);
-      }
-    });
-
-    this.on('mark:removed', (stored) => {
-      if (stored.resourceId) {
-        this.onBus.annotations(stored.resourceId);
-        this.onBus.events(stored.resourceId);
-      }
-      this.removeAnnotationDetail(makeAnnotationId(stored.payload.annotationId));
-    });
-
-    this.on('mark:body-updated', (event) => {
-      if (event.annotation) {
-        this.updateAnnotationInPlace(event.resourceId, event.annotation);
-      } else {
-        // Unenriched: the view no longer held the annotation when the
-        // EventStore enriched this event, so there is nothing to write
-        // through. Revalidate both caches rather than keep the old body.
-        this.onBus.annotations(event.resourceId);
-        this.removeAnnotationDetail(event.payload.annotationId);
-      }
-      this.onBus.events(event.resourceId);
-    });
-
-    this.on('mark:entity-tag-added', this.onEntityTagChanged);
-    this.on('mark:entity-tag-removed', this.onEntityTagChanged);
-
-    this.on('replay-window-exceeded', (event) => {
-      if (event.resourceId) {
-        this.onBus.annotations(event.resourceId as ResourceId);
-      }
-    });
-
-    // Cross-client resource invalidation rides the PERSISTED DOMAIN EVENTS,
-    // not the request replies (CORRELATED-REPLY-ROUTING D6, the
-    // `frame:entity-type-added` precedent). A `yield:*-ok` reply reaches only
-    // the client that made the request, so using it here would have left
-    // every other viewer's list stale — and `cloned`/`moved` had no consumer
-    // at all, so a clone-persist or a rename went unnoticed everywhere.
-    this.on('yield:created', (event) => this.invalidateMutatedResource(event.resourceId));
-    this.on('yield:updated', (event) => this.invalidateMutatedResource(event.resourceId));
-    this.on('yield:cloned', (event) => this.invalidateMutatedResource(event.resourceId));
-    this.on('yield:moved', (event) => this.invalidateMutatedResource(event.resourceId));
-
-    this.on('mark:archived', this.onArchiveToggled);
-    this.on('mark:unarchived', this.onArchiveToggled);
-
-    this.on('frame:entity-type-added', () => this.onBus.entityTypes());
-    this.on('frame:tag-schema-added', () => this.onBus.tagSchemas());
+    // B13: `reopened`. The stream is `open` again having left it, which only
+    // a drop does: a subscription that changes is handed over, and the state
+    // stays `open` across it. Events with a position are replayed from where
+    // the client left off, or `bus:resume-gap` says they could not be; the
+    // rest were lost while the stream was down, and the row asks again for
+    // what they feed.
+    let opened = false;
+    let left = false;
+    this.busSubs.push(
+      this.transport.state$.subscribe((state) => {
+        if (state !== 'open') {
+          left = opened;
+          return;
+        }
+        if (left) this.refresh('reopened');
+        opened = true;
+        left = false;
+      }),
+    );
   }
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { CheckIcon, PlusIcon, ArrowRightStartOnRectangleIcon, XMarkIcon, TrashIcon } from '@heroicons/react/24/outline';
-import { defaultProtocol, isValidHostname, type KbRead, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
+import { defaultProtocol, isValidHostname, type KbRead, type KbReadVerdict, type KnowledgeBase, type KbSessionStatus } from '@semiont/sdk';
 import { usePathname } from '@/i18n/routing';
 import type { DiscoveredKB } from '@semiont/core';
 import {
@@ -281,13 +281,14 @@ export function KnowledgeBasePanel() {
   }, [knowledgeBases.length]);
 
   // Opening the panel asks the connected KB to describe itself again. Only a
-  // KB that answers this read shows its branch as current.
-  const [answeredKbId, setAnsweredKbId] = useState<string | null>(null);
+  // KB that answers this read as its entry shows its branch as current; a
+  // different KB answering is said on the row, under the name it gave itself.
+  const [activeRead, setActiveRead] = useState<{ kbId: string | null; verdict: KbReadVerdict } | null>(null);
   const activeKbId = activeKnowledgeBase?.id ?? null;
   useEffect(() => {
     let open = true;
-    void semiont.readActiveKb().then((answered) => {
-      if (open) setAnsweredKbId(answered ? activeKbId : null);
+    void semiont.readActiveKb().then((verdict) => {
+      if (open) setActiveRead({ kbId: activeKbId, verdict });
     });
     return () => { open = false; };
   }, [semiont, activeKbId]);
@@ -306,19 +307,15 @@ export function KnowledgeBasePanel() {
   // Connecting is leaving: the sign-in happens at the issuer the KB trusts,
   // and the callback page registers the KB when the user returns — with the
   // identity the KB reports, verified against what they believed they
-  // clicked (C). A registered KB at the typed address is re-authenticated
-  // rather than duplicated.
+  // clicked (C). Which entry that signs in is the KB's to decide, by the did
+  // it reports: the one registered at the address for that KB, or a new one.
   const handleAdd = async (host: string, port: number, protocol: 'http' | 'https') => {
     setAddError(null);
     setAddSubmitting(true);
-    const existing = knowledgeBases.find(
-      kb => kb.endpoint.kind === 'http' && kb.endpoint.host === host && kb.endpoint.port === port,
-    );
     try {
       const url = await semiont.beginSignIn({
         target: { kind: 'http', host, port, protocol },
         redirectUri: redirectUri(),
-        ...(existing ? { kbId: existing.id } : {}),
         ...(addForm?.expectedDid ? { expectedDid: addForm.expectedDid } : {}),
         ...(addForm?.expectedName ? { expectedName: addForm.expectedName } : {}),
       });
@@ -374,6 +371,7 @@ export function KnowledgeBasePanel() {
             const isActive = kb.id === activeKnowledgeBase?.id;
             const isReauthing = reauthKbId === kb.id;
             const managed = managedFor(kb);
+            const read = isActive && activeRead?.kbId === kb.id ? activeRead.verdict : undefined;
 
             return (
               <div key={kb.id}>
@@ -414,11 +412,22 @@ export function KnowledgeBasePanel() {
                         <>
                           <span>{`${kb.endpoint.host}:${kb.endpoint.port}`}</span>
                           {' · '}
-                          <LastReadBranch lastRead={kb.lastRead} current={isActive && answeredKbId === kb.id} t={t} locale={i18n.language} />
+                          <LastReadBranch lastRead={kb.lastRead} current={read?.kind === 'recorded'} t={t} locale={i18n.language} />
                         </>
                       )
                       : `local:${kb.endpoint.kbId}`}
                   </span>
+                  {read?.kind === 'conflict' && (
+                    // Decision 7: the KB that answered is named by what it said
+                    // of itself, never by this entry's label.
+                    <span
+                      className="semiont-panel-text-secondary"
+                      style={{ fontSize: '0.7rem', paddingLeft: '1rem', color: 'var(--semiont-color-warning-500, #eab308)', whiteSpace: 'normal' }}
+                      title={read.observedDid}
+                    >
+                      ⚠ {t('answeringInstead', { name: read.observedName || t('unknownName') })}
+                    </span>
+                  )}
                   {managed && (
                     // The repo gets its own line — vertical space over width;
                     // wrap instead of the class's nowrap-ellipsis.

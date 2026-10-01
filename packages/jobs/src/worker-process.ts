@@ -283,7 +283,7 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
   // protocol (SSE subscribe + ad-hoc channel adds). Cast to HttpTransport
   // is intentional: `LocalTransport` workers don't exist. The adapter
   // itself is transport-neutral — see `BusRequestPrimitive` in
-  // packages/sdk/src/state/lib/worker-bus.ts.
+  // `@semiont/core`.
   const httpTransport = session.client.transport as HttpTransport;
   const adapter = createJobClaimAdapter({
     bus: httpTransport.actor,

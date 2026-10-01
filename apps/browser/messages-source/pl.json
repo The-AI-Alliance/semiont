@@ -206,7 +206,8 @@
     "connectedToOther": "Połączono z {{actual}}, a nie z {{expected}}.",
     "identityCheckFailed": "Zalogowano, ale sprawdzenie tożsamości nie mogło nawiązać połączenia z tą bazą wiedzy.",
     "identityNotReported": "Zalogowano, ale ta baza wiedzy nie zgłosiła żadnej tożsamości.",
-    "lastReadAt": "Stan na {{time}}"
+    "lastReadAt": "Stan na {{time}}",
+    "answeringInstead": "Pod tym adresem odpowiada {{name}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Brak baz wiedzy",

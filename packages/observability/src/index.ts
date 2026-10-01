@@ -20,7 +20,7 @@
  *     manual propagation (e.g. attaching to a fetch header or SSE field).
  *   - `getLogTraceContext()` — active `trace_id` / `span_id` for log-line
  *     correlation.
- *   - Metric recorders (`recordBusEmit`, `recordHandlerDuration`,
+ *   - Metric recorders (`recordBusSent`, `recordHandlerDuration`,
  *     `recordJobOutcome`, `recordSubscriberConnect` / `Disconnect`,
  *     `recordInferenceUsage`) and gauge providers
  *     (`registerVectorIndexSizeProvider`, `registerFactPumpDepthProvider`).
@@ -275,7 +275,7 @@ export function materializeObservableGauges(): void {
   for (const build of waiting) build();
 }
 
-let _busEmitCounter: Counter | undefined;
+let _busSentCounter: Counter | undefined;
 let _replySuppressedCounter: Counter | undefined;
 let _resumeGapCounter: Counter | undefined;
 let _unanswerableCounter: Counter | undefined;
@@ -294,13 +294,13 @@ let _factPumpDepthGauge: ObservableGauge | undefined;
 let _factPumpDepthProvider: (() => number) | undefined;
 let _vectorIndexSizeProvider: (() => Promise<number> | number) | undefined;
 
-function busEmitCounter(): Counter {
-  if (!_busEmitCounter) {
-    _busEmitCounter = meter().createCounter('semiont.bus.emit', {
-      description: 'Bus emits by channel and scope',
+function busSentCounter(): Counter {
+  if (!_busSentCounter) {
+    _busSentCounter = meter().createCounter('semiont.bus.sent', {
+      description: 'Emits a client sent, by channel and scope',
     });
   }
-  return _busEmitCounter;
+  return _busSentCounter;
 }
 
 function handlerDurationHistogram(): Histogram {
@@ -459,9 +459,14 @@ export function registerCorrelationRegistryProvider(
   }
 }
 
-/** Increment the bus-emit counter. Called at every transport `emit` site. */
-export function recordBusEmit(channel: string, scope?: string): void {
-  busEmitCounter().add(1, {
+/**
+ * Count an emit a client sent (`semiont.bus.sent`,
+ * specs/src/sdk-telemetry/telemetry.json). Called at every transport `emit`
+ * site. Its own name, apart from `semiont.bus.emit`, the gateway's count of
+ * the emits it accepted.
+ */
+export function recordBusSent(channel: string, scope?: string): void {
+  busSentCounter().add(1, {
     'bus.channel': channel,
     ...(scope ? { 'bus.scope': scope } : {}),
   });

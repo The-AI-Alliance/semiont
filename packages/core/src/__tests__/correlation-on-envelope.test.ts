@@ -44,6 +44,7 @@ function respondingBus(): { bus: BusRequestPrimitive; seen: Array<{ correlationI
     stream: (channel) => eventBus.on(channel),
     state$: new BehaviorSubject<'open'>('open').asObservable(),
     isSubscribed: () => true,
+    trackReply: () => () => {},
   } as BusRequestPrimitive;
   return { bus, seen };
 }
@@ -89,6 +90,7 @@ describe('correlation rides the envelope', () => {
       stream: (channel) => eventBus.on(channel),
       state$: new BehaviorSubject<'open'>('open').asObservable(),
       isSubscribed: () => true,
+      trackReply: () => () => {},
     } as BusRequestPrimitive;
 
     await expect(busRequest(bus, OP, { resourceId: 'res-1' }, 120)).rejects.toMatchObject({

@@ -9,17 +9,16 @@ import { useObservable } from '../../hooks/useObservable';
  * surfaced by the session's own JWT validation or by the host's
  * error-routing path).
  *
- * Reads `sessionExpiredAt$` from the active `SessionSignals`.
+ * Reads `sessionExpired$` from the active `SessionSignals`.
  * When the user dismisses the modal, the signals instance clears the
  * flag. Modal state lives on signals (not the session itself) so
  * headless sessions (workers/CLIs) don't carry dead observables.
  */
 export function SessionExpiredModal() {
   const signals = useObservable(useSemiont().activeSignals$);
-  const sessionExpiredAt = useObservable(signals?.sessionExpiredAt$) ?? null;
-  const sessionExpiredMessage = useObservable(signals?.sessionExpiredMessage$) ?? null;
+  const sessionExpired = useObservable(signals?.sessionExpired$) ?? null;
   const acknowledgeSessionExpired = () => signals?.acknowledgeSessionExpired();
-  const showModal = sessionExpiredAt !== null;
+  const showModal = sessionExpired !== null;
 
   const handleSignIn = () => {
     acknowledgeSessionExpired();
@@ -71,7 +70,7 @@ export function SessionExpiredModal() {
                     Session Expired
                   </DialogTitle>
                   <p className="semiont-modal__description">
-                    {sessionExpiredMessage ?? 'Your session has expired for security reasons. Please sign in again to continue working.'}
+                    {sessionExpired?.message}
                   </p>
                 </div>
 

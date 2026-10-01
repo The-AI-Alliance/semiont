@@ -27,6 +27,7 @@ const translations: Record<string, string> = {
   'KnowledgeBasePanel.placementLocal': 'local',
   'KnowledgeBasePanel.placementCodespace': 'codespace',
   'KnowledgeBasePanel.lastReadAt': 'As of {{time}}',
+  'KnowledgeBasePanel.answeringInstead': '{{name}} is answering at this address',
 };
 
 vi.mock('react-i18next', () => ({
@@ -127,7 +128,7 @@ describe('KnowledgeBasePanel', () => {
       value: { origin: 'http://localhost:3000', href: 'http://localhost:3000/en/know/discover', assign },
     });
     mockBrowser.beginSignIn.mockResolvedValue(ISSUER_URL);
-    mockBrowser.readActiveKb.mockResolvedValue(true);
+    mockBrowser.readActiveKb.mockResolvedValue({ kind: 'recorded' });
     kbs$.next([kb1, kb2]);
     // Panel reads `activeKnowledgeBase` from `activeSession$?.kb`, so a session
     // with `kb: kb1` emulates "kb1 is active".
@@ -162,8 +163,27 @@ describe('KnowledgeBasePanel', () => {
       await waitFor(() => expect(screen.getByText('main')).not.toHaveAttribute('title'));
     });
 
+    it('says which knowledge base is answering, under its own name, when it is not the connected entry\'s', async () => {
+      mockBrowser.readActiveKb.mockResolvedValue({ kind: 'conflict', observedDid: 'did:web:gutenberg.example', observedName: 'Project Gutenberg' });
+      render(<KnowledgeBasePanel />);
+
+      const notice = await screen.findByText(/Project Gutenberg is answering at this address/);
+      expect(notice).toHaveAttribute('title', 'did:web:gutenberg.example');
+      // On the connected entry's row, and no other.
+      expect(notice.closest('.semiont-panel-item')).toHaveTextContent('Production');
+      // What the entry last said of itself is not shown as the present.
+      expect(screen.getByText('main')).toHaveAttribute('title', expect.stringMatching(/^As of /));
+    });
+
+    it('names an answering knowledge base that gave no name as unknown, never by the entry\'s label', async () => {
+      mockBrowser.readActiveKb.mockResolvedValue({ kind: 'conflict', observedDid: 'did:web:gutenberg.example', observedName: '' });
+      render(<KnowledgeBasePanel />);
+
+      expect(await screen.findByText(/Unknown is answering at this address/)).toBeInTheDocument();
+    });
+
     it('dims the connected KB\'s branch, with when it was read, when it did not answer', async () => {
-      mockBrowser.readActiveKb.mockResolvedValue(false);
+      mockBrowser.readActiveKb.mockResolvedValue({ kind: 'no-verdict' });
       render(<KnowledgeBasePanel />);
       await act(async () => {});
       expect(screen.getByText('main')).toHaveAttribute('title', expect.stringMatching(/^As of /));
@@ -241,7 +261,7 @@ describe('KnowledgeBasePanel', () => {
       });
     });
 
-    it('re-authenticates a registered KB at the typed address by id rather than registering it twice', async () => {
+    it('names no entry for a typed address, even one a knowledge base is registered at: the KB that answers decides', async () => {
       const user = userEvent.setup();
       render(<KnowledgeBasePanel />);
       await user.click(screen.getByText('Add knowledge base'));
@@ -251,7 +271,10 @@ describe('KnowledgeBasePanel', () => {
       await user.click(screen.getByRole('button', { name: 'Connect' }));
 
       await waitFor(() => expect(assign).toHaveBeenCalled());
-      expect(mockBrowser.beginSignIn).toHaveBeenCalledWith(expect.objectContaining({ kbId: 'kb-2' }));
+      expect(mockBrowser.beginSignIn).toHaveBeenCalledWith({
+        target: { kind: 'http', host: 'staging.example.com', port: 4000, protocol: 'https' },
+        redirectUri: 'http://localhost:3000/en/auth/callback',
+      });
     });
 
     it('says why when the knowledge base trusts no issuer, and stays', async () => {

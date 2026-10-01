@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type components, type ConnectionState, type EventMap, type StateUnit, type RetryPolicy } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS, SEEN_EVENT_IDS_COUNT } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -8,7 +8,6 @@ import {
   withSpan,
   withTraceparent,
 } from '@semiont/observability';
-import { SseConnectError } from './sse-connect-error';
 import { APIError } from './api-error';
 
 export type { ConnectionState };
@@ -34,7 +33,7 @@ export interface ActorStateUnitOptions {
    * Base of the failure-retry backoff ladder AND the flat cadence of the
    * `unauthenticated` waiting tick (which polls the token getter, no
    * network). A failure retry waits jitter(min(reconnectMs·2ⁿ, 60 s));
-   * n resets on a successful open. Default 5 s.
+   * n resets on a successful open. Default `RECONNECT_MS`.
    */
   reconnectMs?: number;
   /**
@@ -57,6 +56,12 @@ export interface ActorStateUnitOptions {
    * flushes pending removals with it on the fast path.
    */
   lazyRemoveMs?: number;
+  /** The retry budget of one emit. Default `EMIT_RETRY`. */
+  emitRetry?: RetryPolicy;
+  /** How long a superseded connection keeps draining after a handoff. Default `LINGER_MS`. */
+  lingerMs?: number;
+  /** How many of the event ids delivered last are remembered. Default `SEEN_EVENT_IDS_COUNT`. */
+  seenEventIdsCount?: number;
   /**
    * B17 (LOCAL-STORAGE) — IO-abstracted persistence of the last seen
    * PERSISTED event id PER SCOPE, so a reloaded client resumes each
@@ -71,111 +76,24 @@ export interface ActorStateUnitOptions {
   saveLastEventId?: (scope: string, id: string) => void;
 }
 
-/** Time in the `reconnecting` state before transitioning to `degraded`. */
-export const DEGRADED_THRESHOLD_MS = 3_000;
-
 /**
- * Ceiling for the failure-retry backoff (SSE-AUTH-RESILIENCE P3, D1a): the
- * exponential ladder from `reconnectMs` caps here, so a long outage settles
- * into roughly one attempt per minute rather than growing without bound.
+ * `BusRequestPrimitive` over one SSE connection and `/bus/emit`, plus what
+ * only a wire connection has: refused connects, a subscription matrix that
+ * changes while it runs, and a start/stop lifecycle.
  */
-const MAX_RECONNECT_MS = 60_000;
-
-/**
- * Deadline on the `/bus/emit` POST (JOB-RESTART-SAFETY P7). The gateway
- * accepts an emit and returns 202 promptly; a POST that has not resolved by
- * here means the gateway is unresponsive (mid-restart, overwhelmed), and the
- * emit is rejected rather than awaited forever. This is the transport-level
- * bound behind the 2026-09-03 finalization hang: a worker's mark:create /
- * job:complete emit to a wedged gateway used to hang the worker loop with no
- * timeout of its own. The rejection surfaces as a job failure the queue
- * classifies transient (an unreachable gateway is not the request's fault),
- * so the work retries instead of wedging. Covers EVERY emit and every job
- * type — not just the reference-annotation persist P6 bounded.
- */
-export const EMIT_TIMEOUT_MS = 30_000;
-
-/**
- * Retry budget for ONE `/bus/emit` POST (SIDECAR-BOOT-RESILIENCE D3).
- *
- * Per request, deliberately — not per boot pass. "Retry when one settles" is
- * advice about a single request; re-running a whole catch-up pass to recover
- * from one refusal re-sends hundreds of already-successful emits, which is the
- * amplification that wedged the weaver in the first place.
- *
- * Small on purpose. `EMIT_TIMEOUT_MS` bounds each attempt, so the worst case
- * here is 4 attempts plus up to ~7s of jittered waiting, and an emit that a
- * caller is awaiting must fail while the caller still cares. The patience for a
- * gateway that is genuinely down belongs to the boot pass above it, not here.
- */
-export const EMIT_RETRY: RetryPolicy = {
-  attempts: 4,
-  initialDelayMs: 1_000,
-  maxDelayMs: 4_000,
-};
-
-/**
- * How long a superseded connection keeps DRAINING after a make-before-break
- * handoff before being aborted. Aborting the old connection the instant the
- * new one opened discarded replies already written to the old socket but not
- * yet read by the client (a freshly-hydrating page's main thread is busy —
- * exactly the N-concurrent-loaders-at-connect repro in
- * .plans/bugs/concurrent-browse-resource-starvation.md). The overlap is safe:
- * persisted ids are stable and correlated-reply ids are deterministic
- * (`e-<channel>:<cid>`, routes/bus.ts), so `seenEventIds` dedups double
- * delivery.
- */
-export const LINGER_MS = 1_000;
-
-export interface ActorStateUnit extends StateUnit {
+export interface ActorStateUnit extends StateUnit, BusRequestPrimitive {
   /**
-   * These two restate `BusRequestPrimitive` (WORKER-BUS-TYPED-BY-CHANNEL D3), and they
-   * cannot stop: `BusRequestPrimitive` lives in `@semiont/sdk`, and **sdk depends on
-   * this package, not the reverse** — importing it here would invert the
-   * dependency. So the copy is a MIRROR that cannot be derived, and it is
-   * GATED instead: `sdk/state/lib/__tests__/worker-bus-types.test.ts` fails to
-   * compile if `ActorStateUnit` stops satisfying `BusRequestPrimitive`. Keep them in
-   * step by hand; the gate says when you have not.
-   *
-   * Until the signature was typed, this copy also *insulated* this package —
-   * its own `on$` calls resolved against the loose local declaration, so
-   * narrowing `BusRequestPrimitive` never reached them.
-   *
-   * `envelope?.scope` is the one genuine addition, so `emit` widens rather than
-   * merely repeating.
+   * Refused connects (SSE-AUTH-RESILIENCE P2). One `APIError` per non-2xx
+   * `/bus/subscribe` answer, carrying the HTTP status and the code it maps
+   * to, as a refused request does. Network-level failures (fetch
+   * rejections) have no status and do not emit here — they stay on the
+   * reconnect path.
    */
-  stream<K extends keyof EventMap>(channel: K): Observable<EventMap[K]>;
-  /** The envelope view: the same SSE frame, envelope included. */
-  frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>>;
-  emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number>;
-  state$: Observable<ConnectionState>;
-  /**
-   * Refused connects (SSE-AUTH-RESILIENCE P2). One `SseConnectError` per
-   * non-2xx `/bus/subscribe` answer, carrying the HTTP status as
-   * structured data. Network-level failures (fetch rejections) have no
-   * status and do not emit here — they stay on the reconnect path.
-   */
-  errors$: Observable<SseConnectError>;
+  errors$: Observable<APIError>;
   /** With `scope`: upsert channels into that scope's matrix entry. Without: global channels. */
   addChannels(channels: readonly (keyof EventMap)[], scope?: string): void;
-  /**
-   * Whether `channel` is in the current GLOBAL subscription set — i.e. the
-   * gateway delivers it on this connection. Correlated replies always ride
-   * global channels, so this is `busRequest`'s fail-fast probe on a
-   * narrowed-subscription transport (see `BusRequestPrimitive.isSubscribed`).
-   */
-  isSubscribed(channel: keyof EventMap): boolean;
   /** With `scope`: remove channels from that scope's entry (empty entry drops the scope). Without: global channels. */
   removeChannels(channels: string[], scope?: string): void;
-  /**
-   * Correlated-reply retention, client side (BUS-RESUMPTION Phase 2 /
-   * SDK-DEBT S1): register a busRequest correlationId as awaiting its
-   * reply. Every connect body includes the currently-tracked set as
-   * `pendingReplies`, so a reply published while the connection was down
-   * is replayed from the server's retention buffer. The returned disposer
-   * (idempotent) removes the id on settle.
-   */
-  trackReply(correlationId: string): () => void;
   start(): void;
   stop(): void;
 }
@@ -186,11 +104,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
   connecting:   ['open', 'reconnecting', 'unauthenticated', 'closed'],
   open:         ['reconnecting', 'closed'],
   reconnecting: ['connecting', 'degraded', 'unauthenticated', 'closed'],
-  // `degraded → reconnecting` is a legitimate recovery edge: a channel-set
-  // change (`addChannels`/`removeChannels`) schedules a reconnect that can
-  // fire while the connection is degraded. Omitting it made `reconnect()`
-  // throw a fatal, uncaught exception from the reconnect timer (#844).
-  degraded:     ['connecting', 'reconnecting', 'unauthenticated', 'closed'],
+  degraded:     ['connecting', 'unauthenticated', 'closed'],
   // Leaving `unauthenticated` takes a usable credential (the gate saw a
   // different, non-empty token) → straight to `connecting`; or teardown.
   unauthenticated: ['connecting', 'closed'],
@@ -198,7 +112,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = 5_000, lazyRemoveMs = 5_000, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, seenEventIdsCount = SEEN_EVENT_IDS_COUNT, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -233,7 +147,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
 
   const events$ = new Subject<BusEvent>();
   const state$ = new BehaviorSubject<ConnectionState>('initial');
-  const errors$ = new Subject<SseConnectError>();
+  const errors$ = new Subject<APIError>();
   let currentState: ConnectionState = 'initial';
   let degradedTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -244,8 +158,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
    * that takes down the host process (#844). A bad edge means a bug in the
    * reconnect loop, but degrading gracefully (keep the current state, warn)
    * is strictly better than killing a long-running job. The permitted edges
-   * — including the `degraded → reconnecting` recovery edge — are in
-   * `ALLOWED_TRANSITIONS`.
+   * are in `ALLOWED_TRANSITIONS`.
    *
    * Side effect: manages the `degraded` timer. Enters on
    * `reconnecting`, cleared on exit.
@@ -301,6 +214,17 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   const lingerTimers = new Set<ReturnType<typeof setTimeout>>();
 
   /**
+   * The connection whose stream the actor reads as its own: set when a connect
+   * opens, cleared when that stream ends. While it is set the state is `open`.
+   * A changed subscription is a HANDOFF: a second connection opened beside
+   * this one and swapped in once it is open, which never leaves `open`,
+   * because nothing is missed across it. Only this stream ending is a DROP,
+   * and only a drop moves the state. A consumer that asks again for what a
+   * drop may have lost (CACHE-SEMANTICS B13) tells the two apart by that.
+   */
+  let live: AbortController | null = null;
+
+  /**
    * The connect whose fetch has not answered yet. Reconnects asked for
    * meanwhile wait for it and are served by ONE follow-up once it opens —
    * which reads the channel set then, so it carries every change — rather
@@ -320,31 +244,23 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   };
 
   /**
-   * Recently-delivered event ids, to dedup the make-before-break overlap: the
-   * brief window where the old and new connection both deliver the same live
-   * event during a scope-change handoff. Persisted ids (`p-<scope>-<seq>`) are
-   * stable across connections, so this collapses such an overlap to a single
-   * emission. Ephemeral ids (`e-<connectionId>-<counter>`) are per-connection,
-   * so a cross-connection ephemeral duplicate is NOT caught here — its
-   * consumers tolerate the rare double (a correlation reply is taken with
-   * `take(1)`; cache invalidations and job-completion are idempotent/terminal).
-   * Bounded FIFO (insertion-ordered Set) to cap memory.
+   * The ids of the events delivered last, `seenEventIdsCount` of them: a frame
+   * whose id is here has been delivered, and is dropped. That is what makes a
+   * frame both streams of a handoff carry, or one replayed to the new stream,
+   * arrive once. It works for a frame whose id is its own, the same on every
+   * connection: a persisted event's (`p-<scope>-<seq>`) and a reply's
+   * (`e-<channel>:<cid>`). Any other frame is given an id per connection
+   * (`e-<connectionId>-<counter>`), so its two copies across a handoff are two
+   * frames here, and both are delivered.
    *
-   * Cost note: this is *always-on* — every delivered event does a has/add here
-   * — yet a duplicate is only possible during a handoff overlap; in steady
-   * state there's a single connection and nothing can collide. So every
-   * consumer of this transport carries a small standing structure for a path
-   * that fires only on (now-rare) scope changes. It's left unconditional
-   * because the per-event cost is negligible next to the JSON.parse + trace
-   * span already on this path. If that ever stops being true, scope it to the
-   * overlap (build on handoff start, drop once the old read loop exits) or
-   * track a high-water `Map<scope, maxSeq>` instead of every id.
+   * Always on, though a second copy can only come during a handoff: a has/add
+   * per event is negligible beside the JSON.parse and the span on this path.
+   * Bounded FIFO (insertion-ordered Set).
    */
   const seenEventIds = new Set<string>();
-  const SEEN_EVENT_IDS_MAX = 512;
   const rememberEventId = (id: string): void => {
     seenEventIds.add(id);
-    if (seenEventIds.size > SEEN_EVENT_IDS_MAX) {
+    if (seenEventIds.size > seenEventIdsCount) {
       const oldest = seenEventIds.values().next().value;
       if (oldest !== undefined) seenEventIds.delete(oldest);
     }
@@ -362,6 +278,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       try { c.abort(); } catch { /* noop */ }
     }
     inflightControllers.clear();
+    live = null;
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
     for (const t of lingerTimers) clearTimeout(t);
     lingerTimers.clear();
@@ -434,16 +351,15 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
     const token = getToken();
     if (!token || token === refusedToken) {
       if (running) {
-        if (currentState !== 'unauthenticated') transition('unauthenticated');
+        // With a stream still live the state stays `open`: only the change of
+        // subscription is waiting for a credential, and that stream's own end
+        // is what reports an outage.
+        if (live === null && currentState !== 'unauthenticated') transition('unauthenticated');
         scheduleRetry(reconnectMs, keepPrevious);
       }
       return;
     }
     refusedToken = null; // a different credential — worth attempting
-
-    // Transition to `connecting` from whichever reconnect-ish state
-    // we're currently in (`initial`, `reconnecting`, `degraded`).
-    transition('connecting');
 
     // Snapshot the connections this connect() supersedes.
     //   - keepPrevious=false (initial connect / drop-recovery): there is no
@@ -460,7 +376,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         try { c.abort(); } catch { /* noop */ }
       }
       inflightControllers.clear();
+      live = null;
     }
+
+    // Opening beside a live stream is a handoff, and the state stays `open`.
+    // With none, this is `connecting`, from whichever state the actor was
+    // waiting in (`initial`, `reconnecting`, `degraded`, `unauthenticated`).
+    if (live === null) transition('connecting');
 
     // POST subscription matrix (MULTI-RESOURCE-SCOPE): global channels plus
     // one entry per scope, each carrying its own resumption watermark.
@@ -500,7 +422,13 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       const response = await fetch(url, { method: 'POST', headers, body, signal: controller.signal });
 
       if (!response.ok || !response.body) {
-        throw new SseConnectError(response.status, retryAfterMs(response.headers.get('retry-after')));
+        throw APIError.fromStatus(
+          `SSE connect failed: ${response.status}`,
+          response.status,
+          response.statusText,
+          undefined,
+          retryAfterMs(response.headers.get('retry-after')),
+        );
       }
 
       // Stopped/disposed while the fetch was in flight — don't proceed to open
@@ -528,10 +456,11 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             try { c.abort(); } catch { /* noop */ }
             inflightControllers.delete(c);
           }
-        }, LINGER_MS);
+        }, lingerMs);
         lingerTimers.add(lingerTimer);
       }
 
+      live = controller;
       transition('open');
       retryAttempt = 0; // a success resets the backoff ladder
       refreshBurned = false; // …and re-arms the refresh-once (P4)
@@ -682,7 +611,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // A refused connect carries its status out (P2). Anything else — a
       // network failure, a dropped stream — has no status to carry and
       // stays off errors$.
-      if (err instanceof SseConnectError) {
+      if (err instanceof APIError) {
         statedWait = err.retryAfterMs;
         errors$.next(err);
         // 401: re-sending THIS bearer is deterministic, so park instead of
@@ -693,7 +622,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         if (err.status === 401 && running && !superseded.has(controller)) {
           refusedToken = token;
           retryAttempt = 0;
-          if (currentState !== 'unauthenticated') transition('unauthenticated');
+          if (live === null && currentState !== 'unauthenticated') transition('unauthenticated');
           // P4: refresh ONCE before staying parked — the same hook the HTTP
           // beforeRetry path uses (D2). Parked state is truthful while the
           // refresh call is in flight. On success the refresher's owner has
@@ -722,16 +651,29 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       settleConnect(controller, false);
     }
 
-    // If we reached here without an AbortError, the connection dropped
-    // or the fetch failed (a 401 already diverted to `unauthenticated`
-    // above). Transition to reconnecting and schedule a retry on the
-    // backoff ladder — unless this was a SUPERSEDED (lingering)
-    // connection ending: its termination is expected teardown, not a drop
-    // of the live stream, and must not restart the reconnect machinery.
-    if (running && !superseded.has(controller)) {
-      transition('reconnecting');
-      scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0));
+    // Reached without an AbortError: the stream ended or the connect failed
+    // (a 401 already diverted above). A SUPERSEDED (lingering) connection
+    // ending is expected teardown and restarts nothing.
+    if (!running || superseded.has(controller)) return;
+
+    if (live !== null && live !== controller) {
+      // A handoff that could not open. The stream it was to replace is still
+      // live, so nothing has dropped: the handoff is tried again, on the
+      // backoff ladder, and the state does not move.
+      scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0), true);
+      return;
     }
+
+    // A drop: the live stream ended, or a connect failed with none live.
+    live = null;
+    transition('reconnecting');
+    if (connecting !== null) {
+      // A handoff's connect is still in flight. It is the recovery now; if it
+      // fails it comes back through here and schedules the retry.
+      transition('connecting');
+      return;
+    }
+    scheduleRetry(Math.max(backoffDelay(), statedWait ?? 0));
   };
 
   const reconnect = () => {
@@ -740,17 +682,8 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       reconnectOwed = true;
       return;
     }
-    // Transition to `reconnecting` BEFORE aborting the current
-    // connection. This matches the pre-state-machine contract where
-    // gap-detection relied on seeing a "dropped" signal before a
-    // subsequent "connected" signal; with the state machine, the
-    // transition sequence `open → reconnecting → connecting → open`
-    // is what BrowseNamespace's gap-detection (pre-BUS-RESUMPTION
-    // code path) watches for.
-    if (currentState === 'open' || currentState === 'connecting' || currentState === 'degraded') {
-      transition('reconnecting');
-    }
-    // Make-before-break: do NOT abort the live connection here. Cancel only a
+    // Make-before-break: do NOT abort the live connection here, and do not
+    // move the state: the stream stays open across a handoff. Cancel only a
     // pending drop-recovery retry, then connect — `connect(keepPrevious=true)`
     // retires the old connection after the new one is open (no gap).
     if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
@@ -774,7 +707,6 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
   // pending lazy one, and a lazy schedule never preempts a pending fast one.
   let reconnectTimer2: ReturnType<typeof setTimeout> | null = null;
   let lazyReconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  const RECONNECT_DEBOUNCE_MS = 100;
   const scheduleReconnect = () => {
     if (lazyReconnectTimer) { clearTimeout(lazyReconnectTimer); lazyReconnectTimer = null; }
     if (reconnectTimer2) clearTimeout(reconnectTimer2);
@@ -843,7 +775,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       );
     },
 
-    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number> => {
+    emit: async <K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope?: BusEnvelope): Promise<number | undefined> => {
       // EMIT logging + bus.emit span live at the transport contract layer
       // (`HttpTransport.emit`). ActorStateUnit is plumbing. We do propagate the
       // active span's W3C traceparent on the outbound POST so the gateway
@@ -872,7 +804,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // inside the retried unit, because the refusal IS the failure being
       // classified. Retrying only the fetch would re-run the request and then
       // hand back the same unexamined response.
-      const res = await retryWithBackoff(async () => {
+      const attempts = retryWithBackoff(async () => {
         // Bounded (JOB-RESTART-SAFETY P7): an unresponsive gateway must not hang
         // the caller's loop forever. AbortSignal.timeout rejects with a
         // DOMException named TimeoutError — which the predicate treats as
@@ -897,7 +829,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           // APIError, not a bare Error: the status rides as a FIELD (D1), which
           // is what makes it classifiable without parsing it back out of prose.
           // The message keeps its shape, so callers matching on it are unaffected.
-          throw new APIError(
+          throw APIError.fromStatus(
             `/bus/emit ${attempt.status}${detail ? `: ${detail}` : ''}`,
             attempt.status,
             attempt.statusText,
@@ -906,18 +838,27 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           );
         }
         return attempt;
-      }, isRetryableRequestError, EMIT_RETRY);
-      // `-1` = count unknown, the same sentinel as the Go client, and never a
-      // zero: an absent `subscribers` is the gateway saying it could not count
-      // (a broker signal plane), and an unreadable body says nothing at all.
-      // Either way the emit was accepted, so neither may read as an empty room.
+      }, isRetryableRequestError, emitRetry);
+      const res = await attempts.catch((error: unknown) => {
+        if (error instanceof APIError) throw error;
+        // The gateway never answered, on any attempt the budget allowed: the
+        // connection failed or the deadline passed. The runtime's own error
+        // for that carries no code, and a caller routing on codes would not
+        // know an unreachable gateway from a bug.
+        const cause = error instanceof Error ? error : new Error(String(error));
+        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, 'unavailable', cause.name);
+      });
+      // No count is reported as no count, never as a zero: an absent
+      // `subscribers` is the gateway saying it could not count (a broker
+      // signal plane), and an unreadable body says nothing at all. Either way
+      // the emit was accepted, so neither may read as an empty room.
       let accepted: components['schemas']['BusEmitAccepted'];
       try {
         accepted = await res.json();
       } catch {
-        return -1;
+        return undefined;
       }
-      return accepted.subscribers === undefined ? -1 : accepted.subscribers;
+      return accepted.subscribers;
     },
 
     state$: state$.asObservable(),

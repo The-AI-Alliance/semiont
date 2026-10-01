@@ -4,7 +4,7 @@
  * Wires a `BasicTracerProvider` + `InMemorySpanExporter` and a
  * `MeterProvider` + `InMemoryMetricExporter` for the duration of the
  * file so traces and metrics produced by `withSpan`, `withActorSpan`,
- * `recordBusEmit`, etc. are observable. Without an SDK installed the
+ * `recordBusSent`, etc. are observable. Without an SDK installed the
  * `@opentelemetry/api` no-op tracer/meter takes over and these
  * functions still run safely — but assertions need real instruments
  * to inspect.
@@ -46,7 +46,7 @@ import {
   recordAbnormalTermination,
   recordAnchorOutcome,
   recordAppendStage,
-  recordBusEmit,
+  recordBusSent,
   recordDetectionCall,
   recordGatherDegrade,
   recordGitCommand,
@@ -341,14 +341,16 @@ function collectMetrics(): Map<string, MetricDataPoint[]> {
   return out;
 }
 
-describe('recordBusEmit', () => {
-  it('increments the bus emit counter with channel + scope tags', async () => {
-    recordBusEmit('mark:added', 'res-1');
-    recordBusEmit('mark:added');
+describe('recordBusSent', () => {
+  it('counts an emit a client sent, by channel and scope, under a name of its own', async () => {
+    recordBusSent('mark:added', 'res-1');
+    recordBusSent('mark:added');
     await flushMetrics();
 
     const metricsByName = collectMetrics();
-    const counter = metricsByName.get('semiont.bus.emit');
+    // Not `semiont.bus.emit`: that is the gateway's count of what it accepted.
+    expect(metricsByName.has('semiont.bus.emit')).toBe(false);
+    const counter = metricsByName.get('semiont.bus.sent');
     expect(counter).toBeDefined();
     const withScope = counter!.find((d) => d.attributes['bus.scope'] === 'res-1');
     expect(withScope?.value).toBe(1);

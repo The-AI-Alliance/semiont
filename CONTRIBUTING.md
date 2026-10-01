@@ -166,6 +166,9 @@ cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
 # The dispatcher, black-box, behind that gateway (needs npm run build:packages)
 (cd tests/conformance && npm run test:dispatcher)
 
+# The SDKs, black-box, as clients of that gateway (needs npm run build:packages)
+(cd tests/conformance && npm run test:sdk)
+
 # Type check
 npm run typecheck
 
@@ -326,6 +329,7 @@ npm test
 cd apps/browser && npm test                 # Browser suite
 cd tests/conformance && npm run test:gateway    # The gateway, black-box (needs `cargo build --release -p semiont-gateway` at the repository root, and nats-server)
 cd tests/conformance && npm run test:dispatcher # The dispatcher, black-box (needs the gateway built, npm run build:packages, and nats-server)
+cd tests/conformance && npm run test:sdk        # Every SDK, black-box, as a client of the gateway (needs the gateway built, npm run build:packages, and nats-server)
 ```
 
 ### Test Requirements for PRs

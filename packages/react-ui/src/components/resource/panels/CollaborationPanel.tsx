@@ -30,9 +30,8 @@ interface Props {
    *   `open` | `reconnecting` | `initial` | `connecting`
    *     → treated as "healthy" (green dot, "Live" label, event count visible).
    *     `reconnecting` is specifically INCLUDED in healthy because a
-   *     brief reconnect (mount churn, channel-set change, quick blip)
-   *     shouldn't alarm the user. The 100 ms reconnect debounce and
-   *     sub-second fetch retry make `reconnecting` a transient state.
+   *     quick blip shouldn't alarm the user: the first retry is
+   *     sub-second, which makes `reconnecting` a transient state.
    *   `degraded` | `closed`
    *     → treated as "disconnected" (red dot, "Disconnected" label).
    *     `degraded` is the 3 s threshold at which the state machine

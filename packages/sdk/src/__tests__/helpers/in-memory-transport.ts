@@ -95,6 +95,7 @@ export function inMemoryTransport(options: InMemoryTransportOptions = {}): ITran
     state$,
     errors$,
     isSubscribed: () => true,
+    trackReply: () => () => {},
     dispose: () => {},
   };
 }

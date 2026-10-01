@@ -1,0 +1,22 @@
+{
+  "about": "a request its caller abandons reports nothing more: what it sent stays sent, the client stops asking the gateway for its reply, and a reply that comes anyway settles nothing",
+  "source": "docs/protocol/TRANSPORT-CONTRACT.md § Requests; specs/src/client/timing.json busRequestTimeoutMs",
+  "steps": [
+    {"let": {"response": {"resource": {"@context": "https://schema.org/", "@id": "https://kb.example/r", "name": "r", "representations": []}, "annotations": [], "entityReferences": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked"},
+    {"wire": "POST /bus/emit", "status": 202, "body": {"channel": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "correlationId": {"$var": "cid"}, "clientId": {"$var": "clientId"}}},
+    {"abandon": "asked"},
+    {"settles": "asked", "abandoned": true},
+
+    {"backend": "cut"},
+    {"wire": "POST /bus/subscribe", "status": 200, "at": "live", "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}, "as": "reopened"},
+    {"state": "open"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "cid"}, "payload": {"response": {"$var": "response"}}}},
+    {"carried": "reopened", "is": {"channel": "browse:resource-result", "payload": {"$var": "_"}, "correlationId": {"$var": "cid"}}}
+  ]
+}

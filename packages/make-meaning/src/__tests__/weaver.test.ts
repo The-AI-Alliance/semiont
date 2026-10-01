@@ -28,8 +28,7 @@ const PROD_TIMING: WeaverTiming = {
   drainStallPolls: 40,
   checkpointFlushMs: 5_000,
 };
-import { createWeaverActorStateUnit, type WeaverActorStateUnit } from '../weaver-actor-state-unit';
-import { workerBusOverEventBus } from '../worker-bus-local';
+import { weaverFanIn } from '../weaver-fan-in';
 import { asBusRequestPrimitive } from '../bus-request-local';
 import { FileWeaverCheckpoint } from '../weaver-checkpoint';
 import { busRequest } from '@semiont/core';
@@ -122,22 +121,19 @@ describe('Weaver', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
-  let weaverUnit: WeaverActorStateUnit;
-
   const wireWeaver = async (db: GraphDatabase, checkpointPath?: string): Promise<Weaver> => {
-    const workerBus = workerBusOverEventBus(coreEventBus);
-    weaverUnit = createWeaverActorStateUnit({ bus: workerBus });
+    const bus = asBusRequestPrimitive(coreEventBus);
+    const fanIn = weaverFanIn(bus);
     const weaver = new Weaver(
       db,
-      weaverUnit.events$,
-      weaverUnit.rebuilds$,
-      asBusRequestPrimitive(coreEventBus),
+      fanIn.events$,
+      fanIn.rebuilds$,
+      bus,
       new FileWeaverCheckpoint(checkpointPath ?? join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
       PROD_TIMING,
       mockLogger,
     );
     await weaver.initialize();
-    weaverUnit.start();
     return weaver;
   };
 
@@ -183,7 +179,6 @@ describe('Weaver', () => {
 
   afterEach(async () => {
     await consumer?.stop();
-    weaverUnit?.dispose();
     stopServing?.();
     stopServing = null;
   });
@@ -810,19 +805,18 @@ describe('Weaver', () => {
   describe('lifecycle', () => {
     it('should unsubscribe on stop', async () => {
       const localGraphDb = createMockGraphDb();
-      const localWorkerBus = workerBusOverEventBus(coreEventBus);
-      const localUnit = createWeaverActorStateUnit({ bus: localWorkerBus });
+      const localBus = asBusRequestPrimitive(coreEventBus);
+      const localFanIn = weaverFanIn(localBus);
       const localConsumer = new Weaver(
         localGraphDb,
-        localUnit.events$,
-        localUnit.rebuilds$,
-        asBusRequestPrimitive(coreEventBus),
+        localFanIn.events$,
+        localFanIn.rebuilds$,
+        localBus,
         new FileWeaverCheckpoint(join(testDir, `weaver-checkpoint-${uuidv4()}.json`)),
         PROD_TIMING,
         mockLogger,
       );
       await localConsumer.initialize();
-      localUnit.start();
 
       const docId = resourceId(`lifecycle-stop-${Date.now()}`);
 
@@ -858,7 +852,7 @@ describe('Weaver', () => {
     it('should report health metrics', async () => {
       const metrics = consumer.getHealthMetrics();
 
-      expect(metrics.subscriptions).toBe(1); // One injected source stream — channel fan-in (9) lives in WeaverActorStateUnit
+      expect(metrics.subscriptions).toBe(1); // One injected source stream — channel fan-in (9) lives in weaverFanIn
       expect(metrics.pipelineActive).toBe(true);
       // A count, deliberately not the map — the full per-resource map made
       // /health an O(resources) payload (#845 scalability wart).
@@ -912,10 +906,8 @@ describe('Weaver', () => {
 
     beforeEach(async () => {
       // Swap the outer mock-based consumer for one wired to a real memory
-      // graph — the outer afterEach still stops whatever `consumer` and
-      // `weaverUnit` hold.
+      // graph — the outer afterEach still stops whatever `consumer` holds.
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
     });
@@ -1063,7 +1055,6 @@ describe('Weaver', () => {
     it('replays events missed while down, then a second catch-up is a checkpointed no-op', async () => {
       // Down: stop the live weaver, then append events nobody hears.
       await consumer.stop();
-      weaverUnit.dispose();
 
       const rid = `catchup-${Date.now()}`;
       await eventStore.appendEvent({
@@ -1102,7 +1093,6 @@ describe('Weaver', () => {
 
     it('a rewound log (restore) triggers a per-resource rebuild instead of trusting the checkpoint', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
 
       const rid = `rewound-${Date.now()}`;
       await eventStore.appendEvent({
@@ -1129,7 +1119,6 @@ describe('Weaver', () => {
 
     it('weave:rebuild (full) clears and rebuilds the graph, replying ok', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1155,7 +1144,6 @@ describe('Weaver', () => {
 
     it('weave:rebuild scoped to a resource rebuilds just that resource', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1187,7 +1175,6 @@ describe('Weaver', () => {
     // reconcile heal, not just an empty-graph rebuild.
     it('a rebuild preserves each annotation\'s AUTHORED created, rather than restamping it', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1235,7 +1222,6 @@ describe('Weaver', () => {
 
     it('a failed apply counts, does not advance lastProcessed, and emits no weave:applied', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1262,7 +1248,6 @@ describe('Weaver', () => {
 
     it('a failed batch run blocks checkpoint advance for the whole batch', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1305,7 +1290,6 @@ describe('Weaver', () => {
 
     it('weave:rebuild replies FAILED, not ok, when applies dropped events', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1329,7 +1313,6 @@ describe('Weaver', () => {
 
     it('catch-up reports failures, holds the checkpoint, and the next pass re-replays', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
 
       const rid = `acct-catchup-${Date.now()}`;
       await eventStore.appendEvent({
@@ -1359,7 +1342,6 @@ describe('Weaver', () => {
 
     it('reconcile detects an out-of-band deletion and heals it from the log', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1400,7 +1382,6 @@ describe('Weaver', () => {
     // an unknown number of boots (bugs/weaver-fatal-429-and-phantom-view-heal-wave).
     it('reports a catalogued resource with no events as an orphan, not a heal', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1454,7 +1435,6 @@ describe('Weaver', () => {
 
     it('reports divergence on a stored property outside the old five-fact list', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1476,7 +1456,6 @@ describe('Weaver', () => {
 
     it('reports NO divergence for a field the codec does not write — the graph is not a copy of the views', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1498,7 +1477,6 @@ describe('Weaver', () => {
 
     it('reports NO divergence when the graph holds exactly what the codec says it should', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 
@@ -1513,7 +1491,6 @@ describe('Weaver', () => {
 
     it('a clean graph reconciles with zero divergence and no heals', async () => {
       await consumer.stop();
-      weaverUnit.dispose();
       graphDb = new MemoryGraphDatabase();
       consumer = await wireWeaver(graphDb);
 

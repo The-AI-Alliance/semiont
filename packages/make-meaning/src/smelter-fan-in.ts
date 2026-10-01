@@ -1,26 +1,17 @@
 /**
- * SmelterActorStateUnit — domain-event fan-in for the Smelter worker.
+ * The Smelter's domain-event fan-in.
  *
- * Subscribes to the nine smelter-relevant channels on a shared bus and
- * exposes them as a single typed `events$` stream. Transport-neutral —
- * the caller passes a `BusRequestPrimitive` (HTTP `ActorStateUnit` today, an in-process
- * bus shim if/when one exists). The state unit does not own the bus and does
- * not dispose it.
- *
- * `start()` widens the bus's channel-subscription set to include the
- * smelter channels. On HTTP this extends the SSE subscription URL;
- * on an in-process bus this is a no-op (the underlying `EventBus`
- * already delivers every emit).
+ * Merges the nine smelter-relevant channels of a bus into a single typed
+ * `events$` stream, with the command channel beside it. Transport-neutral —
+ * the caller passes a `BusRequestPrimitive` (the HTTP `ActorStateUnit` in
+ * `smelter-main`). Both streams are views of that bus: nothing here is owned,
+ * so there is nothing to dispose.
  */
 
 import { Observable, merge } from 'rxjs';
 import type { BusRequestPrimitive } from '@semiont/core';
 import { SMELTER_REPLY_CHANNELS } from './service-channels';
-import type { BusFrame, EventMap, StateUnit } from '@semiont/core';
-
-export interface SmelterActorStateUnitOptions {
-  bus: BusRequestPrimitive;
-}
+import type { BusFrame, EventMap } from '@semiont/core';
 
 export const SMELTER_CHANNELS = [
   'yield:created',
@@ -52,21 +43,21 @@ export type SmelterEvent = EventMap[SmelterChannel];
 // would deadlock a scoped rebuild against its own work.
 export const SMELTER_COMMAND_CHANNELS = ['smelt:rebuild-anchors'] as const;
 
-export interface SmelterActorStateUnit extends StateUnit {
+export interface SmelterFanIn {
   events$: Observable<SmelterEvent>;
   /** `smelt:rebuild-anchors` commands (PERSIST-ANCHORS P0) — see the command-channel note above. */
   rebuildAnchors$: Observable<BusFrame<EventMap['smelt:rebuild-anchors']>>;
-  start(): void;
 }
 
 /**
  * The Smelter's complete subscription manifest — what `smelter-main`
  * constructs its transport with, stated once.
  *
- * The fold's streams are built AT CONSTRUCTION, so every channel must be in
- * the set before this unit exists; widening in `start()` left a window where
- * consumption outran declaration, and P1's `stream` refusal rejected
- * `yield:created` outright (globally bridged, so not scopable either).
+ * The fan-in asks the bus for its streams the moment it is called, so every
+ * channel must be in the set before then: a set widened afterwards leaves a
+ * window where consumption outruns declaration, and the transport's `stream`
+ * refusal rejects `yield:created` outright (globally bridged, so not
+ * scopable either).
  */
 export const SMELTER_MANIFEST: readonly (keyof EventMap)[] = [
   ...SMELTER_REPLY_CHANNELS,
@@ -74,27 +65,9 @@ export const SMELTER_MANIFEST: readonly (keyof EventMap)[] = [
   ...SMELTER_COMMAND_CHANNELS,
 ];
 
-export function createSmelterActorStateUnit(options: SmelterActorStateUnitOptions): SmelterActorStateUnit {
-  const { bus } = options;
-  let started = false;
-
-  const events$ = merge(
-    ...SMELTER_CHANNELS.map((channel) => bus.stream(channel)),
-  );
-
-  const rebuildAnchors$ = bus.frames('smelt:rebuild-anchors');
-
+export function smelterFanIn(bus: BusRequestPrimitive): SmelterFanIn {
   return {
-    events$,
-    rebuildAnchors$,
-    start: () => {
-      if (started) return;
-      started = true;
-    },
-    dispose: () => {
-      // The bus is owned by the caller; the state unit only releases its own
-      // local state, of which there is none beyond the `started` flag.
-      started = false;
-    },
+    events$: merge(...SMELTER_CHANNELS.map((channel) => bus.stream(channel))),
+    rebuildAnchors$: bus.frames('smelt:rebuild-anchors'),
   };
 }

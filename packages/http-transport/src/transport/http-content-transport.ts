@@ -171,7 +171,7 @@ export class HttpContentTransport implements IContentTransport {
             headers: this.requestHeaders(options?.auth),
           })
           .json<GetResourceResponse>(),
-      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string, 'content.graph': true } },
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
   }
 
@@ -242,10 +242,12 @@ interface XhrUploadOptions {
 
 /**
  * XHR-based POST that exposes `xhr.upload.onprogress` byte counts and
- * supports cancellation via `AbortSignal`. Mirrors the ky path's error
- * shape: 4xx/5xx and network-level failures both surface as `APIError`,
- * and every error is routed onto `transport.errors$` before the promise
- * rejects.
+ * supports cancellation via `AbortSignal`. A refusal (4xx/5xx) surfaces as
+ * it does on the ky path: an `APIError` routed onto `transport.errors$`
+ * before the promise rejects. A network-level failure does the same here,
+ * which the ky path does not: with no response, ky's own error reaches the
+ * caller and `errors$` hears nothing. An abort rejects and is not routed
+ * there.
  */
 function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId }> {
   const { url, formData, headers, onProgress, signal, onApiError } = opts;
@@ -253,10 +255,19 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
+    // Caller-initiated abort via `signal`. Rejects with an APIError so the
+    // shape matches the failure paths; consumers can disambiguate via
+    // `signal.aborted` if they need to. The code is the unclassified
+    // `error`: the caller cancelled, so nothing was unreachable and nothing
+    // was refused, and no other member names that. It stays off `errors$`:
+    // that stream reports transport failures, and this is the caller's own
+    // request, which only the caller needs to hear about.
+    const rejectAborted = () => {
+      reject(APIError.withoutResponse('Upload aborted', 'error', 'aborted'));
+    };
+
     if (signal?.aborted) {
-      const err = new APIError('Upload aborted', 0, 'aborted', undefined, undefined);
-      onApiError(err);
-      reject(err);
+      rejectAborted();
       return;
     }
 
@@ -282,7 +293,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
           const body = JSON.parse(xhr.responseText) as { resourceId: string };
           resolve({ resourceId: body.resourceId as ResourceId });
         } catch (parseErr) {
-          const err = new APIError(
+          const err = APIError.fromStatus(
             `Upload succeeded but response was not valid JSON: ${(parseErr as Error).message}`,
             xhr.status,
             xhr.statusText,
@@ -299,34 +310,20 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
       const message = (body && typeof body === 'object' && 'message' in body && typeof (body as { message: unknown }).message === 'string')
         ? (body as { message: string }).message
         : `HTTP ${xhr.status}: ${xhr.statusText}`;
-      const err = new APIError(message, xhr.status, xhr.statusText, body, retryAfterMs(xhr.getResponseHeader('retry-after')));
+      const err = APIError.fromStatus(message, xhr.status, xhr.statusText, body, retryAfterMs(xhr.getResponseHeader('retry-after')));
       onApiError(err);
       reject(err);
     };
 
     xhr.onerror = () => {
-      // Network-level failure (DNS, TCP reset, CORS). XHR doesn't give
-      // us a useful status here; classify as `unavailable` via 0 status
-      // mapping in classifyApiCode.
-      const err = new APIError('Network error during upload', 0, 'network-error', undefined, undefined);
+      // Network-level failure (DNS, TCP reset, CORS). XHR gives no status
+      // here; the vocabulary files a failed network under `unavailable`.
+      const err = APIError.withoutResponse('Network error during upload', 'unavailable', 'network-error');
       onApiError(err);
       reject(err);
     };
 
-    xhr.ontimeout = () => {
-      const err = new APIError('Upload timed out', 0, 'timeout', undefined, undefined);
-      onApiError(err);
-      reject(err);
-    };
-
-    xhr.onabort = () => {
-      // Caller-initiated abort via `signal`. Emit a single APIError so the
-      // shape matches the other failure paths; consumers can disambiguate
-      // via `signal.aborted` if they need to.
-      const err = new APIError('Upload aborted', 0, 'aborted', undefined, undefined);
-      onApiError(err);
-      reject(err);
-    };
+    xhr.onabort = rejectAborted;
 
     if (signal) {
       const onAbort = () => xhr.abort();

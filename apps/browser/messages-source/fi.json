@@ -206,7 +206,8 @@
     "connectedToOther": "Yhdistetty kohteeseen {{actual}}, ei {{expected}}.",
     "identityCheckFailed": "Kirjautunut sisään, mutta identiteetin tarkistus ei tavoittanut tätä tietopankkia.",
     "identityNotReported": "Kirjautunut sisään, mutta tämä tietopankki ei ilmoittanut identiteettiä.",
-    "lastReadAt": "Tilanne {{time}}"
+    "lastReadAt": "Tilanne {{time}}",
+    "answeringInstead": "{{name}} vastaa tässä osoitteessa"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ei tietopankkeja",

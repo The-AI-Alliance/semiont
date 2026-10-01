@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "description": "What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.",
+  "properties": {
+    "cancelled": {
+      "type": "integer",
+      "description": "The number of jobs cancelled."
+    }
+  },
+  "required": [
+    "cancelled"
+  ]
+}

@@ -76,7 +76,7 @@ describe('KbIdentityConflictModal', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
 
-    expect(signals.kbIdentityConflictAt$.getValue()).toBeNull();
+    expect(signals.kbIdentityConflict$.getValue()).toBeNull();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
@@ -86,6 +86,6 @@ describe('KbIdentityConflictModal', () => {
     fireEvent.click(screen.getByRole('button', { name: /review knowledge bases/i }));
 
     expect(harness.browser.emit).toHaveBeenCalledWith('panel:open', { panel: 'knowledge-base' });
-    expect(signals.kbIdentityConflictAt$.getValue()).toBeNull();
+    expect(signals.kbIdentityConflict$.getValue()).toBeNull();
   });
 });

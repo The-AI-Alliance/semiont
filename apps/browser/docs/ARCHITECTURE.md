@@ -313,7 +313,7 @@ session.errors$.subscribe((err) => {
 });
 ```
 
-`SessionSignals` holds the modal state as `BehaviorSubject`s (`sessionExpiredAt$`, `permissionDeniedAt$`, …); `SessionExpiredModal` and `PermissionDeniedModal` render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
+`SessionSignals` holds the modal state as `BehaviorSubject`s, one per signal (`sessionExpired$`, `permissionDenied$`, `kbIdentityConflict$`), each null until raised; `SessionExpiredModal` and `PermissionDeniedModal` render by subscribing to the browser's `activeSignals$` via `useObservable`. When no session is active (e.g. on the landing page), `activeSignals$` is `null`, so auth errors have nowhere to surface and are no-ops.
 
 **Component-level:** a live query carries its own loading/error state in the value it emits — `useObservable(semiont.browse.resource(id))` yields `CacheState` values (`pending` / `ready` / `failed`, plus `undefined` on the very first render). One-shot hooks such as `useResourceGraph` return an explicit `{ data, loading, error }` shape:
 
@@ -390,8 +390,8 @@ The provider tree has two distinct layers:
 // apps/browser/src/contexts/AuthShell.tsx — no provider; the SemiontBrowser
 // singleton (mounted at the app root) already holds all session state.
 <ProtectedErrorBoundary>            // catches render-time crashes inside the protected tree
-  <SessionExpiredModal />           // reads sessionExpiredAt$ from the active session's signals
-  <PermissionDeniedModal />         // reads permissionDeniedAt$ from the active session's signals
+  <SessionExpiredModal />           // reads sessionExpired$ from the active session's signals
+  <PermissionDeniedModal />         // reads permissionDenied$ from the active session's signals
   {children}                        // protected layout body
 ```
 

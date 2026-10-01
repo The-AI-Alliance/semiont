@@ -143,7 +143,7 @@ Hot-path metric recorders. The names and label conventions are picked to match T
 
 ```ts
 import {
-  recordBusEmit,
+  recordBusSent,
   recordHandlerDuration,
   recordJobOutcome,
   recordSubscriberConnect,
@@ -151,7 +151,7 @@ import {
   recordInferenceUsage,
 } from '@semiont/observability';
 
-recordBusEmit('mark:create', 'browse');
+recordBusSent('mark:create', 'browse');
 recordHandlerDuration('stower', 'mark:create', durationMs);
 recordJobOutcome('reference-annotation', 'completed', durationMs);
 recordSubscriberConnect();

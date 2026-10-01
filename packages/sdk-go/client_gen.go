@@ -207,6 +207,30 @@ func (e BodyPurpose) Valid() bool {
 	}
 }
 
+// Defines values for BrowseDirectoryFailedCode.
+const (
+	BrowseDirectoryFailedCodeNonePending     BrowseDirectoryFailedCode = "none-pending"
+	BrowseDirectoryFailedCodeNotFound        BrowseDirectoryFailedCode = "not-found"
+	BrowseDirectoryFailedCodePeerUnavailable BrowseDirectoryFailedCode = "peer-unavailable"
+	BrowseDirectoryFailedCodeUnauthorized    BrowseDirectoryFailedCode = "unauthorized"
+)
+
+// Valid indicates whether the value is a known member of the BrowseDirectoryFailedCode enum.
+func (e BrowseDirectoryFailedCode) Valid() bool {
+	switch e {
+	case BrowseDirectoryFailedCodeNonePending:
+		return true
+	case BrowseDirectoryFailedCodeNotFound:
+		return true
+	case BrowseDirectoryFailedCodePeerUnavailable:
+		return true
+	case BrowseDirectoryFailedCodeUnauthorized:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BrowseDirectoryRequestSort.
 const (
 	AnnotationCount BrowseDirectoryRequestSort = "annotationCount"
@@ -582,6 +606,54 @@ func (e GatewayConfigSignalType) Valid() bool {
 	case InProcess:
 		return true
 	case Nats:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatherFailedCode.
+const (
+	GatherFailedCodeNonePending     GatherFailedCode = "none-pending"
+	GatherFailedCodeNotFound        GatherFailedCode = "not-found"
+	GatherFailedCodePeerUnavailable GatherFailedCode = "peer-unavailable"
+	GatherFailedCodeUnauthorized    GatherFailedCode = "unauthorized"
+)
+
+// Valid indicates whether the value is a known member of the GatherFailedCode enum.
+func (e GatherFailedCode) Valid() bool {
+	switch e {
+	case GatherFailedCodeNonePending:
+		return true
+	case GatherFailedCodeNotFound:
+		return true
+	case GatherFailedCodePeerUnavailable:
+		return true
+	case GatherFailedCodeUnauthorized:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GatherResourceFailedCode.
+const (
+	GatherResourceFailedCodeNonePending     GatherResourceFailedCode = "none-pending"
+	GatherResourceFailedCodeNotFound        GatherResourceFailedCode = "not-found"
+	GatherResourceFailedCodePeerUnavailable GatherResourceFailedCode = "peer-unavailable"
+	GatherResourceFailedCodeUnauthorized    GatherResourceFailedCode = "unauthorized"
+)
+
+// Valid indicates whether the value is a known member of the GatherResourceFailedCode enum.
+func (e GatherResourceFailedCode) Valid() bool {
+	switch e {
+	case GatherResourceFailedCodeNonePending:
+		return true
+	case GatherResourceFailedCodeNotFound:
+		return true
+	case GatherResourceFailedCodePeerUnavailable:
+		return true
+	case GatherResourceFailedCodeUnauthorized:
 		return true
 	default:
 		return false
@@ -1398,6 +1470,54 @@ func (e SettingsThemeChangedEventTheme) Valid() bool {
 	}
 }
 
+// Defines values for SmeltSettledOutcome.
+const (
+	Indexed SmeltSettledOutcome = "indexed"
+	Skipped SmeltSettledOutcome = "skipped"
+)
+
+// Valid indicates whether the value is a known member of the SmeltSettledOutcome enum.
+func (e SmeltSettledOutcome) Valid() bool {
+	switch e {
+	case Indexed:
+		return true
+	case Skipped:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for SmeltSettledReason.
+const (
+	Corrupt     SmeltSettledReason = "corrupt"
+	Empty       SmeltSettledReason = "empty"
+	Encrypted   SmeltSettledReason = "encrypted"
+	NoExtractor SmeltSettledReason = "no-extractor"
+	NoTextLayer SmeltSettledReason = "no-text-layer"
+	TooLarge    SmeltSettledReason = "too-large"
+)
+
+// Valid indicates whether the value is a known member of the SmeltSettledReason enum.
+func (e SmeltSettledReason) Valid() bool {
+	switch e {
+	case Corrupt:
+		return true
+	case Empty:
+		return true
+	case Encrypted:
+		return true
+	case NoExtractor:
+		return true
+	case NoTextLayer:
+		return true
+	case TooLarge:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for SpecificResourceType.
 const (
 	SpecificResourceTypeSpecificResource SpecificResourceType = "SpecificResource"
@@ -1668,6 +1788,30 @@ const (
 func (e TextualBodyType) Valid() bool {
 	switch e {
 	case TextualBodyTypeTextualBody:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for YieldMoveFailedCode.
+const (
+	YieldMoveFailedCodeNonePending     YieldMoveFailedCode = "none-pending"
+	YieldMoveFailedCodeNotFound        YieldMoveFailedCode = "not-found"
+	YieldMoveFailedCodePeerUnavailable YieldMoveFailedCode = "peer-unavailable"
+	YieldMoveFailedCodeUnauthorized    YieldMoveFailedCode = "unauthorized"
+)
+
+// Valid indicates whether the value is a known member of the YieldMoveFailedCode enum.
+func (e YieldMoveFailedCode) Valid() bool {
+	switch e {
+	case YieldMoveFailedCodeNonePending:
+		return true
+	case YieldMoveFailedCodeNotFound:
+		return true
+	case YieldMoveFailedCodePeerUnavailable:
+		return true
+	case YieldMoveFailedCodeUnauthorized:
 		return true
 	default:
 		return false
@@ -2121,6 +2265,24 @@ type BrowseClickEvent struct {
 	AnnotationId string `json:"annotationId"`
 }
 
+// BrowseDirectoryFailed defines model for BrowseDirectoryFailed.
+type BrowseDirectoryFailed struct {
+	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+	Code *BrowseDirectoryFailedCode `json:"code,omitempty"`
+
+	// Details Optional additional context (stack trace, field name, etc.)
+	Details *string `json:"details,omitempty"`
+
+	// Message Human-readable error message
+	Message string `json:"message"`
+
+	// Path The path the read was asked for.
+	Path string `json:"path"`
+}
+
+// BrowseDirectoryFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+type BrowseDirectoryFailedCode string
+
 // BrowseDirectoryRequest Request to browse a directory listing
 type BrowseDirectoryRequest struct {
 	Path string                      `json:"path"`
@@ -2343,13 +2505,13 @@ type BusPingMessageEvent string
 // BusResumeGap The payload of `bus:resume-gap`: a scope's `lastEventId` could not be honoured, so the client cannot trust that it has every persisted event of that scope and must refetch what it caches for it. Written by the gateway, never by a participant.
 type BusResumeGap struct {
 	// LastSeenId The watermark the entry carried.
-	LastSeenId *string `json:"lastSeenId,omitempty"`
+	LastSeenId string `json:"lastSeenId"`
 
 	// Reason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
 	Reason BusResumeGapReason `json:"reason"`
 
 	// Scope The scope of the subscription entry whose watermark failed.
-	Scope *string `json:"scope,omitempty"`
+	Scope string `json:"scope"`
 }
 
 // BusResumeGapReason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
@@ -2874,6 +3036,24 @@ type GatherAnnotationRequest struct {
 	ResourceId string `json:"resourceId"`
 }
 
+// GatherFailed defines model for GatherFailed.
+type GatherFailed struct {
+	// AnnotationId The annotation the gather was asked for.
+	AnnotationId string `json:"annotationId"`
+
+	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+	Code *GatherFailedCode `json:"code,omitempty"`
+
+	// Details Optional additional context (stack trace, field name, etc.)
+	Details *string `json:"details,omitempty"`
+
+	// Message Human-readable error message
+	Message string `json:"message"`
+}
+
+// GatherFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+type GatherFailedCode string
+
 // GatherResourceComplete Completion payload emitted on the gather:resource-complete bus channel when resource context gathering finishes.
 type GatherResourceComplete struct {
 	// ResourceId Branded ResourceId of the resource whose context was gathered
@@ -2882,6 +3062,24 @@ type GatherResourceComplete struct {
 	// Response Context gathered for a gather.* call — consumed by yield.* (generation) and the matcher. A shared base (graph, semanticContext, metadata, inferredRelationshipSummary) plus a discriminated `focus` that names the anchor: an annotation or a whole resource.
 	Response GatheredContext `json:"response"`
 }
+
+// GatherResourceFailed defines model for GatherResourceFailed.
+type GatherResourceFailed struct {
+	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+	Code *GatherResourceFailedCode `json:"code,omitempty"`
+
+	// Details Optional additional context (stack trace, field name, etc.)
+	Details *string `json:"details,omitempty"`
+
+	// Message Human-readable error message
+	Message string `json:"message"`
+
+	// ResourceId The resource the gather was asked for.
+	ResourceId string `json:"resourceId"`
+}
+
+// GatherResourceFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+type GatherResourceFailedCode string
 
 // GatherResourceRequest Request payload sent on the gather:resource-requested bus channel to gather context for a resource.
 type GatherResourceRequest struct {
@@ -3298,6 +3496,12 @@ type JobCancelRequest struct {
 
 // JobCancelRequestJobType Cancel all PENDING jobs in this category — the bulk UI signal. Ignored when jobId is present.
 type JobCancelRequestJobType string
+
+// JobCancelResult What a cancel did, in the `response` of `job:cancel-ok`: how many jobs it cancelled. A pending job is cancelled outright; a running one is left to its worker, so for it the count means accepted, not stopped.
+type JobCancelResult struct {
+	// Cancelled The number of jobs cancelled.
+	Cancelled int `json:"cancelled"`
+}
 
 // JobCancelled A job cancelled before it concluded.
 type JobCancelled struct {
@@ -4085,6 +4289,15 @@ type MarkAssistRequestEvent struct {
 // MarkAssistRequestEventOptionsTone defines model for MarkAssistRequestEvent.Options.Tone.
 type MarkAssistRequestEventOptionsTone string
 
+// MarkAssistTimeoutEvent The payload of `mark:assist-timeout`, a client-local signal: an assist went silent past its deadline, with no progress, no completion and no `job:fail`. A real job failure arrives as `job:fail` and never produces this.
+type MarkAssistTimeoutEvent struct {
+	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
+	Motivation Motivation `json:"motivation"`
+
+	// ResourceId The resource the assist was run on.
+	ResourceId string `json:"resourceId"`
+}
+
 // MarkCommitCommand Bus command to persist a detection unit's annotations as one acknowledged batch (JOB-RESTART-SAFETY P6). Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic (P3).
 type MarkCommitCommand struct {
 	// UnderscoreRoles The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise.
@@ -4707,6 +4920,15 @@ type ResourceDescriptor_WasDerivedFrom struct {
 	union json.RawMessage
 }
 
+// ResourceErrorEvent A client-local notice that a command on a resource failed, for a UI to show: the payload of `mark:create-error`, `mark:delete-error` and `bind:body-error`. Emitted by the caller that awaited the command, which knows whose command failed on which resource. The `*-failed` wire replies are correlation plumbing and are not for this.
+type ResourceErrorEvent struct {
+	// Message Human-readable error message.
+	Message string `json:"message"`
+
+	// ResourceId The resource the command addressed.
+	ResourceId string `json:"resourceId"`
+}
+
 // ResourceMovedPayload Payload for yield:moved domain event
 type ResourceMovedPayload struct {
 	// FromUri Previous file:// URI
@@ -5052,6 +5274,25 @@ type SmeltRebuildAnchorsCommand struct {
 	ResourceId *string `json:"resourceId,omitempty"`
 }
 
+// SmeltSettled The payload of `smelt:settled`: the Smelter's decision for one resource's content, keyed by the checksum of the bytes it inspected. `indexed`: the content is in the vector index. `skipped`: it declined, and `reason` says why.
+type SmeltSettled struct {
+	// ContentChecksum The checksum of the bytes inspected.
+	ContentChecksum string              `json:"contentChecksum"`
+	Outcome         SmeltSettledOutcome `json:"outcome"`
+
+	// Reason Why the content was skipped.
+	Reason *SmeltSettledReason `json:"reason,omitempty"`
+
+	// ResourceId The resource whose content was inspected.
+	ResourceId string `json:"resourceId"`
+}
+
+// SmeltSettledOutcome defines model for SmeltSettled.Outcome.
+type SmeltSettledOutcome string
+
+// SmeltSettledReason Why the content was skipped.
+type SmeltSettledReason string
+
 // SpecificResource defines model for SpecificResource.
 type SpecificResource struct {
 	// Purpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
@@ -5235,6 +5476,15 @@ type UserResponse struct {
 	Name   *string `json:"name"`
 }
 
+// WeaveApplied The payload of `weave:applied`: the Weaver has applied a resource's events to the graph up to this sequence number. Emitted after applying an event, or a batch's last event.
+type WeaveApplied struct {
+	// ResourceId The resource whose events were applied.
+	ResourceId string `json:"resourceId"`
+
+	// SequenceNumber The resource-stream sequence of the last applied event.
+	SequenceNumber int `json:"sequenceNumber"`
+}
+
 // WeaveRebuildCommand Bus command to rebuild the graph projection from the event log — the whole graph when resourceId is absent, one resource when present. Served by the Weaver; replaces direct rebuild access, which does not survive the Weaver's container split.
 type WeaveRebuildCommand struct {
 	// UnderscoreUserId Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this.
@@ -5365,6 +5615,24 @@ type YieldCreateOk struct {
 		ResourceId string `json:"resourceId"`
 	} `json:"response"`
 }
+
+// YieldMoveFailed defines model for YieldMoveFailed.
+type YieldMoveFailed struct {
+	// Code Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+	Code *YieldMoveFailedCode `json:"code,omitempty"`
+
+	// Details Optional additional context (stack trace, field name, etc.)
+	Details *string `json:"details,omitempty"`
+
+	// FromUri The storage URI the resource was to be moved from.
+	FromUri string `json:"fromUri"`
+
+	// Message Human-readable error message
+	Message string `json:"message"`
+}
+
+// YieldMoveFailedCode Machine-readable failure class, for consumers that must BRANCH on why a command failed rather than log it. Optional and deliberately sparse: absent means 'no class declared', and every existing failure stays that way. An enum rather than a free string so the vocabulary has an owner — an unconstrained code is a mirror with no gate, and adding one should be a deliberate spec change. `message` remains the human-readable text and is unaffected. Members: `peer-unavailable` — the channel this command was sent on has no subscriber, i.e. the service that answers it has not connected yet. Transient by nature (a peer still starting), which is what distinguishes it from a refusal: retrying is the correct response. `not-found` — the resource this command addressed does not exist in this knowledge base. A verdict, not a symptom: it is emitted only where the answer comes from the event store, which is the system of record, and never from a projection that may merely be lagging. Deterministic, so unlike `peer-unavailable` retrying is pointless — and consumers may act destructively on it (the SDK deletes a restored tab). Absence is not denial: a future 'exists, but not for you' must travel as its own code, never as this one. `unauthorized` — that code: the caller is authenticated but not permitted to do what it asked. A verdict about the CALLER, not the resource, so retrying under the same credential cannot succeed and a consumer must never spin on it; emitted by `job:claim` for a caller whose token carries no worker role. `none-pending` — a declined claim, not an error: the queue holds no pending job of the requested types. Nothing went wrong; the one code a consumer PARKS on, meaning 'nothing to do until a wake-up'. Emitted by `job:claim` only. A `job:claim` refusal carrying neither is unclassified — a malformed record or a missing injection — and a consumer treats it as 'log it, assume nothing'.
+type YieldMoveFailedCode string
 
 // YieldMvCommand Bus command to move (rename) a yielded resource.
 type YieldMvCommand struct {
