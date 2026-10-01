@@ -1,0 +1,19 @@
+{
+  "$comment": "AUTHORITY for how a Semiont client presents itself to the issuer a knowledge base trusts. The realm registers these clients (the launcher writes the registration), and every SDK and the launcher sign in as them: a client id restated in each language is a sign-in that fails in one of them the day the registration changes. TypeScript: scripts/spec/generate-oauth-clients.mjs writes packages/core/src/generated/oauth-clients.ts. Rust: packages/sdk-rust/build.rs. The launcher's Go states the same ids (identity.go, oauth.go) and is not generated from this file yet.",
+  "clients": [
+    {
+      "name": "browser",
+      "id": "semiont-browser",
+      "docs": "An application a person uses: the authorization-code grant with PKCE (RFC 7636), at a redirect address the registration lists."
+    },
+    {
+      "name": "script",
+      "id": "semiont-cli",
+      "docs": "A process with no browser of its own, and the launcher: the device authorization grant (RFC 8628)."
+    }
+  ],
+  "scope": {
+    "value": "openid email profile offline_access",
+    "docs": "What every sign-in asks for. `offline_access` asks for a refresh token that outlives the issuer's own browser session: a session with a knowledge base is renewed for weeks, not minutes."
+  }
+}

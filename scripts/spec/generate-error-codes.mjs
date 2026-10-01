@@ -110,6 +110,10 @@ const jobCodes = codesOf('job', table.job);
 // ── session ─────────────────────────────────────────────────────────────
 const sessionCodes = codesOf('session', table.session);
 
+// ── sign-in, and the identity a sign-in must establish ──────────────────
+const signInCodes = codesOf('signIn', table.signIn);
+const kbIdentityCodes = codesOf('kbIdentity', table.kbIdentity);
+
 // ── render ──────────────────────────────────────────────────────────────
 const doc = (text, indent = '') => `${indent}/** ${text.replaceAll('*/', '*\\/')} */`;
 const union = (name, vocabulary, codes) =>
@@ -144,9 +148,11 @@ ${ranges.map((entry) => `  if (status >= ${entry.statusFrom}) return ${JSON.stri
 }
 
 ${union('JobErrorCode', table.job, jobCodes)}
-${union('SemiontSessionErrorCode', table.session, sessionCodes)}`,
+${union('SemiontSessionErrorCode', table.session, sessionCodes)}
+${union('SignInErrorCode', table.signIn, signInCodes)}
+${union('IdentityUnverifiableReason', table.kbIdentity, kbIdentityCodes)}`,
 );
 
 console.log(
-  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport, ${jobCodes.length} job and ${sessionCodes.length} session error codes → ${OUT}`,
+  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport, ${jobCodes.length} job, ${sessionCodes.length} session, ${signInCodes.length} sign-in and ${kbIdentityCodes.length} identity error codes → ${OUT}`,
 );

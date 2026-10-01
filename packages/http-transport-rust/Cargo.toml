@@ -5,11 +5,19 @@ publish = false
 license = "Apache-2.0"
 description = "Semiont's HTTP transport, in Rust: a knowledge base's bus over its gateway, as semiont's Transport, and the sign-in that reaches it."
 
+[features]
+# Signing a person in, and sessions over a gateway: the issuer's grants with
+# PKCE, a registry's sign-in, the loopback redirect and discovery over HTTP.
+# A service signs in as its own account and links none of it.
+sign-in = ["dep:base64", "dep:ring", "tokio/net", "tokio/io-util"]
+
 [dependencies]
+base64 = { workspace = true, optional = true }
 bytes.workspace = true
 futures.workspace = true
 opentelemetry = { workspace = true, features = ["trace"] }
 reqwest = { workspace = true, features = ["json", "stream"] }
+ring = { workspace = true, optional = true }
 semiont.workspace = true
 semiont-observability.workspace = true
 serde.workspace = true
@@ -26,5 +34,7 @@ reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rustls = { workspace = true, features = ["ring", "std"] }
 # The liveness harness and the bus log's capture.
 semiont = { workspace = true, features = ["testing"] }
+# This crate's own tests sign people in.
+semiont-http-transport = { workspace = true, features = ["sign-in"] }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net"] }
 tokio-stream = { workspace = true, features = ["sync"] }

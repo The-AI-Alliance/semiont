@@ -3,7 +3,8 @@
 //! which is a server's refusal or a request the gateway never answered; a bus
 //! request's, which is the peer's own failure or a fact only this side knows;
 //! a followed job's, which failed for good or went silent; and the three
-//! together, as a caller meets them.
+//! together, as a caller meets them. Beside them, what makes a session
+//! unusable, and what keeps a person from being signed in.
 
 use serde_json::{Map, Value};
 use std::fmt;
@@ -105,6 +106,91 @@ impl fmt::Display for JobError {
 }
 
 impl std::error::Error for JobError {}
+
+/// A session that is itself unusable: it could not be built, its stored
+/// credential could not be validated, or it could not be renewed. What one
+/// request met stays with whoever made it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SessionError {
+    pub code: SessionErrorCode,
+    pub message: String,
+    /// The knowledge base the session was for.
+    pub kb_id: Option<String>,
+}
+
+impl SessionError {
+    pub fn new(code: SessionErrorCode, message: impl Into<String>, kb_id: &str) -> SessionError {
+        SessionError {
+            code,
+            message: message.into(),
+            kb_id: Some(kb_id.to_owned()),
+        }
+    }
+}
+
+impl fmt::Display for SessionError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SessionError {}
+
+/// Why a person could not be signed in at the issuer a knowledge base
+/// trusts, or a session could not be renewed there.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignInError {
+    pub code: SignInErrorCode,
+    pub message: String,
+    /// The HTTP status the issuer answered with. None when there was no
+    /// answer to read, which is not the issuer refusing: a renewal that got
+    /// none is worth another attempt, and one that was refused is not.
+    pub status: Option<u16>,
+}
+
+impl SignInError {
+    pub fn new(code: SignInErrorCode, message: impl Into<String>) -> SignInError {
+        SignInError {
+            code,
+            message: message.into(),
+            status: None,
+        }
+    }
+
+    pub fn answered(code: SignInErrorCode, message: impl Into<String>, status: u16) -> SignInError {
+        SignInError {
+            code,
+            message: message.into(),
+            status: Some(status),
+        }
+    }
+}
+
+impl fmt::Display for SignInError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for SignInError {}
+
+/// A sign-in succeeded, and the knowledge base it reached could not be
+/// registered: it has to say who it is, and nothing stands in for its
+/// answer. An identity made up from its address is the error this exists to
+/// prevent.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IdentityUnverifiable {
+    pub reason: IdentityUnverifiableReason,
+    pub detail: String,
+}
+
+impl fmt::Display for IdentityUnverifiable {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.detail)
+    }
+}
+
+impl std::error::Error for IdentityUnverifiable {}
 
 /// What a caller meets: a request's own failure, the transport's failure to
 /// send it, or the failure of a job it was following.

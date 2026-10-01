@@ -88,7 +88,61 @@ client.close().await;
   `browse` applies it. A row added there with nothing here that reads its
   event does not compile.
 - `storage` — `SessionStorage`, where a client keeps what must outlive it,
-  and `InMemorySessionStorage`.
+  and `InMemorySessionStorage`. More than one context can write a store, so
+  what is written from what was read goes through `update`, which a store
+  makes one step.
+- `resume` — the stream's place in each scope, kept so the next client for
+  the same knowledge base resumes from it. It is written with the caches'
+  own writes and only when they are at rest, so it can lag what the caches
+  hold and never leads it.
+- `session` — sessions with knowledge bases.
+  - `SemiontSession` is one session: a client, the token its transport
+    sends, and who is signed in. It is given how to renew its token and how
+    to ask who a token is; it renews before the token expires, by the
+    schedule every Semiont client keeps, and when the gateway refuses it. A
+    session that cannot be renewed clears its token and what it stored, and
+    says so once. One that never had a credential is only signed out.
+  - `SemiontBrowser` is what an application holds: the knowledge bases it
+    has registered, which is active, the active one's session, and what a
+    person has open in each. One session is live at a time. A sign-in lands
+    on the entry, among those at its address, whose did is the one the
+    knowledge base reported, or on a new entry: an entry's did never
+    changes. When a session comes up the knowledge base is asked who it is
+    and each open resource is checked against it; only a resource the
+    knowledge base says is gone is closed, and a different knowledge base
+    answering voids what was open and is raised for a host to show.
+  - `SessionSignals` is what a host shows about a session: that it expired,
+    that a request was refused for lack of permission, that a different
+    knowledge base is answering.
+  - `SessionFactory` builds a knowledge base's session and ends its
+    credentials. A browser is given one, and so knows nothing of how a
+    knowledge base is reached. `semiont-http-transport` has the one over a
+    gateway, and signing in at an issuer.
+
+  ```rust
+  let browser = SemiontBrowser::new(SemiontBrowserConfig { storage, session_factory });
+  let mut session = browser.active_session();
+  while session.changed().await.is_ok() {
+      if let Some(session) = session.borrow_and_update().clone() {
+          let marking = MarkStateUnit::new(session.client().clone(), "res-1");
+      }
+  }
+  ```
+
+  A state unit is built over a session's client. A new session has a new
+  client, so a unit lasts as long as the session it was built from.
+- `sign_in_store` — the sign-ins `semiont login` keeps
+  ([specs/src/sign-in-store](../../specs/src/sign-in-store/README.md)), as a
+  `SessionStorage`: one sign-in serves the launcher's verbs and an
+  application built on this SDK. A session reaches a stack's sign-in by
+  using the stack's key (`local`, `codespace:<owner>/<name>`) as its
+  knowledge base id. Every change to the file is made under a lock beside
+  it. The crate reads no environment: the application says where its state
+  home is (`state_dir`).
+- `discovery` — the knowledge bases a launcher manages
+  ([specs/src/discovery](../../specs/src/discovery/README.md)): its document
+  read whole or not at all, and what changed between two readings. Absent
+  ("no launcher was found") is not empty ("it manages nothing").
 - `types` — the protocol's types, generated from the spec when the crate is
   built: the body of every request and response the API declares (but the
   ones a service only passes through), every schema the bus's channels carry,
@@ -100,6 +154,9 @@ client.close().await;
   shares, generated from `specs/src/errors` and `specs/src/client`. A
   `SemiontError` is a bus request's failure, the transport's, or a followed
   job's (`job.failed`, `job.stalled`), and `.code()` is the shared code.
+  Beside it: `SessionError`, what makes a session unusable; `SignInError`,
+  what keeps a person from being signed in; and `IdentityUnverifiable`, a
+  knowledge base that could not say who it is.
 - `transport` — the contract a client needs of the wire: emit with an
   envelope (correlation id, scope), receive frames with the trace they were
   sent under, say which channels it receives, hold a resource's scope, report
@@ -144,8 +201,9 @@ client.close().await;
   which it is inert and its readers have ended. [tests/census.rs](tests/census.rs)
   fails a unit that has no test holding it to the axioms, and any `static`
   in the crate: state outside an instance is state two units share.
-- `retry` and `session` — when a failure is worth another attempt and when a
-  token is renewed, held to the shared case tables in `specs/src` (`tests/`).
+- `retry` — when a failure is worth another attempt, held, as the renewal
+  schedule in `session` is, to the shared case tables in `specs/src`
+  (`tests/`).
 - `bus_log` — `SEMIONT_BUS_LOG`: one grep-able line per frame a process sends
   or receives. Its trace field is read from whatever telemetry the process
   installed (`semiont-observability`).
@@ -154,7 +212,9 @@ client.close().await;
 - `testing`, behind the `testing` feature — `FaultyTransport`, a transport
   that fails as a test scripts it and refuses an operation nobody scripted;
   `InMemoryContent`, which keeps what is uploaded and fails a read of what
-  nobody stored; `StubGateway`, which answers only what it was told to; and
+  nobody stored; `StubGateway`, which answers only what it was told to;
+  `SharedStorage`, a storage several contexts share, each hearing what the
+  others write; and
   the harnesses for the state-unit axioms (`axioms`, which a consumer's own
   units are held to: `Fresh::of(unit).given(client)` says what the unit was
   given and must not dispose) and the liveness axioms (generated schedules
@@ -169,4 +229,6 @@ conformance suite ([tests/conformance/sdk](../../tests/conformance/sdk/README.md
 holds its transport to the wire corpus and its client's queries to the live
 corpus, at full parity with TypeScript's; [tests/cache.rs](tests/cache.rs)
 and [tests/queries.rs](tests/queries.rs) hold the cache clause by clause,
-and [tests/state.rs](tests/state.rs) each state unit behaviour by behaviour.
+[tests/state.rs](tests/state.rs) each state unit behaviour by behaviour, and
+[tests/session.rs](tests/session.rs) and [tests/browser.rs](tests/browser.rs)
+a session and the registry.

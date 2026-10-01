@@ -27,8 +27,8 @@ use semiont_dispatcher_handlers::admission::{Refusal, Vocabulary};
 use semiont_dispatcher_handlers::handlers::{COMMANDS, Handlers, Reply};
 use semiont_dispatcher_handlers::queue::{JobQueue, Stats};
 use semiont_dispatcher_jetstream::{JetStreamQueue, Settings};
+use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::service_account::{Credential, ServiceToken};
-use semiont_http_transport::session::{Agent, AgentSession};
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
 use serde_json::json;
@@ -116,7 +116,7 @@ async fn serve(
         },
         http.clone(),
     );
-    let session = AgentSession::sign_in(
+    let agent = AgentToken::sign_in(
         &document.gateway_url,
         Agent {
             provider: "semiont".to_owned(),
@@ -156,12 +156,14 @@ async fn serve(
         .map(str::to_owned)
         .collect();
     let transport = HttpTransport::new(HttpTransportConfig {
-        base_url: session.gateway().to_owned(),
-        token: session.token(),
-        refresher: Some(session.clone()),
+        base_url: agent.gateway().to_owned(),
+        token: agent.token(),
+        refresher: Some(agent.clone()),
         channels: Some(channels),
         http,
         timing: Timing::default(),
+
+        bookmarks: None,
     });
     let mut commands = Vec::new();
     for command in COMMANDS {

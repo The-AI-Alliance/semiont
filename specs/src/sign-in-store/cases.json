@@ -1,0 +1,61 @@
+{
+  "$comment": "Where the launcher's state home is: the directory that holds tokens.json (and the launcher's own stack.json and discovery/kbs.json). Every program that finds those files computes it the same way. `os` is `macos` or anything else; `home` is the home directory (HOME, or USERPROFILE on Windows), `xdgStateHome` is XDG_STATE_HOME; null means not set. `dir` null means there is no state home, and nothing is read or written. Rust (packages/sdk-rust: sign_in_store::state_dir) runs every case; it is given what the environment says and reads none itself. The launcher's Go (apps/launcher/internal/launcher: StateDir) decides the same thing and does not run this table yet.",
+  "cases": [
+    {
+      "why": "macOS: the application-support directory",
+      "os": "macos",
+      "home": "/Users/alice",
+      "xdgStateHome": null,
+      "dir": "/Users/alice/Library/Application Support/semiont"
+    },
+    {
+      "why": "macOS does not read XDG_STATE_HOME",
+      "os": "macos",
+      "home": "/Users/alice",
+      "xdgStateHome": "/var/state",
+      "dir": "/Users/alice/Library/Application Support/semiont"
+    },
+    {
+      "why": "elsewhere, XDG_STATE_HOME when it is set",
+      "os": "linux",
+      "home": "/home/alice",
+      "xdgStateHome": "/var/state",
+      "dir": "/var/state/semiont"
+    },
+    {
+      "why": "elsewhere, ~/.local/state when it is not",
+      "os": "linux",
+      "home": "/home/alice",
+      "xdgStateHome": null,
+      "dir": "/home/alice/.local/state/semiont"
+    },
+    {
+      "why": "an empty XDG_STATE_HOME is one that is not set",
+      "os": "linux",
+      "home": "/home/alice",
+      "xdgStateHome": "",
+      "dir": "/home/alice/.local/state/semiont"
+    },
+    {
+      "why": "with no home there is no state home, even where XDG_STATE_HOME is set",
+      "os": "linux",
+      "home": null,
+      "xdgStateHome": "/var/state",
+      "dir": null
+    },
+    {
+      "why": "an empty home is no home",
+      "os": "linux",
+      "home": "",
+      "xdgStateHome": null,
+      "dir": null
+    },
+    {
+      "why": "macOS with no home has no state home",
+      "os": "macos",
+      "home": null,
+      "xdgStateHome": null,
+      "dir": null
+    }
+  ]
+}

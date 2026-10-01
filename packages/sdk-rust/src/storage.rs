@@ -1,6 +1,10 @@
 //! Where a client keeps what must outlive it: a string under a key. The seam
 //! an environment fills in (a file, a platform's store), so nothing above it
 //! knows where it runs.
+//!
+//! More than one context can write a store: two windows, two processes. What
+//! is written from what was read goes through `update`, which a store makes
+//! one step, so one writer's change is never lost under another's.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -39,6 +43,11 @@ pub trait SessionStorage: Send + Sync + 'static {
     /// Remove a key. One that is not there is left not there.
     fn delete(&self, key: &str);
 
+    /// Change a key's value as one step: `change` is given what is stored
+    /// and says what is stored next, `None` for nothing. No other writer's
+    /// change falls between the read and the write.
+    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>);
+
     /// Hear of what another context writes: another process, another window.
     /// `None` where the environment has no such thing; a client then works
     /// correctly within its own.
@@ -75,6 +84,14 @@ impl SessionStorage for InMemorySessionStorage {
 
     fn delete(&self, key: &str) {
         self.stored().remove(key);
+    }
+
+    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
+        let mut stored = self.stored();
+        match change(stored.get(key).map(String::as_str)) {
+            Some(next) => stored.insert(key.to_owned(), next),
+            None => stored.remove(key),
+        };
     }
 
     fn subscribe(&self, _: StorageChange) -> Option<StorageSubscription> {

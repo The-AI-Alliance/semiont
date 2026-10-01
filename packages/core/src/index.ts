@@ -283,7 +283,10 @@ export {
   type TransportErrorCode,
   type JobErrorCode,
   type SemiontSessionErrorCode,
+  type SignInErrorCode,
+  type IdentityUnverifiableReason,
 } from './generated/error-codes';
+export * from './generated/oauth-clients';
 export { ResourceOperations, type CreateResourceInput, type Emitter } from './resource-operations';
 export { BUS_OPERATIONS, type BusOperationKey, type BusOperationSpec } from './bus-operations';
 export { LIMITS_OPERATIONS, type LimitsOperation } from './limits-operations';

@@ -398,6 +398,9 @@ impl Actor {
             && id.starts_with("p-")
         {
             self.watermarks.insert(scope.clone(), id.clone());
+            if let Some(bookmarks) = &self.shared.bookmarks {
+                bookmarks.save(scope, id);
+            }
         }
         self.shared.hub.deliver(frame);
     }
@@ -686,6 +689,13 @@ pub(crate) async fn run(
 ) {
     let (events, mut reported) = mpsc::channel(256);
     let mut token = shared.token.clone();
+    // Each scope begins where the client's last life left it, when that
+    // was kept.
+    let watermarks = shared
+        .bookmarks
+        .as_ref()
+        .map(|bookmarks| bookmarks.load())
+        .unwrap_or_default();
     let mut actor = Actor {
         seen: SeenIds {
             order: VecDeque::new(),
@@ -697,7 +707,7 @@ pub(crate) async fn run(
         events,
         running: false,
         scoped: BTreeMap::new(),
-        watermarks: HashMap::new(),
+        watermarks,
         next_conn: 0,
         connections: HashMap::new(),
         live: None,

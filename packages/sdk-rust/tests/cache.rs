@@ -852,6 +852,10 @@ impl SessionStorage for Shared {
         self.inner.delete(key);
     }
 
+    fn update(&self, key: &str, change: &mut dyn FnMut(Option<&str>) -> Option<String>) {
+        self.inner.update(key, change);
+    }
+
     fn subscribe(&self, on_change: StorageChange) -> Option<StorageSubscription> {
         *self.heard.lock().expect("heard") = Some(on_change);
         Some(StorageSubscription::new(|| {}))

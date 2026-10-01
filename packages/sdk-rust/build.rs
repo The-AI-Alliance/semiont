@@ -12,6 +12,10 @@
 //!   its result and its failure;
 //! - `error_codes.rs`: the codes a client reports and what maps onto them
 //!   (errors/codes.json);
+//! - `oauth_clients.rs`: the ids a client signs in under at an issuer, and
+//!   the scope it asks for (session/oauth.json);
+//! - `sign_in.rs`: an entry of the store `semiont login` keeps
+//!   (sign-in-store/SignIn.json);
 //! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
 //!   keeps (client/timing.json);
 //! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
@@ -26,15 +30,17 @@ use std::path::PathBuf;
 
 /// The schemas generated beside the API's bodies and the channels' payloads:
 /// the job the queue holds, the parameters a generation job is created with,
-/// an event of the record as the stream carries it, and the log settings
-/// every public crate's logging takes.
-const BESIDE: [&str; 6] = [
+/// an event of the record as the stream carries it, the log settings every
+/// public crate's logging takes, and the document a launcher publishes of the
+/// knowledge bases it manages.
+const BESIDE: [&str; 7] = [
     "Job",
     "GenerationJobParams",
     "StoredEventResponse",
     "EnrichedResourceEvent",
     "LogLevel",
     "LogFormat",
+    "DiscoveryDocument",
 ];
 
 /// A body that is not JSON: an upload is a multipart form, whose fields
@@ -178,6 +184,22 @@ fn main() {
         error_codes(&read_json(&specs.join("errors/codes.json"))),
     )
     .expect("cannot write error_codes.rs");
+    fs::write(
+        out.join("sign_in.rs"),
+        generate(
+            &serde_json::json!({ "SignIn": read_json(&specs.join("sign-in-store/SignIn.json")) }),
+            &Generation {
+                roots: &["SignIn"],
+                elsewhere: None,
+            },
+        ),
+    )
+    .expect("cannot write sign_in.rs");
+    fs::write(
+        out.join("oauth_clients.rs"),
+        oauth_clients(&read_json(&specs.join("session/oauth.json"))),
+    )
+    .expect("cannot write oauth_clients.rs");
     fs::write(
         out.join("timing.rs"),
         timing(&read_json(&specs.join("client/timing.json"))),
@@ -575,6 +597,34 @@ fn error_codes(table: &Value) -> String {
 
     code_enum(&mut code, "JobErrorCode", &table["job"]);
     code_enum(&mut code, "SessionErrorCode", &table["session"]);
+    code_enum(&mut code, "SignInErrorCode", &table["signIn"]);
+    code_enum(
+        &mut code,
+        "IdentityUnverifiableReason",
+        &table["kbIdentity"],
+    );
+    code
+}
+
+/// Each client's id as `<NAME>_CLIENT_ID`, and the scope a sign-in asks for.
+fn oauth_clients(table: &Value) -> String {
+    let mut code = String::from("// Generated from specs/src/session/oauth.json; do not edit.\n");
+    for client in list(&table["clients"], "clients") {
+        let _ = writeln!(
+            code,
+            "/// {}\npub const {}_CLIENT_ID: &str = {:?};",
+            text(client, "docs", "a client"),
+            text(client, "name", "a client").to_ascii_uppercase(),
+            text(client, "id", "a client")
+        );
+    }
+    let scope = &table["scope"];
+    let _ = writeln!(
+        code,
+        "/// {}\npub const SIGN_IN_SCOPE: &str = {:?};",
+        text(scope, "docs", "scope"),
+        text(scope, "value", "scope")
+    );
     code
 }
 

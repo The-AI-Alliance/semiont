@@ -1044,6 +1044,16 @@ impl BrowseNamespace {
         }
     }
 
+    /// Whether every cache the client's storage keeps is at rest.
+    pub(crate) fn persistence_settled(&self) -> bool {
+        let live = &self.live;
+        !(live.resource.persistence_pending()
+            || live.annotations.persistence_pending()
+            || live.annotation.persistence_pending()
+            || live.entity_types.persistence_pending()
+            || live.tag_schemas.persistence_pending())
+    }
+
     /// End the queries: every watcher's stream ends, what was owed to
     /// storage is saved, and no event refreshes anything after.
     pub(crate) fn dispose(&self) {

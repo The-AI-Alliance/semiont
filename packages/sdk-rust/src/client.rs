@@ -212,6 +212,13 @@ impl SemiontClient {
         self.transport.state()
     }
 
+    /// Whether every cache the client's storage keeps is at rest: none is
+    /// fetching, and none owes a save. What is kept of the stream's place is
+    /// kept only then (`crate::resume`).
+    pub fn persistence_settled(&self) -> bool {
+        self.browse.persistence_settled()
+    }
+
     /// Stop. The queries end first, so nothing they had in flight asks
     /// again of a transport that is going; then the transport closes, so
     /// every stream ends and every request still pending fails as closed;

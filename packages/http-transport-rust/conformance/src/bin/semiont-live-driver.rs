@@ -174,6 +174,8 @@ impl Live {
                 channels: None,
                 http: reqwest::Client::new(),
                 timing: wire,
+
+                bookmarks: None,
             },
             ClientOptions {
                 timing,

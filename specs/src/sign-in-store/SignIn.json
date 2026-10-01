@@ -1,0 +1,42 @@
+{
+  "title": "SignIn",
+  "type": "object",
+  "description": "One sign-in to a running stack's knowledge base, as the sign-in store keeps it: the tokens an issuer issued to the script client, and what a renewal and a sign-out need of that issuer, learned once at sign-in. TOKENS, never a password. An entry of <stateDir>/tokens.json (see README.md).",
+  "properties": {
+    "token": {
+      "type": "string",
+      "description": "The access token: short-lived, sent as a Bearer token."
+    },
+    "refreshToken": {
+      "type": "string",
+      "description": "The refresh token: long-lived, and what renews the access token at the issuer without another sign-in. An entry with none cannot be renewed."
+    },
+    "email": {
+      "type": "string",
+      "description": "Who signed in, as the gateway named them when the sign-in was made. For display. A writer that renews an entry keeps it; one that creates an entry states it when it knows it."
+    },
+    "obtainedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the access token was issued to this machine, RFC 3339 in UTC."
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the access token stops working, RFC 3339 in UTC, so a reader can renew before sending a token it knows is dead. Absent when the issuer named no lifetime: the gateway's refusal is then the signal."
+    },
+    "issuer": {
+      "type": "string",
+      "description": "The issuer the sign-in came from. A writer that renews an entry keeps it; one that creates an entry states it when it knows it."
+    },
+    "tokenEndpoint": {
+      "type": "string",
+      "description": "The issuer's token endpoint, where the refresh grant is made."
+    },
+    "revocationEndpoint": {
+      "type": "string",
+      "description": "The issuer's revocation endpoint (RFC 7009), where a sign-out tells it to forget the refresh token. Absent when the issuer has none."
+    }
+  },
+  "required": ["token", "obtainedAt", "tokenEndpoint"]
+}

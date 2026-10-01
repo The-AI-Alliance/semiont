@@ -50,9 +50,14 @@ pub(crate) struct Held<T> {
     reader: watch::Receiver<T>,
 }
 
-impl<T: Clone + PartialEq> Held<T> {
+impl<T> Held<T> {
     pub fn new(initial: T) -> Held<T> {
-        let (sender, reader) = watch::channel(initial);
+        Held::of(watch::channel(initial).0)
+    }
+
+    /// A state somebody else reads too: they hold a receiver of `sender`.
+    pub fn of(sender: watch::Sender<T>) -> Held<T> {
+        let reader = sender.subscribe();
         Held {
             sender: Mutex::new(Some(sender)),
             reader,
@@ -67,10 +72,26 @@ impl<T: Clone + PartialEq> Held<T> {
         }
     }
 
+    /// The value is `value`, and every reader is told: an occurrence, which
+    /// is one even when it equals the last.
+    pub fn raise(&self, value: T) {
+        if let Some(sender) = locked(&self.sender).as_ref() {
+            sender.send_replace(value);
+        }
+    }
+
+    pub fn end(&self) {
+        *locked(&self.sender) = None;
+    }
+}
+
+impl<T: Clone> Held<T> {
     pub fn now(&self) -> T {
         self.reader.borrow().clone()
     }
+}
 
+impl<T: PartialEq> Held<T> {
     /// The value is `value`. A reader is told only when that changed it.
     pub fn set(&self, value: T) {
         if let Some(sender) = locked(&self.sender).as_ref() {
@@ -82,12 +103,6 @@ impl<T: Clone + PartialEq> Held<T> {
                 changed
             });
         }
-    }
-}
-
-impl<T> Held<T> {
-    pub fn end(&self) {
-        *locked(&self.sender) = None;
     }
 }
 

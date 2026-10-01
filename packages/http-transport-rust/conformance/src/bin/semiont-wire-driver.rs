@@ -108,6 +108,8 @@ impl Wire {
             channels: Some(texts(args, "channels")?),
             http: reqwest::Client::new(),
             timing,
+
+            bookmarks: None,
         });
 
         let mut reporters = locked(&self.reporters);

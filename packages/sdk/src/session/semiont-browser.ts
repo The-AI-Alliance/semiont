@@ -413,9 +413,13 @@ export class SemiontBrowser {
    * Switch the active KB. Follows the D2 disposal contract:
    *   1. Synchronously announce the new id on `activeKbId$` and null out
    *      `activeSession$` so views see a safe empty state first.
-   *   2. Serialize overlapping calls — if an activation is in flight, wait
-   *      for it before proceeding.
-   *   3. Dispose whatever session is currently live.
+   *   2. Begin disposing the session that was live. It is disposed whether or
+   *      not this call goes on to activate: one that is overtaken while it
+   *      waits its turn returns early, and the session it hid is still its
+   *      to end.
+   *   3. Serialize overlapping calls — if an activation is in flight, wait
+   *      for it before proceeding — and dispose whatever a superseded
+   *      activation left live.
    *   4. Construct the next session and await `session.ready`.
    *   5. Before emitting, re-check `activeKbId$` — if a newer call superseded
    *      us while we waited, dispose our session and skip the emit.
@@ -435,9 +439,16 @@ export class SemiontBrowser {
     // consumers never see a stale signals instance paired with a null
     // session during the activation gap.
     if (prevId !== id) this.activeKbId$.next(id);
+    let ending: Promise<void> | null = null;
     if (prevSession) {
+      const prevSignals = this.activeSignals$.getValue();
       this.activeSession$.next(null);
       this.activeSignals$.next(null);
+      // Hiding a session is not ending it. Once it is out of `activeSession$`
+      // nothing else can reach it, so it is disposed here, by the call that
+      // hid it: its stream, its refresh timer and its storage subscription
+      // otherwise run on for as long as the page does.
+      ending = prevSession.dispose().then(() => prevSignals?.dispose());
     }
 
     // Wait for any in-flight activation. If we were superseded while
@@ -450,8 +461,8 @@ export class SemiontBrowser {
     }
 
     const activation = (async () => {
-      // Dispose whatever is currently live (might be null already from the
-      // sync path above, or left over from a superseded activation).
+      if (ending) await ending;
+      // Dispose whatever a superseded activation left live.
       const toDispose = this.activeSession$.getValue();
       const signalsToDispose = this.activeSignals$.getValue();
       if (toDispose) {

@@ -6,6 +6,10 @@
 //! retry sees the next page" is expressible: a dropped reply still consumes
 //! its queued response, because the gateway answered and the wire ate it.
 //!
+//! A request can be scripted to be answered with a failure (`refuse_when`):
+//! the answer a peer gives when it will not do what was asked. That is not
+//! the wire failing, and the schedule applies to it as to any reply.
+//!
 //! A request nobody scripted a response for is refused, naming the
 //! operation. A double that answered it with an empty success would hand its
 //! caller a reply whose every field is absent, which fails far from its
@@ -79,9 +83,14 @@ pub fn retry_key_of(channel: &str, payload: &Map<String, Value>) -> String {
 pub type MakeResponse =
     dyn Fn(&str, &Map<String, Value>) -> Result<Option<Value>, String> + Send + Sync;
 
+/// The failure the gateway answers a request with, when it answers it with
+/// one: the payload of the operation's failure channel.
+pub type Refuse = dyn Fn(&str, &Map<String, Value>) -> Option<Value> + Send + Sync;
+
 struct Inner {
     schedule: Vec<FaultAction>,
     make_response: Box<MakeResponse>,
+    refuse: Mutex<Option<Box<Refuse>>>,
     replies: Mutex<HashMap<String, VecDeque<Option<Value>>>>,
     log: Mutex<Vec<RequestLogEntry>>,
     emitted: Mutex<Vec<Frame>>,
@@ -150,6 +159,7 @@ impl FaultyTransport {
             inner: Arc::new(Inner {
                 schedule,
                 make_response: Box::new(make_response),
+                refuse: Mutex::new(None),
                 replies: Mutex::new(HashMap::new()),
                 log: Mutex::new(Vec::new()),
                 emitted: Mutex::new(Vec::new()),
@@ -173,6 +183,25 @@ impl FaultyTransport {
             .entry(operation.to_owned())
             .or_default()
             .extend(responses);
+    }
+
+    /// Have the gateway answer with a failure every request `refuse` gives
+    /// one for: the payload of the operation's failure channel, such as
+    /// `{"code": "not-found", "message": "…"}`. Asked before anything queued
+    /// or scripted to answer.
+    pub fn refuse_when(
+        &self,
+        refuse: impl Fn(&str, &Map<String, Value>) -> Option<Value> + Send + Sync + 'static,
+    ) {
+        *locked(&self.inner.refuse) = Some(Box::new(refuse));
+    }
+
+    /// Report a failure on the failure stream, as a transport does of a
+    /// request the gateway refused.
+    pub fn fail(&self, error: TransportError) {
+        if let Some(failures) = locked(&self.inner.failures).as_ref() {
+            let _ = failures.send(error);
+        }
     }
 
     /// Every request sent, in order.
@@ -270,23 +299,38 @@ impl Transport for FaultyTransport {
 
             // The gateway answers once per request that reaches it, whatever
             // the wire then does to the answer.
-            let queued = locked(&inner.replies)
-                .get_mut(channel)
-                .and_then(VecDeque::pop_front);
-            let response = match queued {
-                Some(response) => response,
-                None => (inner.make_response)(channel, &payload).map_err(|refusal| {
-                    TransportError::without_response(refusal, TransportErrorCode::Error)
-                })?,
+            let refused = locked(&inner.refuse)
+                .as_ref()
+                .and_then(|refuse| refuse(channel, &payload));
+            let (reply_channel, reply_payload) = match refused {
+                Some(Value::Object(failure)) => (op.failure, failure),
+                Some(other) => {
+                    return Err(TransportError::without_response(
+                        format!("FaultyTransport: a failure is a JSON object, not {other}"),
+                        TransportErrorCode::Error,
+                    ));
+                }
+                None => {
+                    let queued = locked(&inner.replies)
+                        .get_mut(channel)
+                        .and_then(VecDeque::pop_front);
+                    let response = match queued {
+                        Some(response) => response,
+                        None => (inner.make_response)(channel, &payload).map_err(|refusal| {
+                            TransportError::without_response(refusal, TransportErrorCode::Error)
+                        })?,
+                    };
+                    let mut reply_payload = Map::new();
+                    if let Some(response) = response {
+                        reply_payload.insert("response".to_owned(), response);
+                    }
+                    (op.result, reply_payload)
+                }
             };
             inner.deliver(request);
 
-            let mut reply_payload = Map::new();
-            if let Some(response) = response {
-                reply_payload.insert("response".to_owned(), response);
-            }
             let reply = Frame {
-                channel: op.result.to_owned(),
+                channel: reply_channel.to_owned(),
                 payload: reply_payload,
                 correlation_id: envelope.correlation_id,
                 scope: None,
