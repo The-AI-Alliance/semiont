@@ -256,8 +256,8 @@ function endedWithoutResponse(message: string, statusText: string, code: Transpo
  * XHR-based POST that exposes `xhr.upload.onprogress` byte counts and
  * supports cancellation via `AbortSignal`. Mirrors the ky path's error
  * shape: 4xx/5xx and network-level failures both surface as `APIError`,
- * and every error is routed onto `transport.errors$` before the promise
- * rejects.
+ * and each is routed onto `transport.errors$` before the promise rejects.
+ * An abort rejects too, and is not routed there.
  */
 function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId }> {
   const { url, formData, headers, onProgress, signal, onApiError } = opts;
@@ -265,15 +265,15 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
-    // Caller-initiated abort via `signal`. Emit a single APIError so the
-    // shape matches the other failure paths; consumers can disambiguate
-    // via `signal.aborted` if they need to. The code is the unclassified
+    // Caller-initiated abort via `signal`. Rejects with an APIError so the
+    // shape matches the failure paths; consumers can disambiguate via
+    // `signal.aborted` if they need to. The code is the unclassified
     // `error`: the caller cancelled, so nothing was unreachable and nothing
-    // was refused, and no other member names that.
+    // was refused, and no other member names that. It stays off `errors$`:
+    // that stream reports transport failures, and this is the caller's own
+    // request, which only the caller needs to hear about.
     const rejectAborted = () => {
-      const err = endedWithoutResponse('Upload aborted', 'aborted', 'error');
-      onApiError(err);
-      reject(err);
+      reject(endedWithoutResponse('Upload aborted', 'aborted', 'error'));
     };
 
     if (signal?.aborted) {
