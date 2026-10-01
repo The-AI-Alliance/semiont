@@ -142,7 +142,7 @@ false) is how the layout knows to render the unauth view with a
            └── SemiontSession constructs, validates token via /api/users/me
                ├── 200 → activeSession$.next(session), sessionActivating$ → false
                └── 401 → session disposes itself, activeSession$ stays null,
-                         session fires sessionExpiredAt$ on the dead session (see below)
+                         session raises sessionExpired$ on the dead session (see below)
 
 3. Out-of-band 401/403 from any HTTP / bus call
    └── transport stamps unauthorized/forbidden → session.errors$ → SemiontBrowser
@@ -183,7 +183,7 @@ session.errors$.subscribe((err) => {
 ```
 
 `SessionSignals` exposes the modal state as `BehaviorSubject`s
-(`sessionExpiredAt$`, `permissionDeniedAt$`, …), surfaced by the browser
+(`sessionExpired$`, `permissionDenied$`, …), surfaced by the browser
 as `activeSignals$`. `SessionExpiredModal` and `PermissionDeniedModal`
 subscribe to it via `useObservable` — so a failure raised entirely
 outside React still drives the UI.

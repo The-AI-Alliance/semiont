@@ -25,12 +25,10 @@ export function KbIdentityConflictModal() {
   const t = useTranslations('KbIdentityConflictModal');
   const semiont = useSemiont();
   const signals = useObservable(semiont.activeSignals$);
-  const conflictAt = useObservable(signals?.kbIdentityConflictAt$) ?? null;
   const conflict = useObservable(signals?.kbIdentityConflict$) ?? null;
   const kb = useObservable(semiont.activeSession$)?.kb ?? null;
 
-  const showModal = conflictAt !== null && conflict !== null;
-  if (!showModal) return null;
+  if (conflict === null) return null;
 
   const acknowledge = () => signals?.acknowledgeKbIdentityConflict();
   const handleReview = () => {
@@ -39,7 +37,7 @@ export function KbIdentityConflictModal() {
   };
 
   return (
-    <Transition appear show={showModal}>
+    <Transition appear show>
       <Dialog as="div" className="semiont-modal" onClose={acknowledge}>
         <TransitionChild
           enter="ease-out duration-200"

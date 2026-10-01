@@ -6,8 +6,8 @@
  *   localStorage seeded with a KB + token
  *     → fresh SemiontBrowser constructs SemiontSession for the active KB
  *     → session validates token via getMe
- *     → on 401: session clears token + sets sessionExpiredAt$
- *     → SessionExpiredModal (mounted by AuthShell) reads sessionExpiredAt$
+ *     → on 401: session clears token + raises sessionExpired$
+ *     → SessionExpiredModal (mounted by AuthShell) reads sessionExpired$
  *        and renders
  *
  * If any link in this chain breaks, the user sees an empty page instead of

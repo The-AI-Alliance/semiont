@@ -223,29 +223,22 @@ export function createMockTranslationManager(
  * without driving a real session through its state machine.
  */
 export function createTestBrowserWithSignals(overrides: {
-  permissionDeniedAt?: number | null;
-  permissionDeniedMessage?: string | null;
-  sessionExpiredAt?: number | null;
-  sessionExpiredMessage?: string | null;
+  /** Raise permission-denied with this message; `null` takes the default one. */
+  permissionDenied?: { message: string | null };
+  /** Raise session-expired with this message; `null` takes the default one. */
+  sessionExpired?: { message: string | null };
   acknowledgePermissionDenied?: () => void;
   acknowledgeSessionExpired?: () => void;
 } = {}): SemiontBrowser {
   const browser = createTestBrowser();
   const signals = browser.activeSignals$.getValue()!;
 
-  // Push the flags the modal reads. These are the same BehaviorSubjects
-  // production writes through `notifySessionExpired` / `notifyPermissionDenied`.
-  if (overrides.permissionDeniedAt !== undefined) {
-    signals.permissionDeniedAt$.next(overrides.permissionDeniedAt);
+  // Raise the signals the modals read, through the methods production calls.
+  if (overrides.permissionDenied !== undefined) {
+    signals.notifyPermissionDenied(overrides.permissionDenied.message);
   }
-  if (overrides.permissionDeniedMessage !== undefined) {
-    signals.permissionDeniedMessage$.next(overrides.permissionDeniedMessage);
-  }
-  if (overrides.sessionExpiredAt !== undefined) {
-    signals.sessionExpiredAt$.next(overrides.sessionExpiredAt);
-  }
-  if (overrides.sessionExpiredMessage !== undefined) {
-    signals.sessionExpiredMessage$.next(overrides.sessionExpiredMessage);
+  if (overrides.sessionExpired !== undefined) {
+    signals.notifySessionExpired(overrides.sessionExpired.message);
   }
 
   // Spies on the REAL methods, not replacements for them: a test asserting

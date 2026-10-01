@@ -6,8 +6,8 @@
  * holder. It can run in any process: browser, worker, CLI, test. But
  * the session-expired / permission-denied *notifications* are inherently
  * a UI-host concern. Keeping those observables on `SemiontSession` meant
- * workers and CLIs carried four dead BehaviorSubjects that nothing would
- * ever fire.
+ * workers and CLIs carried dead BehaviorSubjects that nothing would ever
+ * fire.
  *
  * `SessionSignals` owns the notification state and has no hard reference
  * to a session. A UI host (e.g. `SemiontBrowser`) constructs one alongside
@@ -28,6 +28,14 @@
 import { BehaviorSubject } from 'rxjs';
 
 /**
+ * A notification raised with a message, for a modal to show until it is
+ * acknowledged.
+ */
+export interface SessionNotice {
+  message: string;
+}
+
+/**
  * What the registry entry claimed, and what answered.
  *
  * Both dids, because neither alone is actionable: the user has to recognise
@@ -38,11 +46,16 @@ export interface KbIdentityConflict {
   observedDid: string;
 }
 
+/**
+ * Each signal is ONE subject of one value: null while nothing is raised, the
+ * notice while something is. A second occurrence is a new emission, so an
+ * observer sees it even when the notice is equal to the last.
+ */
 export class SessionSignals {
-  readonly sessionExpiredAt$: BehaviorSubject<number | null>;
-  readonly sessionExpiredMessage$: BehaviorSubject<string | null>;
-  readonly permissionDeniedAt$: BehaviorSubject<number | null>;
-  readonly permissionDeniedMessage$: BehaviorSubject<string | null>;
+  /** The session ended and could not be renewed. */
+  readonly sessionExpired$: BehaviorSubject<SessionNotice | null>;
+  /** A request was refused for lack of permission. */
+  readonly permissionDenied$: BehaviorSubject<SessionNotice | null>;
   /**
    * The KB at this entry's address reported a did other than the one the
    * entry stores — a different knowledge base is answering
@@ -53,58 +66,41 @@ export class SessionSignals {
    * old KB is already voided by the time this fires, and re-registering under
    * the new identity is a deliberate act the panel already has a flow for.
    */
-  readonly kbIdentityConflictAt$: BehaviorSubject<number | null>;
   readonly kbIdentityConflict$: BehaviorSubject<KbIdentityConflict | null>;
 
   constructor() {
-    this.sessionExpiredAt$ = new BehaviorSubject<number | null>(null);
-    this.sessionExpiredMessage$ = new BehaviorSubject<string | null>(null);
-    this.permissionDeniedAt$ = new BehaviorSubject<number | null>(null);
-    this.permissionDeniedMessage$ = new BehaviorSubject<string | null>(null);
-    this.kbIdentityConflictAt$ = new BehaviorSubject<number | null>(null);
+    this.sessionExpired$ = new BehaviorSubject<SessionNotice | null>(null);
+    this.permissionDenied$ = new BehaviorSubject<SessionNotice | null>(null);
     this.kbIdentityConflict$ = new BehaviorSubject<KbIdentityConflict | null>(null);
   }
 
   notifySessionExpired(message: string | null): void {
-    this.sessionExpiredMessage$.next(
-      message ?? 'Your session has expired. Please sign in again.',
-    );
-    this.sessionExpiredAt$.next(Date.now());
+    this.sessionExpired$.next({ message: message ?? 'Your session has expired. Please sign in again.' });
   }
 
   notifyPermissionDenied(message: string | null): void {
-    this.permissionDeniedMessage$.next(
-      message ?? 'You do not have permission to perform this action.',
-    );
-    this.permissionDeniedAt$.next(Date.now());
+    this.permissionDenied$.next({ message: message ?? 'You do not have permission to perform this action.' });
   }
 
   notifyKbIdentityConflict(conflict: KbIdentityConflict): void {
     this.kbIdentityConflict$.next(conflict);
-    this.kbIdentityConflictAt$.next(Date.now());
   }
 
   acknowledgeSessionExpired(): void {
-    this.sessionExpiredAt$.next(null);
-    this.sessionExpiredMessage$.next(null);
+    this.sessionExpired$.next(null);
   }
 
   acknowledgePermissionDenied(): void {
-    this.permissionDeniedAt$.next(null);
-    this.permissionDeniedMessage$.next(null);
+    this.permissionDenied$.next(null);
   }
 
   acknowledgeKbIdentityConflict(): void {
-    this.kbIdentityConflictAt$.next(null);
     this.kbIdentityConflict$.next(null);
   }
 
   dispose(): void {
-    this.sessionExpiredAt$.complete();
-    this.sessionExpiredMessage$.complete();
-    this.permissionDeniedAt$.complete();
-    this.permissionDeniedMessage$.complete();
-    this.kbIdentityConflictAt$.complete();
+    this.sessionExpired$.complete();
+    this.permissionDenied$.complete();
     this.kbIdentityConflict$.complete();
   }
 }

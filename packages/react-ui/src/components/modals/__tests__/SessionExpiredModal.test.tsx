@@ -1,7 +1,7 @@
 /**
  * SessionExpiredModal Tests
  *
- * The modal renders content when `sessionExpiredAt` is non-null on the
+ * The modal renders content when `sessionExpired$` holds a notice on the
  * KnowledgeBaseSession context, and is hidden otherwise. Button clicks
  * call `acknowledgeSessionExpired()` and navigate the window.
  */
@@ -45,21 +45,19 @@ afterEach(() => {
 
 describe('SessionExpiredModal', () => {
   describe('initial render', () => {
-    it('does not render modal content when sessionExpiredAt is null', () => {
+    it('does not render modal content when nothing is raised', () => {
       renderWithProviders(<SessionExpiredModal />, {
-        browser: createTestBrowserWithSignals({
-          sessionExpiredAt: null,
-        }),
+        browser: createTestBrowserWithSignals(),
       });
       expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
     });
   });
 
-  describe('when sessionExpiredAt is set', () => {
+  describe('when session-expired is raised', () => {
     it('renders the modal with default message', () => {
       renderWithProviders(<SessionExpiredModal />, {
         browser: createTestBrowserWithSignals({
-          sessionExpiredAt: Date.now(),
+          sessionExpired: { message: null },
         }),
       });
 
@@ -68,11 +66,10 @@ describe('SessionExpiredModal', () => {
       expect(screen.getByRole('button', { name: /go to home/i })).toBeInTheDocument();
     });
 
-    it('renders the custom message from sessionExpiredMessage', () => {
+    it('renders the custom message from the notice', () => {
       renderWithProviders(<SessionExpiredModal />, {
         browser: createTestBrowserWithSignals({
-          sessionExpiredAt: Date.now(),
-          sessionExpiredMessage: 'Your token expired at 5pm',
+          sessionExpired: { message: 'Your token expired at 5pm' },
         }),
       });
       expect(screen.getByText(/your token expired at 5pm/i)).toBeInTheDocument();
@@ -85,7 +82,7 @@ describe('SessionExpiredModal', () => {
       mockLocation.pathname = '/know/discover';
       renderWithProviders(<SessionExpiredModal />, {
         browser: createTestBrowserWithSignals({
-          sessionExpiredAt: Date.now(),
+          sessionExpired: { message: null },
           acknowledgeSessionExpired: ack,
         }),
       });
@@ -100,7 +97,7 @@ describe('SessionExpiredModal', () => {
       const ack = vi.fn();
       renderWithProviders(<SessionExpiredModal />, {
         browser: createTestBrowserWithSignals({
-          sessionExpiredAt: Date.now(),
+          sessionExpired: { message: null },
           acknowledgeSessionExpired: ack,
         }),
       });

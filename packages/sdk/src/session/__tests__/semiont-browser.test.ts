@@ -712,7 +712,6 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
     await settled();
 
     const signals = browser.activeSignals$.getValue()!;
-    expect(signals.kbIdentityConflictAt$.getValue()).toEqual(expect.any(Number));
     expect(signals.kbIdentityConflict$.getValue()).toEqual({
       expectedDid: KB_A.did,
       observedDid: observed,
@@ -764,7 +763,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       await settled();
 
       expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
-      expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+      expect(signals.sessionExpired$.getValue()).toBeNull();
       expect(storage.get(storageKey(KB_A.id))).not.toBeNull();
 
       await browser.dispose();
@@ -778,9 +777,9 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       pushError(browser, { code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
       await settled();
 
-      expect(signals.sessionExpiredAt$.getValue()).toEqual(expect.any(Number));
+      expect(signals.sessionExpired$.getValue()).not.toBeNull();
       // The session's own words — never the raw transport line.
-      expect(signals.sessionExpiredMessage$.getValue()).toMatch(/session has expired/i);
+      expect(signals.sessionExpired$.getValue()?.message).toMatch(/session has expired/i);
       // The loop-breaker: a dead session must not survive a reload.
       expect(storage.get(storageKey(KB_A.id))).toBeNull();
 
@@ -805,8 +804,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
         .errorsSubject.next({ code: 'unauthorized', message: 'HTTP 401: Unauthorized' });
       await settled();
 
-      expect(signals.sessionExpiredAt$.getValue()).toBeNull();
-      expect(signals.sessionExpiredMessage$.getValue()).toBeNull();
+      expect(signals.sessionExpired$.getValue()).toBeNull();
 
       await browser.dispose();
     });
@@ -818,7 +816,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
       pushError(browser, { code: 'forbidden', message: 'HTTP 403: Forbidden' });
       await settled();
 
-      expect(signals.permissionDeniedAt$.getValue()).toEqual(expect.any(Number));
+      expect(signals.permissionDenied$.getValue()).not.toBeNull();
 
       await browser.dispose();
     });
@@ -1332,12 +1330,12 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
 
     const signals = browser.activeSignals$.getValue()!;
-    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
-    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+    expect(signals.sessionExpired$.getValue()).toBeNull();
+    expect(signals.permissionDenied$.getValue()).toBeNull();
 
     signals.notifyPermissionDenied('nope');
-    expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
-    expect(signals.permissionDeniedMessage$.getValue()).toBe('nope');
+    expect(signals.permissionDenied$.getValue()).not.toBeNull();
+    expect(signals.permissionDenied$.getValue()?.message).toBe('nope');
 
     await browser.dispose();
   });
@@ -1402,11 +1400,11 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
-    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+    expect(signals.sessionExpired$.getValue()).toBeNull();
 
     // Manually trigger session.refresh() to simulate a proactive-refresh miss.
     await session!.refresh();
-    expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.sessionExpired$.getValue()).not.toBeNull();
 
     await browser.dispose();
   });
@@ -1424,7 +1422,7 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
-    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
+    expect(signals.sessionExpired$.getValue()).toBeNull();
 
     // Push directly through the transport's errors Subject — this is the
     // same path HttpTransport hits in its `beforeError` ky hook. No refresh
@@ -1434,15 +1432,15 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(callsTo(TEST_TOKEN_ENDPOINT)).toHaveLength(1);
-    expect(signals.sessionExpiredAt$.getValue()).toBeGreaterThan(0);
+    expect(signals.sessionExpired$.getValue()).not.toBeNull();
     // The session's own teardown message — never the raw transport line.
-    expect(signals.sessionExpiredMessage$.getValue()).toMatch(/session has expired/i);
+    expect(signals.sessionExpired$.getValue()?.message).toMatch(/session has expired/i);
     // And the corpse cannot survive a reload.
     expect(storage.get(storageKey(KB_A.id))).toBeNull();
     await browser.dispose();
   });
 
-  it('routes 403 from transport.errors$ to signals.permissionDeniedAt$', async () => {
+  it('routes 403 from transport.errors$ to signals.permissionDenied$', async () => {
     const { APIError } = await import('@semiont/http-transport');
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));
@@ -1451,13 +1449,13 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     const browser = makeBrowser();
     const session = await firstValueFrom(browser.activeSession$.pipe(skip(1), take(1)));
     const signals = browser.activeSignals$.getValue()!;
-    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+    expect(signals.permissionDenied$.getValue()).toBeNull();
 
     const subj = (session!.client.transport as any).errorsSubject;
     subj.next(APIError.fromStatus('not allowed', 403, 'Forbidden', undefined, undefined));
 
-    expect(signals.permissionDeniedAt$.getValue()).toBeGreaterThan(0);
-    expect(signals.permissionDeniedMessage$.getValue()).toBe('not allowed');
+    expect(signals.permissionDenied$.getValue()).not.toBeNull();
+    expect(signals.permissionDenied$.getValue()?.message).toBe('not allowed');
     await browser.dispose();
   });
 
@@ -1475,8 +1473,8 @@ describe('SemiontBrowser — activeSignals$ lifecycle (SessionSignals)', () => {
     subj.next(APIError.fromStatus('boom', 500, 'Internal Server Error', undefined, undefined));
     subj.next(APIError.fromStatus('not found', 404, 'Not Found', undefined, undefined));
 
-    expect(signals.sessionExpiredAt$.getValue()).toBeNull();
-    expect(signals.permissionDeniedAt$.getValue()).toBeNull();
+    expect(signals.sessionExpired$.getValue()).toBeNull();
+    expect(signals.permissionDenied$.getValue()).toBeNull();
     await browser.dispose();
   });
 
