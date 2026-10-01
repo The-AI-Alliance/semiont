@@ -214,7 +214,7 @@ through the same OTLP endpoint. No extra config required — the
 
 | Metric                       | Type             | Attributes                                              | Where                                         |
 |------------------------------|------------------|---------------------------------------------------------|-----------------------------------------------|
-| `semiont.bus.emit`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (Browser, in-process, server) |
+| `semiont.bus.sent`           | counter          | `bus.channel`, `bus.scope`                              | Every transport `emit` (Browser, in-process, server): an emit a client sent |
 | `semiont.handler.duration`   | histogram        | `actor`, `bus.channel`                                  | Every actor handler (Stower / Gatherer / Matcher / Browser / Smelter) |
 | `semiont.job.outcome`        | counter          | `job.type`, `job.outcome` (`completed` / `failed`)      | Worker `handleJob`                       |
 | `semiont.job.duration`       | histogram        | `job.type`, `job.outcome`                               | Worker `handleJob`                            |
@@ -233,8 +233,9 @@ The gateway's and the dispatcher's metrics — the bus counters,
 `semiont.job.queue.size`, and the process and runtime gauges — are specified,
 with their instruments, attributes and attribute values, in
 [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json).
-`semiont.bus.emit` as a client counts it, the emits it sent, is a row of
-[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json).
+The emits a client sent are a count of their own, `semiont.bus.sent`, a row of
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json);
+`semiont.bus.emit` is the gateway's count of the emits it accepted.
 
 Additional vars:
 

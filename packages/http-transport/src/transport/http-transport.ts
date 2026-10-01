@@ -26,7 +26,7 @@ import {
   busLog,
   relayFrames,
 } from '@semiont/core';
-import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
+import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import { createActorStateUnit, type ActorStateUnit } from './actor-state-unit';
 import { APIError } from './api-error';
 import type {
@@ -351,7 +351,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
     envelope?: BusEnvelope,
   ): Promise<number | undefined> {
     busLog('EMIT', channel as string, payload, envelope?.scope, envelope?.correlationId);
-    recordBusEmit(channel as string, envelope?.scope);
+    recordBusSent(channel as string, envelope?.scope);
     return withSpan(
       `bus.emit:${channel as string}`,
       async () => {

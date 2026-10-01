@@ -37,7 +37,7 @@ import type {
   UserDID,
 } from '@semiont/core';
 import { baseUrl as makeBaseUrl, busLog } from '@semiont/core';
-import { SpanKind, recordBusEmit, withSpan } from '@semiont/observability';
+import { SpanKind, recordBusSent, withSpan } from '@semiont/observability';
 import {
   BRIDGED_CHANNELS,
   type ConnectionState,
@@ -105,7 +105,7 @@ export class LocalTransport implements ITransport {
     envelope?: BusEnvelope,
   ): Promise<undefined> {
     busLog('EMIT', channel as string, payload, envelope?.scope as string | undefined, envelope?.correlationId);
-    recordBusEmit(channel as string, envelope?.scope as string | undefined);
+    recordBusSent(channel as string, envelope?.scope as string | undefined);
     await withSpan(
       `bus.emit:${channel as string}`,
       () => {

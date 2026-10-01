@@ -7,7 +7,7 @@ A knowledge base's bus over its gateway's HTTP surface
 - `transport` — `HttpTransport`: one stream, `POST /bus/subscribe`, held open
   for as long as the transport lives and reopened with the replies still
   awaited, and `POST /bus/emit` for what it sends. Each emit is logged
-  (`[bus EMIT]`), counted (`semiont.bus.emit`) and sent in a `bus.emit` span
+  (`[bus EMIT]`), counted (`semiont.bus.sent`) and sent in a `bus.emit` span
   whose trace travels as `traceparent`; each frame received is logged
   (`[bus RECV]`) and delivered with the trace it carried.
 - `service_account` and `session` — signing in: a service account's

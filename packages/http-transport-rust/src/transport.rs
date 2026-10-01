@@ -9,7 +9,7 @@
 //! token once.
 //!
 //! What crosses the wire is observed here, as every Semiont transport observes
-//! it: each emit is logged (`[bus EMIT]`), counted (`semiont.bus.emit`) and sent
+//! it: each emit is logged (`[bus EMIT]`), counted (`semiont.bus.sent`) and sent
 //! in a `bus.emit` span whose trace context travels as `traceparent`; each frame
 //! received is logged (`[bus RECV]`), its `_trace` field lifted off the payload
 //! for the consumer to continue (`semiont_observability::telemetry::received`).
@@ -140,7 +140,7 @@ impl Transport for HttpTransport {
             envelope.scope.as_deref(),
             envelope.correlation_id.as_deref(),
         );
-        telemetry::record_bus_emit(channel, envelope.scope.as_deref());
+        telemetry::record_bus_sent(channel, envelope.scope.as_deref());
         let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
         if let Some(scope) = &envelope.scope {
             attributes.push(KeyValue::new("bus.scope", scope.clone()));

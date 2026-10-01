@@ -1,5 +1,5 @@
 {
-  "$comment": "The telemetry a Semiont SDK's transports export over OTLP, in any language, when the process they run in exports at all: every span and metric, the transport it comes from, its kind, and the attributes it carries. `transport` is `bus` (the stream and emits) or `content` (uploads and reads). The SDK conformance suite holds each SDK to this table from outside: every row must arrive from its driver, of the listed kind, with every attribute not marked `only`, and whatever arrives under a row's name must carry only that row's attributes. A service that reaches the bus through an SDK exports these rows too; specs/src/service-telemetry/telemetry.json names such services under `sdk`, and their suites hold them to both tables. `semiont.bus.emit` is also a row of that table, for the gateway: there it counts the emits a gateway accepted, here the emits a client sent, and the service a data point comes from says which. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum).",
+  "$comment": "The telemetry a Semiont SDK's transports export over OTLP, in any language, when the process they run in exports at all: every span and metric, the transport it comes from, its kind, and the attributes it carries. `transport` is `bus` (the stream and emits) or `content` (uploads and reads). The SDK conformance suite holds each SDK to this table from outside: every row must arrive from its driver, of the listed kind, with every attribute not marked `only`, and whatever arrives under a row's name must carry only that row's attributes. A service that reaches the bus through an SDK exports these rows too; specs/src/service-telemetry/telemetry.json names such services under `sdk`, and their suites hold them to both tables. `semiont.bus.sent` counts the emits a client sent; the emits a gateway accepted are `semiont.bus.emit`, a row of that table, so that neither is counted as the other and the difference between them shows. In a span name, `{channel}` is the bus channel. Span kinds are OTLP's; a metric's `instrument` is `counter` (a monotonic sum).",
   "spans": [
     {
       "name": "bus.emit:{channel}",
@@ -77,7 +77,7 @@
   ],
   "metrics": [
     {
-      "name": "semiont.bus.emit",
+      "name": "semiont.bus.sent",
       "transport": "bus",
       "instrument": "counter",
       "meaning": "Emits the client sent.",

@@ -32,6 +32,7 @@ struct Telemetry {
     meter: Meter,
     abnormal_exits: Counter<u64>,
     emits: Counter<u64>,
+    sent: Counter<u64>,
 }
 
 static TELEMETRY: OnceLock<Option<Telemetry>> = OnceLock::new();
@@ -144,6 +145,10 @@ fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemet
         emits: meter
             .u64_counter("semiont.bus.emit")
             .with_description("Emits accepted")
+            .build(),
+        sent: meter
+            .u64_counter("semiont.bus.sent")
+            .with_description("Emits sent")
             .build(),
         tracer,
         meter,
@@ -295,14 +300,28 @@ pub async fn received<T>(received: &Received, work: impl Future<Output = T>) -> 
 
 // ── Metrics ──────────────────────────────────────────────────────────────
 
-/// `semiont.bus.emit`: an emit accepted, by whichever side accepts it.
-pub fn record_bus_emit(channel: &str, scope: Option<&str>) {
-    let Some(t) = telemetry() else { return };
+/// A count's attributes: the channel, and the scope when there is one.
+fn on_the_bus(channel: &str, scope: Option<&str>) -> Vec<KeyValue> {
     let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
     if let Some(scope) = scope {
         attributes.push(KeyValue::new("bus.scope", scope.to_owned()));
     }
-    t.emits.add(1, &attributes);
+    attributes
+}
+
+/// `semiont.bus.emit`: an emit a gateway accepted.
+pub fn record_bus_emit(channel: &str, scope: Option<&str>) {
+    let Some(t) = telemetry() else { return };
+    t.emits.add(1, &on_the_bus(channel, scope));
+}
+
+/// `semiont.bus.sent`: an emit a client sent. Its own name, apart from the
+/// gateway's count of what it accepted: one name for both counted every emit
+/// twice in a sum over services, and hid the emits that were sent and never
+/// accepted, which is the difference worth seeing.
+pub fn record_bus_sent(channel: &str, scope: Option<&str>) {
+    let Some(t) = telemetry() else { return };
+    t.sent.add(1, &on_the_bus(channel, scope));
 }
 
 /// The meter a service makes its own instruments on, when it exports.
