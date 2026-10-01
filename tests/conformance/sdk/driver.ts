@@ -20,7 +20,7 @@ export interface ReportedFailure {
   status?: number;
 }
 
-export type Outcome = { ok: unknown } | { error: ReportedFailure; detail: string } | { unsupported: true } | { misuse: string };
+export type Outcome = { ok: unknown } | { error: ReportedFailure; detail: string } | { abandoned: true } | { unsupported: true } | { misuse: string };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -61,10 +61,10 @@ export class Driver {
     });
   }
 
-  /** Start `command` and wait for it to say it is ready. */
-  static async start(command: readonly string[]): Promise<Driver> {
+  /** Start `command`, with `env` beside the PATH that finds it, and wait for it to say it is ready. */
+  static async start(command: readonly string[], env: Record<string, string> = {}): Promise<Driver> {
     const [program, ...args] = command;
-    const child = spawn(program!, args, { env: { PATH: process.env['PATH'] ?? '' }, stdio: ['pipe', 'pipe', 'pipe'] });
+    const child = spawn(program!, args, { env: { PATH: process.env['PATH'] ?? '', ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
     const driver = new Driver(child);
     await driver.until('the driver to be ready', () => (driver.ready ? true : undefined), 30_000);
     return driver;
@@ -100,18 +100,24 @@ export class Driver {
       delivered.push({ payload, ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope }) });
     } else if (keys.length === 1 && failureOf(message['error'])) {
       this.failures.push(failureOf(message['error'])!);
-    } else if (keys.length === 2 && typeof message['id'] === 'number' && 'ok' in message) {
-      this.outcomes.set(message['id'], { ok: message['ok'] });
-    } else if (keys.length === 2 && typeof message['id'] === 'number' && failureOf(message['error'])) {
-      const { failure, detail } = failureOf(message['error'])!;
-      this.outcomes.set(message['id'], { error: failure, detail });
-    } else if (keys.length === 2 && typeof message['id'] === 'number' && message['unsupported'] === true) {
-      this.outcomes.set(message['id'], { unsupported: true });
-    } else if (keys.length === 2 && typeof message['id'] === 'number' && typeof message['misuse'] === 'string') {
-      this.outcomes.set(message['id'], { misuse: message['misuse'] });
+    } else if (keys.length === 2 && typeof message['id'] === 'number') {
+      const outcome = Driver.outcomeOf(message);
+      if (!outcome) this.violations.push(`a line the protocol does not allow: ${line.slice(0, 200)}`);
+      else if (this.outcomes.has(message['id'])) this.violations.push(`operation ${message['id']} settled twice: ${line.slice(0, 200)}`);
+      else this.outcomes.set(message['id'], outcome);
     } else {
       this.violations.push(`a line the protocol does not allow: ${line.slice(0, 200)}`);
     }
+  }
+
+  private static outcomeOf(message: Record<string, unknown>): Outcome | undefined {
+    if ('ok' in message) return { ok: message['ok'] };
+    const failed = failureOf(message['error']);
+    if (failed) return { error: failed.failure, detail: failed.detail };
+    if (message['abandoned'] === true) return { abandoned: true };
+    if (message['unsupported'] === true) return { unsupported: true };
+    if (typeof message['misuse'] === 'string') return { misuse: message['misuse'] };
+    return undefined;
   }
 
   private wake(): void {

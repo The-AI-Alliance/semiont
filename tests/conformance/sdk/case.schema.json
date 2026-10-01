@@ -32,6 +32,10 @@
       },
       "description": "The signal planes the case runs on. Absent, it runs on both."
     },
+    "telemetry": {
+      "const": true,
+      "description": "Run the client exporting to an OTLP receiver, and once it has exited hold what it exported to specs/src/sdk-telemetry/telemetry.json."
+    },
     "steps": {
       "type": "array",
       "minItems": 1,
@@ -89,16 +93,45 @@
           }
         },
         {
-          "description": "An operation started with `as` settles: it succeeded, with `returns` when given, or failed with `fails`.",
+          "description": "Abandon an operation started with `as`, as its caller would.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "abandon"
+          ],
+          "properties": {
+            "abandon": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "An operation started with `as` settles: it succeeded, with `returns` when given; or failed with `fails`; or, `abandoned`, it ended because the case abandoned it and reported nothing.",
           "type": "object",
           "additionalProperties": false,
           "required": [
             "settles"
           ],
           "not": {
-            "required": [
-              "returns",
-              "fails"
+            "anyOf": [
+              {
+                "required": [
+                  "returns",
+                  "fails"
+                ]
+              },
+              {
+                "required": [
+                  "returns",
+                  "abandoned"
+                ]
+              },
+              {
+                "required": [
+                  "fails",
+                  "abandoned"
+                ]
+              }
             ]
           },
           "properties": {
@@ -106,7 +139,10 @@
               "$ref": "#/definitions/name"
             },
             "returns": {},
-            "fails": {}
+            "fails": {},
+            "abandoned": {
+              "const": true
+            }
           }
         },
         {

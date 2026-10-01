@@ -248,8 +248,6 @@ export interface TelemetryAttribute {
 
 export interface TelemetryRow {
   name: string;
-  /** The services that export it. */
-  services: Service[];
   /** A span's OTLP kind, or a metric's instrument. */
   kind: string;
   when: 'export' | 'traffic' | 'supervised' | 'fatal';
@@ -257,28 +255,59 @@ export interface TelemetryRow {
   planes?: string[];
 }
 
+/** A row of the service table: the services that export it. */
+interface ServiceRow extends TelemetryRow {
+  services: Service[];
+}
+
+/** A row of the SDK table: the transport it comes from. */
+interface SdkRow extends TelemetryRow {
+  transport: string;
+}
+
 const WHEN = ['export', 'traffic', 'supervised', 'fatal'] as const;
 const isWhen = (v: unknown): v is TelemetryRow['when'] => WHEN.some((w) => w === v);
 
 const isService = (v: unknown): v is Service => SERVICES.some((s) => s === v);
 
-function telemetryRows(rows: unknown, kindKey: 'kind' | 'instrument'): TelemetryRow[] {
-  if (!Array.isArray(rows)) throw new Error('service-telemetry/telemetry.json: spans and metrics must be lists');
+/** What every row of either table states: its name, its kind or instrument, its attributes. */
+function row(table: string, r: unknown, kindKey: 'kind' | 'instrument'): { fields: JsonObject; name: string; kind: string; attributes: TelemetryAttribute[] } {
+  if (!isObject(r) || typeof r['name'] !== 'string' || typeof r[kindKey] !== 'string' || !Array.isArray(r['attributes'])) {
+    throw new Error(`${table}: a row is malformed: ${JSON.stringify(r)}`);
+  }
+  const name = r['name'];
+  const attributes = r['attributes'].map((a): TelemetryAttribute => {
+    if (!isObject(a) || typeof a['key'] !== 'string') throw new Error(`${table}: ${name} has a malformed attribute`);
+    const values = Array.isArray(a['values']) ? a['values'].map(String) : undefined;
+    return { key: a['key'], ...(values ? { values } : {}), ...(typeof a['only'] === 'string' ? { only: a['only'] } : {}) };
+  });
+  return { fields: r, name, kind: String(r[kindKey]), attributes };
+}
+
+const SERVICE_TABLE = 'service-telemetry/telemetry.json';
+const SDK_TABLE = 'sdk-telemetry/telemetry.json';
+
+function serviceRows(rows: unknown, kindKey: 'kind' | 'instrument'): ServiceRow[] {
+  if (!Array.isArray(rows)) throw new Error(`${SERVICE_TABLE}: spans and metrics must be lists`);
   return rows.map((r) => {
-    if (!isObject(r) || typeof r['name'] !== 'string' || typeof r[kindKey] !== 'string' || !isWhen(r['when']) || !Array.isArray(r['attributes'])) {
-      throw new Error(`service-telemetry/telemetry.json: a row is malformed: ${JSON.stringify(r)}`);
-    }
-    const services = r['services'];
+    const { fields, name, kind, attributes } = row(SERVICE_TABLE, r, kindKey);
+    const { services, when } = fields;
+    if (!isWhen(when)) throw new Error(`${SERVICE_TABLE}: ${name} states no \`when\``);
     if (!Array.isArray(services) || services.length === 0 || !services.every(isService)) {
-      throw new Error(`service-telemetry/telemetry.json: ${r['name']} names no services, or one that is not ${SERVICES.join(' or ')}`);
+      throw new Error(`${SERVICE_TABLE}: ${name} names no services, or one that is not ${SERVICES.join(' or ')}`);
     }
-    const attributes = r['attributes'].map((a): TelemetryAttribute => {
-      if (!isObject(a) || typeof a['key'] !== 'string') throw new Error(`service-telemetry/telemetry.json: ${r['name']} has a malformed attribute`);
-      const values = Array.isArray(a['values']) ? a['values'].map(String) : undefined;
-      return { key: a['key'], ...(values ? { values } : {}), ...(typeof a['only'] === 'string' ? { only: a['only'] } : {}) };
-    });
-    const planes = Array.isArray(r['planes']) ? r['planes'].map(String) : undefined;
-    return { name: r['name'], services, kind: String(r[kindKey]), when: r['when'], attributes, ...(planes ? { planes } : {}) };
+    const planes = Array.isArray(fields['planes']) ? fields['planes'].map(String) : undefined;
+    return { name, services, kind, when, attributes, ...(planes ? { planes } : {}) };
+  });
+}
+
+/** An SDK's rows arrive with its traffic: the table states no `when`, because there is no other. */
+function sdkRows(rows: unknown, kindKey: 'kind' | 'instrument'): SdkRow[] {
+  if (!Array.isArray(rows)) throw new Error(`${SDK_TABLE}: spans and metrics must be lists`);
+  return rows.map((r) => {
+    const { fields, name, kind, attributes } = row(SDK_TABLE, r, kindKey);
+    if (typeof fields['transport'] !== 'string') throw new Error(`${SDK_TABLE}: ${name} names no transport`);
+    return { name, transport: fields['transport'], kind, when: 'traffic', attributes };
   });
 }
 
@@ -287,22 +316,57 @@ export interface Telemetry {
   metrics: TelemetryRow[];
 }
 
-let telemetryTable: Telemetry | undefined;
-
-/** Every row of service-telemetry/telemetry.json. */
-function telemetryAll(): Telemetry {
-  if (telemetryTable) return telemetryTable;
-  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'service-telemetry/telemetry.json'), 'utf8'));
-  if (!isObject(table)) throw new Error('service-telemetry/telemetry.json is not an object');
-  telemetryTable = { spans: telemetryRows(table['spans'], 'kind'), metrics: telemetryRows(table['metrics'], 'instrument') };
-  return telemetryTable;
+interface Tables {
+  service: { spans: ServiceRow[]; metrics: ServiceRow[] };
+  /** For each service that reaches the bus through an SDK, the SDK transports it uses. */
+  through: Partial<Record<Service, string[]>>;
+  sdk: { spans: SdkRow[]; metrics: SdkRow[] };
 }
 
-/** The telemetry `service` exports (service-telemetry/telemetry.json): the spans and metrics that list it. */
+let tables: Tables | undefined;
+
+/** Both telemetry tables: what each service exports, and what an SDK's transports do. */
+function telemetryTables(): Tables {
+  if (tables) return tables;
+  const read = (path: string): JsonObject => {
+    const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, path), 'utf8'));
+    if (!isObject(table)) throw new Error(`${path} is not an object`);
+    return table;
+  };
+  const service = read(SERVICE_TABLE);
+  const sdk = read(SDK_TABLE);
+  const through: Tables['through'] = {};
+  for (const [name, transports] of Object.entries(isObject(service['sdk']) ? service['sdk'] : {})) {
+    if (!isService(name) || !Array.isArray(transports)) throw new Error(`${SERVICE_TABLE}: \`sdk\` names ${name}, which is not ${SERVICES.join(' or ')}, or gives it no transports`);
+    through[name] = transports.map(String);
+  }
+  tables = {
+    service: { spans: serviceRows(service['spans'], 'kind'), metrics: serviceRows(service['metrics'], 'instrument') },
+    through,
+    sdk: { spans: sdkRows(sdk['spans'], 'kind'), metrics: sdkRows(sdk['metrics'], 'instrument') },
+  };
+  const transports = new Set([...tables.sdk.spans, ...tables.sdk.metrics].map((r) => r.transport));
+  for (const [name, used] of Object.entries(through)) {
+    for (const transport of used) if (!transports.has(transport)) throw new Error(`${SERVICE_TABLE}: ${name} uses the SDK transport ${transport}, which ${SDK_TABLE} lists no rows for`);
+  }
+  return tables;
+}
+
+/**
+ * The telemetry `service` exports: the rows of the service table that list
+ * it, and, when it reaches the bus through an SDK, the SDK table's rows for
+ * the transports it uses.
+ */
 export function telemetry(service: Service): Telemetry {
-  const { spans, metrics } = telemetryAll();
-  const of = (rows: TelemetryRow[]) => rows.filter((r) => r.services.includes(service));
-  return { spans: of(spans), metrics: of(metrics) };
+  const { service: own, through, sdk } = telemetryTables();
+  const used = through[service] ?? [];
+  const of = (rows: ServiceRow[], shared: SdkRow[]): TelemetryRow[] => [...rows.filter((r) => r.services.includes(service)), ...shared.filter((r) => used.includes(r.transport))];
+  return { spans: of(own.spans, sdk.spans), metrics: of(own.metrics, sdk.metrics) };
+}
+
+/** The telemetry an SDK's transports export (sdk-telemetry/telemetry.json). */
+export function sdkTelemetry(): Telemetry {
+  return telemetryTables().sdk;
 }
 
 /** What an exported span name looks like for a row: `{channel}` stands for any channel. */
@@ -313,7 +377,8 @@ export function spanPattern(row: TelemetryRow): RegExp {
 
 /** A span's exported name, from the row the spec lists: `spanName('bus.dispatch:{channel}', { channel })`. */
 export function spanName(template: string, fill: Record<string, string> = {}): string {
-  if (!telemetryAll().spans.some((r) => r.name === template)) throw new Error(`the spec lists no span ${template}`);
+  const { service, sdk } = telemetryTables();
+  if (![...service.spans, ...sdk.spans].some((r) => r.name === template)) throw new Error(`the spec lists no span ${template}`);
   return template.replace(/\{([a-z]+)\}/g, (_, key: string) => {
     const value = fill[key];
     if (value === undefined) throw new Error(`span ${template} needs a value for {${key}}`);
@@ -323,7 +388,8 @@ export function spanName(template: string, fill: Record<string, string> = {}): s
 
 /** A metric's name, as the spec lists it. */
 export function metricName(name: string): string {
-  if (!telemetryAll().metrics.some((r) => r.name === name)) throw new Error(`the spec lists no metric ${name}`);
+  const { service, sdk } = telemetryTables();
+  if (![...service.metrics, ...sdk.metrics].some((r) => r.name === name)) throw new Error(`the spec lists no metric ${name}`);
   return name;
 }
 

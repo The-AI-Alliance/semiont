@@ -1,4 +1,4 @@
-import { Observable, firstValueFrom, merge, throwError, TimeoutError } from 'rxjs';
+import { Observable, firstValueFrom, merge, race, throwError, TimeoutError } from 'rxjs';
 import { catchError, defaultIfEmpty, filter, map, take, timeout } from 'rxjs/operators';
 import { SemiontError } from './errors';
 import type { EventMap, EventName } from './bus-protocol';
@@ -186,6 +186,15 @@ export interface BusRequestPrimitive {
   isSubscribed(channel: keyof EventMap): boolean;
 }
 
+/** Fails with the signal's reason when its owner abandons the request; says nothing until then. */
+function abandonment(signal: AbortSignal): Observable<never> {
+  return new Observable<never>((subscriber) => {
+    const abandon = () => subscriber.error(signal.reason);
+    signal.addEventListener('abort', abandon, { once: true });
+    return () => signal.removeEventListener('abort', abandon);
+  });
+}
+
 /**
  * Request/reply over the bus, keyed by the operation's request channel.
  *
@@ -202,13 +211,22 @@ export interface BusRequestPrimitive {
  * channel's `response` type, or `void`) — callers never annotate it. Every reply
  * is `{ correlationId, response: T }` (data) or `{ correlationId }` (void); see
  * .plans/REPLY-SHAPE-STANDARD.md. `busRequest` reads `e.response`.
+ *
+ * `signal` lets the caller ABANDON the request. Abandoned, it rejects with the
+ * signal's reason, as an abortable API does, and that is all it does: what
+ * was already sent stays sent, the reply stops being tracked, and a reply
+ * that arrives later is reported to nobody. Abandoned before the stream that
+ * carries its reply opened, it sends nothing. The rejection carries no
+ * `BusRequestErrorCode`: it states the caller's own act, not a failure.
  */
 export async function busRequest<Op extends BusOperationKey>(
   bus: BusRequestPrimitive,
   operation: Op,
   payload: Record<string, unknown>,
   timeoutMs = BUS_REQUEST_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<BusReply<Op>> {
+  signal?.throwIfAborted();
   const correlationId = uuidV4();
   const { result: resultChannel, failure: failureChannel } = BUS_OPERATIONS[operation];
 
@@ -228,7 +246,7 @@ export async function busRequest<Op extends BusOperationKey>(
 
   // Matched on the ENVELOPE. The payload is read only for what it means —
   // the response, or the failure's message and code — never for routing.
-  const result$ = merge(
+  const settled$ = merge(
     bus.frames(resultChannel as keyof EventMap).pipe(
       filter((frame) => frame.correlationId === correlationId),
       map(({ payload: e }) => ({
@@ -283,7 +301,14 @@ export async function busRequest<Op extends BusOperationKey>(
 
   // Subscribe before emitting so we don't miss an instantaneous reply
   // (which can happen with an in-process LocalTransport bus).
-  const resultPromise = firstValueFrom(result$);
+  const resultPromise = firstValueFrom(signal ? race(settled$, abandonment(signal)) : settled$);
+  // It rejects on a timeout or an abandonment, and is read only where it is
+  // awaited, at the tail. Every path that leaves before then — a closed bus, a
+  // refused emit — leaves it rejected with nobody holding it, which a Node
+  // process treats as fatal (found by the liveness harness's reject-emit
+  // schedules, .plans/LIVENESS-AXIOMS.md P1). Marked handled once, here; the
+  // await at the tail still throws what it rejected with.
+  resultPromise.catch(() => {});
 
   // ── Attach gate (.plans/BUS-ATTACH-GATE.md) ─────────────────────────────
   // No correlated emit before the reply path exists: the measured failure was
@@ -294,16 +319,11 @@ export async function busRequest<Op extends BusOperationKey>(
   // 2026-07-29): only `'open'` delivers; `'degraded'` is a dropped stream by
   // definition and waits like `connecting`/`reconnecting`. `'closed'` fails
   // fast — a request against a closed bus should not burn a timeout.
-  const closedBeforeEmit = () => {
-    // Detach the reply promise before throwing, same discipline as the emit
-    // rejection path below: nobody will await it, and it must not surface
-    // later as an unhandled rejection.
-    resultPromise.catch(() => {});
-    return new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
+  const closedBeforeEmit = () =>
+    new BusRequestError(`Bus closed before emit on ${operation}`, 'bus.closed', {
       channel: operation,
       correlationId,
     });
-  };
 
   // Synchronous fast path: `state$` is BehaviorSubject-backed (see the
   // interface contract), so the current state lands during subscribe. Already
@@ -339,8 +359,6 @@ export async function busRequest<Op extends BusOperationKey>(
       ),
     ]);
     if (outcome === 'closed') {
-      // The abandoned race arm cannot reject (filter + defaultIfEmpty), so
-      // only the reply promise needs detaching — closedBeforeEmit does it.
       throw closedBeforeEmit();
     }
     // 'open' → the one emit below. 'settled' → skip the emit; awaiting the
@@ -350,14 +368,7 @@ export async function busRequest<Op extends BusOperationKey>(
     emitAllowed = outcome === 'open';
   }
 
-  // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller — but the
-  // caller then never awaits `resultPromise`, which is already subscribed and
-  // will REJECT with `bus.timeout` at `timeoutMs` (the request never left, so
-  // no reply can save it). Detach it before rethrowing so the doomed promise
-  // can't surface later as an unhandled rejection. (`defaultIfEmpty` covers
-  // only the disposed-bus case, where the stream completes and the promise
-  // *resolves* `bus.closed`.) Found by the liveness harness's reject-emit
-  // schedules (.plans/LIVENESS-AXIOMS.md, P1).
+  // An emit rejection (e.g. /bus/emit 4xx) propagates to the caller.
   //
   // Reply tracking (BUS-RESUMPTION.md Phase 2 / SDK-DEBT S1): register the
   // cid BEFORE the emit — a reconnect body built while the emit is in flight
@@ -376,7 +387,6 @@ export async function busRequest<Op extends BusOperationKey>(
     } catch (emitError) {
       releaseTracking?.();
       releaseTracking = undefined;
-      resultPromise.catch(() => {});
       throw emitError;
     }
   }

@@ -32,7 +32,8 @@ fails a client that:
 - reports a failure with no code, or with one
   [`specs/src/errors/codes.json`](../../../specs/src/errors/codes.json) does
   not list;
-- reports anything on its error stream that the case does not expect.
+- reports anything on its error stream that the case does not expect;
+- settles an operation twice.
 
 A conforming client passes every case every time: steps wait for what they
 expect and never compare how long it took. A client that does something
@@ -72,6 +73,7 @@ concurrently; each is answered once, whenever it settles, by one of:
 |---|---|
 | `{"id": 7, "ok": <value>}` | it succeeded; `null` when there is nothing to return |
 | `{"id": 7, "error": {"code": "...", "status": 429, "detail": "..."}}` | the SDK failed it |
+| `{"id": 7, "abandoned": true}` | the suite abandoned it, and the SDK reported nothing else |
 | `{"id": 7, "unsupported": true}` | this driver has no such operation |
 | `{"id": 7, "misuse": "..."}` | the suite's arguments made no sense: the suite's mistake, never the SDK's |
 
@@ -103,6 +105,7 @@ before it. Frames and failures are sequences: every one, in order.
 | `release-resource` | `resource`: let go of one hold | `null` |
 | `emit` | `channel`, `payload`, and `scope`, `correlationId` when given | `{"subscribers": n}`, or `{}` when the gateway gave no count |
 | `request` | `operation` (a request channel of the registry), `payload`, `timeoutMs` | `{"response": ...}`, or `{}` when the reply carries none |
+| `abandon` | `request`: the `id` of a `request` not yet settled, which its caller now abandons | `null`; the request itself then settles as `abandoned` |
 | `put` | `name`, `format`, `storageUri`, `bytes` (base64), and any of `language`, `entityTypes`, `sourceResourceId`, `sourceAnnotationId`, `generationPrompt`, `jobId`, `isDraft` | `{"resourceId": "..."}` |
 | `get` | `resource` | `{"contentType": "...", "bytes": "<base64>"}` |
 | `get-stream` | `resource`: read as a stream, to its end | the same |
@@ -115,8 +118,12 @@ One driver holds one client: a second `open` is misuse.
 `open`'s `timing` overrides entries of
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json) by
 name, so a case does not wait out a production delay. The cases override
-`reconnectMs` and `lazyRemoveMs`; a driver must honour both, and answers
-`misuse` to a name it cannot override.
+`reconnectMs`, `lazyRemoveMs` and `emitRetry`; a driver must honour all three,
+and answers `misuse` to a name it cannot override.
+
+A driver started with `OTEL_EXPORTER_OTLP_ENDPOINT` in its environment exports
+the SDK's telemetry there over OTLP/HTTP, and has exported all of it by the
+time it exits.
 
 ## A case
 
@@ -125,12 +132,18 @@ name, so a case does not wait out a production delay. The cases override
   "about": "what the case holds a client to, in a sentence",
   "source": "where the protocol or the spec states it",
   "planes": ["in-process"],
+  "telemetry": true,
   "steps": [ ... ]
 }
 ```
 
 `planes` is given only when the case holds on one signal plane; absent, it
-runs on both. [case.schema.json](case.schema.json) is the format, and every
+runs on both. `telemetry` runs the client exporting to a receiver, and once
+the driver has exited holds what it exported to
+[`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json):
+every row arrived, of its kind, with every attribute not marked `only`, and
+whatever arrived under a row's name carries only that row's attributes. What
+no row names is the driver's process, not the SDK, and is not judged. [case.schema.json](case.schema.json) is the format, and every
 case is checked against it when the suite loads. A case's name is its file's.
 
 Steps run in order, each waiting for what it states:
@@ -141,6 +154,8 @@ Steps run in order, each waiting for what it states:
 | `{"driver": "<op>", "with": {...}}` | the operation succeeds; with `"returns"`, with that value; with `"fails"`, it fails with that failure instead |
 | `{"driver": "<op>", "with": {...}, "as": "name"}` | start the operation and go on |
 | `{"settles": "name", "returns" or "fails": ...}` | an operation started with `as` settles |
+| `{"abandon": "name"}` | the case abandons a request started with `as`, as its caller would |
+| `{"settles": "name", "abandoned": true}` | it ended because it was abandoned, and reported nothing |
 | `{"wire": "POST /bus/emit", ...}` | the client's next request is this operation of the spec, with each of `status`, `params`, `body`, `token`, `answer` given |
 | `{"carried": "name", "is": frame}` | the stream a wire step named has carried this frame to the client |
 | `{"state": "open"}` | the transport reaches this state |

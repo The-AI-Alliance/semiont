@@ -20,8 +20,10 @@ import { storedEvent } from '../harness/archivist';
 import { startClientProxy, type ClientProxy, type ProxiedRequest } from '../harness/client-proxy';
 import type { Plane } from '../harness/gateway';
 import { nonConformance, type Reply } from '../harness/http';
+import { startOtlp } from '../harness/otlp';
 import { SPEC_SOURCE } from '../harness/paths';
 import { errorsOf, registry, spec, type Method } from '../harness/spec';
+import { outsideTheSdkTable } from '../harness/telemetry';
 import type { World } from '../harness/world';
 import { Driver, type DeliveredFrame, type Outcome, type ReportedFailure } from './driver';
 import { Bindings } from './match';
@@ -41,7 +43,8 @@ const WAIT_GRACE_MS = 100;
 export type Step =
   | { let: Record<string, unknown> }
   | { driver: string; with?: Record<string, unknown>; returns?: unknown; fails?: unknown; as?: string }
-  | { settles: string; returns?: unknown; fails?: unknown }
+  | { abandon: string }
+  | { settles: string; returns?: unknown; fails?: unknown; abandoned?: true }
   | { wire: string; at?: 'arrival' | 'answer' | 'live'; status?: number; params?: unknown; body?: unknown; token?: unknown; answer?: unknown; as?: string; follows?: string; waited?: string }
   | { carried: string; is: unknown }
   | { state: string }
@@ -54,6 +57,8 @@ interface CaseDocument {
   about: string;
   source: string;
   planes?: Plane[];
+  /** Run the client exporting, and hold what it exported to the SDK telemetry table. */
+  telemetry?: true;
   steps: Step[];
 }
 
@@ -200,6 +205,11 @@ class Run {
       for (const [name, value] of Object.entries(step.let)) this.bindings.bind(name, this.bindings.resolve(value));
     } else if ('driver' in step) {
       await this.operate(step);
+    } else if ('abandon' in step) {
+      const started = this.pending.get(step.abandon);
+      if (!started) throw new Error(`no operation was started as ${step.abandon}`);
+      const id = this.driver.send('abandon', { request: started.id });
+      this.judge('abandon', await this.driver.outcome(id, 'abandon to settle', WAIT_MS), {});
     } else if ('settles' in step) {
       const started = this.pending.get(step.settles);
       if (!started) throw new Error(`no operation was started as ${step.settles}`);
@@ -271,9 +281,14 @@ class Run {
     if (!this.codes.has(failure.code)) throw new Error(`the client reported the code ${failure.code}, which specs/src/errors/codes.json does not list (${detail})`);
   }
 
-  private judge(op: string, outcome: Outcome, expected: { returns?: unknown; fails?: unknown }): void {
+  private judge(op: string, outcome: Outcome, expected: { returns?: unknown; fails?: unknown; abandoned?: true }): void {
     if ('unsupported' in outcome) throw new Error(`the driver does not implement ${op}`);
     if ('misuse' in outcome) throw new Error(`the case asked the driver for a ${op} it could not act on: ${outcome.misuse}`);
+    if ('abandoned' in outcome) {
+      if (expected.abandoned !== true) throw new Error(`${op} was abandoned; the case expects it to settle on its own`);
+      return;
+    }
+    if (expected.abandoned === true) throw new Error(`${op} settled with ${JSON.stringify(outcome)}; abandoned, it was to report nothing`);
     if (expected.fails !== undefined) {
       if ('ok' in outcome) throw new Error(`${op} succeeded with ${JSON.stringify(outcome.ok)}; it was to fail`);
       this.inVocabulary(outcome.error, outcome.detail);
@@ -520,7 +535,8 @@ class Run {
 /** Run `kase` against the driver `command` starts, on `world`'s gateway. Throws on the first thing a conforming client would not have done. */
 export async function runCase(world: World, command: readonly string[], kase: Case): Promise<void> {
   const proxy = await startClientProxy(world.origin);
-  const driver = await Driver.start(command);
+  const otlp = kase.telemetry ? await startOtlp() : undefined;
+  const driver = await Driver.start(command, otlp ? { OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint } : {});
   const subject = `client-${randomUUID()}`;
   const participant = await world.agent('conformance', `participant-${randomUUID()}`);
   const run = new Run(world, proxy, driver, { token: participant.token, clientId: randomUUID() }, world.personDid(subject));
@@ -545,11 +561,17 @@ export async function runCase(world: World, command: readonly string[], kase: Ca
     const code = await driver.stop();
     if (code !== 0) throw new Error(`the driver exited with code ${code}`);
     run.finish();
+    if (otlp) {
+      at = kase.steps.length + 1;
+      const outside = await outsideTheSdkTable(otlp);
+      if (outside.length > 0) throw new Error(`the client exported ${outside.join('; ')}`);
+    }
   } catch (error) {
-    const where = at < kase.steps.length ? `step ${at + 1} ${JSON.stringify(kase.steps[at])}` : 'the end of the case';
+    const where = at < kase.steps.length ? `step ${at + 1} ${JSON.stringify(kase.steps[at])}` : at === kase.steps.length ? 'the end of the case' : 'what it exported';
     throw new Error(`${kase.name}, at ${where}: ${error instanceof Error ? error.message : String(error)}\n${run.account()}`);
   } finally {
     await driver.stop();
     await proxy.close();
+    await otlp?.close();
   }
 }

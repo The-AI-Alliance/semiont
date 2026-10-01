@@ -26,13 +26,21 @@ vi.mock('ky', () => {
       this.response = response;
     }
   }
+  class NetworkError extends Error {
+    override name = 'NetworkError';
+  }
+  class TimeoutError extends Error {
+    override name = 'TimeoutError';
+  }
   return {
     default: { create: vi.fn(), stop: Symbol('ky.stop') },
     HTTPError,
+    NetworkError,
+    TimeoutError,
   };
 });
 
-import ky, { HTTPError } from 'ky';
+import ky, { HTTPError, NetworkError, TimeoutError } from 'ky';
 import { RETRY_RULES } from '@semiont/core';
 import { HttpTransport } from '../http-transport';
 import { APIError } from '../api-error';
@@ -124,7 +132,35 @@ describe('HttpTransport ky hooks', () => {
     expect(emitted).toHaveLength(1);
   });
 
-  test('beforeError passes a non-HTTP error through untouched (no emission)', async () => {
+  test.each([
+    ['the connection failed', () => Object.assign(Object.create(NetworkError.prototype) as Error, { message: 'fetch failed', name: 'NetworkError' })],
+    ['the deadline passed', () => Object.assign(Object.create(TimeoutError.prototype) as Error, { message: 'Request timed out', name: 'TimeoutError' })],
+  ])('beforeError reports a request the gateway never answered (%s) as unavailable, on errors$, and throws it', async (_why, unanswered) => {
+    const beforeError = hooks.beforeError![0]!;
+    type State = Parameters<typeof beforeError>[0];
+    const emitted: SemiontError[] = [];
+    const sub = transport.errors$.subscribe((e) => emitted.push(e));
+
+    const thrown = await Promise.resolve(
+      beforeError({
+        request: { method: 'GET', url: 'http://localhost:4000/api/status' } as unknown as State['request'],
+        options: {} as unknown as State['options'],
+        error: unanswered(),
+        retryCount: 0,
+      }),
+    ).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
+    sub.unsubscribe();
+
+    expect(thrown).toBeInstanceOf(APIError);
+    expect((thrown as APIError).code).toBe('unavailable');
+    expect((thrown as APIError).message).toMatch(/^GET \/api\/status got no answer: /);
+    expect(emitted).toEqual([thrown]);
+  });
+
+  test('beforeError passes an error that is neither through untouched (no emission)', async () => {
     const beforeError = hooks.beforeError![0]!;
     type State = Parameters<typeof beforeError>[0];
 

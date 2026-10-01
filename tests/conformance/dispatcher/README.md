@@ -56,9 +56,11 @@ the next.
   trace.
 - **Telemetry** (`observability.test.ts`): the `bus.recv` and `bus.emit` spans
   a job's frames make, the queue's size by every status the spec gives a job,
-  and, last, everything exported held to the rows of
+  and, last, everything exported held, in both directions, to the rows of
   [`specs/src/service-telemetry/telemetry.json`](../../../specs/src/service-telemetry/telemetry.json)
-  that list the dispatcher, in both directions.
+  that list the dispatcher and the rows of
+  [`specs/src/sdk-telemetry/telemetry.json`](../../../specs/src/sdk-telemetry/telemetry.json)
+  for the SDK transport it reaches the bus through.
 
 Behaviour JOBS.md lists as a known defect is not pinned by any case.
 

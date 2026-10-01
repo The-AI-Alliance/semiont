@@ -1,0 +1,17 @@
+{
+  "about": "a request abandoned while it waits for its stream to open is never sent",
+  "source": "docs/protocol/TRANSPORT-HTTP.md § Connection lifecycle",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested"]}},
+    {"backend": "hold", "with": {"wire": "POST /bus/subscribe"}},
+    {"driver": "open", "with": {"channels": ["browse:resource-failed", "browse:resource-result"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50}}},
+    {"wire": "POST /bus/subscribe", "at": "arrival", "body": {"clientId": {"$var": "clientId"}, "global": ["browse:resource-failed", "browse:resource-result"], "scoped": [], "pendingReplies": []}},
+
+    {"driver": "request", "with": {"operation": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "timeoutMs": 10000}, "as": "asked"},
+    {"abandon": "asked"},
+    {"settles": "asked", "abandoned": true},
+    {"backend": "release"},
+    {"state": "open"},
+    {"quiet": 300}
+  ]
+}

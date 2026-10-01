@@ -10,7 +10,7 @@
  * once at construction.
  */
 
-import ky, { HTTPError, type KyInstance } from 'ky';
+import ky, { HTTPError, NetworkError, TimeoutError, type KyInstance } from 'ky';
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import type {
   AccessToken,
@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs } from '@semiont/core';
+import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs, type RetryPolicy } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -76,12 +76,13 @@ export interface HttpTransportConfig {
    */
   channels?: readonly (keyof EventMap)[];
   /**
-   * `reconnectMs` and `lazyRemoveMs` of specs/src/client/timing.json, for a
-   * caller that must not wait them out: a test, or the conformance driver.
-   * Absent, the table's values stand.
+   * `reconnectMs`, `lazyRemoveMs` and `emitRetry` of
+   * specs/src/client/timing.json, for a caller that must not wait them out: a
+   * test, or the conformance driver. Absent, the table's values stand.
    */
   reconnectMs?: number;
   lazyRemoveMs?: number;
+  emitRetry?: RetryPolicy;
 }
 
 export class HttpTransport implements ITransport, IGatewayOperations {
@@ -257,6 +258,20 @@ export class HttpTransport implements ITransport, IGatewayOperations {
               this.errorsSubject.next(apiError);
               throw apiError;
             }
+            // The gateway never answered: the connection failed, or the
+            // request's own deadline passed. Reported under `unavailable`, as
+            // the vocabulary files it, and on `errors$` like a refusal.
+            // Anything else — the caller's own abort, a fault in a hook — is
+            // not the gateway's doing and passes as it is.
+            if (error instanceof NetworkError || error instanceof TimeoutError) {
+              const unanswered = APIError.withoutResponse(
+                `${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`,
+                'unavailable',
+                error.name,
+              );
+              this.errorsSubject.next(unanswered);
+              throw unanswered;
+            }
             return error;
           },
         ],
@@ -290,6 +305,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
         ...(this.config.saveLastEventId ? { saveLastEventId: this.config.saveLastEventId } : {}),
         ...(this.config.reconnectMs !== undefined ? { reconnectMs: this.config.reconnectMs } : {}),
         ...(this.config.lazyRemoveMs !== undefined ? { lazyRemoveMs: this.config.lazyRemoveMs } : {}),
+        ...(this.config.emitRetry !== undefined ? { emitRetry: this.config.emitRetry } : {}),
         // The SAME hook the ky beforeRetry path uses (SSE-AUTH-RESILIENCE
         // P4, D2) — the SSE connect path refreshes once before parking
         // `unauthenticated`, and no second refresh mechanism exists.

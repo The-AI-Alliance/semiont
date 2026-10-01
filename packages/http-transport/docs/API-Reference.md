@@ -26,6 +26,7 @@ Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP 
 | `tokenRefresher` | `TokenRefresher` | no | 401-recovery hook (see below). |
 | `reconnectMs` | `number` | no | Overrides `reconnectMs` of `specs/src/client/timing.json`: the first wait before a failed stream is opened again. For a test, or the conformance driver. |
 | `lazyRemoveMs` | `number` | no | Overrides `lazyRemoveMs` of the same table: how long a removal from the subscription waits before the stream is reopened without it. |
+| `emitRetry` | `RetryPolicy` | no | Overrides `emitRetry` of the same table: the retry budget of one emit. |
 
 ### `TokenRefresher`
 
@@ -59,11 +60,11 @@ class APIError extends SemiontError {
 }
 ```
 
-Thrown for non-2xx HTTP responses from the REST methods on `HttpTransport`, and from `emit` when the gateway refuses it; a refused stream is reported as one too. `status` and `statusText` are the HTTP-level fields; `code` is the `TransportErrorCode` classification derived from the status (a 429 is `rate-limited`); `details.body` is the parsed response body when available. `retryAfterMs` is the wait the response's `Retry-After` stated, as a limit's 429 or a capacity 503 does: an emit's retries, and a refused stream's reconnect, wait at least that long. `SemiontError` and `TransportErrorCode` come from `@semiont/core`.
+Thrown for non-2xx HTTP responses from the REST methods on `HttpTransport`, and from `emit` when the gateway refuses it; a refused stream is reported as one too. A request the gateway never answered — the connection failed, or the deadline passed, on every attempt — is one as well, with the code `unavailable` and a `status` of 0. `status` and `statusText` are the HTTP-level fields; `code` is the `TransportErrorCode` classification derived from the status (a 429 is `rate-limited`); `details.body` is the parsed response body when available. `retryAfterMs` is the wait the response's `Retry-After` stated, as a limit's 429 or a capacity 503 does: an emit's retries, and a refused stream's reconnect, wait at least that long. `SemiontError` and `TransportErrorCode` come from `@semiont/core`.
 
 ## `errors$`
 
-Every failure a server states is reported on `HttpTransport.errors$` before its caller hears it: a refused REST call and a refused emit as the `APIError` that is then thrown, and a refused stream as an `APIError` no caller awaits. Each carries the HTTP `status` and the `TransportErrorCode` that status maps to, so a consumer routing on `unauthorized` hears a refused stream as it hears a refused request. A stream that drops is a connection state, not a failure, and is not reported here.
+Every failure a server states is reported on `HttpTransport.errors$` before its caller hears it: a refused REST call and a refused emit as the `APIError` that is then thrown, and a refused stream as an `APIError` no caller awaits. Each carries the HTTP `status` and the `TransportErrorCode` that status maps to, so a consumer routing on `unauthorized` hears a refused stream as it hears a refused request. A REST call or an emit the gateway never answered is reported the same way, as `unavailable`. A stream that drops is a connection state, not a failure, and is not reported here.
 
 ## After `dispose()`
 

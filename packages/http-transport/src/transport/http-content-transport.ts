@@ -171,7 +171,7 @@ export class HttpContentTransport implements IContentTransport {
             headers: this.requestHeaders(options?.auth),
           })
           .json<GetResourceResponse>(),
-      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string, 'content.graph': true } },
+      { kind: SpanKind.CLIENT, attrs: { 'resource.id': resourceId as unknown as string } },
     );
   }
 

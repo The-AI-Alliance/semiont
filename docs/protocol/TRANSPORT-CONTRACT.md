@@ -160,7 +160,7 @@ gateway. Clients do not set this."*
 
 ## `busRequest` — correlation-ID request/response
 
-`busRequest(bus, operation, payload, timeoutMs?)` is a shared helper
+`busRequest(bus, operation, payload, timeoutMs?, signal?)` is a shared helper
 (in `@semiont/core`) built on the primitives:
 
 - Called with the **operation** — the request channel — and a payload.
@@ -177,6 +177,11 @@ gateway. Clients do not set this."*
 - **Return value tied to correlationId, not connection.** The caller
   gets exactly one resolution — the first matching result or fail
   event, or a timeout.
+- **Abandonment.** A caller that passes a `signal` can abandon the
+  request. It then rejects with the signal's reason and does nothing
+  more: what was sent stays sent, the reply stops being tracked, and a
+  reply that arrives later is reported to nobody. Abandoned while it
+  waits for the stream to open, it sends nothing.
 - **Reply tracking.** `busRequest` registers its correlationId with the
   transport's `trackReply` BEFORE emitting and releases it on
   every settle path. Wire transports carry the tracked set on each

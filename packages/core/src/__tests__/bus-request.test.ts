@@ -742,3 +742,88 @@ describe('busRequest subscription fail-fast gate', () => {
     expect(await promise).toEqual({ ok: 1 });
   });
 });
+
+describe('busRequest abandoned by its caller', () => {
+  const EMIT = 'gather:resource-requested';
+  const RESULT = 'gather:resource-complete';
+  const FAILURE = 'gather:resource-failed';
+
+  /** A bus that records what is tracked and released, as a wire transport would. */
+  function tracking(initialState: ConnectionState = 'open') {
+    const bus = makeBus(RESULT, FAILURE, initialState);
+    const tracked: string[] = [];
+    const released: string[] = [];
+    bus.trackReply = (cid) => {
+      tracked.push(cid);
+      return () => released.push(cid);
+    };
+    return { bus, tracked, released };
+  }
+
+  it('rejects with the signal\'s reason, keeps what it sent, and stops tracking the reply', async () => {
+    const { bus, tracked, released } = tracking();
+    const caller = new AbortController();
+    const promise = busRequest(bus, EMIT, {}, 5_000, caller.signal);
+    await Promise.resolve();
+    expect(bus.emit).toHaveBeenCalledTimes(1);
+
+    const reason = new Error('the caller moved on');
+    caller.abort(reason);
+    await expect(promise).rejects.toBe(reason);
+    expect(released).toEqual(tracked);
+    expect(tracked).toHaveLength(1);
+  });
+
+  it('reports nothing for a reply that arrives afterwards: nothing is left listening for it', async () => {
+    const { bus } = tracking();
+    const caller = new AbortController();
+    const promise = busRequest(bus, EMIT, {}, 5_000, caller.signal);
+    await Promise.resolve();
+    const cid = bus.emitEnvelope!.correlationId as string;
+
+    caller.abort();
+    await expect(promise).rejects.toBe(caller.signal.reason);
+    expect(bus.resultSubject.observed).toBe(false);
+    expect(bus.failureSubject.observed).toBe(false);
+    bus.resultSubject.next({ correlationId: cid, payload: { response: { late: true } } });
+  });
+
+  it('sends nothing when abandoned while it waits for the stream to open', async () => {
+    const { bus, tracked } = tracking('connecting');
+    const caller = new AbortController();
+    const promise = busRequest(bus, EMIT, {}, 5_000, caller.signal);
+
+    caller.abort();
+    await expect(promise).rejects.toBe(caller.signal.reason);
+    bus.stateSubject.next('open');
+    await Promise.resolve();
+    expect(bus.emit).not.toHaveBeenCalled();
+    expect(tracked).toEqual([]);
+  });
+
+  it('does nothing at all when the signal is already aborted', async () => {
+    const { bus, tracked } = tracking();
+    const caller = new AbortController();
+    caller.abort();
+
+    await expect(busRequest(bus, EMIT, {}, 5_000, caller.signal)).rejects.toBe(caller.signal.reason);
+    expect(bus.emit).not.toHaveBeenCalled();
+    expect(bus.frames).not.toHaveBeenCalled();
+    expect(tracked).toEqual([]);
+  });
+
+  it('a signal that is never used changes nothing: a reply resolves, and a bus that closes still fails as closed', async () => {
+    const answered = tracking();
+    const first = busRequest(answered.bus, EMIT, {}, 5_000, new AbortController().signal);
+    await Promise.resolve();
+    answered.bus.resultSubject.next({ correlationId: answered.bus.emitEnvelope!.correlationId, payload: { response: { ok: 1 } } });
+    expect(await first).toEqual({ ok: 1 });
+
+    const closed = tracking();
+    const second = busRequest(closed.bus, EMIT, {}, 5_000, new AbortController().signal);
+    await Promise.resolve();
+    closed.bus.resultSubject.complete();
+    closed.bus.failureSubject.complete();
+    await expect(second).rejects.toMatchObject({ code: 'bus.closed' });
+  });
+});

@@ -1,6 +1,6 @@
 import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter, map, share } from 'rxjs/operators';
-import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS } from '@semiont/core';
+import { busLog, busLogEnabled, uuidV4, retryWithBackoff, retryAfterMs, equalJitter, isRetryableRequestError, BusRequestError, RESOURCE_SCOPED_CHANNELS, type BusEnvelope, type BusFrame, type BusRequestPrimitive, type components, type ConnectionState, type EventMap, type RetryPolicy, type StateUnit, DEGRADED_THRESHOLD_MS, EMIT_RETRY, EMIT_TIMEOUT_MS, LAZY_REMOVE_MS, LINGER_MS, MAX_RECONNECT_MS, RECONNECT_DEBOUNCE_MS, RECONNECT_MS } from '@semiont/core';
 import {
   SpanKind,
   extractTraceparent,
@@ -56,6 +56,8 @@ export interface ActorStateUnitOptions {
    * flushes pending removals with it on the fast path.
    */
   lazyRemoveMs?: number;
+  /** The retry budget of one emit. Default `EMIT_RETRY`. */
+  emitRetry?: RetryPolicy;
   /**
    * B17 (LOCAL-STORAGE) — IO-abstracted persistence of the last seen
    * PERSISTED event id PER SCOPE, so a reloaded client resumes each
@@ -110,7 +112,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -789,7 +791,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
       // inside the retried unit, because the refusal IS the failure being
       // classified. Retrying only the fetch would re-run the request and then
       // hand back the same unexamined response.
-      const res = await retryWithBackoff(async () => {
+      const attempts = retryWithBackoff(async () => {
         // Bounded (JOB-RESTART-SAFETY P7): an unresponsive gateway must not hang
         // the caller's loop forever. AbortSignal.timeout rejects with a
         // DOMException named TimeoutError — which the predicate treats as
@@ -823,7 +825,16 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           );
         }
         return attempt;
-      }, isRetryableRequestError, EMIT_RETRY);
+      }, isRetryableRequestError, emitRetry);
+      const res = await attempts.catch((error: unknown) => {
+        if (error instanceof APIError) throw error;
+        // The gateway never answered, on any attempt the budget allowed: the
+        // connection failed or the deadline passed. The runtime's own error
+        // for that carries no code, and a caller routing on codes would not
+        // know an unreachable gateway from a bug.
+        const cause = error instanceof Error ? error : new Error(String(error));
+        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, 'unavailable', cause.name);
+      });
       // No count is reported as no count, never as a zero: an absent
       // `subscribers` is the gateway saying it could not count (a broker
       // signal plane), and an unreadable body says nothing at all. Either way

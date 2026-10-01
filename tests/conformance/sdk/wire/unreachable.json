@@ -1,0 +1,17 @@
+{
+  "about": "with the gateway unreachable, an emit and a read each fail as unavailable once their attempts are spent, and each is reported on the error stream",
+  "source": "specs/src/errors/codes.json transport; specs/src/client/timing.json emitRetry",
+  "planes": ["in-process"],
+  "steps": [
+    {"driver": "open", "with": {"channels": ["beckon:focus"], "timing": {"reconnectMs": 50, "lazyRemoveMs": 50, "emitRetry": {"attempts": 2, "initialDelayMs": 10, "maxDelayMs": 10}}}},
+    {"wire": "POST /bus/subscribe", "status": 200, "body": {"clientId": {"$var": "clientId"}, "global": ["beckon:focus"], "scoped": [], "pendingReplies": []}},
+    {"state": "open"},
+
+    {"backend": "down"},
+    {"state": "reconnecting"},
+    {"driver": "emit", "with": {"channel": "beckon:focus", "payload": {"annotationId": "a-1"}}, "fails": {"code": "unavailable"}},
+    {"error": {"code": "unavailable"}},
+    {"driver": "get", "with": {"resource": {"$var": "r1"}}, "fails": {"code": "unavailable"}},
+    {"error": {"code": "unavailable"}}
+  ]
+}

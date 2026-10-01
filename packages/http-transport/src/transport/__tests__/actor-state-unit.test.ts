@@ -165,6 +165,27 @@ describe('createActorStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('an emit the gateway never answers, on any attempt of the budget it was given, rejects as unavailable', async () => {
+    // The runtime's own error for a failed connection is a bare TypeError: no
+    // code, so a caller routing on codes could not tell it from a bug.
+    mockFetch.mockRejectedValue(new TypeError('fetch failed'));
+    const stateUnit = createActorStateUnit({
+      baseUrl: 'http://localhost:4000',
+      token: 'tok',
+      channels: [],
+      emitRetry: { attempts: 2, initialDelayMs: 1, maxDelayMs: 1 },
+    });
+
+    await expect(stateUnit.emit('beckon:hover', { annotationId: 'a-1' })).rejects.toMatchObject({
+      name: 'APIError',
+      code: 'unavailable',
+      message: '/bus/emit got no answer: fetch failed',
+    });
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+
+    stateUnit.dispose();
+  });
+
   // ── SSE-AUTH-RESILIENCE P1: don't ask without a credential ──────────
   // Shape A: a session that exhausts refresh pushes `null` to `token$`, and
   // HttpTransport renders that as `''`. The actor used to send

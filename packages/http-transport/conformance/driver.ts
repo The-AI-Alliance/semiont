@@ -22,13 +22,18 @@ import {
   type ContentFormat,
   type EventMap,
   type PutBinaryRequest,
+  type RetryPolicy,
 } from '@semiont/core';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
+import { initObservabilityNode, shutdownObservabilityNode } from '@semiont/observability/node';
 
 type Arguments = Record<string, unknown>;
 
 /** The suite sent something this driver cannot act on: the suite's mistake, never the SDK's. */
 class Misuse extends Error {}
+
+/** The request settled because the suite abandoned it, and the SDK reported nothing else. */
+class Abandoned extends Error {}
 
 const say = (line: Record<string, unknown>): void => {
   process.stdout.write(`${JSON.stringify(line)}\n`);
@@ -75,6 +80,8 @@ let transport: HttpTransport | undefined;
 let content: HttpContentTransport | undefined;
 /** The disposers `subscribe-resource` got, per resource, newest last. */
 const held = new Map<string, Array<() => void>>();
+/** What abandons each request still unsettled, by the id of its operation. */
+const callers = new Map<number, AbortController>();
 
 function opened(): HttpTransport {
   if (!transport) throw new Misuse('no transport is open');
@@ -86,12 +93,17 @@ function contentTransport(): HttpContentTransport {
   return content;
 }
 
-const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown> = {
+function budget(timing: Arguments): RetryPolicy {
+  const stated = object(timing, 'emitRetry');
+  return { attempts: count(stated, 'attempts'), initialDelayMs: count(stated, 'initialDelayMs'), maxDelayMs: count(stated, 'maxDelayMs') };
+}
+
+const operations: Record<string, (args: Arguments, id: number) => Promise<unknown> | unknown> = {
   open(args) {
     if (transport) throw new Misuse('a transport is already open');
     const timing = args['timing'] === undefined ? {} : object(args, 'timing');
     for (const name of Object.keys(timing)) {
-      if (name !== 'reconnectMs' && name !== 'lazyRemoveMs') throw new Misuse(`this driver cannot override ${name}`);
+      if (name !== 'reconnectMs' && name !== 'lazyRemoveMs' && name !== 'emitRetry') throw new Misuse(`this driver cannot override ${name}`);
     }
     token$ = new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token')));
     transport = new HttpTransport({
@@ -100,6 +112,7 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
       channels: texts(args, 'channels') as (keyof EventMap)[],
       ...(timing['reconnectMs'] === undefined ? {} : { reconnectMs: count(timing, 'reconnectMs') }),
       ...(timing['lazyRemoveMs'] === undefined ? {} : { lazyRemoveMs: count(timing, 'lazyRemoveMs') }),
+      ...(timing['emitRetry'] === undefined ? {} : { emitRetry: budget(timing) }),
     });
     transport.state$.subscribe((state) => say({ state }));
     transport.errors$.subscribe((error) => say({ error: failure(error) }));
@@ -154,9 +167,24 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     return subscribers === undefined ? {} : { subscribers };
   },
 
-  async request(args) {
-    const response: unknown = await busRequest(opened(), text(args, 'operation') as BusOperationKey, object(args, 'payload'), count(args, 'timeoutMs'));
-    return response === undefined ? {} : { response };
+  async request(args, id) {
+    const caller = new AbortController();
+    callers.set(id, caller);
+    try {
+      const response: unknown = await busRequest(opened(), text(args, 'operation') as BusOperationKey, object(args, 'payload'), count(args, 'timeoutMs'), caller.signal);
+      return response === undefined ? {} : { response };
+    } catch (error) {
+      if (caller.signal.aborted && error === caller.signal.reason) throw new Abandoned();
+      throw error;
+    } finally {
+      callers.delete(id);
+    }
+  },
+
+  abandon(args) {
+    const caller = callers.get(count(args, 'request'));
+    if (!caller) throw new Misuse('no such request is unsettled');
+    caller.abort();
   },
 
   async put(args) {
@@ -226,18 +254,23 @@ async function run(line: string): Promise<void> {
     return;
   }
   try {
-    const value: unknown = await operation(args);
+    const value: unknown = await operation(args, id);
     say({ id, ok: value === undefined ? null : value });
   } catch (error) {
     if (error instanceof Misuse) say({ id, misuse: error.message });
+    else if (error instanceof Abandoned) say({ id, abandoned: true });
     else say({ id, error: failure(error) });
   }
 }
+
+// Exports only when the suite names an OTLP endpoint in the environment.
+initObservabilityNode({ serviceName: 'semiont-conformance-driver' });
 
 const lines = createInterface({ input: process.stdin });
 lines.on('line', (line) => void run(line));
 lines.on('close', () => {
   transport?.dispose();
-  process.exit(0);
+  // Whatever it had not exported yet goes out before it exits.
+  void shutdownObservabilityNode().finally(() => process.exit(0));
 });
 say({ ready: true });
