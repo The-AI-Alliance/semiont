@@ -58,6 +58,8 @@ export interface ActorStateUnitOptions {
   lazyRemoveMs?: number;
   /** The retry budget of one emit. Default `EMIT_RETRY`. */
   emitRetry?: RetryPolicy;
+  /** How long a superseded connection keeps draining after a handoff. Default `LINGER_MS`. */
+  lingerMs?: number;
   /**
    * B17 (LOCAL-STORAGE) — IO-abstracted persistence of the last seen
    * PERSISTED event id PER SCOPE, so a reloaded client resumes each
@@ -112,7 +114,7 @@ const ALLOWED_TRANSITIONS: Record<ConnectionState, ReadonlyArray<ConnectionState
 };
 
 export function createActorStateUnit(options: ActorStateUnitOptions): ActorStateUnit {
-  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, tokenRefresher } = options;
+  const { baseUrl, token: tokenOrGetter, channels: initialChannels, reconnectMs = RECONNECT_MS, lazyRemoveMs = LAZY_REMOVE_MS, emitRetry = EMIT_RETRY, lingerMs = LINGER_MS, tokenRefresher } = options;
   const getToken = typeof tokenOrGetter === 'function' ? tokenOrGetter : () => tokenOrGetter;
 
   const globalChannels = new Set(initialChannels);
@@ -448,7 +450,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
             try { c.abort(); } catch { /* noop */ }
             inflightControllers.delete(c);
           }
-        }, LINGER_MS);
+        }, lingerMs);
         lingerTimers.add(lingerTimer);
       }
 

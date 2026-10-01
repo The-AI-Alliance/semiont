@@ -1,0 +1,25 @@
+{
+  "about": "an event on an observed resource makes the client ask again for what is observed, which keeps its value until the new one arrives; what nobody has observed is not asked for, and an event on a resource nobody observes never reaches the client (B7)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B7, § Mapping: bus events → cache invalidations",
+  "tier": "fleet",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"annotations": [], "total": 0}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": []}},
+    {"scopes": [{"$var": "r1"}]},
+
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:added", "sequence": 1, "live": true}},
+    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"holds": "a", "state": {"status": "ready", "value": []}},
+    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"annotations": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}], "total": 1}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}]}},
+
+    {"backend": "record", "with": {"resource": {"$var": "r2"}, "channel": "mark:added", "sequence": 1, "live": true}},
+    {"quiet": 400}
+  ]
+}

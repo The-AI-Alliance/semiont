@@ -1,7 +1,7 @@
 /**
  * Cache-semantics contract tests.
  *
- * Enumerates behaviors B1–B16 and B19 from
+ * Enumerates behaviors B1–B16, B19 and B20 from
  * `packages/sdk/docs/CACHE-SEMANTICS.md` against `BrowseNamespace`.
  *
  * Each `describe` block is tagged with the behavior number it verifies.
@@ -613,17 +613,19 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       try {
         const { browse, eventBus, emitSpy } = createHarness();
         await firstDefined(browse.annotations(RID));
-        expect(emitSpy).toHaveBeenCalledTimes(1);
+        await firstDefined(browse.events(RID));
+        expect(emitSpy).toHaveBeenCalledTimes(2);
+        emitSpy.mockClear();
 
         eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
         await vi.advanceTimersByTimeAsync(0);
-        expect(emitSpy).toHaveBeenCalledTimes(3); // annotations + events refetched
+        expect(emitSpy).toHaveBeenCalledTimes(2); // annotations + events refetched
 
         eventBus.emit('mark:removed', fakeMarkRemoved(RID, AID));
         // Each is independent; mark:removed also fires annotations + events
         // refetch — owed to the window mark:added opened on those keys (B19).
         await vi.advanceTimersByTimeAsync(INVALIDATION_WINDOW_MS);
-        expect(emitSpy).toHaveBeenCalledTimes(5);
+        expect(emitSpy).toHaveBeenCalledTimes(4);
       } finally {
         vi.useRealTimers();
       }
@@ -659,16 +661,17 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
       await firstDefined(browse.resource(RID_A));
       await firstDefined(browse.annotations(RID_A));
       await firstDefined(browse.resource(RID_B));
-      expect(emitSpy).toHaveBeenCalledTimes(3);
+      await firstDefined(browse.entityTypes());
+      expect(emitSpy).toHaveBeenCalledTimes(4);
 
       eventBus.emit('bus:resume-gap', fakeBusResumeGap(RID_A, 'retention-exceeded'));
       await flush();
 
       // Keys in scope A refetched; key in scope B untouched (aside from
-      // the entity-types refetch that always fires on any gap).
+      // the entity-types refetch that fires on any gap).
       const channels = emitSpy.mock.calls.map(([ch]) => ch);
       // Count post-gap resource fetches by scope.
-      const postGap = channels.slice(3);
+      const postGap = channels.slice(4);
       expect(postGap.filter((c) => c === 'browse:resource-requested').length).toBe(1);
       expect(postGap.filter((c) => c === 'browse:annotations-requested').length).toBe(1);
       expect(postGap.filter((c) => c === 'browse:entity-types-requested').length).toBe(1);
@@ -724,6 +727,54 @@ describe('Cache semantics — behaviors B1–B16 against BrowseNamespace', () =>
 
       expect(listFetches()).toBeGreaterThan(before);
       sub.unsubscribe();
+    });
+  });
+
+  describe('B20 — a bus event refreshes only what the cache holds', () => {
+    const requests = (emitSpy: ReturnType<typeof createHarness>['emitSpy'], channel: string) =>
+      emitSpy.mock.calls.filter(([ch]) => ch === channel).length;
+
+    it('an event on an observed resource costs no request for what nothing has asked for', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      const sub = browse.annotations(RID).subscribe(() => {});
+      await firstDefined(browse.annotations(RID));
+
+      eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
+      await flush();
+
+      expect(requests(emitSpy, 'browse:annotations-requested'), 'the observed list is refreshed').toBe(2);
+      expect(requests(emitSpy, 'browse:events-requested'), 'the event history nobody asked for is not').toBe(0);
+      sub.unsubscribe();
+    });
+
+    it('a bulk import costs a viewer no request for the resources it has never looked at', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      const sub = browse.resources().subscribe(() => {});
+      await firstDefined(browse.resources());
+
+      for (let i = 0; i < 100; i++) eventBus.emit('yield:created', fakeYieldCreated(resourceId(`imported-${i}`)));
+      await flush();
+
+      expect(requests(emitSpy, 'browse:resource-requested')).toBe(0);
+      sub.unsubscribe();
+    });
+
+    it('a value the cache still holds is refreshed though its observer has left', async () => {
+      const { browse, eventBus, emitSpy } = createHarness();
+      await firstDefined(browse.events(RID));
+      expect(requests(emitSpy, 'browse:events-requested')).toBe(1);
+
+      eventBus.emit('mark:added', fakeMarkAdded(RID, AID));
+      await flush();
+
+      expect(requests(emitSpy, 'browse:events-requested')).toBe(2);
+    });
+
+    it('a direct invalidate of a key nothing has asked for still fetches it (B8)', async () => {
+      const { browse, emitSpy } = createHarness();
+      browse.invalidateResourceEvents(RID);
+      await flush();
+      expect(requests(emitSpy, 'browse:events-requested')).toBe(1);
     });
   });
 

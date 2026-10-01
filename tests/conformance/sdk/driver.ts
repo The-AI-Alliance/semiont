@@ -20,6 +20,12 @@ export interface ReportedFailure {
   status?: number;
 }
 
+/** A state a live query's observer was in, as the protocol carries it. */
+export type ObservedState =
+  | { status: 'pending' }
+  | { status: 'ready'; value: unknown }
+  | { status: 'failed'; error: ReportedFailure; detail: string };
+
 export type Outcome = { ok: unknown } | { error: ReportedFailure; detail: string } | { abandoned: true } | { unsupported: true } | { misuse: string };
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -33,6 +39,16 @@ function failureOf(v: unknown): { failure: ReportedFailure; detail: string } | u
   return { failure: { ...(code === undefined ? {} : { code }), ...(status === undefined ? {} : { status }) }, detail };
 }
 
+function stateOf(v: unknown): ObservedState | undefined {
+  if (!isObject(v)) return undefined;
+  const keys = Object.keys(v);
+  if (v['status'] === 'pending' && keys.length === 1) return { status: 'pending' };
+  if (v['status'] === 'ready' && keys.length === 2 && 'value' in v) return { status: 'ready', value: v['value'] };
+  const failed = failureOf(v['error']);
+  if (v['status'] === 'failed' && keys.length === 2 && failed) return { status: 'failed', error: failed.failure, detail: failed.detail };
+  return undefined;
+}
+
 export class Driver {
   /** Every state the transport reported, in order. */
   readonly states: string[] = [];
@@ -40,6 +56,10 @@ export class Driver {
   readonly frames = new Map<string, DeliveredFrame[]>();
   /** What the error stream carried, in order, each with the SDK's own words for it. */
   readonly failures: Array<{ failure: ReportedFailure; detail: string }> = [];
+  /** The states each observer of a live query reported, in order. */
+  readonly emissions = new Map<string, ObservedState[]>();
+  /** The observers whose live query completed. */
+  readonly completed = new Set<string>();
   /** Lines the driver wrote that the protocol does not allow. */
   readonly violations: string[] = [];
   /** What it wrote to stderr: shown when a case fails. */
@@ -100,6 +120,16 @@ export class Driver {
       delivered.push({ payload, ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope }) });
     } else if (keys.length === 1 && failureOf(message['error'])) {
       this.failures.push(failureOf(message['error'])!);
+    } else if (keys.length === 1 && typeof message['completed'] === 'string') {
+      this.completed.add(message['completed']);
+    } else if (keys.length === 1 && isObject(message['emission']) && typeof message['emission']['observer'] === 'string') {
+      const state = stateOf(message['emission']['state']);
+      if (!state || Object.keys(message['emission']).length !== 2) {
+        this.violations.push(`an emission the protocol does not allow: ${line.slice(0, 200)}`);
+        return;
+      }
+      const observer = message['emission']['observer'];
+      this.emissions.set(observer, [...(this.emissions.get(observer) ?? []), state]);
     } else if (keys.length === 2 && typeof message['id'] === 'number') {
       const outcome = Driver.outcomeOf(message);
       if (!outcome) this.violations.push(`a line the protocol does not allow: ${line.slice(0, 200)}`);

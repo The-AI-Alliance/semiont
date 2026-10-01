@@ -380,37 +380,43 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
+    // Each observes what it counts: an event refreshes only the keys the
+    // cache knows (B20).
     it('mark:added → invalidates list + events', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      await firstDefined(browse.events(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
       eventBus.emit('mark:added', stored({ resourceId: RID }) as any);
       await firstDefined(browse.annotations(RID));
       // annotations refetch + events refetch = 2 additional emits
-      expect(emitSpy).toHaveBeenCalledTimes(3);
+      expect(emitSpy).toHaveBeenCalledTimes(4);
     });
 
     it('mark:removed → invalidates list + events', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      await firstDefined(browse.events(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
       eventBus.emit('mark:removed', stored({ resourceId: RID, payload: { annotationId: AID } }) as any);
       await firstDefined(browse.annotations(RID));
       // annotations refetch + events refetch = 2 additional emits
-      expect(emitSpy).toHaveBeenCalledTimes(3);
+      expect(emitSpy).toHaveBeenCalledTimes(4);
     });
 
     it('mark:body-updated (enriched) → in-place update + events refetch', async () => {
       await firstDefined(browse.annotations(RID));
+      await firstDefined(browse.events(RID));
       const updated = { ...mockAnnotation('ann-1'), body: [{ type: 'SpecificResource', source: 'res-target', purpose: 'linking' }] } as Annotation;
       eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID }, annotation: updated }) as any);
       const list = await firstDefined(browse.annotations(RID));
       // annotations not refetched (in-place update), but events refetched
-      expect(emitSpy).toHaveBeenCalledTimes(2);
+      expect(emitSpy).toHaveBeenCalledTimes(3);
       expect((list![0].body as any[])[0]).toMatchObject({ source: 'res-target' });
     });
 
     it('mark:body-updated without annotation → invalidates list + events (never keeps the stale body)', async () => {
       await firstDefined(browse.annotations(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(1);
+      await firstDefined(browse.events(RID));
+      expect(emitSpy).toHaveBeenCalledTimes(2);
       // Unenriched: the view no longer held the annotation when the EventStore
       // enriched the event, so there is nothing to write through. This used to
       // be a no-op, which left the old body on screen; B13c in
@@ -418,16 +424,17 @@ describe('BrowseNamespace', () => {
       eventBus.emit('mark:body-updated', stored({ resourceId: RID, payload: { annotationId: AID } }));
       await firstDefined(browse.annotations(RID));
       // annotations refetch + events refetch = 2 additional emits
-      expect(emitSpy).toHaveBeenCalledTimes(3);
+      expect(emitSpy).toHaveBeenCalledTimes(4);
     });
 
-    it('mark:entity-tag-added → invalidates annotation list + resource detail', async () => {
+    it('mark:entity-tag-added → invalidates annotation list + resource detail + events', async () => {
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resource(RID));
+      await firstDefined(browse.events(RID));
       eventBus.emit('mark:entity-tag-added', stored({ resourceId: RID }) as any);
       await firstDefined(browse.annotations(RID));
       await firstDefined(browse.resource(RID));
-      expect(emitSpy).toHaveBeenCalledTimes(5);
+      expect(emitSpy).toHaveBeenCalledTimes(6);
     });
   });
 
@@ -511,13 +518,11 @@ describe('BrowseNamespace', () => {
       expect(emitSpy).toHaveBeenCalledTimes(2);
     });
 
-    it('bus:resume-gap (no scope) → invalidates the KB-wide registries: entity types, tag schemas, agents', async () => {
-      // The KB-wide registries always refetch on a gap regardless of
-      // whether a specific scope was named — see browse.ts subscription.
-      // Count per channel: the collaborator directory joined the block
-      // (COLLABORATOR-DIRECTORY P3), and its invalidate fires a fetch even
-      // for the never-observed key (B8) — so a flat call count would
-      // conflate the three registries.
+    it('bus:resume-gap (no scope) → invalidates the KB-wide registries the cache knows', async () => {
+      // The KB-wide registries refetch on a gap whether or not a specific
+      // scope was named — see browse.ts subscription — each of them the cache
+      // knows (B20): here the two that were observed, and not the collaborator
+      // directory, which nothing asked for.
       const fetches = (channel: string) =>
         emitSpy.mock.calls.filter((call: unknown[]) => call[0] === channel).length;
 
@@ -531,7 +536,13 @@ describe('BrowseNamespace', () => {
       await firstDefined(browse.tagSchemas());
       expect(fetches('browse:entity-types-requested')).toBe(2);
       expect(fetches('browse:tag-schemas-requested')).toBe(2);
-      expect(fetches('browse:agents-requested')).toBe(1); // B8: empty-key invalidate still refetches
+      expect(fetches('browse:agents-requested')).toBe(0);
+    });
+
+    it('bus:resume-gap fetches no registry nothing has asked for (B20)', async () => {
+      eventBus.emit('bus:resume-gap', {} as any);
+      await new Promise((r) => setTimeout(r, 0));
+      expect(emitSpy).not.toHaveBeenCalled();
     });
   });
 });

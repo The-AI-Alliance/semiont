@@ -32,6 +32,13 @@
       },
       "description": "The signal planes the case runs on. Absent, it runs on both."
     },
+    "tier": {
+      "enum": [
+        "fleet",
+        "parity"
+      ],
+      "description": "A live case's tier: `fleet`, what every SDK with a live layer does, or `parity`, what one that implements all of CACHE-SEMANTICS does."
+    },
     "telemetry": {
       "const": true,
       "description": "Run the client exporting to an OTLP receiver, and once it has exited hold what it exported to specs/src/sdk-telemetry/telemetry.json."
@@ -268,7 +275,8 @@
                 "rechunk",
                 "cut",
                 "down",
-                "up"
+                "up",
+                "archivist"
               ]
             },
             "with": {
@@ -287,6 +295,144 @@
             "quiet": {
               "type": "integer",
               "minimum": 1
+            }
+          }
+        },
+        {
+          "description": "Live: an observer, named by `as`, begins observing a live query.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "observe",
+            "as"
+          ],
+          "properties": {
+            "observe": {
+              "type": "object",
+              "required": [
+                "query"
+              ]
+            },
+            "as": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "Live: the observer stops observing.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "leave"
+          ],
+          "properties": {
+            "leave": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "Live: the observer comes to hold this state.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reaches",
+            "state"
+          ],
+          "properties": {
+            "reaches": {
+              "$ref": "#/definitions/name"
+            },
+            "state": {}
+          }
+        },
+        {
+          "description": "Live: the state the observer holds now is this one.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "holds",
+            "state"
+          ],
+          "properties": {
+            "holds": {
+              "$ref": "#/definitions/name"
+            },
+            "state": {}
+          }
+        },
+        {
+          "description": "Live: the observer's live query completes.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "completes"
+          ],
+          "properties": {
+            "completes": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "Live: the next request the client makes of a service is on this channel; `as` names its correlation id, for the backend to answer.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fetch",
+            "as"
+          ],
+          "properties": {
+            "fetch": {
+              "type": "string"
+            },
+            "payload": {},
+            "as": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "Live: the next requests the client makes of a service are these, in whatever order it makes them.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fetches"
+          ],
+          "properties": {
+            "fetches": {
+              "type": "array",
+              "minItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "fetch",
+                  "as"
+                ],
+                "properties": {
+                  "fetch": {
+                    "type": "string"
+                  },
+                  "payload": {},
+                  "as": {
+                    "$ref": "#/definitions/name"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "description": "Live: the client's stream comes to name exactly these scopes.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "scopes"
+          ],
+          "properties": {
+            "scopes": {
+              "type": "array"
             }
           }
         }

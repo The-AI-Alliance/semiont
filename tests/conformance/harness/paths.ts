@@ -18,13 +18,27 @@ export const GATEWAY_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/relea
  */
 export const DISPATCHER_COMMAND: readonly string[] = [join(REPO_ROOT, 'target/release/semiont-dispatcher')];
 
+/** An SDK's drivers: the programs the SDK suite talks to in that SDK's place (sdk/README.md § The driver protocol). */
+export interface SdkDrivers {
+  /** How its wire driver is started. */
+  wire?: readonly string[];
+  /**
+   * How its live driver is started, and the tier of the live corpus the SDK
+   * is held to: `fleet`, what every live layer does, or `parity`, all of
+   * CACHE-SEMANTICS.
+   */
+  live?: { command: readonly string[]; tier: 'fleet' | 'parity' };
+}
+
 /**
- * How each SDK's wire driver is started: the program the SDK suite talks to in
- * that SDK's place (sdk/README.md § The driver protocol). An SDK joins the
- * suite by adding its line. vitest.config.ts provides them as `sdkDrivers`.
+ * Each SDK's drivers. An SDK joins a layer of the suite by adding its line.
+ * vitest.config.ts provides them as `sdkDrivers`.
  */
-export const SDK_DRIVERS: Readonly<Record<string, readonly string[]>> = {
-  typescript: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
+export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
+  typescript: {
+    wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
+    live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
+  },
 };
 
 export const SPEC_SOURCE = join(REPO_ROOT, 'specs/src');

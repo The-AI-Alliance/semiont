@@ -7,25 +7,28 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import type { TestProject } from 'vitest/node';
-import { REPO_ROOT } from './paths';
+import { REPO_ROOT, type SdkDrivers } from './paths';
 
 declare module 'vitest' {
   export interface ProvidedContext {
-    /** How each SDK's wire driver is started: the configuration provides them. */
-    sdkDrivers: Readonly<Record<string, readonly string[]>>;
+    /** Each SDK's drivers: the configuration provides them. */
+    sdkDrivers: Readonly<Record<string, SdkDrivers>>;
   }
 }
 
 export default function setup(project: TestProject): void {
   if (!('typescript' in project.getProvidedContext().sdkDrivers)) return;
-  const built = join(REPO_ROOT, 'packages/http-transport/dist/index.js');
-  if (!existsSync(built)) {
-    throw new Error(`The TypeScript SDK is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
-  }
-  try {
-    execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', 'packages/http-transport/conformance'], { cwd: REPO_ROOT, stdio: 'pipe' });
-  } catch (error) {
-    const output = (error as { stdout?: Buffer }).stdout?.toString('utf8') ?? String(error);
-    throw new Error(`The TypeScript driver does not type-check:\n${output}`);
+  // The wire driver runs the built transport; the live driver, the built SDK over it.
+  for (const pkg of ['http-transport', 'sdk']) {
+    const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');
+    if (!existsSync(built)) {
+      throw new Error(`The TypeScript SDK is not built: ${built} does not exist. Run \`npm run build:packages\` at the repository root.`);
+    }
+    try {
+      execFileSync(join(REPO_ROOT, 'node_modules/.bin/tsc'), ['-p', join('packages', pkg, 'conformance')], { cwd: REPO_ROOT, stdio: 'pipe' });
+    } catch (error) {
+      const output = (error as { stdout?: Buffer }).stdout?.toString('utf8') ?? String(error);
+      throw new Error(`The TypeScript driver in packages/${pkg}/conformance does not type-check:\n${output}`);
+    }
   }
 }

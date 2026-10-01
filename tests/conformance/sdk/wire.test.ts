@@ -57,11 +57,12 @@ describe('the corpus against the tables it restates', () => {
   });
 });
 
-for (const [sdk, command] of Object.entries(inject('sdkDrivers'))) {
+for (const [sdk, { wire }] of Object.entries(inject('sdkDrivers'))) {
+  if (!wire) continue;
   eachPlane(`the ${sdk} SDK on the wire`, (world, plane) => {
     for (const kase of corpus) {
       if (kase.planes && !kase.planes.includes(plane)) continue;
-      it(`${kase.name}: ${kase.about}`, () => runCase(world(), command, kase));
+      it(`${kase.name}: ${kase.about}`, () => runCase(world(), wire, kase, 'wire'));
     }
   });
 }

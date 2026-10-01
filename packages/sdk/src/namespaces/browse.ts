@@ -55,6 +55,8 @@ type ResourceListFilters = {
 class InvalidationWindows {
   private readonly open = new Map<string, { owed: (() => void) | null; timer: ReturnType<typeof setTimeout> }>();
 
+  constructor(private readonly windowMs: number) {}
+
   run(key: string, invalidate: () => void): void {
     const window = this.open.get(key);
     if (window) {
@@ -66,7 +68,7 @@ class InvalidationWindows {
       const owed = this.open.get(key)?.owed;
       this.open.delete(key);
       if (owed) this.run(key, owed);
-    }, INVALIDATION_WINDOW_MS);
+    }, this.windowMs);
     this.open.set(key, { owed: null, timer });
   }
 
@@ -167,22 +169,31 @@ export class BrowseNamespace implements IBrowseNamespace {
    */
   private readonly busSubs: Array<{ unsubscribe(): void }> = [];
 
-  private readonly invalidationWindows = new InvalidationWindows();
+  private readonly invalidationWindows: InvalidationWindows;
 
   /**
-   * B19 — the invalidations bus events ask for, each through its key's window.
-   * The public `invalidate*` methods stay immediate for direct callers.
+   * The invalidations bus events ask for. Each is for a key the cache knows,
+   * or it is dropped (B20): an event about a key nothing has asked for has
+   * nothing to refresh, and refreshing it anyway cost every viewer a request
+   * per resource another principal imported. Each goes through its key's
+   * window (B19). The public `invalidate*` methods stay immediate, and fetch
+   * whatever the key holds (B8), for direct callers.
    */
   private readonly onBus = {
-    annotations: (rId: ResourceId) => this.invalidationWindows.run(`annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
-    resource: (rId: ResourceId) => this.invalidationWindows.run(`resource/${rId}`, () => this.invalidateResourceDetail(rId)),
-    events: (rId: ResourceId) => this.invalidationWindows.run(`events/${rId}`, () => this.invalidateResourceEvents(rId)),
-    referencedBy: (rId: ResourceId) => this.invalidationWindows.run(`referenced-by/${rId}`, () => this.invalidateReferencedBy(rId)),
+    annotations: (rId: ResourceId) => this.refresh(this.annotationListCache, rId, `annotations/${rId}`, () => this.invalidateAnnotationList(rId)),
+    resource: (rId: ResourceId) => this.refresh(this.resourceCache, rId, `resource/${rId}`, () => this.invalidateResourceDetail(rId)),
+    events: (rId: ResourceId) => this.refresh(this.resourceEventsCache, rId, `events/${rId}`, () => this.invalidateResourceEvents(rId)),
+    referencedBy: (rId: ResourceId) => this.refresh(this.referencedByCache, rId, `referenced-by/${rId}`, () => this.invalidateReferencedBy(rId)),
+    // Its keys are the lists already asked for: `invalidateAll` reaches no other.
     resourceLists: () => this.invalidationWindows.run('resource-lists', () => this.invalidateResourceLists()),
-    entityTypes: () => this.invalidationWindows.run('entity-types', () => this.invalidateEntityTypes()),
-    tagSchemas: () => this.invalidationWindows.run('tag-schemas', () => this.invalidateTagSchemas()),
-    agents: () => this.invalidationWindows.run('agents', () => this.invalidateAgents()),
+    entityTypes: () => this.refresh(this.entityTypesCache, ENTITY_TYPES_KEY, 'entity-types', () => this.invalidateEntityTypes()),
+    tagSchemas: () => this.refresh(this.tagSchemasCache, TAG_SCHEMAS_KEY, 'tag-schemas', () => this.invalidateTagSchemas()),
+    agents: () => this.refresh(this.agentsCache, AGENTS_KEY, 'agents', () => this.invalidateAgents()),
   };
+
+  private refresh<K>(cache: { known(key: K): boolean }, key: K, window: string, invalidate: () => void): void {
+    if (cache.known(key)) this.invalidationWindows.run(window, invalidate);
+  }
 
   /**
    * B17-Q — the persisted caches, registered at construction, for the
@@ -198,6 +209,12 @@ export class BrowseNamespace implements IBrowseNamespace {
     options?: {
       busTimeoutMs?: number;
       /**
+       * B19's window, `invalidationWindowMs` of specs/src/client/timing.json,
+       * for a caller that must not wait it out: a test, or the conformance
+       * driver. Absent, the table's value stands.
+       */
+      invalidationWindowMs?: number;
+      /**
        * B17 — opt into cache persistence through the environment's
        * SessionStorage adapter. keyPrefix is the KB id (cache data is
        * KB-specific). Omitted = in-memory-only, today's behavior.
@@ -206,6 +223,7 @@ export class BrowseNamespace implements IBrowseNamespace {
     },
   ) {
     this.busTimeoutMs = options?.busTimeoutMs;
+    this.invalidationWindows = new InvalidationWindows(options?.invalidationWindowMs ?? INVALIDATION_WINDOW_MS);
 
     // The opt-in table (see .plans/LOCAL-STORAGE.md): small, first-paint
     // caches persist; lists, event histories, and the collaborator

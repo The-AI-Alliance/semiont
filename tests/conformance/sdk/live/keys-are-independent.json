@@ -1,0 +1,25 @@
+{
+  "about": "one key failing leaves another untouched: each has its own requests, its own retry and its own state (B10)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B10",
+  "tier": "parity",
+  "steps": [
+    {"let": {"two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"observe": {"query": "resource", "resource": {"$var": "r2"}}, "as": "b"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r2"}}, "as": "g1"},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "f1"}, "payload": {"message": "it went wrong"}}},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "f2"}, "payload": {"message": "it went wrong"}}},
+    {"reaches": "a", "state": {"status": "failed", "error": {"code": "bus.rejected"}}},
+    {"holds": "b", "state": {"status": "pending"}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "g1"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "b", "state": {"status": "ready", "value": {"$var": "two"}}},
+    {"holds": "a", "state": {"status": "failed", "error": {"code": "bus.rejected"}}},
+    {"quiet": 300}
+  ]
+}

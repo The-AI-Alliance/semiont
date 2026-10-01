@@ -127,6 +127,12 @@ export class SemiontClient {
        * small values so B14/B15 chains run in test time.
        */
       busTimeoutMs?: number;
+      /**
+       * The window bus-driven invalidations of one key coalesce in (B19),
+       * `invalidationWindowMs` of specs/src/client/timing.json. Production
+       * omits it; a test or the conformance driver passes a small value.
+       */
+      invalidationWindowMs?: number;
     },
   ) {
     this.transport = transport;
@@ -140,6 +146,7 @@ export class SemiontClient {
     this.browse = new BrowseNamespace(this.transport, this.bus, this.content, {
       ...(options?.cachePersistence ? { cachePersistence: options.cachePersistence } : {}),
       ...(options?.busTimeoutMs !== undefined ? { busTimeoutMs: options.busTimeoutMs } : {}),
+      ...(options?.invalidationWindowMs !== undefined ? { invalidationWindowMs: options.invalidationWindowMs } : {}),
     });
     this.mark   = new MarkNamespace(this.transport, this.bus);
     this.bind   = new BindNamespace(this.transport, this.bus);

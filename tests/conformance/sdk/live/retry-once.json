@@ -1,0 +1,20 @@
+{
+  "about": "a request that fails is made once more, and no more; the observer waits through both and sees the value the second is answered with (B14)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B14",
+  "tier": "fleet",
+  "steps": [
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:resource-failed", "correlationId": {"$var": "f1"}, "payload": {"message": "it went wrong"}}},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"holds": "a", "state": {"status": "pending"}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
+    {"quiet": 300}
+  ]
+}

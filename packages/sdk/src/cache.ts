@@ -1,7 +1,7 @@
 /**
  * RxJS-native read-through cache primitive.
  *
- * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B19).
+ * Behavioral contract: packages/sdk/docs/CACHE-SEMANTICS.md (B1–B20).
  *
  * Framework-agnostic: no React, no dependency on any namespace. Used by
  * `BrowseNamespace` to back its per-key stores, but equally usable from
@@ -116,6 +116,12 @@ export interface Cache<K, V> {
 
   /** Synchronous snapshot of the current value, without triggering a fetch. */
   get(key: K): V | undefined;
+  /**
+   * Whether anything has asked for `key` and not let go of it: it holds a
+   * value or a failure, or a fetch for it is in flight. B20 — an event about a
+   * key that is none of these has nothing to refresh.
+   */
+  known(key: K): boolean;
 
   /** Iterator of currently-cached keys. For invalidateAll and diagnostics. */
   keys(): K[];
@@ -424,6 +430,10 @@ export function createCache<K, V>(
 
     get(key: K): V | undefined {
       return store$.value.get(key);
+    },
+
+    known(key: K): boolean {
+      return store$.value.has(key) || failures$.value.has(key) || inflight.has(key);
     },
 
     keys(): K[] {

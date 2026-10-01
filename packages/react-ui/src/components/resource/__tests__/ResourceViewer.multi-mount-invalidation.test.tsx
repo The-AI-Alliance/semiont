@@ -12,6 +12,10 @@
  * unfiltered it was an O(N) refetch amplification. This suite pins the
  * system behavior over the real client with two mounted viewers:
  * exactly one list invalidation per mark event, zero for body updates.
+ *
+ * The host that feeds each viewer its `annotations` observes each resource's
+ * list, as it does here: the sdk refreshes only what its cache holds
+ * (CACHE-SEMANTICS B20), so a list nothing observes is not invalidated at all.
  */
 import { describe, it, expect, vi } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
@@ -84,6 +88,7 @@ function mountTwoViewers() {
       />
     </>,
   );
+  for (const id of ['res-A', 'res-B']) wrapper.client.browse.annotations(makeResourceId(id)).subscribe(() => {});
   spy.mockClear(); // only the event-driven invalidations count
   return { ...wrapper, spy };
 }

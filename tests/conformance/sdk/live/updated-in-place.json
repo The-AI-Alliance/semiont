@@ -1,0 +1,19 @@
+{
+  "about": "an event that carries an annotation's new value is written straight into the list that holds it: its observer sees the new value, and no request is made (B13b)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B13b",
+  "tier": "parity",
+  "steps": [
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"annotations": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}], "total": 1}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "highlighting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}]}},
+    {"scopes": [{"$var": "r1"}]},
+    {"backend": "record", "with": {"resource": {"$var": "r1"}, "channel": "mark:body-updated", "sequence": 1, "live": true, "payload": {"annotationId": {"$var": "a1"}, "operations": []}, "enriched": {"annotation": {"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "commenting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": [{"@context": "http://www.w3.org/ns/anno.jsonld", "type": "Annotation", "id": {"$var": "a1"}, "motivation": "commenting", "target": {"source": {"$var": "r1"}}, "created": "2026-01-01T00:00:00.000Z"}]}},
+    {"quiet": 300}
+  ]
+}

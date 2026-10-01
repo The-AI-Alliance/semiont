@@ -54,6 +54,8 @@ export interface ProxiedRequest {
   answer: unknown;
   /** The events its answer carried, when the answer is a stream. */
   events: CarriedEvent[];
+  /** Whether the exchange is over: answered in full, or its connection ended, by either side. */
+  closed: boolean;
 }
 
 /** An answer the proxy gives itself, in the gateway's place. */
@@ -240,9 +242,14 @@ export async function startClientProxy(gatewayOrigin: string): Promise<ClientPro
         retryAfter: undefined,
         answer: undefined,
         events: [],
+        closed: false,
       };
       requests.push(recorded);
       wake();
+      res.on('close', () => {
+        recorded.closed = true;
+        wake();
+      });
 
       const script = scripted.find((s) => s.left > 0 && s.match(recorded));
       if (script) {

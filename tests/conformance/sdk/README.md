@@ -8,12 +8,19 @@ small program that turns the suite's operations into calls on that SDK's
 public API and writes back what happened.
 
 The suite imports nothing from an SDK. The lines that name one are
-`SDK_DRIVERS` in [harness/paths.ts](../harness/paths.ts): how each driver is
-started.
+`SDK_DRIVERS` in [harness/paths.ts](../harness/paths.ts): how each of an SDK's
+drivers is started.
 
 | Layer | Holds an SDK to | Cases | Entry |
 |---|---|---|---|
 | wire | the transport: the stream, emits, requests, content, the gateway's own operations | [wire/](wire/) | [wire.test.ts](wire.test.ts) |
+| live | the client's live queries and their cache: what an observer is given, and what each observation costs on the wire ([CACHE-SEMANTICS](../../../packages/sdk/docs/CACHE-SEMANTICS.md)) | [live/](live/) | [live.test.ts](live.test.ts) |
+
+An SDK has a driver per layer it implements. The live layer has two tiers,
+and an SDK's line says which it is held to: `fleet`, the cases every SDK with
+a live layer passes, or `parity`, those and the rest of the contract. Each
+case states its tier, and `live.test.ts` runs an SDK through the cases of the
+tier it is held to.
 
 ## What every case holds a client to
 
@@ -34,6 +41,12 @@ fails a client that:
   not list;
 - reports anything on its error stream that the case does not expect;
 - settles an operation twice.
+
+The two layers read the wire differently. A wire case reads it as a
+transcript: every request, in order. A live case reads what the live contract
+means on it: each request the client makes of a service, in order and none
+unaccounted, and the scopes its stream has come to name. How often the client
+reopened its stream to get there is the wire layer's to judge.
 
 A conforming client passes every case every time: steps wait for what they
 expect and never compare how long it took. A client that does something
@@ -115,11 +128,53 @@ before it. Frames and failures are sequences: every one, in order.
 
 One driver holds one client: a second `open` is misuse.
 
+### The live driver
+
+The live driver holds the SDK's client. Its `open` takes `baseUrl`, `token`,
+`timing`, and `persist`: with `persist`, the client's cache is kept across a
+`close` and the `open` that follows, as storage keeps it across a reload. A
+closed client stays the driver's until the next `open`, so a case can ask a
+closed client for something. Its operations:
+
+| `op` | Arguments | `ok` |
+|---|---|---|
+| `observe` | `observer` (a name), `query`: the observer begins observing the live query | `null` |
+| `unobserve` | `observer`: it stops | `null` |
+| `fresh` | `query`: a one-shot read | `{"value": ...}` |
+| `invalidate` | `query`: the caller says the key is out of date | `null` |
+| `sync` | | `null`, after everything the client reported before it |
+
+A `query` names what is observed: `{"query": "resource", "resource": id}`,
+and likewise `annotations`, `events`, `referencedBy`; `annotation` with
+`resource` and `annotation`; `resources` with optional `filters`;
+`entityTypes`; `tagSchemas`.
+
+It writes, as they happen:
+
+| Line | Meaning |
+|---|---|
+| `{"emission": {"observer": "a", "state": {"status": "pending"}}}` | the observer was given a state: `pending`, `ready` with its `value`, or `failed` with its `error` |
+| `{"completed": "a"}` | the observer's live query completed |
+
+An observer's states are read as states, not as a sequence: a case waits for
+one to be reached, and never counts the ones before it, so an SDK whose
+observers see only the latest state conforms. A case makes each state last by
+holding back the answer that would end it.
+
+Its `timing` overrides `busRequestTimeoutMs` and `invalidationWindowMs`
+beside the transport's `reconnectMs`, `lazyRemoveMs` and `lingerMs`.
+
+While a client hands its subscription from one stream to the next, both
+streams carry every event sent to all clients, and the client is given each
+twice: such an event has no id that says the two are one. A live case
+therefore publishes one only after a `scopes` step, which waits for the old
+stream to have closed.
+
 `open`'s `timing` overrides entries of
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json) by
 name, so a case does not wait out a production delay. The cases override
-`reconnectMs`, `lazyRemoveMs` and `emitRetry`; a driver must honour all three,
-and answers `misuse` to a name it cannot override.
+`reconnectMs`, `lazyRemoveMs`, `lingerMs` and `emitRetry`; a driver must honour
+all four, and answers `misuse` to a name it cannot override.
 
 A driver started with `OTEL_EXPORTER_OTLP_ENDPOINT` in its environment exports
 the SDK's telemetry there over OTLP/HTTP, and has exported all of it by the
@@ -164,6 +219,19 @@ Steps run in order, each waiting for what it states:
 | `{"backend": "<directive>", "with": {...}}` | the backend does something |
 | `{"quiet": 300}` | the client sends nothing more for this many milliseconds |
 
+A live case uses these in place of `wire` and `carried`:
+
+| Step | Meaning |
+|---|---|
+| `{"observe": query, "as": "a"}` | an observer, named `a`, begins observing |
+| `{"leave": "a"}` | it stops |
+| `{"reaches": "a", "state": {...}}` | the observer comes to hold this state |
+| `{"holds": "a", "state": {...}}` | the state it holds now is this one |
+| `{"completes": "a"}` | its live query completes |
+| `{"fetch": "browse:resource-requested", "payload": {...}, "as": "f1"}` | the client's next request of a service is this one; `f1` is its correlation id, for the backend to answer |
+| `{"fetches": [ ... ]}` | its next requests are these, in whatever order it makes them |
+| `{"scopes": ["..."]}` | the client comes to hold one stream, naming exactly these scopes, that has caught up |
+
 A `wire` step waits for the request to be answered. `"at": "arrival"` reads
 it as soon as it arrives, for a request the proxy is holding; `"at": "live"`
 waits for a stream to have caught up, after which a frame cannot race the
@@ -194,6 +262,7 @@ The suite binds these before a case begins:
 | `client` | that principal's DID |
 | `participant` | the DID of the participant the suite plays |
 | `r1`, `r2`, `r3` | three resource ids no other case uses, in name order |
+| `a1`, `a2` | two annotation ids no other case uses |
 | `resourceScopedChannels` | the channels a resource's scope carries, from the registry |
 
 `open` is given the proxy as its `baseUrl`, and `token` when the step names
@@ -205,7 +274,8 @@ no other.
 |---|---|---|
 | `listen` | `channels`, `scope` | the participant subscribes: globally, or to one scope |
 | `emit` | `channel`, `payload`, `scope`, `correlationId` | the participant emits; the gateway must accept it |
-| `record` | `resource`, `channel`, `sequence`, `live` | a persisted event enters the resource's record; with `live`, it is also published on the resource's scope |
+| `record` | `resource`, `channel`, `sequence`, `live`, `payload`, `enriched`, `unscoped` | a persisted event, with `payload` when given, enters the resource's record; with `live`, it is also published, with the fields of `enriched` added, on the resource's scope, or to every client with `unscoped` |
+| `archivist` | `replayFails` | the Archivist fails, or stops failing, the gateway's reads of a record |
 | `content` | `resource`, `mediaType`, `bytes` | the Archivist holds these bytes for the resource |
 | `description` | `resource`, `graph` | the Archivist holds this description of the resource |
 | `uploaded` | `resource`, `fields`, `bytes` | the Archivist recorded this upload, for the case's principal |
@@ -215,6 +285,18 @@ no other.
 | `rechunk` | `bytes` | streams reach the client this many bytes at a time |
 | `cut` | | every connection the client has ends |
 | `down`, `up` | | the gateway is unreachable; it is back |
+
+## What the live layer cannot show
+
+A clause of CACHE-SEMANTICS that no case holds, and why:
+
+| Clause | Why no case holds it |
+|---|---|
+| B4, one observable per key | It is the identity of an object in the client's own language; nothing of it crosses to the suite. What it is for, shared work, is B3. |
+| B11, observables live as long as the cache | It is memory the client keeps, with no effect an observer or the wire can see. |
+| B12, handlers are additive | It is a rule about how the code is written. Its effect is the `event-*` cases, each holding one event to exactly what it refreshes. |
+| B17, the save's debounce, the storage document's version, sync between contexts | They are the storage adapter's, below what a driver's `persist` reaches. `rehydration` holds what they are for: a value saved by one client is the next one's. |
+| A one-shot read of a closed client | TypeScript rejects it with an error that carries no code, which this suite cannot accept from any SDK. |
 
 ## Cases that restate a table
 
@@ -226,22 +308,25 @@ the emit budget.
 
 ## Adding an SDK
 
-Write its driver over the SDK's public API, add its line to `SDK_DRIVERS`,
-and run the suite. The TypeScript driver is
-[packages/http-transport/conformance/driver.ts](../../../packages/http-transport/conformance/driver.ts).
+Write a driver for each layer over the SDK's public API, add them to its line
+of `SDK_DRIVERS`, and run the suite. TypeScript's are
+[packages/http-transport/conformance/driver.ts](../../../packages/http-transport/conformance/driver.ts)
+for the wire and
+[packages/sdk/conformance/driver.ts](../../../packages/sdk/conformance/driver.ts)
+for the live layer.
 
 ## Running it
 
 It needs a built gateway, `nats-server` (2.10 or later) on `PATH`, and the
-TypeScript transport built:
+TypeScript SDK built:
 
 ```bash
 cargo build --release -p semiont-gateway
-npm run build --workspace=@semiont/http-transport
+npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci
 npm run test:sdk
 ```
 
-The suite type-checks the TypeScript driver before it starts: Node runs the
-driver with its types stripped, and would run a mistyped one.
+The suite type-checks the TypeScript drivers before it starts: Node runs them
+with their types stripped, and would run a mistyped one.

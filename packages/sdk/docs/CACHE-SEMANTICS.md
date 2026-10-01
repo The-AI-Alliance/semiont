@@ -405,6 +405,29 @@ unchanged for every `invalidate` call, and the public `invalidate*`
 methods stay immediate for direct callers. B9's in-flight guard is not
 trusted, and the owed invalidation starts a fresh fetch like any other.
 
+### B20 — A bus event refreshes only what the cache holds
+
+An invalidation a bus event asks for is **dropped** when its key holds no
+value, no failure, and has no fetch in flight. Nothing has asked for that
+key, so there is nothing to refresh; its first observer fetches it (B1).
+
+1. A key with a value is refreshed whether or not anyone observes it now:
+   the cache keeps it for its lifetime (B11), and a kept value must not go
+   stale.
+2. A failed key is retried (B15), and a key with a fetch in flight gets a
+   new one (B9): observers are waiting on both.
+3. The public `invalidate*` methods are unaffected. A direct `invalidate`
+   of an empty key still fetches (B8): the caller asked.
+
+Why: an event names what changed, not what this client looks at.
+`yield:created` reaches every client for every resource anyone creates,
+and each used to answer with a `browse:resource-requested` for a resource
+it had never opened: a 1,000-resource import cost every viewer 1,000
+requests, each counted against its own principal, past anything B19 could
+coalesce because every key was distinct. Likewise a `mark:added` on an
+open resource fetched its event history for a viewer that never showed
+one.
+
 ### B13a — Remove is distinct from invalidate
 
 Some bus events signal that the underlying entity no longer exists
@@ -473,8 +496,9 @@ network work is wasted, not UX.
 
 The current subscription table in `BrowseNamespace.subscribeToEvents()`.
 Updating this table is an API-impact change; keep it in sync with the
-code. Every invalidation below goes through its key's window (B19);
-removes and in-place updates do not.
+code. Every invalidation below is for a key the cache holds (B20), and
+goes through its key's window (B19); removes and in-place updates do
+neither.
 
 | Bus event | Effect |
 |---|---|
@@ -507,9 +531,9 @@ Observations from this table:
 - **`yield:create-ok` invalidates** (it does not write-through). It shares the
   `invalidateMutatedResource` path with `yield:update-ok` / `mark:archived` /
   `mark:unarchived` — invalidate `resourceDetail[resourceId]` and the whole
-  `resourceList`. Because a just-created resource has nothing cached yet, the
-  `resourceDetail` invalidate is a no-op until it's first observed; the
-  `resourceList` invalidate is what surfaces the new resource to list views.
+  `resourceList`. A just-created resource has nothing cached yet, so the
+  `resourceDetail` invalidate is dropped (B20); the `resourceList`
+  invalidate is what surfaces the new resource to list views.
 
 ## Required audits in the implementation
 
@@ -705,6 +729,13 @@ background request per observed key.
   visible: a 1,000-event import refetched each observed key 1,000
   times. B12's additivity test now waits out the window for its second
   event's refetches: the count it asserts is unchanged, only its timing.
+- 2026-10-01 — **B20 added: a bus event refreshes only what the cache
+  holds.** Found by the SDK conformance suite's first live case. The
+  mapping section already said a `yield:create-ok` invalidate of an
+  uncached resource was a no-op; the code fetched it (B8 applied to
+  bus-driven invalidations too). Observable difference: an event about a
+  key nothing has asked for costs no request. Seven tests that counted
+  those requests now observe the keys they count.
 - 2026-10-01 — **B15: one state per key.** `failed` was an event pushed to
   the observers present at exhaustion, beside a store that held only
   values, so an observer that stayed held `failed` while one that arrived

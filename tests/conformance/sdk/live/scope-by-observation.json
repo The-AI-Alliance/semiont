@@ -1,0 +1,32 @@
+{
+  "about": "a resource's scope is on the stream while anything of that resource is observed: it joins with the first observer, stays while one remains, and leaves with the last",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md § Bus-event-driven invalidation; docs/protocol/TRANSPORT-HTTP.md § POST /bus/subscribe",
+  "tier": "fleet",
+  "steps": [
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"scopes": [{"$var": "r1"}]},
+
+    {"observe": {"query": "annotations", "resource": {"$var": "r1"}}, "as": "b"},
+    {"fetch": "browse:annotations-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"backend": "emit", "with": {"channel": "browse:annotations-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"annotations": [], "total": 0}}}},
+    {"reaches": "b", "state": {"status": "ready", "value": []}},
+    {"leave": "a"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r2"}}, "as": "c"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r2"}}, "as": "f3"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f3"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"scopes": [{"$var": "r1"}, {"$var": "r2"}]},
+
+    {"leave": "b"},
+    {"scopes": [{"$var": "r2"}]},
+    {"leave": "c"},
+    {"scopes": []}
+  ]
+}

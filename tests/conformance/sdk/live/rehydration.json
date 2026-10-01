@@ -1,0 +1,28 @@
+{
+  "about": "a client that persists its cache gives a returning observer the value it had at once, never pending, and asks once more to make sure of it (B17, B18)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B17, B18",
+  "tier": "parity",
+  "steps": [
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}, "persist": true}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
+    {"driver": "close"},
+    {"completes": "a"},
+    {"state": "closed"},
+
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}, "persist": true}},
+    {"state": "open"},
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "b"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"holds": "b", "state": {"status": "ready", "value": {"$var": "one"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "b", "state": {"status": "ready", "value": {"$var": "two"}}},
+    {"quiet": 300}
+  ]
+}

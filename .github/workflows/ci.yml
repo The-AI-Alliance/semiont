@@ -272,12 +272,12 @@ jobs:
             package-lock.json
             tests/conformance/package-lock.json
 
-      # The TypeScript driver runs the built transport, as an application
-      # would; building it builds the packages under it first.
+      # The TypeScript drivers run the built SDK, as an application would;
+      # building it builds the packages under it first.
       - name: Install dependencies
         run: |
           npm ci --include=optional
-          npm run build --workspace=@semiont/http-transport
+          npm run build --workspace=@semiont/sdk
 
       # Every case runs on the NATS plane too, against a real broker spawned
       # from PATH.
@@ -288,8 +288,8 @@ jobs:
           sudo mv "nats-server-${NATS_VERSION}-linux-amd64/nats-server" /usr/local/bin/
           nats-server --version
 
-      # Each SDK's driver, put through the corpus against the gateway; the
-      # suite type-checks the TypeScript driver before it starts.
+      # Each SDK's drivers, put through the corpus against the gateway; the
+      # suite type-checks the TypeScript drivers before it starts.
       - name: Run the SDK conformance suite
         run: |
           cd tests/conformance

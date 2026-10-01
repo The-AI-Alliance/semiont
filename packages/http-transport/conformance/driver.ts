@@ -103,7 +103,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     if (transport) throw new Misuse('a transport is already open');
     const timing = args['timing'] === undefined ? {} : object(args, 'timing');
     for (const name of Object.keys(timing)) {
-      if (name !== 'reconnectMs' && name !== 'lazyRemoveMs' && name !== 'emitRetry') throw new Misuse(`this driver cannot override ${name}`);
+      if (!['reconnectMs', 'lazyRemoveMs', 'lingerMs', 'emitRetry'].includes(name)) throw new Misuse(`this driver cannot override ${name}`);
     }
     token$ = new BehaviorSubject<AccessToken | null>(accessToken(text(args, 'token')));
     transport = new HttpTransport({
@@ -112,6 +112,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
       channels: texts(args, 'channels') as (keyof EventMap)[],
       ...(timing['reconnectMs'] === undefined ? {} : { reconnectMs: count(timing, 'reconnectMs') }),
       ...(timing['lazyRemoveMs'] === undefined ? {} : { lazyRemoveMs: count(timing, 'lazyRemoveMs') }),
+      ...(timing['lingerMs'] === undefined ? {} : { lingerMs: count(timing, 'lingerMs') }),
       ...(timing['emitRetry'] === undefined ? {} : { emitRetry: budget(timing) }),
     });
     transport.state$.subscribe((state) => say({ state }));

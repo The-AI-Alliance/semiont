@@ -9,6 +9,13 @@
  * delivered on a channel are exactly the events the gateway sent it there,
  * once each and in order; and every failure it reported carries a code from
  * specs/src/errors/codes.json.
+ *
+ * The two layers account for the wire differently. A wire case reads it as a
+ * transcript: every request, in order. A live case reads what the live
+ * contract means on it: each request the client makes of a service (a
+ * `fetch`), in order and none unaccounted, and the scopes its stream has come
+ * to name. How many times it reopened the stream to get there is the wire
+ * layer's to judge.
  */
 import { randomUUID } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -25,7 +32,7 @@ import { SPEC_SOURCE } from '../harness/paths';
 import { errorsOf, registry, spec, type Method } from '../harness/spec';
 import { outsideTheSdkTable } from '../harness/telemetry';
 import type { World } from '../harness/world';
-import { Driver, type DeliveredFrame, type Outcome, type ReportedFailure } from './driver';
+import { Driver, type DeliveredFrame, type ObservedState, type Outcome, type ReportedFailure } from './driver';
 import { Bindings } from './match';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -51,12 +58,27 @@ export type Step =
   | { frame: string; is: unknown }
   | { error: unknown }
   | { backend: string; with?: Record<string, unknown> }
-  | { quiet: number };
+  | { quiet: number }
+  | { observe: Record<string, unknown>; as: string }
+  | { leave: string }
+  | { reaches: string; state: unknown }
+  | { holds: string; state: unknown }
+  | { completes: string }
+  | { fetch: string; payload?: unknown; as: string }
+  | { fetches: Array<{ fetch: string; payload?: unknown; as: string }> }
+  | { scopes: unknown[] };
+
+type FetchStep = { fetch: string; payload?: unknown; as: string };
+
+/** A layer of the suite: the transport, or the client's live queries over it. */
+export type Layer = 'wire' | 'live';
 
 interface CaseDocument {
   about: string;
   source: string;
   planes?: Plane[];
+  /** A live case's tier: what every live layer does, or what one at full parity does. */
+  tier?: 'fleet' | 'parity';
   /** Run the client exporting, and hold what it exported to the SDK telemetry table. */
   telemetry?: true;
   steps: Step[];
@@ -149,6 +171,10 @@ class Run {
   /** What the client did outside the spec, whatever the case was about. */
   private readonly problems: string[] = [];
   private wireCursor = 0;
+  /** In a live case: how many of the client's emits its `fetch` steps have accounted for. */
+  private fetchCursor = 0;
+  /** In a live case: for each observer, how many of its states the case has read. */
+  private readonly emissionCursor = new Map<string, number>();
   private stateCursor = 0;
   private failureCursor = 0;
   private readonly frameCursor = new Map<string, number>();
@@ -160,6 +186,7 @@ class Run {
   private readonly listening = new Map<string, number>();
 
   constructor(
+    private readonly layer: Layer,
     private readonly world: World,
     private readonly proxy: ClientProxy,
     private readonly driver: Driver,
@@ -231,6 +258,18 @@ class Run {
       }, WAIT_MS).catch((error: unknown) => {
         throw new Error(`${error instanceof Error ? error.message : String(error)}${difference === undefined ? ': it carried no frames' : `; the last it carried differs: ${difference}`}`);
       });
+    } else if ('reaches' in step) {
+      await this.reaches(step.reaches, step.state);
+    } else if ('holds' in step) {
+      // Everything the client reported before it answers this is read by then.
+      const id = this.driver.send('sync', {});
+      this.judge('sync', await this.driver.outcome(id, 'sync to settle', WAIT_MS), {});
+      const states = this.driver.emissions.get(step.holds) ?? [];
+      const latest = states.at(-1);
+      if (!latest) throw new Error(`${step.holds} has reported no state`);
+      const difference = this.bindings.match(step.state, this.observed(latest));
+      if (difference !== undefined) throw new Error(`${step.holds} no longer holds that state: ${difference}`);
+      this.emissionCursor.set(step.holds, states.length);
     } else if ('state' in step) {
       const at = await this.driver.until(`the state ${step.state} (reported since: ${this.driver.states.slice(this.stateCursor).join(', ') || 'none'})`, () => {
         const index = this.driver.states.indexOf(step.state, this.stateCursor);
@@ -252,9 +291,93 @@ class Run {
       if (difference !== undefined) throw new Error(`the next failure on the error stream differs: ${difference} (${detail})`);
     } else if ('backend' in step) {
       await this.backend(step.backend, this.bindings.resolve(step.with ?? {}) as Record<string, unknown>);
-    } else {
+    } else if ('quiet' in step) {
       await new Promise((resolve) => setTimeout(resolve, step.quiet));
       this.nothingUnaccounted(`within ${step.quiet} ms`);
+    } else if ('observe' in step) {
+      const id = this.driver.send('observe', { observer: step.as, query: this.bindings.resolve(step.observe) });
+      this.judge('observe', await this.driver.outcome(id, 'observe to settle', WAIT_MS), {});
+    } else if ('leave' in step) {
+      const id = this.driver.send('unobserve', { observer: step.leave });
+      this.judge('unobserve', await this.driver.outcome(id, 'unobserve to settle', WAIT_MS), {});
+    } else if ('completes' in step) {
+      await this.driver.until(`${step.completes}'s live query to complete`, () => (this.driver.completed.has(step.completes) ? true : undefined), WAIT_MS);
+    } else if ('fetch' in step) {
+      await this.fetch(step);
+    } else if ('fetches' in step) {
+      await this.fetches(step.fetches);
+    } else {
+      const expected = (this.bindings.resolve(step.scopes) as unknown[]).map(String).sort();
+      let named: string[] = [];
+      await this.proxy
+        .until('the stream to name those scopes', () => {
+          // One stream, and caught up: an event published next cannot race the
+          // subscription, and no stream it superseded is still open to carry
+          // the event a second time.
+          const open = this.proxy.requests.filter((r) => r.path === '/bus/subscribe' && r.status === 200 && !r.closed);
+          const stream = open.length === 1 ? open[0] : undefined;
+          const body = stream?.events.some((e) => e.event === 'ping') ? subscription(stream.json) : undefined;
+          named = isObject(body) && Array.isArray(body['scoped']) ? body['scoped'].map((entry: unknown) => String(isObject(entry) ? entry['scope'] : entry)) : [];
+          return isDeepStrictEqual(named, expected) ? true : undefined;
+        }, WAIT_MS)
+        .catch((error: unknown) => {
+          throw new Error(`${error instanceof Error ? error.message : String(error)}: it names ${JSON.stringify(named)}, not ${JSON.stringify(expected)}`);
+        });
+    }
+  }
+
+  /** A state as a case reads it: a failure by its code, without the SDK's own words for it. */
+  private observed(state: ObservedState): unknown {
+    if (state.status !== 'failed') return state;
+    this.inVocabulary(state.error, state.detail);
+    return { status: 'failed', error: state.error };
+  }
+
+  /** The observer comes to hold the state: the first it reports, from where the case has read to, that is it. */
+  private async reaches(observer: string, pattern: unknown): Promise<void> {
+    const from = this.emissionCursor.get(observer) ?? 0;
+    let seen: unknown[] = [];
+    const at = await this.driver
+      .until(`${observer} to reach that state`, () => {
+        const states = this.driver.emissions.get(observer) ?? [];
+        seen = states.slice(from).map((state) => this.observed(state));
+        const index = seen.findIndex((state) => this.bindings.match(pattern, state) === undefined);
+        return index < 0 ? undefined : from + index;
+      }, WAIT_MS)
+      .catch((error: unknown) => {
+        throw new Error(`${error instanceof Error ? error.message : String(error)}; since the case last read it, it reported ${JSON.stringify(seen)}`);
+      });
+    this.emissionCursor.set(observer, at + 1);
+  }
+
+  /** The client's emits, in order: in a live case each is a request it made of a service. */
+  private emits(): ProxiedRequest[] {
+    return this.proxy.requests.filter((record) => record.method === 'POST' && record.path.split('?')[0] === '/bus/emit');
+  }
+
+  private fetch(step: FetchStep): Promise<void> {
+    return this.fetches([step]);
+  }
+
+  /** The client's next requests of a service are these, in whatever order it made them. */
+  private async fetches(steps: FetchStep[]): Promise<void> {
+    const from = this.fetchCursor;
+    const what = steps.map((step) => step.fetch).join(', ');
+    const records = await this.proxy.until(`the client's next ${steps.length === 1 ? 'request' : `${steps.length} requests`}: ${what}`, () => {
+      const next = this.emits().slice(from, from + steps.length);
+      return next.length === steps.length && next.every((record) => record.status !== undefined) ? next : undefined;
+    }, WAIT_MS);
+    this.fetchCursor += steps.length;
+    const bodies = records.map((record) => {
+      const { body } = this.read(record);
+      if (record.status !== 202) throw new Error(`the gateway answered ${JSON.stringify(body)} with ${record.status}`);
+      if (!isObject(body) || typeof body['correlationId'] !== 'string') throw new Error(`the client's request ${JSON.stringify(body)} carries no correlation id, so nothing can answer it`);
+      return body;
+    });
+    for (const step of steps) {
+      const at = bodies.findIndex((body) => body['channel'] === step.fetch && (step.payload === undefined || this.bindings.match(step.payload, body['payload']) === undefined));
+      if (at < 0) throw new Error(`none of the client's next requests is a ${step.fetch}${step.payload === undefined ? '' : ` with ${JSON.stringify(this.bindings.resolve(step.payload))}`}: it made ${JSON.stringify(bodies)}`);
+      this.bindings.bind(step.as, bodies.splice(at, 1)[0]!['correlationId']);
     }
   }
 
@@ -304,6 +427,7 @@ class Run {
   }
 
   private async wire(step: Extract<Step, { wire: string }>): Promise<void> {
+    if (this.layer === 'live') throw new Error('a live case accounts for the wire with `fetch` and `scopes`, not `wire`');
     const index = this.wireCursor;
     const record = await this.proxy.until(`the client's next request, a ${step.wire}`, () => this.proxy.requests[index], WAIT_MS);
     this.wireCursor++;
@@ -384,11 +508,21 @@ class Run {
         return;
       }
       case 'record': {
-        allowed('resource', 'channel', 'sequence', 'live');
+        allowed('resource', 'channel', 'sequence', 'live', 'payload', 'enriched', 'unscoped');
         const resource = text('resource');
-        const event = storedEvent(text('channel'), resource, number('sequence'));
+        const event = { ...storedEvent(text('channel'), resource, number('sequence')), ...(isObject(args['payload']) ? { payload: args['payload'] } : {}) };
         this.world.archivist.events.set(resource, [...(this.world.archivist.events.get(resource) ?? []), event]);
-        if (args['live'] === true) await emit({ channel: event.type, payload: event, scope: resource });
+        // Published as the record's own service publishes it: with what it
+        // enriched the event with, and on the resource's scope unless the
+        // channel is one every client hears.
+        const published = { ...event, ...(isObject(args['enriched']) ? args['enriched'] : {}) };
+        if (args['live'] === true) await emit({ channel: event.type, payload: published, ...(args['unscoped'] === true ? {} : { scope: resource }) });
+        return;
+      }
+      case 'archivist': {
+        allowed('replayFails');
+        if (typeof args['replayFails'] !== 'boolean') throw new Error('backend archivist needs replayFails, a boolean');
+        this.world.archivist.mode.replayFails = args['replayFails'];
         return;
       }
       case 'content': {
@@ -458,7 +592,13 @@ class Run {
   // ── what every case is held to ───────────────────────────────────────────
 
   private nothingUnaccounted(when: string): void {
-    const extra = this.proxy.requests.slice(this.wireCursor).map((record) => {
+    // A live case answers for every request the client made of a service, and
+    // for anything that is neither that nor its stream.
+    const unaccounted =
+      this.layer === 'wire'
+        ? this.proxy.requests.slice(this.wireCursor)
+        : [...this.emits().slice(this.fetchCursor), ...this.proxy.requests.filter((record) => !['/bus/emit', '/bus/subscribe'].includes(record.path.split('?')[0]!))];
+    const extra = unaccounted.map((record) => {
       const seen = this.read(record);
       return `${seen.operation} ${JSON.stringify(seen.body)}`;
     });
@@ -519,12 +659,15 @@ class Run {
       return `    ${index < this.wireCursor ? ' ' : '?'} ${name} → ${record.status ?? 'unanswered'} ${JSON.stringify(record.json)}`;
     });
     const frames = [...this.driver.frames].map(([channel, delivered]) => `    ${channel}: ${JSON.stringify(delivered)}`);
+    const observers = [...this.driver.emissions].map(([observer, states]) => `    ${observer}: ${JSON.stringify(states)}`);
     return [
       '  on the wire:',
       ...wire,
       `  states: ${this.driver.states.join(', ')}`,
       '  frames delivered:',
       ...frames,
+      '  observers:',
+      ...observers,
       `  error stream: ${JSON.stringify(this.driver.failures)}`,
       '  the driver’s stderr:',
       ...this.driver.stderr.slice(-20).map((line) => `    ${line}`),
@@ -533,13 +676,13 @@ class Run {
 }
 
 /** Run `kase` against the driver `command` starts, on `world`'s gateway. Throws on the first thing a conforming client would not have done. */
-export async function runCase(world: World, command: readonly string[], kase: Case): Promise<void> {
+export async function runCase(world: World, command: readonly string[], kase: Case, layer: Layer): Promise<void> {
   const proxy = await startClientProxy(world.origin);
   const otlp = kase.telemetry ? await startOtlp() : undefined;
   const driver = await Driver.start(command, otlp ? { OTEL_EXPORTER_OTLP_ENDPOINT: otlp.endpoint } : {});
   const subject = `client-${randomUUID()}`;
   const participant = await world.agent('conformance', `participant-${randomUUID()}`);
-  const run = new Run(world, proxy, driver, { token: participant.token, clientId: randomUUID() }, world.personDid(subject));
+  const run = new Run(layer, world, proxy, driver, { token: participant.token, clientId: randomUUID() }, world.personDid(subject));
 
   run.bind('token', await world.person(subject, { jti: randomUUID() }));
   run.bind('token2', await world.person(subject, { jti: randomUUID() }));
@@ -548,6 +691,7 @@ export async function runCase(world: World, command: readonly string[], kase: Ca
   // In name order, so a case can write a subscription's scopes in the order the suite reads them.
   const resources = Array.from({ length: 3 }, () => `res-${randomUUID()}`).sort();
   for (const [index, resource] of resources.entries()) run.bind(`r${index + 1}`, resource);
+  for (const name of ['a1', 'a2']) run.bind(name, `ann-${randomUUID()}`);
   run.bind('resourceScopedChannels', [...registry().audience.scoped].sort());
 
   let at = 0;
@@ -573,5 +717,7 @@ export async function runCase(world: World, command: readonly string[], kase: Ca
     await driver.stop();
     await proxy.close();
     await otlp?.close();
+    // A case that fails between switching the Archivist and switching it back must not fail the next.
+    world.archivist.mode.replayFails = false;
   }
 }

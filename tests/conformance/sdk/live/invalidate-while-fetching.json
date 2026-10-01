@@ -1,0 +1,21 @@
+{
+  "about": "an invalidation while a request for the key is unanswered makes a new request rather than waiting on the old; each answer that comes is written, the later over the earlier (B9)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B9",
+  "tier": "parity",
+  "steps": [
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}, "two": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/two", "name": "two", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"driver": "invalidate", "with": {"query": {"query": "resource", "resource": {"$var": "r1"}}}},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f2"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f2"}, "payload": {"response": {"resource": {"$var": "two"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "two"}}},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
+    {"quiet": 300}
+  ]
+}

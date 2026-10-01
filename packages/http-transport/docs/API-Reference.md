@@ -26,6 +26,7 @@ Implements `ITransport` from `@semiont/core`. Owns the SSE bus connection, HTTP 
 | `tokenRefresher` | `TokenRefresher` | no | 401-recovery hook (see below). |
 | `reconnectMs` | `number` | no | Overrides `reconnectMs` of `specs/src/client/timing.json`: the first wait before a failed stream is opened again. For a test, or the conformance driver. |
 | `lazyRemoveMs` | `number` | no | Overrides `lazyRemoveMs` of the same table: how long a removal from the subscription waits before the stream is reopened without it. |
+| `lingerMs` | `number` | no | Overrides `lingerMs` of the same table: how long a superseded connection keeps draining after a handoff. |
 | `emitRetry` | `RetryPolicy` | no | Overrides `emitRetry` of the same table: the retry budget of one emit. |
 
 ### `TokenRefresher`

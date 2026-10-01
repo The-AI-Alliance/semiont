@@ -1,0 +1,24 @@
+{
+  "about": "closing the client completes every observer's live query (B16)",
+  "source": "packages/sdk/docs/CACHE-SEMANTICS.md B16",
+  "tier": "fleet",
+  "steps": [
+    {"let": {"one": {"@context": "https://schema.org/", "@id": "https://kb.example/resources/one", "name": "one", "representations": []}}},
+    {"backend": "listen", "with": {"channels": ["browse:resource-requested", "browse:annotations-requested", "browse:annotation-requested", "browse:events-requested", "browse:referenced-by-requested", "browse:resources-requested", "browse:entity-types-requested", "browse:tag-schemas-requested"]}},
+    {"driver": "open", "with": {"timing": {"busRequestTimeoutMs": 5000, "invalidationWindowMs": 100, "reconnectMs": 50, "lazyRemoveMs": 50, "lingerMs": 50}}},
+    {"state": "open"},
+
+    {"observe": {"query": "resource", "resource": {"$var": "r1"}}, "as": "a"},
+    {"fetch": "browse:resource-requested", "payload": {"resourceId": {"$var": "r1"}}, "as": "f1"},
+    {"backend": "emit", "with": {"channel": "browse:resource-result", "correlationId": {"$var": "f1"}, "payload": {"response": {"resource": {"$var": "one"}, "annotations": [], "entityReferences": []}}}},
+    {"reaches": "a", "state": {"status": "ready", "value": {"$var": "one"}}},
+    {"observe": {"query": "entityTypes"}, "as": "b"},
+    {"fetch": "browse:entity-types-requested", "as": "f2"},
+    {"reaches": "b", "state": {"status": "pending"}},
+
+    {"driver": "close"},
+    {"completes": "a"},
+    {"completes": "b"},
+    {"state": "closed"}
+  ]
+}
