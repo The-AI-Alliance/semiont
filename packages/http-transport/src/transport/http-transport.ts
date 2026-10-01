@@ -240,7 +240,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
                   error: body.message || `HTTP ${response.status}: ${response.statusText}`,
                 });
               }
-              const apiError = new APIError(
+              const apiError = APIError.fromStatus(
                 body.message || `HTTP ${response.status}: ${response.statusText}`,
                 response.status,
                 response.statusText,

@@ -40,7 +40,7 @@
  * complaint, wire a manual retry loop here that reads `token$` afresh.
  */
 
-import type { AccessToken, ResourceId, PutBinaryOptions, TransportErrorCode, components } from '@semiont/core';
+import type { AccessToken, ResourceId, PutBinaryOptions, components } from '@semiont/core';
 import { busLog, retryAfterMs } from '@semiont/core';
 import { SpanKind, getActiveTraceparent, withSpan } from '@semiont/observability';
 import type { HttpTransport } from './http-transport';
@@ -241,18 +241,6 @@ interface XhrUploadOptions {
 }
 
 /**
- * The error for an upload that ended with no response. XHR reports status 0
- * for every such ending and no code maps from 0, so the code is stated by the
- * handler that knows which ending it was: a failed network and a cancelled
- * upload share a status and nothing else.
- */
-function endedWithoutResponse(message: string, statusText: string, code: TransportErrorCode): APIError {
-  const err = new APIError(message, 0, statusText, undefined, undefined);
-  err.code = code;
-  return err;
-}
-
-/**
  * XHR-based POST that exposes `xhr.upload.onprogress` byte counts and
  * supports cancellation via `AbortSignal`. A refusal (4xx/5xx) surfaces as
  * it does on the ky path: an `APIError` routed onto `transport.errors$`
@@ -275,7 +263,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     // that stream reports transport failures, and this is the caller's own
     // request, which only the caller needs to hear about.
     const rejectAborted = () => {
-      reject(endedWithoutResponse('Upload aborted', 'aborted', 'error'));
+      reject(APIError.withoutResponse('Upload aborted', 'error', 'aborted'));
     };
 
     if (signal?.aborted) {
@@ -305,7 +293,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
           const body = JSON.parse(xhr.responseText) as { resourceId: string };
           resolve({ resourceId: body.resourceId as ResourceId });
         } catch (parseErr) {
-          const err = new APIError(
+          const err = APIError.fromStatus(
             `Upload succeeded but response was not valid JSON: ${(parseErr as Error).message}`,
             xhr.status,
             xhr.statusText,
@@ -322,7 +310,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
       const message = (body && typeof body === 'object' && 'message' in body && typeof (body as { message: unknown }).message === 'string')
         ? (body as { message: string }).message
         : `HTTP ${xhr.status}: ${xhr.statusText}`;
-      const err = new APIError(message, xhr.status, xhr.statusText, body, retryAfterMs(xhr.getResponseHeader('retry-after')));
+      const err = APIError.fromStatus(message, xhr.status, xhr.statusText, body, retryAfterMs(xhr.getResponseHeader('retry-after')));
       onApiError(err);
       reject(err);
     };
@@ -330,7 +318,7 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     xhr.onerror = () => {
       // Network-level failure (DNS, TCP reset, CORS). XHR gives no status
       // here; the vocabulary files a failed network under `unavailable`.
-      const err = endedWithoutResponse('Network error during upload', 'network-error', 'unavailable');
+      const err = APIError.withoutResponse('Network error during upload', 'unavailable', 'network-error');
       onApiError(err);
       reject(err);
     };

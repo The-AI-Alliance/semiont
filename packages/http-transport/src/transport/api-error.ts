@@ -19,12 +19,40 @@ export class APIError extends SemiontError {
 
   readonly retryAfterMs: number | undefined;
 
-  constructor(message: string, status: number, statusText: string, body: unknown, retryAfterMs: number | undefined) {
-    super(message, transportErrorCodeForStatus(status), { status, statusText, body });
+  private constructor(
+    message: string,
+    code: TransportErrorCode,
+    status: number,
+    statusText: string,
+    body: unknown,
+    retryAfterMs: number | undefined,
+  ) {
+    super(message, code, { status, statusText, body });
     this.name = 'APIError';
     this.status = status;
     this.statusText = statusText;
     this.retryAfterMs = retryAfterMs;
+  }
+
+  /** The server answered, and its status decides the code. */
+  static fromStatus(
+    message: string,
+    status: number,
+    statusText: string,
+    body: unknown,
+    retryAfterMs: number | undefined,
+  ): APIError {
+    return new APIError(message, transportErrorCodeForStatus(status), status, statusText, body, retryAfterMs);
+  }
+
+  /**
+   * The exchange ended with no response. XHR reports status 0 for every such
+   * ending and no code maps from 0, so the caller states the code: it knows
+   * which ending this was, and a failed network and a cancelled upload share
+   * a status and nothing else.
+   */
+  static withoutResponse(message: string, code: TransportErrorCode, statusText: string): APIError {
+    return new APIError(message, code, 0, statusText, undefined, undefined);
   }
 }
 
@@ -39,5 +67,5 @@ export class APIError extends SemiontError {
  * simply answers `false`. **A silent loss of retry is exactly the failure this
  * plan exists to prevent**, so it is pinned by the compiler rather than by a test.
  */
-const _conformsToRetryContract: HttpStatusError = new APIError('', 0, '', undefined, undefined);
+const _conformsToRetryContract: HttpStatusError = APIError.fromStatus('', 0, '', undefined, undefined);
 void _conformsToRetryContract;

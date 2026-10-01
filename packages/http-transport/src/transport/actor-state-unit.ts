@@ -897,7 +897,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
           // APIError, not a bare Error: the status rides as a FIELD (D1), which
           // is what makes it classifiable without parsing it back out of prose.
           // The message keeps its shape, so callers matching on it are unaffected.
-          throw new APIError(
+          throw APIError.fromStatus(
             `/bus/emit ${attempt.status}${detail ? `: ${detail}` : ''}`,
             attempt.status,
             attempt.statusText,
