@@ -4,10 +4,10 @@
 //! bucket whole under a watch that has already started. Behind the `nats`
 //! feature: a crate that does not enable it cannot reach the broker.
 
-use crate::logging;
 use async_nats::jetstream::kv;
 use bytes::Bytes;
 use futures::StreamExt;
+use semiont_observability::logging;
 use serde_json::json;
 use std::fmt;
 use std::sync::Arc;

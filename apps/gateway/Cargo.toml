@@ -30,6 +30,8 @@ reqwest = { workspace = true, features = ["rustls-no-provider", "stream", "json"
 rustls = { workspace = true, features = ["ring", "std"] }
 semiont.workspace = true
 semiont-core = { workspace = true, features = ["nats"] }
+semiont-http-transport.workspace = true
+semiont-observability.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = ["preserve_order"] }
 socket2.workspace = true

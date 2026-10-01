@@ -13,7 +13,7 @@
 use crate::limits;
 use crate::principal::Principal;
 use crate::signal::{SharedTable, SignalPlane, Subscription};
-use semiont_core::logging;
+use semiont_observability::logging;
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard};

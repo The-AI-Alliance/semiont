@@ -64,6 +64,8 @@ export interface DispatcherWorldOptions {
   vocabulary?: Vocabulary | null;
   /** How the queue's broker is started: with credentials, the dispatcher is handed them by name. */
   broker?: BrokerOptions;
+  /** More of the dispatcher's environment, over its service account and the broker's credentials. */
+  env?: DispatcherEnvironment;
 }
 
 /** A reply to a correlated request. */
@@ -218,7 +220,7 @@ export class DispatcherWorld {
   private constructor(
     readonly world: World,
     readonly broker: Broker,
-    /** The environment the dispatcher is started with: its service account, and the broker's credentials when named. */
+    /** The environment the dispatcher is started with: its service account, the broker's credentials when named, and what the world was given. */
     readonly env: DispatcherEnvironment,
     public dispatcher: DispatcherProcess,
     /** Every `job:queued` and `job:assign` the bus carried, read by a standing observer. */
@@ -234,6 +236,7 @@ export class DispatcherWorld {
       SEMIONT_OIDC_CLIENT_ID: DISPATCHER_CLIENT,
       SEMIONT_OIDC_CLIENT_SECRET: secret,
       ...(options.broker?.user ? { QUEUE_USER: options.broker.user, QUEUE_PASSWORD: options.broker.password } : {}),
+      ...options.env,
     };
     const settings: DispatcherSettings = {
       gatewayUrl: world.origin,

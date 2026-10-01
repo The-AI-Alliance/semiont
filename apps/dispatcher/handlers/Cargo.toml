@@ -8,7 +8,7 @@ description = "The dispatcher's handlers and the job queue they drive, as a cont
 [dependencies]
 chrono = { workspace = true, features = ["clock", "std"] }
 semiont.workspace = true
-semiont-core.workspace = true
+semiont-observability.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 uuid = { workspace = true, features = ["v4"] }

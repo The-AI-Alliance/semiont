@@ -22,6 +22,8 @@ on:
       - apps/dispatcher/handlers/Cargo.toml
       - apps/dispatcher/jetstream/Cargo.toml
       - packages/core-rust/Cargo.toml
+      - packages/http-transport-rust/Cargo.toml
+      - packages/observability-rust/Cargo.toml
       - packages/sdk-rust/Cargo.toml
       - .github/workflows/gateway-advisories.yml
   schedule:

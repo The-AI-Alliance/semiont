@@ -5,9 +5,9 @@
 //! claim names, then exchanged again; the gateway decides how long it lives.
 
 use crate::service_account::{ServiceToken, SignInError};
-use crate::types::{AgentTokenRequest, AgentTokenResponse};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use semiont::types::{AgentTokenRequest, AgentTokenResponse};
 use serde_json::Value;
 use std::fmt;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

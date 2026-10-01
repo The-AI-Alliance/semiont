@@ -15,7 +15,7 @@ use semiont::types::{
     JobReportProgressCommand, JobStatusRequest, JobStatusResponse, JobStatusResponseStatus,
     JobStatusResult, JobStoredProgress, JobStoredResult,
 };
-use semiont_core::logging;
+use semiont_observability::logging;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
@@ -59,7 +59,7 @@ fn failure(message: impl Into<String>, code: Option<CommandErrorCode>) -> Map<St
 }
 
 fn component() -> Value {
-    json!({ "component": "job-commands" })
+    json!({ "component": "handlers" })
 }
 
 fn fields(extra: Value) -> Value {

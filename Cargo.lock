@@ -2047,11 +2047,7 @@ dependencies = [
 name = "semiont"
 version = "0.0.0"
 dependencies = [
- "base64 0.23.1",
- "bytes",
- "futures",
  "percent-encoding",
- "reqwest",
  "semiont-codegen",
  "serde",
  "serde_json",
@@ -2072,18 +2068,13 @@ version = "0.0.0"
 dependencies = [
  "async-nats",
  "bytes",
- "chrono",
  "futures",
  "jsonschema",
- "opentelemetry",
- "opentelemetry-otlp",
- "opentelemetry-stdout",
- "opentelemetry_sdk",
  "semiont",
  "semiont-codegen",
+ "semiont-observability",
  "serde",
  "serde_json",
- "tikv-jemalloc-ctl",
  "tokio",
 ]
 
@@ -2099,6 +2090,8 @@ dependencies = [
  "semiont-core",
  "semiont-dispatcher-handlers",
  "semiont-dispatcher-jetstream",
+ "semiont-http-transport",
+ "semiont-observability",
  "serde",
  "serde_json",
  "tikv-jemallocator",
@@ -2111,7 +2104,7 @@ version = "0.0.0"
 dependencies = [
  "chrono",
  "semiont",
- "semiont-core",
+ "semiont-observability",
  "serde",
  "serde_json",
  "uuid",
@@ -2128,6 +2121,7 @@ dependencies = [
  "semiont",
  "semiont-core",
  "semiont-dispatcher-handlers",
+ "semiont-observability",
  "serde_json",
  "tokio",
 ]
@@ -2152,6 +2146,8 @@ dependencies = [
  "rustls",
  "semiont",
  "semiont-core",
+ "semiont-http-transport",
+ "semiont-observability",
  "serde",
  "serde_json",
  "socket2",
@@ -2159,6 +2155,37 @@ dependencies = [
  "tokio",
  "tower",
  "uuid",
+]
+
+[[package]]
+name = "semiont-http-transport"
+version = "0.0.0"
+dependencies = [
+ "base64 0.23.1",
+ "bytes",
+ "futures",
+ "opentelemetry",
+ "reqwest",
+ "semiont",
+ "semiont-observability",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "semiont-observability"
+version = "0.0.0"
+dependencies = [
+ "chrono",
+ "opentelemetry",
+ "opentelemetry-otlp",
+ "opentelemetry-stdout",
+ "opentelemetry_sdk",
+ "semiont",
+ "serde_json",
+ "tikv-jemalloc-ctl",
+ "tokio",
 ]
 
 [[package]]

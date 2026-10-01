@@ -27,7 +27,7 @@ use crate::signal::{Meta, SharedTable, SignalPlane, Subscription};
 use crate::{limits, metrics};
 use futures::FutureExt;
 use futures::future::{BoxFuture, Shared};
-use semiont_core::logging;
+use semiont_observability::logging;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};

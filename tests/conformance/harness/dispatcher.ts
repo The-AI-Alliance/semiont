@@ -4,9 +4,9 @@
  * A dispatcher is `DISPATCHER_COMMAND`, `--config <document>` and an
  * environment. The document is the spec's `DispatcherConfig`, written as the
  * settings say; a case that needs a broken document writes `verbatim`, never a
- * hand-edited rendering. The environment holds the dispatcher's service account
- * and the variables its document names, and nothing from the developer's shell
- * but PATH.
+ * hand-edited rendering. The environment holds what
+ * specs/src/service-environment/variables.json lists for the dispatcher and the
+ * variables its document names, and nothing from the developer's shell but PATH.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import type { components } from '@semiont/core';
 import { inject } from 'vitest';
 import { call, type Reply } from './http';
+import { serviceEnvironment } from './spec';
 
 export type DispatcherSettings = components['schemas']['DispatcherConfig'];
 export type DispatcherTiming = DispatcherSettings['timing'];
@@ -69,7 +70,18 @@ function collectLines(stream: NodeJS.ReadableStream, into: string[]): void {
   });
 }
 
+/** Refuse an environment variable the dispatcher does not read: a case setting one would prove nothing. */
+function checkEnvironment(env: DispatcherEnvironment, settings: DispatcherSettings): void {
+  const named = [settings.queue.userEnv, settings.queue.passwordEnv].filter((n): n is string => n !== undefined);
+  const listed = new Set([...serviceEnvironment('dispatcher'), ...named, 'PATH']);
+  const strays = Object.keys(env).filter((name) => env[name] !== undefined && !listed.has(name));
+  if (strays.length > 0) {
+    throw new Error(`the suite set ${strays.join(', ')}, which specs/src/service-environment/variables.json does not list for the dispatcher and the document does not name`);
+  }
+}
+
 function launch({ settings, env, verbatim, args }: DispatcherLaunch): { child: ChildProcess; output: string[]; exited: Promise<number | null>; dir: string } {
+  checkEnvironment(env, settings);
   const dir = mkdtempSync(join(tmpdir(), 'conformance-dispatcher-'));
   const document = join(dir, 'dispatcher.json');
   writeFileSync(document, (typeof verbatim === 'string' ? verbatim : JSON.stringify(verbatim ?? settings, null, 2)) + '\n');

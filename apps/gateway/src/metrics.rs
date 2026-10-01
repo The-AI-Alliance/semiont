@@ -1,13 +1,13 @@
 //! The gateway's own instruments, made on the service's meter: the metrics
-//! specs/src/gateway-telemetry/telemetry.json lists beside the process's.
+//! specs/src/gateway-telemetry/telemetry.json lists beside the process's and
+//! the ones every process shares (`semiont.bus.emit`, observability's).
 
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, UpDownCounter};
-use semiont_core::telemetry;
+use semiont_observability::telemetry;
 use std::sync::OnceLock;
 
 struct Instruments {
-    emits: Counter<u64>,
     replies_suppressed: Counter<u64>,
     resume_gaps: Counter<u64>,
     unanswerable: Counter<u64>,
@@ -23,10 +23,6 @@ fn instruments() -> Option<&'static Instruments> {
         .get_or_init(|| {
             let meter = telemetry::meter()?;
             Some(Instruments {
-                emits: meter
-                    .u64_counter("semiont.bus.emit")
-                    .with_description("Emits accepted")
-                    .build(),
                 replies_suppressed: meter
                     .u64_counter("semiont.bus.reply.suppressed")
                     .with_description("Correlated replies withheld from a non-owning subscriber")
@@ -52,15 +48,6 @@ fn instruments() -> Option<&'static Instruments> {
             })
         })
         .as_ref()
-}
-
-pub fn record_bus_emit(channel: &str, scope: Option<&str>) {
-    let Some(t) = instruments() else { return };
-    let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
-    if let Some(scope) = scope {
-        attributes.push(KeyValue::new("bus.scope", scope.to_owned()));
-    }
-    t.emits.add(1, &attributes);
 }
 
 pub fn record_reply_suppressed(channel: &str) {

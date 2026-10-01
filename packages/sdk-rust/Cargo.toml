@@ -3,17 +3,13 @@ name = "semiont"
 edition = "2024"
 publish = false
 license = "Apache-2.0"
-description = "Semiont's Rust SDK: the protocol's types and a client of the bus, and what a client needs to name its principals, hold its roles and sign in, as specs/ states it."
+description = "Semiont's Rust SDK: the protocol's types, the transport contract and a client of the bus over it, and what a client needs to name its principals and hold its roles, as specs/ states it."
 
 [dependencies]
-base64.workspace = true
-bytes.workspace = true
-futures.workspace = true
 percent-encoding.workspace = true
-reqwest = { workspace = true, features = ["json", "stream"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
-tokio = { workspace = true, features = ["sync", "time", "rt", "macros"] }
+tokio = { workspace = true, features = ["sync", "time", "macros"] }
 uuid = { workspace = true, features = ["v4"] }
 
 [build-dependencies]

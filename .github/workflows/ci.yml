@@ -86,11 +86,11 @@ jobs:
           cargo test --workspace --locked
 
       # The broker is reached only by a crate that asks for semiont-core's
-      # `nats` feature: the SDK, semiont-core itself and the dispatcher's
-      # handlers carry no NATS client.
+      # `nats` feature: the SDK, its HTTP transport, observability,
+      # semiont-core itself and the dispatcher's handlers carry no NATS client.
       - name: Check which crates can reach the broker
         run: |
-          for crate in semiont semiont-core semiont-dispatcher-handlers; do
+          for crate in semiont semiont-http-transport semiont-observability semiont-core semiont-dispatcher-handlers; do
             if cargo tree --locked -p "$crate" -e normal | grep -q '^.*async-nats '; then
               echo "✗ $crate reaches async-nats; only a crate that enables semiont-core's nats feature may"
               exit 1

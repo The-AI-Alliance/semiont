@@ -13,8 +13,6 @@ use axum::response::IntoResponse;
 use axum::routing::any;
 use opentelemetry::KeyValue;
 use semiont::bus::{Bus, Reply as BusReply, operation};
-use semiont::service_account::{Credential, ServiceToken};
-use semiont::session::{Agent, AgentSession};
 use semiont::types::{
     BrowseEntityTypesRequest, BrowseEntityTypesResult, BrowseTagSchemasRequest,
     BrowseTagSchemasResult, CommandError, TagSchema,
@@ -23,11 +21,14 @@ use semiont_core::config::{self, Document};
 use semiont_core::types::{
     DispatcherConfig, DispatcherHealth, DispatcherHealthQueue, DispatcherHealthStatus,
 };
-use semiont_core::{logging, telemetry};
 use semiont_dispatcher_handlers::admission::{Refusal, Vocabulary};
 use semiont_dispatcher_handlers::handlers::{COMMANDS, Handlers, Reply};
 use semiont_dispatcher_handlers::queue::{JobQueue, Stats};
 use semiont_dispatcher_jetstream::{JetStreamQueue, Settings};
+use semiont_http_transport::service_account::{Credential, ServiceToken};
+use semiont_http_transport::session::{Agent, AgentSession};
+use semiont_http_transport::transport::HttpTransport;
+use semiont_observability::{logging, telemetry};
 use serde::de::DeserializeOwned;
 use serde_json::{Map, Value, json};
 use std::sync::{Arc, Mutex};
@@ -84,7 +85,7 @@ fn boot() -> Result<(), String> {
         progress_write_interval: Duration::from_millis(document.timing.progress_write_interval_ms),
     };
     logging::initialize(document.log_level, document.log_format);
-    telemetry::initialize("semiont-dispatcher")?;
+    telemetry::initialize("semiont-dispatcher", semiont_core::spec::VERSION)?;
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
@@ -156,7 +157,7 @@ async fn serve(
             operation(read).ok_or_else(|| format!("the registry declares no operation {read}"))?;
         channels.extend([op.result.to_owned(), op.failure.to_owned()]);
     }
-    let bus = Arc::new(Bus::open(session, http, channels));
+    let bus = Arc::new(Bus::new(HttpTransport::open(session, http, channels)));
     let handlers = Arc::new(Handlers::new(
         queue.clone(),
         Arc::new(BusReads { bus: bus.clone() }),
@@ -178,8 +179,8 @@ async fn serve(
     let answerer = bus.clone();
     tokio::spawn(async move {
         loop {
-            let frame = match frames.recv().await {
-                Ok(frame) => frame,
+            let received = match frames.recv().await {
+                Ok(received) => received,
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
                     logging::error(
                         "Frames missed",
@@ -189,15 +190,19 @@ async fn serve(
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
             };
-            if !COMMANDS.contains(&frame.channel.as_str()) {
+            if !COMMANDS.contains(&received.frame.channel.as_str()) {
                 continue;
             }
             let handlers = handlers.clone();
             let bus = answerer.clone();
+            // In the trace the frame was sent under, so the replies are too.
             tokio::spawn(async move {
-                for reply in handlers.handle(frame).await {
-                    send(&bus, reply).await;
-                }
+                telemetry::received(&received, async {
+                    for reply in handlers.handle(received.frame.clone()).await {
+                        send(&bus, reply).await;
+                    }
+                })
+                .await
             });
         }
     });
@@ -221,7 +226,7 @@ async fn serve(
     Ok(())
 }
 
-async fn send(bus: &Bus, reply: Reply) {
+async fn send(bus: &Bus<HttpTransport>, reply: Reply) {
     let sent = match &reply.correlation_id {
         Some(correlation_id) => {
             bus.reply(reply.channel, &reply.payload, correlation_id)
@@ -245,7 +250,7 @@ async fn send(bus: &Bus, reply: Reply) {
 /// The vocabulary, read from the Archivist over the bus. A failure it answers
 /// is the refusal, message and code; a failure only this side knows states no code.
 struct BusReads {
-    bus: Arc<Bus>,
+    bus: Arc<Bus<HttpTransport>>,
 }
 
 impl BusReads {

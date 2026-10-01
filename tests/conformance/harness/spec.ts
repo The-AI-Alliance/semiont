@@ -221,12 +221,14 @@ export function operationFor(request: string): RegistryOperation {
   return op;
 }
 
-/** The names of the environment variables a gateway reads (gateway-environment/variables.json). */
-export function gatewayEnvironment(): string[] {
-  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'gateway-environment/variables.json'), 'utf8'));
+/** The names of the environment variables `service` reads (service-environment/variables.json). */
+export function serviceEnvironment(service: 'gateway' | 'dispatcher'): string[] {
+  const table: unknown = JSON.parse(readFileSync(join(SPEC_SOURCE, 'service-environment/variables.json'), 'utf8'));
   const rows = isObject(table) && Array.isArray(table['variables']) ? table['variables'] : [];
-  const names = rows.flatMap((row) => (isObject(row) && typeof row['name'] === 'string' ? [row['name']] : []));
-  if (names.length === 0) throw new Error('gateway-environment/variables.json lists no variables');
+  const names = rows.flatMap((row) =>
+    isObject(row) && typeof row['name'] === 'string' && Array.isArray(row['services']) && row['services'].includes(service) ? [row['name']] : [],
+  );
+  if (names.length === 0) throw new Error(`service-environment/variables.json lists no variables for the ${service}`);
   return names;
 }
 

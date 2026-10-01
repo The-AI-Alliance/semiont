@@ -11,8 +11,8 @@ set -euo pipefail
 #     launcher argv builder's --env list, or the named allowlist below.
 #     Silence cannot come back: a new env read fails until it is provided
 #     or carries a named reason here. The gateway is not here: its
-#     environment is specs/src/gateway-environment/variables.json, which
-#     lint:gateway-environment checks in both directions.
+#     environment is specs/src/service-environment/variables.json, which
+#     lint:service-environment checks in both directions.
 # B2  [kb] identity census: every `config.kb?.X` read is a key
 #     patchKBIdentity stages.
 # B3  archivist topology census: every `services.archivist.X` read is a key

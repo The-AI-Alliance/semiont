@@ -33,7 +33,7 @@
     "openapi:validate": "redocly lint specs/openapi.json specs/archivist.openapi.json",
     "lint:spec-protocol": "node scripts/spec/check-protocol.mjs",
     "lint:spec-jobs": "node scripts/spec/check-jobs.mjs",
-    "lint:gateway-environment": "node scripts/lint/check-gateway-environment.mjs",
+    "lint:service-environment": "node scripts/lint/check-service-environment.mjs",
     "version:show": "node scripts/release/version.mjs show",
     "version:sync": "node scripts/release/version.mjs sync",
     "version:bump": "./scripts/release/version-bump.sh",

@@ -24,7 +24,6 @@ use semiont::types::{
     JobCompleteStatus, JobFailed, JobFailedStatus, JobPending, JobPendingStatus, JobQueuedEvent,
     JobRunning, JobRunningStatus, JobStoredProgress, JobStoredResult, JobType,
 };
-use semiont_core::logging;
 use semiont_core::nats::{self, Voice};
 use semiont_core::types::JobRecord;
 use semiont_dispatcher_handlers::admission::{now, wire_name};
@@ -33,6 +32,7 @@ use semiont_dispatcher_handlers::queue::{
     Checkpoint, Claim, FailOutcome, JobId, JobQueue, QueueError, Stats,
 };
 use semiont_dispatcher_handlers::retry::will_retry_after;
+use semiont_observability::logging;
 use serde_json::json;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

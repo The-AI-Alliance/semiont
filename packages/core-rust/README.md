@@ -8,10 +8,10 @@ What Semiont's Rust services share and no client needs.
 - `types` and `config` — the service-only types generated from the spec (the
   configuration documents, the job record), and reading a configuration
   document from `--config`, validated before it is used.
-- `logging`, `telemetry`, `bus_log`, `alloc` — what every service writes about
-  itself.
 - `nats` (feature `nats`) — reaching the messaging broker. Only a crate that
   implements a broker-backed interface enables it; CI holds the crates that
   must not.
 
 A protocol type it reaches is the SDK's (`semiont::types`): one home for each.
+What a service writes about itself is `semiont-observability`'s, and how it
+reaches the bus is the SDK's client over `semiont-http-transport`.

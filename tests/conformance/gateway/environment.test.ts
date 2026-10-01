@@ -1,5 +1,5 @@
 /**
- * What each variable in specs/src/gateway-environment/variables.json changes,
+ * What each variable in specs/src/service-environment/variables.json changes,
  * seen from outside, and what the document's logFormat changes. Each case runs
  * a gateway of its own with the environment it is about. JWT_SECRET,
  * SEMIONT_OIDC_CLIENT_ID and SEMIONT_OIDC_CLIENT_SECRET are boot.test.ts's, as is `--config`,

@@ -73,9 +73,9 @@ job:reference-annotation                        [worker handleJob]
 Standard OTel env vars. Set them on the process — for local dev,
 inherit from your shell; for containers, add them to the container's environment (an ECS task
 definition, a Kubernetes pod spec).
-The gateway reads the ones its environment table lists
-([`variables.json`](../../../specs/src/gateway-environment/variables.json))
-and configures its SDK from them; the table below is the sidecars'.
+The Rust services — the gateway and the dispatcher — read the ones their
+environment table lists ([`variables.json`](../../../specs/src/service-environment/variables.json))
+and configure their SDK from them; the table below is the sidecars'.
 
 | Variable                          | Default                                | Purpose                            |
 |-----------------------------------|----------------------------------------|------------------------------------|
@@ -184,7 +184,7 @@ implicitly) — see `packages/observability/src/node.ts`.
 
 ## Relationship to the structured logger and `busLog`
 
-- **Structured logger** (the Rust services', in `packages/core-rust/src/logging.rs`;
+- **Structured logger** (the Rust services', in `packages/observability-rust/src/logging.rs`;
   `createProcessLogger()` in workers/smelter) — JSON-line,
   level-filtered, always on. Logs semantic events (validation failed,
   user authenticated). Goes to log aggregator. Every line is auto-

@@ -14,12 +14,12 @@ use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
+use semiont::bus_log::bus_log;
 use semiont::identity;
 use semiont::types::{BusEmitAccepted, BusEmitRequest, LimitRefusalCode};
-use semiont_core::bus_log::bus_log;
-use semiont_core::logging;
 use semiont_core::spec::spec;
-use semiont_core::telemetry;
+use semiont_observability::logging;
+use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
 use std::sync::Arc;
 
@@ -189,7 +189,7 @@ pub async fn emit(
         } else {
             plane.ingest(channel.clone(), payload, scope.clone(), meta).await?
         };
-        metrics::record_bus_emit(&channel, scope.as_deref());
+        telemetry::record_bus_emit(&channel, scope.as_deref());
         logging::info(
             "emit",
             bus(json!({ "channel": channel, "scope": scope, "subscribers": receipt.observers, "clientId": client_id, "correlationId": correlation_id })),

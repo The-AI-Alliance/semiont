@@ -12,6 +12,7 @@ chrono = { workspace = true, features = ["clock", "std"] }
 futures.workspace = true
 semiont.workspace = true
 semiont-core = { workspace = true, features = ["nats"] }
+semiont-observability.workspace = true
 semiont-dispatcher-handlers.workspace = true
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt", "sync", "time", "macros"] }

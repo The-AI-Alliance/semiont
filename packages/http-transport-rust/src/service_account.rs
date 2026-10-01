@@ -2,7 +2,7 @@
 //! client-credentials grant, the token kept until shortly before it expires.
 //! A service reaches another as itself with this token.
 
-use crate::identity::encode_uri_component;
+use semiont::identity::encode_uri_component;
 use serde_json::Value;
 use std::fmt;
 use std::time::{Duration, Instant};

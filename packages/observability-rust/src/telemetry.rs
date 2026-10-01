@@ -1,5 +1,5 @@
-//! The telemetry a service exports over OTLP/HTTP: its spans and metrics, and
-//! the readings every service takes of its own process.
+//! The telemetry a process exports over OTLP/HTTP: its spans and metrics, the
+//! instruments every process shares, and the readings it takes of itself.
 //!
 //! It reads the environment itself and configures the SDK from the values:
 //! an empty resource and an explicit endpoint, so no standard variable changes
@@ -7,7 +7,6 @@
 //! console exporter, or with the SDK disabled, nothing is exported and no
 //! trace context travels. A service's own instruments are made on `meter()`.
 
-use crate::spec::VERSION;
 use opentelemetry::metrics::{Counter, Meter, MeterProvider as _};
 use opentelemetry::propagation::TextMapPropagator;
 use opentelemetry::trace::{SpanKind, TraceContextExt, Tracer, TracerProvider as _};
@@ -17,6 +16,7 @@ use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracer, SdkTracerProvider};
+use semiont::transport::Received;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -31,6 +31,7 @@ struct Telemetry {
     tracer: SdkTracer,
     meter: Meter,
     abnormal_exits: Counter<u64>,
+    emits: Counter<u64>,
 }
 
 static TELEMETRY: OnceLock<Option<Telemetry>> = OnceLock::new();
@@ -44,14 +45,15 @@ fn propagator() -> &'static TraceContextPropagator {
     PROPAGATOR.get_or_init(TraceContextPropagator::new)
 }
 
-/// Start exporting, as the environment says, as `service_name` unless
-/// `OTEL_SERVICE_NAME` says otherwise. Call once, before the runtime starts:
-/// the OTLP exporter's HTTP client runs threads of its own.
-pub fn initialize(service_name: &str) -> Result<(), String> {
-    let configured = configure(service_name)?;
+/// Start exporting, as the environment says, as `service_name` (unless
+/// `OTEL_SERVICE_NAME` says otherwise) at `version`. Call once, before the
+/// runtime starts: the OTLP exporter's HTTP client runs threads of its own.
+pub fn initialize(service_name: &str, version: &str) -> Result<(), String> {
+    let configured = configure(service_name, version)?;
     if TELEMETRY.set(configured).is_err() {
         panic!("telemetry is initialized once");
     }
+    semiont::bus_log::set_trace_id_provider(active_trace_id);
     install_fatal_hook();
     if telemetry().is_some() {
         register_process_start();
@@ -60,7 +62,7 @@ pub fn initialize(service_name: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn configure(default_service_name: &str) -> Result<Option<Telemetry>, String> {
+fn configure(default_service_name: &str, version: &str) -> Result<Option<Telemetry>, String> {
     if std::env::var("OTEL_SDK_DISABLED").is_ok_and(|v| v == "true") {
         return Ok(None);
     }
@@ -77,7 +79,7 @@ fn configure(default_service_name: &str) -> Result<Option<Telemetry>, String> {
     let resource = Resource::builder_empty()
         .with_attributes([
             KeyValue::new("service.name", service_name),
-            KeyValue::new("service.version", VERSION),
+            KeyValue::new("service.version", version.to_owned()),
         ])
         .build();
 
@@ -139,6 +141,10 @@ fn configure(default_service_name: &str) -> Result<Option<Telemetry>, String> {
             .u64_counter("semiont.process.abnormal_exit")
             .with_description("Process terminations that were not a clean shutdown")
             .build(),
+        emits: meter
+            .u64_counter("semiont.bus.emit")
+            .with_description("Emits accepted")
+            .build(),
         tracer,
         meter,
         tracer_provider,
@@ -174,6 +180,16 @@ pub fn continued(traceparent: Option<&str>, tracestate: Option<&str>) -> Context
         carrier.insert("tracestate".to_owned(), state.to_owned());
     }
     propagator().extract_with_context(&Context::current(), &carrier)
+}
+
+/// The active span's trace id, when a span is active: the bus log's `trace=`.
+fn active_trace_id() -> Option<String> {
+    let context = Context::current();
+    let span = context.span();
+    let span_context = span.span_context();
+    span_context
+        .is_valid()
+        .then(|| span_context.trace_id().to_string())
 }
 
 /// The active span's W3C trace context, when a span is active.
@@ -251,7 +267,43 @@ pub fn in_span_now<T>(
     }
 }
 
+/// Run `work` for a frame as it arrives, in a `bus.recv` span continuing the
+/// trace the frame was sent under: what is done for it, and what is sent in
+/// answer, belongs to the sender's trace.
+pub async fn received<T>(received: &Received, work: impl Future<Output = T>) -> T {
+    let frame = &received.frame;
+    let mut attributes = vec![KeyValue::new("bus.channel", frame.channel.clone())];
+    if let Some(scope) = &frame.scope {
+        attributes.push(KeyValue::new("bus.scope", scope.clone()));
+    }
+    let parent = continued(
+        received.trace.as_ref().map(|t| t.traceparent.as_str()),
+        received
+            .trace
+            .as_ref()
+            .and_then(|t| t.tracestate.as_deref()),
+    );
+    in_span(
+        format!("bus.recv:{}", frame.channel),
+        SpanKind::Consumer,
+        attributes,
+        parent,
+        work,
+    )
+    .await
+}
+
 // ── Metrics ──────────────────────────────────────────────────────────────
+
+/// `semiont.bus.emit`: an emit accepted, by whichever side accepts it.
+pub fn record_bus_emit(channel: &str, scope: Option<&str>) {
+    let Some(t) = telemetry() else { return };
+    let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
+    if let Some(scope) = scope {
+        attributes.push(KeyValue::new("bus.scope", scope.to_owned()));
+    }
+    t.emits.add(1, &attributes);
+}
 
 /// The meter a service makes its own instruments on, when it exports.
 pub fn meter() -> Option<&'static Meter> {

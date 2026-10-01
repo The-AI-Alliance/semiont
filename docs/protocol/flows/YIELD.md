@@ -166,7 +166,7 @@ UI updates: ❓ → 🔗 in real-time (<50ms latency)
 
 Generation has no dedicated REST endpoint — it runs as a bus job. The SDK's `yield` namespace emits `job:create` with `jobType: 'generation'`; the worker synthesizes content and uploads it through the standard resource-create path.
 
-**Dispatch**: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts) → `job:create`, handled by [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)
+**Dispatch**: [packages/sdk/src/namespaces/yield.ts](../../../packages/sdk/src/namespaces/yield.ts) → `job:create`, handled by the dispatcher ([admission.rs](../../../apps/dispatcher/handlers/src/admission.rs))
 
 **The envelope carries no ids.** For `jobType: 'generation'` the context *is*
 the wire contract — it already names its anchor, so the ids are not sent
@@ -180,7 +180,7 @@ beside it:
 }
 ```
 
-The dispatcher ([job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)) derives what it needs from
+The dispatcher ([admission.rs](../../../apps/dispatcher/handlers/src/admission.rs)) derives what it needs from
 `params.context.focus` and **rejects**, via `job:create-failed`, anything that
 would let a caller disagree with it:
 
@@ -248,7 +248,7 @@ their own canonical sets if/when their generators exist. Length knobs
 (`maxTokens`, and one day duration/dimensions) are a separate axis and never
 imply structure.
 
-**Dispatch responsibilities** (SDK `yield` namespace + [job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts)):
+**Dispatch responsibilities** (SDK `yield` namespace + the dispatcher's [admission.rs](../../../apps/dispatcher/handlers/src/admission.rs)):
 1. Authenticate, then validate params — including the focus derivation and the
    rejections above
 2. Create a generation job and submit it to the queue (`job:create` → `job:created`)
@@ -698,7 +698,7 @@ See [EVENT-BUS.md](../EVENT-BUS.md) for the bus protocol.
 ### Gateway
 
 - [apps/gateway/src/routes/bus.rs](../../../apps/gateway/src/routes/bus.rs), [stream.rs](../../../apps/gateway/src/routes/stream.rs) - Bus gateway (`/bus/emit`, `/bus/subscribe`)
-- [packages/make-meaning/src/handlers/job-commands.ts](../../../packages/make-meaning/src/handlers/job-commands.ts) - `job:create`/`job:claim` handlers
+- [apps/dispatcher/handlers/src/handlers.rs](../../../apps/dispatcher/handlers/src/handlers.rs) - the dispatcher's `job:create`/`job:claim` handlers ([docs/protocol/JOBS.md](../JOBS.md))
 
 ### Browser
 

@@ -15,7 +15,7 @@ use semiont::roles::WORKER_ROLE;
 use semiont::types::{
     AgentTokenRequest, AgentTokenResponse, MediaTokenRequest, MediaTokenResponse,
 };
-use semiont_core::logging;
+use semiont_observability::logging;
 use serde_json::json;
 use std::sync::Arc;
 

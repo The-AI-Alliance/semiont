@@ -53,8 +53,10 @@ it serves.
 
 The document carries no secret. A broker credential is named, as the environment variable that holds
 it (`queue.userEnv`, `queue.passwordEnv`), and a named variable that is unset is refused at boot. The
-dispatcher's other inputs are its service account, `SEMIONT_OIDC_CLIENT_ID` and
-`SEMIONT_OIDC_CLIENT_SECRET`, and the telemetry variables every service reads.
+dispatcher's other inputs are the environment variables
+[specs/src/service-environment/variables.json](../../specs/src/service-environment/variables.json) lists
+for it: its service account, `SEMIONT_OIDC_CLIENT_ID` and `SEMIONT_OIDC_CLIENT_SECRET`, the bus log, and
+the telemetry variables.
 
 **Access to the job channels is open.** Any authenticated principal may emit any of the nine
 channels, and the dispatcher acts on the job the frame names. The one capability check is

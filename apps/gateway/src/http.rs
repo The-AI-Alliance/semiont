@@ -14,7 +14,7 @@ use futures::StreamExt;
 use futures::task::AtomicWaker;
 use hyper_util::rt::{TokioIo, TokioTimer};
 use semiont::types::{ErrorResponse, LimitRefusal, LimitRefusalCode};
-use semiont_core::logging;
+use semiont_observability::logging;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};

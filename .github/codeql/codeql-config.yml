@@ -13,8 +13,12 @@ paths:
   # The Rust workspace: its services and the crates they share
   - apps/gateway/src
   - apps/dispatcher/src
+  - apps/dispatcher/handlers
+  - apps/dispatcher/jetstream
   - packages/codegen-rust
   - packages/core-rust
+  - packages/http-transport-rust
+  - packages/observability-rust
   - packages/sdk-rust
   # Go launcher — module root, not a src/ dir (main.go + internal/)
   - apps/launcher

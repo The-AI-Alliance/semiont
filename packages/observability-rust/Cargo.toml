@@ -1,0 +1,17 @@
+[package]
+name = "semiont-observability"
+edition = "2024"
+publish = false
+license = "Apache-2.0"
+description = "Semiont's observability, in Rust: the telemetry a process exports over OTLP, its log lines, and the readings it takes of itself."
+
+[dependencies]
+chrono = { workspace = true, features = ["clock", "std"] }
+opentelemetry = { workspace = true, features = ["trace", "metrics"] }
+opentelemetry_sdk = { workspace = true, features = ["trace", "metrics"] }
+opentelemetry-otlp = { workspace = true, features = ["http-proto", "reqwest-blocking-client", "trace", "metrics"] }
+opentelemetry-stdout = { workspace = true, features = ["trace", "metrics"] }
+semiont.workspace = true
+serde_json = { workspace = true, features = ["preserve_order"] }
+tikv-jemalloc-ctl = { workspace = true, features = ["stats"] }
+tokio = { workspace = true, features = ["rt", "time", "macros"] }

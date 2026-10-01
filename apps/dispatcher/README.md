@@ -20,7 +20,7 @@ Three crates of the repository's Rust workspace, split so the broker stays behin
 | --- | --- | --- |
 | `semiont-dispatcher-handlers` | [`handlers/`](handlers/) | The `JobQueue` trait and the nine handlers, generic over the queue. No NATS in its dependencies — CI's crate-tree check holds it. |
 | `semiont-dispatcher-jetstream` | [`jetstream/`](jetstream/) | The queue on JetStream: the one implementation of the trait, and the only code here that names the broker (`lint:broker-boundary`). |
-| `semiont-dispatcher` | [`src/`](src/) | The binary: reads its document, signs in, opens the queue, and answers the bus. |
+| `semiont-dispatcher` | [`src/`](src/) | The binary: reads its document, signs in, opens the queue, and answers the bus — through the SDK's bus client (`semiont`) over its HTTP transport (`semiont-http-transport`), with `semiont-observability`'s telemetry and logs. |
 
 The judge of all three is the black-box suite in
 [`tests/conformance/dispatcher`](../../tests/conformance/dispatcher/), which drives the binary as a
@@ -92,11 +92,11 @@ file, the dispatcher refuses to start and says which; a document that does not v
 naming each failing field. Secrets are never values in it: a field that needs one names the
 environment variable holding it.
 
-Two environment variables besides those the document names and the OpenTelemetry ones:
-
-- **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`** — this process's own service
-  account at the knowledge base's issuer. It exchanges them for an issuer token, which buys an
-  agent token from the gateway.
+Every other variable it reads, what sets it and what it changes, is in
+[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json)
+— among them **`SEMIONT_OIDC_CLIENT_ID`** / **`SEMIONT_OIDC_CLIENT_SECRET`**, this process's own
+service account at the knowledge base's issuer, which it exchanges for an issuer token that buys an
+agent token from the gateway; `SEMIONT_BUS_LOG`; and the telemetry variables.
 
 ## Related
 

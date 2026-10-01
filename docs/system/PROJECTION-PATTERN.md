@@ -19,7 +19,7 @@ The split exists so the *what* of the rules — "tag schemas dedup by
 id, most-recent registration wins, identical re-registrations are
 silent" — can be tested as a pure-data assertion that runs in
 microseconds, separate from the *how* — "the materializer reads JSON,
-the dispatcher catches errors and emits `job:create-failed`."
+the Stower catches the refusal and answers it on the bus."
 
 ## The two layers
 
@@ -68,31 +68,28 @@ The reducer is the contract; the shell is the wiring.
 
 Lives in [`packages/make-meaning/src/views/projection-validators.ts`](../../packages/make-meaning/src/views/projection-validators.ts).
 
-Two validators today:
+One validator today:
 
 | Validator | Input | Output | Owns |
 |-----------|-------|--------|------|
-| `resolveTagSchema(schemas, schemaId)` | `TagSchema[]`, `unknown` | `{ schema } \| { error }` | empty-id check, lookup-by-id, "not registered" error format |
 | `validateEntityTypes(registered, requested)` | `string[]`, `string[] \| undefined` | `{ ok: true } \| { ok: false; unknown }` | empty-input no-op, set membership check, unknown-tag listing |
 
-The shell — the `'job:create'` subscriber in
-[`handlers/job-commands.ts`](../../packages/make-meaning/src/handlers/job-commands.ts) —
-calls the readers (which do the I/O) then the validators (pure):
+The shell — the Stower's `mark:update-entity-types` handler
+([`stower.ts`](../../packages/make-meaning/src/stower.ts)) — calls the
+reader (which does the I/O) then the validator (pure), and refuses the
+whole request before its first append when any added entity type is not
+registered:
 
 ```ts
-if (jobType === 'tag-annotation') {
-  const schemas = await readTagSchemasProjection(project);
-  const result = resolveTagSchema(schemas, jobParams.schemaId);
-  if (result.error !== undefined) throw new Error(result.error);
-  jobParams.schema = result.schema;
-  delete jobParams.schemaId;
-}
+const registered = await readEntityTypesProjection(this.project);
+const result = validateEntityTypes(registered, added);
+if (!result.ok) throw new Error(entityTypesNotRegisteredMessage(result.unknown));
 ```
 
-If the validator says `error`, the surrounding catch turns it into
-`job:create-failed` on the bus. The "what counts as a valid
-schemaId / entityType set" rule is the validator's; the "how does
-that decision become a wire event" wiring is the shell's.
+The "what counts as a valid entityType set" rule is the validator's; the
+"how does that decision become a wire event" wiring is the shell's. (The
+dispatcher makes the same checks for `job:create` in Rust; its rules are
+[JOBS.md](../protocol/JOBS.md)'s.)
 
 ## Why this split
 
@@ -168,16 +165,6 @@ is actually intended.
 
 ### Validator axioms
 
-#### `resolveTagSchema(schemas, schemaId)`
-
-| Axiom | Statement |
-|-------|-----------|
-| Round-trip | For any registered schema `s`, `resolveTagSchema(schemas, s.id).schema === s`. |
-| Mutual exclusion | The result has either `schema` or `error`, never both, never neither. |
-| Empty/non-string `schemaId` | Always produces `error: "tag-annotation requires schemaId"`. |
-| Unknown non-empty `schemaId` | Always produces `error: "Tag schema not registered: <id>"`. |
-| No mutation | The input `schemas` array is never modified. |
-
 #### `validateEntityTypes(registered, requested)`
 
 | Axiom | Statement |
@@ -211,7 +198,7 @@ the future Frame work):
 2. Cover it with example-based tests + at least the universal axioms (sortedness, uniqueness, idempotence on the relevant equivalence relation, set semantics, no mutation).
 3. Add an I/O shell method to `ViewMaterializer` that reads the projection file, calls the reducer, and writes the result.
 4. Wire the materializer arm to `ViewManager.materializeSystem` (the dispatch on the event's `type`) **and to `rebuildAll`'s pass 1**, so a rebuilt projection agrees with an incrementally-built one. `materializeSystem` takes the whole event: `people.json` is keyed by the event's `userId` (the verified subject) and stamped with its timestamp, neither of which is in a payload.
-5. If the new projection is queried during command validation, add a pure validator in `projection-validators.ts` and call it from the dispatcher.
+5. If the new projection is queried during command validation, add a pure validator in `projection-validators.ts` and call it from the command's handler.
 
 ### The system projections today
 

@@ -53,7 +53,7 @@ configured another way).
   [`specs/src/principals/cases.json`](../../../specs/src/principals/cases.json), named
   exactly by a running gateway; every DID the suite expects comes from that table.
 - **The environment** (`environment.test.ts`): what each variable
-  [`specs/src/gateway-environment/variables.json`](../../../specs/src/gateway-environment/variables.json)
+  [`specs/src/service-environment/variables.json`](../../../specs/src/service-environment/variables.json)
   lists changes, and the document's `logFormat`. The harness refuses to start a
   gateway with a variable that table does not list or the document does not
   name, so no case can lean on one the spec does not state.

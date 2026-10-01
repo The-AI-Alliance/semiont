@@ -10,6 +10,8 @@ members = [
     "apps/gateway",
     "packages/codegen-rust",
     "packages/core-rust",
+    "packages/http-transport-rust",
+    "packages/observability-rust",
     "packages/sdk-rust",
 ]
 exclude = ["apps/desktop/src-tauri"]
@@ -22,6 +24,8 @@ semiont-codegen = { path = "packages/codegen-rust" }
 semiont-dispatcher-handlers = { path = "apps/dispatcher/handlers" }
 semiont-dispatcher-jetstream = { path = "apps/dispatcher/jetstream" }
 semiont-core = { path = "packages/core-rust" }
+semiont-http-transport = { path = "packages/http-transport-rust" }
+semiont-observability = { path = "packages/observability-rust" }
 async-nats = { version = "0.50.0", default-features = false }
 axum = { version = "0.8.9", default-features = false }
 base64 = "0.23.1"

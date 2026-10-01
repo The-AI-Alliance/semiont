@@ -14,15 +14,17 @@ use std::fs;
 use std::path::PathBuf;
 
 /// The schemas generated beside the API's bodies and the job channels': a
-/// failure reply, the job the queue holds, and the vocabulary reads admission
-/// makes.
-const BESIDE: [&str; 6] = [
+/// failure reply, the job the queue holds, the vocabulary reads admission
+/// makes, and the log settings every public crate's logging takes.
+const BESIDE: [&str; 8] = [
     "CommandError",
     "Job",
     "BrowseEntityTypesRequest",
     "BrowseEntityTypesResult",
     "BrowseTagSchemasRequest",
     "BrowseTagSchemasResult",
+    "LogLevel",
+    "LogFormat",
 ];
 
 /// Bodies the gateway carries without reading: an upload it streams to the

@@ -123,7 +123,7 @@ Secrets are never in it. The gateway's own are environment variables —
 broker credential is named by the variable holding it (`signal.userEnv`,
 `signal.passwordEnv`). Every environment variable the gateway reads, what
 sets it and what it changes, is in
-[`specs/src/gateway-environment/variables.json`](../../specs/src/gateway-environment/variables.json).
+[`specs/src/service-environment/variables.json`](../../specs/src/service-environment/variables.json).
 
 It runs one worker thread per CPU it may use — its container's CPU limit and
 affinity — so that limit is what sizes it. No variable does: not even

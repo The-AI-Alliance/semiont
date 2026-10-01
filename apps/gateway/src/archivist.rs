@@ -11,10 +11,10 @@ use axum::http::StatusCode;
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::identity::encode_uri_component;
-use semiont::service_account::{Credential, ServiceToken};
-use semiont_core::logging;
 use semiont_core::spec::{Spec, spec};
-use semiont_core::telemetry;
+use semiont_http_transport::service_account::{Credential, ServiceToken};
+use semiont_observability::logging;
+use semiont_observability::telemetry;
 use serde_json::{Value, json};
 
 /// The Archivist operations the gateway calls. The embedded Archivist

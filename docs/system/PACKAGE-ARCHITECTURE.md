@@ -19,7 +19,7 @@ graph BT
 
     %% Layer 3: AI + Workers
     inference["@semiont/inference<br/><i>LLM abstraction</i>"]
-    jobs["@semiont/jobs<br/><i>Job queue + worker entry points</i>"]
+    jobs["@semiont/jobs<br/><i>Job worker + its entry point</i>"]
 
     %% Layer 2: SDK + Domain Storage
     sdk["@semiont/sdk<br/><i>SemiontClient + namespaces + session<br/>state units, bus-request, cache</i>"]

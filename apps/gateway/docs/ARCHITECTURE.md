@@ -7,14 +7,16 @@ that serves it.
 ## The crates it is built from
 
 The gateway is a member of the repository's Rust workspace
-([Cargo.toml](../../../Cargo.toml)), and is built from three of its crates:
+([Cargo.toml](../../../Cargo.toml)), and is built from these of its crates:
 
 | Crate | Directory | What the gateway takes from it |
 |---|---|---|
 | `semiont-gateway` | `apps/gateway` | Everything particular to the gateway: the routes, the ledger, the signal plane, token minting, principals and limits |
-| `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, logging, telemetry, and (its `nats` feature) reaching the broker |
-| `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and signing in as a service account |
-| `semiont-codegen` | [packages/codegen-rust](../../../packages/codegen-rust) | Nothing at run time: the other two crates' build scripts bundle the spec and generate their types with it |
+| `semiont-core` | [packages/core-rust](../../../packages/core-rust) | What every Rust service shares and no client needs: the embedded spec, reading the configuration document and the other service-only types generated from the spec, and (its `nats` feature) reaching the broker |
+| `semiont` | [packages/sdk-rust](../../../packages/sdk-rust) | What a client needs too: the protocol's types, generated from the spec, which type every body the gateway reads and writes; naming the knowledge base and its principals; the realm's roles; and the bus log |
+| `semiont-observability` | [packages/observability-rust](../../../packages/observability-rust) | Telemetry, logging and the process's readings of itself |
+| `semiont-http-transport` | [packages/http-transport-rust](../../../packages/http-transport-rust) | Signing in as a service account, to reach the Archivist |
+| `semiont-codegen` | [packages/codegen-rust](../../../packages/codegen-rust) | Nothing at run time: the core's and the SDK's build scripts bundle the spec and generate their types with it |
 
 ## Built against the spec
 
@@ -164,7 +166,7 @@ Every refusal names its limit in `code`, carries `Retry-After`, and counts in
 
 The Archivist holds the knowledge base's bytes and event log;
 [src/archivist.rs](../src/archivist.rs) is how the gateway reaches it, as itself
-— its service account's token (`semiont::service_account`), from the issuer's
+— its service account's token (`semiont_http_transport::service_account`), from the issuer's
 client-credentials grant, kept until shortly before it expires:
 
 | Client calls the gateway | The gateway calls the Archivist |
@@ -179,7 +181,7 @@ relays. The gateway makes no bus request of its own.
 
 ## Telemetry
 
-`semiont_core::telemetry` exports over OTLP/HTTP (protobuf) the spans and
+`semiont_observability::telemetry` exports over OTLP/HTTP (protobuf) the spans and
 metrics [specs/src/gateway-telemetry/telemetry.json](../../../specs/src/gateway-telemetry/telemetry.json)
 lists, and nothing else: the process's own readings, and the gateway's
 instruments ([src/metrics.rs](../src/metrics.rs)) made on its meter. It reads

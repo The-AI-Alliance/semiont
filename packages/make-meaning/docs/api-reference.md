@@ -385,4 +385,4 @@ export async function createKnowledgeBase(
 
 - [Architecture](./architecture.md) — Actor model and data flow
 - [Examples](./examples.md) — Common use cases
-- [@semiont/jobs](../../jobs/README.md) — Job queue and annotation workers
+- [@semiont/jobs](../../jobs/README.md) — The job worker: processors and the worker process

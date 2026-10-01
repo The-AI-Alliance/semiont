@@ -36,6 +36,10 @@ COPY packages/codegen-rust/Cargo.toml packages/codegen-rust/
 COPY packages/codegen-rust/src packages/codegen-rust/src
 COPY packages/core-rust/Cargo.toml packages/core-rust/build.rs packages/core-rust/
 COPY packages/core-rust/src packages/core-rust/src
+COPY packages/http-transport-rust/Cargo.toml packages/http-transport-rust/
+COPY packages/http-transport-rust/src packages/http-transport-rust/src
+COPY packages/observability-rust/Cargo.toml packages/observability-rust/
+COPY packages/observability-rust/src packages/observability-rust/src
 COPY packages/sdk-rust/Cargo.toml packages/sdk-rust/build.rs packages/sdk-rust/
 COPY packages/sdk-rust/src packages/sdk-rust/src
 # A spec that does not compile fails here, in semiont-core's build.rs, never at boot.

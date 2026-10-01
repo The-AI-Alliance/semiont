@@ -71,11 +71,11 @@ withDispatcher('the dispatcher\'s boot', (world) => {
     expect(refusal.output).toMatch(/queue\.passwordEnv/);
   });
 
-  it('refuses to start without its service account', async () => {
-    const { SEMIONT_OIDC_CLIENT_SECRET: _secret, ...env } = world().env;
+  it.each(['SEMIONT_OIDC_CLIENT_ID', 'SEMIONT_OIDC_CLIENT_SECRET'])('refuses to start without its service account\'s %s, naming it', async (missing) => {
+    const env = Object.fromEntries(Object.entries(world().env).filter(([name]) => name !== missing));
     const refusal = await refusedDispatcherBoot(await launch(world(), { env }));
     expect(refusal.code).not.toBe(0);
-    expect(refusal.output).toMatch(/SEMIONT_OIDC_CLIENT_SECRET/);
+    expect(refusal.output).toContain(missing);
   });
 
   it('exits within its boot deadline when the broker cannot be reached, so its supervisor can retry', async () => {
