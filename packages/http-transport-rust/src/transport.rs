@@ -1,300 +1,550 @@
 //! A knowledge base's bus over its gateway's HTTP transport
-//! (docs/protocol/TRANSPORT-HTTP.md): one stream, `POST /bus/subscribe`, for
-//! the channels it names, and `POST /bus/emit` for what it sends.
+//! (docs/protocol/TRANSPORT-HTTP.md), as `semiont::transport::Transport`: one
+//! stream, `POST /bus/subscribe`, naming the client's global channels and an
+//! entry per resource scope it holds, and `POST /bus/emit` for what it sends.
+//! The gateway's own operations ride plain request and response.
 //!
-//! The stream is held open for as long as the transport lives: when it ends or
-//! is refused, it is opened again after a pause that doubles up to a minute,
-//! naming the replies still awaited (`pendingReplies`) so an answer sent while
-//! it was down still arrives. A 401 is answered by exchanging the session's
-//! token once.
-//!
-//! What crosses the wire is observed here, as every Semiont transport observes
-//! it: each emit is logged (`[bus EMIT]`), counted (`semiont.bus.sent`) and sent
-//! in a `bus.emit` span whose trace context travels as `traceparent`; each frame
-//! received is logged (`[bus RECV]`), its `_trace` field lifted off the payload
-//! for the consumer to continue (`semiont_observability::telemetry::received`).
+//! The stream is `crate::actor`'s. What crosses the wire is observed here, as
+//! every Semiont transport observes it: each emit is logged (`[bus EMIT]`),
+//! counted (`semiont.bus.sent`) and sent in a `bus.emit` span whose trace
+//! context travels as `traceparent`; each frame received is logged
+//! (`[bus RECV]`), its `_trace` lifted off the payload, and marked by a
+//! `bus.recv` span in the trace it was sent under.
 
-use crate::session::{AgentSession, SessionError};
-use bytes::Bytes;
-use futures::{Stream, StreamExt};
+use crate::actor::{self, Command};
 use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
-use semiont::transport::{Envelope, Received, TraceCarrier, Transport, TransportError};
-use semiont::types::{BusEmitAccepted, BusEmitRequest, BusFrame, BusSubscribeRequest};
+use semiont::channels::{BRIDGED_CHANNELS, RESOURCE_SCOPED_CHANNELS};
+use semiont::errors::{BusRequestError, TransportError, TransportErrorCode};
+use semiont::event_bus::EventBus;
+use semiont::retry::{self, RetryFacts, RetryPolicy, retry_after, retry_with_backoff};
+use semiont::timing;
+use semiont::transport::{
+    BoxFuture, ConnectionState, Envelope, Events, Failures, FrameHub, Frames, GatewayOperations,
+    PendingReply, ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport, unsubscribed,
+};
+use semiont::types::{
+    BusEmitAccepted, BusEmitRequest, HealthResponse, MediaTokenRequest, MediaTokenResponse,
+    ProtectedResourceMetadata, StatusResponse, UserResponse,
+};
 use semiont_observability::telemetry;
+use serde::de::DeserializeOwned;
 use serde_json::{Map, Value};
-use std::collections::HashSet;
-use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
-/// The first pause before the stream is opened again; it doubles to `MAX_PAUSE`.
-const FIRST_PAUSE: Duration = Duration::from_millis(500);
-const MAX_PAUSE: Duration = Duration::from_secs(60);
-/// How many frames a slow reader may fall behind before it misses some.
-const BACKLOG: usize = 4096;
-/// Where a frame's payload carries the trace it was sent under.
-const TRACE_FIELD: &str = "_trace";
+/// The wait before a request that is safe to repeat is made a second time.
+const RETRY_PAUSE: Duration = Duration::from_millis(300);
 
-pub struct HttpTransport {
-    session: Arc<AgentSession>,
-    http: reqwest::Client,
-    client_id: String,
-    channels: Vec<String>,
-    frames: broadcast::Sender<Received>,
-    /// The correlation ids of replies still awaited.
-    pending: Arc<Mutex<HashSet<String>>>,
-    stream: tokio::task::JoinHandle<()>,
+/// How a transport renews its token when the gateway refuses the one it has:
+/// renew it at its source, and say what it is now. `None` when it could not
+/// be renewed. Whoever implements this also feeds the transport's token, so
+/// the token has one source.
+pub trait TokenRefresher: Send + Sync + 'static {
+    fn refresh(&self) -> BoxFuture<'_, Option<String>>;
 }
 
-impl Drop for HttpTransport {
-    fn drop(&mut self) {
-        self.stream.abort();
-    }
+/// The timing a transport keeps, from specs/src/client/timing.json unless a
+/// caller that must not wait it out (a test, a conformance driver) says
+/// otherwise.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Timing {
+    pub reconnect: Duration,
+    pub lazy_remove: Duration,
+    pub linger: Duration,
+    pub emit_retry: RetryPolicy,
+    pub seen_event_ids: usize,
 }
 
-impl HttpTransport {
-    /// A transport subscribed to `channels`, for as long as it lives. The
-    /// stream opens in the background.
-    pub fn open(
-        session: Arc<AgentSession>,
-        http: reqwest::Client,
-        channels: Vec<String>,
-    ) -> HttpTransport {
-        let client_id = uuid::Uuid::new_v4().to_string();
-        let (frames, _) = broadcast::channel(BACKLOG);
-        let pending = Arc::new(Mutex::new(HashSet::new()));
-        let stream = tokio::spawn(hold_stream(
-            session.clone(),
-            http.clone(),
-            client_id.clone(),
-            channels.clone(),
-            frames.clone(),
-            pending.clone(),
-        ));
-        HttpTransport {
-            session,
-            http,
-            client_id,
-            channels,
-            frames,
-            pending,
-            stream,
+impl Default for Timing {
+    fn default() -> Timing {
+        Timing {
+            reconnect: timing::RECONNECT,
+            lazy_remove: timing::LAZY_REMOVE,
+            linger: timing::LINGER,
+            emit_retry: timing::EMIT_RETRY,
+            seen_event_ids: timing::SEEN_EVENT_IDS_COUNT,
         }
     }
+}
 
-    fn pending_mut(&self) -> std::sync::MutexGuard<'_, HashSet<String>> {
-        self.pending.lock().unwrap_or_else(|p| p.into_inner())
+pub struct HttpTransportConfig {
+    /// The gateway's origin.
+    pub base_url: String,
+    /// The token every request carries: the current one, and each one after
+    /// it. With none the transport sends nothing and waits for one.
+    pub token: watch::Receiver<Option<String>>,
+    /// Asked once per outage when the stream is refused 401, and once per
+    /// request refused 401.
+    pub refresher: Option<Arc<dyn TokenRefresher>>,
+    /// The global channels the stream names. `None` is every channel a
+    /// client hears (`BRIDGED_CHANNELS`); a process that awaits only some
+    /// operations names their reply channels, and is not sent every other
+    /// client's replies.
+    pub channels: Option<Vec<String>>,
+    pub http: reqwest::Client,
+    pub timing: Timing,
+}
+
+pub(crate) fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// What the transport's handle and its stream both hold.
+pub(crate) struct Shared {
+    pub base_url: String,
+    pub http: reqwest::Client,
+    pub token: watch::Receiver<Option<String>>,
+    pub refresher: Option<Arc<dyn TokenRefresher>>,
+    /// This client's address for correlated replies: one per transport, not
+    /// per connection, so both streams of a handoff present the same one.
+    pub client_id: String,
+    pub global: Vec<String>,
+    pub timing: Timing,
+    pub hub: FrameHub,
+    pub router: Arc<ReplyRouter>,
+    /// `None` once closed.
+    pub failures: Mutex<Option<broadcast::Sender<TransportError>>>,
+    pub bridges: Mutex<Vec<Arc<EventBus>>>,
+}
+
+impl Shared {
+    pub fn current_token(&self) -> Option<String> {
+        self.token
+            .borrow()
+            .clone()
+            .filter(|token| !token.is_empty())
     }
 
-    async fn post(&self, body: &BusEmitRequest) -> Result<Option<u64>, TransportError> {
-        let url = format!("{}/bus/emit", self.session.gateway());
-        let mut refreshed = false;
+    /// Report a failure on the error stream, and hand it back for its caller.
+    pub fn failed(&self, error: TransportError) -> TransportError {
+        if let Some(failures) = locked(&self.failures).as_ref() {
+            let _ = failures.send(error.clone());
+        }
+        error
+    }
+
+    /// One request and its answer, made a second time when that is worth it
+    /// and safe (`retry::TRANSPORT`): a `401` once a renewed token is in
+    /// hand, on any method; a status that promises recovery, or no answer at
+    /// all, on a method that cannot cause a second effect. A failure is
+    /// reported on the error stream as it is returned.
+    pub async fn send(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        authenticated: bool,
+        build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, TransportError> {
+        let url = format!("{}{path}", self.base_url);
+        let repeatable = retry::TRANSPORT.retryable(&RetryFacts {
+            status: Some(503),
+            method: Some(method.as_str()),
+        });
+        let mut token = self.current_token();
+        let mut retried = false;
         loop {
-            let token = self.session.token().await.map_err(session_error)?;
-            let mut request = self.http.post(&url).bearer_auth(&token).json(body);
+            let mut request = build(self.http.request(method.clone(), &url));
+            if authenticated && let Some(token) = &token {
+                request = request.bearer_auth(token);
+            }
             if let Some((traceparent, tracestate)) = telemetry::active_trace() {
                 request = request.header("traceparent", traceparent);
                 if let Some(tracestate) = tracestate {
                     request = request.header("tracestate", tracestate);
                 }
             }
-            let response = request
-                .send()
-                .await
-                .map_err(|e| TransportError(format!("{url}: {e}")))?;
+            let response = match request.send().await {
+                Ok(response) => response,
+                Err(error) => {
+                    if !retried && repeatable {
+                        retried = true;
+                        tokio::time::sleep(RETRY_PAUSE).await;
+                        continue;
+                    }
+                    return Err(self.failed(TransportError::without_response(
+                        format!("{method} {path} got no answer: {error}"),
+                        TransportErrorCode::Unavailable,
+                    )));
+                }
+            };
+            if response.status().is_success() {
+                return Ok(response);
+            }
             let status = response.status().as_u16();
-            if status == 401 && !refreshed {
-                refreshed = true;
-                self.session.refresh().await.map_err(session_error)?;
+            let stated_wait = stated_wait(&response);
+            let worth_another = !retried
+                && retry::TRANSPORT.retryable(&RetryFacts {
+                    status: Some(status),
+                    method: Some(method.as_str()),
+                });
+            if worth_another && status == 401 {
+                // A 401 earns its second attempt only if a renewed token
+                // arrives: without one the same request gets the same answer.
+                if let Some(refresher) = &self.refresher
+                    && let Some(renewed) = refresher.refresh().await
+                {
+                    token = Some(renewed);
+                    retried = true;
+                    continue;
+                }
+            } else if worth_another {
+                retried = true;
+                tokio::time::sleep(RETRY_PAUSE.max(stated_wait.unwrap_or_default())).await;
                 continue;
             }
-            if response.status().is_success() {
-                let accepted = response.json::<BusEmitAccepted>().await.ok();
-                return Ok(accepted.and_then(|a| a.subscribers));
-            }
-            let body = response.text().await.unwrap_or_default();
-            return Err(TransportError(format!(
-                "the gateway refused ({status}): {body}"
-            )));
+            let message = response
+                .json::<Value>()
+                .await
+                .ok()
+                .and_then(|body| {
+                    ["message", "error"]
+                        .iter()
+                        .find_map(|key| body.get(*key).and_then(Value::as_str).map(str::to_owned))
+                })
+                .unwrap_or_else(|| format!("HTTP {status}"));
+            return Err(self.failed(TransportError::of_status(message, status, stated_wait)));
         }
+    }
+
+    /// The same, read as the JSON the operation answers.
+    pub async fn answer<T: DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        authenticated: bool,
+        build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    ) -> Result<T, TransportError> {
+        let response = self
+            .send(method.clone(), path, authenticated, build)
+            .await?;
+        let status = response.status().as_u16();
+        response.json::<T>().await.map_err(|error| {
+            self.failed(TransportError {
+                code: TransportErrorCode::Error,
+                status: Some(status),
+                message: format!("{method} {path} answered what is not its declared body: {error}"),
+                retry_after: None,
+            })
+        })
+    }
+
+    /// One emit: `POST /bus/emit`, each attempt bounded by `EMIT_TIMEOUT`,
+    /// made again inside the emit budget when a limit refused it, the
+    /// gateway said it will recover, or nothing answered; no sooner than a
+    /// refusal's `Retry-After`. Any other refusal is final.
+    async fn emit(&self, body: &BusEmitRequest) -> Result<Option<u64>, TransportError> {
+        let url = format!("{}/bus/emit", self.base_url);
+        let trace = telemetry::active_trace();
+        let attempt = || async {
+            let mut request = self
+                .http
+                .post(&url)
+                .bearer_auth(self.current_token().unwrap_or_default())
+                .timeout(timing::EMIT_TIMEOUT)
+                .json(body);
+            if let Some((traceparent, tracestate)) = &trace {
+                request = request.header("traceparent", traceparent);
+                if let Some(tracestate) = tracestate {
+                    request = request.header("tracestate", tracestate);
+                }
+            }
+            let response = request.send().await.map_err(|error| {
+                TransportError::without_response(
+                    format!("/bus/emit got no answer: {error}"),
+                    TransportErrorCode::Unavailable,
+                )
+            })?;
+            if !response.status().is_success() {
+                let status = response.status().as_u16();
+                let stated_wait = stated_wait(&response);
+                let detail: String = response
+                    .text()
+                    .await
+                    .unwrap_or_default()
+                    .chars()
+                    .take(500)
+                    .collect();
+                let message = if detail.is_empty() {
+                    format!("/bus/emit {status}")
+                } else {
+                    format!("/bus/emit {status}: {detail}")
+                };
+                return Err(TransportError::of_status(message, status, stated_wait));
+            }
+            // No count is reported as no count, never as a zero: an absent
+            // `subscribers` is the gateway saying it could not count, and an
+            // unreadable body says nothing at all.
+            Ok(response
+                .json::<BusEmitAccepted>()
+                .await
+                .ok()
+                .and_then(|accepted| accepted.subscribers))
+        };
+        retry_with_backoff(
+            self.timing.emit_retry,
+            attempt,
+            |error: &TransportError| match error.status {
+                Some(status) => retry::BOOT.retryable(&RetryFacts {
+                    status: Some(status),
+                    method: Some("POST"),
+                }),
+                None => true,
+            },
+            |error| error.retry_after,
+        )
+        .await
+        .map_err(|error| self.failed(error))
     }
 }
 
-fn session_error(error: SessionError) -> TransportError {
-    TransportError(error.to_string())
+fn stated_wait(response: &reqwest::Response) -> Option<Duration> {
+    retry_after(
+        response
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|value| value.to_str().ok()),
+    )
+}
+
+struct Inner {
+    shared: Arc<Shared>,
+    commands: mpsc::UnboundedSender<Command>,
+    state: watch::Receiver<ConnectionState>,
+    /// How many holds each resource's scope has.
+    holds: Arc<Mutex<HashMap<String, usize>>>,
+    closed: AtomicBool,
+}
+
+/// See the module's documentation. A handle: cloning it gives another to the
+/// same transport, and the transport stops when it is closed or the last one
+/// is dropped.
+#[derive(Clone)]
+pub struct HttpTransport {
+    inner: Arc<Inner>,
+}
+
+impl HttpTransport {
+    /// A transport to the gateway at `config.base_url`. Its stream opens in
+    /// the background, once there is a token.
+    pub fn new(config: HttpTransportConfig) -> HttpTransport {
+        let shared = Arc::new(Shared {
+            base_url: config.base_url.trim_end_matches('/').to_owned(),
+            http: config.http,
+            token: config.token,
+            refresher: config.refresher,
+            client_id: uuid::Uuid::new_v4().to_string(),
+            global: config.channels.unwrap_or_else(|| {
+                BRIDGED_CHANNELS
+                    .iter()
+                    .map(|channel| (*channel).to_owned())
+                    .collect()
+            }),
+            timing: config.timing,
+            hub: FrameHub::new(),
+            router: ReplyRouter::new(),
+            failures: Mutex::new(Some(broadcast::channel(STREAM_BACKLOG).0)),
+            bridges: Mutex::new(Vec::new()),
+        });
+        let (commands, receiver) = mpsc::unbounded_channel();
+        let (state, state_reader) = watch::channel(ConnectionState::Initial);
+        tokio::spawn(actor::run(shared.clone(), state, receiver));
+        HttpTransport {
+            inner: Arc::new(Inner {
+                shared,
+                commands,
+                state: state_reader,
+                holds: Arc::new(Mutex::new(HashMap::new())),
+                closed: AtomicBool::new(false),
+            }),
+        }
+    }
+
+    pub(crate) fn shared(&self) -> &Arc<Shared> {
+        &self.inner.shared
+    }
 }
 
 impl Transport for HttpTransport {
-    async fn emit(
-        &self,
-        channel: &str,
-        payload: Map<String, Value>,
-        envelope: Envelope,
-    ) -> Result<Option<u64>, TransportError> {
-        bus_log(
-            "EMIT",
-            channel,
-            &Value::Object(payload.clone()),
-            envelope.scope.as_deref(),
-            envelope.correlation_id.as_deref(),
-        );
-        telemetry::record_bus_sent(channel, envelope.scope.as_deref());
-        let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
-        if let Some(scope) = &envelope.scope {
-            attributes.push(KeyValue::new("bus.scope", scope.clone()));
-        }
-        let body = BusEmitRequest {
-            channel: channel.to_owned(),
-            payload,
-            scope: envelope.scope,
-            client_id: Some(self.client_id.clone()),
-            correlation_id: envelope.correlation_id,
-        };
-        telemetry::in_span(
-            format!("bus.emit:{channel}"),
-            SpanKind::Producer,
-            attributes,
-            opentelemetry::Context::current(),
-            self.post(&body),
-        )
-        .await
+    fn base_url(&self) -> &str {
+        &self.inner.shared.base_url
     }
 
-    fn frames(&self) -> broadcast::Receiver<Received> {
-        self.frames.subscribe()
+    fn emit<'a>(
+        &'a self,
+        channel: &'a str,
+        payload: Map<String, Value>,
+        envelope: Envelope,
+    ) -> BoxFuture<'a, Result<Option<u64>, TransportError>> {
+        Box::pin(async move {
+            let shared = &self.inner.shared;
+            let scope = envelope.scope.filter(|scope| !scope.is_empty());
+            bus_log(
+                "EMIT",
+                channel,
+                &Value::Object(payload.clone()),
+                scope.as_deref(),
+                envelope.correlation_id.as_deref(),
+            );
+            telemetry::record_bus_sent(channel, scope.as_deref());
+            let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
+            if let Some(scope) = &scope {
+                attributes.push(KeyValue::new("bus.scope", scope.clone()));
+            }
+            let body = BusEmitRequest {
+                channel: channel.to_owned(),
+                payload,
+                scope,
+                client_id: Some(shared.client_id.clone()),
+                correlation_id: envelope.correlation_id,
+            };
+            telemetry::in_span(
+                format!("bus.emit:{channel}"),
+                SpanKind::Producer,
+                attributes,
+                opentelemetry::Context::current(),
+                shared.emit(&body),
+            )
+            .await
+        })
+    }
+
+    fn frames(&self, channel: &str) -> Result<Frames, BusRequestError> {
+        // A channel this stream can never carry would be a stream that never
+        // fires, which reads as a quiet system: refused at the call. A
+        // resource-scoped channel passes with no scope held yet, since frames
+        // flow the moment one is.
+        if !self.is_subscribed(channel) && !RESOURCE_SCOPED_CHANNELS.contains(&channel) {
+            return Err(unsubscribed(channel));
+        }
+        Ok(self.inner.shared.hub.frames(channel))
     }
 
     fn is_subscribed(&self, channel: &str) -> bool {
-        self.channels.iter().any(|c| c == channel)
+        self.inner.shared.global.iter().any(|c| c == channel)
     }
 
-    fn track_reply(&self, correlation_id: &str) {
-        self.pending_mut().insert(correlation_id.to_owned());
-    }
-
-    fn release_reply(&self, correlation_id: &str) {
-        self.pending_mut().remove(correlation_id);
-    }
-}
-
-/// Hold the stream open, opening it again whenever it ends.
-async fn hold_stream(
-    session: Arc<AgentSession>,
-    http: reqwest::Client,
-    client_id: String,
-    channels: Vec<String>,
-    frames: broadcast::Sender<Received>,
-    pending: Arc<Mutex<HashSet<String>>>,
-) {
-    let url = format!("{}/bus/subscribe", session.gateway());
-    let mut pause = FIRST_PAUSE;
-    let mut refreshed = false;
-    loop {
-        let pending_replies: Vec<String> = pending
-            .lock()
-            .unwrap_or_else(|p| p.into_inner())
-            .iter()
-            .cloned()
-            .collect();
-        let body = BusSubscribeRequest {
-            client_id: client_id.clone(),
-            global: Some(channels.clone()),
-            pending_replies: (!pending_replies.is_empty()).then_some(pending_replies),
-            scoped: None,
-        };
-        let opened = match session.token().await {
-            Ok(token) => http
-                .post(&url)
-                .bearer_auth(&token)
-                .header("accept", "text/event-stream")
-                .json(&body)
-                .send()
-                .await
-                .ok(),
-            Err(_) => None,
-        };
-        match opened {
-            Some(response) if response.status().is_success() => {
-                pause = FIRST_PAUSE;
-                refreshed = false;
-                read_events(response.bytes_stream(), &frames).await;
+    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold {
+        let resource = resource_id.to_owned();
+        let holds = self.inner.holds.clone();
+        let commands = self.inner.commands.clone();
+        {
+            let mut holds = locked(&holds);
+            let count = holds.entry(resource.clone()).or_insert(0);
+            *count += 1;
+            if *count == 1 {
+                let _ = commands.send(Command::AddScope(resource.clone()));
             }
-            Some(response) if response.status().as_u16() == 401 && !refreshed => {
-                refreshed = true;
-                let _ = session.refresh().await;
-                continue;
-            }
-            _ => {}
         }
-        tokio::time::sleep(pause).await;
-        pause = (pause * 2).min(MAX_PAUSE);
-    }
-}
-
-/// A frame as it arrives: logged, and its trace lifted off its payload.
-fn received(mut frame: BusFrame) -> Received {
-    let trace = frame.payload.remove(TRACE_FIELD).and_then(|carrier| {
-        let traceparent = carrier.get("traceparent")?.as_str()?.to_owned();
-        let tracestate = carrier
-            .get("tracestate")
-            .and_then(Value::as_str)
-            .map(str::to_owned);
-        Some(TraceCarrier {
-            traceparent,
-            tracestate,
+        ResourceHold::new(move || {
+            let mut holds = locked(&holds);
+            let Some(count) = holds.get_mut(&resource) else {
+                return;
+            };
+            *count -= 1;
+            if *count == 0 {
+                holds.remove(&resource);
+                let _ = commands.send(Command::RemoveScope(resource));
+            }
         })
-    });
-    bus_log(
-        "RECV",
-        &frame.channel,
-        &Value::Object(frame.payload.clone()),
-        frame.scope.as_deref(),
-        frame.correlation_id.as_deref(),
-    );
-    Received { frame, trace }
+    }
+
+    fn state(&self) -> watch::Receiver<ConnectionState> {
+        self.inner.state.clone()
+    }
+
+    fn failures(&self) -> Failures {
+        match locked(&self.inner.shared.failures).as_ref() {
+            Some(failures) => Events::new(failures.subscribe()),
+            None => Events::new(broadcast::channel(1).1),
+        }
+    }
+
+    fn track_reply(&self, correlation_id: &str, reply_channels: &[&str]) -> PendingReply {
+        self.inner
+            .shared
+            .router
+            .track(correlation_id, reply_channels)
+    }
+
+    fn bridge_into(&self, bus: Arc<EventBus>) {
+        locked(&self.inner.shared.bridges).push(bus);
+    }
+
+    fn close(&self) -> BoxFuture<'_, ()> {
+        Box::pin(async move {
+            if self.inner.closed.swap(true, Ordering::SeqCst) {
+                return;
+            }
+            let (done, closed) = oneshot::channel();
+            if self.inner.commands.send(Command::Close(done)).is_ok() {
+                let _ = closed.await;
+            }
+        })
+    }
 }
 
-/// Every `bus-event` of a Server-Sent Events stream, as a frame, until it ends.
-async fn read_events(
-    body: impl Stream<Item = reqwest::Result<Bytes>>,
-    frames: &broadcast::Sender<Received>,
-) {
-    let mut body = std::pin::pin!(body);
-    // Bytes until a whole line is in: a chunk may end inside a character.
-    let mut buffer: Vec<u8> = Vec::new();
-    let mut event = String::new();
-    let mut data = String::new();
-    while let Some(Ok(chunk)) = body.next().await {
-        buffer.extend_from_slice(&chunk);
-        while let Some(end) = buffer.iter().position(|b| *b == b'\n') {
-            let line: Vec<u8> = buffer.drain(..=end).collect();
-            let line = String::from_utf8_lossy(&line[..end])
-                .trim_end_matches('\r')
-                .to_owned();
-            if line.is_empty() {
-                if event == "bus-event"
-                    && let Ok(frame) = serde_json::from_str::<BusFrame>(&data)
-                {
-                    let _ = frames.send(received(frame));
-                }
-                event.clear();
-                data.clear();
-                continue;
-            }
-            let (field, value) = line.split_once(':').unwrap_or((line.as_str(), ""));
-            let value = value.strip_prefix(' ').unwrap_or(value);
-            match field {
-                "event" => event = value.to_owned(),
-                "data" => {
-                    if !data.is_empty() {
-                        data.push('\n');
-                    }
-                    data.push_str(value);
-                }
-                _ => {}
-            }
-        }
+impl GatewayOperations for HttpTransport {
+    fn get_current_user(&self) -> BoxFuture<'_, Result<UserResponse, TransportError>> {
+        Box::pin(
+            self.inner
+                .shared
+                .answer(reqwest::Method::GET, "/api/users/me", true, |request| {
+                    request
+                }),
+        )
+    }
+
+    fn get_media_token<'a>(
+        &'a self,
+        resource_id: &'a str,
+    ) -> BoxFuture<'a, Result<MediaTokenResponse, TransportError>> {
+        Box::pin(async move {
+            let body = MediaTokenRequest {
+                resource_id: resource_id.to_owned(),
+            };
+            self.inner
+                .shared
+                .answer(
+                    reqwest::Method::POST,
+                    "/api/tokens/media",
+                    true,
+                    |request| request.json(&body),
+                )
+                .await
+        })
+    }
+
+    fn get_protected_resource_metadata(
+        &self,
+    ) -> BoxFuture<'_, Result<ProtectedResourceMetadata, TransportError>> {
+        Box::pin(self.inner.shared.answer(
+            reqwest::Method::GET,
+            "/.well-known/oauth-protected-resource",
+            false,
+            |request| request,
+        ))
+    }
+
+    fn health_check(&self) -> BoxFuture<'_, Result<HealthResponse, TransportError>> {
+        Box::pin(
+            self.inner
+                .shared
+                .answer(reqwest::Method::GET, "/api/health", true, |request| request),
+        )
+    }
+
+    fn get_status(&self) -> BoxFuture<'_, Result<StatusResponse, TransportError>> {
+        Box::pin(
+            self.inner
+                .shared
+                .answer(reqwest::Method::GET, "/api/status", true, |request| request),
+        )
     }
 }

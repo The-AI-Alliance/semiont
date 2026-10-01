@@ -87,7 +87,7 @@ concurrently; each is answered once, whenever it settles, by one of:
 | `{"id": 7, "ok": <value>}` | it succeeded; `null` when there is nothing to return |
 | `{"id": 7, "error": {"code": "...", "status": 429, "detail": "..."}}` | the SDK failed it |
 | `{"id": 7, "abandoned": true}` | the suite abandoned it, and the SDK reported nothing else |
-| `{"id": 7, "unsupported": true}` | this driver has no such operation |
+| `{"id": 7, "unsupported": true}` | this driver has no such operation. It says so at once, before it reads its next operation |
 | `{"id": 7, "misuse": "..."}` | the suite's arguments made no sense: the suite's mistake, never the SDK's |
 
 A failure's `code` is the SDK's own, from `specs/src/errors/codes.json`.
@@ -101,6 +101,7 @@ A failure's `code` is the SDK's own, from `specs/src/errors/codes.json`.
 | `{"state": "open"}` | the transport's connection state changed |
 | `{"frame": {"channel": "...", "payload": {...}, "correlationId": "...", "scope": "..."}}` | a frame was delivered on a channel the driver listens to; `correlationId` and `scope` only when the frame has them |
 | `{"error": {"code": "...", "status": 401, "detail": "..."}}` | the error stream carried a failure |
+| `{"progress": {"upload": 7, "bytesUploaded": 4096, "totalBytes": 9000}}` | the `upload` with that `id` reported how much of it has been sent |
 
 A driver may report every state its transport passes through or only the
 latest: a case waits for a state to be reached and never counts the ones
@@ -118,8 +119,9 @@ before it. Frames and failures are sequences: every one, in order.
 | `release-resource` | `resource`: let go of one hold | `null` |
 | `emit` | `channel`, `payload`, and `scope`, `correlationId` when given | `{"subscribers": n}`, or `{}` when the gateway gave no count |
 | `request` | `operation` (a request channel of the registry), `payload`, `timeoutMs` | `{"response": ...}`, or `{}` when the reply carries none |
-| `abandon` | `request`: the `id` of a `request` not yet settled, which its caller now abandons | `null`; the request itself then settles as `abandoned` |
+| `abandon` | `request`: the `id` of a `request` or an `upload` not yet settled, which its caller now abandons | `null`; that operation then settles as `abandoned` |
 | `put` | `name`, `format`, `storageUri`, `bytes` (base64), and any of `language`, `entityTypes`, `sourceResourceId`, `sourceAnnotationId`, `generationPrompt`, `jobId`, `isDraft` | `{"resourceId": "..."}` |
+| `upload` | as `put`: the same upload, reporting its progress as it is sent, and one its caller can abandon | `{"resourceId": "..."}` |
 | `get` | `resource` | `{"contentType": "...", "bytes": "<base64>"}` |
 | `get-stream` | `resource`: read as a stream, to its end | the same |
 | `graph` | `resource` | the description the gateway answered |
@@ -221,6 +223,8 @@ Steps run in order, each waiting for what it states:
 | `{"settles": "name", "abandoned": true}` | it ended because it was abandoned, and reported nothing |
 | `{"wire": "POST /bus/emit", ...}` | the client's next request is this operation of the spec, with each of `status`, `params`, `body`, `token`, `answer` given |
 | `{"carried": "name", "is": frame}` | the stream a wire step named has carried this frame to the client |
+| `{"closed": "name"}` | the request a wire step named has ended with no answer: the client closed it |
+| `{"progress": "name"}` | an upload started with `as`, and not yet settled, has reported all of it sent: every report states the same total, none states less than the one before, and the last states the total |
 | `{"state": "open"}` | the transport reaches this state |
 | `{"stays": "open"}` | the transport is in this state and has reported no other since the case last read its state |
 | `{"frame": "<channel>", "is": {...}}` | the next frame delivered on the channel is this one |
@@ -320,6 +324,19 @@ A clause of CACHE-SEMANTICS that no case holds, and why:
 | B12, handlers are additive | It is a rule about how the code is written. Its effect is the `refresh-*` cases, each holding one trigger to exactly what it refreshes. |
 | B17, the save's debounce, the storage document's version, sync between contexts | They are the storage adapter's, below what a driver's `persist` reaches. `rehydration` holds what they are for: a value saved by one client is the next one's. |
 
+## What an SDK cannot be put through
+
+An SDK's line may name wire cases its driver cannot run, each with why
+(`exempt` in `SDK_DRIVERS`). An exemption is held as a case is:
+`wire.test.ts` runs the case and requires the driver to answer `unsupported`
+to what it asks, so an exemption that has stopped being true fails, and a
+driver that answers `unsupported` to a case it is not exempt from fails that
+case.
+
+| SDK | Cases | Why |
+|---|---|---|
+| TypeScript | `upload-progress`, `upload-cancelled` | The transport reports and cancels an upload through `XMLHttpRequest`, which a browser has and Node, where the driver runs, does not. |
+
 ## Cases that restate a table
 
 Where a case states what a spec table already states, `wire.test.ts` holds
@@ -336,15 +353,16 @@ of `SDK_DRIVERS`, and run the suite. TypeScript's are
 [packages/http-transport/conformance/driver.ts](../../../packages/http-transport/conformance/driver.ts)
 for the wire and
 [packages/sdk/conformance/driver.ts](../../../packages/sdk/conformance/driver.ts)
-for the live layer.
+for the live layer. Rust's wire driver is the crate
+[packages/http-transport-rust/conformance](../../../packages/http-transport-rust/conformance/src/main.rs).
 
 ## Running it
 
-It needs a built gateway, `nats-server` (2.10 or later) on `PATH`, and the
-TypeScript SDK built:
+It needs a built gateway and Rust driver, `nats-server` (2.10 or later) on
+`PATH`, and the TypeScript SDK built:
 
 ```bash
-cargo build --release -p semiont-gateway
+cargo build --release -p semiont-gateway -p semiont-wire-driver
 npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci

@@ -76,7 +76,6 @@ components:
     jsonschema-regex - MIT
     jsonschema-value - MIT
     libc - MIT OR Apache-2.0
-    libm - MIT
     litemap - Unicode-3.0
     lock_api - MIT OR Apache-2.0
     log - MIT OR Apache-2.0
@@ -129,14 +128,11 @@ components:
     rustls-pki-types - MIT OR Apache-2.0
     rustls-platform-verifier - MIT OR Apache-2.0
     rustls-webpki - ISC
-    ryu - Apache-2.0 OR BSL-1.0
     scopeguard - MIT OR Apache-2.0
     serde - MIT OR Apache-2.0
     serde_core - MIT OR Apache-2.0
     serde_json - MIT OR Apache-2.0
     serde_nanos - MIT OR Apache-2.0
-    serde_path_to_error - MIT OR Apache-2.0
-    serde_urlencoded - MIT OR Apache-2.0
     signal-hook-registry - MIT OR Apache-2.0
     slab - MIT
     smallvec - MIT OR Apache-2.0
@@ -156,7 +152,6 @@ components:
     tokio-rustls - MIT OR Apache-2.0
     tokio-stream - MIT
     tokio-util - MIT
-    tokio-websockets - MIT
     tower - MIT
     tower-http - MIT
     tower-layer - MIT
@@ -173,7 +168,6 @@ components:
     uuid-simd - MIT
     vsimd - MIT
     want - MIT
-    webpki-roots - CDLA-Permissive-2.0
     writeable - Unicode-3.0
     yoke - Unicode-3.0
     zerocopy - BSD-2-Clause OR Apache-2.0 OR MIT

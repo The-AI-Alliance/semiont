@@ -1,23 +1,27 @@
 //! An agent's session with a knowledge base's gateway: its service account's
 //! token (`service_account`) exchanged at `POST /api/tokens/agent` for the
 //! token of the software agent `(provider, model)`, which names the work it
-//! does. The agent token is kept until shortly before the time its `exp`
-//! claim names, then exchanged again; the gateway decides how long it lives.
+//! does. The gateway decides how long the agent token lives.
+//!
+//! The session is a transport's token source: it gives the current token and
+//! each one after it, renews the token by the schedule every Semiont client
+//! keeps (`semiont::session`), and renews it at once when the gateway refuses
+//! it (`TokenRefresher`).
 
 use crate::service_account::{ServiceToken, SignInError};
-use base64::Engine;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+use crate::transport::TokenRefresher;
+use semiont::retry::{self, RetryFacts, retry_with_backoff};
+use semiont::session::refresh_delay;
+use semiont::timing::REFRESH_RETRY;
+use semiont::transport::BoxFuture;
 use semiont::types::{AgentTokenRequest, AgentTokenResponse};
-use serde_json::Value;
 use std::fmt;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use tokio::sync::Mutex;
-
-/// Exchange again this long before the agent token expires.
-const RENEW_BEFORE_EXPIRY: Duration = Duration::from_secs(60);
+use std::sync::{Arc, Weak};
+use std::time::SystemTime;
+use tokio::sync::watch;
 
 /// Why the agent could not be signed in.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SessionError {
     /// The service account could not sign in at the issuer.
     SignIn(SignInError),
@@ -27,6 +31,21 @@ pub enum SessionError {
     Refused { status: u16 },
     /// The gateway answered something that is not an agent token.
     Malformed(String),
+}
+
+impl SessionError {
+    /// What a retry rule asks of this failure.
+    fn retry_facts(&self) -> RetryFacts<'static> {
+        RetryFacts {
+            status: match self {
+                SessionError::SignIn(error) => return error.retry_facts(),
+                SessionError::Unreachable(_) => None,
+                SessionError::Refused { status } => Some(*status),
+                SessionError::Malformed(_) => Some(200),
+            },
+            method: Some("POST"),
+        }
+    }
 }
 
 impl fmt::Display for SessionError {
@@ -59,24 +78,28 @@ pub struct AgentSession {
     agent: Agent,
     service: ServiceToken,
     http: reqwest::Client,
-    /// The agent token, and when it expires, if its `exp` says.
-    held: Mutex<Option<(String, Option<SystemTime>)>>,
+    token: watch::Sender<Option<String>>,
 }
 
 impl AgentSession {
-    pub fn new(
+    /// Sign the agent in at `gateway`, and keep it signed in for as long as
+    /// the session lives.
+    pub async fn sign_in(
         gateway: &str,
         agent: Agent,
         service: ServiceToken,
         http: reqwest::Client,
-    ) -> AgentSession {
-        AgentSession {
+    ) -> Result<Arc<AgentSession>, SessionError> {
+        let session = Arc::new(AgentSession {
             gateway: gateway.trim_end_matches('/').to_owned(),
             agent,
             service,
             http,
-            held: Mutex::new(None),
-        }
+            token: watch::channel(None).0,
+        });
+        session.renew().await?;
+        tokio::spawn(keep_renewed(Arc::downgrade(&session)));
+        Ok(session)
     }
 
     /// The gateway this session signs in at.
@@ -84,23 +107,15 @@ impl AgentSession {
         &self.gateway
     }
 
-    /// The agent token: the one held, unless it expires soon.
-    pub async fn token(&self) -> Result<String, SessionError> {
-        let mut held = self.held.lock().await;
-        if let Some((token, expires)) = held.as_ref()
-            && expires.is_none_or(|at| SystemTime::now() + RENEW_BEFORE_EXPIRY < at)
-        {
-            return Ok(token.clone());
-        }
-        let token = self.exchange().await?;
-        *held = Some((token.clone(), expiry(&token)));
-        Ok(token)
+    /// The agent token: the current one, and each one after it.
+    pub fn token(&self) -> watch::Receiver<Option<String>> {
+        self.token.subscribe()
     }
 
-    /// Exchange again now: the gateway refused the token held.
-    pub async fn refresh(&self) -> Result<String, SessionError> {
+    /// Exchange again, and make the answer the session's token.
+    async fn renew(&self) -> Result<String, SessionError> {
         let token = self.exchange().await?;
-        *self.held.lock().await = Some((token.clone(), expiry(&token)));
+        self.token.send_replace(Some(token.clone()));
         Ok(token)
     }
 
@@ -135,10 +150,52 @@ impl AgentSession {
     }
 }
 
-/// When a JWT expires, by its `exp` claim; `None` when it names no time.
-fn expiry(token: &str) -> Option<SystemTime> {
-    let payload = token.split('.').nth(1)?;
-    let claims: Value = serde_json::from_slice(&URL_SAFE_NO_PAD.decode(payload).ok()?).ok()?;
-    let seconds = claims["exp"].as_u64()?;
-    UNIX_EPOCH.checked_add(Duration::from_secs(seconds))
+impl TokenRefresher for AgentSession {
+    fn refresh(&self) -> BoxFuture<'_, Option<String>> {
+        Box::pin(async move { self.renew().await.ok() })
+    }
+}
+
+/// Renew the session's token whenever it is due, until the session is gone.
+/// A renewal that fails is tried again inside the renewal budget when the
+/// failure is transient (`retry::REFRESH`); spent or refused, the token is
+/// left as it is and the next one is due an interval later, by the schedule's
+/// floor. A token that names no expiry schedules nothing: it is renewed when
+/// the gateway refuses it.
+async fn keep_renewed(session: Weak<AgentSession>) {
+    let Some(mut token) = session.upgrade().map(|session| session.token()) else {
+        return;
+    };
+    loop {
+        let due = token
+            .borrow_and_update()
+            .as_deref()
+            .and_then(|token| refresh_delay(token, SystemTime::now()));
+        match due {
+            Some(due) => {
+                tokio::select! {
+                    () = tokio::time::sleep(due) => {}
+                    changed = token.changed() => match changed {
+                        // Renewed meanwhile, by a refusal: schedule again.
+                        Ok(()) => continue,
+                        Err(_) => return,
+                    },
+                }
+            }
+            None => match token.changed().await {
+                Ok(()) => continue,
+                Err(_) => return,
+            },
+        }
+        let Some(session) = session.upgrade() else {
+            return;
+        };
+        let _ = retry_with_backoff(
+            REFRESH_RETRY,
+            || session.renew(),
+            |error: &SessionError| retry::REFRESH.retryable(&error.retry_facts()),
+            |_| None,
+        )
+        .await;
+    }
 }

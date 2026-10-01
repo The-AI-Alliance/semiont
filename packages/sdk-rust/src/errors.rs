@@ -1,0 +1,149 @@
+//! What a client reports when something fails, under the codes every SDK
+//! shares (specs/src/errors/codes.json, generated here): a transport's failure,
+//! which is a server's refusal or a request the gateway never answered; a bus
+//! request's, which is the peer's own failure or a fact only this side knows;
+//! and the two together, as a request's caller meets them.
+
+use serde_json::{Map, Value};
+use std::fmt;
+use std::time::Duration;
+
+include!(concat!(env!("OUT_DIR"), "/error_codes.rs"));
+
+/// A transport's failure. A server that answered states a status, and the
+/// status decides the code; an exchange that ended with no answer has none,
+/// and whoever saw it end says which ending it was.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TransportError {
+    pub code: TransportErrorCode,
+    /// The HTTP status, when a server stated one.
+    pub status: Option<u16>,
+    pub message: String,
+    /// The wait the refusal's `Retry-After` stated.
+    pub retry_after: Option<Duration>,
+}
+
+impl TransportError {
+    /// The server answered, and its status decides the code.
+    pub fn of_status(
+        message: impl Into<String>,
+        status: u16,
+        retry_after: Option<Duration>,
+    ) -> TransportError {
+        TransportError {
+            code: TransportErrorCode::of_status(status),
+            status: Some(status),
+            message: message.into(),
+            retry_after,
+        }
+    }
+
+    /// The exchange ended with no response.
+    pub fn without_response(
+        message: impl Into<String>,
+        code: TransportErrorCode,
+    ) -> TransportError {
+        TransportError {
+            code,
+            status: None,
+            message: message.into(),
+            retry_after: None,
+        }
+    }
+}
+
+impl fmt::Display for TransportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for TransportError {}
+
+/// Why a bus request did not resolve.
+#[derive(Debug, Clone, PartialEq)]
+pub struct BusRequestError {
+    pub code: BusRequestErrorCode,
+    pub message: String,
+    /// The failure the peer answered with (a `CommandError`), when it answered one.
+    pub failure: Option<Map<String, Value>>,
+}
+
+impl BusRequestError {
+    pub fn new(code: BusRequestErrorCode, message: impl Into<String>) -> BusRequestError {
+        BusRequestError {
+            code,
+            message: message.into(),
+            failure: None,
+        }
+    }
+}
+
+impl fmt::Display for BusRequestError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.message)
+    }
+}
+
+impl std::error::Error for BusRequestError {}
+
+/// What a request's caller meets: the request's own failure, or the
+/// transport's failure to send it.
+#[derive(Debug, Clone, PartialEq)]
+pub enum SemiontError {
+    Bus(BusRequestError),
+    Transport(TransportError),
+}
+
+impl SemiontError {
+    /// The code, as specs/src/errors/codes.json lists it.
+    pub fn code(&self) -> &'static str {
+        match self {
+            SemiontError::Bus(error) => error.code.as_str(),
+            SemiontError::Transport(error) => error.code.as_str(),
+        }
+    }
+
+    /// The HTTP status, when a server stated one.
+    pub fn status(&self) -> Option<u16> {
+        match self {
+            SemiontError::Bus(_) => None,
+            SemiontError::Transport(error) => error.status,
+        }
+    }
+}
+
+impl fmt::Display for SemiontError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SemiontError::Bus(error) => error.fmt(f),
+            SemiontError::Transport(error) => error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for SemiontError {}
+
+impl From<BusRequestError> for SemiontError {
+    fn from(error: BusRequestError) -> SemiontError {
+        SemiontError::Bus(error)
+    }
+}
+
+impl From<TransportError> for SemiontError {
+    fn from(error: TransportError) -> SemiontError {
+        SemiontError::Transport(error)
+    }
+}
+
+/// The wire code a failed request's peer stated, for a service that answers
+/// its own caller with that failure: `peer-unavailable` from a read it
+/// depended on reaches the caller as `peer-unavailable`. A failure only this
+/// side knows — a timeout, a closed bus, an emit the gateway refused — states
+/// none.
+pub fn relayed_failure_code(error: &SemiontError) -> Option<crate::types::CommandErrorCode> {
+    match error {
+        SemiontError::Bus(error) => error.code.wire(),
+        SemiontError::Transport(_) => None,
+    }
+}

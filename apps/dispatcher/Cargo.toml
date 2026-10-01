@@ -11,6 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 axum = { workspace = true, features = ["http1", "tokio"] }
+futures.workspace = true
 opentelemetry = { workspace = true, features = ["metrics"] }
 reqwest = { workspace = true, features = ["rustls-no-provider"] }
 rustls = { workspace = true, features = ["ring", "std"] }

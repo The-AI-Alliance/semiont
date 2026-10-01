@@ -97,6 +97,15 @@ jobs:
             fi
           done
 
+      # The SDK names a transport and never is one: HTTP and OpenTelemetry
+      # are the crates beside it, which a client that wants neither leaves out.
+      - name: Check the SDK links no HTTP client and no telemetry
+        run: |
+          if cargo tree --locked -p semiont -e normal | grep -E '(^|[^a-z-])(reqwest|hyper|opentelemetry[a-z_-]*) v'; then
+            echo "✗ semiont links an HTTP client or OpenTelemetry; those belong to semiont-http-transport and semiont-observability"
+            exit 1
+          fi
+
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
@@ -106,10 +115,15 @@ jobs:
       # built for, is under a permitted licence and credited in its image's NOTICE.
       - name: Check the crates the service binaries link
         run: |
-          for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
-            cargo metadata --format-version 1 --locked --filter-platform "$target" > "$RUNNER_TEMP/metadata-$target.json"
+          mkdir "$RUNNER_TEMP/crates"
+          cargo metadata --format-version 1 --locked > "$RUNNER_TEMP/crates/metadata.json"
+          for binary in semiont-gateway semiont-dispatcher; do
+            for target in x86_64-unknown-linux-musl aarch64-unknown-linux-musl; do
+              cargo tree --locked -p "$binary" -e normal,no-proc-macro --target "$target" --prefix none --format '{p}' \
+                > "$RUNNER_TEMP/crates/linked-$binary-$target.txt"
+            done
           done
-          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP"/metadata-*.json
+          node scripts/lint/check-image-crates.mjs "$RUNNER_TEMP/crates"
 
   gateway-conformance:
     name: Gateway Conformance
@@ -259,9 +273,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
-      # Every SDK is held to a real gateway.
-      - name: Build the gateway
-        run: cargo build --release --locked -p semiont-gateway
+      # Every SDK is held to a real gateway; the Rust SDK's wire driver is a
+      # binary of the same workspace.
+      - name: Build the gateway and the Rust wire driver
+        run: cargo build --release --locked -p semiont-gateway -p semiont-wire-driver
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

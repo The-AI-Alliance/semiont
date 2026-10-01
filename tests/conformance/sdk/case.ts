@@ -54,6 +54,8 @@ export type Step =
   | { settles: string; returns?: unknown; fails?: unknown; abandoned?: true }
   | { wire: string; at?: 'arrival' | 'answer' | 'live'; status?: number; params?: unknown; body?: unknown; token?: unknown; answer?: unknown; as?: string; follows?: string; waited?: string }
   | { carried: string; is: unknown }
+  | { closed: string }
+  | { progress: string }
   | { state: string }
   | { stays: string }
   | { frame: string; is: unknown }
@@ -263,6 +265,27 @@ class Run {
       }, WAIT_MS).catch((error: unknown) => {
         throw new Error(`${error instanceof Error ? error.message : String(error)}${difference === undefined ? ': it carried no frames' : `; the last it carried differs: ${difference}`}`);
       });
+    } else if ('closed' in step) {
+      const record = this.named.get(step.closed);
+      if (!record) throw new Error(`no request was named ${step.closed}`);
+      await this.proxy.until(`the client to close ${step.closed}`, () => (record.closed ? true : undefined), WAIT_MS);
+      if (record.status !== undefined) throw new Error(`${step.closed} was answered ${record.status} before it closed; the client was to close it unanswered`);
+    } else if ('progress' in step) {
+      const started = this.pending.get(step.progress);
+      if (!started) throw new Error(`no operation was started as ${step.progress}`);
+      const reports = () => this.driver.progress.get(started.id) ?? [];
+      await this.driver.until(`${step.progress} to report all of it sent`, () => {
+        const last = reports().at(-1);
+        return last !== undefined && last.bytesUploaded === last.totalBytes ? true : undefined;
+      }, WAIT_MS);
+      const total = reports()[0]!.totalBytes;
+      if (total <= 0) throw new Error(`${step.progress} reported a total of ${total} bytes`);
+      let before = 0;
+      for (const report of reports()) {
+        if (report.totalBytes !== total) throw new Error(`${step.progress} reported a total of ${total} bytes, then of ${report.totalBytes}`);
+        if (report.bytesUploaded < before || report.bytesUploaded > total) throw new Error(`${step.progress} reported ${report.bytesUploaded} of ${total} bytes after ${before}`);
+        before = report.bytesUploaded;
+      }
     } else if ('reaches' in step) {
       await this.reaches(step.reaches, step.state);
     } else if ('holds' in step) {
@@ -412,6 +435,11 @@ class Run {
     if (step.as !== undefined) {
       if (this.pending.has(step.as)) throw new Error(`${step.as} is already started`);
       this.pending.set(step.as, { id, op: step.driver });
+      // A driver says at once that it has no such operation, so the case
+      // learns it here and not at whatever it would have waited for next.
+      await this.sync();
+      const early = this.driver.settled(id);
+      if (early !== undefined && 'unsupported' in early) throw new Error(`the driver does not implement ${step.driver}`);
       return;
     }
     this.judge(step.driver, await this.driver.outcome(id, `${step.driver} to settle`, WAIT_MS), step);

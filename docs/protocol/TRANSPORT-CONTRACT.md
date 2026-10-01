@@ -336,6 +336,13 @@ Bytes do not ride the bus.
 - An upload carries its bytes unchanged, each field under its own name, and
   resolves with the id the gateway answers.
   *Held by `sdk/wire/content-upload`.*
+- An upload reports its progress as it is sent: how much has gone and how
+  much there is, never less than it last said, and all of it by the time it
+  resolves.
+  *Held by `sdk/wire/upload-progress`.*
+- An upload its caller cancels reports nothing more. Its connection is
+  closed, nothing is reported on the error stream, and it is not sent again.
+  *Held by `sdk/wire/upload-cancelled`.*
 - A read returns a resource's bytes unchanged with their media type, whole
   or as a stream; a resource's description is what the gateway answers; and
   one that is not there fails as `not-found`.

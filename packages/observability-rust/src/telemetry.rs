@@ -16,7 +16,7 @@ use opentelemetry_sdk::Resource;
 use opentelemetry_sdk::metrics::{PeriodicReader, SdkMeterProvider};
 use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::trace::{BatchSpanProcessor, SdkTracer, SdkTracerProvider};
-use semiont::transport::Received;
+use semiont::transport::TraceCarrier;
 use std::collections::HashMap;
 use std::future::Future;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -272,30 +272,43 @@ pub fn in_span_now<T>(
     }
 }
 
-/// Run `work` for a frame as it arrives, in a `bus.recv` span continuing the
-/// trace the frame was sent under: what is done for it, and what is sent in
-/// answer, belongs to the sender's trace.
-pub async fn received<T>(received: &Received, work: impl Future<Output = T>) -> T {
-    let frame = &received.frame;
-    let mut attributes = vec![KeyValue::new("bus.channel", frame.channel.clone())];
-    if let Some(scope) = &frame.scope {
-        attributes.push(KeyValue::new("bus.scope", scope.clone()));
-    }
+/// A frame's arrival: a `bus.recv` span continuing the trace the frame was
+/// sent under. Answers the trace that what is done for the frame continues:
+/// the span's own, or, when nothing is exported, the one the frame came with.
+pub fn received(
+    channel: &str,
+    scope: Option<&str>,
+    trace: Option<TraceCarrier>,
+) -> Option<TraceCarrier> {
     let parent = continued(
-        received.trace.as_ref().map(|t| t.traceparent.as_str()),
-        received
-            .trace
-            .as_ref()
-            .and_then(|t| t.tracestate.as_deref()),
+        trace.as_ref().map(|t| t.traceparent.as_str()),
+        trace.as_ref().and_then(|t| t.tracestate.as_deref()),
     );
-    in_span(
-        format!("bus.recv:{}", frame.channel),
+    let span = in_span_now(
+        format!("bus.recv:{channel}"),
         SpanKind::Consumer,
-        attributes,
-        parent,
-        work,
-    )
-    .await
+        on_the_bus(channel, scope),
+        &parent,
+        active_trace,
+    );
+    match span {
+        Some((traceparent, tracestate)) => Some(TraceCarrier {
+            traceparent,
+            tracestate,
+        }),
+        None => trace,
+    }
+}
+
+/// Run `work` in the trace a frame arrived in: what is done for it, and what
+/// is sent in answer, belongs to the sender's trace.
+pub async fn continuing<T>(trace: Option<&TraceCarrier>, work: impl Future<Output = T>) -> T {
+    use opentelemetry::context::FutureExt;
+    let context = continued(
+        trace.map(|t| t.traceparent.as_str()),
+        trace.and_then(|t| t.tracestate.as_deref()),
+    );
+    work.with_context(context).await
 }
 
 // ── Metrics ──────────────────────────────────────────────────────────────

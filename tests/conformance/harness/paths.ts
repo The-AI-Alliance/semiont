@@ -28,6 +28,12 @@ export interface SdkDrivers {
    * CACHE-SEMANTICS.
    */
   live?: { command: readonly string[]; tier: 'fleet' | 'parity' };
+  /**
+   * The wire cases its driver cannot be put through, each with why. The suite
+   * holds an exemption as it holds a case: the driver must answer
+   * `unsupported` to what the case asks, or the exemption is stale.
+   */
+  exempt?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -38,6 +44,13 @@ export const SDK_DRIVERS: Readonly<Record<string, SdkDrivers>> = {
   typescript: {
     wire: ['node', join(REPO_ROOT, 'packages/http-transport/conformance/driver.ts')],
     live: { command: ['node', join(REPO_ROOT, 'packages/sdk/conformance/driver.ts')], tier: 'parity' },
+    exempt: {
+      'upload-progress': 'the transport reports an upload\'s progress through XMLHttpRequest, which a browser has and Node, where the driver runs, does not',
+      'upload-cancelled': 'the transport cancels an upload through XMLHttpRequest, which a browser has and Node, where the driver runs, does not',
+    },
+  },
+  rust: {
+    wire: [join(REPO_ROOT, 'target/release/semiont-wire-driver')],
   },
 };
 

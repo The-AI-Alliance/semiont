@@ -1,7 +1,8 @@
 /**
- * Once per SDK run: refuse to start when the TypeScript driver cannot run, so
- * a missing build reads as that, never as every case failing — and type-check
- * it, because Node runs it with its types stripped and would run it wrong.
+ * Once per SDK run: refuse to start when a driver cannot run, so a missing
+ * build reads as that, never as every case failing — and type-check the
+ * TypeScript ones, because Node runs them with their types stripped and would
+ * run a mistyped one.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -17,7 +18,12 @@ declare module 'vitest' {
 }
 
 export default function setup(project: TestProject): void {
-  if (!('typescript' in project.getProvidedContext().sdkDrivers)) return;
+  const drivers = project.getProvidedContext().sdkDrivers;
+  const rust = drivers['rust']?.wire?.[0];
+  if (rust !== undefined && !existsSync(rust)) {
+    throw new Error(`The Rust wire driver is not built: ${rust} does not exist. Run \`cargo build --release -p semiont-wire-driver\` at the repository root.`);
+  }
+  if (!('typescript' in drivers)) return;
   // The wire driver runs the built transport; the live driver, the built SDK over it.
   for (const pkg of ['http-transport', 'sdk']) {
     const built = join(REPO_ROOT, 'packages', pkg, 'dist/index.js');

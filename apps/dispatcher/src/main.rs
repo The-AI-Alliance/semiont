@@ -11,12 +11,14 @@ use axum::Router;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::any;
+use futures::StreamExt;
 use opentelemetry::KeyValue;
-use semiont::bus::{Bus, Reply as BusReply, operation};
-use semiont::types::{
-    BrowseEntityTypesRequest, BrowseEntityTypesResult, BrowseTagSchemasRequest,
-    BrowseTagSchemasResult, CommandError, TagSchema,
-};
+use semiont::bus::{Bus, payload_of, reply_channels_for};
+use semiont::channels::{BrowseEntityTypesRequested, BrowseTagSchemasRequested, Channel, Request};
+use semiont::errors::relayed_failure_code;
+use semiont::timing::BUS_REQUEST_TIMEOUT;
+use semiont::transport::{Envelope, Transport};
+use semiont::types::{BrowseEntityTypesRequest, BrowseTagSchemasRequest, BusFrame, TagSchema};
 use semiont_core::config::{self, Document};
 use semiont_core::types::{
     DispatcherConfig, DispatcherHealth, DispatcherHealthQueue, DispatcherHealthStatus,
@@ -27,10 +29,9 @@ use semiont_dispatcher_handlers::queue::{JobQueue, Stats};
 use semiont_dispatcher_jetstream::{JetStreamQueue, Settings};
 use semiont_http_transport::service_account::{Credential, ServiceToken};
 use semiont_http_transport::session::{Agent, AgentSession};
-use semiont_http_transport::transport::HttpTransport;
+use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
 use semiont_observability::{logging, telemetry};
-use serde::de::DeserializeOwned;
-use serde_json::{Map, Value, json};
+use serde_json::json;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -41,12 +42,6 @@ const DOCUMENT: Document = Document {
     service: "dispatcher",
     schema: "DispatcherConfig",
 };
-
-const ENTITY_TYPES: &str = "browse:entity-types-requested";
-const TAG_SCHEMAS: &str = "browse:tag-schemas-requested";
-
-/// How long a vocabulary read waits for the Archivist.
-const READ_WITHIN: Duration = Duration::from_secs(30);
 
 const RESTART_HINT: &str = "Exiting so the container restart policy can retry — it is normal for a dependency to be slow when every service restarts at once.";
 
@@ -121,7 +116,7 @@ async fn serve(
         },
         http.clone(),
     );
-    let session = Arc::new(AgentSession::new(
+    let session = AgentSession::sign_in(
         &document.gateway_url,
         Agent {
             provider: "semiont".to_owned(),
@@ -129,11 +124,9 @@ async fn serve(
         },
         service,
         http.clone(),
-    ));
-    session
-        .token()
-        .await
-        .map_err(|e| format!("cannot sign in: {e}"))?;
+    )
+    .await
+    .map_err(|e| format!("cannot sign in: {e}"))?;
     logging::info("Authenticated", json!({ "component": "dispatcher" }));
 
     let (announce, mut announcements) = tokio::sync::mpsc::unbounded_channel();
@@ -151,13 +144,30 @@ async fn serve(
     let queue = Arc::new(queue);
     observe_queue_size(queue.clone(), tick);
 
-    let mut channels: Vec<String> = COMMANDS.iter().map(|c| (*c).to_owned()).collect();
-    for read in [ENTITY_TYPES, TAG_SCHEMAS] {
-        let op =
-            operation(read).ok_or_else(|| format!("the registry declares no operation {read}"))?;
-        channels.extend([op.result.to_owned(), op.failure.to_owned()]);
+    // The stream names what this service answers and the replies it awaits,
+    // and nothing else: it is not sent every other client's replies.
+    let channels: Vec<String> = COMMANDS
+        .iter()
+        .copied()
+        .chain(reply_channels_for(&[
+            BrowseEntityTypesRequested::NAME,
+            BrowseTagSchemasRequested::NAME,
+        ]))
+        .map(str::to_owned)
+        .collect();
+    let transport = HttpTransport::new(HttpTransportConfig {
+        base_url: session.gateway().to_owned(),
+        token: session.token(),
+        refresher: Some(session.clone()),
+        channels: Some(channels),
+        http,
+        timing: Timing::default(),
+    });
+    let mut commands = Vec::new();
+    for command in COMMANDS {
+        commands.push(transport.frames(command).map_err(|e| e.to_string())?);
     }
-    let bus = Arc::new(Bus::new(HttpTransport::open(session, http, channels)));
+    let bus = Bus::new(Arc::new(transport));
     let handlers = Arc::new(Handlers::new(
         queue.clone(),
         Arc::new(BusReads { bus: bus.clone() }),
@@ -166,7 +176,15 @@ async fn serve(
     let announcer = bus.clone();
     tokio::spawn(async move {
         while let Some(event) = announcements.recv().await {
-            if let Err(error) = announcer.emit("job:queued", &event, None).await {
+            let sent = match payload_of(&event) {
+                Ok(payload) => {
+                    announcer
+                        .emit_on("job:queued", payload, Envelope::default())
+                        .await
+                }
+                Err(error) => Err(error),
+            };
+            if let Err(error) = sent {
                 logging::warn(
                     "job:queued not sent",
                     json!({ "component": "dispatcher", "jobId": event.job_id, "error": error.to_string() }),
@@ -175,30 +193,33 @@ async fn serve(
         }
     });
 
-    let mut frames = bus.frames();
+    let mut frames = futures::stream::select_all(commands);
     let answerer = bus.clone();
     tokio::spawn(async move {
-        loop {
-            let received = match frames.recv().await {
-                Ok(received) => received,
-                Err(tokio::sync::broadcast::error::RecvError::Lagged(missed)) => {
+        while let Some(delivered) = frames.next().await {
+            let frame = match delivered {
+                Ok(frame) => frame,
+                Err(lagged) => {
                     logging::error(
                         "Frames missed",
-                        json!({ "component": "dispatcher", "missed": missed }),
+                        json!({ "component": "dispatcher", "missed": lagged.0 }),
                     );
                     continue;
                 }
-                Err(tokio::sync::broadcast::error::RecvError::Closed) => return,
             };
-            if !COMMANDS.contains(&received.frame.channel.as_str()) {
-                continue;
-            }
             let handlers = handlers.clone();
             let bus = answerer.clone();
-            // In the trace the frame was sent under, so the replies are too.
+            // In the trace the frame arrived in, so the replies are too.
             tokio::spawn(async move {
-                telemetry::received(&received, async {
-                    for reply in handlers.handle(received.frame.clone()).await {
+                let trace = frame.trace.clone();
+                telemetry::continuing(trace.as_ref(), async {
+                    let command = BusFrame {
+                        channel: frame.channel,
+                        correlation_id: frame.correlation_id,
+                        payload: frame.payload,
+                        scope: frame.scope,
+                    };
+                    for reply in handlers.handle(command).await {
                         send(&bus, reply).await;
                     }
                 })
@@ -226,13 +247,14 @@ async fn serve(
     Ok(())
 }
 
-async fn send(bus: &Bus<HttpTransport>, reply: Reply) {
-    let sent = match &reply.correlation_id {
-        Some(correlation_id) => {
-            bus.reply(reply.channel, &reply.payload, correlation_id)
-                .await
-        }
-        None => bus.emit(reply.channel, &reply.payload, None).await,
+async fn send(bus: &Bus, reply: Reply) {
+    let envelope = Envelope {
+        correlation_id: reply.correlation_id.clone(),
+        scope: None,
+    };
+    let sent = match payload_of(&reply.payload) {
+        Ok(payload) => bus.emit_on(reply.channel, payload, envelope).await,
+        Err(error) => Err(error),
     };
     if let Err(error) = sent {
         logging::error(
@@ -250,45 +272,38 @@ async fn send(bus: &Bus<HttpTransport>, reply: Reply) {
 /// The vocabulary, read from the Archivist over the bus. A failure it answers
 /// is the refusal, message and code; a failure only this side knows states no code.
 struct BusReads {
-    bus: Arc<Bus<HttpTransport>>,
+    bus: Bus,
 }
 
 impl BusReads {
-    async fn read<T: DeserializeOwned>(
+    /// One read of the vocabulary. A failure the Archivist answers is the
+    /// refusal, with its code; one only this side knows states none.
+    async fn read<R: Request>(
         &self,
-        read: &str,
-        request: &impl serde::Serialize,
-    ) -> Result<T, Refusal> {
-        match self.bus.request(read, request, READ_WITHIN).await {
-            Ok(BusReply::Result(payload)) => decoded(read, payload),
-            Ok(BusReply::Failure(payload)) => {
-                let failure: CommandError = decoded(read, payload)?;
-                Err(Refusal {
-                    message: failure.message,
-                    code: failure.code,
-                })
-            }
-            Err(error) => Err(Refusal::new(error.to_string())),
-        }
+        request: &R::Payload,
+    ) -> Result<<R::Result as Channel>::Payload, Refusal> {
+        self.bus
+            .request::<R>(request, BUS_REQUEST_TIMEOUT)
+            .await
+            .map_err(|error| Refusal {
+                message: error.to_string(),
+                code: relayed_failure_code(&error),
+            })
     }
-}
-
-fn decoded<T: DeserializeOwned>(read: &str, payload: Map<String, Value>) -> Result<T, Refusal> {
-    serde_json::from_value(Value::Object(payload))
-        .map_err(|e| Refusal::new(format!("the reply to {read} does not decode: {e}")))
 }
 
 impl Vocabulary for BusReads {
     async fn entity_types(&self) -> Result<Vec<String>, Refusal> {
-        let result: BrowseEntityTypesResult = self
-            .read(ENTITY_TYPES, &BrowseEntityTypesRequest {})
+        let result = self
+            .read::<BrowseEntityTypesRequested>(&BrowseEntityTypesRequest {})
             .await?;
         Ok(result.response.entity_types)
     }
 
     async fn tag_schemas(&self) -> Result<Vec<TagSchema>, Refusal> {
-        let result: BrowseTagSchemasResult =
-            self.read(TAG_SCHEMAS, &BrowseTagSchemasRequest {}).await?;
+        let result = self
+            .read::<BrowseTagSchemasRequested>(&BrowseTagSchemasRequest {})
+            .await?;
         Ok(result.response.tag_schemas)
     }
 }

@@ -207,6 +207,32 @@
           }
         },
         {
+          "description": "The request a `wire` step named has ended with no answer: the client closed it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "closed"
+          ],
+          "properties": {
+            "closed": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
+          "description": "An upload started with `as`, and not yet settled, has reported all of it sent: every report states the same total, none states less than the one before, and the last states the total.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "progress"
+          ],
+          "properties": {
+            "progress": {
+              "$ref": "#/definitions/name"
+            }
+          }
+        },
+        {
           "description": "The transport comes to report this state.",
           "type": "object",
           "additionalProperties": false,

@@ -5,12 +5,15 @@
  * that service image's NOTICE.
  *
  * An image carries no Cargo.lock and no source, so this is where the crates'
- * licenses are held, before the image exists: from `cargo metadata` for each
- * platform the images are built for, the crates the binary reaches through
- * normal dependencies. A procedural macro runs when the gateway is compiled and
- * ships nothing, so the walk stops at one; build scripts' and tests'
- * dependencies are not normal ones. Cargo's legacy `A/B` license form means
- * `A OR B`.
+ * licenses are held, before the image exists. What a binary links is cargo's
+ * own answer, `cargo tree` for that binary on each platform the images are
+ * built for, over normal dependencies: a procedural macro runs when the binary
+ * is compiled and ships nothing, and build scripts' and tests' dependencies
+ * are not normal ones. It is asked per binary because the workspace's
+ * resolution is not it: there a feature one crate's tests turn on counts for
+ * every crate, so a test harness's dependencies would read as shipped. Each
+ * crate's license, and whether it compiles native code in, is `cargo
+ * metadata`'s. Cargo's legacy `A/B` license form means `A OR B`.
  *
  * A crate that compiles native code into the binary (`links` in its manifest)
  * is one whose license field may not cover all it ships, and metadata cannot
@@ -18,12 +21,14 @@
  * a linked crate with `links` that NATIVE does not describe fails the check, and
  * so does an entry for a crate no longer linked.
  *
- * Usage (the Rust CI job runs it):
- *   cargo metadata --format-version 1 --locked --filter-platform <target> > meta-<target>.json   # per target
- *   node scripts/lint/check-image-crates.mjs meta-*.json            # check
- *   node scripts/lint/check-image-crates.mjs --write meta-*.json    # rewrite the NOTICEs' crate lists
+ * Usage (the Rust CI job runs it), over a directory holding both:
+ *   cargo metadata --format-version 1 --locked > <dir>/metadata.json
+ *   cargo tree --locked -p <binary> -e normal,no-proc-macro --target <target> --prefix none --format '{p}' \
+ *     > <dir>/linked-<binary>-<target>.txt                          # per binary, per target
+ *   node scripts/lint/check-image-crates.mjs <dir>                  # check
+ *   node scripts/lint/check-image-crates.mjs --write <dir>          # rewrite the NOTICEs' crate lists
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadPolicy } from '../../.github/scripts/license-policy.mjs';
@@ -50,43 +55,36 @@ const NATIVE = {
 
 const args = process.argv.slice(2);
 const write = args.includes('--write');
-const inputs = args.filter((a) => a !== '--write');
-if (inputs.length === 0) {
-  console.error('Usage: node scripts/lint/check-image-crates.mjs [--write] <cargo-metadata.json>...');
+const [directory, ...rest] = args.filter((a) => a !== '--write');
+if (!directory || rest.length > 0) {
+  console.error('Usage: node scripts/lint/check-image-crates.mjs [--write] <directory of metadata.json and linked-<binary>-<target>.txt>');
   process.exit(2);
 }
 
-const metadata = inputs.map((input) => ({ input, json: JSON.parse(readFileSync(input, 'utf8')) }));
+const metadata = JSON.parse(readFileSync(join(directory, 'metadata.json'), 'utf8'));
+const packages = new Map(metadata.packages.map((p) => [`${p.name} v${p.version}`, p]));
+const members = new Set(metadata.workspace_members);
 
 /**
- * What `binary` links, over every metadata file (one per platform): each crate
- * from crates.io by name, with its license, and those that compile native code.
+ * What `binary` links, over every platform's listing: each crate from
+ * crates.io by name, with its license, and those that compile native code.
  */
 function linkedBy(binary) {
   const linked = new Map();
   const native = new Set();
-  for (const { input, json } of metadata) {
-    const packages = new Map(json.packages.map((p) => [p.id, p]));
-    const nodes = new Map(json.resolve.nodes.map((n) => [n.id, n]));
-    // The workspace's own crates are the repository's, under its licence: the
-    // walk goes through them, and credits only what they bring from crates.io.
-    const members = new Set(json.workspace_members);
-    const root = json.workspace_members.find((id) => packages.get(id).name === binary);
-    if (!root) throw new Error(`${input}: the workspace has no ${binary} package`);
-    const seen = new Set();
-    const pending = [root];
-    while (pending.length > 0) {
-      const id = pending.pop();
-      if (seen.has(id)) continue;
-      seen.add(id);
-      const pkg = packages.get(id);
-      const macro = pkg.targets.some((t) => t.kind.includes('proc-macro'));
-      if (macro) continue;
-      if (!members.has(id)) linked.set(pkg.name, pkg.license ?? null);
-      if (!members.has(id) && pkg.links) native.add(pkg.name);
-      for (const dep of nodes.get(id).deps) {
-        if (dep.dep_kinds.some((k) => k.kind === null)) pending.push(dep.pkg);
-      }
+  const listings = readdirSync(directory).filter((name) => name.startsWith(`linked-${binary}-`) && name.endsWith('.txt'));
+  if (listings.length === 0) throw new Error(`${directory} holds no linked-${binary}-<target>.txt`);
+  for (const listing of listings) {
+    for (const line of readFileSync(join(directory, listing), 'utf8').split('\n')) {
+      if (line === '') continue;
+      // `name vX.Y.Z`, then a workspace crate's path and, where cargo has listed the crate before, `(*)`.
+      const named = /^(\S+ v\S+)( \(.*\))?$/.exec(line);
+      const pkg = named && packages.get(named[1]);
+      if (!pkg) throw new Error(`${listing}: metadata.json has no package for "${line}"`);
+      // The workspace's own crates are the repository's, under its licence.
+      if (members.has(pkg.id)) continue;
+      linked.set(pkg.name, pkg.license ?? null);
+      if (pkg.links) native.add(pkg.name);
     }
   }
   return { linked, native };
@@ -100,7 +98,7 @@ const nativeAnywhere = new Set();
 for (const { service, binary, notice: noticePath } of IMAGES) {
   const { linked, native } = linkedBy(binary);
   if (linked.size === 0) {
-    problems.push(`the metadata names no crate ${binary} links. Silence is not agreement.`);
+    problems.push(`the listings name no crate ${binary} links. Silence is not agreement.`);
     continue;
   }
   for (const name of native) nativeAnywhere.add(name);

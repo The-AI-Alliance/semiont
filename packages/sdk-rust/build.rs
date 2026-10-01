@@ -1,36 +1,41 @@
-//! Generates the protocol types this SDK's clients hold, from specs/src: the
-//! body of every request and response the API declares but the ones a
-//! service only passes through (`PASSED_THROUGH`), the schemas of the job
-//! protocol's channels, and the reads a job's admission makes, with every
-//! schema they reach (semiont-codegen), into `types.rs`; and the bus
-//! registry's operations — which reply and which failure answer each request —
-//! into `operations.rs`.
+//! Generates, from specs/src, what this SDK's clients hold of the protocol:
+//!
+//! - `types.rs`: the body of every request and response the API declares but
+//!   the ones a service only passes through (`PASSED_THROUGH`), the schemas
+//!   of the job protocol's channels, and the reads a job's admission makes,
+//!   with every schema they reach (semiont-codegen);
+//! - `operations.rs`: the bus registry's operations, which reply and which
+//!   failure answer each request;
+//! - `channels.rs`: the channels every client hears and the channels a
+//!   resource's scope carries, from the registry's `audience`; and a type per
+//!   channel naming its payload's type, with each operation's request tied to
+//!   its result and its failure;
+//! - `error_codes.rs`: the codes a client reports and what maps onto them
+//!   (errors/codes.json);
+//! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
+//!   keeps (client/timing.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
-use semiont_codegen::types::{Generation, generate};
+use semiont_codegen::types::{Generation, generate, pascal};
 use serde_json::Value;
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
 
-/// The schemas generated beside the API's bodies and the job channels': a
-/// failure reply, the job the queue holds, the vocabulary reads admission
-/// makes, and the log settings every public crate's logging takes.
-const BESIDE: [&str; 8] = [
-    "CommandError",
+/// The schemas generated beside the API's bodies and the channels' payloads:
+/// the job the queue holds, an event of the record as the stream carries it,
+/// and the log settings every public crate's logging takes.
+const BESIDE: [&str; 5] = [
     "Job",
-    "BrowseEntityTypesRequest",
-    "BrowseEntityTypesResult",
-    "BrowseTagSchemasRequest",
-    "BrowseTagSchemasResult",
+    "StoredEventResponse",
+    "EnrichedResourceEvent",
     "LogLevel",
     "LogFormat",
 ];
 
-/// Bodies the gateway carries without reading: an upload it streams to the
-/// Archivist, and a resource's description it streams back. Typing them would
-/// generate the whole annotation model for no consumer.
-const PASSED_THROUGH: [&str; 2] = ["ResourceUpload", "GetResourceResponse"];
+/// A body that is not JSON: an upload is a multipart form, whose fields
+/// `semiont::transport::PutBinaryRequest` carries.
+const PASSED_THROUGH: [&str; 1] = ["ResourceUpload"];
 
 /// Every component schema a request or response body of `document`'s paths names.
 fn api_bodies(document: &Value) -> Vec<String> {
@@ -88,15 +93,16 @@ fn main() {
     let channels = registry["channels"]
         .as_array()
         .expect("the bus registry lists channels");
+    // Every channel's payload: the schema it names, or, of an event of the
+    // record, the schema of the event's own payload.
     let mut roots: Vec<String> = channels
         .iter()
-        .filter(|c| {
-            c["channel"]
+        .filter_map(|c| {
+            c["schema"]
                 .as_str()
-                .is_some_and(|name| name.starts_with("job:"))
+                .or(c["payload"].as_str())
+                .map(str::to_owned)
         })
-        .filter(|c| c["shape"] == "schema")
-        .filter_map(|c| c["schema"].as_str().map(str::to_owned))
         .collect();
     let document = Bundle::of(&specs.join("openapi.json"));
     roots.extend(
@@ -145,4 +151,338 @@ fn main() {
     }
     operations.push_str("];\n");
     fs::write(out.join("operations.rs"), operations).expect("cannot write operations.rs");
+
+    fs::write(
+        out.join("channels.rs"),
+        channels_of(&registry) + &typed_channels(&registry, &definitions["definitions"]),
+    )
+    .expect("cannot write channels.rs");
+    fs::write(
+        out.join("error_codes.rs"),
+        error_codes(&read_json(&specs.join("errors/codes.json"))),
+    )
+    .expect("cannot write error_codes.rs");
+    fs::write(
+        out.join("timing.rs"),
+        timing(&read_json(&specs.join("client/timing.json"))),
+    )
+    .expect("cannot write timing.rs");
+}
+
+fn text<'a>(value: &'a Value, key: &str, of: &str) -> &'a str {
+    value[key]
+        .as_str()
+        .unwrap_or_else(|| panic!("{of} has no {key}: {value}"))
+}
+
+fn list<'a>(value: &'a Value, of: &str) -> &'a Vec<Value> {
+    value
+        .as_array()
+        .unwrap_or_else(|| panic!("{of} is not a list: {value}"))
+}
+
+/// The registry's `audience`: `everyone`, with every operation's reply
+/// channels, is what a client with no narrower list of its own subscribes to;
+/// `scoped` is what taking a resource's scope adds.
+fn channels_of(registry: &Value) -> String {
+    let names = |audience: &str| -> Vec<String> {
+        list(&registry["audience"][audience], audience)
+            .iter()
+            .map(|c| {
+                c.as_str()
+                    .unwrap_or_else(|| panic!("audience.{audience} names a non-string: {c}"))
+                    .to_owned()
+            })
+            .collect()
+    };
+    let mut bridged: Vec<String> = Vec::new();
+    for op in list(&registry["operations"], "operations") {
+        for reply in ["result", "failure"] {
+            bridged.push(text(op, reply, "a registry operation").to_owned());
+        }
+    }
+    bridged.extend(names("everyone"));
+    let scoped = names("scoped");
+    if let Some(both) = scoped.iter().find(|c| bridged.contains(c)) {
+        panic!("{both} is delivered both globally and per scope: a client would be given it twice");
+    }
+    let mut code = String::from("// Generated from specs/src/bus/registry.json; do not edit.\n");
+    let mut constant = |docs: &str, name: &str, channels: &[String]| {
+        let _ = writeln!(code, "/// {docs}\npub const {name}: &[&str] = &[");
+        for channel in channels {
+            let _ = writeln!(code, "    {channel:?},");
+        }
+        code.push_str("];\n");
+    };
+    constant(
+        "The channels a client hears globally unless it names a narrower list: every operation's result and failure, and the events sent to every client.",
+        "BRIDGED_CHANNELS",
+        &bridged,
+    );
+    constant(
+        "The channels a resource's scope carries: what holding a resource adds to a client's stream.",
+        "RESOURCE_SCOPED_CHANNELS",
+        &scoped,
+    );
+    code
+}
+
+/// The properties a schema declares whose names begin with `_`: the stamps a
+/// gateway puts on a payload that this payload's type reads.
+fn stamps(definitions: &Value, schema: &Value) -> Vec<String> {
+    let schema = match schema["$ref"]
+        .as_str()
+        .and_then(|r| r.strip_prefix("#/definitions/"))
+    {
+        Some(name) => &definitions[name],
+        None => schema,
+    };
+    let mut declared: Vec<String> = schema["properties"]
+        .as_object()
+        .into_iter()
+        .flat_map(|properties| properties.keys())
+        .filter(|name| name.starts_with('_'))
+        .cloned()
+        .collect();
+    for key in ["allOf", "oneOf", "anyOf"] {
+        for member in schema[key].as_array().into_iter().flatten() {
+            declared.extend(stamps(definitions, member));
+        }
+    }
+    declared.sort();
+    declared.dedup();
+    declared
+}
+
+/// A type per channel, named for it (`job:create` is `JobCreate`), whose
+/// `Channel::Payload` is the type the registry's `shape` gives its payload;
+/// and for each operation, its request tied to its result and its failure.
+fn typed_channels(registry: &Value, definitions: &Value) -> String {
+    let mut code = String::new();
+    let mut markers: Vec<String> = Vec::new();
+    for channel in list(&registry["channels"], "channels") {
+        let name = text(channel, "channel", "a registry channel");
+        let marker = pascal(name);
+        if markers.contains(&marker) {
+            panic!("two channels would both be the type {marker}");
+        }
+        markers.push(marker.clone());
+        let schema = || format!("crate::types::{}", text(channel, "schema", name));
+        let (payload, declared) = match text(channel, "shape", name) {
+            "schema" => (
+                schema(),
+                stamps(definitions, &definitions[text(channel, "schema", name)]),
+            ),
+            "envelope" => (format!("Response<{}>", schema()), Vec::new()),
+            "storedEvent" if channel["enriched"] == true => {
+                ("crate::types::EnrichedResourceEvent".to_owned(), Vec::new())
+            }
+            "storedEvent" => ("crate::types::StoredEventResponse".to_owned(), Vec::new()),
+            "void" | "empty" => ("Empty".to_owned(), Vec::new()),
+            other => panic!("{name} has the shape {other}, which has no Rust type"),
+        };
+        let _ = writeln!(
+            code,
+            "/// `{name}`\npub struct {marker};\nimpl Channel for {marker} {{\n    const NAME: &'static str = {name:?};\n    const STAMPS: &'static [&'static str] = &{declared:?};\n    type Payload = {payload};\n}}"
+        );
+        if channel["shape"] == "storedEvent" {
+            let _ = writeln!(
+                code,
+                "impl Recorded for {marker} {{\n    type Event = crate::types::{};\n    fn event(stored: &Self::Payload) -> Result<Self::Event, serde_json::Error> {{\n        serde_json::from_value(serde_json::Value::Object(stored.payload.clone()))\n    }}\n}}",
+                text(channel, "payload", name)
+            );
+        }
+    }
+    for op in list(&registry["operations"], "operations") {
+        let marker = |key: &str| {
+            let marker = pascal(text(op, key, "a registry operation"));
+            if !markers.contains(&marker) {
+                panic!("an operation's {key} is not a channel of the registry: {op}");
+            }
+            marker
+        };
+        let _ = writeln!(
+            code,
+            "impl Request for {} {{\n    type Result = {};\n    type Failure = {};\n}}",
+            marker("request"),
+            marker("result"),
+            marker("failure")
+        );
+    }
+    code
+}
+
+/// A code's variant: its last dot-separated part, in PascalCase.
+fn variant(code: &str) -> String {
+    pascal(code.rsplit('.').next().unwrap_or(code))
+}
+
+/// One vocabulary of errors/codes.json as an enum whose `as_str` is the code.
+fn code_enum(code: &mut String, name: &str, vocabulary: &Value) -> Vec<(String, Value)> {
+    let entries: Vec<(String, Value)> = list(&vocabulary["codes"], name)
+        .iter()
+        .map(|entry| (text(entry, "code", name).to_owned(), entry.clone()))
+        .collect();
+    let _ = writeln!(
+        code,
+        "/// {}\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum {name} {{",
+        text(vocabulary, "docs", name)
+    );
+    for (value, entry) in &entries {
+        let _ = writeln!(
+            code,
+            "    /// {}\n    {},",
+            text(entry, "docs", value),
+            variant(value)
+        );
+    }
+    let _ = writeln!(
+        code,
+        "}}\n\nimpl {name} {{\n    /// The code as every SDK reports it.\n    pub const fn as_str(self) -> &'static str {{\n        match self {{"
+    );
+    for (value, _) in &entries {
+        let _ = writeln!(code, "            {name}::{} => {value:?},", variant(value));
+    }
+    code.push_str("        }\n    }\n}\n\n");
+    entries
+}
+
+fn error_codes(table: &Value) -> String {
+    let mut code = String::from("// Generated from specs/src/errors/codes.json; do not edit.\n");
+
+    let bus = code_enum(&mut code, "BusRequestErrorCode", &table["busRequest"]);
+    let unrecognized = text(&table["busRequest"], "unrecognizedFailure", "busRequest");
+    if !bus.iter().any(|(value, _)| value == unrecognized) {
+        panic!(
+            "busRequest.unrecognizedFailure names {unrecognized}, which is not one of its codes"
+        );
+    }
+    code.push_str(
+        "impl BusRequestErrorCode {\n    /// The code a failure's own code (`CommandError.code`) becomes; one it states none of, or one this vocabulary does not name, is the table's `unrecognizedFailure`.\n    pub fn of_wire(code: Option<&str>) -> BusRequestErrorCode {\n        match code {\n",
+    );
+    for (value, entry) in &bus {
+        if let Some(wire) = entry["wire"].as_str() {
+            let _ = writeln!(
+                code,
+                "            Some({wire:?}) => BusRequestErrorCode::{},",
+                variant(value)
+            );
+        }
+    }
+    let _ = writeln!(
+        code,
+        "            _ => BusRequestErrorCode::{},\n        }}\n    }}\n",
+        variant(unrecognized)
+    );
+    code.push_str(
+        "    /// The wire code a peer stated, when this code restates one: what a service answers its own caller with. A failure only this side knows states none.\n    pub const fn wire(self) -> Option<crate::types::CommandErrorCode> {\n        match self {\n",
+    );
+    for (value, entry) in &bus {
+        if let Some(wire) = entry["wire"].as_str() {
+            let _ = writeln!(
+                code,
+                "            BusRequestErrorCode::{} => Some(crate::types::CommandErrorCode::{}),",
+                variant(value),
+                pascal(wire)
+            );
+        }
+    }
+    code.push_str("            _ => None,\n        }\n    }\n}\n\n");
+
+    let transport = code_enum(&mut code, "TransportErrorCode", &table["transport"]);
+    let unclassified = text(&table["transport"], "unclassified", "transport");
+    if !transport.iter().any(|(value, _)| value == unclassified) {
+        panic!("transport.unclassified names {unclassified}, which is not one of its codes");
+    }
+    code.push_str(
+        "impl TransportErrorCode {\n    /// The code an HTTP status becomes.\n    pub const fn of_status(status: u16) -> TransportErrorCode {\n        match status {\n",
+    );
+    for (value, entry) in &transport {
+        if let Some(status) = entry["status"].as_u64() {
+            let _ = writeln!(
+                code,
+                "            {status} => TransportErrorCode::{},",
+                variant(value)
+            );
+        }
+    }
+    let mut from: Vec<(u64, &String)> = transport
+        .iter()
+        .filter_map(|(value, entry)| entry["statusFrom"].as_u64().map(|status| (status, value)))
+        .collect();
+    from.sort_by_key(|(status, _)| std::cmp::Reverse(*status));
+    for (status, value) in from {
+        let _ = writeln!(
+            code,
+            "            {status}.. => TransportErrorCode::{},",
+            variant(value)
+        );
+    }
+    let _ = writeln!(
+        code,
+        "            _ => TransportErrorCode::{},\n        }}\n    }}\n}}\n",
+        variant(unclassified)
+    );
+
+    code_enum(&mut code, "SessionErrorCode", &table["session"]);
+    code
+}
+
+/// `busRequestTimeoutMs` as `BUS_REQUEST_TIMEOUT_MS`.
+fn screaming(name: &str) -> String {
+    let mut out = String::new();
+    for c in name.chars() {
+        if c.is_ascii_uppercase() {
+            out.push('_');
+        }
+        out.push(c.to_ascii_uppercase());
+    }
+    out
+}
+
+/// Each entry by the kind its name's ending states: `Ms` a duration, `Retry`
+/// a budget, `Count` a whole number.
+fn timing(table: &Value) -> String {
+    let mut code = String::from("// Generated from specs/src/client/timing.json; do not edit.\n");
+    for entry in list(&table["timing"], "timing") {
+        let name = text(entry, "name", "a timing entry");
+        let value = &entry["value"];
+        let whole = |key: Option<&str>| -> u64 {
+            let stated = match key {
+                Some(key) => &value[key],
+                None => value,
+            };
+            stated
+                .as_u64()
+                .unwrap_or_else(|| panic!("{name} is not a whole number: {entry}"))
+        };
+        let _ = writeln!(code, "/// {}", text(entry, "docs", name));
+        if let Some(stem) = name.strip_suffix("Ms") {
+            let _ = writeln!(
+                code,
+                "pub const {}: std::time::Duration = std::time::Duration::from_millis({});",
+                screaming(stem),
+                whole(None)
+            );
+        } else if name.ends_with("Retry") {
+            let _ = writeln!(
+                code,
+                "pub const {}: crate::retry::RetryPolicy = crate::retry::RetryPolicy {{ attempts: {}, initial_delay: std::time::Duration::from_millis({}), max_delay: std::time::Duration::from_millis({}) }};",
+                screaming(name),
+                whole(Some("attempts")),
+                whole(Some("initialDelayMs")),
+                whole(Some("maxDelayMs"))
+            );
+        } else if name.ends_with("Count") {
+            let _ = writeln!(
+                code,
+                "pub const {}: usize = {};",
+                screaming(name),
+                whole(None)
+            );
+        } else {
+            panic!("{name} ends in none of Ms, Retry and Count, so its kind is not stated");
+        }
+    }
+    code
 }

@@ -67,12 +67,32 @@ describe('the corpus against the tables it restates', () => {
   });
 });
 
-for (const [sdk, { wire }] of Object.entries(inject('sdkDrivers'))) {
+describe('the exemptions', () => {
+  it('each names a case of the corpus, and says why', () => {
+    for (const [sdk, { exempt }] of Object.entries(inject('sdkDrivers'))) {
+      for (const [name, why] of Object.entries(exempt ?? {})) {
+        expect(corpus.map((c) => c.name), `${sdk} is exempt from ${name}`).toContain(name);
+        expect(why.trim(), `why ${sdk} is exempt from ${name}`).not.toBe('');
+      }
+    }
+  });
+});
+
+for (const [sdk, { wire, exempt }] of Object.entries(inject('sdkDrivers'))) {
   if (!wire) continue;
   eachPlane(`the ${sdk} SDK on the wire`, (world, plane) => {
     for (const kase of corpus) {
       if (kase.planes && !kase.planes.includes(plane)) continue;
-      it(`${kase.name}: ${kase.about}`, () => runCase(world(), wire, kase, 'wire'));
+      const why = exempt?.[kase.name];
+      if (why === undefined) {
+        it(`${kase.name}: ${kase.about}`, () => runCase(world(), wire, kase, 'wire'));
+      } else {
+        // An exemption is held, not taken on trust: the driver must say it
+        // cannot do what the case asks. One that can is no longer exempt.
+        it(`${kase.name}: exempt, because ${why}`, async () => {
+          await expect(runCase(world(), wire, kase, 'wire')).rejects.toThrow(/the driver does not implement /);
+        });
+      }
     }
   });
 }

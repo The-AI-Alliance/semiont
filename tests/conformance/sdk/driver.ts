@@ -2,7 +2,8 @@
  * The suite's end of the driver protocol (README.md § The driver protocol): it
  * starts an SDK's driver, sends it operations, and keeps what the driver says
  * it did and saw — each operation's outcome, the states its transport passed
- * through, the frames it delivered and the failures its error stream carried.
+ * through, the frames it delivered, the failures its error stream carried and
+ * the progress its uploads reported.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
@@ -18,6 +19,12 @@ export interface DeliveredFrame {
 export interface ReportedFailure {
   code?: string;
   status?: number;
+}
+
+/** How much of an upload a client says it has sent. */
+export interface ReportedProgress {
+  bytesUploaded: number;
+  totalBytes: number;
 }
 
 /** A state a live query's observer was in, as the protocol carries it. */
@@ -60,6 +67,8 @@ export class Driver {
   readonly emissions = new Map<string, ObservedState[]>();
   /** The observers whose live query completed. */
   readonly completed = new Set<string>();
+  /** The progress each upload reported, by the id of its operation, in order. */
+  readonly progress = new Map<number, ReportedProgress[]>();
   /** Lines the driver wrote that the protocol does not allow. */
   readonly violations: string[] = [];
   /** What it wrote to stderr: shown when a case fails. */
@@ -120,6 +129,13 @@ export class Driver {
       delivered.push({ payload, ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope }) });
     } else if (keys.length === 1 && failureOf(message['error'])) {
       this.failures.push(failureOf(message['error'])!);
+    } else if (keys.length === 1 && isObject(message['progress']) && typeof message['progress']['upload'] === 'number') {
+      const { upload, bytesUploaded, totalBytes, ...rest } = message['progress'];
+      if (Object.keys(rest).length > 0 || typeof bytesUploaded !== 'number' || typeof totalBytes !== 'number') {
+        this.violations.push(`a progress report the protocol does not allow: ${line.slice(0, 200)}`);
+        return;
+      }
+      this.progress.set(upload, [...(this.progress.get(upload) ?? []), { bytesUploaded, totalBytes }]);
     } else if (keys.length === 1 && typeof message['completed'] === 'string') {
       this.completed.add(message['completed']);
     } else if (keys.length === 1 && isObject(message['emission']) && typeof message['emission']['observer'] === 'string') {
@@ -161,6 +177,11 @@ export class Driver {
     const id = this.nextId++;
     this.child.stdin!.write(`${JSON.stringify({ id, op, ...args })}\n`);
     return id;
+  }
+
+  /** How an operation settled, if it has. */
+  settled(id: number): Outcome | undefined {
+    return this.outcomes.get(id);
   }
 
   outcome(id: number, what: string, timeoutMs: number): Promise<Outcome> {

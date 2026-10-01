@@ -13,15 +13,57 @@ use std::sync::OnceLock;
 static ENABLED: OnceLock<bool> = OnceLock::new();
 static TRACE_ID: OnceLock<fn() -> Option<String>> = OnceLock::new();
 
+/// The lines a test asked to be given in place of stderr.
+#[cfg(feature = "testing")]
+static CAPTURED: std::sync::Mutex<Option<Vec<String>>> = std::sync::Mutex::new(None);
+
+/// From now on the bus log is on, and its lines are kept for `captured`
+/// rather than written: for a test that reads what was logged.
+#[cfg(feature = "testing")]
+pub fn capture() {
+    *CAPTURED.lock().unwrap_or_else(|p| p.into_inner()) = Some(Vec::new());
+}
+
+/// The lines logged since `capture`.
+#[cfg(feature = "testing")]
+pub fn captured() -> Vec<String> {
+    CAPTURED
+        .lock()
+        .unwrap_or_else(|p| p.into_inner())
+        .clone()
+        .unwrap_or_default()
+}
+
 /// Read once, on first use.
 fn enabled() -> bool {
+    #[cfg(feature = "testing")]
+    if CAPTURED.lock().unwrap_or_else(|p| p.into_inner()).is_some() {
+        return true;
+    }
     *ENABLED
         .get_or_init(|| std::env::var_os("SEMIONT_BUS_LOG").is_some_and(|value| !value.is_empty()))
+}
+
+fn write(line: String) {
+    #[cfg(feature = "testing")]
+    if let Some(lines) = CAPTURED.lock().unwrap_or_else(|p| p.into_inner()).as_mut() {
+        lines.push(line);
+        return;
+    }
+    let mut stderr = std::io::stderr().lock();
+    let _ = writeln!(stderr, "{line}");
 }
 
 /// How to read the active span's trace id, for the `trace=` field.
 pub fn set_trace_id_provider(provider: fn() -> Option<String>) {
     let _ = TRACE_ID.set(provider);
+}
+
+/// A line about a channel that is not a frame: `[bus <op>] <channel> <note>`.
+pub fn bus_note(op: &str, channel: &str, note: &str) {
+    if enabled() {
+        write(format!("[bus {op}] {channel} {note}"));
+    }
 }
 
 pub fn bus_log(
@@ -47,6 +89,5 @@ pub fn bus_log(
             trace.chars().take(8).collect::<String>()
         ));
     }
-    let mut stderr = std::io::stderr().lock();
-    let _ = writeln!(stderr, "{tag} {payload}");
+    write(format!("{tag} {payload}"));
 }
