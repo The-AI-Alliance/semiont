@@ -20,6 +20,7 @@
 
 use crate::errors::{BusRequestError, BusRequestErrorCode, TransportError};
 use crate::event_bus::EventBus;
+use crate::locked;
 use crate::types::{
     CreateResourceResponse, GetResourceResponse, HealthResponse, MediaTokenResponse,
     ProtectedResourceMetadata, StatusResponse, UserResponse,
@@ -31,7 +32,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::future::{Future, IntoFuture};
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use tokio::sync::{broadcast, mpsc, oneshot, watch};
 use tokio_stream::wrappers::BroadcastStream;
@@ -43,12 +44,6 @@ pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 /// How many items of one event stream a reader may fall behind before it
 /// misses some.
 pub const STREAM_BACKLOG: usize = 1024;
-
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
 
 // ── The connection ──────────────────────────────────────────────────────
 

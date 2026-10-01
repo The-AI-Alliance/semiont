@@ -4,6 +4,7 @@ Semiont's Rust SDK: a client of a knowledge base, as
 [`specs/`](../../specs/src/openapi.json) states it, over any transport.
 
 ```rust
+use semiont::state::MarkStateUnit;
 use semiont::types::Motivation;
 
 // A client over a gateway is `semiont_http_transport::client::client`.
@@ -20,6 +21,14 @@ while let Some(state) = annotations.next().await {
 let mut assist = client.mark.assist("res-1", Motivation::Highlighting, Default::default());
 while let Some(event) = assist.next().await {
     println!("{:?}", event?);
+}
+
+// A flow is held as state by a unit over the client, which it is given as
+// an `Arc`: here, the annotation being composed on a resource.
+let marking = MarkStateUnit::new(client.clone(), "res-1");
+let mut pending = marking.pending();
+while pending.changed().await.is_ok() {
+    println!("{:?}", *pending.borrow_and_update());
 }
 client.close().await;
 ```
@@ -101,9 +110,40 @@ client.close().await;
 - `bus` — a client of the bus over a `Transport`: typed emits, streams and
   requests, answered on the registry's result and failure channels or failed
   under a shared code.
-- `event_bus` — a client's own bus, for what never leaves the process.
-- `state_unit` — the unit a client's live state is built from: a current
-  value, read or watched, that ends when it is closed or dropped.
+- `event_bus` — a client's own bus, for what never leaves the process. A
+  view of one channel gives its frames in order; `frames_among` is one view
+  of several channels, for a reader that needs what was said in the order it
+  was said.
+- `state` — the flows, held as state. A unit is built over an
+  `Arc<SemiontClient>` it never closes, listens to the client's own bus from
+  the moment it exists, and is read through `tokio::sync::watch` receivers:
+  the value now, and each value after it. `dispose` ends it, and so does
+  dropping it.
+
+  | Unit | holds | hears, or is told |
+  |---|---|---|
+  | `MarkStateUnit` (one resource) | the annotation being composed; the motivation and progress of the assist running | `client.mark.request`, `submit`, `cancel_pending`, `request_assist`, `dismiss_progress`; `mark:select-*` and `mark:delete` on the client's bus |
+  | `GatherStateUnit` (one resource) | an annotation's context, and a resource's, each with its loading and its failure | `gather:requested` on the client's bus; `gather_resource` |
+  | `MatchStateUnit` | nothing: it answers on the bus, under the asker's correlation id | `client.match_.request_search` |
+  | `YieldStateUnit` | whether a generation runs, its progress, and what it produced | `generate`, `dismiss_progress` |
+  | `BeckonStateUnit` | the annotation hovered | `client.beckon.hover`; an annotation opened, here or by another participant; `focus` |
+  | `SearchPipeline<T>` | a query and the results of the query it settled on | `set_query` |
+
+  A unit acts on a signal a turn of the runtime after it is said, and in the
+  order signals were said; a state one of its own methods sets is set when
+  the method returns. A request a unit makes has the client's deadline, and
+  a unit adds none. An assist that says nothing for `ASSIST_SILENCE` is said
+  to have gone quiet (`mark:assist-timeout`) and is still followed.
+  `HoverDwell` is the pointer's rest before a hover is said.
+
+  One thing differs from the TypeScript client. Marking composes with
+  `MarkSubmitEventSelector`, creates with `AnnotationTargetSelector` and is
+  asked with `MarkRequestedEventSelector`: the spec states the one union of
+  selectors in three schemas, and Rust has a type for each.
+- `state_unit` — what every unit commits to: `dispose`, idempotent, after
+  which it is inert and its readers have ended. [tests/census.rs](tests/census.rs)
+  fails a unit that has no test holding it to the axioms, and any `static`
+  in the crate: state outside an instance is state two units share.
 - `retry` and `session` — when a failure is worth another attempt and when a
   token is renewed, held to the shared case tables in `specs/src` (`tests/`).
 - `bus_log` — `SEMIONT_BUS_LOG`: one grep-able line per frame a process sends
@@ -115,8 +155,10 @@ client.close().await;
   that fails as a test scripts it and refuses an operation nobody scripted;
   `InMemoryContent`, which keeps what is uploaded and fails a read of what
   nobody stored; `StubGateway`, which answers only what it was told to; and
-  the harnesses for the state-unit axioms and the liveness axioms (generated
-  schedules of faults), which a transport's own tests run too.
+  the harnesses for the state-unit axioms (`axioms`, which a consumer's own
+  units are held to: `Fresh::of(unit).given(client)` says what the unit was
+  given and must not dispose) and the liveness axioms (generated schedules
+  of faults), which a transport's own tests run too.
 
 A stream of events says when it fell behind (`Lagged`) instead of dropping
 frames silently. No HTTP and no telemetry library: those are its transport's
@@ -126,4 +168,5 @@ dispatcher conformance suite runs against a dispatcher built on it. The SDK
 conformance suite ([tests/conformance/sdk](../../tests/conformance/sdk/README.md))
 holds its transport to the wire corpus and its client's queries to the live
 corpus, at full parity with TypeScript's; [tests/cache.rs](tests/cache.rs)
-and [tests/queries.rs](tests/queries.rs) hold the cache clause by clause.
+and [tests/queries.rs](tests/queries.rs) hold the cache clause by clause,
+and [tests/state.rs](tests/state.rs) each state unit behaviour by behaviour.

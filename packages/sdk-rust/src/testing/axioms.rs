@@ -8,7 +8,7 @@
 //!   surface taken afterwards has already ended.
 //! - **A6** every reader of a surface taken before `dispose` sees it end.
 //! - **A7-passed** disposing the unit does not dispose a dependency it was
-//!   given.
+//!   given: a `DisposeProbe` standing in for one, or the client itself.
 //! - **A7-owned** disposing the unit ends the surfaces of the children it
 //!   made.
 //! - **X3** instances are isolated: driving one never moves another's
@@ -18,6 +18,7 @@
 //! spawns tasks or keeps timers is given the chance to act on what the
 //! harness did before the harness looks.
 
+use crate::client::SemiontClient;
 use crate::state_unit::StateUnit;
 use futures_core::Stream;
 use proptest::collection::vec;
@@ -108,6 +109,19 @@ impl<S: Stream + Unpin> Surface for StreamSurface<S> {
     }
 }
 
+/// A dependency a unit was given, as the axioms watch it.
+pub trait Given {
+    /// Whether anything has disposed it.
+    fn disposed(&self) -> bool;
+}
+
+/// A client is disposed when it is closed, and closing it ends its own bus.
+impl Given for Arc<SemiontClient> {
+    fn disposed(&self) -> bool {
+        self.bus().destroyed()
+    }
+}
+
 /// A stand-in for a dependency a unit is given. Pass one to the unit, list it
 /// in `Fresh::passed_in`, and the axioms check the unit never disposed it.
 #[derive(Clone, Default)]
@@ -131,11 +145,17 @@ impl StateUnit for DisposeProbe {
     }
 }
 
+impl Given for DisposeProbe {
+    fn disposed(&self) -> bool {
+        self.dispose_count() > 0
+    }
+}
+
 /// A freshly built unit, and what it was built with.
 pub struct Fresh<U> {
     pub unit: U,
-    /// The probes passed to it as dependencies.
-    pub passed_in: Vec<DisposeProbe>,
+    /// What it was given as dependencies.
+    pub passed_in: Vec<Box<dyn Given>>,
 }
 
 impl<U> Fresh<U> {
@@ -144,6 +164,12 @@ impl<U> Fresh<U> {
             unit,
             passed_in: Vec::new(),
         }
+    }
+
+    /// The same, with one more dependency the unit was given.
+    pub fn given(mut self, dependency: impl Given + 'static) -> Fresh<U> {
+        self.passed_in.push(Box::new(dependency));
+        self
     }
 }
 
@@ -208,7 +234,7 @@ pub fn assert_state_unit_axioms<S: AxiomSubject>(subject: &S) -> Result<(), Stri
         .build()
         .map_err(|e| format!("cannot build a runtime for the axioms: {e}"))?;
     let undisposed = |fresh: &Fresh<S::Unit>, when: &str| -> Result<(), String> {
-        match fresh.passed_in.iter().position(|p| p.dispose_count() > 0) {
+        match fresh.passed_in.iter().position(|given| given.disposed()) {
             Some(i) => Err(format!(
                 "the unit disposed dependency #{i} it was given {when}"
             )),
@@ -337,6 +363,8 @@ pub fn assert_state_unit_axioms<S: AxiomSubject>(subject: &S) -> Result<(), Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::client::ClientOptions;
+    use crate::testing::{FaultyTransport, InMemoryContent};
     use std::sync::Mutex;
 
     type Value = Arc<Mutex<Option<watch::Sender<u32>>>>;
@@ -431,10 +459,12 @@ mod tests {
 
         fn setup(&self) -> Fresh<Counter> {
             let given = DisposeProbe::new();
-            Fresh {
-                unit: Counter::new(self.faults, given.clone(), self.instances.clone()),
-                passed_in: vec![given],
-            }
+            Fresh::of(Counter::new(
+                self.faults,
+                given.clone(),
+                self.instances.clone(),
+            ))
+            .given(given)
         }
 
         fn surfaces(&self, unit: &Counter) -> Vec<Box<dyn Surface>> {
@@ -499,6 +529,38 @@ mod tests {
             disposes_what_it_was_given: true,
             ..Faults::default()
         });
+        assert!(violation.starts_with("A7-passed:"), "{violation}");
+    }
+
+    /// A unit over a client, which it closes when it is disposed.
+    struct ClosesItsClient(Arc<SemiontClient>);
+
+    impl StateUnit for ClosesItsClient {
+        fn dispose(&self) {
+            self.0.bus().destroy();
+        }
+    }
+
+    struct ClientClosers;
+
+    impl AxiomSubject for ClientClosers {
+        type Unit = ClosesItsClient;
+
+        fn setup(&self) -> Fresh<ClosesItsClient> {
+            let client = Arc::new(SemiontClient::new(
+                Arc::new(FaultyTransport::new(vec![])),
+                Arc::new(InMemoryContent::new()),
+                None,
+                ClientOptions::default(),
+            ));
+            Fresh::of(ClosesItsClient(client.clone())).given(client)
+        }
+    }
+
+    #[test]
+    fn a_unit_that_closes_the_client_it_was_given_breaks_a7_passed() {
+        let violation =
+            assert_state_unit_axioms(&ClientClosers).expect_err("the fault must be caught");
         assert!(violation.starts_with("A7-passed:"), "{violation}");
     }
 

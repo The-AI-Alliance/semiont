@@ -215,6 +215,7 @@ impl Types<'_> {
             code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize, serde::Serialize)]\n");
             let _ = writeln!(code, "pub enum {name} {{");
             let mut taken: Vec<String> = Vec::new();
+            let mut spellings = String::new();
             for value in values {
                 let value = value
                     .as_str()
@@ -226,9 +227,14 @@ impl Types<'_> {
                     panic!("{name}: two enum values would both be the variant {variant}");
                 }
                 let _ = writeln!(code, "    #[serde(rename = \"{value}\")]\n    {variant},");
+                let _ = writeln!(spellings, "            {name}::{variant} => {value:?},");
                 taken.push(variant);
             }
             code.push_str("}\n\n");
+            let _ = writeln!(
+                code,
+                "impl {name} {{\n    /// The value as the wire spells it.\n    pub const fn as_str(&self) -> &'static str {{\n        match self {{\n{spellings}        }}\n    }}\n}}\n"
+            );
             return code;
         }
         if self.is_string(schema) {
@@ -581,6 +587,20 @@ mod tests {
         );
         assert!(
             code.contains("#[serde(rename = \"image/svg+xml\")]\n    ImageSvgPlusXml,"),
+            "{code}"
+        );
+    }
+
+    #[test]
+    fn an_enum_says_each_value_as_the_wire_spells_it() {
+        let code = generated(
+            json!({ "Tone": { "type": "string", "enum": ["scholarly", "text/x-c++"] } }),
+            "Tone",
+        );
+        assert!(
+            code.contains(
+                "impl Tone {\n    /// The value as the wire spells it.\n    pub const fn as_str(&self) -> &'static str {\n        match self {\n            Tone::Scholarly => \"scholarly\",\n            Tone::TextXCPlusPlus => \"text/x-c++\",\n        }\n    }\n}"
+            ),
             "{code}"
         );
     }

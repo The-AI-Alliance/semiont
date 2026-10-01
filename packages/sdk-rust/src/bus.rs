@@ -277,7 +277,7 @@ impl std::error::Error for StreamError {}
 
 /// A payload as the channel `C` types it. A gateway's stamps the type does
 /// not declare are the bus's, not the payload's, and are left out.
-fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, String> {
+pub(crate) fn decoded<C: Channel>(mut payload: Map<String, Value>) -> Result<C::Payload, String> {
     payload.retain(|key, _| !key.starts_with('_') || C::STAMPS.contains(&key.as_str()));
     serde_json::from_value(Value::Object(payload))
         .map_err(|error| format!("a payload on {} is not that channel's: {error}", C::NAME))

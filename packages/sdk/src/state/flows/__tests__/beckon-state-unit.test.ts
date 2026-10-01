@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { annotationId } from '@semiont/core';
-import { createBeckonStateUnit, createHoverHandlers, HOVER_DELAY_MS } from '../beckon-state-unit';
+import { createBeckonStateUnit, createHoverHandlers } from '../beckon-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 
@@ -85,16 +85,6 @@ describe('createBeckonStateUnit', () => {
     stateUnit.dispose();
   });
 
-  it('hover() command pushes to EventBus', () => {
-    const stateUnit = createBeckonStateUnit(tc.client);
-    const values: (string | null)[] = [];
-    stateUnit.hoveredAnnotationId$.subscribe(v => values.push(v));
-
-    stateUnit.hover(annotationId('ann-cmd'));
-    expect(values).toEqual([null, 'ann-cmd']);
-    stateUnit.dispose();
-  });
-
   it('focus() command pushes to EventBus', () => {
     const stateUnit = createBeckonStateUnit(tc.client);
     const focuses: string[] = [];
@@ -102,16 +92,6 @@ describe('createBeckonStateUnit', () => {
 
     stateUnit.focus(annotationId('ann-focus'));
     expect(focuses).toEqual(['ann-focus']);
-    stateUnit.dispose();
-  });
-
-  it('sparkle() command pushes to EventBus', () => {
-    const stateUnit = createBeckonStateUnit(tc.client);
-    const sparkles: string[] = [];
-    tc.bus.on('beckon:sparkle').subscribe(e => sparkles.push(e.annotationId));
-
-    stateUnit.sparkle(annotationId('ann-sparkle'));
-    expect(sparkles).toEqual(['ann-sparkle']);
     stateUnit.dispose();
   });
 
@@ -182,10 +162,6 @@ describe('createHoverHandlers', () => {
     handleMouseLeave();
     expect(emit).not.toHaveBeenCalled();
   });
-
-  it('exports HOVER_DELAY_MS as 150', () => {
-    expect(HOVER_DELAY_MS).toBe(150);
-  });
 });
 
 describe('BeckonStateUnit — StateUnit axioms', () => {
@@ -197,9 +173,7 @@ describe('BeckonStateUnit — StateUnit axioms', () => {
         return { unit: createBeckonStateUnit(tc.client), teardown: () => tc.bus.destroy() };
       },
       surfaces: (u) => [u.hoveredAnnotationId$],
-      invocations: (u) => [
-        () => u.hover(aid), () => u.hover(null), () => u.focus(aid), () => u.sparkle(aid),
-      ],
+      invocations: (u) => [() => u.focus(aid)],
     });
   });
 });

@@ -5,13 +5,14 @@
 //! rather than on bytes the double made up.
 
 use crate::errors::TransportError;
+use crate::locked;
 use crate::transport::{
     BoxFuture, Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress,
 };
 use crate::types::{CreateResourceResponse, GetResourceResponse};
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use tokio::sync::mpsc;
 
@@ -29,12 +30,6 @@ struct Inner {
     stored: Mutex<HashMap<String, Content>>,
     graphs: Mutex<HashMap<String, GetResourceResponse>>,
     calls: Mutex<Vec<ContentCall>>,
-}
-
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn not_found(what: &str, resource_id: &str) -> TransportError {

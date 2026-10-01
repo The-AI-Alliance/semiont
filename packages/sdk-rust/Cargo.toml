@@ -25,7 +25,8 @@ uuid = { workspace = true, features = ["v4"] }
 base64.workspace = true
 # This crate's own tests use its testing surface.
 semiont = { workspace = true, features = ["testing"] }
-tokio = { workspace = true, features = ["test-util"] }
+# The multi-threaded runtime is for the tests that hold a unit to the order it hears things in.
+tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
 
 [build-dependencies]
 semiont-codegen.workspace = true

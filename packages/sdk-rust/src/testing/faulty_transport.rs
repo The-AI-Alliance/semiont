@@ -18,6 +18,7 @@ use crate::bus::operation;
 use crate::channels::BRIDGED_CHANNELS;
 use crate::errors::{BusRequestError, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
+use crate::locked;
 use crate::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, Frames, PendingReply,
     ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport,
@@ -25,7 +26,7 @@ use crate::transport::{
 use serde_json::{Map, Value};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{broadcast, watch};
 
@@ -94,12 +95,6 @@ struct Inner {
     failures: Mutex<Option<broadcast::Sender<TransportError>>>,
     bridges: Mutex<Vec<Arc<EventBus>>>,
     closed: AtomicBool,
-}
-
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 impl Inner {

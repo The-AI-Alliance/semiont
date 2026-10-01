@@ -29,6 +29,7 @@ use crate::client::{CachePersistence, Links};
 use crate::errors::{
     BusRequestError, BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode,
 };
+use crate::locked;
 use crate::refresh::{CacheQuery, Reach, RefreshTrigger, RefreshWhen};
 use crate::state_unit::StateUnit;
 use crate::transport::{
@@ -51,7 +52,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Map;
 use std::collections::HashMap;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 use std::time::Duration;
 use tokio::sync::watch;
@@ -153,12 +154,6 @@ async fn limits_reported(links: &Links, operation: &Operation) -> Vec<InferenceP
     serde_json::from_value::<InferenceLimitsResultResponse>(response)
         .map(|reported| reported.limits)
         .unwrap_or_default()
-}
-
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 // ── Windows ─────────────────────────────────────────────────────────────

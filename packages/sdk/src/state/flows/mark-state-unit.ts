@@ -1,17 +1,10 @@
 import { BehaviorSubject, type Observable, type Subscription } from 'rxjs';
+import { ASSIST_SILENCE_MS } from '@semiont/core';
 import type { ResourceId, Motivation, Selector, EventMap, components } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 
 type JobProgress = components['schemas']['JobProgress'];
-
-/**
- * How long the client waits for ANY emission before telling the user the job
- * has gone quiet. Not a deadline on the job — see the silence detector in
- * `createMarkStateUnit`. Sized above the worker's ~15 s in-flight heartbeat
- * (DETECTION-HEARTBEAT), so reaching it means real silence, not a long call.
- */
-export const ASSIST_SILENCE_MS = 180_000;
 
 export interface PendingAnnotation {
   selector: Selector | Selector[];

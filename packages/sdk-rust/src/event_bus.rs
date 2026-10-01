@@ -7,6 +7,11 @@
 //! sees one or the other: the global view of a channel does not see a frame
 //! published into a scope, and a scope's view sees only its own.
 //!
+//! A view of one channel gives its frames in the order they were published.
+//! Two views give no order between them, so a reader of several channels
+//! that needs what was said in the order it was said takes one view of them
+//! all (`frames_among`).
+//!
 //! By type (`publish`, `stream`), the channel is a type of `crate::channels`
 //! and the payload is that channel's own, as on `crate::bus::Bus`.
 
@@ -27,6 +32,8 @@ type View = (String, Option<String>);
 
 struct Channels {
     frames: HashMap<String, broadcast::Sender<Frame>>,
+    /// The views of several channels at once, each with the channels it sees.
+    among: Vec<(Vec<String>, broadcast::Sender<Frame>)>,
     /// How many readers each view has: what `emit` reports.
     observers: HashMap<View, usize>,
 }
@@ -53,24 +60,30 @@ impl Inner {
             .get(&(channel.to_owned(), envelope.scope.clone()))
             .copied()
             .unwrap_or(0);
+        let frame = Frame {
+            channel: channel.to_owned(),
+            payload,
+            correlation_id: envelope.correlation_id,
+            scope: envelope.scope,
+            trace: None,
+        };
+        for (seen, sender) in &channels.among {
+            if seen.iter().any(|one| one == channel) {
+                let _ = sender.send(frame.clone());
+            }
+        }
         if let Some(sender) = channels.frames.get(channel) {
-            let _ = sender.send(Frame {
-                channel: channel.to_owned(),
-                payload,
-                correlation_id: envelope.correlation_id,
-                scope: envelope.scope,
-                trace: None,
-            });
+            let _ = sender.send(frame);
         }
         observers
     }
 
     fn frames(self: &Arc<Self>, channel: &str, scope: Option<String>) -> BusFrames {
-        let view = (channel.to_owned(), scope);
+        let views = vec![(channel.to_owned(), scope.clone())];
         let mut channels = self.channels();
         let events = match channels.as_mut() {
             Some(channels) => {
-                *channels.observers.entry(view.clone()).or_insert(0) += 1;
+                *channels.observers.entry(views[0].clone()).or_insert(0) += 1;
                 Events::new(
                     channels
                         .frames
@@ -83,16 +96,48 @@ impl Inner {
         };
         BusFrames {
             bus: self.clone(),
-            view,
+            views,
+            scope,
+            events,
+        }
+    }
+
+    fn frames_among(self: &Arc<Self>, among: &[&str]) -> BusFrames {
+        let seen: Vec<String> = among.iter().map(|channel| (*channel).to_owned()).collect();
+        let views: Vec<View> = seen.iter().map(|channel| (channel.clone(), None)).collect();
+        let mut channels = self.channels();
+        let events = match channels.as_mut() {
+            Some(channels) => {
+                for view in &views {
+                    *channels.observers.entry(view.clone()).or_insert(0) += 1;
+                }
+                // A view nobody reads any more is let go here, where the
+                // next one is made.
+                channels
+                    .among
+                    .retain(|(_, sender)| sender.receiver_count() > 0);
+                let (sender, receiver) = broadcast::channel(STREAM_BACKLOG);
+                channels.among.push((seen, sender));
+                Events::new(receiver)
+            }
+            None => Events::new(broadcast::channel(1).1),
+        };
+        BusFrames {
+            bus: self.clone(),
+            views,
+            scope: None,
             events,
         }
     }
 }
 
-/// The frames of one view: a channel's, globally or in one scope.
+/// The frames of one view: a channel's, or several channels', globally or in
+/// one scope.
 pub struct BusFrames {
     bus: Arc<Inner>,
-    view: View,
+    /// What it reads, for the count `emit` reports.
+    views: Vec<View>,
+    scope: Option<String>,
     events: Events<Frame>,
 }
 
@@ -108,7 +153,7 @@ impl Stream for BusFrames {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
             match Pin::new(&mut self.events).poll_next(cx) {
-                Poll::Ready(Some(Ok(frame))) if frame.scope != self.view.1 => continue,
+                Poll::Ready(Some(Ok(frame))) if frame.scope != self.scope => continue,
                 other => return other,
             }
         }
@@ -117,12 +162,16 @@ impl Stream for BusFrames {
 
 impl Drop for BusFrames {
     fn drop(&mut self) {
-        if let Some(channels) = self.bus.channels().as_mut()
-            && let Some(count) = channels.observers.get_mut(&self.view)
-        {
-            *count = count.saturating_sub(1);
-            if *count == 0 {
-                channels.observers.remove(&self.view);
+        let mut channels = self.bus.channels();
+        let Some(channels) = channels.as_mut() else {
+            return;
+        };
+        for view in &self.views {
+            if let Some(count) = channels.observers.get_mut(view) {
+                *count = count.saturating_sub(1);
+                if *count == 0 {
+                    channels.observers.remove(view);
+                }
             }
         }
     }
@@ -140,6 +189,7 @@ impl Default for EventBus {
             inner: Arc::new(Inner {
                 channels: Mutex::new(Some(Channels {
                     frames: HashMap::new(),
+                    among: Vec::new(),
                     observers: HashMap::new(),
                 })),
             }),
@@ -162,6 +212,12 @@ impl EventBus {
     /// published into a resource's scope is not among them.
     pub fn frames(&self, channel: &str) -> BusFrames {
         self.inner.frames(channel, None)
+    }
+
+    /// The frames published globally on any of `channels` from now on, in
+    /// the order they were published.
+    pub fn frames_among(&self, channels: &[&str]) -> BusFrames {
+        self.inner.frames_among(channels)
     }
 
     /// Publish one frame of the channel `C`, globally or into
@@ -305,6 +361,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn a_view_of_several_channels_gives_them_in_the_order_they_were_published() {
+        let bus = EventBus::new();
+        let mut both = bus.frames_among(&["mark:requested", "mark:cancel-pending"]);
+        assert_eq!(
+            bus.observed_channels(),
+            ["mark:cancel-pending", "mark:requested"]
+        );
+
+        for n in 0..6 {
+            let channel = if n % 2 == 0 {
+                "mark:requested"
+            } else {
+                "mark:cancel-pending"
+            };
+            assert_eq!(bus.emit(channel, payload(n), Envelope::default()), 1);
+        }
+        bus.emit("mark:submit", payload(9), Envelope::default());
+        bus.scope("res-1").emit("mark:requested", payload(9), None);
+        drop(bus.frames_among(&["mark:requested"]));
+        bus.destroy();
+
+        let mut seen = Vec::new();
+        while let Some(Ok(frame)) = both.next().await {
+            seen.push((frame.channel, frame.payload["n"].clone()));
+        }
+        let said = |channel: &str, n: u64| (channel.to_owned(), json!(n));
+        assert_eq!(
+            seen,
+            [
+                said("mark:requested", 0),
+                said("mark:cancel-pending", 1),
+                said("mark:requested", 2),
+                said("mark:cancel-pending", 3),
+                said("mark:requested", 4),
+                said("mark:cancel-pending", 5),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_view_of_several_channels_is_counted_on_each_until_it_is_dropped() {
+        let bus = EventBus::new();
+        let both = bus.frames_among(&["beckon:hover", "browse:click"]);
+        assert_eq!(bus.emit("beckon:hover", payload(1), Envelope::default()), 1);
+        assert_eq!(bus.emit("browse:click", payload(2), Envelope::default()), 1);
+        drop(both);
+        assert_eq!(bus.emit("beckon:hover", payload(3), Envelope::default()), 0);
+        assert!(bus.observed_channels().is_empty());
+    }
+
+    #[tokio::test]
     async fn a_destroyed_bus_is_inert() {
         let bus = EventBus::new();
         bus.destroy();
@@ -312,5 +419,6 @@ mod tests {
         assert!(bus.destroyed());
         assert_eq!(bus.emit("beckon:focus", payload(1), Envelope::default()), 0);
         assert_eq!(bus.frames("beckon:focus").next().await, None);
+        assert_eq!(bus.frames_among(&["beckon:focus"]).next().await, None);
     }
 }

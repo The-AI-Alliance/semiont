@@ -15,6 +15,9 @@ use semiont::state_unit::StateUnit;
 use semiont::storage::{
     InMemorySessionStorage, SessionStorage, StorageChange, StorageSubscription,
 };
+use semiont::testing::axioms::{
+    AxiomSubject, Fresh, StreamSurface, Surface, assert_state_unit_axioms,
+};
 use serde_json::{Value, json};
 use std::collections::{HashMap, VecDeque};
 use std::pin::Pin;
@@ -880,4 +883,39 @@ fn what_another_context_writes_under_the_caches_key_is_heard_and_under_another_k
         r#"{"version":9,"writtenAt":5,"entries":[]}"#,
     );
     assert_eq!(*heard.lock().expect("heard"), [entries(&[("a", "theirs")])]);
+}
+
+// ── The cache as a state unit ───────────────────────────────────────────
+
+struct Caches;
+
+impl AxiomSubject for Caches {
+    type Unit = Cache<String, String>;
+
+    fn setup(&self) -> Fresh<Cache<String, String>> {
+        Fresh::of(Service::default().cache())
+    }
+
+    fn surfaces(&self, cache: &Cache<String, String>) -> Vec<Box<dyn Surface>> {
+        vec![
+            Box::new(StreamSurface(cache.observe(&"a".to_owned()))),
+            Box::new(StreamSurface(cache.observe(&"b".to_owned()))),
+        ]
+    }
+
+    fn invocations<'a>(&self, cache: &'a Cache<String, String>) -> Vec<Box<dyn Fn() + 'a>> {
+        let a = || "a".to_owned();
+        vec![
+            Box::new(move || cache.invalidate(&a())),
+            Box::new(move || cache.invalidate_all()),
+            Box::new(move || cache.set(&a(), "written".to_owned())),
+            Box::new(move || cache.remove(&a(), refused("gone"))),
+            Box::new(move || drop(tokio::spawn(cache.fetch(&a())))),
+        ]
+    }
+}
+
+#[test]
+fn the_cache_keeps_the_state_unit_axioms() {
+    assert_eq!(assert_state_unit_axioms(&Caches), Ok(()));
 }
