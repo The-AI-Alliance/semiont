@@ -6,7 +6,13 @@
 //! A frame is published globally or into one resource's scope, and a view
 //! sees one or the other: the global view of a channel does not see a frame
 //! published into a scope, and a scope's view sees only its own.
+//!
+//! By type (`publish`, `stream`), the channel is a type of `crate::channels`
+//! and the payload is that channel's own, as on `crate::bus::Bus`.
 
+use crate::bus::{Typed, payload_of};
+use crate::channels::Channel;
+use crate::errors::TransportError;
 use crate::transport::{Envelope, Events, Frame, Lagged, STREAM_BACKLOG};
 use futures_core::Stream;
 use serde_json::{Map, Value};
@@ -156,6 +162,22 @@ impl EventBus {
     /// published into a resource's scope is not among them.
     pub fn frames(&self, channel: &str) -> BusFrames {
         self.inner.frames(channel, None)
+    }
+
+    /// Publish one frame of the channel `C`, globally or into
+    /// `envelope.scope`. How many readers its view had.
+    pub fn publish<C: Channel>(
+        &self,
+        payload: &C::Payload,
+        envelope: Envelope,
+    ) -> Result<usize, TransportError> {
+        Ok(self.emit(C::NAME, payload_of(payload)?, envelope))
+    }
+
+    /// The frames published globally on the channel `C` from now on, each
+    /// with its payload decoded.
+    pub fn stream<C: Channel>(&self) -> Typed<C, BusFrames> {
+        Typed::of(self.frames(C::NAME))
     }
 
     /// This bus, seen from one resource's scope.

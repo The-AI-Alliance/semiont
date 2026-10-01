@@ -87,6 +87,19 @@
       }
     ]
   },
+  "job": {
+    "docs": "Why a job its client follows ended without a result. A failure the queue will retry is not one of these: the job goes on, and its follower is told of the setback and keeps following.",
+    "codes": [
+      {
+        "code": "job.failed",
+        "docs": "The job failed and will not be tried again: the failure its worker reported, or the one its status states."
+      },
+      {
+        "code": "job.stalled",
+        "docs": "The job said nothing for longer than its follower allows. The follower has asked for it to be cancelled."
+      }
+    ]
+  },
   "session": {
     "docs": "Why a session itself is unusable. Per-request failures stay with their caller.",
     "codes": [

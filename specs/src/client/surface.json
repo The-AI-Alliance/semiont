@@ -1,0 +1,681 @@
+{
+  "$comment": "AUTHORITY for the surface of a Semiont client: every namespace, every method, the shape of what it returns, and what calling it does first. Every SDK is held to this table two ways. Its signatures are read by scripts/lint/check-client-surface.mjs, which fails on a method the table lacks, one an SDK lacks, and one whose return shape is not the row's. Its behaviour is run: each SDK's surface test calls every method as each of its `cases` states and holds what the call did to the row. A method name is the table's, in camelCase; an SDK spells it by its language's convention (`resourceContent` is `resource_content` in Rust), and a namespace whose name is a keyword there takes a trailing underscore (`yield_`, `match_`). An `events` row is a property named `<method>$` in TypeScript. `absent` names an SDK that does not have the method, and why: the lint then fails if that SDK has it, so an exemption that stopped being true is caught. Add a row here before adding a method to any SDK.",
+  "shapes": {
+    "promise": "Asked once, answered once: the value, or a failure with a code.",
+    "stream": "A long-running operation: what it reports as it goes, then its final value. Awaited, it gives the final value.",
+    "upload": "An upload in flight: its progress, then the id of the resource created.",
+    "cache": "A live query. Building it touches nothing; its one-shot read asks the service now.",
+    "signal": "Fire-and-forget. Nothing is returned and nothing is awaited.",
+    "count": "A drive at the other participants: resolves with how many the gateway reached, or with no count when it kept none.",
+    "events": "The events of one channel of the client's own bus, from now on."
+  },
+  "via": {
+    "request": "A request of a bus operation, answered on its result or failure channel.",
+    "emit": "A frame sent over the wire, with no reply awaited.",
+    "local": "A frame published on the client's own bus and nowhere else.",
+    "content": "An operation of the content transport: putBinary, getBinary, getBinaryStream or getResourceGraph.",
+    "gateway": "One of the gateway's own operations: getCurrentUser, getMediaToken, getProtectedResourceMetadata, healthCheck or getStatus.",
+    "observes": "The channel of the client's own bus whose frames an `events` row gives."
+  },
+  "fixtures": {
+    "context": {
+      "focus": {
+        "kind": "resource",
+        "resource": {
+          "@context": "https://schema.org",
+          "@id": "res-1",
+          "name": "A resource",
+          "representations": [{ "mediaType": "text/plain" }]
+        }
+      },
+      "graph": { "nodes": [], "edges": [] },
+      "metadata": {}
+    },
+    "selector": { "type": "TextQuoteSelector", "exact": "hello" }
+  },
+  "namespaces": [
+    {
+      "namespace": "frame",
+      "docs": "The knowledge base's vocabulary: what kinds of things exist.",
+      "methods": [
+        {
+          "method": "addEntityType",
+          "shape": "promise",
+          "via": { "request": "frame:add-entity-type" },
+          "cases": [{ "args": { "type": "Person" }, "sends": { "tag": "Person" } }]
+        },
+        {
+          "method": "addEntityTypes",
+          "shape": "promise",
+          "via": { "request": "frame:add-entity-type" },
+          "cases": [
+            {
+              "why": "one request per type, in order, each awaited",
+              "args": { "types": ["Person", "Place"] },
+              "sends": { "tag": "Person" },
+              "answers": null,
+              "then": [{ "request": "frame:add-entity-type", "sends": { "tag": "Place" } }]
+            }
+          ]
+        },
+        {
+          "method": "addTagSchema",
+          "shape": "promise",
+          "via": { "request": "frame:add-tag-schema" },
+          "cases": [
+            {
+              "args": { "schema": { "id": "s1", "name": "Structure", "description": "Parts of an argument", "domain": "legal", "tags": [] } },
+              "sends": { "schema": { "id": "s1", "name": "Structure", "description": "Parts of an argument", "domain": "legal", "tags": [] } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "browse",
+      "docs": "Reads: live queries, one-shot reads, and this viewer's own signals.",
+      "methods": [
+        {
+          "method": "resource",
+          "shape": "cache",
+          "via": { "request": "browse:resource-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resources",
+          "shape": "cache",
+          "via": { "request": "browse:resources-requested" },
+          "cases": [
+            { "why": "no filters: the first hundred", "args": {}, "sends": { "limit": 100, "offset": 0 } },
+            {
+              "args": { "filters": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5 } },
+              "sends": { "search": "cat", "archived": false, "entityType": "Person", "limit": 5, "offset": 0 }
+            }
+          ]
+        },
+        {
+          "method": "annotations",
+          "shape": "cache",
+          "via": { "request": "browse:annotations-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "annotation",
+          "shape": "cache",
+          "via": { "request": "browse:annotation-requested" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "entityTypes",
+          "shape": "cache",
+          "via": { "request": "browse:entity-types-requested" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "tagSchemas",
+          "shape": "cache",
+          "via": { "request": "browse:tag-schemas-requested" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "agents",
+          "shape": "cache",
+          "via": { "request": "browse:agents-requested" },
+          "cases": [{ "why": "the directory is asked for first; each key holder's limits after it", "args": {}, "sends": {} }]
+        },
+        {
+          "method": "referencedBy",
+          "shape": "cache",
+          "via": { "request": "browse:referenced-by-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "events",
+          "shape": "cache",
+          "via": { "request": "browse:events-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceContent",
+          "shape": "promise",
+          "via": { "content": "getBinary" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceGraph",
+          "shape": "promise",
+          "via": { "content": "getResourceGraph" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceAnchoredText",
+          "shape": "promise",
+          "via": { "request": "browse:anchored-text-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceRepresentation",
+          "shape": "promise",
+          "via": { "content": "getBinary" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceRepresentationStream",
+          "shape": "promise",
+          "via": { "content": "getBinaryStream" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceEvents",
+          "shape": "promise",
+          "via": { "request": "browse:events-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "annotationHistory",
+          "shape": "promise",
+          "via": { "request": "browse:annotation-history-requested" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "resourceId": "res-1", "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "files",
+          "shape": "promise",
+          "via": { "request": "browse:directory-requested" },
+          "cases": [
+            { "why": "no arguments: the root, by name", "args": {}, "sends": { "path": ".", "sort": "name" } },
+            { "args": { "dirPath": "docs", "sort": "mtime" }, "sends": { "path": "docs", "sort": "mtime" } }
+          ]
+        },
+        {
+          "method": "kb",
+          "shape": "promise",
+          "via": { "request": "browse:kb-requested" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "click",
+          "shape": "signal",
+          "via": { "local": "browse:click" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "openResource",
+          "shape": "signal",
+          "via": { "local": "browse:resource-open" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "resourceViewed",
+          "shape": "signal",
+          "via": { "emit": "browse:resource-viewed" },
+          "cases": [{ "why": "a report, so it goes over the wire", "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        }
+      ]
+    },
+    {
+      "namespace": "mark",
+      "docs": "Annotations: their creation and removal, a resource's own metadata, and AI assistance.",
+      "methods": [
+        {
+          "method": "annotation",
+          "shape": "promise",
+          "via": { "request": "mark:create-request" },
+          "cases": [
+            {
+              "why": "the resource is the annotation's target",
+              "args": { "input": { "motivation": "highlighting", "target": { "source": "res-1" } } },
+              "sends": { "resourceId": "res-1", "request": { "motivation": "highlighting", "target": { "source": "res-1" } } }
+            }
+          ]
+        },
+        {
+          "method": "delete",
+          "shape": "promise",
+          "via": { "request": "mark:delete" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1", "resourceId": "res-1" } }]
+        },
+        {
+          "method": "archive",
+          "shape": "promise",
+          "via": { "request": "mark:archive" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "unarchive",
+          "shape": "promise",
+          "via": { "request": "mark:unarchive" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "updateEntityTypes",
+          "shape": "promise",
+          "via": { "request": "mark:update-entity-types" },
+          "cases": [
+            {
+              "args": { "resourceId": "res-1", "current": ["Person"], "updated": ["Person", "Place"] },
+              "sends": { "resourceId": "res-1", "currentEntityTypes": ["Person"], "updatedEntityTypes": ["Person", "Place"] }
+            }
+          ]
+        },
+        {
+          "method": "assist",
+          "shape": "stream",
+          "via": { "request": "job:create" },
+          "cases": [
+            {
+              "why": "the motivation names the job type; with no options the job has no parameters",
+              "args": { "resourceId": "res-1", "motivation": "highlighting", "options": {} },
+              "sends": { "jobType": "highlight-annotation", "resourceId": "res-1", "params": {} }
+            },
+            {
+              "args": { "resourceId": "res-1", "motivation": "linking", "options": { "entityTypes": ["Person"], "includeDescriptiveReferences": true } },
+              "sends": { "jobType": "reference-annotation", "resourceId": "res-1", "params": { "entityTypes": ["Person"], "includeDescriptiveReferences": true } }
+            },
+            {
+              "why": "every option is a parameter of the job, under its own name",
+              "args": {
+                "resourceId": "res-1",
+                "motivation": "tagging",
+                "options": { "schemaId": "s1", "categories": ["claim"], "instructions": "be brief", "density": 2.5, "tone": "scholarly", "language": "en", "sourceLanguage": "fr" }
+              },
+              "sends": {
+                "jobType": "tag-annotation",
+                "resourceId": "res-1",
+                "params": { "schemaId": "s1", "categories": ["claim"], "instructions": "be brief", "density": 2.5, "tone": "scholarly", "language": "en", "sourceLanguage": "fr" }
+              }
+            },
+            {
+              "args": { "resourceId": "res-1", "motivation": "assessing", "options": {} },
+              "sends": { "jobType": "assessment-annotation", "resourceId": "res-1", "params": {} }
+            },
+            {
+              "args": { "resourceId": "res-1", "motivation": "commenting", "options": {} },
+              "sends": { "jobType": "comment-annotation", "resourceId": "res-1", "params": {} }
+            }
+          ]
+        },
+        {
+          "method": "request",
+          "shape": "signal",
+          "via": { "local": "mark:requested" },
+          "cases": [
+            {
+              "args": { "source": "res-1", "selector": { "$fixture": "selector" }, "motivation": "highlighting" },
+              "sends": { "source": "res-1", "selector": { "$fixture": "selector" }, "motivation": "highlighting" }
+            }
+          ]
+        },
+        {
+          "method": "requestAssist",
+          "shape": "signal",
+          "via": { "local": "mark:assist-request" },
+          "cases": [
+            {
+              "args": { "motivation": "linking", "options": { "entityTypes": ["Person"] } },
+              "sends": { "motivation": "linking", "options": { "entityTypes": ["Person"] } }
+            }
+          ]
+        },
+        {
+          "method": "submit",
+          "shape": "signal",
+          "via": { "local": "mark:submit" },
+          "cases": [
+            {
+              "args": { "input": { "source": "res-1", "motivation": "highlighting", "selector": { "$fixture": "selector" } } },
+              "sends": { "source": "res-1", "motivation": "highlighting", "selector": { "$fixture": "selector" } }
+            }
+          ]
+        },
+        {
+          "method": "cancelPending",
+          "shape": "signal",
+          "via": { "local": "mark:cancel-pending" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "dismissProgress",
+          "shape": "signal",
+          "via": { "local": "mark:progress-dismiss" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    },
+    {
+      "namespace": "bind",
+      "docs": "Linking a reference to what it refers to.",
+      "methods": [
+        {
+          "method": "body",
+          "shape": "promise",
+          "via": { "request": "bind:update-body" },
+          "cases": [
+            {
+              "args": { "resourceId": "res-1", "annotationId": "ann-1", "operations": [{ "op": "remove" }] },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "operations": [{ "op": "remove" }] }
+            }
+          ]
+        },
+        {
+          "method": "initiate",
+          "shape": "signal",
+          "via": { "local": "bind:initiate" },
+          "cases": [
+            {
+              "args": { "input": { "annotationId": "ann-1", "resourceId": "res-1", "defaultTitle": "A title", "entityTypes": ["Person"] } },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "defaultTitle": "A title", "entityTypes": ["Person"] }
+            }
+          ]
+        },
+        {
+          "method": "reportBodyError",
+          "shape": "signal",
+          "via": { "local": "bind:body-error" },
+          "cases": [
+            {
+              "args": { "input": { "resourceId": "res-1", "message": "the link was refused" } },
+              "sends": { "resourceId": "res-1", "message": "the link was refused" }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "gather",
+      "docs": "Assembling the context a model is given.",
+      "methods": [
+        {
+          "method": "annotation",
+          "shape": "stream",
+          "via": { "request": "gather:requested" },
+          "cases": [
+            {
+              "why": "no options: a window of two thousand characters",
+              "args": { "resourceId": "res-1", "annotationId": "ann-1" },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 2000 } }
+            },
+            {
+              "args": { "resourceId": "res-1", "annotationId": "ann-1", "options": { "contextWindow": 500 } },
+              "sends": { "annotationId": "ann-1", "resourceId": "res-1", "options": { "contextWindow": 500 } }
+            }
+          ]
+        },
+        {
+          "method": "resource",
+          "shape": "promise",
+          "via": { "request": "gather:resource-requested" },
+          "cases": [
+            {
+              "why": "no options: two hops, ten resources, their content and no summary",
+              "args": { "resourceId": "res-1" },
+              "sends": { "resourceId": "res-1", "options": { "depth": 2, "maxResources": 10, "includeContent": true, "includeSummary": false } }
+            },
+            {
+              "args": { "resourceId": "res-1", "options": { "depth": 1, "maxResources": 3, "includeContent": false, "includeSummary": true, "excludeEntityTypes": ["Question"] } },
+              "sends": { "resourceId": "res-1", "options": { "depth": 1, "maxResources": 3, "includeContent": false, "includeSummary": true, "excludeEntityTypes": ["Question"] } }
+            },
+            {
+              "why": "an empty exclusion is no exclusion, and is not sent",
+              "args": { "resourceId": "res-1", "options": { "excludeEntityTypes": [] } },
+              "sends": { "resourceId": "res-1", "options": { "depth": 2, "maxResources": 10, "includeContent": true, "includeSummary": false } }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "match",
+      "docs": "Searching for what a reference could refer to.",
+      "methods": [
+        {
+          "method": "search",
+          "shape": "stream",
+          "via": { "request": "match:search-requested" },
+          "cases": [
+            {
+              "why": "no options: ten candidates, scored semantically",
+              "args": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } },
+              "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" }, "limit": 10, "useSemanticScoring": true }
+            },
+            {
+              "args": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" }, "options": { "limit": 3, "useSemanticScoring": false } },
+              "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" }, "limit": 3, "useSemanticScoring": false }
+            }
+          ]
+        },
+        {
+          "method": "requestSearch",
+          "shape": "signal",
+          "via": { "local": "match:search-requested" },
+          "cases": [
+            {
+              "why": "the caller's key rides the envelope, never the payload",
+              "args": { "input": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } }, "correlationId": "cid-1" },
+              "sends": { "resourceId": "res-1", "referenceId": "ann-1", "context": { "$fixture": "context" } },
+              "correlationId": "cid-1"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "namespace": "yield",
+      "docs": "Creating resources: by upload, by generation, by cloning.",
+      "methods": [
+        {
+          "method": "resource",
+          "shape": "upload",
+          "via": { "content": "putBinary" },
+          "cases": [
+            {
+              "args": { "data": { "name": "Notes", "content": "hello", "format": "text/plain", "storageUri": "file://notes.txt" } },
+              "sends": { "name": "Notes", "content": "hello", "format": "text/plain", "storageUri": "file://notes.txt" }
+            }
+          ]
+        },
+        {
+          "method": "fromContext",
+          "shape": "stream",
+          "via": { "request": "job:create" },
+          "cases": [
+            {
+              "why": "a generation job names no resource: its context's focus does",
+              "args": { "context": { "$fixture": "context" }, "options": { "title": "A summary", "storageUri": "file://a-summary.md" } },
+              "sends": { "jobType": "generation", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "context": { "$fixture": "context" } } }
+            },
+            {
+              "why": "how long the follower waits is the client's own, and is not sent",
+              "args": { "context": { "$fixture": "context" }, "options": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "stallDeadlineMs": 5000 } },
+              "sends": { "jobType": "generation", "params": { "title": "A summary", "storageUri": "file://a-summary.md", "prompt": "in one line", "maxTokens": 200, "context": { "$fixture": "context" } } }
+            }
+          ]
+        },
+        {
+          "method": "cloneToken",
+          "shape": "promise",
+          "via": { "request": "yield:clone-token-requested" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "fromToken",
+          "shape": "promise",
+          "via": { "request": "yield:clone-resource-requested" },
+          "cases": [{ "args": { "token": "tok-1" }, "sends": { "token": "tok-1" } }]
+        },
+        {
+          "method": "createFromToken",
+          "shape": "promise",
+          "via": { "request": "yield:clone-resource-requested" },
+          "absent": {
+            "rust": "The clone's format and the name it is stored under come from the media-type registry (which types are authorable, and each one's extension). That registry is TypeScript's, in packages/core/src/media-types.ts, and no other language can derive it."
+          },
+          "cases": [
+            {
+              "why": "the source is read first; the clone is uploaded in a format its source's allows, under a name made from its own",
+              "args": { "options": { "token": "tok-1", "name": "A Copy", "content": "hello" } },
+              "sends": { "token": "tok-1" },
+              "answers": {
+                "sourceResource": { "@context": "https://schema.org", "@id": "res-1", "name": "A resource", "representations": [{ "mediaType": "text/markdown" }] },
+                "expiresAt": "2030-01-01T00:00:00.000Z"
+              },
+              "then": [{ "content": "putBinary", "sends": { "name": "A Copy", "content": "hello", "format": "text/markdown", "storageUri": "file://a-copy.md", "cloneToken": "tok-1" } }]
+            }
+          ]
+        },
+        {
+          "method": "clone",
+          "shape": "signal",
+          "via": { "local": "yield:clone" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    },
+    {
+      "namespace": "beckon",
+      "docs": "Attention: driving the other participants' viewers, and this viewer's own signals.",
+      "methods": [
+        {
+          "method": "attention",
+          "shape": "count",
+          "via": { "emit": "beckon:focus" },
+          "cases": [{ "args": { "resourceId": "res-1", "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1", "resourceId": "res-1" } }]
+        },
+        {
+          "method": "click",
+          "shape": "count",
+          "via": { "emit": "browse:click" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "openResource",
+          "shape": "count",
+          "via": { "emit": "browse:resource-open" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "sparkleAll",
+          "shape": "count",
+          "via": { "emit": "beckon:sparkle" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        },
+        {
+          "method": "hover",
+          "shape": "signal",
+          "via": { "local": "beckon:hover" },
+          "cases": [
+            { "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } },
+            { "why": "nothing is hovered: the field says so", "args": { "annotationId": null }, "sends": { "annotationId": null } }
+          ]
+        },
+        {
+          "method": "sparkle",
+          "shape": "signal",
+          "via": { "local": "beckon:sparkle" },
+          "cases": [{ "args": { "annotationId": "ann-1" }, "sends": { "annotationId": "ann-1" } }]
+        }
+      ]
+    },
+    {
+      "namespace": "job",
+      "docs": "Jobs: their lifecycle as it is announced, their status, and their cancellation.",
+      "methods": [
+        {
+          "method": "queued",
+          "shape": "events",
+          "via": { "observes": "job:queued" },
+          "cases": [{ "args": {}, "sends": { "jobId": "job-1", "jobType": "generation", "resourceId": "res-1", "userId": "did:web:example.org:users:alice" } }]
+        },
+        {
+          "method": "progress",
+          "shape": "events",
+          "via": { "observes": "job:report-progress" },
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "generation", "percentage": 12.5 } }]
+        },
+        {
+          "method": "complete",
+          "shape": "events",
+          "via": { "observes": "job:complete" },
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "generation" } }]
+        },
+        {
+          "method": "fail",
+          "shape": "events",
+          "via": { "observes": "job:fail" },
+          "cases": [{ "args": {}, "sends": { "resourceId": "res-1", "jobId": "job-1", "jobType": "generation", "error": "the model refused" } }]
+        },
+        {
+          "method": "status",
+          "shape": "promise",
+          "via": { "request": "job:status-requested" },
+          "cases": [{ "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+        },
+        {
+          "method": "pollUntilComplete",
+          "shape": "promise",
+          "via": { "request": "job:status-requested" },
+          "cases": [{ "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+        },
+        {
+          "method": "cancelByType",
+          "shape": "promise",
+          "via": { "request": "job:cancel-requested" },
+          "cases": [{ "args": { "jobType": "annotation" }, "sends": { "jobType": "annotation" } }]
+        },
+        {
+          "method": "cancel",
+          "shape": "promise",
+          "via": { "request": "job:cancel-requested" },
+          "cases": [{ "why": "one job, and no category with it", "args": { "jobId": "job-1" }, "sends": { "jobId": "job-1" } }]
+        },
+        {
+          "method": "cancelRequest",
+          "shape": "signal",
+          "via": { "local": "job:cancel-requested" },
+          "cases": [{ "args": { "jobType": "generation" }, "sends": { "jobType": "generation" } }]
+        }
+      ]
+    },
+    {
+      "namespace": "auth",
+      "docs": "The gateway's view of who is signed in. Present when the client was given a gateway.",
+      "methods": [
+        {
+          "method": "me",
+          "shape": "promise",
+          "via": { "gateway": "getCurrentUser" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "mediaToken",
+          "shape": "promise",
+          "via": { "gateway": "getMediaToken" },
+          "cases": [{ "args": { "resourceId": "res-1" }, "sends": { "resourceId": "res-1" } }]
+        },
+        {
+          "method": "protectedResourceMetadata",
+          "shape": "promise",
+          "via": { "gateway": "getProtectedResourceMetadata" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    },
+    {
+      "namespace": "system",
+      "docs": "What the knowledge base says about itself. Present when the client was given a gateway.",
+      "methods": [
+        {
+          "method": "healthCheck",
+          "shape": "promise",
+          "via": { "gateway": "healthCheck" },
+          "cases": [{ "args": {}, "sends": {} }]
+        },
+        {
+          "method": "status",
+          "shape": "promise",
+          "via": { "gateway": "getStatus" },
+          "cases": [{ "args": {}, "sends": {} }]
+        }
+      ]
+    }
+  ]
+}

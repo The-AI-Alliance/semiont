@@ -83,6 +83,7 @@ struct Inner {
     make_response: Box<MakeResponse>,
     replies: Mutex<HashMap<String, VecDeque<Option<Value>>>>,
     log: Mutex<Vec<RequestLogEntry>>,
+    emitted: Mutex<Vec<Frame>>,
     requests: AtomicUsize,
     hub: FrameHub,
     router: Arc<ReplyRouter>,
@@ -154,6 +155,7 @@ impl FaultyTransport {
                 make_response: Box::new(make_response),
                 replies: Mutex::new(HashMap::new()),
                 log: Mutex::new(Vec::new()),
+                emitted: Mutex::new(Vec::new()),
                 requests: AtomicUsize::new(0),
                 hub: FrameHub::new(),
                 router: ReplyRouter::new(),
@@ -178,6 +180,12 @@ impl FaultyTransport {
     /// Every request sent, in order.
     pub fn request_log(&self) -> Vec<RequestLogEntry> {
         locked(&self.inner.log).clone()
+    }
+
+    /// Every frame emitted through it, in order: the requests, and what was
+    /// only sent.
+    pub fn emitted(&self) -> Vec<Frame> {
+        locked(&self.inner.emitted).clone()
     }
 
     /// The correlation ids of the replies still awaited.
@@ -221,6 +229,7 @@ impl Transport for FaultyTransport {
                 scope: envelope.scope.clone(),
                 trace: None,
             };
+            locked(&inner.emitted).push(request.clone());
             let Some(op) = operation(channel) else {
                 inner.deliver(request);
                 return Ok(Some(1));

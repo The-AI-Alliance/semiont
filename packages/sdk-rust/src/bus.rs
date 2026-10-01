@@ -298,20 +298,31 @@ fn delivered<C: Channel>(frame: Frame) -> Result<Delivered<C>, StreamError> {
     })
 }
 
-/// The frames delivered on the channel `C`, each with its payload decoded.
-pub struct Typed<C: Channel> {
-    frames: Frames,
+/// The frames of the channel `C`, each with its payload decoded, out of the
+/// frames `F` gives: a transport's (`Frames`), or a client's own bus's
+/// (`crate::event_bus::BusFrames`).
+pub struct Typed<C: Channel, F = Frames> {
+    frames: F,
     channel: PhantomData<fn() -> C>,
 }
 
-impl<C: Channel> Typed<C> {
+impl<C: Channel, F> Typed<C, F> {
+    pub(crate) fn of(frames: F) -> Typed<C, F> {
+        Typed {
+            frames,
+            channel: PhantomData,
+        }
+    }
+}
+
+impl<C: Channel, F: Stream<Item = Result<Frame, Lagged>> + Unpin> Typed<C, F> {
     /// The next frame; `None` when the stream has ended.
     pub async fn next(&mut self) -> Option<Result<Delivered<C>, StreamError>> {
         std::future::poll_fn(|cx| Pin::new(&mut *self).poll_next(cx)).await
     }
 }
 
-impl<C: Channel> Stream for Typed<C> {
+impl<C: Channel, F: Stream<Item = Result<Frame, Lagged>> + Unpin> Stream for Typed<C, F> {
     type Item = Result<Delivered<C>, StreamError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -336,10 +347,7 @@ impl Bus {
 
     /// The frames delivered on the channel `C` from now on.
     pub fn stream<C: Channel>(&self) -> Result<Typed<C>, BusRequestError> {
-        Ok(Typed {
-            frames: self.frames_on(C::NAME)?,
-            channel: PhantomData,
-        })
+        Ok(Typed::of(self.frames_on(C::NAME)?))
     }
 
     /// Send `payload` as the request of the operation `R` and wait up to

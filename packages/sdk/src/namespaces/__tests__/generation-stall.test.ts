@@ -13,18 +13,14 @@
  */
 
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { EventBus } from '@semiont/core';
+import { EventBus, GENERATION_STALL_FLOOR_MS } from '@semiont/core';
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { resourceContextFor } from '../../__tests__/fixtures/gathered-context';
 import { YieldNamespace } from '../yield';
 import { createYieldStateUnit } from '../../state/flows/yield-state-unit';
 import type { SemiontClient } from '../../client';
 import { inMemoryTransport } from '../../__tests__/helpers/in-memory-transport';
-import {
-  GenerationStallError,
-  deriveStallDeadlineMs,
-  GENERATION_STALL_FLOOR_MS,
-} from '../generation-stall';
+import { GenerationStallError, deriveStallDeadlineMs } from '../generation-stall';
 
 const CTX_RES = resourceContextFor('res-1');
 
@@ -96,12 +92,15 @@ describe('generation stall guard', () => {
 
     const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
     const rejection = expect(p).rejects.toBeInstanceOf(GenerationStallError);
+    // The code every SDK reports for a stalled job.
+    const coded = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
 
     await vi.advanceTimersByTimeAsync(299_999);
     expect(cancelCount(emitSpy)).toBe(0);
 
     await vi.advanceTimersByTimeAsync(1); // 4000 × 75ms = 300s exactly
     await rejection;
+    await coded;
     expect(cancelCount(emitSpy)).toBe(1);
     expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
   });

@@ -339,6 +339,15 @@ of a job it follows for `jobSilenceMs` asks for the job's status, and asks again
 `failed` is that end, reported as the frame would have been
 ([`specs/src/client/timing.json`](../../specs/src/client/timing.json)).
 
+A follower reports how its job ended under the codes every SDK shares
+([`specs/src/errors/codes.json`](../../specs/src/errors/codes.json), `job`). A `job:fail` whose
+`willRetry` is `true` is not an end: the follower reports the setback and keeps following, and does
+not ask for the status of the attempt that died. Any other `job:fail`, and a status of `failed`, end
+it as `job.failed`, with the worker's message. A follower of a generation that has heard nothing for
+its stall deadline asks for the cancellation and ends as `job.stalled`; the deadline is
+`generationStallFloorMs`, or `generationStallPerTokenMs` for each token asked for when that is
+longer.
+
 ## What the dispatcher emits on its own
 
 ### `job:queued`

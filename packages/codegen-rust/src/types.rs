@@ -214,15 +214,19 @@ impl Types<'_> {
             }
             code.push_str("#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Deserialize, serde::Serialize)]\n");
             let _ = writeln!(code, "pub enum {name} {{");
+            let mut taken: Vec<String> = Vec::new();
             for value in values {
                 let value = value
                     .as_str()
                     .unwrap_or_else(|| panic!("{name}: an enum value is not a string"));
-                let _ = writeln!(
-                    code,
-                    "    #[serde(rename = \"{value}\")]\n    {},",
-                    pascal(value)
-                );
+                // A `+` is part of what a value says (`text/x-c++` is not
+                // `text/x-c`), so it is spelled rather than dropped.
+                let variant = pascal(&value.replace('+', " plus "));
+                if taken.contains(&variant) {
+                    panic!("{name}: two enum values would both be the variant {variant}");
+                }
+                let _ = writeln!(code, "    #[serde(rename = \"{value}\")]\n    {variant},");
+                taken.push(variant);
             }
             code.push_str("}\n\n");
             return code;
@@ -559,6 +563,35 @@ mod tests {
             "Focus",
         );
         assert!(code.contains("pub enum Focus {\n    Annotation(FocusAnnotation),\n    Resource(FocusResource),\n}"), "{code}");
+    }
+
+    #[test]
+    fn a_plus_in_an_enum_value_is_spelled_in_its_variant() {
+        let code = generated(
+            json!({ "Media": { "type": "string", "enum": ["text/x-c", "text/x-c++", "image/svg+xml"] } }),
+            "Media",
+        );
+        assert!(
+            code.contains("#[serde(rename = \"text/x-c\")]\n    TextXC,"),
+            "{code}"
+        );
+        assert!(
+            code.contains("#[serde(rename = \"text/x-c++\")]\n    TextXCPlusPlus,"),
+            "{code}"
+        );
+        assert!(
+            code.contains("#[serde(rename = \"image/svg+xml\")]\n    ImageSvgPlusXml,"),
+            "{code}"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "two enum values would both be the variant TextPlain")]
+    fn two_enum_values_one_variant_would_name_are_refused() {
+        generated(
+            json!({ "Media": { "type": "string", "enum": ["text/plain", "text-plain"] } }),
+            "Media",
+        );
     }
 
     #[test]

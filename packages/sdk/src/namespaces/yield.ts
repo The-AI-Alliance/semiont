@@ -12,7 +12,7 @@ import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
 import { GenerationStallError, deriveStallDeadlineMs } from './generation-stall';
-import { JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
+import { JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -200,7 +200,7 @@ export class YieldNamespace implements IYieldNamespace {
             subscriber.complete();
           } else if (status.status === 'failed') {
             cleanup();
-            subscriber.error(new Error(status.error ?? 'Generation failed'));
+            subscriber.error(new JobFailedError(status.error ?? 'Generation failed', status.jobId));
           }
         },
         this.timing,
@@ -260,7 +260,7 @@ export class YieldNamespace implements IYieldNamespace {
 
       const failSub = fail$.subscribe((e) => {
         cleanup();
-        subscriber.error(new Error(e.error));
+        subscriber.error(new JobFailedError(e.error, e.jobId));
       });
 
       armStall();

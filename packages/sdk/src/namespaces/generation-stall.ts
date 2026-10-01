@@ -1,4 +1,10 @@
-import { SemiontError } from '@semiont/core';
+import {
+  GENERATION_STALL_ASSUMED_TOKENS_COUNT,
+  GENERATION_STALL_FLOOR_MS,
+  GENERATION_STALL_PER_TOKEN_MS,
+  SemiontError,
+} from '@semiont/core';
+import type { JobErrorCode } from '@semiont/core';
 
 /**
  * The ONE stall guard for generation streams (FLOW-LIFECYCLE-CONVERGENCE D1).
@@ -13,30 +19,13 @@ import { SemiontError } from '@semiont/core';
  */
 
 /**
- * Floor: catches the zero-events stall class (e.g. the JWT-rotation
- * transport hang) regardless of requested size.
+ * The single derivation site (D1a): a floor, and a wait that grows with the
+ * length asked for. The three numbers are specs/src/client/timing.json's, so
+ * every SDK waits as long.
  */
-export const GENERATION_STALL_FLOOR_MS = 120_000;
-
-/**
- * Generous per-token silence allowance. ~4k tokens ≈ 300s — continuous with
- * the fixed 300s window this derivation replaced.
- */
-export const GENERATION_STALL_MS_PER_TOKEN = 75;
-
-/**
- * When the request omits `maxTokens`, the worker caps output at its own
- * default (`packages/jobs/src/workers/generation/resource-generation.ts`,
- * `DEFAULT_MAX_TOKENS`). The sdk cannot import the jobs package, so the
- * value is mirrored here; drift only mis-sizes the deadline for
- * `maxTokens`-less requests, where the floor dominates anyway.
- */
-export const GENERATION_STALL_ASSUMED_MAX_TOKENS = 500;
-
-/** The single derivation site (D1a): floor + per-token scaling. */
 export function deriveStallDeadlineMs(maxTokens: number | undefined): number {
-  const tokens = maxTokens ?? GENERATION_STALL_ASSUMED_MAX_TOKENS;
-  return Math.max(GENERATION_STALL_FLOOR_MS, tokens * GENERATION_STALL_MS_PER_TOKEN);
+  const tokens = maxTokens ?? GENERATION_STALL_ASSUMED_TOKENS_COUNT;
+  return Math.max(GENERATION_STALL_FLOOR_MS, tokens * GENERATION_STALL_PER_TOKEN_MS);
 }
 
 /**
@@ -46,13 +35,15 @@ export function deriveStallDeadlineMs(maxTokens: number | undefined): number {
  * user-facing message — the SDK ships no copy.
  */
 export class GenerationStallError extends SemiontError {
+  declare code: JobErrorCode;
+
   constructor(
     public readonly deadlineMs: number,
     public readonly jobId: string | null,
   ) {
     super(
       `generation stalled: no event within ${deadlineMs}ms — cancel requested`,
-      'generation-stall',
+      'job.stalled' satisfies JobErrorCode,
       { deadlineMs, jobId },
     );
     this.name = 'GenerationStallError';

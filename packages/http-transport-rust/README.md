@@ -19,6 +19,9 @@ A knowledge base over its gateway's HTTP surface
 - `sse` — the stream's framing.
 - `content` — `HttpContentTransport`: a resource's bytes up, with progress
   and cancellation, and down, whole or as a stream.
+- `client` — `client(config, timing)`: the SDK's `SemiontClient` over this
+  crate's transport under all three contracts, so its `auth` and `system`
+  namespaces are there.
 - `service_account` and `session` — signing in: a service account's
   client-credentials grant at the issuer, exchanged at the gateway for the
   token of the agent the work runs as, and renewed before it expires.

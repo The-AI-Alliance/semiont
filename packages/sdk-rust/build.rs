@@ -5,7 +5,7 @@
 //!   of the job protocol's channels, and the reads a job's admission makes,
 //!   with every schema they reach (semiont-codegen);
 //! - `operations.rs`: the bus registry's operations, which reply and which
-//!   failure answer each request;
+//!   failure answer each request, and which of them report inference limits;
 //! - `channels.rs`: the channels every client hears and the channels a
 //!   resource's scope carries, from the registry's `audience`; and a type per
 //!   channel naming its payload's type, with each operation's request tied to
@@ -23,10 +23,12 @@ use std::fs;
 use std::path::PathBuf;
 
 /// The schemas generated beside the API's bodies and the channels' payloads:
-/// the job the queue holds, an event of the record as the stream carries it,
-/// and the log settings every public crate's logging takes.
-const BESIDE: [&str; 5] = [
+/// the job the queue holds, the parameters a generation job is created with,
+/// an event of the record as the stream carries it, and the log settings
+/// every public crate's logging takes.
+const BESIDE: [&str; 6] = [
     "Job",
+    "GenerationJobParams",
     "StoredEventResponse",
     "EnrichedResourceEvent",
     "LogLevel",
@@ -148,6 +150,18 @@ fn main() {
             field("result"),
             field("failure")
         );
+    }
+    operations.push_str("];\n");
+    // One operation per service that holds inference credentials, each named
+    // `<flow>:limits-requested`: a new key holder's joins by being registered.
+    operations.push_str(
+        "/// The operations that report the limits of the models a service holds credentials for.\npub const LIMITS_OPERATIONS: &[&str] = &[\n",
+    );
+    for op in list(&registry["operations"], "operations") {
+        let request = text(op, "request", "a registry operation");
+        if request.ends_with(":limits-requested") {
+            let _ = writeln!(operations, "    {request:?},");
+        }
     }
     operations.push_str("];\n");
     fs::write(out.join("operations.rs"), operations).expect("cannot write operations.rs");
@@ -424,6 +438,7 @@ fn error_codes(table: &Value) -> String {
         variant(unclassified)
     );
 
+    code_enum(&mut code, "JobErrorCode", &table["job"]);
     code_enum(&mut code, "SessionErrorCode", &table["session"]);
     code
 }

@@ -88,6 +88,21 @@
       "name": "jobStatusPollMs",
       "value": 5000,
       "docs": "How often a client asks for the status of a job that has been silent for `jobSilenceMs`, until the job says something or its status is an end."
+    },
+    {
+      "name": "generationStallFloorMs",
+      "value": 120000,
+      "docs": "The shortest a client waits, with a generation it follows saying nothing, before it asks for the job to be cancelled and gives up on it. A floor, so a job that never says anything at all is caught whatever its size."
+    },
+    {
+      "name": "generationStallPerTokenMs",
+      "value": 75,
+      "docs": "How long a followed generation may be silent for each token it was asked for. A generation says nothing while its model writes, so the wait grows with the length of what was asked: four thousand tokens allow five minutes. The floor applies below it."
+    },
+    {
+      "name": "generationStallAssumedTokensCount",
+      "value": 500,
+      "docs": "The length assumed of a generation whose request states no `maxTokens`: the worker's own ceiling for one. At this length the floor decides the wait."
     }
   ]
 }

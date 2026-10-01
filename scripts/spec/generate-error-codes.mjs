@@ -104,6 +104,9 @@ for (const entry of transportCodes) {
   }
 }
 
+// ── job ─────────────────────────────────────────────────────────────────
+const jobCodes = codesOf('job', table.job);
+
 // ── session ─────────────────────────────────────────────────────────────
 const sessionCodes = codesOf('session', table.session);
 
@@ -140,9 +143,10 @@ ${[...byStatus].map(([status, code]) => `    case ${status}: return ${JSON.strin
 ${ranges.map((entry) => `  if (status >= ${entry.statusFrom}) return ${JSON.stringify(entry.code)};\n`).join('')}  return ${JSON.stringify(unclassified.code)};
 }
 
+${union('JobErrorCode', table.job, jobCodes)}
 ${union('SemiontSessionErrorCode', table.session, sessionCodes)}`,
 );
 
 console.log(
-  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport and ${sessionCodes.length} session error codes → ${OUT}`,
+  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport, ${jobCodes.length} job and ${sessionCodes.length} session error codes → ${OUT}`,
 );

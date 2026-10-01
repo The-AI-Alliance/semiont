@@ -281,6 +281,7 @@ export {
   transportErrorCodeForStatus,
   type BusRequestErrorCode,
   type TransportErrorCode,
+  type JobErrorCode,
   type SemiontSessionErrorCode,
 } from './generated/error-codes';
 export { ResourceOperations, type CreateResourceInput, type Emitter } from './resource-operations';

@@ -1,8 +1,22 @@
 import { Observable } from 'rxjs';
-import { busRequest, JOB_SILENCE_MS, JOB_STATUS_POLL_MS } from '@semiont/core';
-import type { EventBus, EventMap, ITransport, components } from '@semiont/core';
+import { busRequest, JOB_SILENCE_MS, JOB_STATUS_POLL_MS, SemiontError } from '@semiont/core';
+import type { EventBus, EventMap, ITransport, JobErrorCode, components } from '@semiont/core';
 
 type JobStatusResponse = components['schemas']['JobStatusResponse'];
+
+/**
+ * A job its follower was following failed and will not be tried again: what
+ * its worker reported on `job:fail`, or what its status states. A failure the
+ * queue will retry is not this; the follower is told of it and keeps going.
+ */
+export class JobFailedError extends SemiontError {
+  declare code: JobErrorCode;
+
+  constructor(message: string, public readonly jobId: string) {
+    super(message, 'job.failed' satisfies JobErrorCode, { jobId });
+    this.name = 'JobFailedError';
+  }
+}
 
 /** `jobSilenceMs` and `jobStatusPollMs` of specs/src/client/timing.json, for a caller that must not wait them out. */
 export interface JobFollowTiming {

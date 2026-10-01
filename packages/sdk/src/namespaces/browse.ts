@@ -10,7 +10,6 @@ import type {
   ResourceId,
   AnchorRect,
   AnnotationId,
-  GraphConnection,
   TagSchema,
   Collaborator,
   CollaboratorEntry,
@@ -599,18 +598,6 @@ export class BrowseNamespace implements IBrowseNamespace {
       { resourceId, annotationId },
       this.busTimeoutMs,
     );
-  }
-
-  async connections(_resourceId: ResourceId): Promise<GraphConnection[]> {
-    throw new Error('Not implemented: connections endpoint does not exist yet');
-  }
-
-  async backlinks(_resourceId: ResourceId): Promise<Annotation[]> {
-    throw new Error('Not implemented: backlinks endpoint does not exist yet');
-  }
-
-  async resourcesByName(_query: string, _limit?: number): Promise<ResourceDescriptor[]> {
-    throw new Error('Not implemented: resourcesByName endpoint does not exist yet');
   }
 
   async files(
