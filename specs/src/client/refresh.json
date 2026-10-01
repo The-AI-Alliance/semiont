@@ -35,7 +35,7 @@
       "name": "resources",
       "per": "filters",
       "asks": "browse:resources-requested",
-      "docs": "A list of resources, one per set of filters asked for."
+      "docs": "A list of resources, one per set of filters asked for. It is a query's answer, kept fresh by what every client hears and by the events of the resources whose scope the client holds, and by nothing else: a resource archived, unarchived or retagged elsewhere, by someone else, does not refresh it."
     },
     {
       "name": "entityTypes",

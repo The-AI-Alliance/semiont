@@ -537,6 +537,18 @@ Two things the table's shape follows from:
 - **Lists of resources are refreshed as a whole.** An event does not say
   which filter combinations it affects, so every list the cache holds is
   asked for again.
+- **A list of resources is a query's answer, not a live collection.** It is
+  refreshed by the events every client hears (a resource created, updated,
+  cloned or moved), by the reopening of a dropped stream, and by
+  `mark:archived` and `mark:unarchived` on a resource whose scope the
+  client holds. A resource archived or unarchived elsewhere, whose scope
+  the client does not hold, does not refresh it: that event is delivered on
+  the resource's scope, and a list holds no scopes. A change to a
+  resource's entity tags refreshes no list. A list shows such a change when
+  it is next asked for: by another event that refreshes it, a reopened
+  stream, or a one-shot read. Deliberate: the alternative is every such
+  change sent to every client, a cost that grows with the knowledge base's
+  writes times its clients, for lists that show a page of it.
 - **Nothing refreshes an annotation list by annotation alone.** A change
   to an annotation also refreshes, or writes, the list that contains it
   (B10-consistent).
@@ -757,3 +769,8 @@ background request per observed key.
   section is replaced by `specs/src/client/refresh.json`, from which the
   handlers are generated; `keys()` and `invalidateAll()` cover every key
   the cache knows (B20), a failed one included.
+- 2026-10-01 — **Stated: a list of resources is a query's answer, not a live
+  collection.** No behavior changed. Archive, unarchive and entity-tag
+  changes made elsewhere do not refresh a list whose client does not hold
+  the resource's scope, and the section "What refreshes what" now says so.
+
