@@ -126,7 +126,7 @@ export {
 // Session layer — per-KB sessions, app-level browser, storage adapter,
 // error surface, notify module for out-of-React callers.
 export { SemiontSession, type SemiontSessionConfig, type UserInfo } from './session/semiont-session';
-export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome } from './session/semiont-browser';
+export { SemiontBrowser, type SemiontBrowserConfig, type SignInOutcome, type KbReadVerdict } from './session/semiont-browser';
 export {
   BROWSER_CLIENT_ID,
   SCRIPT_CLIENT_ID,

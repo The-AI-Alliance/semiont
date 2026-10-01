@@ -105,6 +105,21 @@ export interface SignInOutcome {
   expected?: { did: string; name?: string };
 }
 
+/**
+ * What a knowledge base said when it was asked to describe itself, read
+ * against the entry it was asked as.
+ *
+ *  - `recorded`: it answered as that entry, and its name and branch are now on it.
+ *  - `conflict`: a different knowledge base answered. Its did and the name it
+ *    gave itself are here, and on nothing else: the entry is as it was.
+ *  - `no-verdict`: it did not answer, or could not say who it is. Not evidence
+ *    of anything.
+ */
+export type KbReadVerdict =
+  | { kind: 'recorded' }
+  | { kind: 'conflict'; observedDid: string; observedName: string }
+  | { kind: 'no-verdict' };
+
 export interface SemiontBrowserConfig {
   /** Persistence adapter. The browser reads/writes all persisted state via this. */
   storage: SessionStorage;
@@ -295,10 +310,18 @@ export class SemiontBrowser {
 
   /**
    * Finish a sign-in from the URL the issuer returned the user to: exchange
-   * the code, ask the KB who it is and who the user is, then register the
-   * KB (a new address) or re-authenticate it (a registered one, by id or by
-   * the same address). Throws `SignInError` for the OAuth half and
+   * the code, ask the KB who it is, and sign in the entry for the KB that
+   * answered. Throws `SignInError` for the OAuth half and
    * `IdentityUnverifiableError` when the KB cannot say who it is.
+   *
+   * **Look up by address, verify by did.** The address, the entry the user
+   * re-authenticated and the row they clicked say what they BELIEVED, and are
+   * reported back as `expected`. The did the KB reports decides which entry is
+   * signed in: among the entries at the address, the one with that did, or a
+   * new one. So an entry's `label` and `lastRead` are written only from an
+   * answer carrying its own did, its `did` never changes, and an entry a
+   * different KB answered for is left exactly as it was, credentials included.
+   * Several entries can share an address, one per KB that has answered there.
    */
   async completeSignIn(callbackUrl: string): Promise<SignInOutcome> {
     const { pending, tokens } = await completeAuthorization(callbackUrl, this.storage);
@@ -313,21 +336,25 @@ export class SemiontBrowser {
       ...(pending.issuer.revocation ? { revocationEndpoint: pending.issuer.revocation } : {}),
     };
     const kbs = this.kbs$.getValue();
-    const existing = pending.kbId
+    const atAddress = kbs.filter((kb) =>
+      kb.endpoint.kind === 'http'
+      && kb.endpoint.host === pending.target.host
+      && kb.endpoint.port === pending.target.port);
+    // An address with several entries singles out no belief of its own.
+    const believed = pending.kbId
       ? kbs.find((kb) => kb.id === pending.kbId)
-      : kbs.find((kb) =>
-          kb.endpoint.kind === 'http'
-          && kb.endpoint.host === pending.target.host
-          && kb.endpoint.port === pending.target.port);
+      : atAddress.length === 1 ? atAddress[0] : undefined;
     const expected = pending.expectedDid
       ? { did: pending.expectedDid, ...(pending.expectedName ? { name: pending.expectedName } : {}) }
-      : existing
-        ? { did: existing.did, ...(existing.label ? { name: existing.label } : {}) }
+      : believed
+        ? { did: believed.did, ...(believed.label ? { name: believed.label } : {}) }
         : undefined;
-    if (existing) {
-      const kb: KnowledgeBase = { ...existing, label, lastRead };
-      this.updateKb(existing.id, { label, lastRead });
-      await this.signIn(existing.id, session);
+
+    const answered = atAddress.find((kb) => kb.did === identity.did);
+    if (answered) {
+      const kb: KnowledgeBase = { ...answered, label, lastRead };
+      this.updateKb(answered.id, { label, lastRead });
+      await this.signIn(answered.id, session);
       return { kb, ...(expected ? { expected } : {}) };
     }
     const kb = this.addKb(
@@ -621,7 +648,12 @@ export class SemiontBrowser {
     // answer to a question asked of the wrong KB — meaningless even when it
     // is `not-found`. One pass, one guard: two async passes racing on one
     // activation is how the guard would stop meaning anything.
-    if ((await this.readKb(session, kbId)) === 'voided') return;
+    const verdict = await this.readKb(session, kbId);
+    if (verdict.kind === 'conflict') {
+      // The read was of this session's KB; what it voids is the ACTIVE KB's.
+      if (!this.disposed && this.activeSession$.getValue() === session) this.voidForConflict(kbId, verdict.observedDid);
+      return;
+    }
 
     // Committed state here too, for the same reason `mutateOpenResources`
     // reads it: a sibling context may have added a tab before this session
@@ -657,26 +689,27 @@ export class SemiontBrowser {
   }
 
   /**
-   * Ask the active KB to describe itself again, and record what it says. The
+   * Ask the active KB to describe itself again, and say what it answered. The
    * KB panel calls this when it opens: a branch changes with no event, so the
    * only fresh answer is one asked for.
    *
-   * Resolves `true` only when the KB answered as itself — the one case in
-   * which its entry now shows the present rather than the last time it was
-   * asked.
+   * Asking is not activating. A KB that answers as its entry has its name and
+   * branch recorded there; a different KB answering is REPORTED, and nothing
+   * is voided and no signal raised. Those are activation's acts, done once,
+   * when the session came up.
    */
-  async readActiveKb(): Promise<boolean> {
+  async readActiveKb(): Promise<KbReadVerdict> {
     const session = this.activeSession$.getValue();
     const kbId = this.activeKbId$.getValue();
-    if (!session || !kbId) return false;
-    return (await this.readKb(session, kbId)) === 'recorded';
+    if (!session || !kbId) return { kind: 'no-verdict' };
+    return this.readKb(session, kbId);
   }
 
   /**
-   * Ask the KB to describe itself. If it is the KB the registry entry claims,
-   * record its name and branch on the entry; if it is not, void the state
-   * that is a claim about its contents (KB-IDENTITY-CHECKED-ON-ACTIVATION
-   * P1). Says which of the three happened.
+   * Ask the KB to describe itself, against the registry entry it is asked as.
+   * If it is the KB the entry claims, record its name and branch on the entry.
+   * Otherwise record nothing, and say which of the other two it was. This
+   * reads; what a conflict does to local state is `voidForConflict`.
    *
    * **The did is read in one direction only (D1).** A did is not unique — a
    * local clone and a codespace of one repo share one — so it is authoritative
@@ -691,22 +724,39 @@ export class SemiontBrowser {
    * phantoms this addresses. Neither records anything either: an entry shows
    * what the KB last said, never what it failed to say.
    */
-  private async readKb(session: SemiontSession, kbId: string): Promise<'recorded' | 'voided' | 'no-verdict'> {
+  private async readKb(session: SemiontSession, kbId: string): Promise<KbReadVerdict> {
     const expectedDid = this.kbs$.getValue().find((k) => k.id === kbId)?.did;
-    if (!expectedDid) return 'no-verdict';
+    if (!expectedDid) return { kind: 'no-verdict' };
 
     let description: KbDescription;
     try {
       description = await session.client.browse.kb();
     } catch {
-      return 'no-verdict'; // no answer — a symptom, not a verdict
+      return { kind: 'no-verdict' }; // no answer — a symptom, not a verdict
     }
     const observedDid = kbDid(description.domain);
-    if (observedDid === expectedDid) {
-      if (this.disposed) return 'no-verdict';
-      this.updateKb(kbId, { label: description.name, lastRead: kbRead(description, new Date()) });
-      return 'recorded';
+    if (observedDid !== expectedDid) {
+      // The registry entry is left exactly as the user wrote it (D4):
+      // overwriting `did`/`label` would erase the only evidence a substitution
+      // happened and sign them in to a KB they never chose under the name of
+      // one they did, and recording the other KB's branch would show its tree
+      // under this KB's row.
+      return { kind: 'conflict', observedDid, observedName: description.name };
     }
+    if (this.disposed) return { kind: 'no-verdict' };
+    this.updateKb(kbId, { label: description.name, lastRead: kbRead(description, new Date()) });
+    return { kind: 'recorded' };
+  }
+
+  /**
+   * What activation does when a different KB answered for the active entry
+   * (KB-IDENTITY-CHECKED-ON-ACTIVATION P1): void the state that is a claim
+   * about the entry's contents, and raise the conflict. Re-registering is a
+   * deliberate act; the panel has that flow.
+   */
+  private voidForConflict(kbId: string, observedDid: string): void {
+    const expectedDid = this.kbs$.getValue().find((k) => k.id === kbId)?.did;
+    if (!expectedDid) return;
 
     // Both maps, at the same instant (D2). They are keyed the same way and
     // both say "these resources are in that KB"; voiding one would leave the
@@ -719,13 +769,7 @@ export class SemiontBrowser {
       this.refreshLastViewedResource();
     }
 
-    // The registry entry itself is left exactly as the user wrote it (D4):
-    // overwriting `did`/`label` would erase the only evidence a substitution
-    // happened and sign them in to a KB they never chose under the name of one
-    // they did, and recording the other KB's branch would show its tree under
-    // this KB's row. Re-registering is a deliberate act; the panel has that flow.
     this.activeSignals$.getValue()?.notifyKbIdentityConflict({ expectedDid, observedDid });
-    return 'voided';
   }
 
   /**

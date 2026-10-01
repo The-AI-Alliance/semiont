@@ -674,7 +674,7 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
     mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a', gitBranch: 'second-line' });
 
-    expect(await browser.readActiveKb()).toBe(true);
+    expect(await browser.readActiveKb()).toEqual({ kind: 'recorded' });
     expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)?.lastRead?.gitBranch).toBe('second-line');
     await browser.dispose();
   });
@@ -686,8 +686,47 @@ describe('SemiontBrowser — open resources (KB-scoped)', () => {
 
     mockKb = async () => { throw new BusRequestError('archivist down', 'bus.peer-unavailable'); };
 
-    expect(await browser.readActiveKb()).toBe(false);
+    expect(await browser.readActiveKb()).toEqual({ kind: 'no-verdict' });
     expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)?.lastRead?.gitBranch).toBe('main');
+    await browser.dispose();
+  });
+
+  it('readActiveKb, answered by a different KB, reports it and acts on nothing: no tab is voided and no signal raised', async () => {
+    // The panel asks on opening, to show a branch as current. Asking is not
+    // activating: what a different KB's answer does to local state, and the
+    // modal, belong to activation alone.
+    seedKbScopedState();
+    mockKb = async () => ({ name: KB_A.label, domain: 'example.github.io:kb-a', gitBranch: 'main' });
+    const browser = await makeConnectedBrowser();
+    await settled();
+
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb', gitBranch: 'trunk' });
+
+    expect(await browser.readActiveKb()).toEqual({
+      kind: 'conflict',
+      observedDid: 'did:web:someone-else.github.io:other-kb',
+      observedName: 'Other KB',
+    });
+    expect(browser.openResources$.getValue().map((r) => r.id)).toEqual(['a1']);
+    expect(readMap(LAST_VIEWED_RESOURCE_BY_KB_KEY)[KB_A.id]).toBe('a1');
+    expect(browser.activeSignals$.getValue()!.kbIdentityConflict$.getValue()).toBeNull();
+    // Nor is the other KB's answer recorded on this entry.
+    expect(browser.kbs$.getValue().find((k) => k.id === KB_A.id)).toMatchObject({ label: KB_A.label, lastRead: { gitBranch: 'main' } });
+    await browser.dispose();
+  });
+
+  it('readActiveKb does not raise again a conflict the user has acknowledged', async () => {
+    seedKbScopedState();
+    mockKb = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb' });
+    const browser = await makeConnectedBrowser();
+    await settled();
+    const signals = browser.activeSignals$.getValue()!;
+    expect(signals.kbIdentityConflict$.getValue()).not.toBeNull();
+
+    signals.acknowledgeKbIdentityConflict();
+    await browser.readActiveKb();
+
+    expect(signals.kbIdentityConflict$.getValue()).toBeNull();
     await browser.dispose();
   });
 
@@ -1221,6 +1260,78 @@ describe('SemiontBrowser — sign-in through the issuer', () => {
 
     expect(outcome.kb.id).toBe(KB_A.id);
     expect(browser.kbs$.getValue()).toHaveLength(1);
+    await browser.dispose();
+  });
+
+  // Look up by address, verify by did. The address, and the row the user
+  // clicked, say what they BELIEVED; the did the KB reports decides which
+  // entry is signed in.
+  const OTHER_DID = 'did:web:someone-else.github.io:other-kb';
+  const answersAsOther = async () => ({ name: 'Other KB', domain: 'someone-else.github.io:other-kb', gitBranch: 'trunk' });
+
+  it('a re-auth by id that a different KB answers leaves the believed entry as it was, and lands on a new entry for the KB that answered', async () => {
+    const believed = { ...KB_A, lastRead: { at: '2026-01-01T00:00:00.000Z', gitBranch: 'main' } };
+    storage.set(STORAGE_KEY, JSON.stringify([believed]));
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'believed-refresh');
+    mockKb = answersAsOther;
+    const browser = makeBrowser();
+    await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null), take(1)));
+    const storedBefore = storage.get(storageKey(KB_A.id));
+    const { callback } = await begin(browser, { kbId: KB_A.id });
+
+    const outcome = await browser.completeSignIn(callback);
+
+    // The entry the user believed they were signing in to: untouched.
+    const kbs = browser.kbs$.getValue();
+    expect(kbs).toHaveLength(2);
+    expect(kbs.find((k) => k.id === KB_A.id)).toEqual(believed);
+    expect(storage.get(storageKey(KB_A.id))).toBe(storedBefore);
+    // The KB that answered: its own entry, under its own name, signed in and active.
+    expect(outcome.kb.id).not.toBe(KB_A.id);
+    expect(outcome.kb).toMatchObject({
+      did: OTHER_DID, label: 'Other KB', endpoint: TARGET,
+      lastRead: { at: expect.any(String), gitBranch: 'trunk' },
+    });
+    expect(kbs.find((k) => k.id === outcome.kb.id)).toMatchObject({ did: OTHER_DID, label: 'Other KB' });
+    expect(browser.activeKbId$.getValue()).toBe(outcome.kb.id);
+    expect(JSON.parse(storage.get(storageKey(outcome.kb.id))!)).toMatchObject({ refresh: 'issued-refresh' });
+    // And the belief is reported back, so the host can say what happened.
+    expect(outcome.expected).toEqual({ did: KB_A.did, name: KB_A.label });
+    await browser.dispose();
+  });
+
+  it('with two entries at one address, a sign-in lands on the one whose did answered', async () => {
+    const other = { id: 'kb-other', label: 'Other KB', did: OTHER_DID, endpoint: KB_A.endpoint };
+    // The other KB first: a lookup by address alone would take it.
+    storage.set(STORAGE_KEY, JSON.stringify([other, KB_A]));
+    const browser = makeBrowser();
+    const { callback } = await begin(browser);
+
+    const outcome = await browser.completeSignIn(callback);
+
+    expect(outcome.kb.id).toBe(KB_A.id);
+    const kbs = browser.kbs$.getValue();
+    expect(kbs).toHaveLength(2);
+    expect(kbs.find((k) => k.id === other.id)).toEqual(other);
+    expect(storage.get(storageKey(other.id))).toBeNull();
+    await browser.dispose();
+  });
+
+  it('when the only entry at the address is another KB, a sign-in registers a new entry rather than re-labelling it', async () => {
+    const other = { id: 'kb-other', label: 'Other KB', did: OTHER_DID, endpoint: KB_A.endpoint };
+    storage.set(STORAGE_KEY, JSON.stringify([other]));
+    const browser = makeBrowser();
+    const { callback } = await begin(browser);
+
+    const outcome = await browser.completeSignIn(callback);
+
+    const kbs = browser.kbs$.getValue();
+    expect(kbs).toHaveLength(2);
+    expect(kbs.find((k) => k.id === other.id)).toEqual(other);
+    expect(outcome.kb.id).not.toBe(other.id);
+    expect(outcome.kb).toMatchObject({ did: KB_A.did, label: 'KB A', endpoint: TARGET });
+    // The one entry registered at the address is what the user believed was there.
+    expect(outcome.expected).toEqual({ did: OTHER_DID, name: 'Other KB' });
     await browser.dispose();
   });
 

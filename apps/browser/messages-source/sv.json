@@ -206,7 +206,8 @@
     "connectedToOther": "Ansluten till {{actual}}, inte {{expected}}.",
     "identityCheckFailed": "Inloggad, men identitetskontrollen kunde inte nå den här kunskapsbasen.",
     "identityNotReported": "Inloggad, men den här kunskapsbasen rapporterade ingen identitet.",
-    "lastReadAt": "Per {{time}}"
+    "lastReadAt": "Per {{time}}",
+    "answeringInstead": "{{name}} svarar på den här adressen"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Inga kunskapsbaser",

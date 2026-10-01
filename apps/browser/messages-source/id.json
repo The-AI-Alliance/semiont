@@ -206,7 +206,8 @@
     "connectedToOther": "Terhubung ke {{actual}}, bukan {{expected}}.",
     "identityCheckFailed": "Sudah masuk, tetapi pemeriksaan identitas tidak dapat menjangkau basis pengetahuan ini.",
     "identityNotReported": "Sudah masuk, tetapi basis pengetahuan ini tidak melaporkan identitas.",
-    "lastReadAt": "Per {{time}}"
+    "lastReadAt": "Per {{time}}",
+    "answeringInstead": "{{name}} menjawab di alamat ini"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Tidak ada basis pengetahuan",

@@ -206,7 +206,8 @@
     "connectedToOther": "Tilkoblet {{actual}}, ikke {{expected}}.",
     "identityCheckFailed": "Logget inn, men identitetssjekken kunne ikke nå denne kunnskapsbasen.",
     "identityNotReported": "Logget inn, men denne kunnskapsbasen rapporterte ingen identitet.",
-    "lastReadAt": "Per {{time}}"
+    "lastReadAt": "Per {{time}}",
+    "answeringInstead": "{{name}} svarer på denne adressen"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Ingen kunnskapsbaser",

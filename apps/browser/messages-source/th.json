@@ -206,7 +206,8 @@
     "connectedToOther": "เชื่อมต่อกับ {{actual}} ไม่ใช่ {{expected}}",
     "identityCheckFailed": "เข้าสู่ระบบแล้ว แต่การตรวจสอบตัวตนไม่สามารถเข้าถึงฐานความรู้นี้ได้",
     "identityNotReported": "เข้าสู่ระบบแล้ว แต่ฐานความรู้นี้ไม่ได้รายงานตัวตน",
-    "lastReadAt": "ณ {{time}}"
+    "lastReadAt": "ณ {{time}}",
+    "answeringInstead": "{{name}} กำลังตอบที่ที่อยู่นี้"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "ไม่มีฐานความรู้",

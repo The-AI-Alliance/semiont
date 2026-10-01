@@ -206,7 +206,8 @@
     "connectedToOther": "متصل بـ{{actual}}، وليس {{expected}}.",
     "identityCheckFailed": "تم تسجيل الدخول، لكن تعذّر على التحقق من الهوية الوصول إلى قاعدة المعرفة هذه.",
     "identityNotReported": "تم تسجيل الدخول، لكن قاعدة المعرفة هذه لم تُبلِغ عن أي هوية.",
-    "lastReadAt": "اعتبارًا من {{time}}"
+    "lastReadAt": "اعتبارًا من {{time}}",
+    "answeringInstead": "{{name}} هي التي تجيب على هذا العنوان"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "لا توجد قواعد معرفة",

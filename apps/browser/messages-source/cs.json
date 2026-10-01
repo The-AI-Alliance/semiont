@@ -206,7 +206,8 @@
     "connectedToOther": "Připojeno k {{actual}}, ne k {{expected}}.",
     "identityCheckFailed": "Přihlášeno, ale kontrola identity nemohla tuto znalostní bázi kontaktovat.",
     "identityNotReported": "Přihlášeno, ale tato znalostní báze neuvedla žádnou identitu.",
-    "lastReadAt": "Stav k {{time}}"
+    "lastReadAt": "Stav k {{time}}",
+    "answeringInstead": "Na této adrese odpovídá {{name}}"
   },
   "DiscoverEmptyState": {
     "noKnowledgeBases": "Žádné znalostní báze",
