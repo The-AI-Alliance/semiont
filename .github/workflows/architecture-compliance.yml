@@ -82,6 +82,7 @@ jobs:
           npm run lint:conformance-readmes || fail=1
           npm run lint:transport-contract || fail=1
           npm run lint:client-surface || fail=1
+          npm run lint:internal-deps || fail=1
           echo "::endgroup::"
           exit $fail
 

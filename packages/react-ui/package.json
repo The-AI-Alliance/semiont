@@ -124,9 +124,9 @@
     "directory": "packages/react-ui"
   },
   "dependencies": {
-    "@semiont/core": "0.6.8",
-    "@semiont/http-transport": "0.6.8",
-    "@semiont/sdk": "0.6.8",
+    "@semiont/core": "*",
+    "@semiont/http-transport": "*",
+    "@semiont/sdk": "*",
     "clsx": "^2.1.1",
     "pdfjs-dist": "^6.2.108",
     "react-error-boundary": "^6.1.6",
