@@ -12,3 +12,8 @@ semiont-observability.workspace = true
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
 uuid = { workspace = true, features = ["v4"] }
+
+[dev-dependencies]
+# `as_id`, for a fixture's ids.
+semiont = { workspace = true, features = ["testing"] }
+tokio = { workspace = true, features = ["rt", "macros"] }

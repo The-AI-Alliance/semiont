@@ -21,15 +21,15 @@ use bytes::Bytes;
 use futures::StreamExt;
 use semiont::types::{
     FailureClass, Job, JobCancelRequestJobType, JobCancelled, JobCancelledStatus, JobComplete,
-    JobCompleteStatus, JobFailed, JobFailedStatus, JobPending, JobPendingStatus, JobQueuedEvent,
-    JobRunning, JobRunningStatus, JobStoredProgress, JobStoredResult, JobType,
+    JobCompleteStatus, JobFailed, JobFailedStatus, JobId, JobPending, JobPendingStatus,
+    JobQueuedEvent, JobRunning, JobRunningStatus, JobStoredProgress, JobStoredResult, JobType,
 };
 use semiont_core::nats::{self, Voice};
 use semiont_core::types::JobRecord;
 use semiont_dispatcher_handlers::admission::{now, wire_name};
 use semiont_dispatcher_handlers::checkpoint::{checkpointed, failed_with};
 use semiont_dispatcher_handlers::queue::{
-    Checkpoint, Claim, FailOutcome, JobId, JobQueue, QueueError, Stats,
+    Checkpoint, Claim, FailOutcome, JobQueue, QueueError, Stats,
 };
 use semiont_dispatcher_handlers::retry::will_retry_after;
 use semiont_observability::logging;
@@ -63,6 +63,29 @@ fn failed(what: &str, error: impl std::fmt::Display) -> QueueError {
 }
 
 /// The subject a job of this type is published on.
+/// A stored value as the record it is, or why it is not one.
+fn decode(id: &str, stored: &[u8]) -> Result<JobRecord, QueueError> {
+    serde_json::from_slice(stored).map_err(|e| failed(&format!("job {id}'s record"), e))
+}
+
+/// What a pass over every job makes of one stored value: its record, or
+/// nothing for a value that does not decode. That one is reported and passed
+/// over, at every pass, and is never claimed, counted, swept or pruned: were
+/// it the pass's failure instead, one bad record would stop every claim and
+/// every sweep of the jobs listed after it.
+fn scanned(id: &str, stored: &[u8]) -> Option<JobRecord> {
+    match decode(id, stored) {
+        Ok(record) => Some(record),
+        Err(error) => {
+            logging::error(
+                "A stored job record that does not decode",
+                json!({ "component": "job-queue", "jobId": id, "error": error.0 }),
+            );
+            None
+        }
+    }
+}
+
 fn subject(job_type: JobType) -> String {
     let name = wire_name(job_type);
     let category = JOB_CATEGORIES
@@ -275,7 +298,8 @@ impl Inner {
         self.held.lock().unwrap_or_else(|p| p.into_inner())
     }
 
-    async fn read(&self, id: &str) -> Result<Option<(JobRecord, u64)>, QueueError> {
+    /// What the bucket holds under `id`, and its revision.
+    async fn stored(&self, id: &str) -> Result<Option<(Bytes, u64)>, QueueError> {
         self.connected()?;
         let Some(entry) = self
             .kv
@@ -288,9 +312,24 @@ impl Inner {
         if entry.operation != kv::Operation::Put {
             return Ok(None);
         }
-        let record: JobRecord = serde_json::from_slice(&entry.value)
-            .map_err(|e| failed(&format!("job {id}'s record"), e))?;
-        Ok(Some((record, entry.revision)))
+        Ok(Some((entry.value, entry.revision)))
+    }
+
+    /// A named job's record. One that does not decode is the failure.
+    async fn read(&self, id: &str) -> Result<Option<(JobRecord, u64)>, QueueError> {
+        let Some((stored, revision)) = self.stored(id).await? else {
+            return Ok(None);
+        };
+        Ok(Some((decode(id, &stored)?, revision)))
+    }
+
+    /// One record of a pass over every job. One that does not decode is
+    /// reported and passed over (`scanned`).
+    async fn scan(&self, id: &str) -> Result<Option<JobRecord>, QueueError> {
+        Ok(self
+            .stored(id)
+            .await?
+            .and_then(|(stored, _)| scanned(id, &stored)))
     }
 
     fn encode(job: Job) -> Bytes {
@@ -447,7 +486,7 @@ impl Inner {
     async fn tick(&self) -> Result<(), QueueError> {
         let ids: Vec<String> = self.held().keys().cloned().collect();
         for id in ids {
-            if let Some((record, _)) = self.read(&id).await?
+            if let Some(record) = self.scan(&id).await?
                 && matches!(record.job, Job::Pending(_))
             {
                 self.announce(&record.job);
@@ -463,7 +502,7 @@ impl Inner {
             stale.as_millis() as f64 / 60_000.0
         );
         for id in self.all_keys().await? {
-            let Some((record, _)) = self.read(&id).await? else {
+            let Some(record) = self.scan(&id).await? else {
                 continue;
             };
             if !matches!(record.job, Job::Running(_)) {
@@ -499,7 +538,7 @@ impl Inner {
             .await
             .map_err(|e| failed("opening the job bucket's stream", e))?;
         for id in self.all_keys().await? {
-            let Some((record, _)) = self.read(&id).await? else {
+            let Some(record) = self.scan(&id).await? else {
                 continue;
             };
             let completed_at = match &record.job {
@@ -673,7 +712,7 @@ impl JobQueue for JetStreamQueue {
             }
         }
         for id in self.inner.all_keys().await? {
-            let Some((record, _)) = self.inner.read(&id).await? else {
+            let Some(record) = self.inner.scan(&id).await? else {
                 continue;
             };
             let Job::Pending(job) = &record.job else {
@@ -805,7 +844,7 @@ impl JobQueue for JetStreamQueue {
         let in_category = |job_type: JobType| types.contains(&wire_name(job_type).as_str());
         let mut cancelled = 0;
         for id in self.inner.all_keys().await? {
-            let Some((record, _)) = self.inner.read(&id).await? else {
+            let Some(record) = self.inner.scan(&id).await? else {
                 continue;
             };
             let Job::Pending(job) = &record.job else {
@@ -878,7 +917,7 @@ impl JobQueue for JetStreamQueue {
     async fn stats(&self) -> Result<Stats, QueueError> {
         let mut stats = Stats::default();
         for id in self.inner.all_keys().await? {
-            let Some((record, _)) = self.inner.read(&id).await? else {
+            let Some(record) = self.inner.scan(&id).await? else {
                 continue;
             };
             match record.job {
@@ -890,5 +929,51 @@ impl JobQueue for JetStreamQueue {
             }
         }
         Ok(stats)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn stored(job_id: &str, resource_id: &str) -> Vec<u8> {
+        serde_json::to_vec(&json!({
+            "job": {
+                "status": "pending",
+                "metadata": {
+                    "id": job_id,
+                    "type": "highlight-annotation",
+                    "userId": "did:web:example.org:users:alice",
+                    "created": "2026-10-02T00:00:00.000Z",
+                    "retryCount": 0,
+                    "maxRetries": 1,
+                },
+                "params": { "resourceId": resource_id },
+            },
+            "lastProgressAt": "2026-10-02T00:00:00.000Z",
+        }))
+        .expect("JSON")
+    }
+
+    #[test]
+    fn a_pass_over_every_job_goes_on_past_a_record_that_does_not_decode() {
+        let bucket = [
+            ("job-1", stored("job-1", "r1")),
+            ("job-2", stored("job-2", "..")),
+            ("job-3", b"not a record".to_vec()),
+            ("job-4", stored("job-4", "r4")),
+        ];
+        let passed: Vec<String> = bucket
+            .iter()
+            .filter_map(|(id, stored)| scanned(id, stored))
+            .map(|record| metadata_of(&record.job).id.to_string())
+            .collect();
+        assert_eq!(passed, ["job-1", "job-4"]);
+    }
+
+    #[test]
+    fn a_named_jobs_record_that_does_not_decode_is_the_failure_and_says_which() {
+        let error = decode("job-2", &stored("job-2", "..")).expect_err("`..` is no ResourceId");
+        assert!(error.0.starts_with("job job-2's record: "), "{}", error.0);
     }
 }

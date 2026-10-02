@@ -22,32 +22,12 @@
 //! nothing else.
 
 use semiont::types::{
-    FailureClass, Job, JobCancelRequestJobType, JobPending, JobRunning, JobStoredProgress,
+    FailureClass, Job, JobCancelRequestJobType, JobId, JobPending, JobRunning, JobStoredProgress,
     JobStoredResult, UnitCursor,
 };
 use std::collections::BTreeMap;
 use std::fmt;
 use std::future::Future;
-
-/// A job's id: `job-` and 32 lowercase hex digits, minted at admission.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct JobId(String);
-
-impl JobId {
-    pub fn new(id: impl Into<String>) -> JobId {
-        JobId(id.into())
-    }
-
-    pub fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-impl fmt::Display for JobId {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
 
 /// A queue operation that failed: the queue's own message, which a refusal carries.
 #[derive(Debug)]
