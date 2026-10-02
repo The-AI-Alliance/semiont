@@ -1,5 +1,6 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { lazy, Suspense, type ComponentType } from 'react';
 import type { Annotation } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
@@ -37,7 +38,7 @@ const PdfAnnotationCanvas = lazy(() =>
 export interface AnnotateMediaRendererProps {
   content: string;
   mimeType: string;
-  resourceUri: string;
+  resourceUri: ResourceId;
   annotations: Annotation[];
   /** Session for interaction routing — the canvases emit via `session.client`. */
   session: SemiontSession | null;

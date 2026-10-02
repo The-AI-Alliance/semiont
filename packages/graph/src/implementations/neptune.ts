@@ -877,7 +877,7 @@ export class NeptuneGraphDatabase implements GraphDatabase {
     }
   }
   
-  async findPath(fromResourceId: string, toResourceId: string, maxDepth: number = 5): Promise<GraphPath[]> {
+  async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
     try {
       // Use Neptune's optimized path queries
       const results = await this.g.V()

@@ -500,7 +500,7 @@ describe('W9 — reconcile detects and heals out-of-band divergence', () => {
                 const [first] = anns;
                 if (!first) { mutated = false; break; }
                 await rig.graph.updateAnnotation(mkAid(first), {
-                  target: { source: rid, selector: { type: 'TextQuoteSelector', exact: 'oob-corruption' } },
+                  target: { source: resourceId(rid), selector: { type: 'TextQuoteSelector', exact: 'oob-corruption' } },
                 });
                 contentCorrupted = true;
                 break;

@@ -23,7 +23,7 @@ const W3C: components['schemas']['Annotation'] = {
   type: 'Annotation',
   id: annotationId('ann-cite'),
   motivation: 'linking',
-  target: { source: 'res-citing' },
+  target: { source: resourceId('res-citing') },
   created: '2020-01-01T00:00:00.000Z',
 };
 

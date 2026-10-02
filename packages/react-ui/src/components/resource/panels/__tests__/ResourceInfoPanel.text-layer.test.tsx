@@ -8,6 +8,7 @@
  * and not-yet-asked render NO row — no claim, no invented state. A bridged
  * `smelt:settled` for THIS resource refreshes the row in place.
  */
+import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import { render, screen, act, waitFor } from '@testing-library/react';
@@ -17,7 +18,7 @@ import { ResourceInfoPanel } from '../ResourceInfoPanel';
 import type { SemiontSession } from '@semiont/sdk';
 
 const props = {
-  resourceId: 'res-tl',
+  resourceId: resourceId('res-tl'),
   documentEntityTypes: [],
   session: null as SemiontSession | null,
 };

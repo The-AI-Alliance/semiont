@@ -14,6 +14,7 @@
  *
  * Started RED (async order → 0 spans) → GREEN with the single keyed effect.
  */
+import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -55,7 +56,7 @@ const withReference = { ...emptyAnnotations, references: [referenceOnWorld()] };
 
 const baseProps = {
   mimeType: 'text/plain',
-  resourceUri: 'res-1',
+  resourceUri: resourceId('res-1'),
   annotateMode: false,
 };
 

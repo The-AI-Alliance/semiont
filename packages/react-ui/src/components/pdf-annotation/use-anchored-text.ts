@@ -1,8 +1,8 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AnchoredText } from '@semiont/core';
-import { resourceId as toResourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 
 /**
@@ -48,7 +48,7 @@ export interface AnchoredTextState {
  */
 export function useAnchoredText(
   session: SemiontSession | null | undefined,
-  resourceUri: string,
+  resourceUri: ResourceId,
 ): AnchoredTextState {
   const resourceAnchoredRef = useRef<{ uri: string; outcome: Promise<AnchoredText | null> } | null>(null);
   const [anchoredKind, setAnchoredKind] = useState<AnchoredKind | null>(null);
@@ -63,7 +63,7 @@ export function useAnchoredText(
     const uri = resourceUri;
     const entry: { uri: string; outcome: Promise<AnchoredText | null> } = {
       uri,
-      outcome: session.client.browse.resourceAnchoredText(toResourceId(uri)).then(
+      outcome: session.client.browse.resourceAnchoredText(uri).then(
         (served) => {
           // `not-yet` is never pinned: every page load asks again.
           if (served.kind === 'not-yet' && resourceAnchoredRef.current?.uri === uri) {

@@ -3,7 +3,7 @@
   "description": "Emitted when a mark is submitted with its annotation body",
   "properties": {
     "source": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "The '@id' of the resource the mark belongs to (W3C target.source). Routes the submit to the state unit bound to that resource — without it, N mounted units each create the annotation (N copies on N resources)."
     },
     "motivation": {

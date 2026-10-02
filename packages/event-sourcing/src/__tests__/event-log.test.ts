@@ -84,7 +84,7 @@ describe('EventLog', () => {
             motivation: 'commenting' as const,
             created: '2026-01-01T00:00:00.000Z',
             body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],
-            target: 'http://example.com/resources/doc1',
+            target: resourceId('doc1'),
           },
         },
       };
@@ -233,7 +233,7 @@ describe('EventLog', () => {
             motivation: 'commenting' as const,
             created: '2026-01-01T00:00:00.000Z',
             body: [{ type: 'TextualBody' as const, value: 'test comment', purpose: 'commenting' as const }],
-            target: 'http://example.com/resources/doc1',
+            target: resourceId('doc1'),
           },
         },
       }, rid);

@@ -33,7 +33,7 @@ export function annotationContextFor(rid: string, aid: string): GatheredContext 
         id: annotationId(aid),
         motivation: 'linking',
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: rid },
+        target: { source: resourceId(rid) },
       },
       sourceResource: {
         '@context': 'https://semiont.dev/context/v1',

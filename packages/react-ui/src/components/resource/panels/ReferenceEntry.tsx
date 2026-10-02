@@ -1,10 +1,10 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import type { Ref } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { Annotation } from '@semiont/core';
-import { resourceId } from '@semiont/core';
-import { getAnnotationExactText, isBodyResolved, getBodySource, getFragmentSelector, getSvgSelector, getTargetSelector, getPrimaryMediaType } from '@semiont/core';
+import { getAnnotationExactText, isBodyResolved, getBodySource, getTargetSource, getFragmentSelector, getSvgSelector, getTargetSelector, getPrimaryMediaType } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { getResourceIcon } from '../../../lib/resource-utils';
 import { readyValue, type SemiontSession } from '@semiont/sdk';
@@ -19,7 +19,7 @@ interface ReferenceEntryProps {
   isFocused: boolean;
   isHovered?: boolean;
   /** Host-owned navigation: called with the resolved resource id when the entry's link opens. */
-  onOpenResource?: (resourceId: string) => void;
+  onOpenResource?: (resourceId: ResourceId) => void;
   annotateMode?: boolean;
   isGenerating?: boolean;
   /** The reference just got attention-worthy (created or resolved) — glow the icon (RESOLUTION-SPARKLE D6). */
@@ -62,7 +62,7 @@ export function ReferenceEntry({
   // stub has no resolved body and requests nothing; and unlike a value stapled
   // onto the annotation, the name follows a rename of the target.
   const targetState = useObservable(
-    semiont && resolvedResourceUri ? semiont.browse.resource(resourceId(resolvedResourceUri)) : null,
+    semiont && resolvedResourceUri ? semiont.browse.resource(resolvedResourceUri) : null,
   );
   const target = targetState ? readyValue(targetState) : undefined;
   const resolvedDocumentName = target?.name;
@@ -75,21 +75,19 @@ export function ReferenceEntry({
     }
   };
 
-  const source = typeof reference.target === 'object' && 'source' in reference.target
-    ? reference.target.source
-    : '';
+  const source = getTargetSource(reference.target);
 
   const handleUnlink = () => {
-    if (source && resolvedResourceUri && semiont) {
+    if (resolvedResourceUri && semiont) {
       semiont.bind.body(
-        resourceId(source),
+        source,
         reference.id,
         [{ op: 'remove', item: { type: 'SpecificResource', source: resolvedResourceUri, purpose: 'linking' } }],
       ).catch((error: unknown) => {
         // This component has no toast surface — report the client-local,
         // resource-stamped bind error; useOutcomeToasts surfaces it.
         semiont.bind.reportBodyError({
-          resourceId: resourceId(source),
+          resourceId: source,
           message: error instanceof Error ? error.message : String(error),
         });
       });
@@ -99,7 +97,7 @@ export function ReferenceEntry({
   const handleInitiateWizard = () => {
     session?.client.bind.initiate({
       annotationId: reference.id,
-      resourceId: resourceId(source),
+      resourceId: source,
       defaultTitle: selectedText,
       entityTypes,
     });

@@ -6,7 +6,7 @@ import type {
   GatheredContext,
   GenerationJobParams,
 } from '@semiont/core';
-import { resourceId as toResourceId, cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
+import { cloneFormat, deriveStorageUri, getPrimaryRepresentation } from '@semiont/core';
 
 import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
@@ -144,7 +144,7 @@ export class YieldNamespace implements IYieldNamespace {
     // ride `job:create`).
     const { stallDeadlineMs, ...wireOptions } = options;
     const stallMs = stallDeadlineMs ?? deriveStallDeadlineMs(options.maxTokens);
-    return this.runGeneration(toResourceId(displayRid), { ...wireOptions, context }, stallMs);
+    return this.runGeneration(displayRid, { ...wireOptions, context }, stallMs);
   }
 
   /**

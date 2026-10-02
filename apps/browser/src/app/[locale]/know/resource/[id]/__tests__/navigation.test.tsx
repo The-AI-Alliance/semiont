@@ -211,6 +211,23 @@ describe('KnowledgeResourcePage navigation', () => {
     expect(screen.queryByTestId('resource-rid')).toBeNull();
   });
 
+  it.each(['a.b', 'my notes', 'naïve', 'x'.repeat(129)])(
+    'renders not-found — and builds no state unit — when the :id param is not a resource id (%s)',
+    (id) => {
+      // A URL can carry any text: an old bookmark, a mistyped address. Text
+      // the rule refuses names no resource, and saying so is not an error:
+      // `resourceId()` throws for it, and a throw in render is the error
+      // boundary's message for something that did not go wrong.
+      mockedParamsId = id;
+
+      render(<KnowledgeResourcePage />);
+
+      expect(screen.getByTestId('not-found')).toBeTruthy();
+      expect(vmFactoryCalls).toEqual([]);
+      expect(screen.queryByTestId('resource-rid')).toBeNull();
+    },
+  );
+
   it('leaves the KB-switch redirect to the switch INITIATOR, not to itself', () => {
     // This page cannot detect a KB switch: `KnowledgeLayout` gates <Outlet />
     // on a live session, so it is unmounted the instant `activeSession$` goes

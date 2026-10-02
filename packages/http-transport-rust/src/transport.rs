@@ -103,9 +103,9 @@ impl Default for Timing {
 /// replay.
 pub trait Bookmarks: Send + Sync + 'static {
     /// The id of the last recorded event delivered on each scope, as kept.
-    fn load(&self) -> HashMap<String, String>;
+    fn load(&self) -> HashMap<ResourceId, String>;
     /// A recorded event was delivered on `scope`.
-    fn save(&self, scope: &str, event_id: &str);
+    fn save(&self, scope: &ResourceId, event_id: &str);
 }
 
 pub struct HttpTransportConfig {
@@ -458,7 +458,7 @@ struct Inner {
     commands: mpsc::UnboundedSender<Command>,
     state: watch::Receiver<ConnectionState>,
     /// How many holds each resource's scope has.
-    holds: Arc<Mutex<HashMap<String, usize>>>,
+    holds: Arc<Mutex<HashMap<ResourceId, usize>>>,
     closed: AtomicBool,
 }
 
@@ -518,7 +518,7 @@ impl Transport for HttpTransport {
             telemetry::record_bus_sent(channel, scope.as_deref());
             let mut attributes = vec![KeyValue::new("bus.channel", channel.to_owned())];
             if let Some(scope) = &scope {
-                attributes.push(KeyValue::new("bus.scope", scope.clone()));
+                attributes.push(KeyValue::new("bus.scope", scope.to_string()));
             }
             let body = BusEmitRequest {
                 channel: channel.to_owned(),
@@ -554,7 +554,7 @@ impl Transport for HttpTransport {
     }
 
     fn subscribe_to_resource(&self, resource_id: &ResourceId) -> ResourceHold {
-        let resource = resource_id.to_string();
+        let resource = resource_id.clone();
         let holds = self.inner.holds.clone();
         let commands = self.inner.commands.clone();
         {

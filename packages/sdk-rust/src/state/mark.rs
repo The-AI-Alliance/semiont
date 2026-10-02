@@ -185,7 +185,7 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
             }));
         };
         if let Some(request) = said::<MarkRequested>(&frame) {
-            if request.source == shared.resource_id.as_str() {
+            if request.source == shared.resource_id {
                 pend(request.selector, request.motivation);
             }
         } else if let Some(selection) = said::<MarkSelectComment>(&frame) {
@@ -199,7 +199,7 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
         } else if said::<MarkCancelPending>(&frame).is_some() {
             shared.pending.set(None);
         } else if let Some(submission) = said::<MarkSubmit>(&frame) {
-            if submission.source == shared.resource_id.as_str() {
+            if submission.source == shared.resource_id {
                 shared.tasks.spawn(create(shared.clone(), submission));
             }
         } else if let Some(deletion) = said::<MarkDelete>(&frame) {
@@ -239,7 +239,7 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
         .annotation(CreateAnnotationRequest {
             motivation: submission.motivation,
             target: AnnotationTarget {
-                source: shared.resource_id.to_string(),
+                source: shared.resource_id.clone(),
                 selector: Some(submission.selector),
             },
             body: submission.body,

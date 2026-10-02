@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { BehaviorSubject } from 'rxjs';
-import { accessToken, baseUrl, type AccessToken, type EventMap, annotationId } from '@semiont/core';
+import { accessToken, baseUrl, type AccessToken, type EventMap, annotationId, resourceId } from '@semiont/core';
 import { HttpTransport } from '../http-transport';
 import { mockFetch, mockSSEResponse, sseChunk } from './helpers/mock-conn';
 
@@ -50,7 +50,7 @@ describe('HttpTransport ITransport delegation', () => {
     mockFetch.mockResolvedValueOnce({ ok: true, json: async () => ({ subscribers: 1 }) });
     const transport = new HttpTransport({ baseUrl: BASE });
 
-    await transport.emit('beckon:hover', { annotationId: annotationId('a-1') }, { scope: 'res-9' });
+    await transport.emit('beckon:hover', { annotationId: annotationId('a-1') }, { scope: resourceId('res-9') });
 
     const [, opts] = mockFetch.mock.calls[0] as [string, { body: string }];
     expect(JSON.parse(opts.body)).toMatchObject({ scope: 'res-9' });

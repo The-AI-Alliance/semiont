@@ -1199,7 +1199,7 @@ describe('Weaver', () => {
             id: annotationId('ann-authored'),
             motivation: 'highlighting' as const,
             created: AUTHORED,
-            target: { source: rid },
+            target: { source: resourceId(rid) },
           },
         },
       });
@@ -1428,7 +1428,7 @@ describe('Weaver', () => {
       });
       await eventStore.appendEvent({
         type: 'mark:added', resourceId: resourceId(rid), userId: userId('did:web:test:users:user1'), version: 1,
-        payload: { annotation: { ...viewAnn(), target: { source: rid } } },
+        payload: { annotation: { ...viewAnn(), target: { source: resourceId(rid) } } },
       });
       await tick();
     };

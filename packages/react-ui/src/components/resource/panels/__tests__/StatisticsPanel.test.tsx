@@ -22,6 +22,7 @@ vi.mock('@semiont/ontology', () => ({
 }));
 
 import { StatisticsPanel } from '../StatisticsPanel';
+import { resourceId } from '@semiont/core';
 
 const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   '@context': 'http://www.w3.org/ns/anno.jsonld',
@@ -31,7 +32,7 @@ const createMockAnnotation = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-06-15T12:00:00Z',
   modified: '2024-06-15T12:00:00Z',
   target: {
-    source: '1',
+    source: resourceId('1'),
     selector: {
       type: 'TextQuoteSelector',
       exact: 'some text',

@@ -13,6 +13,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { SvgDrawingCanvas } from '../SvgDrawingCanvas';
+import { resourceId } from '@semiont/core';
 
 // jsdom's Image never fires onload; the canvas loads natural dimensions via a
 // detached `new Image()`. Stub it to report 100×100 synchronously-ish.
@@ -32,7 +33,7 @@ const rectAnnotation: Annotation = {
   motivation: 'highlighting',
   created: '2024-01-01T10:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'SvgSelector',
       value: '<svg><rect x="10" y="10" width="20" height="20"/></svg>',
@@ -66,7 +67,7 @@ describe('SvgDrawingCanvas — drawing-path hit-test anchorRect', () => {
     const { container } = render(
       <SvgDrawingCanvas
         imageUrl="http://test/image.png"
-        resourceUri="resource-1"
+        resourceUri={resourceId("resource-1")}
         existingAnnotations={[rectAnnotation]}
         drawingMode="rectangle"
         selectedMotivation="highlighting"

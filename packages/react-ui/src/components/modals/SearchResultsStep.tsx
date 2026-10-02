@@ -1,7 +1,7 @@
 'use client';
 import { WizardFooter } from './WizardFooter';
 
-import type { ResourceDescriptor } from '@semiont/core';
+import type { ResourceDescriptor, ResourceId } from '@semiont/core';
 
 export type ScoredResult = ResourceDescriptor & {
   score?: number;
@@ -16,7 +16,7 @@ export type ScoredResult = ResourceDescriptor & {
  */
 export interface SearchResultsStepProps {
   results: ScoredResult[];
-  onLink: (resourceId: string) => void;
+  onLink: (resourceId: ResourceId) => void;
   onBack: () => void;
   translations: {
     noResults: string;

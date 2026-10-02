@@ -14,6 +14,7 @@
 
 use crate::locked;
 use crate::storage::{SessionStorage, StorageChange, StorageSubscription};
+use crate::types::ResourceId;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
@@ -23,12 +24,12 @@ struct Coupling {
     storage: Arc<dyn SessionStorage>,
     key: String,
     /// The places reached and not yet written.
-    pending: Mutex<HashMap<String, String>>,
+    pending: Mutex<HashMap<ResourceId, String>>,
     gate: Mutex<Option<Gate>>,
 }
 
 impl Coupling {
-    fn stored(stored: Option<&str>) -> HashMap<String, String> {
+    fn stored(stored: Option<&str>) -> HashMap<ResourceId, String> {
         stored
             .and_then(|stored| serde_json::from_str(stored).ok())
             .unwrap_or_default()
@@ -73,14 +74,14 @@ impl CoupledBookmarks {
     }
 
     /// The places kept, by scope.
-    pub fn load(&self) -> HashMap<String, String> {
+    pub fn load(&self) -> HashMap<ResourceId, String> {
         Coupling::stored(self.coupling.storage.get(&self.coupling.key).as_deref())
     }
 
     /// A place was reached in `scope`. Remembered, and written with a later
     /// write of a cache.
-    pub fn save(&self, scope: &str, event_id: &str) {
-        locked(&self.coupling.pending).insert(scope.to_owned(), event_id.to_owned());
+    pub fn save(&self, scope: &ResourceId, event_id: &str) {
+        locked(&self.coupling.pending).insert(scope.clone(), event_id.to_owned());
     }
 
     /// Say when the caches are at rest. With no gate every write of a cache
@@ -130,10 +131,10 @@ mod tests {
 
     const KEY: &str = "semiont.lastEventId.kb-a";
 
-    fn places(pairs: &[(&str, &str)]) -> HashMap<String, String> {
+    fn places(pairs: &[(&str, &str)]) -> HashMap<ResourceId, String> {
         pairs
             .iter()
-            .map(|(scope, id)| ((*scope).to_owned(), (*id).to_owned()))
+            .map(|(scope, id)| (scope.parse().unwrap(), (*id).to_owned()))
             .collect()
     }
 
@@ -144,9 +145,9 @@ mod tests {
         let caches = bookmarks.storage();
         assert!(bookmarks.load().is_empty());
 
-        bookmarks.save("res-1", "p-7");
-        bookmarks.save("res-1", "p-8");
-        bookmarks.save("res-2", "p-3");
+        bookmarks.save(&"res-1".parse().unwrap(), "p-7");
+        bookmarks.save(&"res-1".parse().unwrap(), "p-8");
+        bookmarks.save(&"res-2".parse().unwrap(), "p-3");
         assert_eq!(storage.get(KEY), None);
 
         caches.set("semiont.cache.kb-a.resource", "{}");
@@ -160,7 +161,7 @@ mod tests {
         );
 
         // A later place of one scope leaves the other's as it was.
-        bookmarks.save("res-2", "p-4");
+        bookmarks.save(&"res-2".parse().unwrap(), "p-4");
         caches.update("semiont.cache.kb-a.resource", &mut |_| {
             Some("{}".to_owned())
         });
@@ -179,7 +180,7 @@ mod tests {
         let gate = at_rest.clone();
         bookmarks.set_flush_gate(move || gate.load(Ordering::SeqCst));
 
-        bookmarks.save("res-1", "p-7");
+        bookmarks.save(&"res-1".parse().unwrap(), "p-7");
         caches.set("semiont.cache.kb-a.resource", "{}");
         // Late, which is safe: the cache that was written may not be the one
         // still taking the event in.
@@ -204,7 +205,7 @@ mod tests {
         }
         // And is written over by the first places that are.
         let bookmarks = CoupledBookmarks::new(storage.clone(), KEY);
-        bookmarks.save("res-1", "p-1");
+        bookmarks.save(&"res-1".parse().unwrap(), "p-1");
         bookmarks.storage().set("semiont.cache.kb-a.resource", "{}");
         assert_eq!(bookmarks.load(), places(&[("res-1", "p-1")]));
     }

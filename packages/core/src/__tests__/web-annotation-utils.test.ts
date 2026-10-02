@@ -1,5 +1,5 @@
 import { describe, test, expect } from 'vitest';
-import { annotationId } from '../identifiers';
+import { annotationId, resourceId } from '../identifiers';
 import {
   getBodySource,
   getBodyType,
@@ -37,15 +37,15 @@ function makeAnnotation(overrides?: Partial<Annotation>): Annotation {
     id: annotationId('ann-1'),
     motivation: 'commenting',
     created: '2026-01-01T00:00:00Z',
-    target: { source: 'http://example.com/res/1' },
+    target: { source: resourceId('res-1') },
     ...overrides,
   };
 }
 
 describe('getBodySource', () => {
   test('returns source from SpecificResource in array', () => {
-    const body = [{ type: 'SpecificResource' as const, source: 'http://example.com/res/2' }];
-    expect(getBodySource(body)).toBe('http://example.com/res/2');
+    const body = [{ type: 'SpecificResource' as const, source: resourceId('res-2') }];
+    expect(getBodySource(body)).toBe('res-2');
   });
 
   test('returns null for empty array', () => {
@@ -58,8 +58,8 @@ describe('getBodySource', () => {
   });
 
   test('returns source from single SpecificResource object', () => {
-    const body = { type: 'SpecificResource' as const, source: 'http://example.com/res/3' };
-    expect(getBodySource(body)).toBe('http://example.com/res/3');
+    const body = { type: 'SpecificResource' as const, source: resourceId('res-3') };
+    expect(getBodySource(body)).toBe('res-3');
   });
 });
 
@@ -69,7 +69,7 @@ describe('getBodyType', () => {
   });
 
   test('returns SpecificResource from array', () => {
-    expect(getBodyType([{ type: 'SpecificResource' as const, source: 'http://example.com/res/1' }])).toBe('SpecificResource');
+    expect(getBodyType([{ type: 'SpecificResource' as const, source: resourceId('res-1') }])).toBe('SpecificResource');
   });
 
   test('returns null for empty array', () => {
@@ -83,7 +83,7 @@ describe('getBodyType', () => {
 
 describe('isBodyResolved', () => {
   test('returns true when SpecificResource in body', () => {
-    expect(isBodyResolved([{ type: 'SpecificResource' as const, source: 'http://example.com/res/1' }])).toBe(true);
+    expect(isBodyResolved([{ type: 'SpecificResource' as const, source: resourceId('res-1') }])).toBe(true);
   });
 
   test('returns false for stub', () => {
@@ -93,32 +93,32 @@ describe('isBodyResolved', () => {
 
 describe('getTargetSource', () => {
   test('returns source from string target', () => {
-    expect(getTargetSource('http://example.com/res/1')).toBe('http://example.com/res/1');
+    expect(getTargetSource(resourceId('res-1'))).toBe('res-1');
   });
 
   test('returns source from object target', () => {
-    expect(getTargetSource({ source: 'http://example.com/res/1' })).toBe('http://example.com/res/1');
+    expect(getTargetSource({ source: resourceId('res-1') })).toBe('res-1');
   });
 });
 
 describe('getTargetSelector', () => {
   test('returns undefined for string target', () => {
-    expect(getTargetSelector('http://example.com/res/1')).toBeUndefined();
+    expect(getTargetSelector(resourceId('res-1'))).toBeUndefined();
   });
 
   test('returns selector from object target', () => {
     const selector = { type: 'TextPositionSelector' as const, start: 0, end: 10 };
-    expect(getTargetSelector({ source: 'http://example.com/res/1', selector })).toEqual(selector);
+    expect(getTargetSelector({ source: resourceId('res-1'), selector })).toEqual(selector);
   });
 });
 
 describe('hasTargetSelector', () => {
   test('returns false for string target', () => {
-    expect(hasTargetSelector('http://example.com')).toBe(false);
+    expect(hasTargetSelector(resourceId('example-com'))).toBe(false);
   });
 
   test('returns true when selector present', () => {
-    expect(hasTargetSelector({ source: 'http://example.com/res/1', selector: { type: 'TextPositionSelector' as const, start: 0, end: 5 } })).toBe(true);
+    expect(hasTargetSelector({ source: resourceId('res-1'), selector: { type: 'TextPositionSelector' as const, start: 0, end: 5 } })).toBe(true);
   });
 });
 
@@ -161,7 +161,7 @@ describe('getCommentText', () => {
   test('returns undefined when body has no value', () => {
     const ann = makeAnnotation({
       motivation: 'commenting',
-      body: [{ type: 'SpecificResource' as const, source: 'http://example.com/res/1' }],
+      body: [{ type: 'SpecificResource' as const, source: resourceId('res-1') }],
     });
     expect(getCommentText(ann)).toBeUndefined();
   });
@@ -177,7 +177,7 @@ describe('isStubReference / isResolvedReference', () => {
   test('resolved reference has SpecificResource', () => {
     const ann = makeAnnotation({
       motivation: 'linking',
-      body: [{ type: 'SpecificResource' as const, source: 'http://example.com/res/2' }],
+      body: [{ type: 'SpecificResource' as const, source: resourceId('res-2') }],
     });
     expect(isStubReference(ann)).toBe(false);
     expect(isResolvedReference(ann)).toBe(true);
@@ -211,7 +211,7 @@ describe('getAnnotationExactText', () => {
   test('returns exact text from annotation target', () => {
     const ann = makeAnnotation({
       target: {
-        source: 'http://example.com/res/1',
+        source: resourceId('res-1'),
         selector: { type: 'TextQuoteSelector' as const, exact: 'selected text' },
       },
     });

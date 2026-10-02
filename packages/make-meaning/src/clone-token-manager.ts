@@ -18,7 +18,7 @@ import { promises as fs } from 'fs';
 import { Subscription, from } from 'rxjs';
 import { mergeMap } from 'rxjs/operators';
 import type { EventMap, Logger, ResourceId } from '@semiont/core';
-import { type EventBus, cloneToken as makeCloneToken, type CloneToken, resourceId, userId as makeUserId } from '@semiont/core';
+import { type EventBus, cloneToken as makeCloneToken, type CloneToken } from '@semiont/core';
 import { getResourceEntityTypes, getStorageUri } from '@semiont/core';
 import type { ViewStorage } from '@semiont/event-sourcing';
 import type { WorkingTreeStore } from '@semiont/content';
@@ -87,7 +87,7 @@ export class CloneTokenManager {
 
   private async handleGenerateToken(event: EventMap['yield:clone-token-requested'], correlationId: string | undefined): Promise<void> {
     try {
-      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.stores);
+      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.stores);
       if (!resource) {
         this.eventBus.emit('yield:clone-token-failed', { message: 'Resource not found', }, { correlationId });
         return;
@@ -112,7 +112,7 @@ export class CloneTokenManager {
       const token = makeCloneToken(`clone_${randomBytes(16).toString('hex')}`);
       const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
 
-      this.tokens.set(token, { resourceId: resourceId(event.resourceId), expiresAt });
+      this.tokens.set(token, { resourceId: event.resourceId, expiresAt });
 
       this.eventBus.emit('yield:clone-token-generated', {
         response: {
@@ -209,7 +209,7 @@ export class CloneTokenManager {
           parentResourceId: String(tokenData.resourceId),
           entityTypes: getResourceEntityTypes(sourceDoc),
         },
-        makeUserId(event._userId),
+        event._userId,
         asBusRequestPrimitive(this.eventBus),
       );
 

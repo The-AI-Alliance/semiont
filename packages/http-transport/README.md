@@ -39,7 +39,6 @@ import {
   // SSE-actor machinery used by SDK adapters; not application code:
   createActorStateUnit,
   type ActorStateUnit,
-  type BusEvent,
   type ActorStateUnitOptions,
 } from '@semiont/http-transport';
 ```

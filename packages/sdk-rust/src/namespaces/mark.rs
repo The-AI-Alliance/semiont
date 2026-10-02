@@ -114,14 +114,10 @@ impl MarkNamespace {
         &self,
         input: CreateAnnotationRequest,
     ) -> Result<MarkCreateOkResponse, SemiontError> {
-        // The target's source is the id of the resource annotated.
-        let resource_id = ResourceId::new(input.target.source.clone()).map_err(|not_an_id| {
-            BusRequestError::new(BusRequestErrorCode::Rejected, not_an_id.to_string())
-        })?;
         let created = self
             .links
             .request::<CreateRequest>(&MarkCreateRequest {
-                resource_id,
+                resource_id: input.target.source.clone(),
                 request: input,
             })
             .await?;
@@ -210,10 +206,15 @@ impl MarkNamespace {
     }
 
     /// Signal: a new annotation is wanted on `source`.
-    pub fn request(&self, source: &str, selector: AnnotationSelector, motivation: Motivation) {
+    pub fn request(
+        &self,
+        source: &ResourceId,
+        selector: AnnotationSelector,
+        motivation: Motivation,
+    ) {
         self.links.signal::<MarkRequested>(
             &MarkRequestedEvent {
-                source: source.to_owned(),
+                source: source.clone(),
                 selector,
                 motivation,
             },

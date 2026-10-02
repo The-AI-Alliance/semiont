@@ -24,6 +24,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import { ReferencesPanel } from '../ReferencesPanel';
 import { createTestSemiontWrapper } from '../../../../test-utils';
 import { useObservable } from '../../../../hooks/useObservable';
+import { resourceId } from '@semiont/core';
 
 // Match ReferencesPanel.test.tsx's i18n mocking so the test doesn't
 // depend on a real translation setup.
@@ -70,7 +71,7 @@ function ObservableHarness({ source$, session }: { source$: BehaviorSubject<stri
   const entityTypes = useObservable(source$) ?? [];
   return (
     <ReferencesPanel session={session}
-      resourceId="res-1"
+      resourceId={resourceId('res-1')}
       annotations={[]}
       isAssisting={false}
       progress={null}

@@ -1,5 +1,6 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import { AnnotateView, type SelectionMotivation, type ClickAction, type ShapeType } from './AnnotateView';
@@ -40,7 +41,7 @@ interface Props {
   /** Session for the shown resource — its client mutates/invalidates, its bus feeds annotation events. */
   session: SemiontSession | null;
   /** Host-owned navigation: a resolved reference was followed. Omit for a view with no follow behavior. */
-  onOpenResource?: (resourceId: string) => void;
+  onOpenResource?: (resourceId: ResourceId) => void;
   /** Host-owned panel control (annotation clicks open a panel). Omit for hosts without side panels. */
   onOpenPanel?: (event: EventMap['panel:open']) => void;
   /** A content link in the rendered content was clicked — the viewer preventDefaults and delegates; it never navigates on its own. */

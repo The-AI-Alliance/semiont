@@ -87,7 +87,7 @@ describe('wireEnrichment — what the EventStore publishes on the annotation cha
       id: annotationId('ann-linking'),
       motivation: 'linking',
       target: { source: RID, selector: { type: 'TextQuoteSelector', exact: 'quoted' } },
-      body: [{ type: 'SpecificResource', source: String(TARGET), purpose: 'linking' }],
+      body: [{ type: 'SpecificResource', source: resourceId(String(TARGET)), purpose: 'linking' }],
       created: '2026-01-01T00:00:00Z',
     };
 

@@ -385,7 +385,7 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
                 .into_future())
         }
         ("mark", "request") => client.mark.request(
-            &args.text("source"),
+            &as_id(&args.text("source")),
             args.typed("selector"),
             args.typed("motivation"),
         ),

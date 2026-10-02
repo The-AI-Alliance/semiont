@@ -70,6 +70,14 @@ impl Opened {
         )));
     }
 
+    /// A frame said to have been published on `scope`.
+    fn write_under(&self, id: &str, scope: &str, payload: Value) {
+        let frame = json!({ "channel": CHANNEL, "payload": payload, "scope": scope });
+        let _ = self.events.send(Bytes::from(format!(
+            "event: bus-event\nid: {id}\ndata: {frame}\n\n"
+        )));
+    }
+
     /// Whether the client still holds its end.
     fn open(&self) -> bool {
         !self.events.is_closed()
@@ -379,6 +387,21 @@ async fn a_frame_from_a_superseded_connection_leaves_a_breadcrumb() {
             .any(|line| line == "[bus LINGER] beckon:focus delivered on superseded connection"),
         "{lines:?}"
     );
+    transport.close().await;
+}
+
+#[tokio::test]
+async fn a_frame_under_a_scope_that_is_no_resource_id_is_not_delivered_and_the_stream_goes_on() {
+    let gateway = Gateway::start().await;
+    let transport = gateway.client(Duration::from_secs(5));
+    let delivered = deliveries(&transport);
+    reaches(&transport, ConnectionState::Open).await;
+
+    gateway.opened()[0].write_under("e-1", "not an id", json!({ "annotationId": "refused" }));
+    gateway.opened()[0].write("e-2", json!({ "annotationId": "after" }));
+    until("the frame after", || !delivered.lock().unwrap().is_empty()).await;
+
+    assert_eq!(*delivered.lock().unwrap(), ["after"]);
     transport.close().await;
 }
 

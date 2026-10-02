@@ -25,7 +25,7 @@ vi.mock('@semiont/ontology', () => ({
   getTagSchemaId: vi.fn(),
 }));
 
-import { getAnnotationExactText } from '@semiont/core';
+import { getAnnotationExactText, resourceId } from '@semiont/core';
 import { getTagCategory, getTagSchemaId } from '@semiont/ontology';
 import type { MockedFunction } from 'vitest';
 import { TagEntry } from '../TagEntry';
@@ -47,7 +47,7 @@ const createMockTag = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-06-15T12:00:00Z',
   modified: '2024-06-15T12:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start: 10,

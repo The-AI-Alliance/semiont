@@ -1,6 +1,5 @@
 import type { Subscription } from 'rxjs';
 import { timeout } from 'rxjs/operators';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId } from '@semiont/core';
 import type { SemiontClient } from '../../client';
 import type { StateUnit } from '@semiont/core';
 
@@ -11,8 +10,8 @@ export function createMatchStateUnit(client: SemiontClient): MatchStateUnit {
 
   subs.push(client.bus.frames('match:search-requested').subscribe(({ payload: event, correlationId }) => {
     const searchSub = client.match.search(
-      makeResourceId(event.resourceId),
-      makeAnnotationId(event.referenceId),
+      event.resourceId,
+      event.referenceId,
       event.context,
       { limit: event.limit, useSemanticScoring: event.useSemanticScoring },
     ).pipe(

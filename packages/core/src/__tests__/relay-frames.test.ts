@@ -10,6 +10,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { firstValueFrom, of, take, timeout } from 'rxjs';
 import { EventBus } from '../event-bus';
+import { resourceId } from '../identifiers';
 import { relayFrames, type FrameSink, type FrameSource } from '../relay-frames';
 import { assertCarriesEnvelope } from '../envelope-conformance';
 
@@ -61,7 +62,7 @@ describe('relayFrames', () => {
     // produce the input this branch exists for. A TRANSPORT source can — its
     // `BusEvent` declares `scope` — so this stands in for one.
     const scoped: FrameSource = {
-      frames: (() => of({ payload: PAYLOAD, correlationId: 'cid-1', scope: 'urn:semiont:r-1' })) as FrameSource['frames'],
+      frames: (() => of({ payload: PAYLOAD, correlationId: 'cid-1', scope: resourceId('r-1') })) as FrameSource['frames'],
     };
     const { sink, seen } = recordingSink();
     relayFrames(scoped, sink, [CHANNEL], () => {});

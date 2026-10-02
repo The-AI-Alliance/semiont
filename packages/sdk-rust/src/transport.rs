@@ -93,7 +93,7 @@ impl ConnectionState {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Envelope {
     pub correlation_id: Option<String>,
-    pub scope: Option<String>,
+    pub scope: Option<ResourceId>,
 }
 
 /// The W3C trace context a frame was sent under.
@@ -111,7 +111,7 @@ pub struct Frame {
     pub channel: String,
     pub payload: Map<String, Value>,
     pub correlation_id: Option<String>,
-    pub scope: Option<String>,
+    pub scope: Option<ResourceId>,
     pub trace: Option<TraceCarrier>,
 }
 

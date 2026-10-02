@@ -37,6 +37,7 @@ use semiont::session::{
 use semiont::storage::SessionStorage;
 use semiont::transport::BoxFuture;
 use semiont::types::KbDescription;
+use semiont::types::ResourceId;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -310,11 +311,11 @@ pub async fn sign_in_device(
 struct Kept(CoupledBookmarks);
 
 impl Bookmarks for Kept {
-    fn load(&self) -> HashMap<String, String> {
+    fn load(&self) -> HashMap<ResourceId, String> {
         self.0.load()
     }
 
-    fn save(&self, scope: &str, event_id: &str) {
+    fn save(&self, scope: &ResourceId, event_id: &str) {
         self.0.save(scope, event_id);
     }
 }

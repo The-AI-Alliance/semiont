@@ -31,6 +31,7 @@ import { Subject, map } from 'rxjs';
 import { assertExactlyOnceDelivery, type DeliverySubject, type DeliveryOp } from '@semiont/core/testing/axioms';
 import { createActorStateUnit } from '../actor-state-unit';
 import { mockFetch, mockConn, createSSEStream, sseChunkId } from './helpers/mock-conn';
+import { resourceId } from '@semiont/core';
 
 const CHANNEL = 'browse:resource-result';
 
@@ -140,7 +141,7 @@ function realActorSubject(): DeliverySubject {
         // Initiate a handover: scope churn schedules a debounced reconnect.
         conns.push(mockConn({ defer: true }));
         pendingIdx = conns.length - 1;
-        actor.addChannels(['mark:added'], `res-${churn++}`);
+        actor.addChannels(['mark:added'], resourceId(`res-${churn++}`));
         const before = mockFetch.mock.calls.length;
         await vi.advanceTimersByTimeAsync(150); // past RECONNECT_DEBOUNCE_MS
         if (mockFetch.mock.calls.length <= before) {
@@ -255,7 +256,7 @@ describe('L4 — [bus LINGER] fires for a superseded-connection delivery', () =>
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    actor.addChannels(['mark:added'], 'res-l4');
+    actor.addChannels(['mark:added'], resourceId('res-l4'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     // Handover completes; c1 is now superseded, draining.

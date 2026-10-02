@@ -1,7 +1,8 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { useRef, useEffect, useCallback } from 'react';
-import { capabilitiesOf, resourceId as toResourceId } from '@semiont/core';
+import { capabilitiesOf } from '@semiont/core';
 import { ANNOTATORS } from '../../lib/annotation-registry';
 import { buildTextSelectors, fallbackTextPosition } from '../../lib/text-selection-handler';
 import { defaultAnnotateRenderers, type AnnotateMediaRenderers } from './annotate-renderers';
@@ -25,7 +26,7 @@ interface Props {
   content: string;
   mimeType?: string;
   /** The '@id' of the shown resource — stamped as `source` on mark:requested (multi-viewer routing). */
-  resourceUri: string;
+  resourceUri: ResourceId;
   annotations: AnnotationsCollection;
   uiState: AnnotationUIState;
   onUIStateChange?: (state: Partial<AnnotationUIState>) => void;
@@ -200,7 +201,7 @@ export function AnnotateView({
         const selectors = buildTextSelectors(content, text, start, end);
         if (!selectors) return;
 
-        session?.client.mark.request(toResourceId(resourceUri), selectors, selectedMotivation);
+        session?.client.mark.request(resourceUri, selectors, selectedMotivation);
 
         // Clear selection after creating annotation
         selection.removeAllRanges();

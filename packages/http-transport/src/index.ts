@@ -36,6 +36,5 @@ export { HttpContentTransport } from './transport/http-content-transport';
 export {
   createActorStateUnit,
   type ActorStateUnit,
-  type BusEvent,
   type ActorStateUnitOptions,
 } from './transport/actor-state-unit';

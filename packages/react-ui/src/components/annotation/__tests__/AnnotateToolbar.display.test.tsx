@@ -10,6 +10,7 @@
  *
  * Started RED (no `compact` prop) and GREEN once Phase 3 lands.
  */
+import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -58,7 +59,7 @@ describe('Annotate Bar display forms (Phase 3)', () => {
 
   it('BrowseView inline embeds show the compact bar automatically', () => {
     const props = {
-      content: 'x', mimeType: 'text/plain', resourceUri: 'res-1',
+      content: 'x', mimeType: 'text/plain', resourceUri: resourceId('res-1'),
       annotations: emptyAnnotations, annotateMode: false, session: fakeSession(),
     };
     const { container: pane } = render(<BrowseView {...props} />);

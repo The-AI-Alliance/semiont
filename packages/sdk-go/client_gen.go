@@ -1971,9 +1971,6 @@ type Annotation_Generator struct {
 	union json.RawMessage
 }
 
-// AnnotationTarget0 IRI of the entire resource being annotated
-type AnnotationTarget0 = string
-
 // Annotation_Target W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)
 type Annotation_Target struct {
 	union json.RawMessage
@@ -2058,8 +2055,8 @@ type AnnotationTarget struct {
 	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
 	Selector *AnnotationSelector `json:"selector,omitempty"`
 
-	// Source IRI of the resource being annotated
-	Source string `json:"source"`
+	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Source ResourceId `json:"source"`
 }
 
 // ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
@@ -2487,8 +2484,8 @@ type BusEmitRequest struct {
 	// Payload The channel's payload, validated against the schema its registry entry names. `_userId` and `_roles` are the gateway's to write: whatever a caller puts there is replaced.
 	Payload map[string]interface{} `json:"payload"`
 
-	// Scope The resource scope of a resource-bound broadcast. Publishers of those broadcasts only; a command or request never carries one.
-	Scope *string `json:"scope,omitempty"`
+	// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Scope *ResourceId `json:"scope,omitempty"`
 }
 
 // BusEventMessage A bus frame on the stream: `event: bus-event`, an `id:` line, and one `data:` line holding the JSON-serialised BusFrame. This schema describes the message with `data` already parsed.
@@ -2518,8 +2515,8 @@ type BusFrame struct {
 	// Payload The channel's payload. A replayed persisted event is the stored event itself, whose `metadata.sequenceNumber` the message id carries.
 	Payload map[string]interface{} `json:"payload"`
 
-	// Scope The resource scope the frame was published on. Present exactly when it arrived through a `scoped` entry of the subscription.
-	Scope *string `json:"scope,omitempty"`
+	// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Scope *ResourceId `json:"scope,omitempty"`
 }
 
 // BusPingMessage The heartbeat: `event: ping` with an empty `data:` line. The first is written once the stream has caught up (after any replay), then one every `x-semiont-limits.heartbeatSeconds`. It carries no id, so it never disturbs a client's last-seen ids.
@@ -2539,8 +2536,8 @@ type BusResumeGap struct {
 	// Reason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
 	Reason BusResumeGapReason `json:"reason"`
 
-	// Scope The scope of the subscription entry whose watermark failed.
-	Scope string `json:"scope"`
+	// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Scope ResourceId `json:"scope"`
 }
 
 // BusResumeGapReason `unparseable-last-event-id`: the watermark is not a PersistedEventId. `scope-mismatch`: it names another scope. `retention-exceeded`: the record no longer holds the events after it (what it still holds is replayed first). `query-error`: the record could not be read.
@@ -2570,8 +2567,8 @@ type BusSubscribeRequest struct {
 		// LastEventId This scope's last-seen PersistedEventId. The gateway replays this scope's persisted events after it — those on the entry's channels — before the live tail, and writes a scoped `bus:resume-gap` (BusResumeGap) when it cannot cover the gap.
 		LastEventId *string `json:"lastEventId,omitempty"`
 
-		// Scope Resource scope (a resourceId).
-		Scope string `json:"scope"`
+		// Scope A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+		Scope ResourceId `json:"scope"`
 	} `json:"scoped,omitempty"`
 }
 
@@ -4460,8 +4457,8 @@ type MarkRequestedEvent struct {
 	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
 	Selector AnnotationSelector `json:"selector"`
 
-	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the event to the right viewer/state unit when a host mounts many viewers on one session.
-	Source string `json:"source"`
+	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Source ResourceId `json:"source"`
 }
 
 // MarkSubmitEvent Emitted when a mark is submitted with its annotation body
@@ -4475,8 +4472,8 @@ type MarkSubmitEvent struct {
 	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
 	Selector AnnotationSelector `json:"selector"`
 
-	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the submit to the state unit bound to that resource — without it, N mounted units each create the annotation (N copies on N resources).
-	Source string `json:"source"`
+	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Source ResourceId `json:"source"`
 }
 
 // MarkUnarchiveCommand Bus command to unarchive a previously archived resource.
@@ -4871,7 +4868,7 @@ type ResourceDescriptor struct {
 	// WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 	WasAttributedTo *ResourceDescriptor_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 
-	// WasDerivedFrom W3C PROV - source resources this was derived from
+	// WasDerivedFrom W3C PROV: the resource, or resources, this one was derived from, each by its id
 	WasDerivedFrom       *ResourceDescriptor_WasDerivedFrom `json:"wasDerivedFrom,omitempty"`
 	AdditionalProperties map[string]interface{}             `json:"-"`
 }
@@ -4977,13 +4974,10 @@ type ResourceDescriptor_WasAttributedTo struct {
 	union json.RawMessage
 }
 
-// ResourceDescriptorWasDerivedFrom0 defines model for .
-type ResourceDescriptorWasDerivedFrom0 = string
-
 // ResourceDescriptorWasDerivedFrom1 defines model for .
-type ResourceDescriptorWasDerivedFrom1 = []string
+type ResourceDescriptorWasDerivedFrom1 = []ResourceId
 
-// ResourceDescriptor_WasDerivedFrom W3C PROV - source resources this was derived from
+// ResourceDescriptor_WasDerivedFrom W3C PROV: the resource, or resources, this one was derived from, each by its id
 type ResourceDescriptor_WasDerivedFrom struct {
 	union json.RawMessage
 }
@@ -5132,7 +5126,7 @@ type ScoredResource struct {
 	// WasAttributedTo W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.
 	WasAttributedTo *ScoredResource_WasAttributedTo `json:"wasAttributedTo,omitempty"`
 
-	// WasDerivedFrom W3C PROV - source resources this was derived from
+	// WasDerivedFrom W3C PROV: the resource, or resources, this one was derived from, each by its id
 	WasDerivedFrom       *ScoredResource_WasDerivedFrom `json:"wasDerivedFrom,omitempty"`
 	AdditionalProperties map[string]interface{}         `json:"-"`
 }
@@ -5238,13 +5232,10 @@ type ScoredResource_WasAttributedTo struct {
 	union json.RawMessage
 }
 
-// ScoredResourceWasDerivedFrom0 defines model for .
-type ScoredResourceWasDerivedFrom0 = string
-
 // ScoredResourceWasDerivedFrom1 defines model for .
-type ScoredResourceWasDerivedFrom1 = []string
+type ScoredResourceWasDerivedFrom1 = []ResourceId
 
-// ScoredResource_WasDerivedFrom W3C PROV - source resources this was derived from
+// ScoredResource_WasDerivedFrom W3C PROV: the resource, or resources, this one was derived from, each by its id
 type ScoredResource_WasDerivedFrom struct {
 	union json.RawMessage
 }
@@ -5374,8 +5365,8 @@ type SpecificResource struct {
 	// Purpose W3C Web Annotation body purpose vocabulary - https://www.w3.org/TR/annotation-vocab/#motivation
 	Purpose *BodyPurpose `json:"purpose,omitempty"`
 
-	// Source IRI of the target resource
-	Source string               `json:"source"`
+	// Source A resource's id: a name, never the resource's URI or a path. 1 to 128 of the letters `A`–`Z` and `a`–`z`, the digits, `_` and `-`. It is one segment of a URL and one name in a file system, and it is held to that wherever it enters: a gateway refuses a payload that carries anything else. How one is made is no part of the rule. `__system__` is the one that names no resource: the scope events about the knowledge base itself are logged under.
+	Source ResourceId           `json:"source"`
 	Type   SpecificResourceType `json:"type"`
 }
 
@@ -7956,22 +7947,22 @@ func (t *Annotation_Generator) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsAnnotationTarget0 returns the union data inside the Annotation_Target as a AnnotationTarget0
-func (t Annotation_Target) AsAnnotationTarget0() (AnnotationTarget0, error) {
-	var body AnnotationTarget0
+// AsResourceId returns the union data inside the Annotation_Target as a ResourceId
+func (t Annotation_Target) AsResourceId() (ResourceId, error) {
+	var body ResourceId
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromAnnotationTarget0 overwrites any union data inside the Annotation_Target as the provided AnnotationTarget0
-func (t *Annotation_Target) FromAnnotationTarget0(v AnnotationTarget0) error {
+// FromResourceId overwrites any union data inside the Annotation_Target as the provided ResourceId
+func (t *Annotation_Target) FromResourceId(v ResourceId) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeAnnotationTarget0 performs a merge with any union data inside the Annotation_Target, using the provided AnnotationTarget0
-func (t *Annotation_Target) MergeAnnotationTarget0(v AnnotationTarget0) error {
+// MergeResourceId performs a merge with any union data inside the Annotation_Target, using the provided ResourceId
+func (t *Annotation_Target) MergeResourceId(v ResourceId) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -10987,22 +10978,22 @@ func (t *ResourceDescriptor_WasAttributedTo) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsResourceDescriptorWasDerivedFrom0 returns the union data inside the ResourceDescriptor_WasDerivedFrom as a ResourceDescriptorWasDerivedFrom0
-func (t ResourceDescriptor_WasDerivedFrom) AsResourceDescriptorWasDerivedFrom0() (ResourceDescriptorWasDerivedFrom0, error) {
-	var body ResourceDescriptorWasDerivedFrom0
+// AsResourceId returns the union data inside the ResourceDescriptor_WasDerivedFrom as a ResourceId
+func (t ResourceDescriptor_WasDerivedFrom) AsResourceId() (ResourceId, error) {
+	var body ResourceId
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromResourceDescriptorWasDerivedFrom0 overwrites any union data inside the ResourceDescriptor_WasDerivedFrom as the provided ResourceDescriptorWasDerivedFrom0
-func (t *ResourceDescriptor_WasDerivedFrom) FromResourceDescriptorWasDerivedFrom0(v ResourceDescriptorWasDerivedFrom0) error {
+// FromResourceId overwrites any union data inside the ResourceDescriptor_WasDerivedFrom as the provided ResourceId
+func (t *ResourceDescriptor_WasDerivedFrom) FromResourceId(v ResourceId) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeResourceDescriptorWasDerivedFrom0 performs a merge with any union data inside the ResourceDescriptor_WasDerivedFrom, using the provided ResourceDescriptorWasDerivedFrom0
-func (t *ResourceDescriptor_WasDerivedFrom) MergeResourceDescriptorWasDerivedFrom0(v ResourceDescriptorWasDerivedFrom0) error {
+// MergeResourceId performs a merge with any union data inside the ResourceDescriptor_WasDerivedFrom, using the provided ResourceId
+func (t *ResourceDescriptor_WasDerivedFrom) MergeResourceId(v ResourceId) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -11659,22 +11650,22 @@ func (t *ScoredResource_WasAttributedTo) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsScoredResourceWasDerivedFrom0 returns the union data inside the ScoredResource_WasDerivedFrom as a ScoredResourceWasDerivedFrom0
-func (t ScoredResource_WasDerivedFrom) AsScoredResourceWasDerivedFrom0() (ScoredResourceWasDerivedFrom0, error) {
-	var body ScoredResourceWasDerivedFrom0
+// AsResourceId returns the union data inside the ScoredResource_WasDerivedFrom as a ResourceId
+func (t ScoredResource_WasDerivedFrom) AsResourceId() (ResourceId, error) {
+	var body ResourceId
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromScoredResourceWasDerivedFrom0 overwrites any union data inside the ScoredResource_WasDerivedFrom as the provided ScoredResourceWasDerivedFrom0
-func (t *ScoredResource_WasDerivedFrom) FromScoredResourceWasDerivedFrom0(v ScoredResourceWasDerivedFrom0) error {
+// FromResourceId overwrites any union data inside the ScoredResource_WasDerivedFrom as the provided ResourceId
+func (t *ScoredResource_WasDerivedFrom) FromResourceId(v ResourceId) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeScoredResourceWasDerivedFrom0 performs a merge with any union data inside the ScoredResource_WasDerivedFrom, using the provided ScoredResourceWasDerivedFrom0
-func (t *ScoredResource_WasDerivedFrom) MergeScoredResourceWasDerivedFrom0(v ScoredResourceWasDerivedFrom0) error {
+// MergeResourceId performs a merge with any union data inside the ScoredResource_WasDerivedFrom, using the provided ResourceId
+func (t *ScoredResource_WasDerivedFrom) MergeResourceId(v ResourceId) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

@@ -21,7 +21,6 @@ import type {
   AnnotationId,
   Logger,
 } from '@semiont/core';
-import { resourceId as createResourceId } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import { ResourceContext } from './resource-context';
 import { GraphContext, type KnowledgeGraphReads } from './graph-context';
@@ -149,7 +148,7 @@ export class AnnotationContext {
     // Body source is now a bare resource ID
     let targetDoc = null;
     if (bodySource) {
-      const targetResourceId = createResourceId(bodySource);
+      const targetResourceId = bodySource;
       const targetView = await kb.views.get(targetResourceId);
       targetDoc = targetView?.resource || null;
     }
@@ -423,7 +422,7 @@ Summary:`;
 
     // Get resource metadata from view storage
     const resource = await ResourceContext.getResourceMetadata(
-      createResourceId(getTargetSource(annotation.target)),
+      getTargetSource(annotation.target),
       kb
     );
     if (!resource) {
@@ -472,7 +471,7 @@ Summary:`;
 
     // Get resource from view storage
     const resource = await ResourceContext.getResourceMetadata(
-      createResourceId(getTargetSource(annotation.target)),
+      getTargetSource(annotation.target),
       kb
     );
     if (!resource) {

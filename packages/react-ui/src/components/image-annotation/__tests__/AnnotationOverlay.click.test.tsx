@@ -11,6 +11,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { AnnotationOverlay } from '../AnnotationOverlay';
+import { resourceId } from '@semiont/core';
 
 function svgAnnotation(id: string, motivation: Annotation['motivation'], svgValue: string): Annotation {
   return {
@@ -20,7 +21,7 @@ function svgAnnotation(id: string, motivation: Annotation['motivation'], svgValu
     motivation,
     created: '2024-01-01T10:00:00Z',
     target: {
-      source: 'resource-1',
+      source: resourceId('resource-1'),
       selector: {
         type: 'SvgSelector',
         value: svgValue,

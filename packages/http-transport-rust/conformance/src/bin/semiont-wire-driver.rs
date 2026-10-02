@@ -250,7 +250,7 @@ impl Wire {
         let client = self.client()?;
         let envelope = Envelope {
             correlation_id: optional_text(args, "correlationId")?,
-            scope: optional_text(args, "scope")?,
+            scope: optional_identifier(args, "scope")?,
         };
         let subscribers = client
             .bus

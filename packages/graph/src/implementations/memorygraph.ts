@@ -16,7 +16,6 @@ import type {
   ResourceId,
   AnnotationId,
 } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
 import { v4 as uuidv4 } from 'uuid';
 import { getBodySource, getTargetSource, getResourceId, getPrimaryRepresentation, getResourceEntityTypes } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
@@ -192,7 +191,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
       ...annotation,
       body: {
         type: 'SpecificResource',
-        source: String(source),
+        source,
         purpose: 'linking',
       },
     };
@@ -240,9 +239,9 @@ export class MemoryGraphDatabase implements GraphDatabase {
     for (const ref of refs) {
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getResource(makeResourceId(bodySource));
+        const targetDoc = await this.getResource(bodySource);
         if (targetDoc) {
-          const reverseRefs = await this.getReferences(makeResourceId(bodySource));
+          const reverseRefs = await this.getReferences(bodySource);
           const bidirectional = reverseRefs.some(r => getBodySource(r.body) === resourceIdStr);
 
           connections.push({
@@ -257,10 +256,10 @@ export class MemoryGraphDatabase implements GraphDatabase {
     return connections;
   }
 
-  async findPath(fromResourceId: string, toResourceId: string, maxDepth: number = 5): Promise<GraphPath[]> {
-    const visited = new Set<string>();
-    const queue: { docId: string; path: ResourceDescriptor[]; sels: Annotation[] }[] = [];
-    const fromDoc = await this.getResource(makeResourceId(fromResourceId));
+  async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
+    const visited = new Set<ResourceId>();
+    const queue: { docId: ResourceId; path: ResourceDescriptor[]; sels: Annotation[] }[] = [];
+    const fromDoc = await this.getResource(fromResourceId);
 
     if (!fromDoc) return [];
 
@@ -279,7 +278,7 @@ export class MemoryGraphDatabase implements GraphDatabase {
         continue;
       }
 
-      const connections = await this.getResourceConnections(makeResourceId(docId));
+      const connections = await this.getResourceConnections(docId);
 
       for (const conn of connections) {
         const targetId = getResourceId(conn.targetResource);

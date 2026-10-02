@@ -43,7 +43,7 @@ import { Subscription, from, merge } from 'rxjs';
 import { concatMap } from 'rxjs/operators';
 import type { Annotation, EventMap, Logger, ResourceDescriptor } from '@semiont/core';
 import { SYSTEM_SCOPE } from '@semiont/core';
-import { EventBus, annotationId, errField, resourceId, userId as makeUserId, generateUuid, hasWorkerRole, attribution } from '@semiont/core';
+import { EventBus, errField, resourceId, generateUuid, hasWorkerRole, attribution } from '@semiont/core';
 import type { ResourceId } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { resolveStorageUri } from '@semiont/event-sourcing';
@@ -150,7 +150,7 @@ export class Stower {
     if (!event._userId) {
       throw new Error('yield:create missing _userId (gateway injection)');
     }
-    const uid = makeUserId(event._userId);
+    const uid = event._userId;
     try {
       // Same rule as mark:commit: a worker-role emitter cites the job, or the
       // create is refused rather than attributed to the model alone.
@@ -167,7 +167,7 @@ export class Stower {
         if (!sourceRid) {
           throw new Error('yield:create refused: a create citing a job must name the source resource its job was assigned on (generatedFrom.resourceId)');
         }
-        requester = await this.requesterOf(resourceId(sourceRid), event.jobId, event._userId);
+        requester = await this.requesterOf(sourceRid, event.jobId, event._userId);
       } else {
         requester = event._userId;
       }
@@ -186,8 +186,8 @@ export class Stower {
       // generatedFrom on the bus command has optional fields; the domain event requires both
       const generatedFrom = event.generatedFrom?.resourceId && event.generatedFrom?.annotationId
         ? {
-            resourceId: resourceId(event.generatedFrom.resourceId),
-            annotationId: annotationId(event.generatedFrom.annotationId),
+            resourceId: event.generatedFrom.resourceId,
+            annotationId: event.generatedFrom.annotationId,
           }
         : undefined;
 
@@ -289,7 +289,7 @@ export class Stower {
       await this.stores.eventStore.appendEvent({
         type: 'yield:cloned',
         resourceId: rId,
-        userId: makeUserId(event._userId),
+        userId: event._userId,
         version: 1,
         payload: {
           name: event.name,
@@ -324,8 +324,8 @@ export class Stower {
       await this.stores.content.register(event.storageUri, event.contentChecksum, { noGit: event.noGit });
       await this.stores.eventStore.appendEvent({
         type: 'yield:updated',
-        resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event._userId),
+        resourceId: event.resourceId,
+        userId: event._userId,
         version: 1,
         payload: {
           contentChecksum: event.contentChecksum,
@@ -363,7 +363,7 @@ export class Stower {
       await this.stores.eventStore.appendEvent({
         type: 'yield:moved',
         resourceId: rId,
-        userId: makeUserId(event._userId),
+        userId: event._userId,
         version: 1,
         payload: {
           fromUri: event.fromUri,
@@ -400,8 +400,8 @@ export class Stower {
       await this.stores.eventStore.appendEvent(
         {
           type: 'mark:added',
-          resourceId: resourceId(event.resourceId),
-          userId: makeUserId(event._userId),
+          resourceId: event.resourceId,
+          userId: event._userId,
           version: 1,
           payload: { annotation: { ...annotation, ...derived } },
         },
@@ -450,7 +450,7 @@ export class Stower {
       throw new Error('mark:commit missing _userId (gateway injection)');
     }
     const annotations = (event.annotations ?? []) as Annotation[];
-    const rid = resourceId(event.resourceId);
+    const rid = event.resourceId;
     try {
       // A worker's write cites the job it fulfils, or it is refused. "No job →
       // self-initiated" is true for a person or an autonomous agent; for a
@@ -484,7 +484,7 @@ export class Stower {
         await this.stores.eventStore.appendEvent({
           type: 'mark:added',
           resourceId: rid,
-          userId: makeUserId(event._userId),
+          userId: event._userId,
           version: 1,
           payload: { annotation: { ...annotation, ...derived } },
         });
@@ -523,10 +523,10 @@ export class Stower {
     try {
       await this.stores.eventStore.appendEvent({
         type: 'mark:removed',
-        resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event._userId),
+        resourceId: event.resourceId,
+        userId: event._userId,
         version: 1,
-        payload: { annotationId: annotationId(event.annotationId) },
+        payload: { annotationId: event.annotationId },
       });
       this.eventBus.emit('mark:delete-ok', { response: { annotationId: event.annotationId } }, { correlationId });
     } catch (error) {
@@ -543,8 +543,8 @@ export class Stower {
       await this.stores.eventStore.appendEvent(
         {
           type: 'mark:body-updated',
-          resourceId: resourceId(event.resourceId),
-          userId: makeUserId(event._userId),
+          resourceId: event.resourceId,
+          userId: event._userId,
           version: 1,
           payload: { annotationId: event.annotationId, operations: event.operations },
         },
@@ -569,8 +569,8 @@ export class Stower {
       }
       await this.stores.eventStore.appendEvent({
         type: 'mark:archived',
-        resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event._userId),
+        resourceId: event.resourceId,
+        userId: event._userId,
         version: 1,
         payload: { reason: undefined },
       });
@@ -601,8 +601,8 @@ export class Stower {
       }
       await this.stores.eventStore.appendEvent({
         type: 'mark:unarchived',
-        resourceId: resourceId(event.resourceId),
-        userId: makeUserId(event._userId),
+        resourceId: event.resourceId,
+        userId: event._userId,
         version: 1,
         payload: {},
       });
@@ -620,7 +620,7 @@ export class Stower {
     try {
       await this.stores.eventStore.appendEvent({
         type: 'frame:entity-type-added',
-        userId: makeUserId(event._userId),
+        userId: event._userId,
         version: 1,
         payload: { entityType: event.tag },
       });
@@ -642,7 +642,7 @@ export class Stower {
     try {
       await this.stores.eventStore.appendEvent({
         type: 'frame:tag-schema-added',
-        userId: makeUserId(event._userId),
+        userId: event._userId,
         version: 1,
         payload: { schema: event.schema },
       });
@@ -659,7 +659,7 @@ export class Stower {
     if (!event._userId) {
       throw new Error('mark:update-entity-types missing _userId (gateway injection)');
     }
-    const uid = makeUserId(event._userId);
+    const uid = event._userId;
     const added = event.updatedEntityTypes.filter(et => !event.currentEntityTypes.includes(et));
     const removed = event.currentEntityTypes.filter(et => !event.updatedEntityTypes.includes(et));
 
@@ -681,7 +681,7 @@ export class Stower {
       for (const entityType of added) {
         await this.stores.eventStore.appendEvent({
           type: 'mark:entity-tag-added',
-          resourceId: resourceId(event.resourceId),
+          resourceId: event.resourceId,
           userId: uid,
           version: 1,
           payload: { entityType },
@@ -691,7 +691,7 @@ export class Stower {
       for (const entityType of removed) {
         await this.stores.eventStore.appendEvent({
           type: 'mark:entity-tag-removed',
-          resourceId: resourceId(event.resourceId),
+          resourceId: event.resourceId,
           userId: uid,
           version: 1,
           payload: { entityType },
@@ -713,8 +713,8 @@ export class Stower {
     }
     await this.stores.eventStore.appendEvent({
       type: 'job:started',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event._userId),
+      resourceId: event.resourceId,
+      userId: event._userId,
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -762,7 +762,7 @@ export class Stower {
     if (current === event.name) return;
     await this.stores.eventStore.appendEvent({
       type: 'person:profiled',
-      userId: makeUserId(event._userId),
+      userId: event._userId,
       version: 1,
       payload: { name: event.name },
     });
@@ -774,8 +774,8 @@ export class Stower {
     }
     await this.stores.eventStore.appendEvent({
       type: 'job:assigned',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event._userId),
+      resourceId: event.resourceId,
+      userId: event._userId,
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -812,8 +812,8 @@ export class Stower {
     }
     await this.stores.eventStore.appendEvent({
       type: 'job:completed',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event._userId),
+      resourceId: event.resourceId,
+      userId: event._userId,
       version: 1,
       payload: {
         jobId: event.jobId,
@@ -838,8 +838,8 @@ export class Stower {
     }
     await this.stores.eventStore.appendEvent({
       type: 'job:failed',
-      resourceId: resourceId(event.resourceId),
-      userId: makeUserId(event._userId),
+      resourceId: event.resourceId,
+      userId: event._userId,
       version: 1,
       payload: {
         jobId: event.jobId,

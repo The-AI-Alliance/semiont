@@ -81,9 +81,9 @@ export class HttpContentTransport implements IContentTransport {
             timeout: false,
             ...(options?.signal ? { signal: options.signal } : {}),
           })
-          .json<{ resourceId: string }>();
+          .json<components['schemas']['CreateResourceResponse']>();
 
-        return { resourceId: result.resourceId as ResourceId };
+        return { resourceId: result.resourceId };
       },
       {
         kind: SpanKind.CLIENT,
@@ -317,8 +317,8 @@ function uploadViaXhr(opts: XhrUploadOptions): Promise<{ resourceId: ResourceId 
     xhr.onload = () => {
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          const body = JSON.parse(xhr.responseText) as { resourceId: string };
-          resolve({ resourceId: body.resourceId as ResourceId });
+          const body = JSON.parse(xhr.responseText) as components['schemas']['CreateResourceResponse'];
+          resolve({ resourceId: body.resourceId });
         } catch (parseErr) {
           const err = APIError.fromStatus(
             `Upload succeeded but response was not valid JSON: ${(parseErr as Error).message}`,

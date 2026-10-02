@@ -1,6 +1,6 @@
 import { Observable, combineLatest, map } from 'rxjs';
 import { CacheObservable } from '../awaitable';
-import { annotationId as makeAnnotationId, resourceId as makeResourceId, searchQuery, decodeWithCharset } from '@semiont/core';
+import { searchQuery, decodeWithCharset } from '@semiont/core';
 import type { AnchoredTextAnswer } from '@semiont/core';
 import type {
   Annotation,
@@ -106,13 +106,13 @@ type RefreshChannel = Exclude<CacheRefreshTrigger, 'reopened'>;
  * compile.
  */
 const SUBJECT_OF: { [K in RefreshChannel]: (event: EventMap[K]) => RefreshSubject } = {
-  'bus:resume-gap': (gap) => ({ resource: makeResourceId(gap.scope) }),
+  'bus:resume-gap': (gap) => ({ resource: gap.scope }),
   'mark:added': (stored) => ({ resource: stored.resourceId }),
-  'mark:removed': (stored) => ({ resource: stored.resourceId, annotation: makeAnnotationId(stored.payload.annotationId) }),
-  'mark:delete-ok': (reply) => ({ annotation: makeAnnotationId(reply.response.annotationId) }),
+  'mark:removed': (stored) => ({ resource: stored.resourceId, annotation: stored.payload.annotationId }),
+  'mark:delete-ok': (reply) => ({ annotation: reply.response.annotationId }),
   'mark:body-updated': (stored) =>
     stored.annotation
-      ? { when: 'enriched', resource: stored.resourceId, annotation: makeAnnotationId(stored.annotation.id), written: stored.annotation }
+      ? { when: 'enriched', resource: stored.resourceId, annotation: stored.annotation.id, written: stored.annotation }
       : { when: 'unenriched', resource: stored.resourceId, annotation: stored.payload.annotationId },
   'mark:entity-tag-added': (stored) => ({ resource: stored.resourceId }),
   'mark:entity-tag-removed': (stored) => ({ resource: stored.resourceId }),
@@ -121,10 +121,10 @@ const SUBJECT_OF: { [K in RefreshChannel]: (event: EventMap[K]) => RefreshSubjec
   // Cross-client resource refresh rides the persisted domain events, never
   // the request replies: a `yield:*-ok` reply reaches only the client that
   // asked, and would leave every other viewer's list stale.
-  'yield:created': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
-  'yield:updated': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
-  'yield:cloned': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
-  'yield:moved': (stored) => ({ resource: makeResourceId(stored.resourceId) }),
+  'yield:created': (stored) => ({ resource: stored.resourceId }),
+  'yield:updated': (stored) => ({ resource: stored.resourceId }),
+  'yield:cloned': (stored) => ({ resource: stored.resourceId }),
+  'yield:moved': (stored) => ({ resource: stored.resourceId }),
   'frame:entity-type-added': () => ({}),
   'frame:tag-schema-added': () => ({}),
 };
@@ -726,7 +726,7 @@ export class BrowseNamespace implements IBrowseNamespace {
 
   /** Write-through to the annotation's own key, so its observers see the new value without a refetch. */
   private writeAnnotationDetail(resourceId: ResourceId, annotation: Annotation): void {
-    const aId = makeAnnotationId(annotation.id);
+    const aId = annotation.id;
     this.annotationResources.set(aId, resourceId);
     this.annotationDetailCache.set(aId, annotation);
   }

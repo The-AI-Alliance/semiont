@@ -1,10 +1,11 @@
 'use client';
 
+import type { AnnotationId } from '@semiont/core';
 import React, { useEffect, useRef } from 'react';
 import { useTranslations } from '../../contexts/TranslationContext';
 import type { RouteBuilder, LinkComponentProps } from '../../contexts/RoutingContext';
 import type { Annotation } from '@semiont/core';
-import { getAnnotationUriFromEvent, type StoredEventLike } from '@semiont/core';
+import { getAnnotationIdFromEvent, type StoredEventLike } from '@semiont/core';
 import { HistoryEvent } from './HistoryEvent';
 
 interface Props {
@@ -23,8 +24,8 @@ interface Props {
   /** Annotations for the same resource — used to resolve event → annotation. */
   annotations?: Annotation[];
   hoveredAnnotationId?: string | null;
-  onEventHover?: (annotationId: string | null) => void;
-  onEventClick?: (annotationId: string | null) => void;
+  onEventHover?: (annotationId: AnnotationId | null) => void;
+  onEventClick?: (annotationId: AnnotationId | null) => void;
   Link: React.ComponentType<LinkComponentProps>;
   routes: RouteBuilder;
 }
@@ -134,13 +135,7 @@ export function AnnotationHistory({
       </h3>
       <div ref={containerRef} className="semiont-history-panel__list">
         {events.map((stored) => {
-          // Check if event is related to the hovered annotation
-          const isRelated = hoveredAnnotationId ? (() => {
-            const eventUri = getAnnotationUriFromEvent(stored);
-            if (!eventUri) return false;
-            // Direct comparison - both should be full URIs
-            return eventUri === hoveredAnnotationId;
-          })() : false;
+          const isRelated = Boolean(hoveredAnnotationId) && getAnnotationIdFromEvent(stored) === hoveredAnnotationId;
 
           return (
             <HistoryEvent

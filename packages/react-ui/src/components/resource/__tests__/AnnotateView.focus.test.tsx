@@ -43,7 +43,7 @@ describe('AnnotateView — beckon:focus scrolls the content', () => {
       <AnnotateView
         content="hello world"
         mimeType="text/plain"
-        resourceUri="res-1"
+        resourceUri={resourceId("res-1")}
         annotations={emptyAnnotations}
         uiState={uiState}
         session={session}
@@ -75,7 +75,7 @@ describe('AnnotateView — beckon:focus is guarded by resourceId (P6/D7)', () =>
       <AnnotateView
         content="hello world"
         mimeType="text/plain"
-        resourceUri={resourceUri}
+        resourceUri={resourceId(resourceUri)}
         annotations={emptyAnnotations}
         uiState={uiState}
         session={session}

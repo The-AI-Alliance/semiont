@@ -10,7 +10,7 @@ vi.mock('@semiont/core', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@semiont/core')>();
   return {
     ...actual,
-    getAnnotationUriFromEvent: vi.fn(() => null),
+    getAnnotationIdFromEvent: vi.fn(() => null),
   };
 });
 
@@ -39,8 +39,8 @@ vi.mock('../HistoryEvent', () => ({
   HistoryEvent: (props: any) => MockHistoryEvent(props),
 }));
 
-import { getAnnotationUriFromEvent } from '@semiont/core';
-const mockGetAnnotationUri = getAnnotationUriFromEvent as ReturnType<typeof vi.fn>;
+import { getAnnotationIdFromEvent } from '@semiont/core';
+const mockGetAnnotationId = getAnnotationIdFromEvent as ReturnType<typeof vi.fn>;
 
 /** Returns flat StoredEventResponse shape (matches API response) */
 function makeStoredEvent(id: string, type: string, seq: number, overrides: Record<string, any> = {}): any {
@@ -67,7 +67,7 @@ const mockRoutes = {
 describe('AnnotationHistory', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetAnnotationUri.mockReturnValue(null);
+    mockGetAnnotationId.mockReturnValue(null);
   });
 
   it('renders loading state', () => {
@@ -199,7 +199,7 @@ describe('AnnotationHistory', () => {
 
   it('passes isRelated when hovered annotation matches event', () => {
     const events = [makeStoredEvent('e1', 'mark:added', 1)];
-    mockGetAnnotationUri.mockReturnValue('ann-1');
+    mockGetAnnotationId.mockReturnValue('ann-1');
 
     renderWithProviders(
       <AnnotationHistory

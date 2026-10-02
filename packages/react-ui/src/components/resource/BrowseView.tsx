@@ -1,7 +1,8 @@
 'use client';
 
+import type { ResourceId } from '@semiont/core';
 import { useEffect, useRef, useCallback, useMemo, memo, type MouseEvent as ReactMouseEvent } from 'react';
-import { annotationId as toAnnotationId, resourceId as toResourceId } from '@semiont/core';
+import { annotationId as toAnnotationId } from '@semiont/core';
 import { capabilitiesOf, getBodySource, isResolvedReference } from '@semiont/core';
 import type { Annotation, ResourceDescriptor } from '@semiont/core';
 import { createHoverHandlers } from '@semiont/sdk';
@@ -26,7 +27,7 @@ import { DownloadFileLink } from './DownloadFileLink';
 interface Props {
   content: string;
   mimeType: string;
-  resourceUri: string;
+  resourceUri: ResourceId;
   annotations: AnnotationsCollection;
   hoveredAnnotationId?: string | null;
   selectedClick?: ClickAction;
@@ -177,7 +178,7 @@ export const BrowseView = memo(function BrowseView({
       const element = hoveredElement;
       if (!referentId || !element) return;
       referentSub?.unsubscribe();
-      referentSub = session.client.browse.resource(toResourceId(referentId)).subscribe({
+      referentSub = session.client.browse.resource(referentId).subscribe({
         next: (st) => {
           if (st.status !== 'ready') return; // pending/failed: never fires
           const referent = st.value;

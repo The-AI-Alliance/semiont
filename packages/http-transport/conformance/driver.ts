@@ -181,7 +181,7 @@ const operations: Record<string, (args: Arguments, id: number) => Promise<unknow
     const subscribers = await opened().emit(
       text(args, 'channel') as keyof EventMap,
       object(args, 'payload') as EventMap[keyof EventMap],
-      { ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope }) },
+      { ...(correlationId === undefined ? {} : { correlationId }), ...(scope === undefined ? {} : { scope: resourceId(scope) }) },
     );
     return subscribers === undefined ? {} : { subscribers };
   },

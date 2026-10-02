@@ -26,8 +26,8 @@
     "target": {
       "oneOf": [
         {
-          "type": "string",
-          "description": "IRI of the entire resource being annotated"
+          "$ref": "./ResourceId.json",
+          "description": "The id of the resource annotated, when the whole of it is"
         },
         {
           "$ref": "./AnnotationTarget.json"

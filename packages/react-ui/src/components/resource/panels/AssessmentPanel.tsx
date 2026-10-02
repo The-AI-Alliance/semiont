@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslations } from '../../../contexts/TranslationContext';
 import type { SemiontSession } from '@semiont/sdk';
 import { useSessionEventSubscriptions } from '../../../hooks/useSessionEventSubscriptions';
-import type { components, Selector } from '@semiont/core';
+import type { components, ResourceId, Selector } from '@semiont/core';
 import { getTextPositionSelector, getTargetSelector } from '@semiont/core';
 import { AssessmentEntry } from './AssessmentEntry';
 import { AssistSection } from './AssistSection';
@@ -41,7 +41,7 @@ interface AssessmentPanelProps {
   /** Session carrying the client and event bus; null renders inert. */
   session: SemiontSession | null;
   /** The '@id' of the panel's resource — stamped as `source` on mark:submit (multi-viewer routing). */
-  resourceId: string;
+  resourceId: ResourceId;
   annotations: Annotation[];
   pendingAnnotation: PendingAnnotation | null;
   isAssisting?: boolean;

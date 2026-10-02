@@ -40,8 +40,8 @@ const AUTHORED = '2020-03-04T05:06:07.000Z';
 const SOURCE_ONLY: CreateAnnotationInternal = {
   id: annotationId('ann-source-only'),
   motivation: 'linking',
-  target: { source: 'res-1' },
-  body: [{ type: 'SpecificResource', source: 'res-2', purpose: 'linking' }],
+  target: { source: resourceId('res-1') },
+  body: [{ type: 'SpecificResource', source: resourceId('res-2'), purpose: 'linking' }],
   creator: CREATOR,
   created: AUTHORED,
 };
@@ -51,7 +51,7 @@ const QUOTE_SELECTOR = { type: 'TextQuoteSelector' as const, exact: 'Black Hawk'
 const HIGHLIGHT: CreateAnnotationInternal = {
   id: annotationId('ann-highlight'),
   motivation: 'highlighting',
-  target: { source: 'res-1', selector: QUOTE_SELECTOR },
+  target: { source: resourceId('res-1'), selector: QUOTE_SELECTOR },
   creator: CREATOR,
   created: AUTHORED,
 };
@@ -347,7 +347,7 @@ describe.each(GREMLIN_STORES)('%s write path', (_name, makeStore) => {
     await db.createAnnotation(SOURCE_ONLY);
 
     const moved = { type: 'TextQuoteSelector' as const, exact: 'Cedar County', prefix: '', suffix: '' };
-    await db.updateAnnotation(annotationId('ann-source-only'), { target: { source: 'res-1', selector: moved } });
+    await db.updateAnnotation(annotationId('ann-source-only'), { target: { source: resourceId('res-1'), selector: moved } });
 
     expect(written.selector).toBe(JSON.stringify(moved));
     expect(written.exact).toBe('Cedar County');

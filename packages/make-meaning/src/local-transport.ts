@@ -115,7 +115,7 @@ export class LocalTransport implements ITransport {
         // Gateway-injected `_userId` isn't in every channel's declared payload,
         // so build the stamped object loosely and assert it back to EventMap[K].
         const stamped: Record<string, unknown> = { ...(payload as Record<string, unknown>), _userId: this.userId };
-        const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope!.scope as string);
+        const target = envelope?.scope === undefined ? this.bus : this.bus.scope(envelope.scope);
         // The correlation key rides through: an in-process handler must read
         // the same envelope it would across a broker. `scope` is not repeated
         // here — targeting the scoped bus IS how it is set.

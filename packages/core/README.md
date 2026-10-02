@@ -81,12 +81,11 @@ itemLimits['BusSubscribeRequest.pendingReplies'];         // a property's maxIte
 
 ### Branded Types
 
-Compile-time type safety for URIs, tokens, and identifiers:
+Compile-time type safety for tokens and identifiers:
 
 ```typescript
-import { resourceUri, annotationUri, accessToken, entityType } from '@semiont/core';
+import { accessToken, entityType } from '@semiont/core';
 
-const rUri = resourceUri('http://localhost:4000/resources/doc-123');
 const token = accessToken('eyJhbGc...');
 const eType = entityType('Person');
 ```
@@ -101,6 +100,17 @@ resourceId('https://kb.example/resources/5bcd259ab1464cf68a556bbad21f513f'); // 
 const annotation = annotationId('a-1');
 // client.mark.delete(annotation, resource) does not compile
 ```
+
+Each kind also has a guard (`isResourceId`, `isAnnotationId`, `isJobId`, `isUserId`) that asks the same rule without throwing and narrows the text to the kind. Use it where text that is not an id is an ordinary answer, such as an address typed into a browser:
+
+```typescript
+import { isResourceId } from '@semiont/core';
+
+if (!isResourceId(params.id)) return notFound();
+const descriptor = await client.browse.resource(params.id).fresh();
+```
+
+A resource is named by its `ResourceId` wherever it is named: an annotation target's `source`, a reference body's `source`, a bus frame's `scope`, and a description's `wasDerivedFrom`.
 
 ### Event Sourcing Types
 

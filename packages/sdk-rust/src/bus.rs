@@ -44,6 +44,7 @@ use crate::errors::{
     BusRequestError, BusRequestErrorCode, SemiontError, TransportError, TransportErrorCode,
 };
 use crate::transport::{ConnectionState, Envelope, Frame, Frames, Lagged, TraceCarrier, Transport};
+use crate::types::ResourceId;
 use futures_core::Stream;
 use serde::Serialize;
 use serde_json::{Map, Value};
@@ -249,7 +250,7 @@ impl Bus {
 pub struct Delivered<C: Channel> {
     pub payload: C::Payload,
     pub correlation_id: Option<String>,
-    pub scope: Option<String>,
+    pub scope: Option<ResourceId>,
     /// The DID of whoever emitted it, as the gateway stamped it.
     pub user_id: Option<String>,
     pub trace: Option<TraceCarrier>,

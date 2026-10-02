@@ -74,11 +74,11 @@ declare global {
   const sourceDocId: _ResourceId;
   const targetDocId: _ResourceId;
   const targetResourceId: _ResourceId;
+  const claimId: _ResourceId;
   const annotationId: _AnnotationId;
   const aId: _AnnotationId;
   const referenceId: _AnnotationId;
   const refId: _AnnotationId;
-  const claimId: _AnnotationId;
   const jobId: _JobId;
   const userId: _UserId;
   const resource: _ResourceDescriptor;

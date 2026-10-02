@@ -204,7 +204,7 @@ describe('LLM Context', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [{
               type: 'TextPositionSelector',
               start: 0,
@@ -231,7 +231,7 @@ describe('LLM Context', () => {
         id: annotationId('llm-graph-ann'),
         motivation: 'highlighting',
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: testResourceId, selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
+        target: { source: resourceId(testResourceId), selector: [{ type: 'TextPositionSelector', start: 0, end: 4 }] },
         creator,
       });
 

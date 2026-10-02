@@ -30,6 +30,7 @@ use semiont::errors::TransportError;
 use semiont::retry::{equal_jitter, retry_after};
 use semiont::timing::{DEGRADED_THRESHOLD, MAX_RECONNECT, RECONNECT_DEBOUNCE};
 use semiont::transport::{ConnectionState, Envelope, Frame, TraceCarrier};
+use semiont::types::ResourceId;
 use semiont::types::{BusSubscribeRequest, BusSubscribeRequestScopedItem};
 use semiont_observability::telemetry;
 use serde_json::Value;
@@ -44,9 +45,9 @@ const TRACE_FIELD: &str = "_trace";
 
 pub(crate) enum Command {
     /// A resource's scope got its first hold.
-    AddScope(String),
+    AddScope(ResourceId),
     /// A resource's scope lost its last hold.
-    RemoveScope(String),
+    RemoveScope(ResourceId),
     Close(oneshot::Sender<()>),
 }
 
@@ -112,10 +113,10 @@ struct Actor {
     running: bool,
 
     /// The subscription's scoped half: each scope held, and its channels.
-    scoped: BTreeMap<String, Vec<String>>,
+    scoped: BTreeMap<ResourceId, Vec<String>>,
     /// The last recorded event delivered on each scope. A scope keeps its
     /// position after it is let go: taken again, it resumes from there.
-    watermarks: HashMap<String, String>,
+    watermarks: HashMap<ResourceId, String>,
     seen: SeenIds,
 
     next_conn: u64,
@@ -354,7 +355,12 @@ impl Actor {
             _ => None,
         };
         let correlation_id = text(frame.remove("correlationId"));
-        let scope = text(frame.remove("scope"));
+        // A scope is a resource's id. One that is not is not a frame.
+        let scope = match text(frame.remove("scope")).map(ResourceId::new) {
+            None => None,
+            Some(Ok(scope)) => Some(scope),
+            Some(Err(_)) => return,
+        };
         let trace = payload.remove(TRACE_FIELD).and_then(carrier);
 
         bus_log(

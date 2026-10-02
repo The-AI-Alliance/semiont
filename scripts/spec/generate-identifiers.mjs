@@ -1,11 +1,13 @@
 // Generate the kinds of id from specs/src/identifiers/kinds.json and each
-// kind's schema: the type of each, and the one constructor that makes it.
+// kind's schema: the type of each, the question whether text is one, and the
+// one constructor that makes it.
 //
 // Two things are written. In `types.ts`, which openapi-typescript has just
 // generated, each kind's schema is given its brand, so that every property
 // that refers to the kind is of that type and of no other kind's. And
-// `generated/identifiers.ts` is the constructor of each, whose check is the
-// schema's own pattern. Nothing else in TypeScript states the rule.
+// `generated/identifiers.ts` is, for each, a guard and a constructor, whose
+// check is the schema's own pattern. Nothing else in TypeScript states the
+// rule.
 //
 // Both outputs are gitignored and rebuilt by core's `generate:openapi`.
 //
@@ -61,9 +63,10 @@ for (const { schema: name } of kinds) {
 const lines = [
   '// Generated from specs/src/identifiers/kinds.json and each kind\'s schema; do not edit.',
   '//',
-  '// A value of one of these types is made here and nowhere else: its',
-  '// constructor holds text to the kind\'s rule, which is the schema\'s pattern,',
-  '// and the type says that it passed. One kind is not assignable to another.',
+  '// A value of one of these types is made here and nowhere else: its guard',
+  '// and its constructor hold text to the kind\'s rule, which is the schema\'s',
+  '// pattern, and the type says that it passed. One kind is not assignable to',
+  '// another.',
   '',
   "import type { components } from '../types';",
   '',
@@ -75,12 +78,17 @@ for (const { name, make, rule, description, pattern } of made) {
     '',
     `const ${rule} = new RegExp(${JSON.stringify(pattern)}, 'u');`,
     '',
+    `/** Whether \`value\` is a \`${name}\`: where text enters and what is not an id is an answer, not a fault. */`,
+    `export function is${name}(value: string): value is ${name} {`,
+    `  return ${rule}.test(value);`,
+    '}',
+    '',
     `/** \`value\` as a \`${name}\`. Throws a \`TypeError\` when the kind's rule refuses it. */`,
     `export function ${make}(value: string): ${name} {`,
-    `  if (!${rule}.test(value)) {`,
+    `  if (!is${name}(value)) {`,
     `    throw new TypeError(\`\${JSON.stringify(value)} is not a ${name}: it does not match \${${rule}.source}\`);`,
     '  }',
-    `  return value as ${name};`,
+    '  return value;',
     '}',
     '',
   );

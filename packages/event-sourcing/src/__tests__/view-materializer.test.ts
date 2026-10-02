@@ -184,7 +184,7 @@ describe('ViewMaterializer', () => {
         motivation: 'highlighting' as const,
         creator: { '@type': 'Person' as const, name: 'Test User' },
         created: new Date().toISOString(),
-        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+        target: { source: resourceId('doc1'), selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
       };
 
       const view = await projector.materialize([
@@ -212,7 +212,7 @@ describe('ViewMaterializer', () => {
         motivation: 'highlighting' as const,
         creator: { '@type': 'Person' as const, name: 'Test User' },
         created: new Date().toISOString(),
-        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+        target: { source: resourceId('doc1'), selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
       };
 
       const view = await projector.materialize([
@@ -248,7 +248,7 @@ describe('ViewMaterializer', () => {
         id: annotationId('anno-created'),
         motivation: 'highlighting' as const,
         creator: { '@type': 'Person' as const, name: 'Test User' },
-        target: { source: 'doc1', selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
+        target: { source: resourceId('doc1'), selector: [{ type: 'TextPositionSelector' as const, start: 0, end: 4 }] },
       };
       const firstCreated = '2026-09-03T10:00:00.000Z';
       const retryCreated = '2026-09-04T17:30:00.000Z';
@@ -276,7 +276,7 @@ describe('ViewMaterializer', () => {
         creator: { '@type': 'Person' as const, name: 'Test User' },
         created: new Date().toISOString(),
         target: {
-          source: 'doc1',
+          source: resourceId('doc1'),
           selector: [
             {
               type: 'TextPositionSelector' as const,
@@ -319,7 +319,7 @@ describe('ViewMaterializer', () => {
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: 'doc1' },
+        target: { source: resourceId('doc1') },
         modified: new Date().toISOString(),
       };
 
@@ -351,7 +351,7 @@ describe('ViewMaterializer', () => {
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: 'doc1' },
+        target: { source: resourceId('doc1') },
         modified: new Date().toISOString(),
       };
 
@@ -395,7 +395,7 @@ describe('ViewMaterializer', () => {
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: 'doc1' },
+        target: { source: resourceId('doc1') },
         body: [
           { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
           { type: 'TextualBody' as const, value: 'Organization', purpose: 'tagging' as const },
@@ -441,7 +441,7 @@ describe('ViewMaterializer', () => {
         id: annotationId('anno1'),
         motivation: 'highlighting' as const,
         created: '2026-01-01T00:00:00.000Z',
-        target: { source: 'doc1' },
+        target: { source: resourceId('doc1') },
         body: [
           { type: 'TextualBody' as const, value: 'Person', purpose: 'tagging' as const },
         ],
@@ -498,7 +498,7 @@ describe('ViewMaterializer', () => {
               id: annotationId('anno1'),
               motivation: 'highlighting' as const,
               created: '2026-01-01T00:00:00.000Z',
-              target: { source: 'doc1' },
+              target: { source: resourceId('doc1') },
               modified: new Date().toISOString(),
             },
           },
@@ -512,7 +512,7 @@ describe('ViewMaterializer', () => {
               id: annotationId('anno2'),
               motivation: 'highlighting' as const,
               created: '2026-01-01T00:00:00.000Z',
-              target: { source: 'doc1' },
+              target: { source: resourceId('doc1') },
               modified: new Date().toISOString(),
             },
           },
@@ -662,7 +662,7 @@ describe('ViewMaterializer', () => {
               id: annotationId('anno1'),
               motivation: 'highlighting' as const,
               created: '2026-01-01T00:00:00.000Z',
-              target: { source: 'doc1' },
+              target: { source: resourceId('doc1') },
               modified: new Date().toISOString(),
             },
           },

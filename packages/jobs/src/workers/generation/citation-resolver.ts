@@ -10,11 +10,11 @@
  * content before upload, and returns claim-span citations the worker mints as W3C
  * linking annotations on the derived resource. See .plans/INLINE-CITATIONS.md.
  */
-import type { GatheredContext, Logger } from '@semiont/core';
+import { isResourceId, type GatheredContext, type Logger, type ResourceId } from '@semiont/core';
 
 export interface GenerationCitation {
   /** The cited source resource (validated present in the embedded context). */
-  resourceId: string;
+  resourceId: ResourceId;
   /** The contributing annotation, when the cited excerpt was annotation-derived. */
   annotationId?: string;
   /** Claim span in the FINAL (token-stripped) content; substring(start, end) === exact. */
@@ -66,7 +66,7 @@ export function resolveCitationTokens(
     clean += content.slice(last, match.index).replace(/[ \t]+$/, '');
     last = match.index! + token.length;
 
-    if (!validResourceIds.has(citedResourceId)) {
+    if (!isResourceId(citedResourceId) || !validResourceIds.has(citedResourceId)) {
       logger.warn('Citation token references an id absent from the provided context — dropped', {
         resourceId: citedResourceId,
       });

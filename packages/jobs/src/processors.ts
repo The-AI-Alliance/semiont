@@ -242,7 +242,7 @@ export function buildTextAnnotation(
     created: new Date().toISOString(),
     target: {
       type: 'SpecificResource' as const,
-      source: resourceId as string,
+      source: resourceId,
       selector: [
         { type: 'TextPositionSelector' as const, start: match.start, end: match.end },
         {
@@ -344,7 +344,7 @@ export function buildPdfAnnotation(
     created: new Date().toISOString(),
     target: {
       type: 'SpecificResource' as const,
-      source: resourceId as string,
+      source: resourceId,
       selector: [
         ...rects.map((coord) => ({
           type: 'FragmentSelector' as const,

@@ -10,6 +10,7 @@ import { Observable, Subject } from 'rxjs';
 import { filter, map } from 'rxjs/operators';
 import { busLog, busLogEnabled, warnIfUnobservedReply, warnUnobservedRepliesEnabled } from './bus-log';
 import type { EventMap } from './bus-protocol';
+import type { ResourceId } from './identifiers';
 
 /**
  * What the bus carries: a FRAME, not a bare payload.
@@ -29,7 +30,7 @@ export interface BusFrame<T> {
   /** Correlates a reply with its request. Absent on an announcement. */
   readonly correlationId?: string;
   /** The resource scope this frame was emitted into. Absent means global. */
-  readonly scope?: string;
+  readonly scope?: ResourceId;
   readonly payload: T;
 }
 
@@ -150,7 +151,7 @@ export class EventBus {
   }
 
   /** @internal — one filtered, observer-counted view per (channel, scope). */
-  viewOf<K extends keyof EventMap>(channel: K, scope: string | undefined): Observable<BusFrame<EventMap[K]>> {
+  viewOf<K extends keyof EventMap>(channel: K, scope: ResourceId | undefined): Observable<BusFrame<EventMap[K]>> {
     const key = `${scope ?? ''}\u0000${String(channel)}`;
     // `asObservable()` before piping, deliberately: `Subject.pipe()` returns
     // an AnonymousSubject, which still carries `next`, so piping alone would
@@ -169,7 +170,7 @@ export class EventBus {
   }
 
   /** @internal — observers of one (channel, scope) view, for `emit`. */
-  observersOf(channel: keyof EventMap, scope: string | undefined): number {
+  observersOf(channel: keyof EventMap, scope: ResourceId | undefined): number {
     return this.observerCounts.get(`${scope ?? ''}\u0000${String(channel)}`) ?? 0;
   }
 
@@ -241,14 +242,14 @@ export class EventBus {
    * @example
    * ```typescript
    * const eventBus = new EventBus();
-   * const resource1 = eventBus.scope('resource-1');
-   * const resource2 = eventBus.scope('resource-2');
+   * const resource1 = eventBus.scope(resourceId('resource-1'));
+   * const resource2 = eventBus.scope(resourceId('resource-2'));
    *
    * // These are isolated - only resource1 subscribers will fire
    * resource1.get('detection:progress').next({ status: 'started' });
    * ```
    */
-  scope(resourceId: string): ScopedEventBus {
+  scope(resourceId: ResourceId): ScopedEventBus {
     return new ScopedEventBus(this, resourceId);
   }
 }
@@ -262,7 +263,7 @@ export class EventBus {
 export class ScopedEventBus {
   constructor(
     private parent: EventBus,
-    private scopePrefix: string
+    private resourceId: ResourceId
   ) {}
 
   /**
@@ -278,8 +279,8 @@ export class ScopedEventBus {
    *  on the channel name — one channel, one stream, and a reader can see the
    *  scope rather than having to parse it out of a key. */
   emit<K extends keyof EventMap>(channel: K, payload: EventMap[K], envelope: BusEnvelope = {}): number {
-    const observers = this.parent.observersOf(channel, this.scopePrefix);
-    this.parent.channelStream(channel).next({ ...envelope, scope: this.scopePrefix, payload });
+    const observers = this.parent.observersOf(channel, this.resourceId);
+    this.parent.channelStream(channel).next({ ...envelope, scope: this.resourceId, payload });
     return observers;
   }
 
@@ -290,18 +291,6 @@ export class ScopedEventBus {
 
   /** Frames emitted into THIS scope only. */
   frames<K extends keyof EventMap>(channel: K): Observable<BusFrame<EventMap[K]>> {
-    return this.parent.viewOf(channel, this.scopePrefix);
-  }
-
-  /**
-   * Create a nested scope
-   *
-   * Allows hierarchical scoping like `resource-1:subsystem-a`
-   *
-   * @param subScope - Additional scope level
-   * @returns A nested scoped event bus
-   */
-  scope(subScope: string): ScopedEventBus {
-    return new ScopedEventBus(this.parent, `${this.scopePrefix}:${subScope}`);
+    return this.parent.viewOf(channel, this.resourceId);
   }
 }

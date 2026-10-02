@@ -1194,9 +1194,11 @@ async fn mark_holds_the_annotation_a_selection_asks_for_until_it_is_cancelled() 
     assert_eq!(*unit.assisting().borrow(), None);
     assert_eq!(*unit.progress().borrow(), None);
 
-    client
-        .mark
-        .request(RES, requested_selector("hello"), Motivation::Highlighting);
+    client.mark.request(
+        &as_id(RES),
+        requested_selector("hello"),
+        Motivation::Highlighting,
+    );
     settle().await;
     assert_eq!(
         *unit.pending().borrow(),
@@ -1220,7 +1222,7 @@ async fn mark_carries_a_selector_of_several_as_it_was_given() {
     ]);
 
     client.mark.request(
-        RES,
+        &as_id(RES),
         serde_json::from_value(several.clone()).expect("selectors"),
         Motivation::Linking,
     );
@@ -1286,9 +1288,11 @@ async fn mark_creates_what_is_submitted_and_it_stops_being_pending_once_recorded
     );
     let client = client_over(&transport);
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    client
-        .mark
-        .request(RES, requested_selector("hello"), Motivation::Commenting);
+    client.mark.request(
+        &as_id(RES),
+        requested_selector("hello"),
+        Motivation::Commenting,
+    );
     submit(&client, RES, "hello");
     settle().await;
 
@@ -1317,9 +1321,11 @@ async fn mark_creates_what_is_submitted_and_it_stops_being_pending_once_recorded
 async fn mark_keeps_its_pending_annotation_when_another_creation_is_recorded() {
     let (client, transport) = world();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
-    client
-        .mark
-        .request(RES, requested_selector("hello"), Motivation::Commenting);
+    client.mark.request(
+        &as_id(RES),
+        requested_selector("hello"),
+        Motivation::Commenting,
+    );
     settle().await;
 
     // Another viewer's creation, replied to on the same client.
@@ -1340,9 +1346,11 @@ async fn mark_says_a_creation_that_failed_and_keeps_the_annotation_pending() {
     let (client, _transport) = jobs();
     let unit = MarkStateUnit::new(client.clone(), &as_id(RES));
     let mut errors = client.bus().frames("mark:create-error");
-    client
-        .mark
-        .request(RES, requested_selector("hello"), Motivation::Commenting);
+    client.mark.request(
+        &as_id(RES),
+        requested_selector("hello"),
+        Motivation::Commenting,
+    );
     submit(&client, RES, "hello");
     settle().await;
 
@@ -1606,7 +1614,7 @@ async fn mark_units_of_two_resources_on_one_client_each_answer_for_their_own() {
     let second = MarkStateUnit::new(client.clone(), &as_id("res-b"));
 
     client.mark.request(
-        "res-a",
+        &as_id("res-a"),
         requested_selector("hello"),
         Motivation::Highlighting,
     );
@@ -1629,13 +1637,17 @@ async fn mark_acts_on_what_it_hears_in_the_order_it_was_said() {
 
     for round in 0..150 {
         let last = format!("round-{round}");
-        client
-            .mark
-            .request(RES, requested_selector("first"), Motivation::Highlighting);
+        client.mark.request(
+            &as_id(RES),
+            requested_selector("first"),
+            Motivation::Highlighting,
+        );
         client.mark.cancel_pending();
-        client
-            .mark
-            .request(RES, requested_selector(&last), Motivation::Commenting);
+        client.mark.request(
+            &as_id(RES),
+            requested_selector(&last),
+            Motivation::Commenting,
+        );
 
         let wanted = pending_of(quote(&last), Motivation::Commenting);
         tokio::time::timeout(
@@ -1667,9 +1679,11 @@ async fn mark_disposed_is_inert() {
     ]);
 
     unit.dispose();
-    client
-        .mark
-        .request(RES, requested_selector("hello"), Motivation::Commenting);
+    client.mark.request(
+        &as_id(RES),
+        requested_selector("hello"),
+        Motivation::Commenting,
+    );
     submit(&client, RES, "hello");
     say(
         &client,

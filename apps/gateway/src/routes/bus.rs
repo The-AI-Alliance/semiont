@@ -175,7 +175,7 @@ pub async fn emit(
     let parent = telemetry::continued(get("traceparent"), get("tracestate"));
     let mut attributes = vec![KeyValue::new("bus.channel", channel.clone())];
     if let Some(scope) = &scope {
-        attributes.push(KeyValue::new("bus.scope", scope.clone()));
+        attributes.push(KeyValue::new("bus.scope", scope.to_string()));
     }
     let dispatched = telemetry::in_span(format!("bus.dispatch:{channel}"), SpanKind::Server, attributes, parent, async {
         let payload = Value::Object(payload);
@@ -185,9 +185,13 @@ pub async fn emit(
         let answered_if_unheard = operation.is_some() && correlation_id.is_some();
         let meta = envelope(correlation_id.as_deref());
         let receipt = if answered_if_unheard {
-            plane.ingest_request(channel.clone(), payload, scope.clone(), meta).await?
+            plane
+                .ingest_request(channel.clone(), payload, scope.clone().map(String::from), meta)
+                .await?
         } else {
-            plane.ingest(channel.clone(), payload, scope.clone(), meta).await?
+            plane
+                .ingest(channel.clone(), payload, scope.clone().map(String::from), meta)
+                .await?
         };
         telemetry::record_bus_emit(&channel, scope.as_deref());
         logging::info(

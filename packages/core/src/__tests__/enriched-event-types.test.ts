@@ -28,7 +28,7 @@ const annotation: Annotation = {
   type: 'Annotation',
   id: annotationId('ann-1'),
   motivation: 'commenting',
-  target: { source: 'res-1', selector: { type: 'TextQuoteSelector', exact: 'quoted' } },
+  target: { source: resourceId('res-1'), selector: { type: 'TextQuoteSelector', exact: 'quoted' } },
   created: '2026-01-01T00:00:00Z',
 };
 

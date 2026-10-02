@@ -321,7 +321,7 @@ export class EventStorage {
    * Get list of event files for a resource (sorted by sequence)
    */
   async getEventFiles(resourceId: ResourceId): Promise<string[]> {
-    const docPath = this.getResourcePath(makeResourceId(resourceId));
+    const docPath = this.getResourcePath(resourceId);
 
     try {
       const files = await fs.readdir(docPath);

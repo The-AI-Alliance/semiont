@@ -113,7 +113,7 @@ class PublishFirstEventStore {
     const rid = event.resourceId as ResourceId;
     const storedEvent = await this.log.append(event, rid);
     this.bus.emit(storedEvent.type, storedEvent);
-    this.bus.scope(String(rid)).emit(storedEvent.type, storedEvent);
+    this.bus.scope(resourceId(String(rid))).emit(storedEvent.type, storedEvent);
     await this.views.materializeResource(rid, storedEvent, () => this.log.getEvents(rid));
     return storedEvent;
   }

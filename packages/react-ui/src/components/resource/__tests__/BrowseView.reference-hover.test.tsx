@@ -20,6 +20,7 @@ import { BehaviorSubject } from 'rxjs';
 import type { Annotation, AnnotationId, ResourceDescriptor } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
+import { resourceId } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('react-markdown', () => ({ default: ({ children }: { children: string }) => <div>{children}</div> }));
@@ -44,11 +45,11 @@ const makeAnnotation = (id: string, body: Annotation['body']): Annotation => ({
   motivation: 'linking',
   creator: { '@type': 'Person', name: 'u' },
   created: '2024-01-01T00:00:00Z',
-  target: { source: 'res-1', selector: { type: 'TextPositionSelector', start: 0, end: 4 } },
+  target: { source: resourceId('res-1'), selector: { type: 'TextPositionSelector', start: 0, end: 4 } },
   body,
 });
 
-const resolvedRef = makeAnnotation('ref-resolved', [{ type: 'SpecificResource', source: 'res-target', purpose: 'linking' }]);
+const resolvedRef = makeAnnotation('ref-resolved', [{ type: 'SpecificResource', source: resourceId('res-target'), purpose: 'linking' }]);
 const stubRef = makeAnnotation('ref-stub', []);
 
 function setup(onReferenceHover?: (h: unknown) => void) {
@@ -67,7 +68,7 @@ function setup(onReferenceHover?: (h: unknown) => void) {
     <BrowseView
       content="some text"
       mimeType="text/plain"
-      resourceUri="res-1"
+      resourceUri={resourceId("res-1")}
       annotations={{ highlights: [], references: [resolvedRef, stubRef], assessments: [], comments: [], tags: [] }}
       annotateMode={false}
       hoverDelayMs={DWELL}

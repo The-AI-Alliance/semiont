@@ -19,6 +19,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import { BrowseView } from '../BrowseView';
+import { resourceId } from '@semiont/core';
 
 const captured = vi.hoisted(() => ({
   svg: [] as Record<string, unknown>[],
@@ -67,7 +68,7 @@ function shapeAnnotation(): Annotation {
 const emptyAnnotations = { highlights: [], references: [], assessments: [], comments: [], tags: [] };
 
 const baseProps = {
-  resourceUri: 'res-1',
+  resourceUri: resourceId('res-1'),
   annotateMode: false,
 };
 
@@ -124,7 +125,7 @@ describe('browse-renderers — annotation + session forwarding (dispatch contrac
       <AnnotateView
         content="blob:pdf-url"
         mimeType="application/pdf"
-        resourceUri="res-1"
+        resourceUri={resourceId("res-1")}
         annotations={emptyAnnotations}
         uiState={{
           selectedMotivation: 'highlighting',

@@ -291,7 +291,7 @@ async fn the_application_renders_the_annotation_being_composed_in_the_active_kno
 
     let client = clients.lock().expect("clients")[0].clone();
     client.mark.request(
-        "res-1",
+        &as_id("res-1"),
         serde_json::from_value(json!({ "type": "TextQuoteSelector", "exact": "hello" }))
             .expect("a selector"),
         Motivation::Highlighting,

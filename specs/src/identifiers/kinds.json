@@ -7,7 +7,9 @@
         "resourceId",
         "parentResourceId",
         "sourceResourceId",
-        "resultResourceId"
+        "resultResourceId",
+        "scope",
+        "wasDerivedFrom"
       ],
       "accepts": [
         {

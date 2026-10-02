@@ -731,7 +731,7 @@ describe('handleJob orchestration', () => {
         content: new TextEncoder().encode('Paris is the capital of France. It is large.'),
         title: 'Answer',
         format: 'text/markdown',
-        citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
         result: {} as never,
       });
       const h = makeFakeSessionAndAdapter();
@@ -772,7 +772,7 @@ describe('handleJob orchestration', () => {
         content: new TextEncoder().encode('%PDF-FAKE'),
         title: 'Answer',
         format: 'application/pdf',
-        citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+        citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
         result: {} as never,
       });
       vi.mocked(extractPdfTextLayer).mockResolvedValue({
@@ -821,7 +821,7 @@ describe('handleJob orchestration', () => {
         content: new TextEncoder().encode('%PDF-FAKE'),
         title: 'Answer',
         format: 'application/pdf',
-        citations: [{ resourceId: 'ctx-9', start: 0, end: 27, exact: 'extraordinarily complicated' }],
+        citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 27, exact: 'extraordinarily complicated' }],
         result: {} as never,
       });
       vi.mocked(extractPdfTextLayer).mockResolvedValue({
@@ -951,7 +951,7 @@ describe('handleJob orchestration', () => {
             content: new TextEncoder().encode('Paris is the capital of France.'),
             title: 'Answer',
             format: 'text/markdown',
-            citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
+            citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
             result: {} as never,
           });
         },

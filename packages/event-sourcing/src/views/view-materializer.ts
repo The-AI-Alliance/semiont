@@ -545,7 +545,7 @@ export class ViewMaterializer {
       if (!id || id === SYSTEM_SCOPE) continue;
       if (materialized.has(id) || failed.has(id)) continue;
 
-      await this.viewStorage.delete(id as unknown as ResourceId);
+      await this.viewStorage.delete(id);
       reaped++;
       this.logger?.warn('[ViewMaterializer] Reaped view unjustified by the log', { resourceId: id });
     }

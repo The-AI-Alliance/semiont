@@ -27,7 +27,7 @@ Every W3C annotation has these required fields:
 {
   "@context": "http://www.w3.org/ns/anno.jsonld",
   "type": "Annotation",
-  "id": "https://example.org/annotations/anno-123",
+  "id": "anno-123",
   "creator": {
     "@type": "Person",
     "@id": "did:web:example.org:users:alice",
@@ -36,7 +36,7 @@ Every W3C annotation has these required fields:
   "created": "2025-10-24T10:30:00Z",
   "motivation": "linking",
   "target": {
-    "source": "https://example.org/documents/doc-123",
+    "source": "doc-123",
     "selector": [...]
   },
   "body": [...]
@@ -47,7 +47,7 @@ Every W3C annotation has these required fields:
 
 - **`@context`**: JSON-LD context (always `"http://www.w3.org/ns/anno.jsonld"`)
 - **`type`**: Always `"Annotation"`
-- **`id`**: Unique identifier (IRI)
+- **`id`**: The annotation's id, an `AnnotationId`: a name of 1 to 128 letters, digits, `_` and `-`, never a URI
 - **`creator`**: W3C Agent naming who *requested* the annotation — derived by the knowledge base from the verified emitter of the write, or of the job the write cites; never set by the emitter
 - **`created`**: ISO 8601 timestamp
 - **`motivation`**: Why the annotation was created
@@ -277,12 +277,12 @@ W3C allows annotations to have **multiple bodies**, each serving a different pur
 
 ## Target Structures
 
-The `target` field describes what is being annotated.
+The `target` field describes what is being annotated. The resource is named by its id, a `ResourceId`, in every form: as the whole target, as a target's `source`, and as the `source` of a `SpecificResource` body. An id is a name of 1 to 128 letters, digits, `_` and `-`, never a URI; a payload naming a resource any other way is refused.
 
 ### Form 1: Simple String (entire resource)
 
 ```json
-"target": "https://example.org/documents/doc-123"
+"target": "doc-123"
 ```
 
 ### Form 2: Object with source only
@@ -375,10 +375,10 @@ Semiont annotations are fully W3C-compliant and can be exported as standard JSON
 {
   "@context": "http://www.w3.org/ns/anno.jsonld",
   "type": "Annotation",
-  "id": "https://semiont.app/annotations/anno-123",
+  "id": "anno-123",
   "motivation": "linking",
   "target": {
-    "source": "https://semiont.app/documents/doc-123",
+    "source": "doc-123",
     "selector": [
       {
         "type": "TextPositionSelector",
@@ -399,7 +399,7 @@ Semiont annotations are fully W3C-compliant and can be exported as standard JSON
     },
     {
       "type": "SpecificResource",
-      "source": "https://semiont.app/documents/doc-einstein-bio",
+      "source": "doc-einstein-bio",
       "purpose": "linking"
     }
   ],

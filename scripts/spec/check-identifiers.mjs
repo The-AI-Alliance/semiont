@@ -79,8 +79,16 @@ for (const other of others) {
   if (typeof other.docs !== 'string' || other.docs.trim() === '') fail(`${other.property} is among \`others\` and does not say what it carries`);
 }
 
-/** The kind a schema refers to: directly, as the items of a list, or as the one member of a nullable `allOf`. */
+/**
+ * The kind a schema refers to: directly, as the items of a list, as the one
+ * member of a nullable `allOf`, or as every member of a `oneOf` (one of a
+ * kind, or a list of them).
+ */
 function referred(schema) {
+  if (Array.isArray(schema?.oneOf) && schema.oneOf.length > 0) {
+    const kinds = new Set(schema.oneOf.map(referred));
+    return kinds.size === 1 ? [...kinds][0] : undefined;
+  }
   const ref = schema?.$ref ?? schema?.items?.$ref ?? (schema?.allOf?.length === 1 ? schema.allOf[0].$ref : undefined);
   if (typeof ref !== 'string') return undefined;
   const name = basename(ref, '.json');

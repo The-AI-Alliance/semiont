@@ -14,6 +14,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
+import { resourceId } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 
@@ -33,7 +34,7 @@ describe('BrowseView — content link delegation (Phase 2)', () => {
     const onLinkClick = vi.fn();
     render(
       <BrowseView
-        content={MD} mimeType="text/markdown" resourceUri="res-1"
+        content={MD} mimeType="text/markdown" resourceUri={resourceId("res-1")}
         annotations={emptyAnnotations} annotateMode={false}
         session={fakeSession()} onLinkClick={onLinkClick}
       />,
@@ -49,7 +50,7 @@ describe('BrowseView — content link delegation (Phase 2)', () => {
   it('blocks navigation even with no handler (never navigates on its own)', () => {
     render(
       <BrowseView
-        content={MD} mimeType="text/markdown" resourceUri="res-1"
+        content={MD} mimeType="text/markdown" resourceUri={resourceId("res-1")}
         annotations={emptyAnnotations} annotateMode={false}
         session={fakeSession()}
       />,

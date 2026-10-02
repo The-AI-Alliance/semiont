@@ -27,7 +27,7 @@
 import { Subscription, from } from 'rxjs';
 import { groupBy, mergeMap, concatMap } from 'rxjs/operators';
 import type { EventMap, Logger, components, AnnotationId, ResourceId } from '@semiont/core';
-import { EventBus, annotationId as makeAnnotationId, resourceId, errField } from '@semiont/core';
+import { EventBus, errField } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { answerLimitsRequests, type InferenceClient } from '@semiont/inference';
 import type { EmbeddingProvider } from '@semiont/vectors';
@@ -119,8 +119,8 @@ export class Gatherer {
       });
 
       const response = await AnnotationContext.buildLLMContext(
-        makeAnnotationId(event.annotationId),
-        resourceId(event.resourceId),
+        event.annotationId,
+        event.resourceId,
         this.stores,
         this.embeddingProvider,
         event.options ?? {},
@@ -147,7 +147,7 @@ export class Gatherer {
       });
 
       const result = await LLMContext.getResourceContext(
-        resourceId(event.resourceId),
+        event.resourceId,
         event.options,
         this.stores,
         this.inferenceClient,

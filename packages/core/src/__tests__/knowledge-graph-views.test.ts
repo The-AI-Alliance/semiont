@@ -35,7 +35,7 @@ describe('deriveViews', () => {
       type: 'Annotation' as const,
       id: annotationId(id),
       motivation: 'linking' as const,
-      target: { source },
+      target: { source: resourceId(source) },
       created: '2020-01-01T00:00:00.000Z',
     });
     const graph: KnowledgeGraph = {
@@ -73,7 +73,7 @@ describe('deriveViews', () => {
       type: 'Annotation' as const,
       id: annotationId(id),
       motivation: 'linking' as const,
-      target: { source },
+      target: { source: resourceId(source) },
       created: '2020-01-01T00:00:00.000Z',
     });
     const graph: KnowledgeGraph = {

@@ -15,7 +15,7 @@ import { filter, take } from 'rxjs/operators';
 import { promises as fs } from 'fs';
 import { join } from 'path';
 import { AnnotationOperations } from '../annotation-operations';
-import { ResourceOperations } from '@semiont/core';
+import { ResourceOperations, annotationId } from '@semiont/core';
 import { resourceId, userId, EventBus, type Logger, type SupportedMediaType, deriveStorageUri } from '@semiont/core';
 import type { components } from '@semiont/core';
 import { createEventStore, type EventStore, type ViewStorage } from '@semiont/event-sourcing';
@@ -122,8 +122,8 @@ describe('AnnotationOperations', () => {
       const result = await createAnnotationAndAwait(
         {
           motivation: 'linking',
-          target: { source: testResourceId }, // whole-resource target, no selector
-          body: { type: 'SpecificResource', source: testResourceId, purpose: 'linking' },
+          target: { source: resourceId(testResourceId) }, // whole-resource target, no selector
+          body: { type: 'SpecificResource', source: resourceId(testResourceId), purpose: 'linking' },
         },
         userId('did:web:test:users:user-1'),
         eventBus,
@@ -140,7 +140,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -171,7 +171,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -202,7 +202,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'assessing',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -229,7 +229,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -265,7 +265,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'linking',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -276,7 +276,7 @@ describe('AnnotationOperations', () => {
           },
           body: {
             type: 'SpecificResource',
-            source: 'http://example.com/related-resource',
+            source: resourceId('related-resource'),
           },
         },
         userId('did:web:test:users:user-1'),
@@ -291,7 +291,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -326,7 +326,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -367,7 +367,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -396,7 +396,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -431,7 +431,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'highlighting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -471,7 +471,7 @@ describe('AnnotationOperations', () => {
           {
             motivation: undefined as any,
             target: {
-              source: testResourceId,
+              source: resourceId(testResourceId),
               selector: [
                 {
                   type: 'TextPositionSelector',
@@ -500,7 +500,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -528,7 +528,7 @@ describe('AnnotationOperations', () => {
       const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
 
       const result = await AnnotationOperations.updateAnnotationBody(
-        annotationIdStr,
+        annotationId(annotationIdStr),
         {
           resourceId: resourceId(testResourceId),
           operations: [
@@ -559,7 +559,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -591,7 +591,7 @@ describe('AnnotationOperations', () => {
       const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
 
       const result = await AnnotationOperations.updateAnnotationBody(
-        annotationIdStr,
+        annotationId(annotationIdStr),
         {
           resourceId: resourceId(testResourceId),
           operations: [
@@ -622,7 +622,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -649,7 +649,7 @@ describe('AnnotationOperations', () => {
       const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
 
       const result = await AnnotationOperations.updateAnnotationBody(
-        annotationIdStr,
+        annotationId(annotationIdStr),
         {
           resourceId: resourceId(testResourceId),
           operations: [
@@ -684,7 +684,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'tagging',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -710,7 +710,7 @@ describe('AnnotationOperations', () => {
       // Update and await Stower persistence
       const bodyUpdated$ = firstValueFrom(eventBus.on('mark:body-updated').pipe(take(1)));
       await AnnotationOperations.updateAnnotationBody(
-        annotationIdStr,
+        annotationId(annotationIdStr),
         {
           resourceId: resourceId(testResourceId),
           operations: [
@@ -739,7 +739,7 @@ describe('AnnotationOperations', () => {
     it('should handle non-existent annotation', async () => {
       await expect(
         AnnotationOperations.updateAnnotationBody(
-          'non-existent-annotation',
+          annotationId('non-existent-annotation'),
           {
             resourceId: resourceId(testResourceId),
             operations: [
@@ -768,7 +768,7 @@ describe('AnnotationOperations', () => {
         {
           motivation: 'commenting',
           target: {
-            source: testResourceId,
+            source: resourceId(testResourceId),
             selector: [
               {
                 type: 'TextPositionSelector',
@@ -793,7 +793,7 @@ describe('AnnotationOperations', () => {
       const deleted$ = firstValueFrom(eventBus.on('mark:delete-ok').pipe(take(1)));
       await AnnotationOperations.deleteAnnotation(
         annotationIdStr,
-        testResourceId,
+        resourceId(testResourceId),
         userId('did:web:test:users:user-1'),
         eventBus,
         kb
@@ -809,8 +809,8 @@ describe('AnnotationOperations', () => {
     it('should handle already deleted annotation', async () => {
       await expect(
         AnnotationOperations.deleteAnnotation(
-          'non-existent',
-          testResourceId,
+          annotationId('non-existent'),
+          resourceId(testResourceId),
           userId('did:web:test:users:user-1'),
           eventBus,
           kb

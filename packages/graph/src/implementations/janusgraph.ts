@@ -5,7 +5,6 @@ import { GraphDatabase } from '../interface';
 import { assertMutableResourceUpdate } from '../interface';
 import { queryResources } from '../resource-query';
 import type { Logger } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
 import { getBodySource, getPrimaryRepresentation, getResourceId, getStorageUri } from '@semiont/core';
 import { getEntityTypes } from '@semiont/ontology';
 import type {
@@ -608,7 +607,7 @@ export class JanusGraphDatabase implements GraphDatabase {
       // Extract source from body using helper
       const bodySource = getBodySource(ref.body);
       if (bodySource) {
-        const targetDoc = await this.getResource(makeResourceId(bodySource));
+        const targetDoc = await this.getResource(bodySource);
         if (targetDoc) {
           const existing = connections.find(c => c.targetResource.id === targetDoc.id);
           if (existing) {
@@ -628,7 +627,7 @@ export class JanusGraphDatabase implements GraphDatabase {
     return connections;
   }
   
-  async findPath(_fromResourceId: string, _toResourceId: string, _maxDepth?: number): Promise<GraphPath[]> {
+  async findPath(_fromResourceId: ResourceId, _toResourceId: ResourceId, _maxDepth?: number): Promise<GraphPath[]> {
     // TODO: Implement real graph traversal with JanusGraph
     // For now, return empty array
     return [];

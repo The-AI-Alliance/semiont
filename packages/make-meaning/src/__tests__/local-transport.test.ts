@@ -254,7 +254,7 @@ describe('SemiontClient over LocalTransport', () => {
         const { annotationId } = await h.client.mark.annotation({
           motivation: 'highlighting',
           target: {
-            source: rId as unknown as string,
+            source: rId,
             selector: [
               { type: 'TextPositionSelector', start: 0, end: 5 },
               { type: 'TextQuoteSelector', exact: 'hello' },
@@ -278,7 +278,7 @@ describe('SemiontClient over LocalTransport', () => {
         const { annotationId: aIdStr } = await h.client.mark.annotation({
           motivation: 'highlighting',
           target: {
-            source: rId as unknown as string,
+            source: rId,
             selector: [
               { type: 'TextPositionSelector', start: 0, end: 5 },
               { type: 'TextQuoteSelector', exact: 'hello' },
@@ -315,7 +315,7 @@ describe('SemiontClient over LocalTransport', () => {
         const { annotationId: aIdStr } = await h.client.mark.annotation({
           motivation: 'linking',
           target: {
-            source: sourceId as unknown as string,
+            source: sourceId,
             selector: [
               { type: 'TextPositionSelector', start: 10, end: 16 },
               { type: 'TextQuoteSelector', exact: 'target' },
@@ -327,7 +327,7 @@ describe('SemiontClient over LocalTransport', () => {
         await h.client.bind.body(sourceId, aId, [
           {
             op: 'add',
-            item: { type: 'SpecificResource', source: targetId as unknown as string, purpose: 'linking' },
+            item: { type: 'SpecificResource', source: targetId, purpose: 'linking' },
           },
         ]);
 

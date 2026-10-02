@@ -164,7 +164,10 @@ is its mechanism over HTTP.
   digits, `_` and `-`, never a URI or a path. Whoever did something is
   named by a DID. Every property that carries an id refers to its kind, so
   a payload carrying anything else fails the validation above and is
-  refused 400. `npm run lint:spec-identifiers` holds the spec to it: a
+  refused 400. A `scope` is a resource's id and is held to the same rule,
+  on an emit and in each `scoped` entry of a subscription; so are an
+  annotation target's `source`, a reference body's `source`, and a
+  description's `wasDerivedFrom`. `npm run lint:spec-identifiers` holds the spec to it: a
   property named for an id that refers to no kind, and a case the rule
   does not agree with, fail it.
 - **Claims.** A registry operation's request carrying a `correlationId`

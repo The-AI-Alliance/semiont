@@ -163,7 +163,7 @@ const createMockAnnotation = (motivation: Annotation['motivation'], id: string):
   creator: { '@type': 'Person', name: 'user@example.com' },
   created: '2024-01-01T10:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start: 0,
@@ -176,7 +176,7 @@ describe('BrowseView Component', () => {
   const defaultProps = {
     content: '# Test Content\n\nThis is test markdown content.',
     mimeType: 'text/markdown',
-    resourceUri: 'test-resource',
+    resourceUri: resourceId('test-resource'),
     annotations: {
       highlights: [],
       references: [],
@@ -666,7 +666,7 @@ describe('BrowseView — beckon:focus is guarded by resourceId (P6/D7)', () => {
       <BrowseView
         content="hello world"
         mimeType="text/plain"
-        resourceUri="res-1"
+        resourceUri={resourceId("res-1")}
         annotations={{ highlights: [], references: [], assessments: [], comments: [], tags: [] }}
         session={session}
         annotateMode={false}

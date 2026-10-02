@@ -1,6 +1,5 @@
 import { BehaviorSubject, type Observable } from 'rxjs';
 import type { AccessToken, ResourceDescriptor, ResourceId } from '@semiont/core';
-import { resourceId as makeResourceId } from '@semiont/core';
 import { createDisposer } from '@semiont/sdk';
 import type { StateUnit } from '@semiont/core';
 import type { ShellStateUnit } from '../../../state/shell-state-unit';
@@ -79,7 +78,7 @@ export function createComposePageStateUnit(
       try {
         const tokenResult = await client.yield.fromToken(params.token!);
         if (tokenResult && auth) {
-          const rId = makeResourceId(tokenResult['@id']);
+          const rId = tokenResult['@id'];
           const { data, contentType } = await client.browse.resourceRepresentation(rId);
           const content = decodeWithCharset(data, contentType);
           cloneData$.next({ sourceResource: tokenResult, sourceContent: content });

@@ -838,7 +838,7 @@ export class Neo4jGraphDatabase implements GraphDatabase {
     }
   }
 
-  async findPath(fromResourceId: string, toResourceId: string, maxDepth: number = 5): Promise<GraphPath[]> {
+  async findPath(fromResourceId: ResourceId, toResourceId: ResourceId, maxDepth: number = 5): Promise<GraphPath[]> {
     const session = this.getSession();
     try {
       const result = await session.run(

@@ -4,6 +4,7 @@
 
 import type { components } from './types';
 import type { ResourceDescriptor } from './graph';
+import type { ResourceId } from './identifiers';
 import { derivesTextOf, textSourceOf } from './media-types';
 
 type Representation = components['schemas']['Representation'];
@@ -13,7 +14,7 @@ type Representation = components['schemas']['Representation'];
  *
  * @id is always a bare ID (UUID), never a full URI.
  */
-export function getResourceId(resource: ResourceDescriptor | undefined): string | undefined {
+export function getResourceId(resource: ResourceDescriptor | undefined): ResourceId | undefined {
   if (!resource) return undefined;
   return resource['@id'] || undefined;
 }

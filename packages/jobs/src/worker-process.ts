@@ -29,7 +29,7 @@ import {
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
 import { type HttpTransport } from '@semiont/http-transport';
-import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, resourceId as makeResourceId, annotationId as makeAnnotationId, findClaimSpan, capabilitiesOf, isObject, isString, type AnnotationId, type EventMap, busRequest, BusRequestError } from '@semiont/core';
+import { isGenerationJobParams, getPrimaryMediaType, assembleAnnotation, findClaimSpan, capabilitiesOf, isObject, isString, type AnnotationId, type EventMap, type JobId, type ResourceId, busRequest, BusRequestError } from '@semiont/core';
 
 import type { InferenceClient } from '@semiont/inference';
 import type { Logger, components, AssembledAnnotation, Annotation, UnitCursor } from '@semiont/core';
@@ -168,9 +168,9 @@ const MARK_COMMIT_TIMEOUT_MS = 60_000;
  */
 async function commitAnnotations(
   session: SemiontSession,
-  resourceId: string,
-  annotations: readonly { readonly id: string }[],
-  jobId: string,
+  resourceId: ResourceId,
+  annotations: readonly { readonly id: AnnotationId }[],
+  jobId: JobId,
 ): Promise<DurabilityEvidence | undefined> {
   if (annotations.length === 0) return undefined;
   try {
@@ -239,14 +239,14 @@ export class CommitDurabilityError extends Error {
  */
 async function probeDurability(
   session: SemiontSession,
-  resourceId: string,
-  annotations: readonly { readonly id: string }[],
+  resourceId: ResourceId,
+  annotations: readonly { readonly id: AnnotationId }[],
 ): Promise<Exclude<DurabilityEvidence, 'acknowledged'>> {
   const last = annotations[annotations.length - 1];
   if (!last) return 'probe-unreachable';
   try {
     await session.client.browse
-      .annotation(makeResourceId(resourceId), makeAnnotationId(String(last.id)))
+      .annotation(resourceId, last.id)
       .fresh();
     return 'probe-confirmed';
   } catch (error) {
@@ -630,7 +630,7 @@ async function handleJobInner(
    * re-runs that chunk into a log that dedupes it by id.
    */
   const commitChunk = async (annotations: Annotation[], checkpoint: UnitCheckpoint) => {
-    record(await commitAnnotations(session, String(resourceId), annotations, jobId));
+    record(await commitAnnotations(session, resourceId, annotations, jobId));
     unitCursors.set(checkpoint.unit, checkpoint.cursor);
     // Published to the caller's accumulator as it moves: the failure path runs
     // OUTSIDE this function, so a cursor only this scope knows about would be
@@ -847,12 +847,12 @@ async function handleJobInner(
       const { annotation: provenanceRef } = assembleAnnotation(
         {
           motivation: 'linking',
-          target: { source: String(resourceId) },
-          body: { type: 'SpecificResource', source: String(newResourceId), purpose: 'linking' },
+          target: { source: resourceId },
+          body: { type: 'SpecificResource', source: newResourceId, purpose: 'linking' },
         },
         generator,
       );
-      record(await commitAnnotations(session, String(resourceId), [provenanceRef], jobId));
+      record(await commitAnnotations(session, resourceId, [provenanceRef], jobId));
     }
 
     // Inline citations: mint each as a linking annotation ON THE DERIVED
@@ -895,7 +895,7 @@ async function handleJobInner(
           // under the rects, which is what re-anchoring will see.
           const citationRef = buildPdfAnnotation(
             layer,
-            makeResourceId(String(newResourceId)),
+            newResourceId,
             generator,
             'linking',
             { exact: layer.text.slice(span.start, span.end), start: span.start, end: span.end },
@@ -910,7 +910,7 @@ async function handleJobInner(
           {
             motivation: 'linking',
             target: {
-              source: String(newResourceId),
+              source: newResourceId,
               selector: [
                 { type: 'TextPositionSelector', start: citation.start, end: citation.end },
                 { type: 'TextQuoteSelector', exact: citation.exact },
@@ -924,7 +924,7 @@ async function handleJobInner(
       }
     }
 
-    record(await commitAnnotations(session, String(newResourceId), citationRefs, jobId));
+    record(await commitAnnotations(session, newResourceId, citationRefs, jobId));
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),

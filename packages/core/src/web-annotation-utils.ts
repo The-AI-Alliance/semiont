@@ -6,12 +6,13 @@
  *
  * Body is either empty array (stub) or single SpecificResource (resolved)
  * Body can be array of TextualBody (tagging) + SpecificResource (linking)
- * Target can be simple string IRI or object with source and optional selector
+ * Target can be a resource's id or an object with source and optional selector
  */
 
 import type { components } from './types';
 import type { Selector } from './payload-types';
 import type { Annotation } from './annotation-types';
+import type { ResourceId } from './identifiers';
 
 // Re-export selector utilities (canonical location is annotation-assembly)
 export {
@@ -34,42 +35,11 @@ export type { TextPositionSelector, TextQuoteSelector, SvgSelector, FragmentSele
  * Get the source from an annotation body (null if stub)
  * Search for SpecificResource in body array
  */
-export function getBodySource(body: Annotation['body']): string | null {
-  if (Array.isArray(body)) {
-    // Search for SpecificResource with source
-    for (const item of body) {
-      if (
-        typeof item === 'object' &&
-        item !== null &&
-        'type' in item &&
-        'source' in item
-      ) {
-        const itemType = (item as { type: unknown }).type;
-        const itemSource = (item as { source: unknown }).source;
-
-        if (itemType === 'SpecificResource' && typeof itemSource === 'string') {
-          return itemSource;
-        }
-      }
-    }
-    return null; // No SpecificResource found = stub
+export function getBodySource(body: Annotation['body']): ResourceId | null {
+  const bodies = body === undefined ? [] : Array.isArray(body) ? body : [body];
+  for (const item of bodies) {
+    if (item.type === 'SpecificResource') return item.source;
   }
-
-  // Single body object (SpecificResource)
-  if (
-    typeof body === 'object' &&
-    body !== null &&
-    'type' in body &&
-    'source' in body
-  ) {
-    const bodyType = (body as { type: unknown }).type;
-    const bodySource = (body as { source: unknown }).source;
-
-    if (bodyType === 'SpecificResource' && typeof bodySource === 'string') {
-      return bodySource;
-    }
-  }
-
   return null;
 }
 
@@ -111,9 +81,9 @@ export function isBodyResolved(body: Annotation['body']): boolean {
 }
 
 /**
- * Get the source IRI from target (handles both string and object forms)
+ * The resource a target names (handles both string and object forms)
  */
-export function getTargetSource(target: Annotation['target']): string {
+export function getTargetSource(target: Annotation['target']): ResourceId {
   if (typeof target === 'string') {
     return target;
   }

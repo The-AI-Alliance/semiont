@@ -17,6 +17,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { AnnotationUIState } from '../../../types/annotation-props';
 import { AnnotateView } from '../AnnotateView';
 import type { AnnotateMediaRendererProps } from '../annotate-renderers';
+import { resourceId } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 vi.mock('../../CodeMirrorRenderer', () => ({
@@ -50,7 +51,7 @@ function fakeSession(): SemiontSession {
 type ViewProps = React.ComponentProps<typeof AnnotateView>;
 
 const base = (mimeType: string): ViewProps => ({
-  resourceUri: 'res-1',
+  resourceUri: resourceId('res-1'),
   content: 'the-body',
   mimeType,
   annotations: emptyAnnotations,

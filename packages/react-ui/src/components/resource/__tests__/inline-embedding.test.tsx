@@ -11,6 +11,7 @@
  *
  * Started RED (no `inline` prop) and GREEN once Phase 1 lands.
  */
+import { resourceId } from '@semiont/core';
 import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import '@testing-library/jest-dom';
@@ -48,7 +49,7 @@ const resource: SemiontResource & { content: string } = {
 describe('inline embedding (Phase 1)', () => {
   it('BrowseView: `inline` adds the modifier class; default does not', () => {
     const props = {
-      content: 'x', mimeType: 'text/plain', resourceUri: 'res-1',
+      content: 'x', mimeType: 'text/plain', resourceUri: resourceId('res-1'),
       annotations: emptyAnnotations, annotateMode: false, session: fakeSession(),
     };
     const { container: pane } = render(<BrowseView {...props} />);

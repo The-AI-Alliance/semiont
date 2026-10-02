@@ -29,7 +29,7 @@ use std::task::{Context, Poll};
 use tokio::sync::broadcast;
 
 /// A view's key: the channel, and the scope it sees.
-type View = (String, Option<String>);
+type View = (String, Option<ResourceId>);
 
 struct Channels {
     frames: HashMap<String, broadcast::Sender<Frame>>,
@@ -79,7 +79,7 @@ impl Inner {
         observers
     }
 
-    fn frames(self: &Arc<Self>, channel: &str, scope: Option<String>) -> BusFrames {
+    fn frames(self: &Arc<Self>, channel: &str, scope: Option<ResourceId>) -> BusFrames {
         let views = vec![(channel.to_owned(), scope.clone())];
         let mut channels = self.channels();
         let events = match channels.as_mut() {
@@ -138,7 +138,7 @@ pub struct BusFrames {
     bus: Arc<Inner>,
     /// What it reads, for the count `emit` reports.
     views: Vec<View>,
-    scope: Option<String>,
+    scope: Option<ResourceId>,
     events: Events<Frame>,
 }
 
@@ -241,7 +241,7 @@ impl EventBus {
     pub fn scope(&self, resource_id: &ResourceId) -> ScopedEventBus {
         ScopedEventBus {
             inner: self.inner.clone(),
-            scope: resource_id.to_string(),
+            scope: resource_id.clone(),
         }
     }
 
@@ -274,7 +274,7 @@ impl EventBus {
 #[derive(Clone)]
 pub struct ScopedEventBus {
     inner: Arc<Inner>,
-    scope: String,
+    scope: ResourceId,
 }
 
 impl ScopedEventBus {
@@ -299,14 +299,6 @@ impl ScopedEventBus {
     /// The frames published into this scope on `channel` from now on.
     pub fn frames(&self, channel: &str) -> BusFrames {
         self.inner.frames(channel, Some(self.scope.clone()))
-    }
-
-    /// A scope within this one.
-    pub fn scope(&self, within: &str) -> ScopedEventBus {
-        ScopedEventBus {
-            inner: self.inner.clone(),
-            scope: format!("{}:{within}", self.scope),
-        }
     }
 }
 

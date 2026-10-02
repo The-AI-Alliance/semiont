@@ -23,10 +23,6 @@ export type {
   EntityType,
   SearchQuery,
   BaseUrl,
-  // HTTP URI types
-  ResourceUri,
-  AnnotationUri,
-  ResourceAnnotationUri,
 } from './branded-types';
 export {
   // Helper functions
@@ -38,10 +34,6 @@ export {
   entityType,
   searchQuery,
   baseUrl,
-  // URI factory functions
-  resourceUri,
-  annotationUri,
-  resourceAnnotationUri,
 } from './branded-types';
 
 // The kinds of id, generated from the spec
@@ -51,6 +43,10 @@ export {
   annotationId,
   jobId,
   userId,
+  isResourceId,
+  isAnnotationId,
+  isJobId,
+  isUserId,
   SYSTEM_SCOPE,
 } from './identifiers';
 
@@ -137,8 +133,7 @@ export type {
 // Event utilities
 export type { StoredEventLike } from './event-utils';
 export {
-  getAnnotationUriFromEvent,
-  isEventRelatedToAnnotation,
+  getAnnotationIdFromEvent,
   isStoredEvent,
 } from './event-utils';
 

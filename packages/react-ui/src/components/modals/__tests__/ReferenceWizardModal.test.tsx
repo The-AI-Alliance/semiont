@@ -25,6 +25,7 @@ import '@testing-library/jest-dom';
 import type { GatheredContext } from '@semiont/core';
 import { renderWithProviders } from '../../../test-utils';
 import { ReferenceWizardModal } from '../ReferenceWizardModal';
+import { annotationId, resourceId } from '@semiont/core';
 
 // jsdom implements no layout, so it has no `scrollIntoView`. GatherContextStep
 // calls it to bring the highlighted passage into view whenever the context
@@ -92,8 +93,8 @@ function renderWizard(over: Partial<React.ComponentProps<typeof ReferenceWizardM
     <ReferenceWizardModal
       isOpen
       onClose={onClose}
-      annotationId="ann-1"
-      resourceId="res-1"
+      annotationId={annotationId("ann-1")}
+      resourceId={resourceId("res-1")}
       defaultTitle="Caspian Sea"
       entityTypes={['Location']}
       entityTypeOptions={['Person', 'Topic', 'Location']}
@@ -390,8 +391,8 @@ describe('ReferenceWizardModal — the dirty guard widens (GATHER-AT-THE-TOP D4/
       <ReferenceWizardModal
         isOpen
         onClose={onClose}
-        annotationId="ann-1"
-        resourceId="res-1"
+        annotationId={annotationId("ann-1")}
+        resourceId={resourceId("res-1")}
         defaultTitle="Caspian Sea (moved)"
         entityTypes={['Location']}
         entityTypeOptions={['Person', 'Topic', 'Location']}
@@ -464,7 +465,7 @@ describe('ReferenceWizardModal — the gather skeleton', () => {
 
     rerender(
       <ReferenceWizardModal
-        isOpen onClose={onClose} annotationId="ann-1" resourceId="res-1"
+        isOpen onClose={onClose} annotationId={annotationId("ann-1")} resourceId={resourceId("res-1")}
         defaultTitle="Caspian Sea" entityTypes={['Location']}
         entityTypeOptions={['Person', 'Topic', 'Location']} locale="en"
         context={CONTEXT} contextLoading={false} contextError={null}
@@ -483,7 +484,7 @@ describe('ReferenceWizardModal — a new run starts clean (D3 flip side)', () =>
     expect(screen.getByPlaceholderText(T.userHintPlaceholder)).toHaveValue('first attempt');
 
     const props = {
-      isOpen: false, onClose: vi.fn(), annotationId: 'ann-1', resourceId: 'res-1',
+      isOpen: false, onClose: vi.fn(), annotationId: annotationId('ann-1'), resourceId: resourceId('res-1'),
       defaultTitle: 'Caspian Sea', entityTypes: ['Location'], locale: 'en',
       context: CONTEXT, contextLoading: false, contextError: null,
       onGenerateSubmit: vi.fn(), onLinkResource: vi.fn(),

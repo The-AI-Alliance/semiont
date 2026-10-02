@@ -2,7 +2,8 @@
  * The kinds of id: `ResourceId`, `AnnotationId`, `JobId` and `UserId`.
  *
  * Each is a type of its own, so one kind is not taken for another, and each
- * is made by one constructor that holds text to the kind's rule. Types and
+ * is made by one constructor that holds text to the kind's rule. Its guard
+ * (`isResourceId`) asks the same of text without throwing. Types and
  * constructors are generated from the spec (specs/src/identifiers/kinds.json
  * and each kind's schema, by scripts/spec/generate-identifiers.mjs): the
  * rule is stated there, once, for every SDK and for the gateway.
@@ -14,7 +15,16 @@
 import { resourceId } from './generated/identifiers';
 
 export type { AnnotationId, JobId, ResourceId, UserId } from './generated/identifiers';
-export { annotationId, jobId, resourceId, userId } from './generated/identifiers';
+export {
+  annotationId,
+  isAnnotationId,
+  isJobId,
+  isResourceId,
+  isUserId,
+  jobId,
+  resourceId,
+  userId,
+} from './generated/identifiers';
 
 /**
  * The scope a system event is logged under — a fact about the knowledge base

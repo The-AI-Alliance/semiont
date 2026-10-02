@@ -61,8 +61,8 @@ export interface HttpTransportConfig {
    * SCOPE, passed through to the actor state unit. See
    * {@link ActorStateUnitOptions}.
    */
-  loadLastEventIds?: () => Record<string, string> | null;
-  saveLastEventId?: (scope: string, id: string) => void;
+  loadLastEventIds?: () => ReadonlyMap<ResourceId, string> | null;
+  saveLastEventId?: (scope: ResourceId, id: string) => void;
   /**
    * The global SSE channel set this transport subscribes. Absent means the
    * full `BRIDGED_CHANNELS` — a full client must receive every operation's
@@ -170,7 +170,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
    * the actor getter (one delivery per event regardless of how many scopes
    * are held), so entries here are counts only.
    */
-  private readonly scopeRefCounts = new Map<string, number>();
+  private readonly scopeRefCounts = new Map<ResourceId, number>();
 
   /** Buses we've been asked to bridge wire events into. */
   private readonly bridges: EventBus[] = [];
@@ -441,24 +441,23 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   }
 
   subscribeToResource(resourceId: ResourceId): () => void {
-    const key = resourceId as string;
-    const count = this.scopeRefCounts.get(key) ?? 0;
-    this.scopeRefCounts.set(key, count + 1);
+    const count = this.scopeRefCounts.get(resourceId) ?? 0;
+    this.scopeRefCounts.set(resourceId, count + 1);
     if (count === 0) {
-      this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], key);
+      this.actor.addChannels([...RESOURCE_SCOPED_CHANNELS], resourceId);
     }
 
     let called = false;
     return () => {
       if (called) return;
       called = true;
-      const remaining = (this.scopeRefCounts.get(key) ?? 0) - 1;
+      const remaining = (this.scopeRefCounts.get(resourceId) ?? 0) - 1;
       if (remaining > 0) {
-        this.scopeRefCounts.set(key, remaining);
+        this.scopeRefCounts.set(resourceId, remaining);
         return;
       }
-      this.scopeRefCounts.delete(key);
-      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS], key);
+      this.scopeRefCounts.delete(resourceId);
+      this.actor.removeChannels([...RESOURCE_SCOPED_CHANNELS], resourceId);
     };
   }
 

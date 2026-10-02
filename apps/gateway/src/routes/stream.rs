@@ -72,7 +72,7 @@ pub async fn subscribe(
         .unwrap_or_default()
         .into_iter()
         .map(|entry| Scoped {
-            scope: entry.scope,
+            scope: entry.scope.into(),
             channels: entry.channels,
             last_event_id: entry.last_event_id,
         })

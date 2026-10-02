@@ -18,6 +18,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { RouteBuilder } from '../../../../contexts/RoutingContext';
 import { UnifiedAnnotationsPanel } from '../UnifiedAnnotationsPanel';
 import { ANNOTATORS } from '../../../../lib/annotation-registry';
+import { resourceId } from '@semiont/core';
 
 const TestLink = ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a>;
 const testRoutes = {
@@ -39,7 +40,7 @@ const base = (): PanelProps => ({
   annotators: ANNOTATORS,
   allEntityTypes: [],
   pendingAnnotation: null,
-  resourceId: 'res-1',
+  resourceId: resourceId('res-1'),
   Link: TestLink,
   routes: testRoutes,
 });

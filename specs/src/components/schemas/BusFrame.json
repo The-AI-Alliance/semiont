@@ -18,8 +18,7 @@
       "description": "The channel's payload. A replayed persisted event is the stored event itself, whose `metadata.sequenceNumber` the message id carries."
     },
     "scope": {
-      "type": "string",
-      "minLength": 1,
+      "$ref": "./ResourceId.json",
       "description": "The resource scope the frame was published on. Present exactly when it arrived through a `scoped` entry of the subscription."
     }
   },

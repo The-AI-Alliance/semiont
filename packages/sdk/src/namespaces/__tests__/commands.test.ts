@@ -464,7 +464,7 @@ describe('BindNamespace', () => {
       'bind:update-body': () => ({ resultChannel: 'bind:body-updated', response: {} }),
     });
     const bind = new BindNamespace(mock.transport, new EventBus());
-    await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]);
+    await bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('res-2') } }]);
     expect(mock.emitSpy).toHaveBeenCalledWith('bind:update-body', expect.objectContaining({
       annotationId: AID,
       resourceId: RID,
@@ -476,7 +476,7 @@ describe('BindNamespace', () => {
     const mock = createMockTransport();
     const bind = new BindNamespace(mock.transport, new EventBus());
     const assertion = expect(
-      bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: 'res-2' } }]),
+      bind.body(RID, AID, [{ op: 'add', item: { type: 'SpecificResource', source: resourceId('res-2') } }]),
     ).rejects.toThrow(/rejected/);
     await new Promise((r) => setTimeout(r, 10));
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;

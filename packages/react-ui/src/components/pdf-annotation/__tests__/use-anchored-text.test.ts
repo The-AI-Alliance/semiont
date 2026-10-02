@@ -13,6 +13,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { createTestSession } from '@semiont/sdk/testing';
 import { useAnchoredText, ANCHORED_RETRY_LADDER_MS } from '../use-anchored-text';
+import { resourceId } from '@semiont/core';
 
 const RESOURCE = 'res-anchored-1';
 
@@ -39,7 +40,7 @@ describe('useAnchoredText', () => {
 
   it('defers annotate while the answer is `not-yet`, and stands down when the map lands', async () => {
     const { session } = sessionAnswering(['not-yet', 'extracted']);
-    const { result } = renderHook(() => useAnchoredText(session, RESOURCE));
+    const { result } = renderHook(() => useAnchoredText(session, resourceId(RESOURCE)));
 
     // Nobody has asked yet: a text document never asks and is never gated.
     expect(result.current.anchoredKind).toBeNull();
@@ -67,7 +68,7 @@ describe('useAnchoredText', () => {
 
   it('does not re-ask a terminal answer — `declined` is not `not-yet`', async () => {
     const { session } = sessionAnswering(['declined']);
-    const { result } = renderHook(() => useAnchoredText(session, RESOURCE));
+    const { result } = renderHook(() => useAnchoredText(session, resourceId(RESOURCE)));
 
     await act(async () => {
       void result.current.fetchResourceAnchored();

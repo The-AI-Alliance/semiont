@@ -1,13 +1,13 @@
 'use client';
 
-import { resourceId as toResourceId } from '@semiont/core';
+import type { ResourceId } from '@semiont/core';
 import type { SemiontSession } from '@semiont/sdk';
 import { useMediaToken } from '../../hooks/useMediaToken';
 import { mediaUrl } from '../../lib/media-url';
 
 interface Props {
   /** The '@id' of the resource whose bytes to offer. */
-  resourceUri: string;
+  resourceUri: ResourceId;
   /** Session for that resource — its client mints the media token and supplies the gateway origin. */
   session: SemiontSession | null;
 }
@@ -30,8 +30,8 @@ interface Props {
  */
 export function DownloadFileLink({ resourceUri, session }: Props) {
   const client = session?.client ?? null;
-  const { token } = useMediaToken(client, toResourceId(resourceUri));
-  const href = mediaUrl(client, toResourceId(resourceUri), token);
+  const { token } = useMediaToken(client, resourceUri);
+  const href = mediaUrl(client, resourceUri, token);
 
   if (!href) {
     return (

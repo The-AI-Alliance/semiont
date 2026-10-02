@@ -15,6 +15,7 @@
  *   whatever a full-map re-save touched last).
  */
 
+import { isObject, isResourceId, isString, type ResourceId } from '@semiont/core';
 import type { CachePersister } from './cache';
 import type { SessionStorage } from './session/session-storage';
 
@@ -46,8 +47,8 @@ export function coupledLastEventId(
 ): {
   /** Hand THIS to `cachePersistence` — its writes carry the bookmarks forward. */
   storage: SessionStorage;
-  saveLastEventId: (scope: string, id: string) => void;
-  loadLastEventIds: () => Record<string, string> | null;
+  saveLastEventId: (scope: ResourceId, id: string) => void;
+  loadLastEventIds: () => ReadonlyMap<ResourceId, string> | null;
   /**
    * B17-Q (C1) — quiescence-gate the flush. Write-ordering alone couples
    * write MOMENTS, not content: doc B's save could flush a bookmark whose
@@ -60,19 +61,21 @@ export function coupledLastEventId(
    */
   setFlushGate: (gate: () => boolean) => void;
 } {
-  const pending = new Map<string, string>();
+  const pending = new Map<ResourceId, string>();
   let flushGate: (() => boolean) | null = null;
-  const readStored = (): Record<string, string> => {
+  const readStored = (): Map<ResourceId, string> => {
+    const stored = new Map<ResourceId, string>();
     const raw = storage.get(lastEventIdKey);
-    if (!raw) return {};
+    if (!raw) return stored;
     try {
       const parsed: unknown = JSON.parse(raw);
-      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-      return Object.fromEntries(
-        Object.entries(parsed as Record<string, unknown>).filter(([, v]) => typeof v === 'string'),
-      ) as Record<string, string>;
+      if (!isObject(parsed)) return stored;
+      for (const [scope, id] of Object.entries(parsed)) {
+        if (isResourceId(scope) && isString(id)) stored.set(scope, id);
+      }
+      return stored;
     } catch {
-      return {};
+      return stored;
     }
   };
   const coupled: SessionStorage = {
@@ -80,8 +83,8 @@ export function coupledLastEventId(
     set: (k, v) => {
       storage.set(k, v);
       if (pending.size > 0 && (flushGate === null || flushGate())) {
-        const merged = { ...readStored(), ...Object.fromEntries(pending) };
-        storage.set(lastEventIdKey, JSON.stringify(merged));
+        const merged = new Map([...readStored(), ...pending]);
+        storage.set(lastEventIdKey, JSON.stringify(Object.fromEntries(merged)));
         pending.clear();
       }
     },
@@ -93,7 +96,7 @@ export function coupledLastEventId(
     saveLastEventId: (scope, id) => { pending.set(scope, id); },
     loadLastEventIds: () => {
       const stored = readStored();
-      return Object.keys(stored).length > 0 ? stored : null;
+      return stored.size > 0 ? stored : null;
     },
     setFlushGate: (gate) => { flushGate = gate; },
   };

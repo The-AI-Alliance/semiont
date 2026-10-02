@@ -96,9 +96,9 @@ describe('browseHighlights', () => {
     const { client, browse } = createStub();
     browse.annotations.mockReturnValue({ fresh: async () => [
       // Whole-resource target: a bare IRI, no selector at all.
-      { ...HIGHLIGHT, id: annotationId('anno-whole'), target: 'res-iliad' },
+      { ...HIGHLIGHT, id: annotationId('anno-whole'), target: resourceId('res-iliad') },
       // Position-only selector, not wrapped in an array.
-      { ...HIGHLIGHT, id: annotationId('anno-position'), target: { source: 'res-iliad', selector: { type: 'TextPositionSelector', start: 0, end: 3 } } },
+      { ...HIGHLIGHT, id: annotationId('anno-position'), target: { source: resourceId('res-iliad'), selector: { type: 'TextPositionSelector', start: 0, end: 3 } } },
     ] });
 
     expect(text(await browseHighlights(client, { resourceId: 'res-iliad' })))
@@ -121,7 +121,7 @@ describe('browseReferences', () => {
   it('falls back to the annotation id when the target is a bare IRI', async () => {
     const { client, browse } = createStub();
     browse.annotations.mockReturnValue({ fresh: async () => [
-      { ...BOUND_REFERENCE, id: annotationId('anno-whole'), target: 'res-iliad' },
+      { ...BOUND_REFERENCE, id: annotationId('anno-whole'), target: resourceId('res-iliad') },
     ] });
 
     expect(text(await browseReferences(client, { resourceId: 'res-iliad' })))

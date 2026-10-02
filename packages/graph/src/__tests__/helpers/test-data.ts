@@ -34,14 +34,14 @@ export function createTestResource(overrides: Partial<ResourceDescriptor> = {}):
  * Create a test annotation with highlighting motivation
  */
 export function createTestHighlight(
-  resourceId: string,
+  targetResourceId: string,
   overrides: Partial<CreateAnnotationInternal> = {}
 ): CreateAnnotationInternal {
   return {
     id: annotationId(uuidv4()),
     motivation: 'highlighting',
     target: {
-      source: resourceId,
+      source: resourceId(targetResourceId),
       selector: {
         type: 'TextQuoteSelector',
         exact: 'test highlight',
@@ -75,7 +75,7 @@ export function createTestReference(
     id: annotationId(uuidv4()),
     motivation: 'linking',
     target: {
-      source: targetResourceId,
+      source: resourceId(targetResourceId),
       selector: {
         type: 'TextQuoteSelector',
         exact: 'reference text',
@@ -106,7 +106,7 @@ export function createTestEntityReference(
     id: annotationId(uuidv4()),
     motivation: 'linking',
     target: {
-      source: targetResourceId,
+      source: resourceId(targetResourceId),
       selector: {
         type: 'TextQuoteSelector',
         exact: 'entity text',
@@ -119,7 +119,7 @@ export function createTestEntityReference(
     // is why this fixture needed a cast to compile.
     body: [
       ...entityTypes.map(value => ({ type: 'TextualBody' as const, value, purpose: 'tagging' as const })),
-      { type: 'SpecificResource' as const, source: sourceResourceId, purpose: 'linking' as const },
+      { type: 'SpecificResource' as const, source: resourceId(sourceResourceId), purpose: 'linking' as const },
     ],
     creator: {
       '@type': 'Person' as const,

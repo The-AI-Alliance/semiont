@@ -30,9 +30,11 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fc from 'fast-check';
+import type { ResourceId } from '@semiont/core';
 import { createCache, type Cache } from '../cache';
 import { coupledLastEventId, sessionStoragePersister } from '../cache-persister';
 import { InMemorySessionStorage } from '../session/session-storage';
+import { resourceId } from '@semiont/core';
 
 const KEY = 'res-1';
 const A_DOC_KEY = 'semiont.cache.test.annotations';
@@ -46,7 +48,7 @@ interface Content { upTo: number }
 interface Rig {
   cacheA: Cache<string, Content>;
   cacheB: Cache<string, Content>;
-  saveLastEventId: (scope: string, id: string) => void;
+  saveLastEventId: (scope: ResourceId, id: string) => void;
   resolvers: Array<(c: Content) => void>;
   dispose: () => void;
 }
@@ -137,7 +139,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
       switch (cmd) {
         case 'deliver':
           serverSeq += 1;
-          rig.saveLastEventId('r1', `p-r1-${serverSeq}`);
+          rig.saveLastEventId(resourceId('r1'), `p-r1-${serverSeq}`);
           rig.cacheA.invalidate(KEY);
           break;
         case 'complete':
@@ -191,7 +193,7 @@ describe('C1 — the persisted bookmark never leads the persisted content', () =
     await vi.advanceTimersByTimeAsync(DEBOUNCE_MS);
 
     // Event 1 arrives: bookmark stashed, A's refetch in flight.
-    rig.saveLastEventId('r1', 'p-r1-1');
+    rig.saveLastEventId(resourceId('r1'), 'p-r1-1');
     rig.cacheA.invalidate(KEY);
 
     // Bystander B writes its document — pre-fix this flushed p-r1-1 while

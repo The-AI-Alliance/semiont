@@ -8,7 +8,7 @@ import { useLiveRegion } from '../components/LiveRegion';
 // Create annotation request type - narrow target to only the object form (not string)
 type CreateAnnotationRequest = Omit<Annotation, 'id' | 'created' | 'modified' | 'creator' | '@context' | 'type' | 'target'> & {
   target: {
-    source: string;
+    source: ResourceId;
     selector: Selector | Selector[];
   };
 } & Partial<Pick<Annotation, '@context' | 'type'>>;

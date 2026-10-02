@@ -146,18 +146,18 @@
       "format": "date-time"
     },
     "wasDerivedFrom": {
-      "description": "W3C PROV - source resources this was derived from",
       "oneOf": [
         {
-          "type": "string"
+          "$ref": "./ResourceId.json"
         },
         {
           "type": "array",
           "items": {
-            "type": "string"
+            "$ref": "./ResourceId.json"
           }
         }
-      ]
+      ],
+      "description": "W3C PROV: the resource, or resources, this one was derived from, each by its id"
     },
     "wasAttributedTo": {
       "description": "W3C PROV — every party responsible for this resource, derived by the knowledge base at creation from verified identities: `[requester, generator]` for a resource a job produced, collapsed to the one agent when the requester produced it. Never accepted from an emitter.",

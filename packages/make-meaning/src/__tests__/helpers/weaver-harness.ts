@@ -89,7 +89,7 @@ export const makeAnnotationPayload = (aid: string, rid: string): Annotation => (
   type: 'Annotation',
   id: makeAnnotationId(aid),
   motivation: 'commenting',
-  target: { source: rid },
+  target: { source: makeResourceId(rid) },
   body: [],
   // The AUTHORED moment — the stores no longer mint one of their own
   // (ANNOTATION-CREATED-AUTHORITY), so an event without `created` decodes as a

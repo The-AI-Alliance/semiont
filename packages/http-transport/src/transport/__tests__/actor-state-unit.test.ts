@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { firstValueFrom } from 'rxjs';
-import { EMIT_RETRY, annotationId } from '@semiont/core';
+import { EMIT_RETRY, annotationId, resourceId } from '@semiont/core';
 import { createActorStateUnit } from '../actor-state-unit';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 // The SSE/fetch harness lives in helpers/mock-conn.ts (shared with the
@@ -578,7 +578,7 @@ describe('createActorStateUnit', () => {
     const unscoped = JSON.parse(mockFetch.mock.calls[0][1].body);
     expect(unscoped.scope).toBeUndefined();
 
-    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-2') }, { scope: 'res-99' });
+    await stateUnit.emit('beckon:hover', { annotationId: annotationId('a-2') }, { scope: resourceId('res-99') });
     const scoped = JSON.parse(mockFetch.mock.calls[1][1].body);
     expect(scoped.scope).toBe('res-99');
 
@@ -738,7 +738,7 @@ describe('createActorStateUnit', () => {
     expect(stateUnit.isSubscribed('job:queued')).toBe(false);
 
     // Scoped entries are NOT global subscriptions — replies never ride scopes.
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     expect(stateUnit.isSubscribed('mark:added')).toBe(false);
 
     stateUnit.dispose();
@@ -819,10 +819,10 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(states).toEqual(['open']));
 
     // An addition, on the fast cadence…
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     // …and a removal, on the lazy one.
-    stateUnit.removeChannels(['mark:added'], 'res-1');
+    stateUnit.removeChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
     await new Promise((r) => setTimeout(r, 60));
 
@@ -850,7 +850,7 @@ describe('createActorStateUnit', () => {
     // The handoff's connect is refused; the next one opens.
     mockFetch.mockResolvedValueOnce({ ok: false, status: 503, statusText: 'Service Unavailable', headers: new Headers(), body: null });
     mockSSEResponse();
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
     await new Promise((r) => setTimeout(r, 30));
 
@@ -877,7 +877,7 @@ describe('createActorStateUnit', () => {
     const before = states.length;
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     sse1.close();
     await vi.waitFor(() => expect(states.slice(before)).toEqual(['reconnecting', 'connecting']));
@@ -1010,7 +1010,7 @@ describe('createActorStateUnit', () => {
       const fetchesBefore = mockFetch.mock.calls.length;
 
       // Channel-set change while degraded → schedules a reconnect.
-      stateUnit.addChannels(['mark:added'], 'res-1');
+      stateUnit.addChannels(['mark:added'], resourceId('res-1'));
 
       // Must attempt a reconnect (new fetch) and head back to `open`, by the
       // one edge that leaves `degraded` for a connect.
@@ -1101,7 +1101,7 @@ describe('createActorStateUnit', () => {
     // Scope change → reconnect. The new connection is deferred: connecting,
     // not yet open.
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     // Make-before-break: while the new connection is still connecting, the
@@ -1135,7 +1135,7 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     c2.open();
     // The state never left `open`, so wait out the swap itself.
@@ -1167,7 +1167,7 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     // New connection still connecting; the result arrives on the live old one.
@@ -1207,7 +1207,7 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     // Handoff completes: the new connection opens.
@@ -1244,7 +1244,7 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const c2 = mockConn({ defer: true });
-    stateUnit.addChannels(['mark:added'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     c2.open();
     await new Promise((r) => setTimeout(r, 20));
@@ -1276,9 +1276,9 @@ describe('createActorStateUnit', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     mockConn();
-    stateUnit.addChannels(['mark:added'], 'res-1');
-    stateUnit.addChannels(['mark:removed'], 'res-1');
-    stateUnit.addChannels(['job:complete'], 'res-1');
+    stateUnit.addChannels(['mark:added'], resourceId('res-1'));
+    stateUnit.addChannels(['mark:removed'], resourceId('res-1'));
+    stateUnit.addChannels(['job:complete'], resourceId('res-1'));
 
     await new Promise((r) => setTimeout(r, 250));
     expect(mockFetch).toHaveBeenCalledTimes(2); // initial + exactly one swap
@@ -1433,8 +1433,8 @@ describe('multi-scope subscription matrix', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-A');
-    su.addChannels(['mark:added'], 'res-B'); // pre-fix: silently overwrote activeScope
+    su.addChannels(['mark:added'], resourceId('res-A'));
+    su.addChannels(['mark:added'], resourceId('res-B')); // pre-fix: silently overwrote activeScope
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     // Debounce collapsed both into one reconnect; no third follows.
     await new Promise((r) => setTimeout(r, 200));
@@ -1465,12 +1465,12 @@ describe('multi-scope subscription matrix', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-A');
-    su.addChannels(['mark:added'], 'res-B');
+    su.addChannels(['mark:added'], resourceId('res-A'));
+    su.addChannels(['mark:added'], resourceId('res-B'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     mockSSEResponse();
-    su.removeChannels(['mark:added'], 'res-A');
+    su.removeChannels(['mark:added'], resourceId('res-A'));
     // Fast debounce window passes with NO reconnect — removal is lazy.
     await new Promise((r) => setTimeout(r, 150));
     expect(mockFetch).toHaveBeenCalledTimes(2);
@@ -1494,13 +1494,13 @@ describe('multi-scope subscription matrix', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-A');
-    su.addChannels(['mark:added'], 'res-B');
+    su.addChannels(['mark:added'], resourceId('res-A'));
+    su.addChannels(['mark:added'], resourceId('res-B'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     mockSSEResponse();
-    su.removeChannels(['mark:added'], 'res-A');
-    su.addChannels(['mark:added'], 'res-C');
+    su.removeChannels(['mark:added'], resourceId('res-A'));
+    su.addChannels(['mark:added'], resourceId('res-C'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
     const body = bodyOf(2);
     const scopes = body.scoped.map((s) => s.scope).sort();
@@ -1520,7 +1520,7 @@ describe('multi-scope subscription matrix', () => {
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     const sse2 = mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-A');
+    su.addChannels(['mark:added'], resourceId('res-A'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     sse2.push(sseChunkId(
@@ -1536,7 +1536,7 @@ describe('multi-scope subscription matrix', () => {
     await new Promise((r) => setTimeout(r, 20));
 
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-B');
+    su.addChannels(['mark:added'], resourceId('res-B'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
 
     const body = bodyOf(2);
@@ -1554,13 +1554,13 @@ describe('multi-scope subscription matrix', () => {
       baseUrl: 'http://localhost:4000',
       token: 'tok',
       channels: ['global:ch'],
-      loadLastEventIds: () => ({ 'res-A': 'p-res-A-9' }),
+      loadLastEventIds: () => new Map([[resourceId('res-A'), 'p-res-A-9']]),
     });
     su.start();
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(1));
 
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-A');
+    su.addChannels(['mark:added'], resourceId('res-A'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     const body = bodyOf(1);
@@ -1585,14 +1585,14 @@ describe('multi-scope subscription matrix', () => {
     const release = su.trackReply('cid-1');
     su.trackReply('cid-2');
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-A'); // trigger a reconnect
+    su.addChannels(['mark:added'], resourceId('res-A')); // trigger a reconnect
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
     expect((bodyOf(1) as unknown as { pendingReplies: string[] }).pendingReplies.sort()).toEqual(['cid-1', 'cid-2']);
 
     release();
     release(); // idempotent — must not touch cid-2
     mockSSEResponse();
-    su.addChannels(['mark:added'], 'res-B');
+    su.addChannels(['mark:added'], resourceId('res-B'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(3));
     expect((bodyOf(2) as unknown as { pendingReplies: string[] }).pendingReplies).toEqual(['cid-2']);
 
@@ -1653,7 +1653,7 @@ describe('multi-scope subscription matrix', () => {
 
     // A scope addition forces a reconnect — the same path a make-before-break
     // handover takes, so this covers the overlap case D1 argues about.
-    su.addChannels(['beckon:focus'], 'res-1');
+    su.addChannels(['beckon:focus'], resourceId('res-1'));
     await vi.waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
 
     // Assert presence before equality: two `undefined`s are equal, so a

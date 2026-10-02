@@ -104,7 +104,7 @@ const renderWithEventBus = (component: React.ReactElement<{ session: SemiontSess
 
 describe('ResourceInfoPanel Component', () => {
   const defaultProps = {
-    resourceId: 'test-resource-id',
+    resourceId: makeResourceId('test-resource-id'),
     documentEntityTypes: [],
     documentLocale: undefined,
     primaryMediaType: undefined,
@@ -468,7 +468,7 @@ describe('ResourceInfoPanel Component', () => {
       renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          wasDerivedFrom="res-abc123"
+          wasDerivedFrom={makeResourceId("res-abc123")}
         />
       );
       expect(screen.getByText('Derived from')).toBeInTheDocument();
@@ -486,7 +486,7 @@ describe('ResourceInfoPanel Component', () => {
       const { client } = renderWithEventBus(
         <ResourceInfoPanel
           {...defaultProps}
-          wasDerivedFrom="res-abc123"
+          wasDerivedFrom={makeResourceId("res-abc123")}
         />
       );
       const openSpy = vi.spyOn(client.browse, 'openResource');
@@ -512,7 +512,7 @@ describe('ResourceInfoPanel Component', () => {
         <ResourceInfoPanel
           {...defaultProps}
           session={session}
-          wasDerivedFrom="res-abc123"
+          wasDerivedFrom={makeResourceId("res-abc123")}
         />,
         { wrapper: ({ children }) => <SemiontWrapper>{children}</SemiontWrapper> },
       );

@@ -81,6 +81,7 @@ describe('the generator of the kinds of id', () => {
     expect(run.types).not.toMatch(/Id: string;/);
     const generated = readFileSync(run.out, 'utf8');
     expect(generated).toContain("const RESOURCE_ID = new RegExp(\"^[A-Za-z0-9_-]{1,128}$\", 'u');");
+    expect(generated).toContain('export function isResourceId(value: string): value is ResourceId {');
     expect(generated).toContain('export function resourceId(value: string): ResourceId {');
     expect(generated).toContain('export function jobId(value: string): JobId {');
   });

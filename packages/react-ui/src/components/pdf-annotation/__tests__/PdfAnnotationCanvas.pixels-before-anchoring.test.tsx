@@ -57,7 +57,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
 
     render(
       <PdfAnnotationCanvas
-        resourceUri={String(resourceId('123'))}
+        resourceUri={resourceId(String(resourceId('123')))}
         pdfUrl="https://example.com/resources/123.pdf"
         drawingMode={null}
         session={session}
@@ -82,7 +82,7 @@ describe('PdfAnnotationCanvas — pixels before anchoring', () => {
 
     render(
       <PdfAnnotationCanvas
-        resourceUri={String(resourceId('123'))}
+        resourceUri={resourceId(String(resourceId('123')))}
         pdfUrl="https://example.com/resources/123.pdf"
         drawingMode={null}
         session={session}

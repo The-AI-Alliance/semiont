@@ -32,7 +32,7 @@ vi.mock('@semiont/core', async () => {
   };
 });
 
-import { getCommentText, getAnnotationExactText } from '@semiont/core';
+import { getCommentText, getAnnotationExactText, resourceId } from '@semiont/core';
 import type { MockedFunction } from 'vitest';
 
 const mockGetCommentText = getCommentText as MockedFunction<typeof getCommentText>;
@@ -51,7 +51,7 @@ const createMockComment = (overrides?: Partial<Annotation>): Annotation => ({
   created: '2024-01-01T10:00:00Z',
   modified: '2024-01-01T10:00:00Z',
   target: {
-    source: 'resource-1',
+    source: resourceId('resource-1'),
     selector: {
       type: 'TextPositionSelector',
       start: 0,

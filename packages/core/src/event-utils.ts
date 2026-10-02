@@ -6,7 +6,8 @@
  */
 
 import type { StoredEvent } from './event-base';
-import type { AnnotationUri } from './branded-types';
+import { isAnnotationId, type AnnotationId } from './identifiers';
+import { isObject, isString } from './type-guards';
 
 /**
  * Minimal event shape accepted by event utility functions.
@@ -32,40 +33,22 @@ export interface StoredEventLike {
 // =============================================================================
 
 /**
- * Extract annotation ID from event payload
- * Returns null if event is not annotation-related
+ * The annotation a stored event is about, or null when it is about none.
  *
- * For mark:added: extracts full URI from payload.annotation.id
- * For mark:removed/mark:body-updated: constructs full URI from payload.annotationId (UUID) + resourceId
+ * A `mark:added` carries the annotation; a `mark:removed` and a
+ * `mark:body-updated` name it by id.
  */
-export function getAnnotationUriFromEvent(event: StoredEventLike): AnnotationUri | null {
-  const payload = event.payload as Record<string, any> | undefined;
+export function getAnnotationIdFromEvent(event: StoredEventLike): AnnotationId | null {
+  const payload = event.payload;
+  if (!isObject(payload)) return null;
 
+  let id: unknown;
   if (event.type === 'mark:added') {
-    return payload?.annotation?.id as AnnotationUri || null;
+    id = isObject(payload.annotation) ? payload.annotation.id : undefined;
+  } else if (event.type === 'mark:removed' || event.type === 'mark:body-updated') {
+    id = payload.annotationId;
   }
-
-  if (event.type === 'mark:removed' || event.type === 'mark:body-updated') {
-    if (payload?.annotationId && event.resourceId) {
-      try {
-        const resourceUri = event.resourceId;
-        const baseUrl = resourceUri.substring(0, resourceUri.lastIndexOf('/resources/'));
-        return `${baseUrl}/annotations/${payload.annotationId}` as AnnotationUri;
-      } catch (e) {
-        return null;
-      }
-    }
-  }
-
-  return null;
-}
-
-/**
- * Check if an event is related to a specific annotation
- */
-export function isEventRelatedToAnnotation(event: StoredEventLike, annotationUri: AnnotationUri): boolean {
-  const eventAnnotationUri = getAnnotationUriFromEvent(event);
-  return eventAnnotationUri === annotationUri;
+  return isString(id) && isAnnotationId(id) ? id : null;
 }
 
 /**

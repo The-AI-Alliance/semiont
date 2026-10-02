@@ -12,6 +12,7 @@ import '@testing-library/jest-dom';
 import type { SemiontSession } from '@semiont/sdk';
 import { BrowseView } from '../BrowseView';
 import type { MediaRendererProps } from '../browse-renderers';
+import { resourceId } from '@semiont/core';
 
 vi.mock('../../annotation/AnnotateToolbar', () => ({ AnnotateToolbar: () => null }));
 
@@ -31,7 +32,7 @@ describe('BrowseView — media-renderer registry', () => {
       <BrowseView
         content="the-body"
         mimeType="text/plain"
-        resourceUri="res-1"
+        resourceUri={resourceId("res-1")}
         annotations={emptyAnnotations}
         annotateMode={false}
         session={fakeSession()}

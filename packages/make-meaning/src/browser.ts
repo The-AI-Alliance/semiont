@@ -27,7 +27,7 @@ import { Subscription, from, EMPTY } from 'rxjs';
 import { mergeMap, catchError } from 'rxjs/operators';
 import type { SemiontProject } from '@semiont/core/node';
 import type { EventMap, Logger, components } from '@semiont/core';
-import { EventBus, resourceId, annotationId, errField } from '@semiont/core';
+import { EventBus, errField } from '@semiont/core';
 import { withActorSpan } from '@semiont/observability';
 import { getExactText, getTargetSource, getTargetSelector, getBodySource, getStorageUri } from '@semiont/core';
 import { EventQuery } from '@semiont/event-sourcing';
@@ -207,7 +207,7 @@ export class Browser {
 
   private async handleBrowseResource(event: EventMap['browse:resource-requested'], correlationId: string | undefined): Promise<void> {
     try {
-      const response = await assembleResourceGraph(this.kb, resourceId(event.resourceId));
+      const response = await assembleResourceGraph(this.kb, event.resourceId);
 
       if (!response) {
         this.eventBus.emit('browse:resource-failed', { code: 'not-found',
@@ -267,7 +267,7 @@ export class Browser {
 
   private async handleBrowseAnnotations(event: EventMap['browse:annotations-requested'], correlationId: string | undefined): Promise<void> {
     try {
-      const annotations = await AnnotationContext.getAllAnnotations(resourceId(event.resourceId), this.kb);
+      const annotations = await AnnotationContext.getAllAnnotations(event.resourceId, this.kb);
 
       this.eventBus.emit('browse:annotations-result', {
         response: await this.named({
@@ -283,20 +283,20 @@ export class Browser {
 
   private async handleBrowseAnnotation(event: EventMap['browse:annotation-requested'], correlationId: string | undefined): Promise<void> {
     try {
-      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
+      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
 
       if (!annotation) {
         this.eventBus.emit('browse:annotation-failed', { message: 'Annotation not found', }, { correlationId });
         return;
       }
 
-      const resource = await ResourceContext.getResourceMetadata(resourceId(event.resourceId), this.kb);
+      const resource = await ResourceContext.getResourceMetadata(event.resourceId, this.kb);
 
       // Resolve linked resource if annotation body contains a link
       let resolvedResource = null;
       const bodySource = getBodySource(annotation.body);
       if (bodySource) {
-        resolvedResource = await ResourceContext.getResourceMetadata(resourceId(bodySource), this.kb);
+        resolvedResource = await ResourceContext.getResourceMetadata(bodySource, this.kb);
       }
 
       this.eventBus.emit('browse:annotation-result', {
@@ -316,7 +316,7 @@ export class Browser {
     try {
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
       const filters: any = {
-        resourceId: resourceId(event.resourceId),
+        resourceId: event.resourceId,
       };
 
       if (event.type) {
@@ -347,14 +347,14 @@ export class Browser {
   private async handleBrowseAnnotationHistory(event: EventMap['browse:annotation-history-requested'], correlationId: string | undefined): Promise<void> {
     try {
       // Verify annotation exists
-      const annotation = await AnnotationContext.getAnnotation(annotationId(event.annotationId), resourceId(event.resourceId), this.kb);
+      const annotation = await AnnotationContext.getAnnotation(event.annotationId, event.resourceId, this.kb);
       if (!annotation) {
         this.eventBus.emit('browse:annotation-history-failed', { message: 'Annotation not found', }, { correlationId });
         return;
       }
 
       const eventQuery = new EventQuery(this.kb.eventStore.log.storage);
-      const allEvents = await eventQuery.queryEvents({ resourceId: resourceId(event.resourceId) });
+      const allEvents = await eventQuery.queryEvents({ resourceId: event.resourceId });
 
       // Filter events related to this annotation
       const annotationEvents = allEvents.filter((stored) => {
@@ -395,14 +395,14 @@ export class Browser {
       // wait key exists here — and every consumer sits behind the SDK's
       // referencedBy cache, whose staleness window dwarfs the Weaver's
       // ~tens-of-ms apply lag. A just-woven edge appears on the next read.
-      const references = await this.kb.graph.getResourceReferencedBy(resourceId(event.resourceId), event.motivation);
+      const references = await this.kb.graph.getResourceReferencedBy(event.resourceId, event.motivation);
 
       const sourceIds = [...new Set(references.map(ref => getTargetSource(ref.target)))];
       // Citer hydration IS id-keyed: graph-first with view fallback
       // (mechanism (b′)) — a woven edge whose endpoint isn't woven yet must
       // not render "Untitled Resource"; the view holds the fresher descriptor.
       const resolved = await Promise.all(
-        sourceIds.map(id => resourceWithViewGrace(this.kb, resourceId(id))),
+        sourceIds.map(id => resourceWithViewGrace(this.kb, id)),
       );
 
       const docMap = new Map(
@@ -419,12 +419,12 @@ export class Browser {
       const referencedBy = references.map(ref => {
         const targetSource = getTargetSource(ref.target);
         const targetSelector = getTargetSelector(ref.target);
-        const doc = targetSource ? docMap.get(resourceId(targetSource)) : undefined;
+        const doc = targetSource ? docMap.get(targetSource) : undefined;
         return {
           id: ref.id,
           resourceName: doc?.name || 'Untitled Resource',
           target: {
-            source: resourceId(targetSource),
+            source: targetSource,
             selector: {
               exact: targetSelector ? getExactText(targetSelector) : '',
             },

@@ -18,6 +18,7 @@ import type { SemiontSession } from '@semiont/sdk';
 import type { Annotation, AnnotationId } from '@semiont/core';
 import type { RouteBuilder, LinkComponentProps } from '../../../../contexts/RoutingContext';
 import { ReferencesPanel } from '../ReferencesPanel';
+import { resourceId } from '@semiont/core';
 
 function fakeSession() {
   const client = {
@@ -67,7 +68,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
     render(
       <ReferencesPanel
         session={session}
-        resourceId="res-1"
+        resourceId={resourceId('res-1')}
         annotations={[referenceAnnotation()]}
         isAssisting={false}
         progress={null}
@@ -95,7 +96,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
       const { session } = fakeSession();
       return {
         session,
-        resourceId: 'res-1' as const,
+        resourceId: resourceId('res-1' as const),
         annotations: [],
         isAssisting: false,
         progress: null,
@@ -158,7 +159,7 @@ describe('ReferencesPanel — headless (session prop, no providers)', () => {
       render(
         <ReferencesPanel
           session={session}
-          resourceId="res-1"
+          resourceId={resourceId('res-1')}
           annotations={[]}
           isAssisting={false}
           progress={null}

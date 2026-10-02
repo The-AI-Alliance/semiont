@@ -341,7 +341,7 @@ describe('UI signal wrappers', () => {
       const mark = new MarkNamespace(makeMockTransport(), bus);
 
       const payload = {
-        source: 'res-1',
+        source: resourceId('res-1'),
         motivation: 'commenting' as const,
         selector: { type: 'TextQuoteSelector' as const, exact: 'x' },
         body: [{ type: 'TextualBody' as const, value: 'hi', purpose: 'commenting' as const }],
