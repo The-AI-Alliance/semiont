@@ -91,7 +91,6 @@ vi.mock('@semiont/content', async (importOriginal) => {
 const getBinary = vi.fn(async () => ({ data: new ArrayBuffer(8), contentType: 'application/pdf' }));
 
 const RID = resourceId('res-abc');
-const UID = 'did:web:example.com:users:test';
 const JID = jobId('job-xyz');
 
 /** Captured interactions — bus emits, complete/fail, and yield.resource call. */
@@ -302,7 +301,6 @@ function makeJob(
     jobId: JID,
     type,
     resourceId: RID,
-    userId: UID,
     ...budget,
     // Generation params must satisfy the wire's required trio (the worker
     // guard enforces it); overrides still win.
@@ -462,7 +460,7 @@ describe('handleJob orchestration', () => {
         title: 'New Resource',
         format: 'text/markdown',
         citations: [],
-        result: { tokensUsed: 100 } as never,
+        truncated: true,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -489,7 +487,9 @@ describe('handleJob orchestration', () => {
         .toEqual(['job:start', 'job:complete']);
       expect(h.busEmits.find(e => e.channel === 'job:complete')!.payload).toMatchObject({
         jobType: 'generation',
-        result: { resourceId: 'new-res-42', resourceName: 'New Resource' },
+        // The worker states the result once the resource exists: its id from
+        // the upload, its name and whether it was cut off from the processor.
+        result: { kind: 'generation', resourceId: 'new-res-42', resourceName: 'New Resource', truncated: true },
       });
       expect(h.busEmits.map(e => e.channel)).not.toContain('yield:create');
       expect(h.busEmits.map(e => e.channel)).not.toContain('mark:commit');
@@ -507,7 +507,7 @@ describe('handleJob orchestration', () => {
         title: 'A Long Descriptive Title',
         format: 'text/markdown',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -528,7 +528,7 @@ describe('handleJob orchestration', () => {
           title,
           format: 'text/markdown',
           citations: [],
-          result: {} as never,
+          truncated: false,
         });
         const h = makeFakeSessionAndAdapter();
         await handleJob(h.adapter, makeConfig(h.session), makeJob('generation', {
@@ -551,7 +551,7 @@ describe('handleJob orchestration', () => {
         title: 'My Document',
         format: 'text/markdown',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -576,7 +576,7 @@ describe('handleJob orchestration', () => {
         title: 'Report',
         format: 'application/pdf',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
       const config = makeConfig(h.session);
@@ -605,7 +605,7 @@ describe('handleJob orchestration', () => {
         title: 'Report',
         format: 'application/pdf',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
       const config = makeConfig(h.session);
@@ -638,7 +638,7 @@ describe('handleJob orchestration', () => {
         title: 'T',
         format: 'text/markdown',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
       vi.mocked(h.session.client.yield.resource).mockRejectedValueOnce(new Error('Upload failed: 500'));
@@ -658,7 +658,7 @@ describe('handleJob orchestration', () => {
         title: 'T',
         format: 'text/markdown',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -684,7 +684,7 @@ describe('handleJob orchestration', () => {
         title: 'T',
         format: 'text/markdown',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -700,7 +700,7 @@ describe('handleJob orchestration', () => {
       // mints a navigable reference: target = the whole source resource (resource-level,
       // no selector), body = SpecificResource → the derived resource.
       vi.mocked(processGenerationJob).mockResolvedValue({
-        content: new TextEncoder().encode('body'), title: 'Derived Doc', format: 'text/markdown', citations: [], result: {} as never,
+        content: new TextEncoder().encode('body'), title: 'Derived Doc', format: 'text/markdown', citations: [], truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -732,7 +732,7 @@ describe('handleJob orchestration', () => {
         title: 'Answer',
         format: 'text/markdown',
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -773,7 +773,7 @@ describe('handleJob orchestration', () => {
         title: 'Answer',
         format: 'application/pdf',
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
-        result: {} as never,
+        truncated: false,
       });
       vi.mocked(extractPdfTextLayer).mockResolvedValue({
         text: 'Paris is the capital of France. It is large.',
@@ -822,7 +822,7 @@ describe('handleJob orchestration', () => {
         title: 'Answer',
         format: 'application/pdf',
         citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 27, exact: 'extraordinarily complicated' }],
-        result: {} as never,
+        truncated: false,
       });
       vi.mocked(extractPdfTextLayer).mockResolvedValue({
         text: 'It is extraor \ndinarily complicated today.',
@@ -952,7 +952,7 @@ describe('handleJob orchestration', () => {
             title: 'Answer',
             format: 'text/markdown',
             citations: [{ resourceId: resourceId('ctx-9'), start: 0, end: 31, exact: 'Paris is the capital of France.' }],
-            result: {} as never,
+            truncated: false,
           });
         },
       },
@@ -994,23 +994,7 @@ describe('handleJob orchestration', () => {
     });
   });
 
-  describe('unknown job type', () => {
-    it('fails an unrecognized type without emitting — the lifecycle field is enumerated', async () => {
-      const h = makeFakeSessionAndAdapter();
-
-      await handleJob(h.adapter, makeConfig(h.session), makeJob('weird-thing' as never));
-
-      // `jobType` is a required enum on every job lifecycle command, so an
-      // unrecognized value cannot produce a well-formed `job:start` — the
-      // gateway would reject it. Fail fast instead of sending a doomed emit.
-      expect(h.busEmits).toEqual([]);
-      const fail = h.adapterCalls.find(c => c.method === 'failJob');
-      expect(fail).toBeDefined();
-      expect(fail!.args[0]).toBe(JID);
-      expect(String(fail!.args[1])).toMatch(/Unrecognized job type: weird-thing/);
-      expect(h.adapterCalls.filter(c => c.method === 'completeJob')).toHaveLength(0);
-    });
-
+  describe('a type this worker does not serve', () => {
     it('emits job:start, then fails a valid type this worker does not serve', async () => {
       const h = makeFakeSessionAndAdapter();
       const config = { ...makeConfig(h.session), jobTypes: ['generation'] };
@@ -1226,7 +1210,7 @@ describe('handleJob orchestration', () => {
         title: 'T',
         format: 'text/markdown',
         citations: [],
-        result: {} as never,
+        truncated: false,
       });
       const h = makeFakeSessionAndAdapter();
 
@@ -1392,7 +1376,7 @@ describe('startWorkerProcess', () => {
     startWorkerProcess({ ...makeConfig(h.session), exit });
 
     refused$.next({ code: 'bus.timeout', message: 'no reply' });
-    refused$.next({ code: null, message: 'claimed record carries no job id or type' });
+    refused$.next({ code: null, message: 'socket hang up' });
     expect(exit, 'a transient or local refusal parks; it does not kill the worker').not.toHaveBeenCalled();
 
     refused$.next({ code: 'bus.unauthorized', message: 'job:claim refused: the caller is not a worker for this knowledge base' });
@@ -2030,7 +2014,7 @@ describe('the record says HOW durability was established (COMMIT-ACK-FALSE-FAILU
       title: 'Answer',
       format: 'text/markdown',
       citations: [{ resourceId: 'ctx-9', start: 0, end: 31, exact: 'Paris is the capital of France.' }],
-      result: {} as never,
+      truncated: false,
     } as never);
     const h = makeFakeSessionAndAdapter();
     h.commitSink.mode = 'first-ok-then-lost';

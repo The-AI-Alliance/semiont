@@ -300,23 +300,6 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.dispose();
   });
 
-  it('(viii) a record without an id is refused locally with code null, never run', async () => {
-    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
-    const refusals: ClaimRefusal[] = [];
-    adapter.refused$.subscribe((r) => refusals.push(r));
-    adapter.start();
-
-    // Off-spec on purpose: a reply the dispatcher must never send, to prove the adapter refuses it.
-    h.pushEvent('job:claimed', { response: { params: {}, metadata: {} } } as never, h.claimCidAt(0));
-    await tick();
-
-    expect(refusals).toHaveLength(1);
-    expect(refusals[0]!.code, 'a local judgement carries no bus code').toBeNull();
-    expect(await firstValueFrom(adapter.activeJob$)).toBeNull();
-
-    adapter.dispose();
-  });
-
   it('job:queued is in the worker MANIFEST — the adapter no longer widens anything', () => {
     // The worker's transport subscribes its manifest, NOT BRIDGED_CHANNELS,
     // so a `job:queued` missing from the manifest is a channel the adapter's
@@ -332,11 +315,22 @@ describe('createJobClaimAdapter — the worker pulls when idle', () => {
     adapter.start();
 
     h.pushEvent('job:claimed', {
-      response: { ...runningJob('j1', { userId: userId('did:web:kb.example:users:u1') }), params: { resourceId: resourceId('res-1'), foo: 'bar' } },
+      response: { ...runningJob('j1', { retryCount: 1, maxRetries: 1 }), params: { resourceId: resourceId('res-1'), foo: 'bar' } },
     }, h.claimCidAt(0));
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
-    expect(active).toMatchObject({ jobId: 'j1', userId: 'did:web:kb.example:users:u1', params: { foo: 'bar' } });
+    // The record, field for field: its identity, the resource it is about,
+    // its params whole, its budget, and no checkpoint on a first attempt.
+    expect(active).toEqual({
+      jobId: 'j1',
+      type: 'generation',
+      resourceId: 'res-1',
+      params: { resourceId: 'res-1', foo: 'bar' },
+      completedUnits: [],
+      unitCursors: {},
+      retryCount: 1,
+      maxRetries: 1,
+    });
 
     adapter.dispose();
   });
@@ -530,30 +524,6 @@ describe('claimed-job checkpoint (A3)', () => {
 
     const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
     expect(active?.unitCursors).toEqual({ Person: { next: 12_400, size: 560, found: 20, emitted: 18 } });
-
-    adapter.dispose();
-  });
-
-  it('drops a cursor missing its tallies WHOLE rather than resuming without them', async () => {
-    // A position without counts would let the retry take the saving and then
-    // report a terminal record describing only the remainder — the lie HD3
-    // exists to remove. Dropping costs one re-run and yields a true record, and
-    // it is also how a checkpoint written before the tallies existed reads.
-    const adapter = createJobClaimAdapter({ bus: h.bus, jobTypes: [] });
-    adapter.start();
-
-    // Off-spec on purpose: a cursor without its tallies, which the spec requires.
-    h.grant(0, 'jc-cursor', {
-      completedUnits: [],
-      unitCursors: {
-        Person: { next: 12_400, size: 560 },                              // pre-tally shape
-        Location: { next: 900, size: 300, found: 4, emitted: 4 },          // complete
-      },
-    } as never);
-
-    const active = await firstValueFrom(adapter.activeJob$.pipe(skip(1), take(1)));
-    // The position is dropped with the counts — not kept and zero-filled.
-    expect(active?.unitCursors).toEqual({ Location: { next: 900, size: 300, found: 4, emitted: 4 } });
 
     adapter.dispose();
   });

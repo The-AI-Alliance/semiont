@@ -25,7 +25,6 @@ import type {
   AssessmentDetectionParams,
   DetectionParams,
   TagDetectionParams,
-  GenerationResult,
 } from './types';
 import { noteAnchor } from './workers/detection/anchor-audit';
 import { runBounded } from './workers/detection/bounded-concurrency';
@@ -907,7 +906,7 @@ export async function processGenerationJob(
   params: GenerationJobParams,
   onProgress: OnProgress,
   logger: Logger,
-): Promise<{ content: Uint8Array; title: string; format: SupportedMediaType; citations: GenerationCitation[]; result: GenerationResult }> {
+): Promise<{ content: Uint8Array; title: string; format: SupportedMediaType; citations: GenerationCitation[]; truncated: boolean }> {
   // Refuse any requested media type the registry doesn't mark `generatable` —
   // loudly (the throw propagates as job:fail), never a silent markdown fallback
   // under a mislabeled format. The gate reads the registry capability
@@ -1004,12 +1003,7 @@ export async function processGenerationJob(
       title,
       format: outputMediaType,
       citations,
-      result: {
-        kind: 'generation',
-        resourceId: '' as ResourceId,
-        resourceName: title,
-        truncated: generated.truncated,
-      },
+      truncated: generated.truncated,
     };
   }
 
@@ -1062,7 +1056,8 @@ export async function processGenerationJob(
   // this, the client's last frame is forever the 95% payload. Generic by
   // design — the outcome (name + link) travels on job:complete (D8).
   // `truncated` rides both surfaces (P3a/D6): the event is the frame the
-  // client renders, the result is the record.
+  // client renders, and the worker states it in the job's result once the
+  // resource exists.
   onProgress(100, { code: 'complete-generated', truncated: generated.truncated });
 
   return {
@@ -1070,11 +1065,6 @@ export async function processGenerationJob(
     title,
     format: outputMediaType,
     citations,
-    result: {
-      kind: 'generation',
-      resourceId: '' as ResourceId,
-      resourceName: title,
-      truncated: generated.truncated,
-    },
+    truncated: generated.truncated,
   };
 }

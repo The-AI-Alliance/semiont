@@ -19,12 +19,10 @@ import { createJobClaimAdapter, type JobClaimAdapter, type ActiveJob } from './j
 import { willRetryAfter } from './will-retry';
 import {
   asJobParams,
-  isJobType,
   type AssessmentDetectionParams,
   type CommentDetectionParams,
   type DetectionParams,
   type HighlightDetectionParams,
-  type JobType,
   type TagDetectionParams,
 } from './types';
 import type { SemiontSession } from '@semiont/sdk';
@@ -362,31 +360,29 @@ export function startWorkerProcess(config: WorkerProcessConfig): JobClaimAdapter
         completedUnitsByJob.delete(job.jobId);
         unitCursorsByJob.delete(job.jobId);
         const failAnnotationId = referenceIdOf(job);
-        if (isJobType(job.type)) {
-          emitEvent(session, 'job:fail', {
-            resourceId: job.resourceId,
-            jobId: job.jobId,
-            jobType: job.type,
-            ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
-            error: message,
-            ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
-            // Where each unfinished unit got to. Absent rather than `{}` when
-            // nothing was reached: an empty object would claim units were
-            // tracked and none progressed.
-            ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
-            ...(failureClass !== undefined ? { failureClass } : {}),
-            // What the commit path OBSERVED about durability, when the failure
-            // came from a commit at all. Present only on that path: absent means
-            // the question never arose, never that durability was ruled out.
-            ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
-            // Whether this failure is the END, answered by the same predicate
-            // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
-            // it a client cannot tell a recovering run from a dead one: it
-            // sees job:fail either way and would end its stream on a job the
-            // queue is about to re-run.
-            willRetry: willRetryAfter(job, failureClass),
-          }).catch(() => {});
-        }
+        emitEvent(session, 'job:fail', {
+          resourceId: job.resourceId,
+          jobId: job.jobId,
+          jobType: job.type,
+          ...(failAnnotationId ? { annotationId: failAnnotationId } : {}),
+          error: message,
+          ...(completedUnits && completedUnits.length > 0 ? { completedUnits } : {}),
+          // Where each unfinished unit got to. Absent rather than `{}` when
+          // nothing was reached: an empty object would claim units were
+          // tracked and none progressed.
+          ...(unitCursors && Object.keys(unitCursors).length > 0 ? { unitCursors } : {}),
+          ...(failureClass !== undefined ? { failureClass } : {}),
+          // What the commit path OBSERVED about durability, when the failure
+          // came from a commit at all. Present only on that path: absent means
+          // the question never arose, never that durability was ruled out.
+          ...(error instanceof CommitDurabilityError ? { durability: error.durability } : {}),
+          // Whether this failure is the END, answered by the same predicate
+          // the queue applies at failJob (JOB-RESTART-SAFETY P5). Without
+          // it a client cannot tell a recovering run from a dead one: it
+          // sees job:fail either way and would end its stream on a job the
+          // queue is about to re-run.
+          willRetry: willRetryAfter(job, failureClass),
+        }).catch(() => {});
         adapter.failJob(job.jobId, message);
       })
       .finally(() => {
@@ -451,22 +447,10 @@ async function handleJobInner(
   unitCursorsByJob: Map<string, Record<string, UnitCursor>> = new Map(),
 ): Promise<void> {
   const { session, inferenceClient, generator } = config;
-  // `userId` — the requester — is deliberately NOT read here: the worker
-  // cites the job it holds and the Stower derives who asked from the
-  // dispatcher's record of it (VERIFIED-PROVENANCE P2).
-  const { jobId } = job;
-  // `jobType` is a required, enumerated field on every lifecycle command, but
-  // arrives off the bus as a plain string. Narrow once here so the emits below
-  // are checked against the wire contract instead of asserted past it.
-  if (!isJobType(job.type)) {
-    adapter.failJob(jobId, `Unrecognized job type: ${job.type}`);
-    return;
-  }
-  const jobType: JobType = job.type;
-  // The job arrives off the bus with a plain-string id — this is the entry
-  // boundary, so brand once here rather than casting at every call that wants
-  // a `ResourceId` (BRAND-UPSTREAM).
-  const resourceId = job.resourceId;
+  // Who asked for the job is not among what the worker holds: it cites the
+  // job, and the Stower derives the requester from the dispatcher's record of
+  // it (VERIFIED-PROVENANCE P2).
+  const { jobId, type: jobType, resourceId } = job;
 
   // Annotation-scoped jobs (today: generation, triggered from a
   // reference) carry the source annotation through every lifecycle
@@ -928,7 +912,7 @@ async function handleJobInner(
 
     await emitEvent(session, 'job:complete', {
       ...terminalBase(),
-      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.result.truncated },
+      result: { kind: 'generation', resourceId: newResourceId, resourceName: genResult.title, truncated: genResult.truncated },
     });
     adapter.completeJob();
 

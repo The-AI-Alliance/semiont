@@ -660,10 +660,9 @@ describe('processGenerationJob', () => {
     expect(new TextDecoder().decode(result.content)).toContain('Generated resource');
     expect(result.title).toBe('Initial');
     expect(result.format).toBe('text/markdown');
-    expect(result.result.resourceName).toBe('Initial');
     // A natural stop reports truncated: false — required, never absent (P3a/D6:
     // the producer always knows; structure expresses it).
-    expect(result.result.truncated).toBe(false);
+    expect(result.truncated).toBe(false);
     // Honest lifecycle: generation has exactly two real transitions — the LLM
     // call starting, and content finalized / creation beginning. No 'fetching'
     // stage (it labeled zero work; context arrives pre-gathered in params).
@@ -696,7 +695,7 @@ describe('processGenerationJob', () => {
       LOGGER,
     );
 
-    expect(result.result.truncated).toBe(true);
+    expect(result.truncated).toBe(true);
     expect(progress).toHaveBeenNthCalledWith(3, 100, { code: 'complete-generated', truncated: true });
   });
 
@@ -854,7 +853,7 @@ describe('processGenerationJob — PDF generation via Typst (PDF-GENERATION P3)'
       LOGGER,
     );
 
-    expect(r.result.truncated).toBe(true);
+    expect(r.truncated).toBe(true);
     expect(progress.mock.calls.at(-1)).toEqual([100, { code: 'complete-generated', truncated: true }]);
   });
 
