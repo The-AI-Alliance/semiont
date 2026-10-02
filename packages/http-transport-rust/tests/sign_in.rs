@@ -1266,6 +1266,71 @@ async fn a_gateway_that_refuses_what_its_issuer_issues_is_asked_twice_and_then_l
     session.close().await;
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_running_session_whose_gateway_starts_refusing_ends_on_the_first_refusal() {
+    let world = World::on_a_quick_clock().await;
+    let (first, renewed) = (jwt(3600, 1), jwt(3600, 2));
+    // An issuer that renews for as long as it is asked.
+    world.answers(
+        std::iter::once(granted(&renewed, Some("r")))
+            .chain((3..60).map(|n| granted(&jwt(3600, n), Some("r")))),
+    );
+    let storage = Arc::new(InMemorySessionStorage::new());
+    let told: Arc<Mutex<Vec<String>>> = Arc::default();
+    let reported: Arc<Mutex<Vec<SessionErrorCode>>> = Arc::default();
+    let (telling, reporting) = (told.clone(), reported.clone());
+    let session = ends(session_from_issued(IssuedSession {
+        on_auth_failed: Some(Arc::new(move |message| {
+            telling.lock().unwrap().push(message.to_owned());
+        })),
+        on_error: Some(Arc::new(move |error| {
+            reporting.lock().unwrap().push(error.code);
+        })),
+        ..issued(&world, storage.clone(), &first)
+    }))
+    .await;
+    assert_eq!(
+        *world.staged.asked_who.lock().unwrap(),
+        std::slice::from_ref(&first)
+    );
+    let me = || async {
+        let auth = session.client().auth.as_ref().expect("auth");
+        ends(auth.me()).await
+    };
+
+    // The gateway stops accepting anything, and the issuer goes on renewing.
+    *world.staged.refuses_everyone.lock().unwrap() = true;
+    let refusal = me().await.expect_err("the request is refused");
+
+    // The request, refused; one renewal; the renewed token, asked about once
+    // and refused.
+    assert!(message(refusal).contains("401"));
+    assert_eq!(world.token_forms().len(), 1);
+    assert_eq!(
+        *world.staged.asked_who.lock().unwrap(),
+        [first.clone(), first, renewed]
+    );
+    assert_eq!(
+        *told.lock().unwrap(),
+        ["This knowledge base did not accept your sign-in. Please sign in again."]
+    );
+    assert_eq!(
+        *reported.lock().unwrap(),
+        [SessionErrorCode::CredentialRefused]
+    );
+    assert_eq!(stored_session(storage.as_ref(), "a-script"), None);
+    assert_eq!(*session.token().borrow(), None);
+
+    // A request after that is refused as it is: nothing is renewed for it,
+    // and nobody is asked who anyone is.
+    let _ = me().await;
+    tokio::time::sleep(Duration::from_secs(120)).await;
+    assert_eq!(world.token_forms().len(), 1);
+    assert_eq!(world.staged.asked_who.lock().unwrap().len(), 4);
+    assert_eq!(reported.lock().unwrap().len(), 1);
+    session.close().await;
+}
+
 #[tokio::test]
 async fn a_session_renews_at_the_issuer_its_stored_session_names() {
     let world = World::start().await;

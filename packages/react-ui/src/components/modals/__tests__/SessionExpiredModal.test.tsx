@@ -49,7 +49,7 @@ describe('SessionExpiredModal', () => {
       renderWithProviders(<SessionExpiredModal />, {
         browser: createTestBrowserWithSignals(),
       });
-      expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
+      expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
     });
   });
 
@@ -61,7 +61,7 @@ describe('SessionExpiredModal', () => {
         }),
       });
 
-      expect(screen.getByText('Session Expired')).toBeInTheDocument();
+      expect(screen.getByText('Signed Out')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /go to home/i })).toBeInTheDocument();
     });

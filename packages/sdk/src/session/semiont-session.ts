@@ -16,15 +16,17 @@
  *     closure that runs the refresh-token flow; the worker passes
  *     one that exchanges the shared secret.
  *
- *   - `validate(token)` — optional. If provided, the session calls
- *     it once at startup with the stored token to confirm it's
- *     still good and populate `user$`. Frontend passes `getMe`;
- *     worker omits this (service principals have no user record).
+ *   - `validate(token)` — optional. If provided, the session asks it
+ *     who a token is: at startup, of the stored token, to populate
+ *     `user$`; and of a token renewed because the gateway refused the
+ *     one before. Frontend passes the gateway's answer; worker omits
+ *     this (service principals have no user record).
  *
- *   - `onAuthFailed(message)` — optional. Invoked when refresh
- *     terminally fails (expired token, no recovery possible). UI hosts
- *     typically wire this to `SessionSignals.notifySessionExpired` so a
- *     modal surfaces; headless consumers typically just log.
+ *   - `onAuthFailed(message)` — optional. Invoked when the session is
+ *     over: its token could not be renewed, or the gateway refused a
+ *     token the issuer had just issued. UI hosts typically wire this to
+ *     `SessionSignals.notifySessionExpired` so a modal surfaces;
+ *     headless consumers typically just log.
  *
  * Persistence goes through a `SessionStorage` adapter provided at
  * construction — the session never touches `localStorage` or `window`
@@ -159,6 +161,10 @@ export class SemiontSession {
   private readonly onAuthFailed: (message: string | null) => void;
   private readonly onError: (err: SemiontSessionError) => void;
   private refreshTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Whether the session is still doing what it does at its start. */
+  private starting = true;
+  /** The renewal a refusal is being answered with, shared by the refusals that arrive during it. */
+  private refusal: Promise<AccessToken | null> | null = null;
   private unsubscribeStorage: (() => void) | null = null;
   private disposed = false;
 
@@ -194,7 +200,9 @@ export class SemiontSession {
       this.handleStorageChange(key, newValue);
     }) ?? null;
 
-    this.ready = this.validate(stored);
+    this.ready = this.validate(stored).finally(() => {
+      this.starting = false;
+    });
   }
 
   /**
@@ -238,12 +246,13 @@ export class SemiontSession {
     // (.plans/bugs/stale-sse-actor-401-loops-after-token-expiry.md). So the
     // gateway is asked at most twice and the issuer at most once
     // (specs/src/session/cases.json, `startup`).
+    const validate = this.doValidate;
     let token = startToken;
     let justIssued = expired;
     for (;;) {
       if (this.disposed) return;
       try {
-        const data = await this.doValidate(accessToken(token));
+        const data = await validate(accessToken(token));
         if (this.disposed) return;
         this.user$.next(data);
         return;
@@ -262,6 +271,16 @@ export class SemiontSession {
         if (justIssued) {
           this.signedOut(REFUSED, 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
           return;
+        }
+        // The session's token is no longer the one asked about: the stream
+        // was refused with it too, and `refresh` has renewed it meanwhile.
+        // That token is the just-issued one, and is not renewed again.
+        const current = this.token$.getValue();
+        if (current !== token) {
+          if (current === null) return;
+          token = current;
+          justIssued = true;
+          continue;
         }
         const { token: renewed, failure } = await this.tryRefresh();
         if (this.disposed) return;
@@ -304,8 +323,8 @@ export class SemiontSession {
    * The callback makes an HTTP call, so it can reject as easily as it can
    * resolve null — a network blip, DNS failure, or gateway 5xx — and both
    * mean the same thing here: this token cannot be renewed. Before this,
-   * a throw escaped `refresh()` and skipped every terminal behaviour; through
-   * the proactive timer's `void this.refresh()` it became an unhandled
+   * a throw escaped the renewal and skipped every terminal behaviour; through
+   * the proactive timer's un-awaited call it became an unhandled
    * rejection with NO further refresh scheduled, leaving a session holding an
    * expired token forever. That is the client shape behind the 401-loop
    * incident.
@@ -323,7 +342,56 @@ export class SemiontSession {
     }
   }
 
-  async refresh(): Promise<AccessToken | null> {
+  /**
+   * The gateway refused the session's token: renew it, and ask the gateway
+   * who the new one is. This is what the session's transport calls on a 401.
+   *
+   * The rule is startup's (specs/src/session/cases.json, `refusal`): a token
+   * the issuer has just issued and the gateway refuses is final, and the
+   * session ends as `session.credential-refused`. So one refusal costs at
+   * most one renewal and one ask, and a gateway that refuses whatever its
+   * issuer issues is not asked again for every request that follows. A
+   * gateway that cannot be asked refuses nothing: the renewed token is
+   * given. A session of a service, which has nobody to ask about, only
+   * renews.
+   *
+   * Refusals that arrive together are answered together: one renewal and
+   * one ask, however many requests were refused at once.
+   */
+  refresh(): Promise<AccessToken | null> {
+    this.refusal ??= this.renewForRefusal().finally(() => {
+      this.refusal = null;
+    });
+    return this.refusal;
+  }
+
+  private async renewForRefusal(): Promise<AccessToken | null> {
+    const renewed = await this.renew();
+    const validate = this.doValidate;
+    // While the session is starting, its start is what asks: it finds the
+    // token renewed here and takes it up as the just-issued one. Asking here
+    // too would be a second ask about one renewal.
+    if (!renewed || !validate || this.starting) return renewed;
+    try {
+      await validate(renewed);
+    } catch (err) {
+      if (this.disposed) return null;
+      const refused = err instanceof APIError && err.status === 401;
+      // Only a token the session still holds ends it: one replaced while
+      // the gateway was being asked (another context signed in, or renewed)
+      // is no longer the session's to be refused.
+      if (refused && this.token$.getValue() === renewed) {
+        this.signedOut(REFUSED, 'session.credential-refused', 'The gateway refused a token its issuer had just issued');
+      }
+    }
+    return this.disposed ? null : this.token$.getValue();
+  }
+
+  /**
+   * Renew the token at the issuer, with nobody asked afterwards: what the
+   * session does on its own schedule, where no refusal came first.
+   */
+  private async renew(): Promise<AccessToken | null> {
     if (this.disposed) return null;
     if (!this.doRefresh) return null;
     const { token: newAccess, failure } = await this.tryRefresh();
@@ -362,7 +430,7 @@ export class SemiontSession {
     if (delay === null) return;
     this.refreshTimer = setTimeout(() => {
       this.refreshTimer = null;
-      if (!this.disposed) void this.refresh();
+      if (!this.disposed) void this.renew();
     }, delay);
   }
 

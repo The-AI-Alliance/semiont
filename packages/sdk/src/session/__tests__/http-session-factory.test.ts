@@ -131,4 +131,44 @@ describe('a session over HTTP, starting on a stored credential', () => {
     expect(asked.renewals).toBeLessThanOrEqual(2);
     await session.dispose();
   });
+
+  it('ends a running session whose gateway starts refusing what its issuer issues, on the first refusal', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const storage = new TestStorage();
+    const stored = jwt(1);
+    seedStoredSession(storage, KB.id, stored, 'r');
+    const signals = new SessionSignals();
+    const errors: SemiontSessionError[] = [];
+    const session = createHttpSessionFactory()({ kb: KB, storage, signals, onError: (error) => errors.push(error) });
+    await session.ready;
+    expect(session.user$.getValue()).toMatchObject({ name: 'Alice' });
+    expect(asked.who).toEqual([stored]);
+
+    // The gateway stops accepting anything, and the issuer goes on renewing.
+    refusesEveryone = true;
+    const refusal = await session.client.auth!.me().then(() => null, (error: unknown) => error);
+
+    // The request, refused; one renewal; the renewed token, asked about once and refused.
+    expect(refusal).toMatchObject({ status: 401 });
+    expect(asked.renewals).toBe(1);
+    expect(asked.who).toHaveLength(3);
+    expect(asked.who[1]).toBe(stored);
+    expect(asked.who[2]).not.toBe(stored);
+    expect(signals.sessionExpired$.getValue()).toEqual({
+      message: 'This knowledge base did not accept your sign-in. Please sign in again.',
+    });
+    expect(errors.map((error) => error.code)).toEqual(['session.credential-refused']);
+    expect(getStoredSession(storage, KB.id)).toBeNull();
+    expect(session.token$.getValue()).toBeNull();
+
+    // A request after that is refused as it is: nothing is renewed for it,
+    // and nobody is asked who anyone is.
+    await session.client.auth!.me().catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(asked.renewals).toBe(1);
+    expect(asked.who).toHaveLength(4);
+    expect(errors).toHaveLength(1);
+    await session.dispose();
+  });
 });
+

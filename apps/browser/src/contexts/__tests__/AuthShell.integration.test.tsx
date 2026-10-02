@@ -130,7 +130,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
     });
 
     expect(screen.getByTestId('protected-content')).toBeInTheDocument();
-    expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
+    expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
 
     await browser.dispose();
@@ -145,7 +145,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText('Session Expired')).toBeInTheDocument();
+      expect(screen.getByText('Signed Out')).toBeInTheDocument();
     });
 
     expect(screen.getByText('Your session has expired. Please sign in again.')).toBeInTheDocument();
@@ -172,6 +172,9 @@ describe('AuthShell integration — KB session validation → modal', () => {
     });
 
     expect(whoIs).toHaveBeenCalledTimes(2);
+    // The title is true of either ending: nothing here says "expired".
+    expect(screen.getByText('Signed Out')).toBeInTheDocument();
+    expect(screen.queryByText(/expired/i)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: /sign in again/i })).toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).toBeNull();
 
@@ -189,7 +192,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
       expect(whoIs).toHaveBeenCalled();
     });
 
-    expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
+    expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
     expect(localStorage.getItem(`semiont.session.${KB_ID}`)).not.toBeNull();
     expect(refreshCalls()).toHaveLength(0);
 
@@ -208,7 +211,7 @@ describe('AuthShell integration — KB session validation → modal', () => {
 
     await waitFor(() => expect(whoIs).toHaveBeenCalledTimes(2));
     expect(refreshCalls()).toHaveLength(1);
-    expect(screen.queryByText('Session Expired')).not.toBeInTheDocument();
+    expect(screen.queryByText('Signed Out')).not.toBeInTheDocument();
     const stored = JSON.parse(localStorage.getItem(`semiont.session.${KB_ID}`)!);
     expect(stored.access).toBe(newAccess);
 

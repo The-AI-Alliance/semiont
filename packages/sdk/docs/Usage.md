@@ -674,13 +674,20 @@ it. When the budget does run out the session ends the same way a refusal ends it
 `session.refresh-exhausted` names both the last cause and how many attempts it took, so "tried
 once and refused" reads differently from "tried four times and never got an answer".
 
-The gateway refusing a token the issuer has just issued: `session.credential-refused`. A session
-that starts on a stored credential asks the gateway who the token is. A token the gateway refuses
-is renewed once and asked about once more; if the gateway refuses the renewed one too, the issuer
-and the gateway disagree about who may sign in, and renewing again cannot change the answer. So a
-starting session asks the gateway at most twice and the issuer at most once, and then asks neither
-anything more. The person is told the knowledge base did not accept their sign-in, not that their
-session expired.
+The gateway refusing a token the issuer has just issued: `session.credential-refused`. A token the
+gateway refuses is renewed once, and the gateway is asked who the renewed one is; if it refuses
+that too, the issuer and the gateway disagree about who may sign in, and renewing again cannot
+change the answer. The rule is the same when a session starts on a stored credential and when the
+gateway refuses a running session's request or stream:
+
+- A starting session asks the gateway at most twice and the issuer at most once.
+- A refusal of a running session costs at most one renewal and one ask.
+- A session that has ended asks neither of them anything more: a request made after that is
+  refused as it is.
+- A renewal on the session's own schedule follows no refusal, and asks nobody.
+
+The person is told the knowledge base did not accept their sign-in, not that their session
+expired. A gateway that cannot be asked refuses nothing: the session keeps its token.
 
 This matters for what your handler should do: neither code is a prompt to retry. By the time you
 see one, retrying already happened. Signing in again is what is left.

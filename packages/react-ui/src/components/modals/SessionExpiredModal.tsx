@@ -5,9 +5,9 @@ import { useSemiont } from '../../session/SemiontProvider';
 import { useObservable } from '../../hooks/useObservable';
 
 /**
- * Modal that surfaces when the active KB's session expires (a 401
- * surfaced by the session's own JWT validation or by the host's
- * error-routing path).
+ * Modal that surfaces when the active KB's session has ended: it expired,
+ * or the knowledge base did not accept the sign-in. The notice's message
+ * says which; the title is true of either.
  *
  * Reads `sessionExpired$` from the active `SessionSignals`.
  * When the user dismisses the modal, the signals instance clears the
@@ -67,7 +67,7 @@ export function SessionExpiredModal() {
 
                 <div className="semiont-modal__content">
                   <DialogTitle className="semiont-modal__title semiont-modal__title--centered">
-                    Session Expired
+                    Signed Out
                   </DialogTitle>
                   <p className="semiont-modal__description">
                     {sessionExpired?.message}

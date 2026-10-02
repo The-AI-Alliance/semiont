@@ -7,8 +7,8 @@
 //! - `refresh` renews the token: after it expires, and when the gateway
 //!   refuses it. It answers the new token, nothing when there is nothing to
 //!   renew with, or why it failed.
-//! - `validate` asks the gateway who a token is, when the session starts:
-//!   once, and once more when it refused a token that was then renewed. A
+//! - `validate` asks the gateway who a token is: when the session starts,
+//!   and of a token renewed because the gateway refused the one before. A
 //!   session of a service has none: there is nobody to ask about.
 //! - `on_auth_failed` is told when the session is over: it could not be
 //!   renewed, or the gateway refused a token the issuer had just issued.
@@ -103,6 +103,9 @@ struct Shared {
     tasks: Tasks,
     storage_changes: Mutex<Option<StorageSubscription>>,
     closed: AtomicBool,
+    /// Held while a refusal is being answered, so that the refusals that
+    /// arrive during it are answered by it.
+    answering: tokio::sync::Mutex<()>,
 }
 
 /// See the module's documentation.
@@ -127,6 +130,7 @@ impl SemiontSession {
             tasks: Tasks::new(),
             storage_changes: Mutex::new(None),
             closed: AtomicBool::new(false),
+            answering: tokio::sync::Mutex::new(()),
         });
 
         // A stored token that is still good is what the transport sends
@@ -214,10 +218,12 @@ impl SemiontSession {
         token_expiry(&self.shared.token.now()?)
     }
 
-    /// Renew the token now. The new token, or none: the session then holds
-    /// no token, and if it had a stored credential it is over.
+    /// The gateway refused the session's token: renew it, and ask the
+    /// gateway who the new one is. The token the session then holds, or
+    /// none: it holds no token, and if it had a stored credential it is
+    /// over. See `SessionRenewer`, through which a transport asks.
     pub async fn refresh(&self) -> Option<String> {
-        self.shared.renew().await
+        self.shared.refused().await
     }
 
     /// A handle that renews this session's token, for the transport under
@@ -248,7 +254,7 @@ impl SessionRenewer {
     /// As `SemiontSession::refresh`.
     pub async fn refresh(&self) -> Option<String> {
         match self.shared.upgrade() {
-            Some(shared) => shared.renew().await,
+            Some(shared) => shared.refused().await,
             None => None,
         }
     }
@@ -292,6 +298,8 @@ impl Shared {
         }
     }
 
+    /// Renew the token at the issuer, with nobody asked afterwards: what
+    /// the session does on its own schedule, where no refusal came first.
     async fn renew(&self) -> Option<String> {
         if self.closed() || self.refresh.is_none() {
             return None;
@@ -315,6 +323,57 @@ impl Shared {
             not_renewed(failure),
         );
         None
+    }
+
+    /// The gateway refused the session's token: renew it, and ask the
+    /// gateway who the new one is. The rule is the start's
+    /// (specs/src/session/cases.json, `refusal`): a token the issuer has
+    /// just issued and the gateway refuses is final, and the session ends as
+    /// `CredentialRefused`. So one refusal costs at most one renewal and one
+    /// ask, and a gateway that refuses whatever its issuer issues is not
+    /// asked again for every request that follows. A gateway that cannot be
+    /// asked refuses nothing: the renewed token is given. A session of a
+    /// service, which has nobody to ask about, only renews.
+    ///
+    /// One refusal is answered at a time, so however many requests were
+    /// refused at once, they cost one renewal and one ask.
+    async fn refused(&self) -> Option<String> {
+        // Refusals that arrive together are answered together: the first
+        // renews and asks, and the rest find that the session's token is no
+        // longer the one they were refused with.
+        let refused_with = self.token.now();
+        let _answering = self.answering.lock().await;
+        if self.token.now() != refused_with {
+            return self.token.now();
+        }
+        let renewed = self.renew().await?;
+        let Some(validate) = &self.validate else {
+            return Some(renewed);
+        };
+        // While the session is starting, its start is what asks: it finds
+        // the token renewed here and takes it up as the just-issued one.
+        // Asking here too would be a second ask about one renewal.
+        if !self.ready.now() {
+            return Some(renewed);
+        }
+        let answer = validate(renewed.clone()).await;
+        if self.closed() {
+            return None;
+        }
+        if let Err(SemiontError::Transport(refusal)) = &answer
+            && refusal.code == TransportErrorCode::Unauthorized
+            // Only a token the session still holds ends it: one replaced
+            // while the gateway was being asked (another context signed in,
+            // or renewed) is no longer the session's to be refused.
+            && self.token.now().as_deref() == Some(renewed.as_str())
+        {
+            self.signed_out(
+                REFUSED,
+                SessionErrorCode::CredentialRefused,
+                "The gateway refused a token its issuer had just issued".to_owned(),
+            );
+        }
+        self.token.now()
     }
 
     /// The session is over: its credential is forgotten, and the person and
@@ -387,6 +446,17 @@ impl Shared {
                             "The gateway refused a token its issuer had just issued".to_owned(),
                         );
                         return;
+                    }
+                    // The session's token is no longer the one asked about:
+                    // the stream was refused with it too, and `refused` has
+                    // renewed it meanwhile. That token is the just-issued
+                    // one, and is not renewed again.
+                    let current = self.token.now();
+                    if current.as_deref() != Some(token.as_str()) {
+                        let Some(current) = current else { return };
+                        token = current;
+                        just_issued = true;
+                        continue;
                     }
                     let (renewed, failure) = self.try_refresh().await;
                     if self.closed() {
