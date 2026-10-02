@@ -147,7 +147,7 @@ describe('session — the SDK agrees with the shared table', () => {
           case 'refuses':
             throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
           case 'unreachable':
-            throw APIError.withoutResponse('GET /api/users/me got no answer', 'unavailable', 'NetworkError');
+            throw APIError.withoutResponse('GET /api/users/me got no answer', 'NetworkError');
         }
       },
       refresh: async () => {
@@ -210,7 +210,7 @@ describe('session — the SDK agrees with the shared table', () => {
           case 'refuses':
             throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
           case 'unreachable':
-            throw APIError.withoutResponse('GET /api/users/me got no answer', 'unavailable', 'NetworkError');
+            throw APIError.withoutResponse('GET /api/users/me got no answer', 'NetworkError');
         }
       },
       refresh: async () => {

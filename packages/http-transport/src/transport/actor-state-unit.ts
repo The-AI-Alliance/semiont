@@ -844,7 +844,7 @@ export function createActorStateUnit(options: ActorStateUnitOptions): ActorState
         // for that carries no code, and a caller routing on codes would not
         // know an unreachable gateway from a bug.
         const cause = error instanceof Error ? error : new Error(String(error));
-        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, 'unavailable', cause.name);
+        throw APIError.withoutResponse(`/bus/emit got no answer: ${cause.message}`, cause.name);
       });
       // No count is reported as no count, never as a zero: an absent
       // `subscribers` is the gateway saying it could not count (a broker

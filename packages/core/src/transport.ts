@@ -283,16 +283,14 @@ export type PutBinaryProgress = (event: { bytesUploaded: number; totalBytes: num
 export interface PutBinaryOptions {
   auth?: AccessToken;
   /**
-   * Called as bytes flow over the wire. Honored by transports that can
-   * observe upload progress (HTTP via XHR). Transports that can't
-   * (in-process LocalContentTransport, current `ky`-based fetch path
-   * with no `onProgress`) simply ignore it.
+   * Called as the bytes are sent: how much has gone and how much there is,
+   * never less than it last said. A transport with no wire to send them
+   * over (the in-process `LocalContentTransport`) never calls it.
    */
   onProgress?: PutBinaryProgress;
   /**
-   * Signal that aborts the in-flight request. The XHR-based HTTP path
-   * calls `xhr.abort()` when the signal fires; in-process and
-   * non-XHR HTTP paths complete in the background after abort.
+   * Cancels the upload. Over HTTP its connection is closed, nothing more is
+   * reported, and it rejects with this signal's reason.
    */
   signal?: AbortSignal;
 }

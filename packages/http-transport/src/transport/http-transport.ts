@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, isObject, isString, retryAfterMs, type RetryPolicy } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, type RetryPolicy } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -90,35 +90,21 @@ export interface HttpTransportConfig {
 }
 
 /**
- * The gateway's refusal of a request, as every request of this package
- * reports one: in the gateway's own words when its body states them
- * (`ErrorResponse.error`), and with the body as it came. `error.data` is
- * that body: ky reads a refused response before any hook runs, and nothing
- * can be read from `error.response` after it.
+ * The gateway's refusal of a request. `error.data` is its body: ky reads a
+ * refused response before any hook runs, and nothing can be read from
+ * `error.response` after it.
  */
 function refusalOf(error: HTTPError): APIError {
   const { response, data } = error;
-  const said = isObject(data) && isString(data['error']) ? data['error'] : undefined;
-  return APIError.fromStatus(
-    said ?? `HTTP ${response.status}: ${response.statusText}`,
-    response.status,
-    response.statusText,
-    data,
-    retryAfterMs(response.headers.get('retry-after')),
-  );
+  return APIError.refusal(response.status, response.statusText, data, response.headers.get('retry-after'));
 }
 
 /**
  * A request the gateway never answered: the connection failed, or the
- * request's own deadline passed. Reported under `unavailable`, as the
- * vocabulary files it.
+ * request's own deadline passed.
  */
 function unansweredOf(request: Request, error: Error): APIError {
-  return APIError.withoutResponse(
-    `${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`,
-    'unavailable',
-    error.name,
-  );
+  return APIError.withoutResponse(`${request.method} ${new URL(request.url).pathname} got no answer: ${error.message}`, error.name);
 }
 
 /**
@@ -516,9 +502,9 @@ export class HttpTransport implements ITransport, IGatewayOperations {
 
   /**
    * Route a transport-level error onto `errors$`. Used by sibling adapters
-   * (e.g. `HttpContentTransport`'s XHR upload path) that don't go through
-   * the `ky` `beforeError` hook and need to surface failures on the same
-   * stream the rest of the transport publishes to.
+   * (e.g. `HttpContentTransport`'s `XMLHttpRequest` upload) that don't go
+   * through the `ky` `beforeError` hook and need to surface failures on the
+   * same stream the rest of the transport publishes to.
    */
   pushError(error: SemiontError): void {
     if (this.disposed) return;

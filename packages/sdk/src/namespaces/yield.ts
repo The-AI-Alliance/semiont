@@ -60,9 +60,8 @@ export class YieldNamespace implements IYieldNamespace {
           ...(data.isDraft !== undefined ? { isDraft: data.isDraft } : {}),
         },
         {
-          // Byte-progress hook. Honored by `HttpContentTransport`'s XHR
-          // path; ignored by ky-path uploads (no `onProgress` consumer)
-          // and by `LocalContentTransport` (no wire to observe).
+          // Byte-progress hook. `HttpContentTransport` calls it as the
+          // bytes are sent; `LocalContentTransport` has no wire to observe.
           onProgress: ({ bytesUploaded, totalBytes: txTotal }) => {
             if (cancelled) return;
             // Prefer the transport's reported total; fall back to the
@@ -87,10 +86,9 @@ export class YieldNamespace implements IYieldNamespace {
         });
       return () => {
         cancelled = true;
-        // Abort the in-flight HTTP request when the subscriber unsubscribes.
-        // Honored by `HttpContentTransport`'s XHR path (calls `xhr.abort()`);
-        // ky-path uploads complete in the background after abort and the
-        // `cancelled` flag suppresses the `then`/`catch` callbacks.
+        // Cancel the upload when the subscriber unsubscribes: over HTTP its
+        // connection is closed. The transport's rejection is the signal's
+        // reason, which `cancelled` keeps from the subscriber.
         abortController.abort();
       };
     });

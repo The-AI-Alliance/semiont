@@ -16,6 +16,7 @@ use opentelemetry::KeyValue;
 use opentelemetry::trace::SpanKind;
 use semiont::bus_log::bus_log;
 use semiont::errors::{TransportError, TransportErrorCode};
+use semiont::identity::encode_uri_component;
 use semiont::transport::{
     BoxFuture, Content, ContentStream, ContentTransport, PutBinaryRequest, Upload, UploadProgress,
 };
@@ -23,6 +24,7 @@ use semiont::types::GetResourceResponse;
 use semiont_observability::telemetry;
 use serde_json::json;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use tokio::sync::mpsc;
 
 /// How much of an upload's body is handed to the connection at a time: the
@@ -115,8 +117,14 @@ impl Form {
     }
 
     /// The body as it is sent: a piece at a time, each reported to `progress`
-    /// as it is handed to the connection.
-    fn body(&self, progress: mpsc::UnboundedSender<UploadProgress>) -> reqwest::Body {
+    /// as it is handed to the connection. `reported` is how much of this
+    /// upload has been reported sent: a sending that repeats an earlier one,
+    /// after a renewed token, reports nothing until it has passed that.
+    fn body(
+        &self,
+        progress: mpsc::UnboundedSender<UploadProgress>,
+        reported: Arc<AtomicU64>,
+    ) -> reqwest::Body {
         let total_bytes = self.len();
         let pieces: Vec<Bytes> = self
             .parts
@@ -131,10 +139,12 @@ impl Form {
         let mut bytes_uploaded = 0;
         reqwest::Body::wrap_stream(futures::stream::iter(pieces).map(move |piece| {
             bytes_uploaded += piece.len() as u64;
-            let _ = progress.send(UploadProgress {
-                bytes_uploaded,
-                total_bytes,
-            });
+            if reported.fetch_max(bytes_uploaded, Ordering::Relaxed) < bytes_uploaded {
+                let _ = progress.send(UploadProgress {
+                    bytes_uploaded,
+                    total_bytes,
+                });
+            }
             Ok::<Bytes, std::convert::Infallible>(piece)
         }))
     }
@@ -143,7 +153,8 @@ impl Form {
 impl ContentTransport for HttpContentTransport {
     fn put_binary(&self, request: PutBinaryRequest) -> Upload {
         let shared = self.shared.clone();
-        let (progress, reported) = mpsc::unbounded_channel();
+        let (progress, reports) = mpsc::unbounded_channel();
+        let reported = Arc::new(AtomicU64::new(0));
         let sending = async move {
             let size = request.bytes.len();
             bus_log(
@@ -174,12 +185,12 @@ impl ContentTransport for HttpContentTransport {
                             format!("multipart/form-data; boundary={}", form.boundary),
                         )
                         .header(reqwest::header::CONTENT_LENGTH, form.len())
-                        .body(form.body(progress.clone()))
+                        .body(form.body(progress.clone(), reported.clone()))
                 }),
             )
             .await
         };
-        Upload::new(reported, Box::pin(sending))
+        Upload::new(reports, Box::pin(sending))
     }
 
     fn get_binary<'a>(
@@ -273,7 +284,7 @@ impl ContentTransport for HttpContentTransport {
                 opentelemetry::Context::current(),
                 self.shared.answer(
                     reqwest::Method::GET,
-                    &format!("/resources/{resource_id}/jsonld"),
+                    &format!("{}/jsonld", path_of(resource_id)),
                     true,
                     |builder| builder,
                 ),
@@ -291,12 +302,18 @@ impl HttpContentTransport {
         self.shared
             .send(
                 reqwest::Method::GET,
-                &format!("/resources/{resource_id}"),
+                &path_of(resource_id),
                 true,
                 |builder| builder,
             )
             .await
     }
+}
+
+/// Where a resource is read: its id as one segment of the path, whatever
+/// characters it has.
+fn path_of(resource_id: &str) -> String {
+    format!("/resources/{}", encode_uri_component(resource_id))
 }
 
 fn content_type(response: &reqwest::Response) -> String {
@@ -366,7 +383,7 @@ mod tests {
         large.bytes = Bytes::from(vec![7u8; UPLOAD_CHUNK * 2 + 10]);
         let form = Form::of(&large);
         let (progress, mut reported) = mpsc::unbounded_channel();
-        let body = form.body(progress);
+        let body = form.body(progress, Arc::default());
         let sent = http_body_util::BodyExt::collect(body)
             .await
             .expect("the body is read")

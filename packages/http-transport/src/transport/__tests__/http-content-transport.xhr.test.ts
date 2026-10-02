@@ -1,12 +1,13 @@
 /**
- * Tests for the XHR-based byte-progress upload path in
- * `HttpContentTransport.putBinary`. The path lights up when callers pass
- * `onProgress` or `signal` (the ky path is exercised separately in
- * `http-transport.http-paths.test.ts`).
+ * The upload path a browser page takes: `HttpContentTransport.putBinary`
+ * through `XMLHttpRequest`, when its caller asks for progress or gives a
+ * `signal`. Where there is no `XMLHttpRequest` the upload goes through ky,
+ * and `http-content-transport.upload.test.ts` holds that against a real
+ * server; `http-transport.http-paths.test.ts` holds the form's shape.
  *
  * We stub `globalThis.XMLHttpRequest` with a fake that exposes the same
- * event surface (`upload.onprogress`, `onload`, `onerror`, `onabort`) and
- * lets each test drive the lifecycle deterministically.
+ * event surface (`upload.onprogress`, `onload`, `onerror`) and lets each
+ * test drive the lifecycle deterministically.
  */
 
 import { describe, test, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -37,7 +38,6 @@ class FakeXHR {
   upload = { onprogress: null as ((e: ProgressEvent) => void) | null };
   onload: (() => void) | null = null;
   onerror: (() => void) | null = null;
-  onabort: (() => void) | null = null;
 
   status = 0;
   statusText = '';
@@ -68,7 +68,6 @@ class FakeXHR {
   }
   abort(): void {
     this.abortCalled++;
-    this.onabort?.();
   }
 
   // Test helpers — fire the lifecycle events explicitly.
@@ -241,7 +240,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
       { onProgress },
     );
 
-    FakeXHR.instances[0]!.fireFailure(403, 'Forbidden', { message: 'no permission' });
+    FakeXHR.instances[0]!.fireFailure(403, 'Forbidden', { error: 'no permission' });
 
     await expect(promise).rejects.toBeInstanceOf(APIError);
     await promise.catch((err) => {
@@ -262,7 +261,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
       { onProgress: vi.fn() },
     );
 
-    FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { message: 'down' });
+    FakeXHR.instances[0]!.fireFailure(503, 'Service Unavailable', { error: 'down' });
 
     const err = (await promise.catch((e) => e)) as APIError;
     expect(err).toBeInstanceOf(APIError);
@@ -309,12 +308,9 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     controller.abort();
 
     expect(xhr.abortCalled).toBe(1);
-    const err = (await promise.catch((e) => e)) as APIError;
-    expect(err).toBeInstanceOf(APIError);
-    expect(err.status).toBe(0);
-    expect(err.statusText).toBe('aborted');
-    // The caller cancelled: nothing was unreachable, so not `unavailable`.
-    expect(err.code).toBe('error');
+    // Cancelled, it rejects with its caller's reason, as an abandoned bus
+    // request does, and as the upload does where there is no XMLHttpRequest.
+    expect(await promise.catch((e: unknown) => e)).toBe(controller.signal.reason);
     // A cancel the caller asked for is theirs alone, not a transport error.
     expect(errors).toEqual([]);
   });
@@ -336,11 +332,7 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
     expect(FakeXHR.instances).toHaveLength(1);
     expect(FakeXHR.instances[0]!.sendCalls).toHaveLength(0);
 
-    const err = (await promise.catch((e) => e)) as APIError;
-    expect(err).toBeInstanceOf(APIError);
-    expect(err.status).toBe(0);
-    expect(err.statusText).toBe('aborted');
-    expect(err.code).toBe('error');
+    expect(await promise.catch((e: unknown) => e)).toBe(controller.signal.reason);
     expect(errors).toEqual([]);
   });
 
@@ -364,26 +356,21 @@ describe('HttpContentTransport.putBinary — XHR path', () => {
 });
 
 /**
- * Regression guard for the worker-pool generation bug introduced by the
- * upload-progress work: every `yield.resource(...)` call passes a
- * `signal` (for unsubscribe-aborts), which previously lit up the XHR
- * branch unconditionally. In Node (worker, CLI, MCP), `XMLHttpRequest`
- * is undefined and the upload threw `XMLHttpRequest is not defined`
- * synchronously, killing every generation job.
+ * Where there is no `XMLHttpRequest` (Node: a worker, the CLI, a script) the
+ * upload must not reach for one. Every `yield.resource(...)` passes a
+ * `signal` and an `onProgress`, and an upload that took the XHR path on
+ * their account threw `XMLHttpRequest is not defined` and killed every
+ * generation job. It goes through ky, and ky is given what the caller asked
+ * for: the signal, and a body it can take a piece at a time.
  *
- * The fix gates the XHR branch on a runtime check
- * (`typeof XMLHttpRequest !== 'undefined'`); these tests pin that
- * behavior. The XHR-stubbing block above runs in `beforeEach`/`afterEach`
- * — this describe block deliberately lives outside it so the stub is
- * never installed, mirroring a real Node runtime.
+ * This block lives outside the one that stubs `XMLHttpRequest`, so the stub
+ * is never installed here.
  */
-describe('HttpContentTransport.putBinary — runtime fallback when XMLHttpRequest is unavailable', () => {
+describe('HttpContentTransport.putBinary — where there is no XMLHttpRequest', () => {
   let savedXHR: typeof globalThis.XMLHttpRequest | undefined;
 
   beforeEach(() => {
-    // Some test environments (jsdom, prior tests' afterEach race) might
-    // leave XMLHttpRequest defined. Force-undefine it for these tests
-    // to model a real Node worker process.
+    // An earlier test's stub may still be installed.
     savedXHR = globalThis.XMLHttpRequest;
     delete (globalThis as unknown as { XMLHttpRequest?: unknown }).XMLHttpRequest;
   });
@@ -395,7 +382,10 @@ describe('HttpContentTransport.putBinary — runtime fallback when XMLHttpReques
     vi.clearAllMocks();
   });
 
-  test('falls through to ky path when only `signal` is set (worker-pool case)', async () => {
+  const posted = (mockKy: Partial<KyInstance>) =>
+    vi.mocked(mockKy.post!).mock.calls[0]![1] as { body: unknown; signal?: AbortSignal; timeout?: unknown; headers: Record<string, string> };
+
+  test('given only a `signal`, it goes through ky with that signal and the form as its body', async () => {
     const { content, mockKy } = makeTransportAndContent();
     vi.mocked(mockKy.post!).mockReturnValue({
       json: vi.fn().mockResolvedValue({ resourceId: 'node-ky-result' }),
@@ -407,14 +397,13 @@ describe('HttpContentTransport.putBinary — runtime fallback when XMLHttpReques
       { signal: controller.signal },
     );
 
-    // Pre-fix this would throw `XMLHttpRequest is not defined`. The
-    // runtime check sends Node consumers down the ky path even when
-    // they pass `signal`.
     expect(mockKy.post).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ resourceId: resourceId('node-ky-result') });
+    expect(posted(mockKy).signal).toBe(controller.signal);
+    expect(posted(mockKy).body).toBeInstanceOf(FormData);
   });
 
-  test('falls through to ky path when both `onProgress` and `signal` are set (yield.resource case)', async () => {
+  test('given `onProgress` and a `signal`, as `yield.resource` gives them, it goes through ky with a body sent in pieces', async () => {
     const { content, mockKy } = makeTransportAndContent();
     vi.mocked(mockKy.post!).mockReturnValue({
       json: vi.fn().mockResolvedValue({ resourceId: 'node-ky-result-2' }),
@@ -427,14 +416,29 @@ describe('HttpContentTransport.putBinary — runtime fallback when XMLHttpReques
       { onProgress, signal: controller.signal },
     );
 
-    // The shape passed mirrors what `yield.resource()` always passes —
-    // both `onProgress` and `signal`. Without the runtime check, Node
-    // would attempt XHR and throw. With it, ky runs and `onProgress`
-    // is silently dropped (no progress events fire on Node, which is
-    // the documented degraded behavior).
     expect(mockKy.post).toHaveBeenCalledTimes(1);
     expect(result).toEqual({ resourceId: resourceId('node-ky-result-2') });
+    const { body, signal, headers } = posted(mockKy);
+    expect(signal).toBe(controller.signal);
+    expect(body).toBeInstanceOf(ReadableStream);
+    expect(headers['Content-Type']).toMatch(/^multipart\/form-data; boundary=/);
+
+    // This ky sent nothing, so nothing has been reported: a piece is
+    // reported when it is asked for, never ahead of that.
     expect(onProgress).not.toHaveBeenCalled();
+    await (body as ReadableStream<Uint8Array>).getReader().read();
+    expect(onProgress).toHaveBeenCalledTimes(1);
+  });
+
+  test('an upload is given no deadline, whatever its caller asked for', async () => {
+    const { content, mockKy } = makeTransportAndContent();
+    vi.mocked(mockKy.post!).mockReturnValue({
+      json: vi.fn().mockResolvedValue({ resourceId: 'r' }),
+    } as never);
+
+    await content.putBinary({ name: 'a', file: Buffer.from('xx'), format: 'text/plain', storageUri: 'file://a' });
+
+    expect(posted(mockKy).timeout).toBe(false);
   });
 });
 

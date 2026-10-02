@@ -328,9 +328,7 @@ to what it asks, so an exemption that has stopped being true fails, and a
 driver that answers `unsupported` to a case it is not exempt from fails that
 case.
 
-| SDK | Cases | Why |
-|---|---|---|
-| TypeScript | `upload-progress`, `upload-cancelled` | The transport reports and cancels an upload through `XMLHttpRequest`, which a browser has and Node, where the driver runs, does not. |
+No SDK names one: every driver runs every wire case.
 
 ## Cases that restate a table
 

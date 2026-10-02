@@ -10,7 +10,7 @@
  * predicate could only agree with one of them.
  */
 
-import { SemiontError, transportErrorCodeForStatus, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
+import { SemiontError, isObject, isString, retryAfterMs, transportErrorCodeForStatus, type TransportErrorCode, type HttpStatusError } from '@semiont/core';
 
 export class APIError extends SemiontError {
   declare code: TransportErrorCode;
@@ -46,13 +46,23 @@ export class APIError extends SemiontError {
   }
 
   /**
-   * The exchange ended with no response. XHR reports status 0 for every such
-   * ending and no code maps from 0, so the caller states the code: it knows
-   * which ending this was, and a failed network and a cancelled upload share
-   * a status and nothing else.
+   * The gateway's refusal, as every request of this package reports one: in
+   * the gateway's own words when its body states them (`ErrorResponse.error`),
+   * with the body as it came, and with the wait its `Retry-After` states.
    */
-  static withoutResponse(message: string, code: TransportErrorCode, statusText: string): APIError {
-    return new APIError(message, code, 0, statusText, undefined, undefined);
+  static refusal(status: number, statusText: string, body: unknown, retryAfter: string | null): APIError {
+    const said = isObject(body) && isString(body['error']) ? body['error'] : undefined;
+    return APIError.fromStatus(said ?? `HTTP ${status}: ${statusText}`, status, statusText, body, retryAfterMs(retryAfter));
+  }
+
+  /**
+   * The exchange ended with no response: the connection failed, or the
+   * request's deadline passed. There is no status to decide a code, and the
+   * vocabulary files a request that got no answer under `unavailable`.
+   * `statusText` names which ending it was.
+   */
+  static withoutResponse(message: string, statusText: string): APIError {
+    return new APIError(message, 'unavailable', 0, statusText, undefined, undefined);
   }
 }
 
