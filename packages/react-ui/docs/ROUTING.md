@@ -17,12 +17,8 @@ optionally `className`, `title` and `onClick`. Further props pass through to the
 ```ts
 interface RouteBuilder {
   resourceDetail: (id: string) => string;
-  userProfile: (id: string) => string;
-  search: (query: string) => string;
-  home: () => string;
   knowledge?: () => string;
   moderate?: () => string;
-  admin?: () => string;
 }
 ```
 
@@ -44,24 +40,17 @@ A host writes both once and passes them wherever they are asked for. React Route
 `to` where `LinkComponentProps` has `href`, so a host over React Router adapts it:
 
 ```tsx
-import React from 'react';
 import { Link as RouterLink } from 'react-router';
 import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
 
-export const Link = React.forwardRef<HTMLAnchorElement, LinkComponentProps>(
-  function Link({ href, ...props }, ref) {
-    return <RouterLink ref={ref} to={href} {...props} />;
-  },
-);
+export function Link({ href, ...props }: LinkComponentProps) {
+  return <RouterLink to={href} {...props} />;
+}
 
 export const routes: RouteBuilder = {
   resourceDetail: (id) => `/know/resource/${id}`,
-  userProfile: (id) => `/users/${id}`,
-  search: (query) => `/search?q=${encodeURIComponent(query)}`,
-  home: () => '/',
   knowledge: () => '/know',
   moderate: () => '/moderate',
-  admin: () => '/admin',
 };
 ```
 
@@ -80,12 +69,7 @@ A test passes a plain anchor and a literal `routes`:
 
 ```tsx
 const Link = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
-const routes: RouteBuilder = {
-  resourceDetail: (id) => `/resource/${id}`,
-  userProfile: (id) => `/users/${id}`,
-  search: (query) => `/search?q=${query}`,
-  home: () => '/',
-};
+const routes: RouteBuilder = { resourceDetail: (id) => `/resource/${id}` };
 
 render(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
 ```

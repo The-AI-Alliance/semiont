@@ -55,7 +55,7 @@ The Semiont platform is designed with Browser flexibility in mind. The gateway p
 - W3C annotation rendering on mobile constraints
 
 **Starting Point**:
-```swift
+```swift sketch
 // Use @semiont/http-transport OpenAPI spec to generate Swift client
 // openapi-generator generate -i openapi.json -g swift5 -o SemiontClient
 
@@ -84,7 +84,7 @@ client.documentsAPI.listDocuments { (documents, error) in
 **Key Features**: Similar to iOS
 
 **Starting Point**:
-```kotlin
+```kotlin sketch
 // Generate Kotlin client from OpenAPI spec
 // openapi-generator generate -i openapi.json -g kotlin -o SemiontClient
 
@@ -115,7 +115,7 @@ val documents = client.documentsApi.listDocuments()
 - Faster development
 
 **Starting Point**:
-```typescript
+```typescript sketch
 // apps/mobile-app
 import { SemiontClient, readyValue } from '@semiont/sdk';
 import { useObservable } from '@semiont/react-ui';
@@ -162,7 +162,7 @@ function ResourceList({ semiont }: { semiont: SemiontClient }) {
 - **Context Menu**: Integrate Semiont actions into browser context menu
 
 **W3C Selector for Web Pages**:
-```typescript
+```typescript sketch
 // Create W3C annotation for web page selection
 const annotation = {
   "@context": "http://www.w3.org/ns/anno.jsonld",
@@ -196,7 +196,7 @@ await api.annotations.create(annotation);
 ```
 
 **Starting Point**:
-```typescript
+```typescript sketch
 // apps/browser-extension
 // manifest.json
 {
@@ -261,7 +261,7 @@ document.addEventListener('mouseup', () => {
 - Offline-first with background sync
 
 **Starting Point**:
-```typescript
+```typescript sketch
 // apps/desktop-app
 // main.ts
 import { app, BrowserWindow } from 'electron';
@@ -328,7 +328,7 @@ app.whenReady().then(createWindow);
 - **Quick Actions**: Command palette integration
 
 **W3C Selector for Code**:
-```typescript
+```typescript sketch
 const annotation = {
   target: {
     source: `file://${filePath}`,  // File path as source
@@ -385,12 +385,12 @@ const annotation = {
 **OAuth 2.0** works across all clients:
 
 **Web/Desktop**: Standard OAuth flow
-```typescript
+```typescript sketch
 // Redirect to /auth/signin → Google OAuth → callback
 ```
 
 **Mobile**: Native OAuth via platform APIs
-```swift
+```swift sketch
 // iOS: ASWebAuthenticationSession
 let session = ASWebAuthenticationSession(
   url: authURL,
@@ -402,7 +402,7 @@ let session = ASWebAuthenticationSession(
 ```
 
 **Browser Extension**: OAuth via browser identity API
-```typescript
+```typescript sketch
 chrome.identity.launchWebAuthFlow({
   url: authURL,
   interactive: true
@@ -412,7 +412,7 @@ chrome.identity.launchWebAuthFlow({
 ```
 
 **CLI**: OAuth device flow
-```bash
+```bash sketch
 semiont login
 # => Visit https://semiont.ai/device and enter code: XXXX-XXXX
 ```
@@ -425,7 +425,7 @@ semiont login
 **Event Queue**: Queue writes when offline, sync when online
 **Conflict Resolution**: Last-write-wins or user-mediated
 
-```typescript
+```typescript sketch
 // Offline queue pattern
 class OfflineQueue {
   async queueWrite(operation: 'create' | 'update' | 'delete', resource: any) {

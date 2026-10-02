@@ -5,30 +5,26 @@
  * interface for the React Router-based frontend application.
  */
 
-import React from 'react';
-import { Link as NextLink } from '@/i18n/routing';
+import { Link as LocaleLink } from '@/i18n/routing';
 import type { RouteBuilder, LinkComponentProps } from '@semiont/react-ui';
-import type { ComponentType } from 'react';
 
 /**
- * Adapter: react-ui components pass `href`, but React Router Link expects `to`.
+ * react-ui components pass `href`; React Router's link takes `to`.
+ *
+ * A plain component, not `forwardRef`: no react-ui component hands its `Link`
+ * a ref, and `forwardRef` wraps the props in `Omit<…, 'ref'>`, which over
+ * `LinkComponentProps`'s index signature drops `href` and `children` — the
+ * mismatch an `as any` used to paper over.
  */
-const LinkAdapter = React.forwardRef<HTMLAnchorElement, LinkComponentProps>(
-  function LinkAdapter({ href, ...props }, ref) {
-    return <NextLink ref={ref} to={href} {...props} />;
-  }
-);
-export const Link: ComponentType<LinkComponentProps> = LinkAdapter as any;
+export function Link({ href, ...props }: LinkComponentProps) {
+  return <LocaleLink to={href} {...props} />;
+}
 
 /**
  * Route builder for Semiont frontend
  */
 export const routes: RouteBuilder = {
   resourceDetail: (id: string) => `/know/resource/${id}`,
-  userProfile: (id: string) => `/users/${id}`,
-  search: (query: string) => `/search?q=${encodeURIComponent(query)}`,
-  home: () => '/',
   knowledge: () => '/know',
   moderate: () => '/moderate',
-  admin: () => '/admin',
 };

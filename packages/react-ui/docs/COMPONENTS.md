@@ -545,10 +545,11 @@ Components that render a link take the host's `Link` and `routes` as props (see
 [ROUTING.md](ROUTING.md)):
 
 ```tsx
+import type { ResourceId } from '@semiont/core';
 import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
 
-function MyComponent({ Link, routes }: { Link: React.ComponentType<LinkComponentProps>; routes: RouteBuilder }) {
-  return <Link href={routes.home()}>Home</Link>;
+function MyComponent({ Link, routes, resourceId }: { Link: React.ComponentType<LinkComponentProps>; routes: RouteBuilder; resourceId: ResourceId }) {
+  return <Link href={routes.resourceDetail(resourceId)}>Open</Link>;
 }
 ```
 

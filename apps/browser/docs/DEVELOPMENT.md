@@ -141,7 +141,7 @@ The mock server (`npm run dev:mock`) provides:
 
 ### Tips for Faster Development
 
-1. **Component Playground** - Create `src/app/playground/page.tsx` for isolated component testing
+1. **Component Playground** - Add a scratch page and its route (see *Adding a New Page*) for isolated component testing
 2. **Disable Type Checking** (temporarily run tsc without --noEmit checks)
 3. **Clear Cache** - Run `rm -rf node_modules/.vite` if experiencing stale module issues
 4. **VS Code Integration** - Use Command Palette (`Cmd+Shift+P`) for quick file navigation
@@ -150,10 +150,10 @@ The mock server (`npm run dev:mock`) provides:
 
 ### Adding a New Page
 
-**1. Create page component** in `src/app/[route]/page.tsx`:
-```typescript
-// src/app/dashboard/page.tsx
-import { AsyncErrorBoundary } from "@/components/ErrorBoundary";
+**1. Create the page** under `src/app/[locale]/`, one directory per route:
+```typescript sketch
+// src/app/[locale]/dashboard/page.tsx
+import { AsyncErrorBoundary } from "@semiont/react-ui";
 import { DashboardContent } from "@/components/DashboardContent";
 
 export default function Dashboard() {
@@ -167,8 +167,17 @@ export default function Dashboard() {
 }
 ```
 
-**2. Create component** in `src/components/`:
-```typescript
+**2. Register its route** in `src/App.tsx`. Pages are not discovered from the file tree: each
+is a `React.lazy` import and a `<Route>` under the layout it belongs to.
+```tsx sketch
+const DashboardPage = React.lazy(() => import('./app/[locale]/dashboard/page'));
+
+// inside the `/:locale` route:
+<Route path="dashboard" element={<DashboardPage />} />
+```
+
+**3. Create component** in `src/components/`:
+```typescript sketch
 // src/components/DashboardContent.tsx
 import { useSemiont, useObservable } from "@semiont/react-ui";
 
@@ -199,7 +208,7 @@ See [API Integration Guide](./API-INTEGRATION.md) for complete details.
 methods on `SemiontClient` (e.g. `client.browse.*`) that return RxJS Observables
 backed by EventBus-invalidated caches. Adding a new read means:
 
-```typescript
+```typescript sketch
 // 1. The OpenAPI spec + generated types define the response shape
 //    (specs/ → @semiont/core types). No hand-written response interfaces.
 
@@ -221,7 +230,7 @@ See [API Integration Guide](./API-INTEGRATION.md) for the namespace + bus model.
 ### Adding New UI Components
 
 **1. Create component** in `src/components/`:
-```typescript
+```typescript sketch
 // src/components/MetricsCard.tsx
 import { ReactNode } from 'react';
 
@@ -267,7 +276,7 @@ export function MetricsCard({
 ```
 
 **2. Use with error boundary**:
-```typescript
+```typescript sketch
 <AsyncErrorBoundary>
   <MetricsCard
     title="Active Users"
@@ -280,7 +289,7 @@ export function MetricsCard({
 ### Adding Custom Hooks
 
 **Create hook** in `src/hooks/`:
-```typescript
+```typescript sketch
 // src/hooks/useLocalStorage.ts
 import { useState, useEffect } from 'react';
 
@@ -315,7 +324,7 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
 ### Adding Authentication Guards
 
 **1. Create protected route wrapper**:
-```typescript
+```typescript sketch
 // src/components/ProtectedRoute.tsx
 import { useSemiont, useObservable } from "@semiont/react-ui";
 import { useNavigate } from "react-router-dom";
@@ -342,7 +351,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 ```
 
 **2. Use in protected pages**:
-```typescript
+```typescript sketch
 // src/app/admin/page.tsx
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 

@@ -133,7 +133,7 @@ interface PermissionError {
 
 #### 2. Permission-Aware Components
 
-```typescript
+```typescript sketch
 function DocumentEditor({ document }) {
   const permissions = useDocumentPermissions(document.id);
 
@@ -147,7 +147,7 @@ function DocumentEditor({ document }) {
 
 #### 3. Optimistic Permission Checking
 
-```typescript
+```typescript sketch
 // Check before making API call
 const { canDelete } = useResourcePermissions(resourceId);
 if (!canDelete) {
