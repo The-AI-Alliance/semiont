@@ -14,7 +14,9 @@ the only type that exercises every axis at its hardest setting.
 [`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json)
 holds one row per supported type. Every SDK generates its table from it:
 TypeScript's is `MEDIA_TYPES` in `packages/core/src/media-types.ts`, Rust's is
-`semiont::media_types`. A row, as TypeScript reads it:
+`semiont::media_types`, and Go's is `mediatypes.Rows` in
+`packages/sdk-go/mediatypes`, which the launcher reads to name an upload's
+format from its file extension. A row, as TypeScript reads it:
 
 ```ts
 interface MediaTypeCapabilities {

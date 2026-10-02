@@ -60,6 +60,20 @@ there is no registry step beyond the tag. If a shorter import path is ever
 wanted, mirroring to a dedicated repo at release time remains open; nothing
 here forecloses it.
 
+## The `mediatypes` package
+
+`mediatypes/` holds the media types a knowledge base admits, **generated and
+committed** from
+[`specs/src/media-types/registry.json`](../../specs/src/media-types/registry.json),
+the registry the TypeScript and Rust SDKs generate from. `mediatypes.ForExtension`
+names the media type a file's extension stands for: the first row that states
+the extension, after the registry's aliases.
+
+```sh
+npm run generate:media-types-go          # regenerate
+npm run generate:media-types-go:check    # verify without writing (what CI runs)
+```
+
 ## The `bus` package
 
 `bus/` holds the event-bus vocabulary — channel constants, the emittable
