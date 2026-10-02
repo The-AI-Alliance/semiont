@@ -16,7 +16,7 @@
 
 import { describe, test, expect, beforeEach, vi } from 'vitest';
 import type { KyInstance } from 'ky';
-import { baseUrl, resourceId } from '@semiont/core';
+import { HTTP_REQUEST_TIMEOUT_MS, baseUrl, resourceId } from '@semiont/core';
 
 vi.mock('ky', () => ({
   default: {
@@ -101,6 +101,20 @@ describe('HttpTransport — HTTP wire shape', () => {
     actorHarness.dispose.mockClear();
     transport = new HttpTransport({ baseUrl: testBaseUrl, timeout: 10000 });
     content = new HttpContentTransport(transport);
+  });
+
+  describe('The deadline on a request', () => {
+    test('is the one every SDK keeps, when the caller states none', () => {
+      vi.mocked(ky.create).mockClear();
+      new HttpTransport({ baseUrl: testBaseUrl });
+      expect(vi.mocked(ky.create).mock.calls[0]?.[0]).toMatchObject({ timeout: HTTP_REQUEST_TIMEOUT_MS });
+    });
+
+    test('is the one the caller states', () => {
+      vi.mocked(ky.create).mockClear();
+      new HttpTransport({ baseUrl: testBaseUrl, timeout: 1234 });
+      expect(vi.mocked(ky.create).mock.calls[0]?.[0]).toMatchObject({ timeout: 1234 });
+    });
   });
 
   describe('Auth', () => {

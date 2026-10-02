@@ -40,6 +40,27 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 /// The wait before a request that is safe to repeat is made a second time.
 const RETRY_PAUSE: Duration = Duration::from_millis(300);
 
+/// A request the gateway did not answer by its deadline.
+fn unanswered(method: &reqwest::Method, path: &str, deadline: Duration) -> TransportError {
+    TransportError::without_response(
+        format!(
+            "{method} {path} got no answer within {}s",
+            deadline.as_secs()
+        ),
+        TransportErrorCode::Unavailable,
+    )
+}
+
+/// How the sentence about a request that got no answer ends: within what,
+/// when its deadline passed, or what kept it from being sent or answered.
+pub(crate) fn why_unanswered(error: &reqwest::Error) -> String {
+    if error.is_timeout() {
+        format!(" within {}s", timing::HTTP_REQUEST_TIMEOUT.as_secs())
+    } else {
+        format!(": {error}")
+    }
+}
+
 /// How a transport renews its token when the gateway refuses the one it has:
 /// renew it at its source, and say what it is now. `None` when it could not
 /// be renewed. Whoever implements this also feeds the transport's token, so
@@ -58,6 +79,8 @@ pub struct Timing {
     pub linger: Duration,
     pub emit_retry: RetryPolicy,
     pub seen_event_ids: usize,
+    /// The deadline on one request that is neither the stream nor an emit.
+    pub http_request: Duration,
 }
 
 impl Default for Timing {
@@ -68,6 +91,7 @@ impl Default for Timing {
             linger: timing::LINGER,
             emit_retry: timing::EMIT_RETRY,
             seen_event_ids: timing::SEEN_EVENT_IDS_COUNT,
+            http_request: timing::HTTP_REQUEST_TIMEOUT,
         }
     }
 }
@@ -149,11 +173,35 @@ impl Shared {
     /// hand, on any method; a status that promises recovery, or no answer at
     /// all, on a method that cannot cause a second effect. A failure is
     /// reported on the error stream as it is returned.
+    ///
+    /// An attempt whose answer has not begun by the transport's deadline
+    /// (`Timing::http_request`) fails as one that got no answer, and is not
+    /// made again: the gateway has the request, and may yet act on it.
     pub async fn send(
         &self,
         method: reqwest::Method,
         path: &str,
         authenticated: bool,
+        build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, TransportError> {
+        self.exchange(
+            method,
+            path,
+            authenticated,
+            Some(self.timing.http_request),
+            build,
+        )
+        .await
+    }
+
+    /// `send`, with the deadline stated: `None` waits for as long as it
+    /// takes.
+    async fn exchange(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        authenticated: bool,
+        deadline: Option<Duration>,
         build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     ) -> Result<reqwest::Response, TransportError> {
         let url = format!("{}{path}", self.base_url);
@@ -174,7 +222,14 @@ impl Shared {
                     request = request.header("tracestate", tracestate);
                 }
             }
-            let response = match request.send().await {
+            let sent = match deadline {
+                Some(deadline) => match tokio::time::timeout(deadline, request.send()).await {
+                    Ok(sent) => sent,
+                    Err(_) => return Err(self.failed(unanswered(&method, path, deadline))),
+                },
+                None => request.send().await,
+            };
+            let response = match sent {
                 Ok(response) => response,
                 Err(error) => {
                     if !retried && repeatable {
@@ -227,7 +282,8 @@ impl Shared {
         }
     }
 
-    /// The same, read as the JSON the operation answers.
+    /// The same, read as the JSON the operation answers. The answer, once
+    /// begun, is read within the same deadline.
     pub async fn answer<T: DeserializeOwned>(
         &self,
         method: reqwest::Method,
@@ -235,11 +291,48 @@ impl Shared {
         authenticated: bool,
         build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
     ) -> Result<T, TransportError> {
+        self.answered(
+            method,
+            path,
+            authenticated,
+            Some(self.timing.http_request),
+            build,
+        )
+        .await
+    }
+
+    /// `answer` with no deadline, for an upload: how long one takes is how
+    /// large the resource is.
+    pub async fn answer_at_length<T: DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        authenticated: bool,
+        build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    ) -> Result<T, TransportError> {
+        self.answered(method, path, authenticated, None, build)
+            .await
+    }
+
+    async fn answered<T: DeserializeOwned>(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        authenticated: bool,
+        deadline: Option<Duration>,
+        build: impl Fn(reqwest::RequestBuilder) -> reqwest::RequestBuilder,
+    ) -> Result<T, TransportError> {
         let response = self
-            .send(method.clone(), path, authenticated, build)
+            .exchange(method.clone(), path, authenticated, deadline, build)
             .await?;
         let status = response.status().as_u16();
-        response.json::<T>().await.map_err(|error| {
+        let read = match deadline {
+            Some(deadline) => tokio::time::timeout(deadline, response.json::<T>())
+                .await
+                .map_err(|_| self.failed(unanswered(&method, path, deadline)))?,
+            None => response.json::<T>().await,
+        };
+        read.map_err(|error| {
             self.failed(TransportError {
                 code: TransportErrorCode::Error,
                 status: Some(status),

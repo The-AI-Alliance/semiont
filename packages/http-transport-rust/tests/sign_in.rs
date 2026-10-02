@@ -8,7 +8,7 @@
 
 use axum::Router;
 use axum::body::Body;
-use axum::extract::State;
+use axum::extract::{Path as Named, State};
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -28,6 +28,8 @@ use semiont::session::{
 use semiont::sign_in_store::{FILE_NAME, SignInStore};
 use semiont::storage::{InMemorySessionStorage, SessionStorage};
 use semiont::testing::examples::assert_readme_shows;
+use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
+use semiont::transport::PutBinaryRequest;
 use semiont::types::JobCompleteCommand;
 use semiont_http_transport::agent::{Agent, AgentToken};
 use semiont_http_transport::client::client;
@@ -46,7 +48,7 @@ use semiont_http_transport::session::{
 };
 use semiont_http_transport::transport::{HttpTransportConfig, Timing};
 use serde_json::{Value, json};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
@@ -85,6 +87,14 @@ struct Staged {
     refused_on_the_bus: Mutex<Vec<String>>,
     /// The tokens it was asked about, in order.
     asked_who: Mutex<Vec<String>>,
+    /// What it accepts a request for and never answers: `who`, `metadata`,
+    /// `issuer`, `token`, `revoke`, `agent`, `document`, `content`.
+    silent: Mutex<HashSet<&'static str>>,
+    /// Whether, asked who a token is, it begins its answer and never
+    /// finishes it.
+    trails_off: Mutex<bool>,
+    /// How long it takes to answer an upload.
+    upload_takes: Mutex<Duration>,
     describes: Mutex<Describes>,
     /// What the gateway answers the other requests with: by request channel,
     /// the channel of the answer and its payload.
@@ -123,7 +133,17 @@ fn json_answer(status: u16, body: Value) -> Response {
         .into_response()
 }
 
+impl Staged {
+    /// Never returns when the test said this is never answered.
+    async fn held(&self, what: &str) {
+        if self.silent.lock().unwrap().contains(what) {
+            std::future::pending::<()>().await;
+        }
+    }
+}
+
 async fn resource_metadata(State(staged): State<Arc<Staged>>) -> Response {
+    staged.held("metadata").await;
     match staged.trusts.lock().unwrap().clone() {
         None => StatusCode::NOT_FOUND.into_response(),
         Some(issuers) => json_answer(
@@ -138,6 +158,7 @@ async fn resource_metadata(State(staged): State<Arc<Staged>>) -> Response {
 }
 
 async fn openid_configuration(State(staged): State<Arc<Staged>>) -> Response {
+    staged.held("issuer").await;
     let origin = staged.origin.lock().unwrap().clone();
     let issuer = format!("{origin}/realms/semiont");
     let mut document = json!({
@@ -154,6 +175,7 @@ async fn openid_configuration(State(staged): State<Arc<Staged>>) -> Response {
 
 async fn token(State(staged): State<Arc<Staged>>, body: String) -> Response {
     staged.token_forms.lock().unwrap().push(form(&body));
+    staged.held("token").await;
     let (status, answer) = staged
         .token_answers
         .lock()
@@ -177,6 +199,7 @@ async fn device(State(staged): State<Arc<Staged>>, body: String) -> Response {
 
 async fn revoke(State(staged): State<Arc<Staged>>, body: String) -> Response {
     staged.revoke_forms.lock().unwrap().push(form(&body));
+    staged.held("revoke").await;
     StatusCode::from_u16(*staged.revoke_status.lock().unwrap())
         .expect("a status")
         .into_response()
@@ -185,6 +208,18 @@ async fn revoke(State(staged): State<Arc<Staged>>, body: String) -> Response {
 async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
     let token = bearer(&headers);
     staged.asked_who.lock().unwrap().push(token.clone());
+    staged.held("who").await;
+    if *staged.trails_off.lock().unwrap() {
+        let begun = tokio_stream::once(Ok::<Bytes, std::convert::Infallible>(Bytes::from_static(
+            b"{\"did\":",
+        )))
+        .chain(tokio_stream::pending());
+        return (
+            [(header::CONTENT_TYPE, "application/json")],
+            Body::from_stream(begun),
+        )
+            .into_response();
+    }
     if token.is_empty() || staged.refused.lock().unwrap().contains(&token) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -198,7 +233,8 @@ async fn me(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
 }
 
 /// The gateway's exchange of a service account's token for an agent's.
-async fn agent_token(headers: HeaderMap) -> Response {
+async fn agent_token(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
+    staged.held("agent").await;
     if bearer(&headers).is_empty() {
         return StatusCode::UNAUTHORIZED.into_response();
     }
@@ -264,8 +300,26 @@ async fn emit(State(staged): State<Arc<Staged>>, headers: HeaderMap, body: Strin
     json_answer(202, json!({}))
 }
 
+/// A resource's bytes.
+async fn content(State(staged): State<Arc<Staged>>, Named(id): Named<String>) -> Response {
+    staged.held("content").await;
+    (
+        [(header::CONTENT_TYPE, "text/plain")],
+        format!("the bytes of {id}"),
+    )
+        .into_response()
+}
+
+/// An upload, answered once it has taken as long as the test said.
+async fn upload(State(staged): State<Arc<Staged>>) -> Response {
+    let takes = *staged.upload_takes.lock().unwrap();
+    tokio::time::sleep(takes).await;
+    json_answer(201, json!({ "resourceId": "res-new" }))
+}
+
 async fn discovery(State(staged): State<Arc<Staged>>, headers: HeaderMap) -> Response {
     *staged.discovery_reads.lock().unwrap() += 1;
+    staged.held("document").await;
     let (status, content_type, body, etag) = staged.discovery.lock().unwrap().clone();
     let known = headers
         .get(header::IF_NONE_MATCH)
@@ -293,6 +347,47 @@ struct World {
     staged: Arc<Staged>,
     server: tokio::task::JoinHandle<()>,
     http: reqwest::Client,
+    clock: Option<QuickClock>,
+}
+
+/// The clock of a test that waits out long times over real sockets, in a
+/// test whose runtime starts paused.
+///
+/// A paused clock alone will not do. It runs ahead to the next timer
+/// whenever nothing is runnable, and a request that is on its way is not
+/// runnable: its deadline would pass before its answer could arrive. So the
+/// clock is held still, which the runtime does while a blocking task runs,
+/// and moved by hand, `STEP` for each real millisecond. An answer that is on
+/// its way arrives long before its deadline, and thirty seconds take an
+/// eighth of one.
+struct QuickClock(tokio::task::JoinHandle<()>);
+
+const STEP: Duration = Duration::from_millis(250);
+
+impl QuickClock {
+    fn start() -> QuickClock {
+        QuickClock(tokio::spawn(async {
+            loop {
+                let _ = tokio::task::spawn_blocking(|| {
+                    std::thread::sleep(Duration::from_millis(1));
+                })
+                .await;
+                tokio::time::advance(STEP).await;
+            }
+        }))
+    }
+}
+
+impl Drop for QuickClock {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// Whether `elapsed` is `expected`: no less, and no more than the quick
+/// clock moves while the requests before and after it are answered.
+fn took(elapsed: Duration, expected: Duration) -> bool {
+    elapsed >= expected && elapsed < expected + Duration::from_secs(2)
 }
 
 impl Drop for World {
@@ -302,6 +397,14 @@ impl Drop for World {
 }
 
 impl World {
+    /// For a test whose runtime starts paused.
+    async fn on_a_quick_clock() -> World {
+        let clock = QuickClock::start();
+        let mut world = World::start().await;
+        world.clock = Some(clock);
+        world
+    }
+
     async fn start() -> World {
         // Already installed by another test of this process: one is enough.
         let _ = rustls::crypto::ring::default_provider().install_default();
@@ -332,6 +435,9 @@ impl World {
             refused: Mutex::default(),
             refused_on_the_bus: Mutex::default(),
             asked_who: Mutex::default(),
+            silent: Mutex::default(),
+            trails_off: Mutex::default(),
+            upload_takes: Mutex::default(),
             describes: Mutex::new(Describes::As(
                 json!({ "name": "KB A", "domain": "example.org:kb-a", "gitBranch": "main" }),
             )),
@@ -348,6 +454,8 @@ impl World {
             )
             .route("/api/users/me", get(me))
             .route("/api/tokens/agent", post(agent_token))
+            .route("/resources/{id}", get(content))
+            .route("/resources", post(upload))
             .route("/bus/subscribe", post(subscribe))
             .route("/bus/emit", post(emit))
             .route(
@@ -367,14 +475,8 @@ impl World {
             port,
             staged,
             server,
-            // No connection is kept between requests. A kept one has a timer
-            // of its own, and a paused clock runs ahead to it whenever a
-            // request is on its way: the waits these tests measure would be
-            // lost in it.
-            http: reqwest::Client::builder()
-                .pool_max_idle_per_host(0)
-                .build()
-                .expect("a client"),
+            http: reqwest::Client::new(),
+            clock: None,
         }
     }
 
@@ -760,7 +862,7 @@ fn storing(world: &World, kb_id: &str, access: &str) -> Arc<InMemorySessionStora
 
 #[tokio::test(start_paused = true)]
 async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_keeps_the_rotation() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     let storage = storing(&world, "kb-a", "a1");
     world.answers([
         (503, Value::Null),
@@ -780,7 +882,7 @@ async fn a_stored_sessions_renewal_rides_out_an_issuer_that_says_not_now_and_kee
 
 #[tokio::test(start_paused = true)]
 async fn a_refused_grant_is_final_on_its_first_answer() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     for refusal in [
         (400, json!({ "error": "invalid_grant" })),
         (401, json!({ "error": "invalid_client" })),
@@ -812,7 +914,7 @@ async fn a_refused_grant_is_final_on_its_first_answer() {
 
 #[tokio::test(start_paused = true)]
 async fn a_renewal_that_is_never_answered_gives_up_and_says_how_hard_it_tried() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     let storage = storing(&world, "kb-a", "a1");
     world.answers((0..10).map(|_| (503, Value::Null)));
 
@@ -929,7 +1031,7 @@ async fn revoking_tells_the_issuer_as_the_client_the_token_was_issued_to() {
 
 #[tokio::test(start_paused = true)]
 async fn the_device_grant_shows_the_code_and_asks_until_the_person_approves() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     world.answers([
         (400, json!({ "error": "authorization_pending" })),
         (400, json!({ "error": "slow_down" })),
@@ -987,12 +1089,16 @@ async fn the_device_grant_shows_the_code_and_asks_until_the_person_approves() {
     );
     // At the issuer's interval, and more slowly once it said to slow down:
     // five seconds, five, and then ten.
-    assert_eq!(started.elapsed(), Duration::from_secs(20));
+    assert!(
+        took(started.elapsed(), Duration::from_secs(20)),
+        "{:?}",
+        started.elapsed()
+    );
 }
 
 #[tokio::test(start_paused = true)]
 async fn the_device_grant_ends_when_the_person_refuses_or_the_code_runs_out() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     let no_code = |_: DeviceCode| {};
 
     world.answers([(400, json!({ "error": "access_denied" }))]);
@@ -1134,7 +1240,7 @@ async fn a_token_the_gateway_refuses_is_renewed_and_the_request_made_again() {
 
 #[tokio::test(start_paused = true)]
 async fn a_script_signs_in_by_the_device_grant_and_holds_a_ready_session() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
     world.answers([granted(&access, Some("a-refresh-token"))]);
@@ -1676,6 +1782,406 @@ async fn the_loopback_redirect_gives_the_url_the_person_was_sent_back_to() {
     assert_eq!(callback, sent_back);
 }
 
+// ── A request that is never answered ────────────────────────────────────
+//
+// The stand-in accepts the request and says nothing, so what ends the
+// request is its own deadline, and the time it took is the deadline.
+
+impl World {
+    fn never_answers(&self, what: &'static str) {
+        self.staged.silent.lock().unwrap().insert(what);
+    }
+
+    /// A client of the gateway, signed in with `token`.
+    fn client(&self, token: &str) -> semiont::client::SemiontClient {
+        client(
+            HttpTransportConfig {
+                base_url: self.origin.clone(),
+                token: tokio::sync::watch::channel(Some(token.to_owned())).1,
+                refresher: None,
+                channels: Some(Vec::new()),
+                http: self.http.clone(),
+                timing: Timing::default(),
+                bookmarks: None,
+            },
+            ClientOptions::default(),
+        )
+    }
+}
+
+/// What `waited` gives. One that never ends is a failure and not a hang:
+/// ten minutes of this clock is longer than anything here takes.
+async fn ends<T>(waited: impl std::future::Future<Output = T>) -> T {
+    tokio::time::timeout(Duration::from_secs(600), waited)
+        .await
+        .expect("it ends")
+}
+
+fn message(error: semiont::errors::SemiontError) -> String {
+    match error {
+        semiont::errors::SemiontError::Bus(error) => error.message,
+        semiont::errors::SemiontError::Transport(error) => error.message,
+        semiont::errors::SemiontError::Job(error) => error.message,
+    }
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_gateway_operation_that_is_never_answered_fails_at_the_deadline_and_is_not_asked_again() {
+    let world = World::on_a_quick_clock().await;
+    world.never_answers("who");
+    let client = world.client("a-token");
+    let started = tokio::time::Instant::now();
+
+    let auth = client.auth.as_ref().expect("a gateway");
+    let unanswered = ends(auth.me()).await.expect_err("nobody answered");
+
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(unanswered.code(), "unavailable");
+    assert_eq!(
+        message(unanswered),
+        "GET /api/users/me got no answer within 30s"
+    );
+    // A deadline is not a dropped connection: the request is not made again.
+    assert_eq!(world.staged.asked_who.lock().unwrap().len(), 1);
+
+    // An answer that begins and never ends has the same deadline again.
+    world.staged.silent.lock().unwrap().clear();
+    *world.staged.trails_off.lock().unwrap() = true;
+    let started = tokio::time::Instant::now();
+    let unfinished = ends(auth.me()).await.expect_err("it never finished");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(
+        message(unfinished),
+        "GET /api/users/me got no answer within 30s"
+    );
+    client.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_session_whose_gateway_never_says_who_it_is_is_ready_at_the_deadline_and_keeps_its_token()
+{
+    let world = World::on_a_quick_clock().await;
+    world.never_answers("who");
+    let access = jwt(3600, 1);
+    let storage = storing(&world, "a-script", &access);
+    let said: Arc<Mutex<Vec<String>>> = Arc::default();
+    let saying = said.clone();
+    let started = tokio::time::Instant::now();
+
+    let session = ends(session_from_stored(StoredSignIn {
+        kb: world.kb("a-script"),
+        storage,
+        base_url: world.origin.clone(),
+        validate: true,
+        on_auth_failed: None,
+        on_error: Some(Arc::new(move |error| {
+            saying.lock().unwrap().push(error.message)
+        })),
+        http: world.http.clone(),
+    }))
+    .await
+    .expect("a sign-in is stored");
+
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(session.token().borrow().as_deref(), Some(access.as_str()));
+    assert_eq!(*session.user().borrow(), None);
+    let said = said.lock().unwrap().clone();
+    assert_eq!(said.len(), 1, "{said:?}");
+    assert!(
+        said[0].contains("GET /api/users/me got no answer within 30s"),
+        "{said:?}"
+    );
+    session.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_resources_bytes_that_never_begin_fail_at_the_deadline_and_an_upload_takes_as_long_as_it_takes()
+ {
+    let world = World::on_a_quick_clock().await;
+    let client = world.client("a-token");
+
+    // Longer than the deadline, and answered: an upload has none.
+    *world.staged.upload_takes.lock().unwrap() = HTTP_REQUEST_TIMEOUT * 3;
+    let started = tokio::time::Instant::now();
+    let created = ends(async {
+        client
+            .yield_
+            .resource(PutBinaryRequest {
+                name: "A note".to_owned(),
+                bytes: Bytes::from_static(b"hello"),
+                format: "text/plain".to_owned(),
+                storage_uri: "file://a-note.txt".to_owned(),
+                entity_types: Vec::new(),
+                language: None,
+                source_annotation_id: None,
+                source_resource_id: None,
+                generation_prompt: None,
+                generator: None,
+                job_id: None,
+                is_draft: None,
+                clone_token: None,
+                archive_original: None,
+            })
+            .await
+    })
+    .await
+    .expect("the upload is answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT * 3),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(created.resource_id, "res-new");
+
+    assert_eq!(
+        client
+            .browse
+            .resource_content("res-1")
+            .await
+            .expect("it answers"),
+        "the bytes of res-1"
+    );
+    world.never_answers("content");
+    let started = tokio::time::Instant::now();
+    let unanswered = ends(client.browse.resource_content("res-1"))
+        .await
+        .expect_err("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(
+        message(unanswered),
+        "GET /resources/res-1 got no answer within 30s"
+    );
+    client.close().await;
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_issuer_that_never_answers_fails_each_request_at_the_deadline() {
+    let world = World::on_a_quick_clock().await;
+
+    world.never_answers("token");
+    let started = tokio::time::Instant::now();
+    let grant = ends(refresh_at_issuer(
+        &world.http,
+        &format!("{}/token", world.issuer()),
+        "semiont-browser",
+        "r1",
+    ))
+    .await
+    .expect_err("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(code(&grant), (SignInErrorCode::Exchange, None));
+    assert_eq!(grant.message, "The issuer did not answer within 30s");
+
+    world.never_answers("revoke");
+    let started = tokio::time::Instant::now();
+    let revocation = ends(revoke_at_issuer(
+        &world.http,
+        &format!("{}/revoke", world.issuer()),
+        "semiont-browser",
+        "r1",
+    ))
+    .await
+    .expect_err("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(revocation.message, "The issuer did not answer within 30s");
+
+    world.never_answers("issuer");
+    let started = tokio::time::Instant::now();
+    let discovery = ends(discover_issuer(&world.target(), &world.http))
+        .await
+        .expect_err("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(code(&discovery), (SignInErrorCode::Discovery, None));
+    assert_eq!(
+        discovery.message,
+        format!(
+            "Issuer {}: discovery was not answered within 30s",
+            world.issuer()
+        )
+    );
+
+    world.never_answers("metadata");
+    let started = tokio::time::Instant::now();
+    let metadata = ends(discover_issuer(&world.target(), &world.http))
+        .await
+        .expect_err("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(code(&metadata), (SignInErrorCode::Discovery, None));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_renewal_the_issuer_never_answers_is_tried_inside_the_budget_and_then_given_up() {
+    let world = World::on_a_quick_clock().await;
+    world.never_answers("token");
+    let storage = storing(&world, "kb-a", "a1");
+    let started = tokio::time::Instant::now();
+
+    let refused = ends(refresh_stored_session(
+        storage.as_ref(),
+        "kb-a",
+        &world.http,
+    ))
+    .await
+    .expect_err("the budget is spent");
+
+    let attempts = REFRESH_RETRY.attempts;
+    assert_eq!(world.token_forms().len(), attempts as usize);
+    assert_eq!(
+        refused.message,
+        format!(
+            "The session could not be renewed after {attempts} attempts: The issuer did not answer within 30s"
+        )
+    );
+    // Each attempt waited out its deadline, and the backoff came between.
+    assert!(started.elapsed() >= HTTP_REQUEST_TIMEOUT * attempts);
+    assert!(started.elapsed() < HTTP_REQUEST_TIMEOUT * (attempts + 1));
+    // The session it could not renew is still the one stored.
+    assert_eq!(
+        stored_session(storage.as_ref(), "kb-a"),
+        Some(world.stored("a1", "r1"))
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_service_whose_sign_in_is_never_answered_fails_at_the_deadline() {
+    let world = World::on_a_quick_clock().await;
+    let credential = || Credential {
+        issuer: world.issuer(),
+        client_id: "semiont-indexer".to_owned(),
+        client_secret: "a-secret".to_owned(),
+    };
+    let agent = || Agent {
+        provider: "example".to_owned(),
+        model: "indexer".to_owned(),
+    };
+
+    // The gateway's exchange for the agent's token.
+    world.answers([granted(&jwt(3600, 1), None)]);
+    world.never_answers("agent");
+    let started = tokio::time::Instant::now();
+    let exchange = ends(AgentToken::sign_in(
+        &world.origin,
+        agent(),
+        ServiceToken::new(credential(), world.http.clone()),
+        world.http.clone(),
+    ))
+    .await
+    .err()
+    .expect("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        exchange.to_string().contains("got no answer within 30s"),
+        "{exchange}"
+    );
+
+    // The issuer's grant to the account.
+    world.never_answers("token");
+    let started = tokio::time::Instant::now();
+    let grant = ends(AgentToken::sign_in(
+        &world.origin,
+        agent(),
+        ServiceToken::new(credential(), world.http.clone()),
+        world.http.clone(),
+    ))
+    .await
+    .err()
+    .expect("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        grant.to_string().contains("got no answer within 30s"),
+        "{grant}"
+    );
+
+    // The issuer's own description.
+    world.never_answers("issuer");
+    let started = tokio::time::Instant::now();
+    let discovery = ends(AgentToken::sign_in(
+        &world.origin,
+        agent(),
+        ServiceToken::new(credential(), world.http.clone()),
+        world.http.clone(),
+    ))
+    .await
+    .err()
+    .expect("nobody answered");
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(
+        discovery.to_string().contains("got no answer within 30s"),
+        "{discovery}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_launchers_document_that_is_never_served_is_unreadable_at_the_deadline() {
+    let world = World::on_a_quick_clock().await;
+    world.never_answers("document");
+    let reader = http_discovery(
+        &format!("{}/discovery/kbs.json", world.origin),
+        world.http.clone(),
+    );
+    let started = tokio::time::Instant::now();
+
+    let read = ends(reader.read()).await;
+
+    assert!(
+        took(started.elapsed(), HTTP_REQUEST_TIMEOUT),
+        "{:?}",
+        started.elapsed()
+    );
+    assert_eq!(absent_for(&read), Some(DiscoveryAbsentReason::Unreadable));
+    match read {
+        DiscoveryRead::State(DiscoveryState::Absent { diagnostic, .. }) => assert_eq!(
+            diagnostic.as_deref(),
+            Some("the document was not served within 30s")
+        ),
+        other => panic!("{other:?}"),
+    }
+}
+
 // ── The README's examples ───────────────────────────────────────────────
 //
 // Each fenced Rust block of README.md is one of the regions marked below,
@@ -1911,7 +2417,7 @@ async fn a_session_over_a_stored_sign_in_renews_at_the_issuer_the_sign_in_names(
 
 #[tokio::test(start_paused = true)]
 async fn a_first_sign_in_shows_the_code_and_gives_a_session_that_knows_who_it_is() {
-    let world = World::start().await;
+    let world = World::on_a_quick_clock().await;
     let storage = Arc::new(InMemorySessionStorage::new());
     let access = jwt(3600, 1);
     world.answers([granted(&access, Some("a-refresh-token"))]);

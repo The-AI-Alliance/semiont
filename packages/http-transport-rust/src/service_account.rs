@@ -4,9 +4,11 @@
 //! lifetime before it expires, at most `REFRESH_BEFORE_EXP`. A service
 //! reaches another as itself with this token.
 
+use crate::transport::why_unanswered;
 use semiont::identity::encode_uri_component;
 use semiont::retry::RetryFacts;
 use semiont::session::{refresh_delay, renewal_delay};
+use semiont::timing::HTTP_REQUEST_TIMEOUT;
 use serde_json::Value;
 use std::fmt;
 use std::time::{Duration, SystemTime};
@@ -90,9 +92,18 @@ impl ServiceToken {
             format!("{issuer}/")
         };
         let url = format!("{base}.well-known/openid-configuration");
-        let response = self.http.get(&url).send().await.map_err(|e| {
-            SignInError::Unreachable(format!("OIDC discovery for {issuer} failed: {e}"))
-        })?;
+        let response = self
+            .http
+            .get(&url)
+            .timeout(HTTP_REQUEST_TIMEOUT)
+            .send()
+            .await
+            .map_err(|e| {
+                SignInError::Unreachable(format!(
+                    "OIDC discovery for {issuer} got no answer{}",
+                    why_unanswered(&e)
+                ))
+            })?;
         if !response.status().is_success() {
             let status = response.status().as_u16();
             return Err(SignInError::Refused {
@@ -138,11 +149,13 @@ impl ServiceToken {
             .post(&endpoint)
             .header("content-type", "application/x-www-form-urlencoded")
             .body(form)
+            .timeout(HTTP_REQUEST_TIMEOUT)
             .send()
             .await
             .map_err(|e| {
                 SignInError::Unreachable(format!(
-                    "Client-credentials grant for {client_id} at {issuer} failed: {e}"
+                    "Client-credentials grant for {client_id} at {issuer} got no answer{}",
+                    why_unanswered(&e)
                 ))
             })?;
         if !response.status().is_success() {

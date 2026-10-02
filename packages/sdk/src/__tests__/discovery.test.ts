@@ -11,7 +11,7 @@
  * no fs in the sdk, user decision 2026-07-21).
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { DISCOVERY_URL_PATH, type DiscoveredKB } from '@semiont/core';
+import { DISCOVERY_URL_PATH, HTTP_REQUEST_TIMEOUT_MS, type DiscoveredKB } from '@semiont/core';
 import {
   parseDiscoveryDocument,
   httpDiscovery,
@@ -136,6 +136,20 @@ describe('httpDiscovery', () => {
   it('a network failure → absent(unreadable), never a throw', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('fetch failed'); }));
     expect(await httpDiscovery(DISCOVERY_URL_PATH).read()).toMatchObject({ kind: 'absent', reason: 'unreadable' });
+  });
+
+  it('a read has the deadline every SDK keeps, and one that passes it is unreadable, never a hang', async () => {
+    const deadline = vi.spyOn(AbortSignal, 'timeout');
+    // What a request rejects with when its deadline passes.
+    const fetchSpy = vi.fn(async () => { throw new DOMException('The operation timed out.', 'TimeoutError'); });
+    vi.stubGlobal('fetch', fetchSpy);
+
+    expect(await httpDiscovery(DISCOVERY_URL_PATH).read()).toMatchObject({ kind: 'absent', reason: 'unreadable' });
+
+    expect(deadline.mock.calls).toEqual([[HTTP_REQUEST_TIMEOUT_MS]]);
+    const [, init] = fetchSpy.mock.calls[0] as unknown as [string, { signal?: unknown }];
+    expect(init.signal).toBe(deadline.mock.results[0]?.value);
+    deadline.mockRestore();
   });
 });
 

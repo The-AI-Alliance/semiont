@@ -14,10 +14,10 @@
 //! stop working over one bad round trip.
 
 use crate::service_account::{ServiceToken, SignInError};
-use crate::transport::TokenRefresher;
+use crate::transport::{TokenRefresher, why_unanswered};
 use semiont::retry::{self, RetryFacts, retry_with_backoff};
 use semiont::session::renew_when_due;
-use semiont::timing::REFRESH_RETRY;
+use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::BoxFuture;
 use semiont::types::{AgentTokenRequest, AgentTokenResponse};
 use std::fmt;
@@ -139,9 +139,12 @@ impl AgentToken {
             .post(&url)
             .header("authorization", authorization)
             .json(&body)
+            .timeout(HTTP_REQUEST_TIMEOUT)
             .send()
             .await
-            .map_err(|e| AgentSignInError::Unreachable(format!("{url}: {e}")))?;
+            .map_err(|e| {
+                AgentSignInError::Unreachable(format!("{url} got no answer{}", why_unanswered(&e)))
+            })?;
         if !response.status().is_success() {
             return Err(AgentSignInError::Refused {
                 status: response.status().as_u16(),

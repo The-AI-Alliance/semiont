@@ -7,7 +7,10 @@ A knowledge base over its gateway's HTTP surface
 ([TRANSPORT-CONTRACT.md](../../docs/protocol/TRANSPORT-CONTRACT.md)).
 
 - `transport` — `HttpTransport`: `POST /bus/emit` for what it sends, and the
-  gateway's plain operations. Each emit is logged (`[bus EMIT]`), counted
+  gateway's plain operations. A request that is neither the stream nor an
+  emit has the deadline every SDK keeps (`HTTP_REQUEST_TIMEOUT`, or
+  `Timing::http_request`): unanswered by then, it fails as one that got no
+  answer and is not made again. Each emit is logged (`[bus EMIT]`), counted
   (`semiont.bus.sent`) and sent in a `bus.emit` span whose trace travels as
   `traceparent`; each frame received is logged (`[bus RECV]`) and delivered
   with the trace it carried.
@@ -18,7 +21,9 @@ A knowledge base over its gateway's HTTP surface
   and held shut while the token is refused, until a new one arrives.
 - `sse` — the stream's framing.
 - `content` — `HttpContentTransport`: a resource's bytes up, with progress
-  and cancellation, and down, whole or as a stream.
+  and cancellation, and down, whole or as a stream. The deadline is on the
+  bytes beginning to arrive; an upload has none, since how long it takes is
+  how large the resource is.
 - `client` — `client(config, options)`: the SDK's `SemiontClient` over this
   crate's transport under all three contracts, so its `auth` and `system`
   namespaces are there.
@@ -37,7 +42,9 @@ person in:
   the authorization-code grant with PKCE, the device grant, the refresh
   grant and revocation. A stored session's renewal tells a refusal from an
   outage: only no answer, or one that says "not now", is tried again, inside
-  a bounded budget. PKCE's challenge and its random verifier are `ring`'s.
+  a bounded budget. Every request to the issuer has the same deadline, and
+  one that passes it is one that got no answer. PKCE's challenge and its
+  random verifier are `ring`'s.
 - `session` — sessions over a gateway. `HttpSessionFactory` is what a
   `SemiontBrowser` builds its sessions through; `session_from_stored` (a
   sign-in a storage already holds), `sign_in_device`, `session_from_issued`

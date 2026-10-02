@@ -5,6 +5,7 @@
  * with the issuer's answers scripted per case. Nothing here names a vendor.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { HTTP_REQUEST_TIMEOUT_MS, REFRESH_RETRY } from '@semiont/core';
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import { InMemorySessionStorage } from '../session-storage';
 import {
@@ -426,5 +427,67 @@ describe('the device grant', () => {
 
     await expect(signInWithDeviceGrant({ target: TARGET, onCode: () => {} }))
       .rejects.toThrow(new RegExp(SCRIPT_CLIENT_ID));
+  });
+});
+
+describe('a request to the issuer has a deadline', () => {
+  /** The signal each request to the issuer was made under, by URL. */
+  function signals(): Array<[string, unknown]> {
+    return fetchMock.mock.calls.map(([url, init]) => [url as string, (init as { signal?: unknown } | undefined)?.signal]);
+  }
+
+  it('discovery, a grant, a revocation and the device grant each carry the one every SDK keeps', async () => {
+    const deadline = vi.spyOn(AbortSignal, 'timeout');
+    fetchMock.mockImplementation(async (url: string) => {
+      if (url.endsWith('/.well-known/openid-configuration')) return reply(DISCOVERY);
+      if (url === `${ISSUER}/device`) {
+        return reply({ device_code: 'dev', user_code: 'ABCD-EFGH', verification_uri: `${ISSUER}/device/verify`, expires_in: 600, interval: 1 });
+      }
+      if (url === `${ISSUER}/token`) return reply({ access_token: 'acc', refresh_token: 'ref', token_type: 'Bearer' });
+      if (url === `${ISSUER}/revoke`) return reply({});
+      return reply(undefined, 404);
+    });
+
+    await discoverIssuer(TARGET);
+    await refreshAtIssuer(`${ISSUER}/token`, BROWSER_CLIENT_ID, 'ref');
+    await revokeAtIssuer(`${ISSUER}/revoke`, BROWSER_CLIENT_ID, 'ref');
+    vi.useFakeTimers();
+    const signedIn = signInWithDeviceGrant({ target: TARGET, onCode: () => {} });
+    await vi.advanceTimersByTimeAsync(1500);
+    await signedIn;
+    vi.useRealTimers();
+
+    const made = signals();
+    expect(made.map(([url]) => url)).toEqual([
+      `${ISSUER}/.well-known/openid-configuration`,
+      `${ISSUER}/token`,
+      `${ISSUER}/revoke`,
+      `${ISSUER}/.well-known/openid-configuration`,
+      `${ISSUER}/device`,
+      `${ISSUER}/token`,
+    ]);
+    // One deadline per request, each the shared one, and each the signal
+    // its request was made under.
+    expect(deadline.mock.calls).toEqual(made.map(() => [HTTP_REQUEST_TIMEOUT_MS]));
+    expect(made.map(([, signal]) => signal)).toEqual(deadline.mock.results.map((result) => result.value));
+  });
+
+  it('a renewal the issuer never answers is tried again inside the budget, and then says how hard it tried', async () => {
+    vi.useFakeTimers();
+    const storage = new InMemorySessionStorage();
+    storage.set('semiont.session.kb-1', JSON.stringify({
+      access: 'a1', refresh: 'r1', clientId: BROWSER_CLIENT_ID, tokenEndpoint: `${ISSUER}/token`,
+    }));
+    // What a request rejects with when its deadline passes.
+    fetchMock.mockRejectedValue(new DOMException('The operation timed out.', 'TimeoutError'));
+
+    const renewed = expect(refreshStoredSession(storage, 'kb-1')).rejects.toThrow(
+      `The session could not be renewed after ${REFRESH_RETRY.attempts} attempts: The operation timed out.`,
+    );
+    await vi.advanceTimersByTimeAsync(60_000);
+    await renewed;
+
+    expect(fetchMock).toHaveBeenCalledTimes(REFRESH_RETRY.attempts);
+    vi.useRealTimers();
   });
 });

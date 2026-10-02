@@ -15,7 +15,7 @@
 //! bounded budget: a refused grant is final, because trying again only
 //! delays a sign-in the person has to perform anyway.
 
-use crate::transport::{HttpTransport, HttpTransportConfig, Timing};
+use crate::transport::{HttpTransport, HttpTransportConfig, Timing, why_unanswered};
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use ring::rand::SecureRandom;
@@ -26,7 +26,7 @@ use semiont::session::{
     BROWSER_CLIENT_ID, HttpEndpoint, SCRIPT_CLIENT_ID, SIGN_IN_SCOPE, StoredSession, session_key,
 };
 use semiont::storage::SessionStorage;
-use semiont::timing::REFRESH_RETRY;
+use semiont::timing::{HTTP_REQUEST_TIMEOUT, REFRESH_RETRY};
 use semiont::transport::{GatewayOperations, Transport};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -113,12 +113,16 @@ pub async fn discover_issuer(
     let response = http
         .get(&url)
         .header("accept", "application/json")
+        .timeout(HTTP_REQUEST_TIMEOUT)
         .send()
         .await
         .map_err(|e| {
             SignInError::new(
                 SignInErrorCode::Discovery,
-                format!("Issuer {issuer}: discovery was not answered: {e}"),
+                format!(
+                    "Issuer {issuer}: discovery was not answered{}",
+                    why_unanswered(&e)
+                ),
             )
         })?;
     let status = response.status().as_u16();
@@ -352,7 +356,10 @@ fn no_refresh_token() -> SignInError {
 // ── The token endpoint ──────────────────────────────────────────────────
 
 /// One form posted to the issuer: the status it answered, and its answer
-/// when that was a JSON object. No answer at all is an error with no status.
+/// when that was a JSON object. No answer at all is an error with no status,
+/// and so is one that has not come by the request's deadline: an issuer that
+/// accepts a connection and never answers would otherwise hold a renewal,
+/// and the session waiting on it, for as long as the process lives.
 async fn post_form(
     http: &reqwest::Client,
     endpoint: &str,
@@ -363,12 +370,13 @@ async fn post_form(
         .header("content-type", "application/x-www-form-urlencoded")
         .header("accept", "application/json")
         .body(query(form))
+        .timeout(HTTP_REQUEST_TIMEOUT)
         .send()
         .await
         .map_err(|e| {
             SignInError::new(
                 SignInErrorCode::Exchange,
-                format!("The issuer did not answer: {e}"),
+                format!("The issuer did not answer{}", why_unanswered(&e)),
             )
         })?;
     let status = response.status().as_u16();

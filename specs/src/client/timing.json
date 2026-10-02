@@ -21,6 +21,11 @@
       "docs": "The retry budget of ONE emit. Per request, never per boot pass: re-running a whole catch-up pass to recover from one refusal re-sends hundreds of emits that already succeeded. Small on purpose: an emit a caller awaits must fail while the caller still cares, and the patience for a gateway that is down belongs to the pass above it."
     },
     {
+      "name": "httpRequestTimeoutMs",
+      "value": 30000,
+      "docs": "The deadline on one HTTP request that is neither the stream nor an emit: one of the gateway's own operations (who a token is, a media token, an agent's token, the resource metadata, health, status), the wait for a resource's bytes to begin arriving, a request to the issuer (its discovery, a grant, a revocation), and a read of a launcher's discovery document. Unanswered here, the request fails as one that got no answer. Without it, a gateway or an issuer that accepts a connection and never answers holds a session's start, and every renewal after it, for as long as the process lives. An upload has no deadline: how long it takes is how large the resource is."
+    },
+    {
       "name": "reconnectMs",
       "value": 5000,
       "docs": "The first wait before a failed stream is opened again. Each further failure doubles it, up to `maxReconnectMs`, and a successful open resets it. Also the cadence at which a transport with no usable credential checks for one, which costs no request."
