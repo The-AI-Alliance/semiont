@@ -87,13 +87,14 @@ type Motivation = components['schemas']['Motivation'];
 
 ## Event Catalog
 
-All events are defined in `EventBusContext.tsx` with TypeScript type safety:
+All events are typed by `EventMap` in `@semiont/core`, generated from the spec. The ids they
+carry are typed (`AnnotationId`, `ResourceId`), not `string`:
 
 ```typescript
 interface EventMap {
   // User clicks annotation on resource overlay
   'browse:click': {
-    annotationId: string;
+    annotationId: AnnotationId;
     // Local-only extra: viewport geometry for anchoring a popup. Never on the
     // wire — a bridged-in remote click simply arrives without one.
     anchorRect?: AnchorRect;
@@ -101,27 +102,27 @@ interface EventMap {
 
   // Bidirectional hover: annotation overlay ↔ panel entry
   'beckon:hover': {
-    annotationId: string | null;  // null = unhover
+    annotationId: AnnotationId | null;  // null = unhover
   };
 
   // Coordinator requests panel to open with specific tab
   'panel:open': {
-    activePanel: 'references' | 'comments' | 'highlights' | 'tags' | 'assessments';
-    scrollToAnnotationId?: string;
+    panel: string;
+    scrollToAnnotationId?: AnnotationId;
   };
 
   // Reference resolution wizard
   'bind:initiate': {
-    annotationId: string;
-    resourceId: string;
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
     defaultTitle: string;
     entityTypes: string[];
   };
 
   // Annotation body updates
   'bind:update-body': {
-    annotationId: string;
-    resourceId: string;
+    annotationId: AnnotationId;
+    resourceId: ResourceId;
     operations: Array<{ op: string; item: any }>;
   };
 }
@@ -150,7 +151,7 @@ sequenceDiagram
 
     Note over Coord: Resolves the annotation by id,<br/>derives its motivation → panel type<br/>'linking' → 'references'
 
-    Coord->>Bus: emit('panel:open', {<br/>  activePanel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>})
+    Coord->>Bus: emit('panel:open', {<br/>  panel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>})
     Bus->>Page: panel:open event
 
     Page->>Page: setState({<br/>  activePanel: 'references',<br/>  scrollToAnnotationId: 'anno-123'<br/>})
@@ -439,16 +440,16 @@ export const ResourceViewerPage: FC<Props> = ({ resourceId }) => {
 
   // Subscribe to coordination events
   useEventSubscriptions({
-    'beckon:hover': ({ annotationId }: { annotationId: string | null }) => {
+    'beckon:hover': ({ annotationId }: { annotationId: AnnotationId | null }) => {
       // Central hover state - used by both resource overlay and panel entries
       setHoveredAnnotationId(annotationId);
     },
 
-    'panel:open': ({ activePanel, scrollToAnnotationId }: {
-      activePanel: PanelType;
-      scrollToAnnotationId?: string;
+    'panel:open': ({ panel, scrollToAnnotationId }: {
+      panel: string;
+      scrollToAnnotationId?: AnnotationId;
     }) => {
-      setActivePanel(activePanel);
+      setActivePanel(panel);
       if (scrollToAnnotationId) {
         setScrollToAnnotationId(scrollToAnnotationId);
       }

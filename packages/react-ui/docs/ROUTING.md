@@ -505,7 +505,7 @@ routes: {
 ### ✅ Do: Type-safe route parameters
 
 ```tsx
-type ResourceId = string;
+import type { ResourceId } from '@semiont/core';
 
 routes: {
   resource: (id: ResourceId) => `/resource/${id}`,

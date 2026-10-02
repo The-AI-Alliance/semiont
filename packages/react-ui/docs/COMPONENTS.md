@@ -41,9 +41,24 @@ const { resource, annotations } = useResourceLoader(session.client, resourceId);
 - `session` — the `SemiontSession` backing the resource (its client mutates/invalidates; its bus feeds annotation events); `null` while loading.
 - `resource` — the `ResourceDescriptor` with `content` merged in (decoded text, or a media-token URL for binary media).
 - `annotations` — grouped annotations (`useResourceLoader` returns them ready-shaped).
-- `onOpenResource?` — a resolved reference was followed (host-owned navigation).
+- `onOpenResource?` — a resolved reference was followed; called with that resource's `ResourceId` (host-owned navigation).
 - `onOpenPanel?` — an annotation click requests a side panel (omit for a bare view).
-- `newAnnotationIds?`, `showLineNumbers?`, `hoverDelayMs?`, `hoveredAnnotationId?`, `generatingReferenceId?` — optional presentation / coordination hints.
+- `sparkleAnnotationIds?`, `showLineNumbers?`, `hoverDelayMs?`, `hoveredAnnotationId?`, `generatingReferenceId?` — optional presentation / coordination hints.
+
+**Ids are typed.** `useResourceLoader` takes a `ResourceId`, and `onOpenResource` hands one
+back. A description's `@id` is one already. Text from outside the SDK — a route parameter, a
+query string — becomes one through `@semiont/core`:
+
+```tsx
+import { isResourceId } from '@semiont/core';
+
+if (!isResourceId(params.id)) return <NotFound />;   // narrows `params.id` to a ResourceId
+const { resource, annotations } = useResourceLoader(session.client, params.id);
+```
+
+`isResourceId` asks without throwing. The constructor `resourceId(text)` throws a `TypeError`
+for text the rule refuses: an id is 1 to 128 of `A–Z a–z 0–9 _ -`. `AnnotationId` and `JobId`
+follow the same rule, with `isAnnotationId` / `annotationId` and `isJobId` / `jobId`.
 
 **Features:**
 - Browse / annotate modes (annotate mode persisted in `localStorage`), CodeMirror syntax highlighting, the annotation overlay, responsive layout.
@@ -71,7 +86,7 @@ import { BrowseView } from '@semiont/react-ui';
 />
 ```
 
-**Key props:** `content`, `annotations`, `annotateMode`, `session` (required); `mimeType?`, `resourceUri?`, `hoveredAnnotationId?`, `selectedClick?`, `hoverDelayMs?`, `newAnnotationIds?`, `renderers?` (override the read-only media renderers).
+**Key props:** `content`, `mimeType`, `resourceUri` (a `ResourceId`), `annotations`, `annotateMode`, `session` (required); `hoveredAnnotationId?`, `selectedClick?`, `hoverDelayMs?`, `sparkleAnnotationIds?`, `renderers?` (override the read-only media renderers).
 
 ### AnnotateView
 
@@ -94,20 +109,20 @@ import { AnnotateView } from '@semiont/react-ui';
 />
 ```
 
-**Key props:** `content`, `annotations`, `uiState`, `annotateMode`, `session` (required); `onUIStateChange?`, `editable?`, `enableWidgets?`, `getTargetResourceName?`, `generatingReferenceId?`, `showLineNumbers?`, `hoverDelayMs?`, `newAnnotationIds?`.
+**Key props:** `content`, `resourceUri` (a `ResourceId`), `annotations`, `uiState`, `annotateMode`, `session` (required); `mimeType?`, `onUIStateChange?`, `editable?`, `enableWidgets?`, `getTargetResourceName?`, `generatingReferenceId?`, `showLineNumbers?`, `hoverDelayMs?`, `sparkleAnnotationIds?`.
 
 ### AnnotationHistory
 
-The resource's annotation-event history. Takes the resource id (`rUri`) and the host's
+The resource's annotation-event history. Takes the events to show and the host's
 framework-agnostic navigation primitives (`Link` + `routes`).
 
 ```tsx
 import { AnnotationHistory } from '@semiont/react-ui';
 
-<AnnotationHistory rUri={rId} Link={Link} routes={routes} />
+<AnnotationHistory events={events} Link={Link} routes={routes} />
 ```
 
-**Key props:** `rUri`, `Link`, `routes` (required); `hoveredAnnotationId?`, `onEventHover?`, `onEventClick?`.
+**Key props:** `events`, `Link`, `routes` (required); `eventsLoading?`, `eventsError?`, `onRetryEvents?`, `annotations?`, `hoveredAnnotationId?`, `onEventHover?`, `onEventClick?`. The two callbacks are called with the row's `AnnotationId`, or `null`.
 
 ---
 
@@ -258,7 +273,8 @@ Also exported: `CommentsPanel`, `TaggingPanel`, `ReferencesPanel`, `AssessmentPa
 `ResourceInfoPanel`, and `UnifiedAnnotationsPanel` (all motivations in one tabbed panel —
 additionally takes `annotators`, `Link` + `routes` for its reference-tab links, and
 `onOpenResource?` for host-owned navigation when a resolved reference is followed).
-Each panel's `Props` interface lists its state inputs. `JsonLdPanel` is the one exception
+Each panel's `Props` interface lists its state inputs. `resourceId` is a `ResourceId`, and
+`onOpenResource` is called with one. `JsonLdPanel` is the one exception
 that still reads `SemiontProvider`.
 
 ### Panel Entries
@@ -284,7 +300,7 @@ import { CommentEntry, ReferenceEntry } from '@semiont/react-ui';
 - `session`, the annotation (prop named by motivation: `highlight` / `reference` / `comment` / `assessment` / `tag`), and `isFocused` are required; `isHovered?` pulses the row, `ref?` reaches the row element.
 - Click emits `browse:click` via `session.client.browse.click(id)` — the same event the stock Browser routes to panel focus, so a host-composed list and any Semiont surface on the same session stay in sync for free.
 - Hover (debounced) emits the beckon hover signal that highlights the annotation in an open viewer on the same session.
-- `ReferenceEntry` extras: `onOpenResource?` (host navigation when the resolved reference is followed), `annotateMode?` (resolve / unlink affordances), `isGenerating?`.
+- `ReferenceEntry` extras: `onOpenResource?` (host navigation when the resolved reference is followed; called with its `ResourceId`), `annotateMode?` (resolve / unlink affordances), `isGenerating?`.
 
 ---
 
@@ -479,7 +495,7 @@ import { CodeMirrorRenderer } from '@semiont/react-ui';
 <CodeMirrorRenderer content={text} editable={false} showLineNumbers hoverDelayMs={200} />
 ```
 
-`content` and `hoverDelayMs` are required; also optional: `segments`, `onTextSelect`, `onChange`, `session`, `newAnnotationIds`, `hoveredAnnotationId`, `scrollToAnnotationId`, `sourceView`, `enableWidgets`, `getTargetResourceName`, `generatingReferenceId`.
+`content` and `hoverDelayMs` are required; also optional: `segments`, `onTextSelect`, `onChange`, `session`, `sparkleAnnotationIds`, `hoveredAnnotationId`, `scrollToAnnotationId`, `sourceView`, `enableWidgets`, `getTargetResourceName`, `generatingReferenceId`.
 
 ### StatusDisplay
 

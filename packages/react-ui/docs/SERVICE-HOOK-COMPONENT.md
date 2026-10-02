@@ -511,7 +511,7 @@ it('should set assistingMotivation$ on assist-request and clear on job:complete'
   const mark = createMarkStateUnit(client, testUri);
 
   // Trigger assist (local request → mark state unit runs client.mark.assist)
-  client.bus.get('mark:assist-request').next({
+  client.bus.emit('mark:assist-request', {
     motivation: 'linking',
     options: { entityTypes: ['Person'] },
   });
@@ -519,7 +519,7 @@ it('should set assistingMotivation$ on assist-request and clear on job:complete'
   expect(await firstValueFrom(mark.assistingMotivation$)).toBe('linking');
 
   // Simulate the job finishing on the unified channel
-  client.bus.get('job:complete').next({ jobId, resourceId: testUri, jobType: 'reference-annotation' } as any);
+  client.bus.emit('job:complete', { jobId, resourceId: testUri, jobType: 'reference-annotation' });
 
   // assistingMotivation$ returns to null
 });
