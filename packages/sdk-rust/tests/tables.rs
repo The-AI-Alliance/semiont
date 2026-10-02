@@ -33,6 +33,12 @@ fn kb_identity_cases() {
             "{}",
             case["why"]
         );
+        assert_eq!(
+            identity::kb_did(domain),
+            text(case, "did"),
+            "{}",
+            case["why"]
+        );
         checked += 1;
     }
     assert!(

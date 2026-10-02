@@ -12,104 +12,24 @@ use base64::engine::general_purpose::STANDARD;
 use bytes::Bytes;
 use futures::StreamExt;
 use semiont::bus::{Bus, operation};
-use semiont::errors::{SemiontError, TransportError};
+use semiont::errors::SemiontError;
 use semiont::retry::RetryPolicy;
 use semiont::transport::{
     ConnectionState, ContentTransport, Envelope, GatewayOperations, PutBinaryRequest, ResourceHold,
     Transport,
 };
+use semiont_conformance_drivers::{
+    Arguments, Driver, Ended, Running, count, failure, locked, object, optional_text, say, serve,
+    text, texts,
+};
 use semiont_http_transport::content::HttpContentTransport;
 use semiont_http_transport::transport::{HttpTransport, HttpTransportConfig, Timing};
-use semiont_observability::telemetry;
-use serde_json::{Map, Value, json};
+use serde_json::{Value, json};
 use std::collections::HashMap;
-use std::io::Write;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::io::AsyncBufReadExt;
 use tokio::sync::watch;
-use tokio::task::{AbortHandle, JoinSet};
-
-type Arguments = Map<String, Value>;
-
-/// How an operation ends, apart from succeeding.
-enum Ended {
-    /// The suite sent something this driver cannot act on: the suite's
-    /// mistake, never the SDK's.
-    Misuse(String),
-    /// The SDK failed it.
-    Failed(SemiontError),
-}
-
-impl From<SemiontError> for Ended {
-    fn from(error: SemiontError) -> Ended {
-        Ended::Failed(error)
-    }
-}
-
-impl From<TransportError> for Ended {
-    fn from(error: TransportError) -> Ended {
-        Ended::Failed(error.into())
-    }
-}
-
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-}
-
-fn say(line: Value) {
-    let mut out = std::io::stdout().lock();
-    let _ = writeln!(out, "{line}");
-}
-
-/// A failure as the protocol carries it: the SDK's code, and the status when
-/// a server stated one.
-fn failure(code: &str, status: Option<u16>, detail: String) -> Value {
-    let mut failure = json!({ "code": code, "detail": detail });
-    if let Some(status) = status {
-        failure["status"] = json!(status);
-    }
-    failure
-}
-
-fn text<'a>(args: &'a Arguments, name: &str) -> Result<&'a str, Ended> {
-    args.get(name)
-        .and_then(Value::as_str)
-        .ok_or_else(|| Ended::Misuse(format!("{name} must be a string")))
-}
-
-fn optional_text(args: &Arguments, name: &str) -> Result<Option<String>, Ended> {
-    match args.get(name) {
-        None => Ok(None),
-        Some(_) => text(args, name).map(|text| Some(text.to_owned())),
-    }
-}
-
-fn count(args: &Arguments, name: &str) -> Result<u64, Ended> {
-    args.get(name)
-        .and_then(Value::as_u64)
-        .ok_or_else(|| Ended::Misuse(format!("{name} must be a whole number")))
-}
-
-fn object<'a>(args: &'a Arguments, name: &str) -> Result<&'a Arguments, Ended> {
-    args.get(name)
-        .and_then(Value::as_object)
-        .ok_or_else(|| Ended::Misuse(format!("{name} must be an object")))
-}
-
-fn texts(args: &Arguments, name: &str) -> Result<Vec<String>, Ended> {
-    args.get(name)
-        .and_then(Value::as_array)
-        .and_then(|items| {
-            items
-                .iter()
-                .map(|item| item.as_str().map(str::to_owned))
-                .collect()
-        })
-        .ok_or_else(|| Ended::Misuse(format!("{name} must be a list of strings")))
-}
+use tokio::task::JoinSet;
 
 struct Client {
     token: watch::Sender<Option<String>>,
@@ -119,19 +39,17 @@ struct Client {
 }
 
 #[derive(Default)]
-struct Driver {
+struct Wire {
     client: Mutex<Option<Arc<Client>>>,
     /// The holds `subscribe-resource` took, per resource, newest last.
     held: Mutex<HashMap<String, Vec<ResourceHold>>>,
-    /// What abandons each request still unsettled, by the id of its operation.
-    callers: Mutex<HashMap<u64, AbortHandle>>,
     /// The state last reported, and the tasks that report what the client
     /// observes.
     reported: Mutex<Option<ConnectionState>>,
     reporters: Mutex<JoinSet<()>>,
 }
 
-impl Driver {
+impl Wire {
     fn client(&self) -> Result<Arc<Client>, Ended> {
         locked(&self.client)
             .clone()
@@ -190,6 +108,8 @@ impl Driver {
             channels: Some(texts(args, "channels")?),
             http: reqwest::Client::new(),
             timing,
+
+            bookmarks: None,
         });
 
         let mut reporters = locked(&self.reporters);
@@ -254,7 +174,13 @@ impl Driver {
         Ok(Value::Null)
     }
 
-    async fn run(self: &Arc<Self>, id: u64, op: &str, args: Arguments) -> Result<Value, Ended> {
+    async fn operation(
+        self: &Arc<Self>,
+        running: &Running,
+        id: u64,
+        op: &str,
+        args: Arguments,
+    ) -> Result<Value, Ended> {
         match op {
             "open" => self.open(&args),
             "close" => match self.client() {
@@ -289,12 +215,10 @@ impl Driver {
             "emit" => self.emit(&args).await,
             "request" => self.request(&args).await,
             "abandon" => count(&args, "request").and_then(|request| {
-                match locked(&self.callers).get(&request) {
-                    Some(caller) => {
-                        caller.abort();
-                        Ok(Value::Null)
-                    }
-                    None => Err(Ended::Misuse("no such request is unsettled".to_owned())),
+                if running.abandon(request) {
+                    Ok(Value::Null)
+                } else {
+                    Err(Ended::Misuse("no such request is unsettled".to_owned()))
                 }
             }),
             "put" => self.put(&args, None).await,
@@ -443,93 +367,51 @@ impl Driver {
     }
 }
 
-/// The operations this driver has.
-const OPERATIONS: [&str; 20] = [
-    "open",
-    "close",
-    "set-token",
-    "listen",
-    "subscribe-resource",
-    "release-resource",
-    "emit",
-    "request",
-    "abandon",
-    "put",
-    "upload",
-    "get",
-    "get-stream",
-    "graph",
-    "health",
-    "status",
-    "current-user",
-    "media-token",
-    "protected-resource-metadata",
-    "sync",
-];
+impl Driver for Wire {
+    const OPERATIONS: &'static [&'static str] = &[
+        "open",
+        "close",
+        "set-token",
+        "listen",
+        "subscribe-resource",
+        "release-resource",
+        "emit",
+        "request",
+        "abandon",
+        "put",
+        "upload",
+        "get",
+        "get-stream",
+        "graph",
+        "health",
+        "status",
+        "current-user",
+        "media-token",
+        "protected-resource-metadata",
+        "sync",
+    ];
 
-/// Run one operation and answer it, once.
-async fn operate(driver: Arc<Driver>, id: u64, op: String, args: Arguments) {
-    let running = tokio::spawn({
-        let driver = driver.clone();
-        async move { driver.run(id, &op, args).await }
-    });
-    locked(&driver.callers).insert(id, running.abort_handle());
-    let outcome = running.await;
-    locked(&driver.callers).remove(&id);
-    say(match outcome {
-        // The suite abandoned it, and the SDK reported nothing else.
-        Err(_) => json!({ "id": id, "abandoned": true }),
-        Ok(Ok(value)) => json!({ "id": id, "ok": value }),
-        Ok(Err(Ended::Misuse(why))) => json!({ "id": id, "misuse": why }),
-        Ok(Err(Ended::Failed(error))) => {
-            json!({ "id": id, "error": failure(error.code(), error.status(), error.to_string()) })
+    async fn run(
+        self: Arc<Self>,
+        running: Arc<Running>,
+        id: u64,
+        op: String,
+        args: Arguments,
+    ) -> Result<Value, Ended> {
+        self.operation(&running, id, &op, args).await
+    }
+
+    async fn finish(self: Arc<Self>) {
+        let client = locked(&self.client).clone();
+        if let Some(client) = client {
+            client.transport.close().await;
         }
-    });
+        let mut reporters = std::mem::take(&mut *locked(&self.reporters));
+        while reporters.join_next().await.is_some() {}
+    }
 }
 
 #[tokio::main]
 async fn main() {
-    let _ = rustls::crypto::ring::default_provider().install_default();
-    // Exports only when the suite names an OTLP endpoint in the environment.
-    if let Err(error) =
-        telemetry::initialize("semiont-conformance-driver", env!("CARGO_PKG_VERSION"))
-    {
-        eprintln!("telemetry: {error}");
-    }
-    let driver = Arc::new(Driver::default());
-    say(json!({ "ready": true }));
-
-    let mut operations = JoinSet::new();
-    let mut lines = tokio::io::BufReader::new(tokio::io::stdin()).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        let Ok(Value::Object(mut args)) = serde_json::from_str::<Value>(&line) else {
-            eprintln!("a line that is not an operation: {line}");
-            continue;
-        };
-        let (Some(id), Some(Value::String(op))) = (
-            args.remove("id").and_then(|id| id.as_u64()),
-            args.remove("op"),
-        ) else {
-            eprintln!("an operation with no id or no op: {line}");
-            continue;
-        };
-        if OPERATIONS.contains(&op.as_str()) {
-            operations.spawn(operate(driver.clone(), id, op, args));
-        } else {
-            // Said at once, before the next operation is read.
-            say(json!({ "id": id, "unsupported": true }));
-        }
-    }
-
-    // Its input ended: dispose of the client, say what is left to say, and
-    // export whatever has not been exported yet.
-    let client = locked(&driver.client).clone();
-    if let Some(client) = client {
-        client.transport.close().await;
-    }
-    while operations.join_next().await.is_some() {}
-    let mut reporters = std::mem::take(&mut *locked(&driver.reporters));
-    while reporters.join_next().await.is_some() {}
-    telemetry::shutdown(Duration::from_secs(5));
-    std::process::exit(0);
+    serve(Wire::default()).await;
 }

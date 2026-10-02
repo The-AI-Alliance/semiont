@@ -7,6 +7,7 @@ import { GatherNamespace } from '../gather';
 import { MatchNamespace } from '../match';
 import { YieldNamespace } from '../yield';
 import { JobNamespace } from '../job';
+import { JobFailedError } from '../job-status-poll';
 import type { IGatewayOperations, ITransport, IContentTransport, GatheredContext } from '@semiont/core';
 import { inMemoryTransport, gatewayOperationSpies } from '../../__tests__/helpers/in-memory-transport';
 
@@ -359,6 +360,10 @@ describe('MarkNamespace', () => {
       } as never), 0);
     });
     expect(err.message).toBe('budget spent');
+    // A failure a caller can route on: the code every SDK reports for it.
+    expect(err).toBeInstanceOf(JobFailedError);
+    expect((err as JobFailedError).code).toBe('job.failed');
+    expect((err as JobFailedError).jobId).toBe('j1');
     bus.destroy();
   });
 
@@ -378,6 +383,27 @@ describe('MarkNamespace', () => {
     });
     expect(err.message).toBe('no field');
     bus.destroy();
+  });
+
+  it('assist() reports a failure it learned from the job\'s status under the same code', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const mock = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'failed', error: 'worker gave up' } }),
+    });
+    const m = new MarkNamespace(mock.transport, bus);
+
+    let failure: unknown;
+    m.assist(RID, 'highlighting', {}).subscribe({ error: (e) => { failure = e; } });
+    await vi.advanceTimersByTimeAsync(100);
+    await vi.advanceTimersByTimeAsync(16_000);
+
+    expect(failure).toBeInstanceOf(JobFailedError);
+    expect((failure as JobFailedError).code).toBe('job.failed');
+    expect((failure as JobFailedError).message).toBe('worker gave up');
+    bus.destroy();
+    vi.useRealTimers();
   });
 
   // Tagging validation: dispatchAssist throws synchronously when
@@ -560,6 +586,22 @@ describe('JobNamespace', () => {
     const cid = mock.emitSpy.mock.calls[0]?.[2]?.correlationId as string;
     mock.transportBus.emit('job:cancel-failed' as never, { message: 'queue down' } as never, { correlationId: cid });
     await assertion;
+  });
+});
+
+describe('JobNamespace.pollUntilComplete', () => {
+  it('a job that does not end within the time allowed fails as a timeout, under its code', async () => {
+    vi.useFakeTimers();
+    const mock = createMockTransport({
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'running' } }),
+    });
+    const job = new JobNamespace(mock.transport, new EventBus());
+
+    const polling = job.pollUntilComplete(jobId('j1'), { interval: 10, timeout: 50 });
+    const refusal = expect(polling).rejects.toMatchObject({ code: 'bus.timeout' });
+    await vi.advanceTimersByTimeAsync(200);
+    await refusal;
+    vi.useRealTimers();
   });
 });
 

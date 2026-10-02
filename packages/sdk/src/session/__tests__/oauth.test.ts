@@ -261,6 +261,19 @@ describe('refresh and revocation', () => {
     const stored = (storage: InMemorySessionStorage) =>
       JSON.parse(storage.get(`semiont.session.${KB}`) ?? 'null') as { access: string } | null;
 
+    it('does not write back a session that was signed out while it was being renewed', async () => {
+      const storage = seeded();
+      fetchMock.mockImplementation(async () => {
+        // The sign-out lands while the grant is on its way.
+        storage.delete(`semiont.session.${KB}`);
+        return reply({ access_token: 'acc-2', refresh_token: 'ref-2' });
+      });
+
+      await refreshStoredSession(storage, KB);
+
+      expect(stored(storage)).toBeNull();
+    });
+
     it('rides out a 503 and returns the renewed token', async () => {
       fetchMock
         .mockImplementationOnce(async () => reply(undefined, 503))

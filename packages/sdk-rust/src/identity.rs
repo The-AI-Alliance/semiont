@@ -1,7 +1,7 @@
 //! How a knowledge base is named, and the principals who act in it.
 //!
 //! Every function here is held to a shared case table that TypeScript and Go
-//! run too: `kb_resource` to specs/src/kb-identity/cases.json, the rest to
+//! run too: `kb_did` and `kb_resource` to specs/src/kb-identity/cases.json, the rest to
 //! specs/src/principals/cases.json (tests/tables.rs).
 
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
@@ -21,6 +21,12 @@ const URI_COMPONENT: &AsciiSet = &NON_ALPHANUMERIC
 /// Each UTF-8 byte of every other character as `%XX`, uppercase hex.
 pub fn encode_uri_component(value: &str) -> String {
     utf8_percent_encode(value, URI_COMPONENT).to_string()
+}
+
+/// The knowledge base's did: `did:web:` and its domain, verbatim. The domain
+/// is already in did:web's colon-path form, so nothing in it is encoded.
+pub fn kb_did(domain: &str) -> String {
+    format!("did:web:{domain}")
 }
 
 /// The knowledge base's resource identifier, the audience its tokens carry:

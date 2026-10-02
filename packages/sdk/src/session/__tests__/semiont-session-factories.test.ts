@@ -155,6 +155,29 @@ describe('SemiontSession.fromIssuedSession', () => {
     }
   });
 
+  test('renewals asked for together are one request of the issuer', async () => {
+    const newAccess = freshJwt();
+    const fetchMock = vi.fn(async (_url: string) => issuerReply({ access_token: newAccess, refresh_token: 'refresh-2' }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const session = await SemiontSession.fromIssuedSession({
+      kb: KB,
+      storage,
+      baseUrl: 'http://test.local',
+      session: testSession(freshJwt(), 'refresh-tok'),
+    });
+
+    try {
+      // A stream refused and a request refused at the same moment each ask.
+      // An issuer that rotates refresh tokens refuses the second grant.
+      const renewed = await Promise.all([session.refresh(), session.refresh()]);
+      expect(renewed).toEqual([newAccess, newAccess]);
+      expect(fetchMock.mock.calls.filter(([url]) => url === TEST_TOKEN_ENDPOINT)).toHaveLength(1);
+    } finally {
+      await session.dispose();
+    }
+  });
+
   test('a refused refresh returns null', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => issuerReply({ error: 'invalid_grant' }, 400)));
 

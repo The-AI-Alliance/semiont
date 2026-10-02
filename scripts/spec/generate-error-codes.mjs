@@ -104,8 +104,15 @@ for (const entry of transportCodes) {
   }
 }
 
+// ── job ─────────────────────────────────────────────────────────────────
+const jobCodes = codesOf('job', table.job);
+
 // ── session ─────────────────────────────────────────────────────────────
 const sessionCodes = codesOf('session', table.session);
+
+// ── sign-in, and the identity a sign-in must establish ──────────────────
+const signInCodes = codesOf('signIn', table.signIn);
+const kbIdentityCodes = codesOf('kbIdentity', table.kbIdentity);
 
 // ── render ──────────────────────────────────────────────────────────────
 const doc = (text, indent = '') => `${indent}/** ${text.replaceAll('*/', '*\\/')} */`;
@@ -140,9 +147,12 @@ ${[...byStatus].map(([status, code]) => `    case ${status}: return ${JSON.strin
 ${ranges.map((entry) => `  if (status >= ${entry.statusFrom}) return ${JSON.stringify(entry.code)};\n`).join('')}  return ${JSON.stringify(unclassified.code)};
 }
 
-${union('SemiontSessionErrorCode', table.session, sessionCodes)}`,
+${union('JobErrorCode', table.job, jobCodes)}
+${union('SemiontSessionErrorCode', table.session, sessionCodes)}
+${union('SignInErrorCode', table.signIn, signInCodes)}
+${union('IdentityUnverifiableReason', table.kbIdentity, kbIdentityCodes)}`,
 );
 
 console.log(
-  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport and ${sessionCodes.length} session error codes → ${OUT}`,
+  `generated ${busCodes.length} bus-request, ${transportCodes.length} transport, ${jobCodes.length} job, ${sessionCodes.length} session, ${signInCodes.length} sign-in and ${kbIdentityCodes.length} identity error codes → ${OUT}`,
 );

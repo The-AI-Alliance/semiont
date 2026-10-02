@@ -465,12 +465,19 @@ export class SemiontSession {
     onError?: (err: SemiontSessionError) => void;
   }): Promise<SemiontSession> {
     setStoredSession(opts.storage, opts.kb.id, opts.session);
+    // One renewal at a time. A stream refused and a request refused at the
+    // same moment each ask for one, and an issuer that rotates refresh tokens
+    // refuses the second grant, which would end a session that was fine.
+    let renewing: Promise<string | null> | null = null;
     const session = SemiontSession.fromHttp({
       kb: opts.kb,
       storage: opts.storage,
       baseUrl: opts.baseUrl,
       token: opts.session.access,
-      refresh: () => refreshStoredSession(opts.storage, opts.kb.id),
+      refresh: () => {
+        renewing ??= refreshStoredSession(opts.storage, opts.kb.id).finally(() => { renewing = null; });
+        return renewing;
+      },
       ...(opts.validate ? { validate: opts.validate } : {}),
       ...(opts.onAuthFailed ? { onAuthFailed: opts.onAuthFailed } : {}),
       ...(opts.onError ? { onError: opts.onError } : {}),

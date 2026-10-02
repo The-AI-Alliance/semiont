@@ -6,7 +6,7 @@
 
 import { BehaviorSubject } from 'rxjs';
 import { HttpContentTransport, HttpTransport } from '@semiont/http-transport';
-import { accessToken, baseUrl, BusRequestError, kbDid, replyChannelsFor, type AccessToken, type KbDescription } from '@semiont/core';
+import { accessToken, baseUrl, BusRequestError, kbDid, replyChannelsFor, type AccessToken, type IdentityUnverifiableReason, type KbDescription } from '@semiont/core';
 import { SemiontClient } from '../client';
 import type { HttpEndpoint } from './knowledge-base';
 import { kbGatewayUrl } from './storage';
@@ -20,7 +20,7 @@ import { kbGatewayUrl } from './storage';
  * live auth bug from the UI.
  */
 export class IdentityUnverifiableError extends Error {
-  constructor(readonly reason: 'unreachable' | 'not-reported', detail: string) {
+  constructor(readonly reason: IdentityUnverifiableReason, detail: string) {
     super(detail);
     this.name = 'IdentityUnverifiableError';
   }
@@ -50,7 +50,7 @@ export async function describeConnection(target: HttpEndpoint, access: string): 
     } catch (e) {
       // A refusal is the KB answering that it cannot say what it is; any
       // other failure is not having reached it.
-      const reason = e instanceof BusRequestError && e.code === 'bus.rejected' ? 'not-reported' : 'unreachable';
+      const reason: IdentityUnverifiableReason = e instanceof BusRequestError && e.code === 'bus.rejected' ? 'not-reported' : 'unreachable';
       throw new IdentityUnverifiableError(reason, e instanceof Error ? e.message : String(e));
     }
     return { did: kbDid(description.domain), description };

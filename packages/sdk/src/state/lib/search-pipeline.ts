@@ -16,6 +16,7 @@
  * `undefined`.
  */
 
+import { SEARCH_DEBOUNCE_MS } from '@semiont/core';
 import { Subject, of, type Observable } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, startWith, map } from 'rxjs/operators';
 
@@ -36,7 +37,7 @@ export interface SearchPipeline<T> {
 }
 
 export interface SearchPipelineOptions {
-  /** Milliseconds to wait after the last keystroke before fetching. Default 250. */
+  /** Milliseconds to wait after the last keystroke before fetching. Default `SEARCH_DEBOUNCE_MS`. */
   debounceMs?: number;
   /** Initial query value. Useful for modals that open with a pre-filled term. */
   initialQuery?: string;
@@ -46,7 +47,7 @@ export function createSearchPipeline<T>(
   fetch: (query: string) => Observable<T[] | undefined>,
   options: SearchPipelineOptions = {},
 ): SearchPipeline<T> {
-  const debounceMs = options.debounceMs ?? 250;
+  const debounceMs = options.debounceMs ?? SEARCH_DEBOUNCE_MS;
   const initial = options.initialQuery ?? '';
   const input$ = new Subject<string>();
 

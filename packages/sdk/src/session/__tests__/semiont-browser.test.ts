@@ -302,6 +302,41 @@ describe('SemiontBrowser — setActiveKb (D2 disposal contract)', () => {
     await browser.dispose();
   });
 
+  it('disposes the session it replaces: the one that was live, and not only some client', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const first = await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null)));
+    const firstSignals = browser.activeSignals$.getValue()!;
+    const disposed = vi.spyOn(first!, 'dispose');
+    const signalsDisposed = vi.spyOn(firstSignals, 'dispose');
+
+    await browser.setActiveKb(KB_B.id);
+
+    expect(disposed).toHaveBeenCalledTimes(1);
+    expect(signalsDisposed).toHaveBeenCalledTimes(1);
+    await browser.dispose();
+  });
+
+  it('disposes the session it replaces when the switch is overtaken while it waits its turn', async () => {
+    seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
+    seedStoredSession(storage, KB_B.id, freshJwt(), 'r');
+    storage.set(STORAGE_KEY, JSON.stringify([KB_A, KB_B]));
+    storage.set(ACTIVE_KEY, KB_A.id);
+
+    const browser = makeBrowser();
+    const first = await firstValueFrom(browser.activeSession$.pipe(filter((s) => s !== null)));
+    const disposed = vi.spyOn(first!, 'dispose');
+
+    await Promise.all([browser.setActiveKb(KB_B.id), browser.setActiveKb(null), browser.setActiveKb(KB_B.id)]);
+
+    expect(disposed).toHaveBeenCalledTimes(1);
+    await browser.dispose();
+  });
+
   it('setActiveKb(null) disposes the prior session and emits null', async () => {
     seedStoredSession(storage, KB_A.id, freshJwt(), 'r');
     storage.set(STORAGE_KEY, JSON.stringify([KB_A]));

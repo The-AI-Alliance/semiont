@@ -37,7 +37,6 @@ import type {
   ResourceId,
   AnnotationId,
   BodyOperation,
-  GraphConnection,
   JobId,
   Motivation,
   AnchorRect,
@@ -294,9 +293,6 @@ export interface BrowseNamespace {
   resourceRepresentationStream(resourceId: ResourceId): Promise<{ stream: ReadableStream<Uint8Array>; contentType: string }>;
   resourceEvents(resourceId: ResourceId): Promise<StoredEventResponse[]>;
   annotationHistory(resourceId: ResourceId, annotationId: AnnotationId): Promise<AnnotationHistoryResponse>;
-  connections(resourceId: ResourceId): Promise<GraphConnection[]>;
-  backlinks(resourceId: ResourceId): Promise<Annotation[]>;
-  resourcesByName(query: string, limit?: number): Promise<ResourceDescriptor[]>;
   files(dirPath?: string, sort?: 'name' | 'mtime' | 'annotationCount'): Promise<components['schemas']['BrowseFilesResponse']>;
   /**
    * What the KB says of itself — its committed name and domain, and the

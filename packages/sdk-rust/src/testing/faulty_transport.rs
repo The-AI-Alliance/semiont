@@ -6,6 +6,10 @@
 //! retry sees the next page" is expressible: a dropped reply still consumes
 //! its queued response, because the gateway answered and the wire ate it.
 //!
+//! A request can be scripted to be answered with a failure (`refuse_when`):
+//! the answer a peer gives when it will not do what was asked. That is not
+//! the wire failing, and the schedule applies to it as to any reply.
+//!
 //! A request nobody scripted a response for is refused, naming the
 //! operation. A double that answered it with an empty success would hand its
 //! caller a reply whose every field is absent, which fails far from its
@@ -18,6 +22,7 @@ use crate::bus::operation;
 use crate::channels::BRIDGED_CHANNELS;
 use crate::errors::{BusRequestError, TransportError, TransportErrorCode};
 use crate::event_bus::EventBus;
+use crate::locked;
 use crate::transport::{
     BoxFuture, ConnectionState, Envelope, Events, Failures, Frame, FrameHub, Frames, PendingReply,
     ReplyRouter, ResourceHold, STREAM_BACKLOG, Transport,
@@ -25,7 +30,7 @@ use crate::transport::{
 use serde_json::{Map, Value};
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::{broadcast, watch};
 
@@ -78,11 +83,19 @@ pub fn retry_key_of(channel: &str, payload: &Map<String, Value>) -> String {
 pub type MakeResponse =
     dyn Fn(&str, &Map<String, Value>) -> Result<Option<Value>, String> + Send + Sync;
 
+/// The failure the gateway answers a request with, when it answers it with
+/// one: the payload of the operation's failure channel.
+pub type Refuse = dyn Fn(&str, &Map<String, Value>) -> Option<Value> + Send + Sync;
+
 struct Inner {
     schedule: Vec<FaultAction>,
     make_response: Box<MakeResponse>,
+    refuse: Mutex<Option<Box<Refuse>>>,
     replies: Mutex<HashMap<String, VecDeque<Option<Value>>>>,
     log: Mutex<Vec<RequestLogEntry>>,
+    emitted: Mutex<Vec<Frame>>,
+    /// How many holds each resource's scope has.
+    held: Mutex<HashMap<String, usize>>,
     requests: AtomicUsize,
     hub: FrameHub,
     router: Arc<ReplyRouter>,
@@ -91,12 +104,6 @@ struct Inner {
     failures: Mutex<Option<broadcast::Sender<TransportError>>>,
     bridges: Mutex<Vec<Arc<EventBus>>>,
     closed: AtomicBool,
-}
-
-fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex
-        .lock()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 impl Inner {
@@ -152,8 +159,11 @@ impl FaultyTransport {
             inner: Arc::new(Inner {
                 schedule,
                 make_response: Box::new(make_response),
+                refuse: Mutex::new(None),
                 replies: Mutex::new(HashMap::new()),
                 log: Mutex::new(Vec::new()),
+                emitted: Mutex::new(Vec::new()),
+                held: Mutex::new(HashMap::new()),
                 requests: AtomicUsize::new(0),
                 hub: FrameHub::new(),
                 router: ReplyRouter::new(),
@@ -175,9 +185,49 @@ impl FaultyTransport {
             .extend(responses);
     }
 
+    /// Have the gateway answer with a failure every request `refuse` gives
+    /// one for: the payload of the operation's failure channel, such as
+    /// `{"code": "not-found", "message": "…"}`. Asked before anything queued
+    /// or scripted to answer.
+    pub fn refuse_when(
+        &self,
+        refuse: impl Fn(&str, &Map<String, Value>) -> Option<Value> + Send + Sync + 'static,
+    ) {
+        *locked(&self.inner.refuse) = Some(Box::new(refuse));
+    }
+
+    /// Report a failure on the failure stream, as a transport does of a
+    /// request the gateway refused.
+    pub fn fail(&self, error: TransportError) {
+        if let Some(failures) = locked(&self.inner.failures).as_ref() {
+            let _ = failures.send(error);
+        }
+    }
+
     /// Every request sent, in order.
     pub fn request_log(&self) -> Vec<RequestLogEntry> {
         locked(&self.inner.log).clone()
+    }
+
+    /// Every frame emitted through it, in order: the requests, and what was
+    /// only sent.
+    pub fn emitted(&self) -> Vec<Frame> {
+        locked(&self.inner.emitted).clone()
+    }
+
+    /// How many holds there are on a resource's scope.
+    pub fn holds(&self, resource_id: &str) -> usize {
+        locked(&self.inner.held)
+            .get(resource_id)
+            .copied()
+            .unwrap_or(0)
+    }
+
+    /// The resources whose scope is held, in name order.
+    pub fn scopes(&self) -> Vec<String> {
+        let mut scopes: Vec<String> = locked(&self.inner.held).keys().cloned().collect();
+        scopes.sort();
+        scopes
     }
 
     /// The correlation ids of the replies still awaited.
@@ -221,6 +271,7 @@ impl Transport for FaultyTransport {
                 scope: envelope.scope.clone(),
                 trace: None,
             };
+            locked(&inner.emitted).push(request.clone());
             let Some(op) = operation(channel) else {
                 inner.deliver(request);
                 return Ok(Some(1));
@@ -248,23 +299,38 @@ impl Transport for FaultyTransport {
 
             // The gateway answers once per request that reaches it, whatever
             // the wire then does to the answer.
-            let queued = locked(&inner.replies)
-                .get_mut(channel)
-                .and_then(VecDeque::pop_front);
-            let response = match queued {
-                Some(response) => response,
-                None => (inner.make_response)(channel, &payload).map_err(|refusal| {
-                    TransportError::without_response(refusal, TransportErrorCode::Error)
-                })?,
+            let refused = locked(&inner.refuse)
+                .as_ref()
+                .and_then(|refuse| refuse(channel, &payload));
+            let (reply_channel, reply_payload) = match refused {
+                Some(Value::Object(failure)) => (op.failure, failure),
+                Some(other) => {
+                    return Err(TransportError::without_response(
+                        format!("FaultyTransport: a failure is a JSON object, not {other}"),
+                        TransportErrorCode::Error,
+                    ));
+                }
+                None => {
+                    let queued = locked(&inner.replies)
+                        .get_mut(channel)
+                        .and_then(VecDeque::pop_front);
+                    let response = match queued {
+                        Some(response) => response,
+                        None => (inner.make_response)(channel, &payload).map_err(|refusal| {
+                            TransportError::without_response(refusal, TransportErrorCode::Error)
+                        })?,
+                    };
+                    let mut reply_payload = Map::new();
+                    if let Some(response) = response {
+                        reply_payload.insert("response".to_owned(), response);
+                    }
+                    (op.result, reply_payload)
+                }
             };
             inner.deliver(request);
 
-            let mut reply_payload = Map::new();
-            if let Some(response) = response {
-                reply_payload.insert("response".to_owned(), response);
-            }
             let reply = Frame {
-                channel: op.result.to_owned(),
+                channel: reply_channel.to_owned(),
                 payload: reply_payload,
                 correlation_id: envelope.correlation_id,
                 scope: None,
@@ -300,9 +366,23 @@ impl Transport for FaultyTransport {
         true
     }
 
-    /// Nothing here is delivered by scope, so a hold changes nothing.
-    fn subscribe_to_resource(&self, _resource_id: &str) -> ResourceHold {
-        ResourceHold::new(|| {})
+    /// Nothing here is delivered by scope, so a hold changes only the count
+    /// of them (`holds`).
+    fn subscribe_to_resource(&self, resource_id: &str) -> ResourceHold {
+        *locked(&self.inner.held)
+            .entry(resource_id.to_owned())
+            .or_insert(0) += 1;
+        let inner = self.inner.clone();
+        let resource_id = resource_id.to_owned();
+        ResourceHold::new(move || {
+            let mut held = locked(&inner.held);
+            if let Some(holds) = held.get_mut(&resource_id) {
+                *holds -= 1;
+                if *holds == 0 {
+                    held.remove(&resource_id);
+                }
+            }
+        })
     }
 
     fn state(&self) -> watch::Receiver<ConnectionState> {

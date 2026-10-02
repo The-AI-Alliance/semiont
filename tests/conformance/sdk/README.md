@@ -353,16 +353,19 @@ of `SDK_DRIVERS`, and run the suite. TypeScript's are
 [packages/http-transport/conformance/driver.ts](../../../packages/http-transport/conformance/driver.ts)
 for the wire and
 [packages/sdk/conformance/driver.ts](../../../packages/sdk/conformance/driver.ts)
-for the live layer. Rust's wire driver is the crate
-[packages/http-transport-rust/conformance](../../../packages/http-transport-rust/conformance/src/main.rs).
+for the live layer. Rust's are the two binaries of the crate
+[packages/http-transport-rust/conformance](../../../packages/http-transport-rust/conformance):
+[semiont-wire-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-wire-driver.rs)
+and
+[semiont-live-driver](../../../packages/http-transport-rust/conformance/src/bin/semiont-live-driver.rs).
 
 ## Running it
 
-It needs a built gateway and Rust driver, `nats-server` (2.10 or later) on
-`PATH`, and the TypeScript SDK built:
+It needs a built gateway and the Rust drivers, `nats-server` (2.10 or later)
+on `PATH`, and the TypeScript SDK built:
 
 ```bash
-cargo build --release -p semiont-gateway -p semiont-wire-driver
+cargo build --release -p semiont-gateway -p semiont-conformance-drivers
 npm run build --workspace=@semiont/sdk
 cd tests/conformance
 npm ci

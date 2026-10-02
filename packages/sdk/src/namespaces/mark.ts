@@ -14,7 +14,7 @@ import type {
 import type { ITransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable } from '../awaitable';
-import { JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
+import { JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   MarkNamespace as IMarkNamespace,
   CreateAnnotationInput,
@@ -128,7 +128,7 @@ export class MarkNamespace implements IMarkNamespace {
             subscriber.complete();
           } else if (status.status === 'failed') {
             cleanup();
-            subscriber.error(new Error(status.error ?? 'Job failed'));
+            subscriber.error(new JobFailedError(status.error ?? 'Job failed', status.jobId));
           }
         },
         this.timing,
@@ -180,7 +180,7 @@ export class MarkNamespace implements IMarkNamespace {
           return;
         }
         cleanup();
-        subscriber.error(new Error(e.error));
+        subscriber.error(new JobFailedError(e.error, e.jobId));
       });
 
       this.dispatchAssist(resourceId, motivation, options)

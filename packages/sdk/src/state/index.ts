@@ -35,8 +35,8 @@ export {
   type BeckonStateUnit,
   createHoverHandlers,
   type HoverHandlers,
-  HOVER_DELAY_MS,
 } from './flows/beckon-state-unit';
+export { HOVER_DELAY_MS } from '@semiont/core';
 export {
   createGatherStateUnit,
   type GatherStateUnit,

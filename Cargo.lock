@@ -2094,6 +2094,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "semiont-conformance-drivers"
+version = "0.0.0"
+dependencies = [
+ "base64 0.23.1",
+ "bytes",
+ "futures",
+ "reqwest",
+ "rustls",
+ "semiont",
+ "semiont-http-transport",
+ "semiont-observability",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "semiont-core"
 version = "0.0.0"
 dependencies = [
@@ -2194,14 +2211,17 @@ name = "semiont-http-transport"
 version = "0.0.0"
 dependencies = [
  "axum",
+ "base64 0.23.1",
  "bytes",
  "futures",
  "http-body-util",
  "opentelemetry",
  "proptest",
  "reqwest",
+ "ring",
  "rustls",
  "semiont",
+ "semiont-http-transport",
  "semiont-observability",
  "serde",
  "serde_json",
@@ -2222,22 +2242,6 @@ dependencies = [
  "semiont",
  "serde_json",
  "tikv-jemalloc-ctl",
- "tokio",
-]
-
-[[package]]
-name = "semiont-wire-driver"
-version = "0.0.0"
-dependencies = [
- "base64 0.23.1",
- "bytes",
- "futures",
- "reqwest",
- "rustls",
- "semiont",
- "semiont-http-transport",
- "semiont-observability",
- "serde_json",
  "tokio",
 ]
 

@@ -273,10 +273,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-gateway-release-
 
-      # Every SDK is held to a real gateway; the Rust SDK's wire driver is a
-      # binary of the same workspace.
-      - name: Build the gateway and the Rust wire driver
-        run: cargo build --release --locked -p semiont-gateway -p semiont-wire-driver
+      # Every SDK is held to a real gateway; the Rust SDK's two drivers are
+      # binaries of the same workspace.
+      - name: Build the gateway and the Rust drivers
+        run: cargo build --release --locked -p semiont-gateway -p semiont-conformance-drivers
 
       - name: Setup Node.js
         uses: actions/setup-node@v7

@@ -87,6 +87,19 @@
       }
     ]
   },
+  "job": {
+    "docs": "Why a job its client follows ended without a result. A failure the queue will retry is not one of these: the job goes on, and its follower is told of the setback and keeps following.",
+    "codes": [
+      {
+        "code": "job.failed",
+        "docs": "The job failed and will not be tried again: the failure its worker reported, or the one its status states."
+      },
+      {
+        "code": "job.stalled",
+        "docs": "The job said nothing for longer than its follower allows. The follower has asked for it to be cancelled."
+      }
+    ]
+  },
   "session": {
     "docs": "Why a session itself is unusable. Per-request failures stay with their caller.",
     "codes": [
@@ -102,6 +115,26 @@
         "code": "session.refresh-exhausted",
         "docs": "The session could not be renewed: the issuer refused, or stayed unreachable until the retry budget was spent. Not a prompt to retry: retrying already happened."
       }
+    ]
+  },
+  "signIn": {
+    "docs": "Why a person could not be signed in at the issuer a knowledge base trusts, or a session could not be renewed there. Over the authorization-code grant, the device grant, the refresh grant and revocation alike.",
+    "codes": [
+      { "code": "no-issuer", "docs": "The knowledge base trusts no external issuer: there is nowhere to sign in." },
+      { "code": "discovery", "docs": "The knowledge base did not say which issuer it trusts, or the issuer did not describe itself, or described another issuer, or offers no endpoint the grant needs." },
+      { "code": "no-pending", "docs": "A sign-in response arrived and no sign-in is pending here: it was completed already, or begun somewhere else." },
+      { "code": "state", "docs": "The sign-in response does not belong to the pending sign-in." },
+      { "code": "denied", "docs": "The person, or the issuer, refused the sign-in." },
+      { "code": "expired", "docs": "The device code ran out before it was approved." },
+      { "code": "aborted", "docs": "The sign-in was abandoned by whoever began it." },
+      { "code": "exchange", "docs": "The issuer refused a token request, a device authorization or a revocation, or answered without what was asked for." }
+    ]
+  },
+  "kbIdentity": {
+    "docs": "Why a knowledge base that was reached with a fresh sign-in could not be registered: it has to say who it is, and nothing stands in for its answer.",
+    "codes": [
+      { "code": "unreachable", "docs": "The knowledge base was not reached, so it said nothing." },
+      { "code": "not-reported", "docs": "The knowledge base answered that it cannot say what it is." }
     ]
   }
 }

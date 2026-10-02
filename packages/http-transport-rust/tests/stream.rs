@@ -225,6 +225,7 @@ impl Gateway {
                 },
                 ..Timing::default()
             },
+            bookmarks: None,
         })
     }
 }

@@ -658,6 +658,8 @@ Bus-layer and session-layer errors keep their own code namespaces:
 |---|---|---|
 | `APIError` (extends `SemiontError`) | `TransportErrorCode` (above) — plus `APIError.status` for the original HTTP status | HTTP transport (`@semiont/http-transport`) |
 | `BusRequestError` | `bus.timeout`, `bus.rejected`, `bus.closed`, `bus.unauthorized`, `bus.not-found`, `bus.unsubscribed`, `bus.peer-unavailable`, `bus.none-pending` | bus-mediated commands inside namespaces. (`bus.timeout` should be rare: the emit is gated on an open connection, and a reply published during a disconnect replays from the server's retention buffer on reconnect — a timeout that does fire usually means the gateway is genuinely down or slow.) |
+| `JobFailedError` | `job.failed` — the job a call was following failed and will not be tried again; `jobId` names it | `mark.assist`, `yield.fromContext` |
+| `GenerationStallError` | `job.stalled` — a generation said nothing for its stall deadline, and its cancellation was requested | `yield.fromContext` |
 | `SemiontSessionError` | `session.auth-failed`, `session.refresh-exhausted`, `session.construct-failed` | the session layer — surfaced on `SemiontBrowser.error$`, not as a per-call rejection |
 
 **What actually ends a session (0.6.0).** Only the issuer refusing the credential. A refresh that

@@ -9,13 +9,17 @@
 
 import { APIError, HttpTransport } from '@semiont/http-transport';
 import {
+  BROWSER_CLIENT_ID,
   REFRESH_RETRY,
   RETRY_RULES,
+  SCRIPT_CLIENT_ID,
+  SIGN_IN_SCOPE,
   baseUrl,
   isObject,
   isString,
   retryWithBackoff,
 } from '@semiont/core';
+import type { SignInErrorCode } from '@semiont/core';
 import type { HttpEndpoint } from './knowledge-base';
 import type { SessionStorage } from './session-storage';
 import { sha256 } from './sha256';
@@ -27,25 +31,10 @@ import { getStoredSession, kbGatewayUrl, setStoredSession } from './storage';
 // here does not compile.
 declare const crypto: { getRandomValues<T extends ArrayBufferView>(array: T): T };
 
-/** The Browser's registration at every issuer: authorization code with PKCE. */
-export const BROWSER_CLIENT_ID = 'semiont-browser';
-/** A script's registration: the device grant — the same client the launcher uses. */
-export const SCRIPT_CLIENT_ID = 'semiont-cli';
+export { BROWSER_CLIENT_ID, SCRIPT_CLIENT_ID };
+export type { SignInErrorCode };
 export const PENDING_AUTHORIZATION_KEY = 'semiont.pendingAuthorization';
-// offline_access asks for a refresh token that outlives the issuer's own
-// browser session — a KB session is renewed for weeks, not minutes.
-const SCOPE = 'openid email profile offline_access';
 const DEVICE_GRANT = 'urn:ietf:params:oauth:grant-type:device_code';
-
-export type SignInErrorCode =
-  | 'no-issuer'
-  | 'discovery'
-  | 'no-pending'
-  | 'state'
-  | 'denied'
-  | 'expired'
-  | 'aborted'
-  | 'exchange';
 
 export class SignInError extends Error {
   /**
@@ -192,7 +181,7 @@ export async function beginAuthorization(opts: BeginAuthorizationOptions, pendin
   url.searchParams.set('response_type', 'code');
   url.searchParams.set('client_id', BROWSER_CLIENT_ID);
   url.searchParams.set('redirect_uri', opts.redirectUri);
-  url.searchParams.set('scope', SCOPE);
+  url.searchParams.set('scope', SIGN_IN_SCOPE);
   url.searchParams.set('state', state);
   url.searchParams.set('code_challenge', codeChallenge(verifier));
   url.searchParams.set('code_challenge_method', 'S256');
@@ -371,7 +360,12 @@ export async function refreshStoredSession(storage: SessionStorage, kbId: string
       ),
       REFRESH_RETRY,
     );
-    setStoredSession(storage, kbId, { ...stored, access, refresh });
+    // Written against what is stored NOW, not what was read before the
+    // grant: a session signed out while it was being renewed is gone, and
+    // writing it back would undo the sign-out with a refresh token nobody
+    // revoked.
+    const current = getStoredSession(storage, kbId);
+    if (current) setStoredSession(storage, kbId, { ...current, access, refresh });
     return access;
   } catch (error) {
     const cause = error instanceof Error ? error.message : String(error);
@@ -421,7 +415,7 @@ export async function signInWithDeviceGrant(opts: DeviceGrantOptions): Promise<{
   if (!issuer.device) {
     throw new SignInError('discovery', `Issuer ${issuer.issuer} offers no device authorization endpoint — the device grant needs one enabled for client ${SCRIPT_CLIENT_ID}`);
   }
-  const { status, body } = await postForm(issuer.device, { client_id: SCRIPT_CLIENT_ID, scope: SCOPE });
+  const { status, body } = await postForm(issuer.device, { client_id: SCRIPT_CLIENT_ID, scope: SIGN_IN_SCOPE });
   if (
     status !== 200 || !body
     || !isString(body['device_code']) || !isString(body['user_code']) || !isString(body['verification_uri'])

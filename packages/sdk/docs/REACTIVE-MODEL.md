@@ -102,7 +102,7 @@ The discipline is enforceable. A namespace method's return type must be one of:
 - `void`
 - `Promise<number | undefined>` (wire drives only)
 
-Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) A future CI lint can enforce the rule at build time; the discipline already holds in the current code.
+Plain `Observable<T>` does not appear on the public verb-namespace surface. (It still appears on lifecycle / escape-hatch surfaces — `client.transport.state$`, `client.transport.errors$`, `client.bus.on(channel)` — see "Plain Observables" below.) The rule is enforced: every namespace method is a row of [`specs/src/client/surface.json`](../../../specs/src/client/surface.json) with the shape of what it returns, `lint:client-surface` fails a method whose signature is not its row's, and every SDK is held to the same table. The table names two more shapes than this list, because it covers every namespace: `job`'s four lifecycle streams are `events`, and `yield.resource`'s `UploadObservable` is its own row.
 
 ## What this looks like at the call site
 

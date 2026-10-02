@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Observable, Subject } from 'rxjs';
-import { resourceId as makeResourceId } from '@semiont/core';
-import { createMarkStateUnit, ASSIST_SILENCE_MS } from '../mark-state-unit';
+import { ASSIST_SILENCE_MS, resourceId as makeResourceId } from '@semiont/core';
+import { createMarkStateUnit } from '../mark-state-unit';
 import { makeTestClient, type TestClient } from '../../../__tests__/test-client';
 import { assertStateUnitAxioms } from '@semiont/core/testing/axioms';
 

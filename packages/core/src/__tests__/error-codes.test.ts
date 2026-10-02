@@ -29,6 +29,7 @@ interface Entry {
 interface Table {
   busRequest: { docs: string; unrecognizedFailure: string; codes: Entry[] };
   transport: { docs: string; unclassified: string; codes: Entry[] };
+  job: { docs: string; codes: Entry[] };
   session: { docs: string; codes: Entry[] };
 }
 

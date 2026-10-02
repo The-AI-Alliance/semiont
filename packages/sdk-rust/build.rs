@@ -5,15 +5,21 @@
 //!   of the job protocol's channels, and the reads a job's admission makes,
 //!   with every schema they reach (semiont-codegen);
 //! - `operations.rs`: the bus registry's operations, which reply and which
-//!   failure answer each request;
+//!   failure answer each request, and which of them report inference limits;
 //! - `channels.rs`: the channels every client hears and the channels a
 //!   resource's scope carries, from the registry's `audience`; and a type per
 //!   channel naming its payload's type, with each operation's request tied to
 //!   its result and its failure;
 //! - `error_codes.rs`: the codes a client reports and what maps onto them
 //!   (errors/codes.json);
+//! - `oauth_clients.rs`: the ids a client signs in under at an issuer, and
+//!   the scope it asks for (session/oauth.json);
+//! - `sign_in.rs`: an entry of the store `semiont login` keeps
+//!   (sign-in-store/SignIn.json);
 //! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
-//!   keeps (client/timing.json).
+//!   keeps (client/timing.json);
+//! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
+//!   dropped stream, does to a client's cache (client/refresh.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
 use semiont_codegen::types::{Generation, generate, pascal};
@@ -23,14 +29,18 @@ use std::fs;
 use std::path::PathBuf;
 
 /// The schemas generated beside the API's bodies and the channels' payloads:
-/// the job the queue holds, an event of the record as the stream carries it,
-/// and the log settings every public crate's logging takes.
-const BESIDE: [&str; 5] = [
+/// the job the queue holds, the parameters a generation job is created with,
+/// an event of the record as the stream carries it, the log settings every
+/// public crate's logging takes, and the document a launcher publishes of the
+/// knowledge bases it manages.
+const BESIDE: [&str; 7] = [
     "Job",
+    "GenerationJobParams",
     "StoredEventResponse",
     "EnrichedResourceEvent",
     "LogLevel",
     "LogFormat",
+    "DiscoveryDocument",
 ];
 
 /// A body that is not JSON: an upload is a multipart form, whose fields
@@ -150,6 +160,18 @@ fn main() {
         );
     }
     operations.push_str("];\n");
+    // One operation per service that holds inference credentials, each named
+    // `<flow>:limits-requested`: a new key holder's joins by being registered.
+    operations.push_str(
+        "/// The operations that report the limits of the models a service holds credentials for.\npub const LIMITS_OPERATIONS: &[&str] = &[\n",
+    );
+    for op in list(&registry["operations"], "operations") {
+        let request = text(op, "request", "a registry operation");
+        if request.ends_with(":limits-requested") {
+            let _ = writeln!(operations, "    {request:?},");
+        }
+    }
+    operations.push_str("];\n");
     fs::write(out.join("operations.rs"), operations).expect("cannot write operations.rs");
 
     fs::write(
@@ -163,10 +185,159 @@ fn main() {
     )
     .expect("cannot write error_codes.rs");
     fs::write(
+        out.join("sign_in.rs"),
+        generate(
+            &serde_json::json!({ "SignIn": read_json(&specs.join("sign-in-store/SignIn.json")) }),
+            &Generation {
+                roots: &["SignIn"],
+                elsewhere: None,
+            },
+        ),
+    )
+    .expect("cannot write sign_in.rs");
+    fs::write(
+        out.join("oauth_clients.rs"),
+        oauth_clients(&read_json(&specs.join("session/oauth.json"))),
+    )
+    .expect("cannot write oauth_clients.rs");
+    fs::write(
         out.join("timing.rs"),
         timing(&read_json(&specs.join("client/timing.json"))),
     )
     .expect("cannot write timing.rs");
+    fs::write(
+        out.join("cache_refresh.rs"),
+        cache_refresh(&read_json(&specs.join("client/refresh.json"))),
+    )
+    .expect("cannot write cache_refresh.rs");
+}
+
+/// The refresh table as its queries, its triggers and each trigger's rows.
+/// The table's own generator (scripts/spec/generate-cache-refresh.mjs) is
+/// where it is held to account; this refuses only what it cannot render.
+fn cache_refresh(table: &Value) -> String {
+    let mut code = String::from("// Generated from specs/src/client/refresh.json; do not edit.\n");
+    let queries: Vec<&str> = list(&table["queries"], "queries")
+        .iter()
+        .map(|query| text(query, "name", "a query"))
+        .collect();
+    code.push_str("/// The live queries a client's cache answers.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum CacheQuery {\n");
+    for query in list(&table["queries"], "queries") {
+        let name = text(query, "name", "a query");
+        let _ = writeln!(
+            code,
+            "    /// {}\n    {},",
+            text(query, "docs", name),
+            pascal(name)
+        );
+    }
+    code.push_str("}\n\nimpl CacheQuery {\n    /// Every query, in the table's order.\n    pub const ALL: &'static [CacheQuery] = &[\n");
+    for name in &queries {
+        let _ = writeln!(code, "        CacheQuery::{},", pascal(name));
+    }
+    code.push_str("    ];\n\n    /// The query's name, as the table and every SDK spell it.\n    pub const fn name(self) -> &'static str {\n        match self {\n");
+    for name in &queries {
+        let _ = writeln!(
+            code,
+            "            CacheQuery::{} => {name:?},",
+            pascal(name)
+        );
+    }
+    code.push_str("        }\n    }\n}\n\n");
+
+    // A trigger per distinct `on`, in the table's order, with its rows.
+    let mut triggers: Vec<(&str, Vec<&Value>)> = Vec::new();
+    for row in list(&table["refresh"], "refresh") {
+        let on = text(row, "on", "a refresh row");
+        match triggers.iter_mut().find(|(named, _)| *named == on) {
+            Some((_, rows)) => rows.push(row),
+            None => triggers.push((on, vec![row])),
+        }
+    }
+    code.push_str("/// What refreshes a cache: the events of a channel, or `Reopened`, the stream open again after a drop.\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum RefreshTrigger {\n");
+    for (on, rows) in &triggers {
+        let docs: Vec<&str> = rows.iter().map(|row| text(row, "docs", on)).collect();
+        let _ = writeln!(code, "    /// {}\n    {},", docs.join(" "), pascal(on));
+    }
+    code.push_str("}\n\nimpl RefreshTrigger {\n    /// Every trigger, in the table's order.\n    pub const ALL: &'static [RefreshTrigger] = &[\n");
+    for (on, _) in &triggers {
+        let _ = writeln!(code, "        RefreshTrigger::{},", pascal(on));
+    }
+    code.push_str("    ];\n\n    /// The channel whose events are this trigger; none of `Reopened`, which is the stream's own.\n    pub const fn channel(self) -> Option<&'static str> {\n        match self {\n");
+    for (on, _) in &triggers {
+        if *on == "reopened" {
+            let _ = writeln!(code, "            RefreshTrigger::{} => None,", pascal(on));
+        } else {
+            let _ = writeln!(
+                code,
+                "            RefreshTrigger::{} => Some({on:?}),",
+                pascal(on)
+            );
+        }
+    }
+    code.push_str("        }\n    }\n\n    /// What this trigger does: one row, or two for a channel whose events come two ways.\n    pub const fn rows(self) -> &'static [CacheRefresh] {\n        match self {\n");
+    let listed = |row: &Value, key: &str, on: &str| -> String {
+        let named: Vec<String> = match &row[key] {
+            Value::Null => Vec::new(),
+            stated => list(stated, key)
+                .iter()
+                .map(|query| {
+                    let name = query
+                        .as_str()
+                        .unwrap_or_else(|| panic!("{on}: a {key} entry is not a query's name"));
+                    if !queries.contains(&name) {
+                        panic!("{on} {key} {name}, which is no query of the table");
+                    }
+                    // What this SDK can do without asking: an event carries
+                    // an annotation's new value, and says an annotation is
+                    // gone. A row that says more needs code that reads it.
+                    let able = match key {
+                        "writes" => matches!(name, "annotations" | "annotation"),
+                        "removes" => name == "annotation",
+                        _ => true,
+                    };
+                    if !able {
+                        panic!("{on} {key} {name}, which no event this SDK reads says how to");
+                    }
+                    format!("CacheQuery::{}", pascal(name))
+                })
+                .collect(),
+        };
+        format!("&[{}]", named.join(", "))
+    };
+    for (on, rows) in &triggers {
+        let rendered: Vec<String> = rows
+            .iter()
+            .map(|row| {
+                let when = match row["when"].as_str() {
+                    None => "None".to_owned(),
+                    Some(when @ ("enriched" | "unenriched")) => {
+                        format!("Some(RefreshWhen::{})", pascal(when))
+                    }
+                    Some(other) => panic!("{on}: `when` is {other}, which is neither kind of event"),
+                };
+                let reach = match row["reach"].as_str() {
+                    None | Some("subject") => "Subject",
+                    Some("held") => "Held",
+                    Some(other) => panic!("{on}: `reach` is {other}, which is neither"),
+                };
+                format!(
+                    "CacheRefresh {{ when: {when}, reach: Reach::{reach}, refetches: {}, writes: {}, removes: {} }}",
+                    listed(row, "refetches", on),
+                    listed(row, "writes", on),
+                    listed(row, "removes", on)
+                )
+            })
+            .collect();
+        let _ = writeln!(
+            code,
+            "            RefreshTrigger::{} => &[{}],",
+            pascal(on),
+            rendered.join(", ")
+        );
+    }
+    code.push_str("        }\n    }\n}\n");
+    code
 }
 
 fn text<'a>(value: &'a Value, key: &str, of: &str) -> &'a str {
@@ -424,7 +595,36 @@ fn error_codes(table: &Value) -> String {
         variant(unclassified)
     );
 
+    code_enum(&mut code, "JobErrorCode", &table["job"]);
     code_enum(&mut code, "SessionErrorCode", &table["session"]);
+    code_enum(&mut code, "SignInErrorCode", &table["signIn"]);
+    code_enum(
+        &mut code,
+        "IdentityUnverifiableReason",
+        &table["kbIdentity"],
+    );
+    code
+}
+
+/// Each client's id as `<NAME>_CLIENT_ID`, and the scope a sign-in asks for.
+fn oauth_clients(table: &Value) -> String {
+    let mut code = String::from("// Generated from specs/src/session/oauth.json; do not edit.\n");
+    for client in list(&table["clients"], "clients") {
+        let _ = writeln!(
+            code,
+            "/// {}\npub const {}_CLIENT_ID: &str = {:?};",
+            text(client, "docs", "a client"),
+            text(client, "name", "a client").to_ascii_uppercase(),
+            text(client, "id", "a client")
+        );
+    }
+    let scope = &table["scope"];
+    let _ = writeln!(
+        code,
+        "/// {}\npub const SIGN_IN_SCOPE: &str = {:?};",
+        text(scope, "docs", "scope"),
+        text(scope, "value", "scope")
+    );
     code
 }
 
