@@ -157,6 +157,16 @@ is its mechanism over HTTP.
   channel with a named schema must match it, or 400; a channel the
   registry gives no schema is not validated; a channel not in the registry
   is a 400.
+- **Ids.** The spec names four kinds of id, each a schema whose pattern is
+  the rule a value of that kind is held to
+  ([specs/src/identifiers/kinds.json](../../specs/src/identifiers/kinds.json)).
+  A resource's, an annotation's and a job's id is a name: 1 to 128 letters,
+  digits, `_` and `-`, never a URI or a path. Whoever did something is
+  named by a DID. Every property that carries an id refers to its kind, so
+  a payload carrying anything else fails the validation above and is
+  refused 400. `npm run lint:spec-identifiers` holds the spec to it: a
+  property named for an id that refers to no kind, and a case the rule
+  does not agree with, fail it.
 - **Claims.** A registry operation's request carrying a `correlationId`
   claims that id for its `clientId` and the verified principal before it
   is published — `clientId` is required then (400 without it). The claim

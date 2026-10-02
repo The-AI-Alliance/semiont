@@ -28,11 +28,11 @@
       "description": "JSON-stringified array of entity type names"
     },
     "sourceAnnotationId": {
-      "type": "string",
+      "$ref": "./AnnotationId.json",
       "description": "For AI-generated resources: the annotation that triggered generation. Nested into generatedFrom.annotationId on the persisted event."
     },
     "sourceResourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "For AI-generated resources: the source resource the generating annotation lives on. Nested into generatedFrom.resourceId on the persisted event."
     },
     "generationPrompt": {
@@ -44,7 +44,7 @@
       "description": "For AI-generated resources: JSON-stringified Agent naming the model/worker that produced the content. Its identity must be the uploading agent's own — the knowledge base refuses a generator naming anyone else. `creator` and `wasAttributedTo` are never sent; the knowledge base derives them from the cited job."
     },
     "jobId": {
-      "type": "string",
+      "$ref": "./JobId.json",
       "description": "The job this resource fulfils, when a worker is creating it. Forwarded onto yield:create; the knowledge base derives who requested the resource from the cited job's own events, and refuses a worker-role create that cites none. Absent for a person's own upload."
     },
     "isDraft": {

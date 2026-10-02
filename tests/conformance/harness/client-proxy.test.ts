@@ -12,6 +12,8 @@ import { startClientProxy, type ClientProxy } from './client-proxy';
 import { eachPlane } from './world';
 
 const BROADCAST = 'beckon:focus';
+/** A broadcast whose payload is free text. */
+const TEXT = 'browse:entity-type-clicked';
 
 eachPlane('the client proxy', (world) => {
   let proxy: ClientProxy;
@@ -71,16 +73,17 @@ eachPlane('the client proxy', (world) => {
 
   it('records the events a stream carried as the gateway wrote them, and a stream passed on a byte at a time reaches its client whole', async () => {
     proxy.rechunk(1);
-    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [BROADCAST] }, proxy.origin);
-    const annotationId = 'naïve — 日本語 😀';
-    await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId } });
+    const watcher = await world().subscribe(await world().person('watcher'), { clientId: randomUUID(), global: [TEXT] }, proxy.origin);
+    // Text whose characters are several bytes each, so that a byte at a time splits them.
+    const entityType = 'naïve — 日本語 😀';
+    await world().emit(await world().person('emitter'), { channel: TEXT, payload: { entityType } });
 
-    const received = await watcher.frame(BROADCAST);
-    expect(received.payload).toMatchObject({ annotationId });
+    const received = await watcher.frame(TEXT);
+    expect(received.payload).toMatchObject({ entityType });
 
     const stream = proxy.requests.find((r) => r.path === '/bus/subscribe')!;
     const carried = await proxy.until('the frame to be recorded', () => stream.events.find((e) => e.event === 'bus-event'));
-    expect(JSON.parse(carried.data)).toEqual({ channel: BROADCAST, payload: received.payload });
+    expect(JSON.parse(carried.data)).toEqual({ channel: TEXT, payload: received.payload });
     expect(stream.events[0]?.event).toBe('ping');
     expect(carried.at).toBeGreaterThan(stream.answered!);
   });

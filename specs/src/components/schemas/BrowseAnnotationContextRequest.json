@@ -3,10 +3,10 @@
   "description": "Request to get contextual text around an annotation",
   "properties": {
     "annotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "contextBefore": {
       "type": "integer",

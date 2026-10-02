@@ -3,8 +3,12 @@
   "description": "Emitted when an annotation is hovered over for beckoning",
   "properties": {
     "annotationId": {
-      "type": "string",
-      "nullable": true
+      "nullable": true,
+      "allOf": [
+        {
+          "$ref": "./AnnotationId.json"
+        }
+      ]
     }
   },
   "required": ["annotationId"]

@@ -126,6 +126,9 @@
       "AnnotationContextResponse": {
         "$ref": "components/schemas/AnnotationContextResponse.json"
       },
+      "AnnotationId": {
+        "$ref": "components/schemas/AnnotationId.json"
+      },
       "AnnotationRemovedPayload": {
         "$ref": "components/schemas/AnnotationRemovedPayload.json"
       },
@@ -260,6 +263,9 @@
       },
       "AnchoredText": {
         "$ref": "components/schemas/AnchoredText.json"
+      },
+      "JobId": {
+        "$ref": "components/schemas/JobId.json"
       },
       "PdfTextItem": {
         "$ref": "components/schemas/PdfTextItem.json"
@@ -485,6 +491,9 @@
       },
       "JobCheckpointCommand": {
         "$ref": "components/schemas/JobCheckpointCommand.json"
+      },
+      "ResourceId": {
+        "$ref": "components/schemas/ResourceId.json"
       },
       "UnitCursor": {
         "$ref": "./components/schemas/UnitCursor.json"
@@ -746,6 +755,9 @@
       },
       "UpdateAnnotationBodyRequest": {
         "$ref": "components/schemas/UpdateAnnotationBodyRequest.json"
+      },
+      "UserId": {
+        "$ref": "components/schemas/UserId.json"
       },
       "UserResponse": {
         "$ref": "components/schemas/UserResponse.json"

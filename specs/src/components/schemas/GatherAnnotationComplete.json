@@ -3,7 +3,7 @@
   "description": "Completion payload emitted on the gather:annotation-complete bus channel when annotation context gathering finishes.",
   "properties": {
     "annotationId": {
-      "type": "string",
+      "$ref": "./AnnotationId.json",
       "description": "Branded AnnotationId of the annotation whose context was gathered"
     },
     "response": {

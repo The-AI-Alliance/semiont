@@ -6,7 +6,7 @@
       "description": "Bearer JWT for subsequent authenticated requests"
     },
     "did": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "DID of the software-agent identity the token is acting as"
     }
   },

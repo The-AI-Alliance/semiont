@@ -28,7 +28,7 @@
       "description": "True if this file is a tracked resource in the Knowledge Base"
     },
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "Resource ID (only when tracked is true)"
     },
     "entityTypes": {
@@ -41,7 +41,7 @@
       "description": "Number of annotations on this resource (only when tracked is true)"
     },
     "creator": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "DID of the resource's creator — the first of its derived `wasAttributedTo`, the requester as the knowledge base recorded it (only when tracked is true)"
     }
   },

@@ -3,7 +3,7 @@
   "description": "Emitted when a resource is closed in the browse panel",
   "properties": {
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": ["resourceId"]

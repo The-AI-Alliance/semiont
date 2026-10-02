@@ -1,0 +1,335 @@
+{
+  "$comment": "The four kinds of id the protocol names, each a schema under components/schemas with the rule it is held to as its `pattern`. `properties` are the property names that always carry that kind, wherever they appear in the spec; `accepts` and `refuses` are strings the rule takes and does not, each with why. `others` are properties named like an id that carry something else. scripts/spec/check-identifiers.mjs holds the spec to this file: every property so named refers to its kind, every case agrees with its kind's pattern, and a property whose name ends in `Id` or `Ids` that is in neither list fails. Each SDK's checked constructors run the same cases.",
+  "kinds": [
+    {
+      "schema": "ResourceId",
+      "properties": [
+        "resourceId",
+        "parentResourceId",
+        "sourceResourceId",
+        "resultResourceId"
+      ],
+      "accepts": [
+        {
+          "id": "5bcd259ab1464cf68a556bbad21f513f",
+          "why": "as the knowledge base mints one"
+        },
+        {
+          "id": "__system__",
+          "why": "the scope events about the knowledge base itself are logged under"
+        },
+        {
+          "id": "res-one",
+          "why": "how an id is made is not part of the rule"
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "why": "128 characters"
+        }
+      ],
+      "refuses": [
+        {
+          "id": "",
+          "why": "an id names something"
+        },
+        {
+          "id": "..",
+          "why": "an id is one name in a file system, and this one names the directory above"
+        },
+        {
+          "id": ".",
+          "why": "and this one the directory itself"
+        },
+        {
+          "id": "a.json",
+          "why": "no `.` at all: a store appends an extension to an id to name a file"
+        },
+        {
+          "id": "a/b",
+          "why": "an id is one segment of a path"
+        },
+        {
+          "id": "a\\b",
+          "why": "on any file system"
+        },
+        {
+          "id": "https://kb.example/resources/5bcd259ab1464cf68a556bbad21f513f",
+          "why": "a URI is not an id: the id is its last segment"
+        },
+        {
+          "id": "a b",
+          "why": "no whitespace"
+        },
+        {
+          "id": "abc\n",
+          "why": "a line end is whitespace too, at the end as anywhere"
+        },
+        {
+          "id": "a%2Fb",
+          "why": "nothing that needs encoding, and nothing already encoded"
+        },
+        {
+          "id": "a?b",
+          "why": "nothing a URL reads as its own"
+        },
+        {
+          "id": "a#b",
+          "why": "nothing a URL reads as its own"
+        },
+        {
+          "id": "naïve",
+          "why": "ASCII only: one spelling, on every file system"
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "why": "129 characters: a file's name has a limit, and an id is well inside it"
+        }
+      ]
+    },
+    {
+      "schema": "AnnotationId",
+      "properties": [
+        "annotationId",
+        "annotationIds",
+        "sourceAnnotationId",
+        "scrollToAnnotationId",
+        "referenceId"
+      ],
+      "accepts": [
+        {
+          "id": "5bcd259ab1464cf68a556bbad21f513f",
+          "why": "as the knowledge base mints one"
+        },
+        {
+          "id": "a-1",
+          "why": "how an id is made is not part of the rule"
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "why": "128 characters"
+        }
+      ],
+      "refuses": [
+        {
+          "id": "",
+          "why": "an id names something"
+        },
+        {
+          "id": "..",
+          "why": "an id is one name in a file system, and this one names the directory above"
+        },
+        {
+          "id": ".",
+          "why": "and this one the directory itself"
+        },
+        {
+          "id": "a.json",
+          "why": "no `.` at all: a store appends an extension to an id to name a file"
+        },
+        {
+          "id": "a/b",
+          "why": "an id is one segment of a path"
+        },
+        {
+          "id": "a\\b",
+          "why": "on any file system"
+        },
+        {
+          "id": "https://kb.example/resources/5bcd259ab1464cf68a556bbad21f513f",
+          "why": "a URI is not an id: the id is its last segment"
+        },
+        {
+          "id": "a b",
+          "why": "no whitespace"
+        },
+        {
+          "id": "abc\n",
+          "why": "a line end is whitespace too, at the end as anywhere"
+        },
+        {
+          "id": "a%2Fb",
+          "why": "nothing that needs encoding, and nothing already encoded"
+        },
+        {
+          "id": "a?b",
+          "why": "nothing a URL reads as its own"
+        },
+        {
+          "id": "a#b",
+          "why": "nothing a URL reads as its own"
+        },
+        {
+          "id": "naïve",
+          "why": "ASCII only: one spelling, on every file system"
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "why": "129 characters: a file's name has a limit, and an id is well inside it"
+        }
+      ]
+    },
+    {
+      "schema": "JobId",
+      "properties": [
+        "jobId"
+      ],
+      "accepts": [
+        {
+          "id": "job-5bcd259ab1464cf68a556bbad21f513f",
+          "why": "as the dispatcher mints one"
+        },
+        {
+          "id": "job-1",
+          "why": "how an id is made is not part of the rule"
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "why": "128 characters"
+        }
+      ],
+      "refuses": [
+        {
+          "id": "",
+          "why": "an id names something"
+        },
+        {
+          "id": "..",
+          "why": "an id is one name in a file system, and this one names the directory above"
+        },
+        {
+          "id": ".",
+          "why": "and this one the directory itself"
+        },
+        {
+          "id": "a.json",
+          "why": "no `.` at all: a store appends an extension to an id to name a file"
+        },
+        {
+          "id": "a/b",
+          "why": "an id is one segment of a path"
+        },
+        {
+          "id": "a\\b",
+          "why": "on any file system"
+        },
+        {
+          "id": "https://kb.example/resources/5bcd259ab1464cf68a556bbad21f513f",
+          "why": "a URI is not an id: the id is its last segment"
+        },
+        {
+          "id": "a b",
+          "why": "no whitespace"
+        },
+        {
+          "id": "abc\n",
+          "why": "a line end is whitespace too, at the end as anywhere"
+        },
+        {
+          "id": "a%2Fb",
+          "why": "nothing that needs encoding, and nothing already encoded"
+        },
+        {
+          "id": "a?b",
+          "why": "nothing a URL reads as its own"
+        },
+        {
+          "id": "a#b",
+          "why": "nothing a URL reads as its own"
+        },
+        {
+          "id": "naïve",
+          "why": "ASCII only: one spelling, on every file system"
+        },
+        {
+          "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "why": "129 characters: a file's name has a limit, and an id is well inside it"
+        }
+      ]
+    },
+    {
+      "schema": "UserId",
+      "properties": [
+        "_userId",
+        "userId"
+      ],
+      "accepts": [
+        {
+          "id": "did:web:kb.example:users:alice",
+          "why": "a person"
+        },
+        {
+          "id": "did:web:kb.example:agents:ollama:gemma4%3A26b",
+          "why": "a software agent"
+        },
+        {
+          "id": "did:web:localhost%3A4000:users:a%40b.example",
+          "why": "a domain with a port, and a subject, both percent-encoded"
+        },
+        {
+          "id": "did:web:kb.example:users:o'brien!",
+          "why": "a subject is the issuer's, and its encoding leaves these as they are"
+        }
+      ],
+      "refuses": [
+        {
+          "id": "",
+          "why": "an id names someone"
+        },
+        {
+          "id": "alice",
+          "why": "a name is not an identity"
+        },
+        {
+          "id": "alice@kb.example",
+          "why": "nor is an address"
+        },
+        {
+          "id": "user-123",
+          "why": "nor is a row in a table"
+        },
+        {
+          "id": "did:",
+          "why": "a DID names something"
+        },
+        {
+          "id": "did:web:kb.example:users:a b",
+          "why": "no whitespace"
+        },
+        {
+          "id": "did:web:kb.example:users:alice\n",
+          "why": "a line end is whitespace too"
+        },
+        {
+          "id": " did:web:kb.example:users:alice",
+          "why": "no whitespace, before it either"
+        }
+      ]
+    }
+  ],
+  "others": [
+    {
+      "property": "clientId",
+      "docs": "A connection's own name for itself: a UUID the client makes, which its emits and its stream both carry so the gateway can pair them."
+    },
+    {
+      "property": "connectionId",
+      "docs": "The gateway's name for one open stream."
+    },
+    {
+      "property": "correlationId",
+      "docs": "What pairs a reply with its request: made by whoever asks, and opaque to everything between."
+    },
+    {
+      "property": "lastEventId",
+      "docs": "The id of the last event a stream delivered, a PersistedEventId: where a resumed stream begins."
+    },
+    {
+      "property": "lastSeenId",
+      "docs": "The same, as the gateway reports the gap it could not fill."
+    },
+    {
+      "property": "schemaId",
+      "docs": "A tag schema's id: a name the knowledge base's vocabulary gives it."
+    }
+  ]
+}

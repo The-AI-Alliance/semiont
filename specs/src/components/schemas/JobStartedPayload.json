@@ -2,9 +2,9 @@
   "type": "object",
   "description": "Payload for job:started domain event",
   "properties": {
-    "jobId": { "type": "string" },
+    "jobId": { "$ref": "./JobId.json" },
     "jobType": { "$ref": "JobType.json" },
-    "annotationId": { "type": "string", "description": "Annotation this job is attached to, when applicable" },
+    "annotationId": { "$ref": "./AnnotationId.json", "description": "Annotation this job is attached to, when applicable" },
     "totalSteps": { "type": "integer" }
   },
   "required": ["jobId", "jobType"]

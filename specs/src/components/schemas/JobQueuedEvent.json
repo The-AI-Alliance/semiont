@@ -3,16 +3,16 @@
   "description": "Event indicating a job has been queued",
   "properties": {
     "jobId": {
-      "type": "string"
+      "$ref": "./JobId.json"
     },
     "jobType": {
       "type": "string"
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "userId": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "DID of the user who initiated the job (audit)."
     }
   },

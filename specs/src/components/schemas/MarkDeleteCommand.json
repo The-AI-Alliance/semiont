@@ -3,14 +3,14 @@
   "description": "Bus command to delete an annotation.",
   "properties": {
     "_userId": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "annotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": [

@@ -3,7 +3,7 @@
   "description": "Error payload emitted on match:search-failed SSE channel.",
   "properties": {
     "referenceId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "error": {
       "type": "string"

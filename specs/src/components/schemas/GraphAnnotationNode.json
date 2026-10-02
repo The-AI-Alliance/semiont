@@ -3,8 +3,8 @@
   "description": "An annotation's graph presence. The node IS the annotation, so the full W3C object is required \u2014 selectors and body included, which is what lets a client place context annotations without a second fetch. Citations ride here too: an inbound reference is its linking annotation, anchored by an `annotation-of` edge to the resource it lives on and a `cites` edge to the focal resource.",
   "properties": {
     "id": {
-      "type": "string",
-      "description": "The AnnotationId \u2014 the same value as annotation.id"
+      "$ref": "./AnnotationId.json",
+      "description": "The AnnotationId — the same value as annotation.id"
     },
     "type": {
       "type": "string",

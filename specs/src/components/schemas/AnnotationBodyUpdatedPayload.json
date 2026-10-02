@@ -2,7 +2,7 @@
   "type": "object",
   "description": "Payload for mark:body-updated domain event",
   "properties": {
-    "annotationId": { "type": "string" },
+    "annotationId": { "$ref": "./AnnotationId.json" },
     "operations": {
       "type": "array",
       "items": {

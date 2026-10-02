@@ -6,7 +6,7 @@
       "type": "object",
       "properties": {
         "resourceId": {
-          "type": "string"
+          "$ref": "./ResourceId.json"
         }
       },
       "required": [

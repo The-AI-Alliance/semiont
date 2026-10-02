@@ -6,7 +6,7 @@
       "type": "object",
       "properties": {
         "jobId": {
-          "type": "string"
+          "$ref": "./JobId.json"
         }
       },
       "required": [

@@ -3,7 +3,7 @@
   "description": "A resource's presence in the gathered knowledge graph.",
   "properties": {
     "id": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "The resource's ResourceId"
     },
     "type": {

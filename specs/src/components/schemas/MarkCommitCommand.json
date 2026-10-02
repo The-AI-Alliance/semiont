@@ -3,7 +3,7 @@
   "description": "Bus command to persist a detection unit's annotations as one acknowledged batch (JOB-RESTART-SAFETY P6). Unlike mark:create, which is fire-and-forget and resolves when the bus accepts it, this command is answered only after every annotation is in the event log — so a worker can gate unit completion on durability rather than on emission. The batch is the unit: a partial commit is reported as a failure, and the worker retries the whole unit, which is safe because annotation ids are deterministic (P3).",
   "properties": {
     "_userId": {
-      "type": "string",
+      "$ref": "./UserId.json",
       "description": "Authenticated user's DID, injected by the /bus/emit gateway. Clients do not set this."
     },
     "_roles": {
@@ -14,11 +14,11 @@
       "description": "The emitter's capabilities (the token's `roles`), injected by the /bus/emit gateway. Clients do not set this. An emitter carrying the worker role must cite the job this batch fulfils in `jobId`; the Stower refuses the batch otherwise."
     },
     "jobId": {
-      "type": "string",
+      "$ref": "./JobId.json",
       "description": "The job this batch fulfils. Required when the emitter carries the worker role; absent for self-initiated work (a person, or an agent acting on its own). The knowledge base derives who requested these annotations from the cited job's own events — the emitter never says who the work was for."
     },
     "resourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "Resource every annotation in this batch targets."
     },
     "annotations": {

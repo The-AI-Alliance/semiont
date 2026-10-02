@@ -3,13 +3,13 @@
   "description": "Request to browse events for a resource",
   "properties": {
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "type": {
       "type": "string"
     },
     "userId": {
-      "type": "string"
+      "$ref": "./UserId.json"
     },
     "limit": {
       "type": "integer"

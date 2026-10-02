@@ -240,11 +240,11 @@
       "description": "Application-specific: Whether this resource is a draft"
     },
     "sourceAnnotationId": {
-      "type": "string",
+      "$ref": "./AnnotationId.json",
       "description": "Application-specific: ID of annotation that triggered generation"
     },
     "sourceResourceId": {
-      "type": "string",
+      "$ref": "./ResourceId.json",
       "description": "Application-specific: ID of source resource for clones/derivatives"
     },
     "originatedFrom": {

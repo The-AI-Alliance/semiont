@@ -19,7 +19,7 @@
       "description": "Where the clone's bytes are, on the resource's primary Representation \u2014 the same single home `yield:created` writes to (STORAGE-URI-ONE-HOME)."
     },
     "parentResourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     },
     "entityTypes": {
       "type": "array",

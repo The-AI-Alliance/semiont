@@ -3,10 +3,10 @@
   "description": "Request to generate an AI summary of an annotation",
   "properties": {
     "annotationId": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "resourceId": {
-      "type": "string"
+      "$ref": "./ResourceId.json"
     }
   },
   "required": [

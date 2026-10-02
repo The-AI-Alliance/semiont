@@ -18,7 +18,7 @@
       "description": "W3C Annotation type"
     },
     "id": {
-      "type": "string"
+      "$ref": "./AnnotationId.json"
     },
     "motivation": {
       "$ref": "./Motivation.json"

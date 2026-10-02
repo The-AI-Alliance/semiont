@@ -8,7 +8,7 @@
       "type": "object",
       "properties": {
         "resourceId": {
-          "type": "string",
+          "$ref": "./ResourceId.json",
           "description": "The resource the gather was asked for."
         }
       },
