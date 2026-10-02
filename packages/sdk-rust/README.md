@@ -181,14 +181,15 @@ flight ends by being told and not by the runtime stopping.
     to ask who a token is; it renews before the token expires, by the
     schedule every Semiont client keeps, and when the gateway refuses it. A
     session that cannot be renewed clears its token and what it stored, and
-    says so once. One that never had a credential is only signed out. At its
-    start a session asks the gateway who its stored token is: a token the
-    gateway refuses is renewed once and asked about once more, and one the
-    issuer has just issued and the gateway refuses ends the session
-    (`SessionErrorCode::CredentialRefused`). So it asks at most twice and
-    renews at most once, and a session that is over asks nothing more
+    says so once. One that never had a credential is only signed out. A
+    token the gateway refuses is renewed once, and the gateway is asked who
+    the renewed one is; a token the issuer has just issued and the gateway
+    refuses ends the session (`SessionErrorCode::CredentialRefused`). So a
+    session that starts on a stored token asks at most twice and renews at
+    most once, a refusal of a running session costs at most one renewal and
+    one ask, and a session that is over asks nothing more
     ([specs/src/session/cases.json](../../specs/src/session/cases.json),
-    `startup`).
+    `startup` and `refusal`).
   - `SemiontBrowser` is what an application holds: the knowledge bases it
     has registered, which is active, the active one's session, and what a
     person has open in each. One session is live at a time. A sign-in lands

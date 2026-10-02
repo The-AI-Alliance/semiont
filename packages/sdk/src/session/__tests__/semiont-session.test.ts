@@ -34,10 +34,10 @@ vi.mock('../../client', async () => {
   };
 });
 
-import { SemiontClient } from '../../client';
+import { SemiontClient, APIError } from '../../client';
 import { SemiontSession, type SemiontSessionConfig } from '../semiont-session';
 import type { AccessToken } from '@semiont/core';
-import { SESSION_PREFIX_RE, storageKey, seedStoredSession, TestStorage } from './test-storage-helpers';
+import { SESSION_PREFIX_RE, storageKey, seedStoredSession, testSession, TestStorage } from './test-storage-helpers';
 import { getStoredSession } from '../storage';
 
 function freshJwt(expSecondsFromNow = 3600): string {
@@ -304,6 +304,181 @@ describe('SemiontSession — refresh', () => {
     expect(getStoredSession(storage, KB.id)).toBeNull();
     expect(onAuthFailed).toHaveBeenCalledWith(expect.stringContaining('session has expired'));
 
+    await session.dispose();
+  });
+});
+
+describe('SemiontSession — a refusal while the session is still starting', () => {
+  // The session's stream opens with the stored token as the session starts
+  // asking who that token is, so the stream's refusal can land first. While
+  // the session is starting, `refresh` only renews: the start finds the
+  // renewed token and asks about it. ONE renewal, ONE ask about it, ONE end.
+  it('renews once and ends once when the stream is refused before the start has its answer', async () => {
+    const stored = freshJwt(3600);
+    const renewed = freshJwt(7200);
+    seedStoredSession(storage, KB.id, stored, 'refresh-tok');
+    const refusal = () => APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
+    // The gateway's answer about the stored token is held until released.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const asked: string[] = [];
+    validate = vi.fn(async (token: AccessToken) => {
+      asked.push(token);
+      if (token === stored) await held;
+      throw refusal();
+    }) as typeof validate;
+    refresh = vi.fn(async () => renewed) as typeof refresh;
+    const onAuthFailed = vi.fn();
+    const onError = vi.fn();
+    const session = newSession({ onAuthFailed, onError });
+
+    // The stream's refusal: renewed, and nobody asked. The start does that.
+    expect(await session.refresh()).toBe(renewed);
+    expect(asked).toEqual([stored]);
+
+    // The start's answer about the stored token arrives: refused. It finds
+    // the token renewed, asks about that one, and is refused again.
+    release();
+    await session.ready;
+
+    expect(asked).toEqual([stored, renewed]);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(onAuthFailed).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls.map(([error]) => error.code)).toEqual(['session.credential-refused']);
+    expect(session.token$.getValue()).toBeNull();
+    await session.dispose();
+  });
+
+  it('leaves the asking to the start when the start and the stream are both waiting on one renewal', async () => {
+    const stored = freshJwt(3600);
+    const renewed = freshJwt(7200);
+    seedStoredSession(storage, KB.id, stored, 'refresh-tok');
+    // One renewal serves both askers, as renewals asked for together do.
+    let issue!: (token: string) => void;
+    const renewal = new Promise<string>((resolve) => { issue = resolve; });
+    refresh = vi.fn(() => renewal) as typeof refresh;
+    // The gateway refuses the stored token at once, and holds its answer
+    // about the renewed one until released.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const asked: string[] = [];
+    validate = vi.fn(async (token: AccessToken) => {
+      asked.push(token);
+      if (token === renewed) await held;
+      throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
+    }) as typeof validate;
+    const onAuthFailed = vi.fn();
+    const onError = vi.fn();
+    const session = newSession({ onAuthFailed, onError });
+
+    // The start is refused and asks for a renewal; so does the stream.
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(1));
+    const refreshing = session.refresh();
+    await vi.waitFor(() => expect(refresh).toHaveBeenCalledTimes(2));
+    issue(renewed);
+    await vi.waitFor(() => expect(asked).toEqual([stored, renewed]));
+    release();
+    await session.ready;
+
+    expect(await refreshing).toBe(renewed);
+    expect(asked).toEqual([stored, renewed]);
+    expect(onAuthFailed).toHaveBeenCalledTimes(1);
+    expect(onError.mock.calls.map(([error]) => error.code)).toEqual(['session.credential-refused']);
+    await session.dispose();
+  });
+
+  it('takes up a token renewed meanwhile as the just-issued one, and does not renew again', async () => {
+    const stored = freshJwt(3600);
+    const renewed = freshJwt(7200);
+    seedStoredSession(storage, KB.id, stored, 'refresh-tok');
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    const asked: string[] = [];
+    validate = vi.fn(async (token: AccessToken) => {
+      asked.push(token);
+      if (token === renewed) return { did: 'did:web:example.org:users:alice', email: 'a@b.c', name: 'Alice', image: null, domain: 'example.org' };
+      await held;
+      throw APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
+    }) as typeof validate;
+    refresh = vi.fn(async () => renewed) as typeof refresh;
+    const onAuthFailed = vi.fn();
+    const session = newSession({ onAuthFailed });
+
+    // The stream's refusal: renewed, and nobody asked.
+    expect(await session.refresh()).toBe(renewed);
+    expect(asked).toEqual([stored]);
+
+    // The start's answer about the stored token arrives: refused. The
+    // session's token is already the renewed one, which the gateway accepted.
+    release();
+    await session.ready;
+
+    expect(asked).toEqual([stored, renewed]);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(session.token$.getValue()).toBe(renewed);
+    expect(session.user$.getValue()).toMatchObject({ name: 'Alice' });
+    expect(onAuthFailed).not.toHaveBeenCalled();
+    await session.dispose();
+  });
+});
+
+describe('SemiontSession — a refusal of a running session', () => {
+  const ALICE = { did: 'did:web:example.org:users:alice', email: 'a@b.c', name: 'Alice', image: null, domain: 'example.org' };
+  const refusal = () => APIError.fromStatus('HTTP 401', 401, 'Unauthorized', undefined, undefined);
+
+  it('answers refusals that arrive together with one renewal and one ask', async () => {
+    const stored = freshJwt(3600);
+    const renewed = freshJwt(7200);
+    seedStoredSession(storage, KB.id, stored, 'refresh-tok');
+    const asked: string[] = [];
+    validate = vi.fn(async (token: AccessToken) => {
+      asked.push(token);
+      return ALICE;
+    }) as typeof validate;
+    refresh = vi.fn(async () => renewed) as typeof refresh;
+    const session = newSession();
+    await session.ready;
+
+    // Three requests refused at once: each asks the session to refresh.
+    const given = await Promise.all([session.refresh(), session.refresh(), session.refresh()]);
+
+    expect(given).toEqual([renewed, renewed, renewed]);
+    expect(refresh).toHaveBeenCalledTimes(1);
+    expect(asked).toEqual([stored, renewed]);
+
+    // A refusal after that is a new one.
+    await session.refresh();
+    expect(refresh).toHaveBeenCalledTimes(2);
+    await session.dispose();
+  });
+
+  it('is not ended by the refusal of a token it no longer holds', async () => {
+    const stored = freshJwt(3600);
+    const renewed = freshJwt(7200);
+    const elsewhere = freshJwt(9000);
+    seedStoredSession(storage, KB.id, stored, 'refresh-tok');
+    // The gateway holds its answer about the renewed token until released.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => { release = resolve; });
+    validate = vi.fn(async (token: AccessToken) => {
+      if (token !== renewed) return ALICE;
+      await held;
+      throw refusal();
+    }) as typeof validate;
+    refresh = vi.fn(async () => renewed) as typeof refresh;
+    const onAuthFailed = vi.fn();
+    const session = newSession({ onAuthFailed });
+    await session.ready;
+
+    const refreshing = session.refresh();
+    await vi.waitFor(() => expect(validate).toHaveBeenCalledTimes(2));
+    // Another context signs in again while the gateway is being asked.
+    storage.dispatch(storageKey(KB.id), JSON.stringify({ ...testSession(elsewhere, 'r2') }));
+    release();
+
+    expect(await refreshing).toBe(elsewhere);
+    expect(session.token$.getValue()).toBe(elsewhere);
+    expect(onAuthFailed).not.toHaveBeenCalled();
     await session.dispose();
   });
 });

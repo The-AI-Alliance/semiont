@@ -461,6 +461,370 @@ async fn a_session_starts_as_each_case_of_the_shared_table_states() {
     }
 }
 
+/// What a running session does when the gateway refuses its token, as
+/// specs/src/session/cases.json states it for every SDK (`refusal`).
+#[tokio::test(start_paused = true)]
+async fn a_refused_session_renews_and_asks_as_each_case_of_the_shared_table_states() {
+    let table: Value = serde_json::from_str(include_str!("../../../specs/src/session/cases.json"))
+        .expect("the table is JSON");
+    let cases = table["refusal"].as_array().expect("refusal cases");
+    assert!(!cases.is_empty(), "the table has no refusal case");
+    let answer = |script: &Value, n: usize| -> String {
+        let script = script.as_array().expect("a script");
+        script[n.min(script.len() - 1)]
+            .as_str()
+            .expect("an answer")
+            .to_owned()
+    };
+
+    for case in cases {
+        let why = case["why"].as_str().expect("why");
+        let count = |key: &str| case[key].as_u64().expect("a count") as usize;
+        let (asks, renewals) = (count("asks"), count("renewals"));
+        // The session starts signed in: the gateway accepts the stored token.
+        // Then the case's answers, and one more than it allows: of the
+        // gateway, an answer that is no refusal; of the issuer, none.
+        let validations = std::iter::once(Ok(alice()))
+            .chain(
+                (0..asks).map(|n| match answer(&case["gateway"], n).as_str() {
+                    "accepts" => Ok(alice()),
+                    "refuses" => Err(unauthorized()),
+                    "unreachable" => Err(TransportError::of_status("HTTP 503", 503, None).into()),
+                    other => panic!("{why}: the gateway {other}"),
+                }),
+            )
+            .chain([Err(TransportError::of_status(
+                "asked more than the case allows",
+                500,
+                None,
+            )
+            .into())]);
+        let renewed_token = token(3600, 1);
+        let renewing = (0..renewals).map(|n| match answer(&case["issuer"], n).as_str() {
+            "renews" => Ok(Some(renewed_token.clone())),
+            "refuses" => Ok(None),
+            other => panic!("{why}: the issuer {other}"),
+        });
+        let world = World::new()
+            .storing(&token(3600, 0))
+            .validating(validations)
+            .renewing(renewing);
+        let session = world.session();
+        ready(&session).await;
+        assert_eq!(
+            *session.user().borrow(),
+            Some(alice()),
+            "{why}: it starts signed in"
+        );
+        assert_eq!((world.validated().len(), world.renewed()), (1, 0));
+
+        // The gateway refused the session's token: its transport asks it to refresh.
+        let given = session.refresh().await;
+
+        assert_eq!(
+            (world.validated().len() - 1, world.renewed()),
+            (asks, renewals),
+            "{why}: how often the gateway and the issuer were asked"
+        );
+        assert_eq!(
+            given.is_some(),
+            case["given"].as_bool().expect("given"),
+            "{why}: whether refresh gives a token"
+        );
+        if given.is_some() {
+            assert_eq!(given, *session.token().borrow(), "{why}");
+        }
+        let ends = match (
+            session.token().borrow().is_some(),
+            session.user().borrow().is_some(),
+        ) {
+            (false, _) => "signed-out",
+            (true, false) => "unconfirmed",
+            (true, true) => "signed-in",
+        };
+        assert_eq!(ends, case["ends"].as_str().expect("ends"), "{why}");
+        let told: Vec<String> = case["told"]
+            .as_str()
+            .map(|name| {
+                table["messages"][name]
+                    .as_str()
+                    .expect("a message")
+                    .to_owned()
+            })
+            .into_iter()
+            .collect();
+        assert_eq!(world.auth_failed(), told, "{why}: what the person is told");
+        let reported: Vec<&str> = world
+            .errors()
+            .iter()
+            .map(|(code, _)| code.as_str())
+            .collect();
+        let error: Vec<&str> = case["error"].as_str().into_iter().collect();
+        assert_eq!(reported, error, "{why}: the error reported");
+        assert_eq!(
+            world.has_stored(),
+            case["kept"].as_bool().expect("kept"),
+            "{why}: whether a session is still stored"
+        );
+        if ends == "signed-out" {
+            tokio::time::sleep(Duration::from_secs(2 * 60 * 60)).await;
+            assert_eq!(
+                (world.validated().len() - 1, world.renewed()),
+                (asks, renewals),
+                "{why}: what was asked once the session was over"
+            );
+        }
+        session.close().await;
+    }
+}
+
+/// A session whose gateway holds its answer about the stored token until
+/// `release` is notified, refuses that token, and answers `of_renewed` about
+/// any other. What it was asked about, in order.
+fn starting_slowly(
+    world: &World,
+    stored_token: &str,
+    of_renewed: Validation,
+) -> (
+    SemiontSession,
+    Arc<Mutex<Vec<String>>>,
+    Arc<tokio::sync::Notify>,
+) {
+    let asked: Arc<Mutex<Vec<String>>> = Arc::default();
+    let release = Arc::new(tokio::sync::Notify::new());
+    let (asking, held, stored_token) = (asked.clone(), release.clone(), stored_token.to_owned());
+    let session = SemiontSession::new(SemiontSessionConfig {
+        validate: Some(Arc::new(move |token| {
+            asking.lock().expect("asked").push(token.clone());
+            let (held, stored_token, of_renewed) =
+                (held.clone(), stored_token.clone(), of_renewed.clone());
+            Box::pin(async move {
+                if token != stored_token {
+                    return of_renewed;
+                }
+                held.notified().await;
+                Err(unauthorized())
+            })
+        })),
+        ..world.config()
+    });
+    (session, asked, release)
+}
+
+// The session's stream opens with the stored token as the session starts
+// asking who that token is, so the stream's refusal can land first. While
+// the session is starting, a refusal only renews: the start finds the renewed
+// token and asks about it. One renewal, one ask about it, one ending.
+#[tokio::test(start_paused = true)]
+async fn a_stream_refused_while_the_session_is_starting_costs_one_renewal_and_one_ending() {
+    let (access, renewed) = (token(3600, 1), token(3600, 2));
+    let world = World::new()
+        .storing(&access)
+        .renewing([Ok(Some(renewed.clone())), Ok(Some(token(3600, 3)))]);
+    let (session, asked, release) = starting_slowly(&world, &access, Err(unauthorized()));
+    settle().await;
+
+    // The stream's refusal arrives before the start has its answer.
+    let refreshing = tokio::spawn({
+        let renewer = session.renewer();
+        async move { renewer.refresh().await }
+    });
+    settle().await;
+    release.notify_one();
+    ready(&session).await;
+
+    assert_eq!(
+        refreshing.await.expect("the refresh ran"),
+        Some(renewed.clone())
+    );
+    assert_eq!(*asked.lock().expect("asked"), [access, renewed]);
+    assert_eq!(world.renewed(), 1);
+    assert_eq!(world.auth_failed().len(), 1);
+    assert_eq!(
+        world
+            .errors()
+            .iter()
+            .map(|(code, _)| *code)
+            .collect::<Vec<_>>(),
+        [SessionErrorCode::CredentialRefused]
+    );
+    assert_eq!(*session.token().borrow(), None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn the_start_does_the_asking_when_it_and_the_stream_are_both_waiting_on_one_renewal() {
+    let (access, renewed) = (token(3600, 1), token(3600, 2));
+    let world = World::new().storing(&access);
+    // One renewal serves both askers, as renewals asked for together do; and
+    // the gateway refuses the stored token at once, and holds its answer
+    // about the renewed one until released.
+    let (issue, release) = (
+        Arc::new(tokio::sync::Notify::new()),
+        Arc::new(tokio::sync::Notify::new()),
+    );
+    let asked: Arc<Mutex<Vec<String>>> = Arc::default();
+    let renewals = Arc::new(Mutex::new(0usize));
+    let (issuing, renewing, issued) = (issue.clone(), renewals.clone(), renewed.clone());
+    let (asking, holding, held_token) = (asked.clone(), release.clone(), renewed.clone());
+    let session = SemiontSession::new(SemiontSessionConfig {
+        refresh: Some(Arc::new(move || {
+            *renewing.lock().expect("renewals") += 1;
+            let (issuing, issued) = (issuing.clone(), issued.clone());
+            Box::pin(async move {
+                issuing.notified().await;
+                Ok(Some(issued))
+            })
+        })),
+        validate: Some(Arc::new(move |token| {
+            asking.lock().expect("asked").push(token.clone());
+            let (holding, held_token) = (holding.clone(), held_token.clone());
+            Box::pin(async move {
+                if token == held_token {
+                    holding.notified().await;
+                }
+                Err(unauthorized())
+            })
+        })),
+        ..world.config()
+    });
+    settle().await;
+
+    // The start is refused and asks for a renewal; so does the stream.
+    let refreshing = tokio::spawn({
+        let renewer = session.renewer();
+        async move { renewer.refresh().await }
+    });
+    settle().await;
+    assert_eq!(*renewals.lock().expect("renewals"), 2);
+    issue.notify_waiters();
+    settle().await;
+    assert_eq!(*asked.lock().expect("asked"), [access, renewed.clone()]);
+    release.notify_one();
+    ready(&session).await;
+
+    assert_eq!(refreshing.await.expect("the refresh ran"), Some(renewed));
+    assert_eq!(asked.lock().expect("asked").len(), 2);
+    assert_eq!(world.auth_failed().len(), 1);
+    assert_eq!(
+        world
+            .errors()
+            .iter()
+            .map(|(code, _)| *code)
+            .collect::<Vec<_>>(),
+        [SessionErrorCode::CredentialRefused]
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_token_renewed_while_the_session_is_starting_is_taken_up_and_not_renewed_again() {
+    let (access, renewed) = (token(3600, 1), token(3600, 2));
+    let world = World::new()
+        .storing(&access)
+        .renewing([Ok(Some(renewed.clone())), Ok(Some(token(3600, 3)))]);
+    let (session, asked, release) = starting_slowly(&world, &access, Ok(alice()));
+    settle().await;
+
+    let refreshing = tokio::spawn({
+        let renewer = session.renewer();
+        async move { renewer.refresh().await }
+    });
+    settle().await;
+    release.notify_one();
+    ready(&session).await;
+
+    assert_eq!(
+        refreshing.await.expect("the refresh ran"),
+        Some(renewed.clone())
+    );
+    assert_eq!(*asked.lock().expect("asked"), [access, renewed.clone()]);
+    assert_eq!(world.renewed(), 1);
+    assert_eq!(session.token().borrow().as_deref(), Some(renewed.as_str()));
+    assert_eq!(*session.user().borrow(), Some(alice()));
+    assert!(world.auth_failed().is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn refusals_that_arrive_together_cost_one_renewal_and_one_ask() {
+    let (access, renewed) = (token(3600, 1), token(3600, 2));
+    let world = World::new().storing(&access);
+    // An issuer that takes a moment, as one does: the refusals overlap.
+    let renewals = Arc::new(Mutex::new(0usize));
+    let (renewing, issued) = (renewals.clone(), renewed.clone());
+    let session = SemiontSession::new(SemiontSessionConfig {
+        refresh: Some(Arc::new(move || {
+            *renewing.lock().expect("renewals") += 1;
+            let issued = issued.clone();
+            Box::pin(async move {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+                Ok(Some(issued))
+            })
+        })),
+        ..world.config()
+    });
+    ready(&session).await;
+
+    // Three requests refused at once: each asks the session to refresh.
+    let (a, b, c) = tokio::join!(session.refresh(), session.refresh(), session.refresh());
+
+    assert_eq!(
+        [a, b, c],
+        [
+            Some(renewed.clone()),
+            Some(renewed.clone()),
+            Some(renewed.clone())
+        ]
+    );
+    assert_eq!(*renewals.lock().expect("renewals"), 1);
+    assert_eq!(world.validated(), [access, renewed]);
+
+    // A refusal after that is a new one.
+    session.refresh().await;
+    assert_eq!(*renewals.lock().expect("renewals"), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_session_is_not_ended_by_the_refusal_of_a_token_it_no_longer_holds() {
+    let (access, renewed, other) = (token(3600, 1), token(3600, 2), token(3600, 9));
+    let world = World::new()
+        .storing(&access)
+        .renewing([Ok(Some(renewed.clone()))]);
+    // The gateway holds its answer about the renewed token until released.
+    let release = Arc::new(tokio::sync::Notify::new());
+    let (holding, held_token) = (release.clone(), renewed.clone());
+    let session = SemiontSession::new(SemiontSessionConfig {
+        validate: Some(Arc::new(move |token| {
+            let (holding, held_token) = (holding.clone(), held_token.clone());
+            Box::pin(async move {
+                if token != held_token {
+                    return Ok(alice());
+                }
+                holding.notified().await;
+                Err(unauthorized())
+            })
+        })),
+        ..world.config()
+    });
+    ready(&session).await;
+
+    let refreshing = tokio::spawn({
+        let renewer = session.renewer();
+        async move { renewer.refresh().await }
+    });
+    settle().await;
+    // Another context signs in again while the gateway is being asked.
+    world
+        .elsewhere
+        .set(&session_key(KB), &stored(&other).written());
+    release.notify_one();
+
+    assert_eq!(
+        refreshing.await.expect("the refresh ran"),
+        Some(other.clone())
+    );
+    assert_eq!(session.token().borrow().as_deref(), Some(other.as_str()));
+    assert!(world.auth_failed().is_empty());
+}
+
 // ── How it is renewed ───────────────────────────────────────────────────
 
 #[tokio::test(start_paused = true)]
@@ -499,6 +863,10 @@ async fn an_idle_session_renews_its_token_once_per_half_life_and_no_oftener() {
 
     tokio::time::sleep(Duration::from_secs(600)).await;
     assert_eq!(world.renewed(), 5);
+    // A renewal on the session's own schedule follows no refusal: the
+    // gateway was asked who the token is when the session started, and not
+    // since.
+    assert_eq!(world.validated().len(), 1);
     drop(session);
 }
 
