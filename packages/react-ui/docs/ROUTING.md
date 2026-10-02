@@ -51,6 +51,7 @@ A host writes both once and passes them wherever they are asked for. React Route
 `to` where `LinkComponentProps` has `href`, so a host over React Router adapts it:
 
 ```tsx
+<<<<<<< HEAD
 import { Link as RouterLink } from 'react-router';
 import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
 
@@ -62,6 +63,26 @@ export const routes: RouteBuilder = {
   resourceDetail: (id) => `/know/resource/${id}`,
   knowledge: () => '/know',
   moderate: () => '/moderate',
+=======
+import React from 'react';
+import { Link as RouterLink } from 'react-router';
+import type { LinkComponentProps, RouteBuilder } from '@semiont/react-ui';
+
+export const Link = React.forwardRef<HTMLAnchorElement, LinkComponentProps>(
+  function Link({ href, ...props }, ref) {
+    return <RouterLink ref={ref} to={href} {...props} />;
+  },
+);
+
+export const routes: RouteBuilder = {
+  resourceDetail: (id) => `/know/resource/${id}`,
+  userProfile: (id) => `/users/${id}`,
+  search: (query) => `/search?q=${encodeURIComponent(query)}`,
+  home: () => '/',
+  knowledge: () => '/know',
+  moderate: () => '/moderate',
+  admin: () => '/admin',
+>>>>>>> 7ed63a20b (Browser and react-ui docs: remove what no longer exists — routing provider, deleted modals and hooks, client.emit, and a performance guide with no commands)
 };
 ```
 
@@ -80,7 +101,16 @@ A test passes a plain anchor and a literal `routes`:
 
 ```tsx
 const Link = ({ href, children, ...props }: LinkComponentProps) => <a href={href} {...props}>{children}</a>;
+<<<<<<< HEAD
 const routes: RouteBuilder = { resourceDetail: (id) => `/resource/${id}` };
+=======
+const routes: RouteBuilder = {
+  resourceDetail: (id) => `/resource/${id}`,
+  userProfile: (id) => `/users/${id}`,
+  search: (query) => `/search?q=${query}`,
+  home: () => '/',
+};
+>>>>>>> 7ed63a20b (Browser and react-ui docs: remove what no longer exists — routing provider, deleted modals and hooks, client.emit, and a performance guide with no commands)
 
 renderInEnglish(<AnnotationHistory events={[]} Link={Link} routes={routes} />);
 ```
