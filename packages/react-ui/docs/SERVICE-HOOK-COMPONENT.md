@@ -289,95 +289,11 @@ export function ResourceViewerPage({ rUri, ... }: ResourceViewerPageProps) {
       <button onClick={handleDetect} disabled={!!assistingMotivation}>
         {assistingMotivation ? 'Detecting...' : 'Detect Entities'}
       </button>
-      {progress && <ProgressBar message={progress.message} />}
+      {progress && <p role="status">{progress.message}</p>}
     </div>
   );
 }
 ```
-
----
-
-## Before and After: MAKE-IT-STOP Refactoring
-
-### Before: Render Props Pattern (❌ BAD)
-
-```typescript
-// 4 levels of nested render props = 636 lines of indirection
-function ResourceViewerPage({ rId, ... }) {
-  return (
-    <DetectionFlowContainer rId={rId}>
-      {(detectionState) => (
-        <PanelNavigationContainer>
-          {(navState) => (
-            <AnnotationFlowContainer>
-              {(annotationState) => (
-                <GenerationFlowContainer>
-                  {(generationState) => (
-                    <ResourceViewerPageContent
-                      {...detectionState}
-                      {...navState}
-                      {...annotationState}
-                      {...generationState}
-                    />
-                  )}
-                </GenerationFlowContainer>
-              )}
-            </AnnotationFlowContainer>
-          )}
-        </PanelNavigationContainer>
-      )}
-    </DetectionFlowContainer>
-  );
-}
-```
-
-**Problems**:
-- 4 container components (636 lines)
-- Nested render props (hard to read)
-- Wrapper component just for prop spreading
-- Total: ~1,370 lines of indirection
-
-### After: Hook-Based Pattern (✅ GOOD)
-
-```typescript
-// One composite state unit + direct useObservable reads = 0 indirection
-function ResourceViewerPage({ rUri, resource, ... }: ResourceViewerPageProps) {
-  // Layer 1: one state unit owns every flow (mark, browse, gather, yield) and
-  // the browse.*(rUri) live queries — created once with useStateUnit.
-  const browseStateUnit = useShellStateUnit();
-  const stateUnit = useStateUnit(() =>
-    createResourceViewerPageStateUnit(semiont!, rUri, locale, browseStateUnit));
-
-  // Layer 2: read state-unit observables with useObservable
-  const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-  const progress = useObservable(stateUnit.mark.progress$) ?? null;
-  const pendingAnnotation = useObservable(stateUnit.mark.pendingAnnotation$) ?? null;
-  const activePanel = useObservable(stateUnit.browse.activePanel$) ?? null;
-
-  // Layer 3: Render UI directly
-  return (
-    <div className="resource-viewer">
-      <Toolbar {...} />
-      <ResourceViewer
-        assistingMotivation={assistingMotivation}
-        progress={progress}
-        {...}
-      />
-      <UnifiedAnnotationsPanel
-        pendingAnnotation={pendingAnnotation}
-        activePanel={activePanel}
-        {...}
-      />
-    </div>
-  );
-}
-```
-
-**Results**:
-- One composite state unit replaces 4 containers (636 lines)
-- No nested render props
-- No wrapper components
-- Total: ~450 lines (67% reduction)
 
 ---
 
@@ -423,7 +339,7 @@ export function useMarkAssist(stateUnit: ResourceViewerPageStateUnit) {
   useEffect(() => {
     // Don't do this — the mark state unit already tracks this off the
     // unified job channels; just read assistingMotivation$.
-    const sub = session?.client.bus.get('job:report-progress').subscribe(/* ... */);
+    const sub = session?.client.bus.on('job:report-progress').subscribe(/* ... */);
     return () => sub?.unsubscribe();
   }, [session]);
 
@@ -537,7 +453,7 @@ it('should expose assistingMotivation from the mark state unit', () => {
 
   // Drive the state unit's observable
   act(() => {
-    client.bus.get('mark:assist-request').next({
+    client.bus.emit('mark:assist-request', {
       motivation: 'linking',
       options: { entityTypes: ['Person'] },
     });
@@ -571,48 +487,6 @@ it('should call mark.requestAssist when button clicked', async () => {
   }));
 });
 ```
-
----
-
-## Migration Guide
-
-### From Render Props Containers to Hooks
-
-1. **Identify container logic**:
-   - Find `useState` calls that mirror state already owned by a state unit
-   - Find `useEventSubscriptions` calls
-   - Find what data is returned to children
-
-2. **Move state into the state unit, read it via `useObservable`**:
-   ```typescript
-   // Before: Container re-deriving assist state from raw bus events
-   function DetectionFlowContainer({ children }) {
-     const [detecting, setDetecting] = useState(null);
-     useEventSubscriptions({
-       'mark:assist-request': ({ motivation }) => setDetecting(motivation),
-     });
-     return <>{children({ detecting })}</>;
-   }
-
-   // After: read the mark state unit's observable directly
-   const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-   ```
-
-3. **Update component to read the observable**:
-   ```typescript
-   // Before
-   <DetectionFlowContainer>
-     {({ detecting }) => <div>{detecting}</div>}
-   </DetectionFlowContainer>
-
-   // After
-   const assistingMotivation = useObservable(stateUnit.mark.assistingMotivation$) ?? null;
-   return <div>{assistingMotivation}</div>;
-   ```
-
-4. **Delete container file**
-5. **Update exports**
-6. **Update tests**
 
 ---
 

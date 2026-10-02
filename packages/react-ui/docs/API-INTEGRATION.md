@@ -169,7 +169,7 @@ The closure can return `undefined` to signal "still loading" — see
 
 `createSearchPipeline` is unit-testable without React: pass a stub fetch
 function, push values into `setQuery`, assert on emissions from `state$`. See
-`packages/react-ui/src/lib/__tests__/search-pipeline.test.ts`.
+`packages/sdk/src/state/lib/__tests__/search-pipeline.test.ts`.
 
 ## Writing data
 
@@ -230,8 +230,9 @@ The ref-wrapped handler means your handler can change every render without
 re-subscribing; the hook re-subscribes only when the channel set changes.
 
 For lower-level access you can reach the buses directly:
-`semiont.emit/on/stream` on the browser, and `session.client.emit/on/stream`
-on the client. Most components should prefer the hooks.
+`semiont.emit/on/stream` on the browser, and `session.subscribe(channel,
+handler)` or `session.client.bus` on a session. Most components should
+prefer the hooks.
 
 Note: with this model you do **not** wire gateway events to manual cache
 invalidation. The SDK's read-through cache already invalidates on the relevant

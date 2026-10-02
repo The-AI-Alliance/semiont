@@ -100,31 +100,6 @@ const { deleteAnnotation } = useResourceAnnotations();
 await deleteAnnotation(rId, annotationId);
 ```
 
-### UI State Management
-
-Sparkle animations for newly created annotations:
-
-```typescript
-import { useAnnotationUI } from '@semiont/react-ui';
-
-function MyComponent() {
-  const { newAnnotationIds, triggerSparkleAnimation, clearNewAnnotationId } = useAnnotationUI();
-
-  // Check if annotation is new
-  if (newAnnotationIds.has(annotationId)) {
-    // Apply sparkle animation CSS class
-  }
-
-  // Manually trigger sparkle
-  triggerSparkleAnimation('ann-123');
-
-  // Manually clear (auto-clears after 6 seconds)
-  clearNewAnnotationId('ann-123');
-}
-```
-
----
-
 ## Annotation Views
 
 ### Resource Viewer
@@ -174,7 +149,7 @@ and the entries' interaction contract.
 Centralized metadata registry for annotation types:
 
 ```typescript
-import { ANNOTATORS, getAnnotator, groupAnnotationsByType } from '@semiont/react-ui';
+import { ANNOTATORS, annotatorKeyForMotivation } from '@semiont/react-ui';
 
 // Access annotator metadata
 const highlightAnnotator = ANNOTATORS.highlight;
@@ -182,17 +157,18 @@ console.log(highlightAnnotator.displayName); // "Highlight"
 console.log(highlightAnnotator.className); // CSS classes
 console.log(highlightAnnotator.iconEmoji); // "🟡"
 
-// Get annotator for an annotation
-const annotator = getAnnotator(annotation);
+// The annotator an annotation belongs to: each one answers for itself
+const annotator = Object.values(ANNOTATORS).find((a) => a.matchesAnnotation(annotation));
 if (annotator?.isClickable) {
   // Handle click
 }
 
-// Group annotations by type
-const groups = groupAnnotationsByType(annotations);
-const highlights = groups.highlight || [];
-const comments = groups.comment || [];
+// The registry key for a W3C motivation ('highlighting' → 'highlight')
+const key = annotatorKeyForMotivation(annotation.motivation);
 ```
+
+`UnifiedAnnotationsPanel` takes the registry as its `annotators` prop and groups what it is
+given with each annotator's `matchesAnnotation`.
 
 ### Annotator Metadata
 
@@ -202,6 +178,7 @@ Each annotator provides:
 interface Annotator {
   // W3C standard
   motivation: Motivation; // 'highlighting', 'commenting', etc.
+  internalType: string;
 
   // Display
   displayName: string; // "Highlight"
@@ -209,7 +186,7 @@ interface Annotator {
   iconEmoji?: string; // "🟡"
 
   // Styling
-  className: string; // Tailwind CSS classes
+  className: string; // semantic `semiont-*` class names
 
   // Behavior
   isClickable: boolean;
@@ -219,36 +196,16 @@ interface Annotator {
   // Type checking
   matchesAnnotation: (ann: Annotation) => boolean;
 
+  // Accessibility: what a screen reader hears when one is created
+  announceOnCreate: string;
+
   // AI Detection (optional)
   detection?: DetectionConfig;
+
+  // How this type is created
+  create: CreateConfig;
 }
 ```
-
-### Runtime Handler Injection
-
-Handlers are injected at runtime using `withHandlers()`:
-
-```typescript
-import { withHandlers, ANNOTATORS } from '@semiont/react-ui';
-
-const annotators = withHandlers({
-  highlight: {
-    onClick: (annotation) => { /* ... */ },
-    onHover: (annotationId) => { /* ... */ }
-    // AI assist is NOT a handler here — it runs through the mark state unit.
-    // Trigger it with `client.mark.requestAssist('highlighting', options)`
-    // (see "AI-Powered Detection" below).
-  },
-  comment: {
-    onClick: (annotation) => { /* ... */ },
-    onCreate: async (text) => { /* ... */ }
-  }
-});
-
-<UnifiedAnnotationsPanel session={session} annotations={annotations} annotators={annotators} /* …state props */ />
-```
-
----
 
 ## AI-Powered Detection
 
@@ -458,24 +415,6 @@ import { SvgDrawingCanvas } from '@semiont/react-ui';
 
 ## Markdown Integration
 
-### Remark/Rehype Plugins
-
-```typescript
-import { remarkAnnotations, rehypeRenderAnnotations } from '@semiont/react-ui';
-import ReactMarkdown from 'react-markdown';
-
-<ReactMarkdown
-  remarkPlugins={[
-    [remarkAnnotations, { annotations: preparedAnnotations }]
-  ]}
-  rehypePlugins={[
-    rehypeRenderAnnotations
-  ]}
->
-  {markdownContent}
-</ReactMarkdown>
-```
-
 ### Overlay Annotations
 
 Convert W3C annotations to overlay format:
@@ -511,7 +450,7 @@ import { CodeMirrorRenderer } from '@semiont/react-ui';
   segments={textSegments}
   onAnnotationClick={handleClick}
   onAnnotationHover={handleHover}
-  newAnnotationIds={newAnnotationIds}
+  sparkleAnnotationIds={sparkleAnnotationIds}
   hoveredAnnotationId={hoveredId}
   showLineNumbers={true}
   enableWidgets={true}
@@ -534,32 +473,6 @@ interface TextSegment {
 ## Testing
 
 ### Test Examples
-
-```typescript
-import { render, screen, act } from '@testing-library/react';
-import { AnnotationProvider, AnnotationUIProvider } from '@semiont/react-ui';
-
-describe('Annotation System', () => {
-  it('should create annotation', async () => {
-    const mockManager = {
-      createAnnotation: vi.fn().mockResolvedValue({ id: 'ann-123' }),
-      deleteAnnotation: vi.fn()
-    };
-
-    render(
-      <AnnotationProvider annotationManager={mockManager}>
-        <AnnotationUIProvider>
-          <MyComponent />
-        </AnnotationUIProvider>
-      </AnnotationProvider>
-    );
-
-    // Test annotation creation
-    await user.click(screen.getByRole('button', { name: /highlight/i }));
-    expect(mockManager.createAnnotation).toHaveBeenCalled();
-  });
-});
-```
 
 See test files for comprehensive examples:
 - [AnnotationContext.test.tsx](../src/contexts/__tests__/AnnotationContext.test.tsx)
@@ -590,7 +503,7 @@ function AnnotationsList({ rId }: { rId: ResourceId }) {
   const state = useObservable(client?.browse.annotations(rId));
   const annotations = (state && readyValue(state)) ?? [];
 
-  return <AnnotationsPanel annotations={annotations} />;
+  return <ul>{annotations.map((a) => <li key={a.id}>{a.id}</li>)}</ul>;
 }
 ```
 
@@ -641,16 +554,12 @@ See [EVENTS.md](EVENTS.md) for complete real-time collaboration architecture.
 ### Hooks
 
 - `useResourceAnnotations()` - Annotation mutations and UI state
-- `useAnnotationUI()` - UI-only state (sparkle animations)
 - `useObservable(client?.browse.annotations(rId))` - Read annotations from the SDK live query
 
 ### Utilities
 
-- `getAnnotator(annotation)` - Get annotator for annotation
-- `getAnnotationClassName(annotation)` - Get CSS classes
-- `getAnnotationInternalType(annotation)` - Get type string
-- `groupAnnotationsByType(annotations)` - Group by type
-- `withHandlers(handlers)` - Inject runtime handlers
+- `ANNOTATORS` - The registry: one `Annotator` per annotation type
+- `annotatorKeyForMotivation(motivation)` - The registry key for a W3C motivation
 - `client.mark.requestAssist(motivation, options)` - Trigger AI assist (mark state unit runs the job)
 - `useObservable(stateUnit.mark.assistingMotivation$)` - Read live assist state
 

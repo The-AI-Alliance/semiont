@@ -72,13 +72,14 @@ function Toolbar() {
   );
 }
 
-function MarkButton({ selection }) {
+function MarkButton({ resourceId, selector }) {
   const session = useObservable(useSemiont().activeSession$);
   if (!session) return null;
 
-  // Session channel — requires an active session.
+  // Session channel — requires an active session. A typed namespace method
+  // says it; nothing here names the channel.
   return (
-    <button onClick={() => session.client.emit('mark:create-request', selection)}>
+    <button onClick={() => session.client.mark.request(resourceId, selector, 'highlighting')}>
       Annotate
     </button>
   );
@@ -112,29 +113,22 @@ Prefixes encode scope + direction:
 
 ## Request-response via correlationId
 
-Session channels that expect a reply follow a consistent pattern:
+A session channel that expects a reply is a **bus operation**: a request channel paired with a
+result channel and a failure channel (`browse:resource-requested` → `browse:resource-result` /
+`browse:resource-failed`). The reply is matched to its request by `correlationId`, which rides
+the frame's **envelope**, not the payload.
+
+Nothing in a component writes that loop. `busRequest(transport, operation, payload)` in
+`@semiont/core` (`packages/core/src/bus-request.ts`) sends the request, waits for the frame
+carrying its `correlationId`, and resolves with the reply or rejects with a `BusRequestError`.
+The SDK's namespace methods call it:
 
 ```ts
-// Client side
-const cid = crypto.randomUUID();
-client.emit('browse:resource-requested', { correlationId: cid, resourceId });
-client.on('browse:resource-result', ({ correlationId, response }) => {
-  if (correlationId === cid) { /* handle response */ }
-});
-client.on('browse:resource-failed', ({ correlationId, message }) => {
-  if (correlationId === cid) { /* handle failure */ }
-});
+const { annotationId } = await client.mark.annotation(input);   // mark:create → its reply
+await client.mark.delete(resourceId, annotationId);              // rejects if it failed
 ```
 
-The gateway Browser actor subscribes to `*-requested`, handles the
-request, and fires either `*-result` or `*-failed` on the same bus
-with the same `correlationId`. The SSE subscription delivers it
-back to the client.
-
-Callers rarely write this loop by hand — `busRequest(client, ...)`
-in `@semiont/sdk` (`packages/sdk/src/bus-request.ts`) wraps it with a
-Promise. But the wire format is what every protocol-level assertion
-keys on.
+The wire format is still what every protocol-level assertion keys on.
 
 ## Wire-level observability
 
@@ -181,9 +175,10 @@ Most VMs in `packages/sdk/src/state/flows/` follow the
 same shape: listen for `*-requested`/`*-ok`/`*-failed` triples on
 the session client, project the state machine into BehaviorSubjects,
 and expose them as `vm.state$`. Components read via
-`useObservable(vm.state$)` and emit user intents back through
-`client.emit(...)`. No shared mutable state; correlationIds thread
-request and response.
+`useObservable(vm.state$)` and say user intents back through the
+client's typed namespace methods (`client.mark.submit(...)`,
+`client.browse.click(...)`). No shared mutable state; correlationIds
+thread request and response.
 
 ### Cache freshness on broadcast
 

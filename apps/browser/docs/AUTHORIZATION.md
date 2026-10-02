@@ -232,31 +232,6 @@ try {
 }
 ```
 
-### Protected UI Elements
-
-```typescript
-function ActionButtons({ document }) {
-  const { canEdit, canDelete } = useDocumentPermissions(document);
-
-  return (
-    <>
-      <Button
-        disabled={!canEdit}
-        title={!canEdit ? 'You need edit permission' : ''}
-      >
-        Edit
-      </Button>
-      <Button
-        disabled={!canDelete}
-        title={!canDelete ? 'You need delete permission' : ''}
-      >
-        Delete
-      </Button>
-    </>
-  );
-}
-```
-
 ## Testing
 
 ### Manual Testing

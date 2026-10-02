@@ -71,7 +71,8 @@ type Motivation = components['schemas']['Motivation'];
 
 **Responsibility**: Cross-component coordination where direct props are impractical.
 
-**Implementation**: Global singleton `mitt` instance exposed via `EventBusContext`.
+**Implementation**: Each session's client owns an `EventBus` (`session.client.bus`) for the
+session's channels; the browser holds a second, app-scoped one for shell channels (`panel:*`).
 
 **Valid Use Cases**:
 - ✅ User clicks annotation on resource → Need to open panel (crosses major component boundaries)
@@ -83,7 +84,7 @@ type Motivation = components['schemas']['Motivation'];
 - ❌ Tracking DOM refs (use React ref callbacks instead)
 - ❌ Data persistence (use API client instead)
 
-**Location**: `packages/react-ui/src/contexts/EventBusContext.tsx`
+**Location**: `packages/core/src/event-bus.ts` (the bus), `packages/core/src/bus-protocol.ts` (the channels)
 
 ## Event Catalog
 
@@ -414,11 +415,11 @@ export const ReferenceEntry = forwardRef<HTMLDivElement, ReferenceEntryProps>(
         }}
         onMouseEnter={() => {
           // Hover entry → Highlight annotation on resource
-          session?.client.emit('beckon:hover', { annotationId: reference.id });
+          session?.client.beckon.hover(reference.id);
         }}
         onMouseLeave={() => {
           // Unhover entry → Clear annotation highlight
-          session?.client.emit('beckon:hover', { annotationId: null });
+          session?.client.beckon.hover(null);
         }}
       >
         {/* Entry content */}
@@ -563,47 +564,6 @@ useEffect(() => {
 - No cleanup conflicts
 - Easier to reason about and test
 
-### Pitfall 2: Using Events for Parent-Child Communication
-
-**❌ WRONG**:
-
-```typescript
-// Child emits event with DOM element
-useEffect(() => {
-  eventBus.emit('annotation:ref-update', {
-    annotationId: reference.id,
-    element: divRef.current
-  });
-}, [reference.id]);
-
-// Parent subscribes to event
-useEventSubscriptions({
-  'annotation:ref-update': ({ annotationId, element }) => {
-    entryRefs.current.set(annotationId, element);
-  }
-});
-```
-
-**✅ CORRECT - Use ref callbacks**:
-
-```typescript
-// Parent provides ref callback
-const setEntryRef = useCallback((id: string, element: HTMLDivElement | null) => {
-  if (element) {
-    entryRefs.current.set(id, element);
-  } else {
-    entryRefs.current.delete(id);
-  }
-}, []);
-
-// Child uses forwardRef and parent's callback
-<ReferenceEntry
-  key={reference.id}
-  reference={reference}
-  ref={(el) => setEntryRef(reference.id, el)}
-/>
-```
-
 ## Architectural Invariants
 
 These rules MUST be followed:
@@ -636,6 +596,5 @@ These rules MUST be followed:
 ## Related Documentation
 
 - **OpenAPI Spec**: `specs/openapi.json` - Source of truth for annotation types
-- **Event Bus Context**: `packages/react-ui/src/contexts/EventBusContext.tsx` - Event type definitions
+- **Event channels**: `packages/core/src/bus-protocol.ts` - `EventMap`, the channel type definitions
 - **Annotation Utilities**: `packages/sdk/src/` - Pure functions for annotation manipulation
-- **Architecture Compliance**: `REMOVE-REF-UPDATE.md` - Migration plan and architectural rationale

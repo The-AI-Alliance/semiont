@@ -321,7 +321,7 @@ session.errors$.subscribe((err) => {
 const { graph, loading, error } = useResourceGraph(id);
 
 if (error) {
-  return <ErrorDisplay error={error} />;
+  return <p role="alert">{error.message}</p>;
 }
 ```
 
@@ -400,9 +400,7 @@ The provider tree has two distinct layers:
 | Route            | Mounted in                                          |
 |------------------|-----------------------------------------------------|
 | `/know/*`        | `apps/browser/src/app/[locale]/know/layout.tsx`    |
-| `/admin/*`       | `apps/browser/src/app/[locale]/admin/layout.tsx`   |
 | `/moderate/*`    | `apps/browser/src/app/[locale]/moderate/layout.tsx`|
-| `/auth/welcome`  | `apps/browser/src/App.tsx` (route element)         |
 
 ### Why the split
 
@@ -628,29 +626,17 @@ The document and history panels synchronize via hover interactions:
 
 ### Bi-directional Annotation ↔ Panel Hover Sync
 
-Annotation overlays and panel entries synchronize via hover events for all media types (text/markdown, PDF, images):
+Annotation overlays and panel entries keep each other in step through one channel,
+`beckon:hover`, for every media type (text/markdown, PDF, images):
 
-**Overlay → Panel**:
-- Hovering over an annotation in the content emits `annotation:hover` event
-- Panel entry scrolls into view and pulses
+- An overlay or a panel entry that is hovered calls `session.client.beckon.hover(annotationId)`,
+  and `beckon.hover(null)` when the pointer leaves. Both say `beckon:hover` on the session's bus,
+  with `{ annotationId: AnnotationId | null }`.
+- The page holds the hovered id and passes it down as `hoveredAnnotationId`. The viewer scrolls
+  the overlay into view and pulses it; the panel does the same for its entry.
 
-**Panel → Overlay**:
-- Hovering over a panel entry emits `annotation-entry:hover` event
-- BrowseView scrolls overlay into view and pulses
+Panels keep their entries' DOM nodes through React ref callbacks, not through an event.
 
-**Implementation (Consistent Across Media Types)**:
-- **Text annotations** (CodeMirrorRenderer): Emit `annotation:hover` on mouseover/mouseout
-- **PDF annotations** (PdfAnnotationCanvas): Emit `annotation:hover` on mouseenter/mouseleave
-- **Image annotations** (AnnotationOverlay): Emit `annotation:hover` on mouseenter/mouseleave
-- **Panel entries**: Emit `annotation-entry:hover` on mouseenter/mouseleave
-- **useAnnotationPanel hook**: Subscribes to `annotation:hover` and `annotation-entry:hover`, triggers scroll-to-view and pulse effects for panel entries
-- **BrowseView**: Subscribes to `annotation:hover` and `annotation-entry:hover`, handles scrolling and pulse for overlays in browse mode
-- **AnnotateView**: Subscribes to `annotation-entry:hover`, updates `hoveredAnnotationId` prop to trigger CodeMirrorRenderer scrolling and pulse
-
-**Events**:
-- `annotation:hover` - Emitted by all overlay types with `{ annotationId: string | null }`
-- `annotation-entry:hover` - Emitted by panel entries with `{ annotationId: string | null }`
-- `annotation:ref-update` - Emitted to register DOM refs for scroll targeting
 
 ## Related Documentation
 
@@ -667,7 +653,6 @@ Annotation overlays and panel entries synchronize via hover events for all media
 - [ANNOTATIONS.md](./ANNOTATIONS.md) - Annotation UI/UX and workflows
 - [ANNOTATION-RENDERING-PRINCIPLES.md](../../../packages/react-ui/docs/ANNOTATION-RENDERING-PRINCIPLES.md) - Rendering axioms and correctness properties
 - [KEYBOARD-NAV.md](./KEYBOARD-NAV.md) - Keyboard navigation implementation
-- [PERFORMANCE.md](./PERFORMANCE.md) - Performance optimization
 
 ## Migration Notes
 

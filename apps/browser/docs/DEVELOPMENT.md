@@ -388,7 +388,6 @@ Environment variables are configured automatically based on your environment con
 - Check CORS configuration
 
 ### Performance Issues
-- Use `npm run analyze` to identify large bundles
 - Review React DevTools Profiler
 - Monitor Network waterfall in dev tools
 
@@ -438,8 +437,6 @@ Environment variables are configured automatically based on your environment con
 **Symptoms**: Slow page loads, large bundle size
 
 **Solutions**:
-- Run `npm run perf` to identify bottlenecks
-- Check bundle size with `npm run analyze`
 - Implement code splitting with dynamic imports
 - Optimize images (use appropriate sizes, lazy loading)
 
@@ -496,14 +493,10 @@ The Browser uses a **hybrid CSS architecture** combining semantic CSS from @semi
 When the component exists in @semiont/react-ui, use it directly:
 
 ```tsx
-import { Button, Card, Toolbar } from '@semiont/react-ui';
+import { Button, Toolbar } from '@semiont/react-ui';
 
 // These come with semantic CSS classes pre-applied
 <Button variant="primary">Click me</Button>
-<Card>
-  <Card.Header>Title</Card.Header>
-  <Card.Content>Content</Card.Content>
-</Card>
 ```
 
 **Benefits:**
@@ -582,7 +575,6 @@ For detailed styling guidelines, see the [Style Guide](./style-guide.md).
 ### Development Guides
 - [Testing Guide](./TESTING.md) - Test structure, running tests, writing tests
 - [API Integration](./API-INTEGRATION.md) - API client usage, async operations
-- [Performance](./PERFORMANCE.md) - Bundle optimization, monitoring
 - [Deployment](./DEPLOYMENT.md) - Publishing and deployment workflows
 
 ### Architecture

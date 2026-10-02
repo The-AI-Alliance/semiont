@@ -49,14 +49,10 @@ content: [
 When using components from @semiont/react-ui, they already have all necessary styling:
 
 ```typescript
-import { Button, Card, Toolbar } from '@semiont/react-ui';
+import { Button, Toolbar } from '@semiont/react-ui';
 
 // Components come pre-styled with semantic classes
 <Button variant="primary">Click me</Button>
-<Card>
-  <Card.Header>Title</Card.Header>
-  <Card.Content>Content here</Card.Content>
-</Card>
 ```
 
 ### Dark Mode Support
@@ -235,17 +231,11 @@ import { Button } from '@semiont/react-ui';
 
 #### Cards
 ```typescript
-import { Card } from '@semiont/react-ui';
-
-// Card component with semantic classes
-<Card> {/* semiont-card */}
-  <div className="semiont-card__header">
-    <h3 className="semiont-card__title">Title</h3>
-  </div>
-  <div className="semiont-card__content">
-    Content here
-  </div>
-</Card>
+// A card is a class, not a component
+<div className="semiont-card">
+  <h3>Title</h3>
+  <p>Content here</p>
+</div>
 ```
 
 #### Panels

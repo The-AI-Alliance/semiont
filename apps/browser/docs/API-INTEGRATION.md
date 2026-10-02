@@ -271,7 +271,7 @@ queries. The Browser awaits a result event matched by correlationId.
 **Asynchronous (job-based)** — operations that run minutes to hours:
 entity detection, resource generation. The Browser emits `job:create`,
 gets back `job:created` with a `jobId`, then listens for
-`job:report-progress` / `job:complete` / `mark:progress` events scoped to
+`job:report-progress` / `job:complete` events scoped to
 the resource.
 
 Both flow through the same bus gateway. The difference is whether the

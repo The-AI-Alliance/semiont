@@ -43,24 +43,25 @@ exactly two exports: `SemiontProvider` / `useSemiont` (context) and
 Owns HTTP (via `ky`), an actor-shaped SSE connection, and a private
 `EventBus`. Workspace-scoped: one client per connected KB.
 
-Bus surface (the only public path to the bus):
+Bus surface:
 
 ```ts
-client.emit<K>(channel: K, payload: EventMap[K]): void
-client.on<K>(channel: K, handler: (p: EventMap[K]) => void): () => void
-client.stream<K>(channel: K): Observable<EventMap[K]>
+client.bus.emit<K>(channel: K, payload: EventMap[K]): number
+client.bus.on<K>(channel: K): Observable<EventMap[K]>
 ```
 
-`client.eventBus` is **private** — no public accessor. StateUnit factories
-take `client` and route through `client.stream(...)` / `client.emit(...)`.
+The client owns its bus (`client.bus`, an `EventBus`). Typed namespace methods
+are the way to say something on it — `client.browse.click(id)`,
+`client.mark.submit(input)`, `client.beckon.hover(id)` — and StateUnit
+factories take `client` and listen through `client.bus.on(...)`.
 
 ### `SemiontSession`
 
 Per-KB lifetime object. Owns:
 
-- `client: SemiontClient` — public `readonly`; components reach the bus
-  via `session.client.emit(...)` / `session.client.on(...)` /
-  `session.client.stream(...)`.
+- `client: SemiontClient` — public `readonly`; components say things through
+  its typed namespace methods and listen with `session.subscribe(channel,
+  handler)`, which returns its own unsubscribe.
 - `token$`, `user$` — observable auth state.
 - Modal state: `sessionExpired$`, `permissionDenied$` and `kbIdentityConflict$`, each null until raised.
 - `refresh()` — token refresh entrypoint.
@@ -129,7 +130,7 @@ const session = useObservable(semiont.activeSession$);
 semiont.emit('panel:toggle', { panel: 'settings' });
 
 // KB-content event — requires an active session.
-session?.client.emit('mark:create-request', { ... });
+session?.client.mark.request(resourceId, selector, 'highlighting');
 ```
 
 The `useEventSubscription(channel, handler)` hook hides this: it
@@ -196,13 +197,13 @@ function MyComponent() {
 
 ### Event emission & subscription
 
-Components emit via `session.client.emit(...)`:
+Components say things through the client's typed namespace methods:
 
 ```tsx
 function MarkButton({ annotationId }) {
   const session = useObservable(useSemiont().activeSession$);
   return (
-    <button onClick={() => session?.client.emit('browse:click', { annotationId })}>
+    <button onClick={() => session?.client.browse.click(annotationId)}>
       Click me
     </button>
   );
@@ -236,7 +237,7 @@ channels live on:
 
 - **Session-scoped state units** (mark, beckon, gather, match, bind, yield,
   browse) take `client: SemiontClient` and route through
-  `client.emit` / `client.stream`. Their lifetime is tied to the
+  `client.bus.emit` / `client.bus.on`. Their lifetime is tied to the
   session.
 - **Shell-scoped state units** (`ShellStateUnit` — toolbar panel state, sidebar
   collapse) take `browser: SemiontBrowser` and route through
@@ -351,7 +352,7 @@ const { client, bus } = makeTestClient({
   mark: { annotation: vi.fn().mockResolvedValue({ annotationId: 'x' }) },
 });
 const vm = createMarkStateUnit(client, resourceId);
-client.emit('mark:submit', { ... });
+client.mark.submit({ ... });
 // ... assert ...
 bus.destroy(); // in afterEach
 ```

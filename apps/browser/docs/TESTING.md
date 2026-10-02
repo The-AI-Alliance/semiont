@@ -122,15 +122,15 @@ src/
 
 **Example locations**:
 - `src/components/__tests__/KnowledgeBasePanel.test.tsx`
-- `src/lib/__tests__/cookies.test.ts`
+- `src/lib/__tests__/validation.test.ts`
 - `src/contexts/__tests__/AuthShell.test.tsx`
 
 ### Integration Tests
 
 ```
 src/
-└── app/auth/__tests__/
-    └── signup-flow.integration.test.tsx  # Multi-component user flows
+└── contexts/__tests__/
+    └── AuthShell.integration.test.tsx  # Multi-component user flows
 ```
 
 **What to test**:
@@ -199,30 +199,6 @@ describe('KnowledgeBasePanel', () => {
 });
 ```
 
-### API Mocking with MSW
-
-```typescript
-// src/mocks/handlers.ts
-import { http, HttpResponse } from 'msw';
-
-export const handlers = [
-  http.get('/api/hello/greeting', () => {
-    return HttpResponse.json({
-      message: 'Hello from MSW!',
-      timestamp: new Date().toISOString(),
-    });
-  }),
-
-  http.post('/api/auth/login', async ({ request }) => {
-    const { email } = await request.json();
-    return HttpResponse.json({
-      user: { email, id: '123' },
-      token: 'mock-jwt-token',
-    });
-  }),
-];
-```
-
 ### Testing with Vitest
 
 Vitest provides a Jest-compatible API with better ESM support:
@@ -274,34 +250,6 @@ describe('some component using session state', () => {
 });
 ```
 
-### Integration Test Example
-
-```typescript
-// src/app/auth/__tests__/signup-flow.integration.test.tsx
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import SignupPage from '../signup/page';
-
-describe('Signup Flow', () => {
-  it('should complete full signup process', async () => {
-    render(<SignupPage />);
-
-    // Fill out form
-    fireEvent.change(screen.getByLabelText('Email'), {
-      target: { value: 'test@example.com' }
-    });
-
-    // Submit form
-    fireEvent.click(screen.getByText('Sign Up'));
-
-    // Verify success
-    await waitFor(() => {
-      expect(screen.getByText('Welcome!')).toBeInTheDocument();
-    });
-  });
-});
-```
-
 ## Testing Philosophy
 
 ### Type Safety as Test Coverage
@@ -340,19 +288,6 @@ Runtime error capture and graceful degradation:
 - Production error capture
 - Graceful UI degradation
 - Error reporting integration
-
-### Performance-Based Quality Assurance
-
-```bash
-# Comprehensive performance testing
-npm run perf                    # Full performance analysis
-npm run analyze-bundle         # Bundle size regression detection
-```
-
-**Metrics tracked**:
-- Bundle size over time
-- Page load times
-- Time to Interactive (TTI)
 
 ### Quality Assurance Approach
 
@@ -415,28 +350,6 @@ A separate `tsconfig.test.json` extends the main TypeScript config to include te
 ### ESM Configuration
 
 The project uses native ES modules throughout, ensuring compatibility with modern JavaScript tooling.
-
-## Current Test Coverage
-
-- **42 test files** with **903 tests** - 100% passing
-- Comprehensive coverage of cookie consent system, authentication, and UI components
-- Key areas with excellent coverage:
-  - Cookie UI components - 100% coverage
-  - Authentication components - 100% coverage
-  - Error boundaries - 100% coverage
-
-## Manual Testing
-
-```bash
-# Test authentication flow
-curl http://localhost:3000/api/auth/session
-
-# Test API integration
-curl http://localhost:3000/api/auth/csrf
-
-# Performance testing
-npm run perf
-```
 
 ## Pure Component Testing Pattern
 
@@ -501,7 +414,7 @@ export function ResourcePage() {
 **Test in @semiont/react-ui** (business logic):
 
 ```typescript
-// packages/react-ui/src/components/__tests__/ResourceViewer.test.tsx
+// packages/react-ui/src/components/resource/__tests__/ResourceViewer.embeddable.test.tsx
 import { screen } from '@testing-library/react';
 import { BehaviorSubject } from 'rxjs';
 import { BrowseNamespace } from '@semiont/sdk';
@@ -529,7 +442,7 @@ it('renders resource title', async () => {
 **Browser wrapper tests** (minimal, if needed):
 
 ```typescript
-// apps/browser/app/[locale]/resources/[id]/__tests__/page.test.tsx
+// apps/browser/src/app/[locale]/know/resource/[id]/__tests__/navigation.test.tsx
 // Usually not needed - wrapper is too thin
 // If testing is required, mock @semiont/react-ui components
 
@@ -622,7 +535,7 @@ cd packages/react-ui
 npm test
 
 # Example test locations
-packages/react-ui/src/components/__tests__/Button.test.tsx
+packages/react-ui/src/components/Button/__tests__/Button.test.tsx
 packages/react-ui/src/hooks/__tests__/useResourceContent.test.tsx
 packages/react-ui/src/features/auth/__tests__/AuthErrorDisplay.test.tsx
 ```
@@ -634,7 +547,6 @@ cd apps/browser
 npm test
 
 # Example test locations
-src/app/[locale]/auth/__tests__/signup-flow.integration.test.tsx
 src/contexts/__tests__/AuthShell.integration.test.tsx
 ```
 

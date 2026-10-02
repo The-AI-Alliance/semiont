@@ -82,132 +82,21 @@ function GlobalSearch() {
 }
 ```
 
-### ResourceSearchModal
-
-A specialized modal for searching and selecting resources/documents.
-
-#### Features
-
-- **Resource-Specific Search**: Optimized for document/resource search
-- **Metadata Display**: Shows resource type, content preview
-- **Initial Search Term**: Can be opened with a pre-filled search
-- **Selection Callback**: Returns selected resource ID
-
-#### Props
-
-```typescript
-interface ResourceSearchModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSelect: (resourceId: string) => void;
-  searchTerm?: string;
-  translations?: {
-    title?: string;
-    placeholder?: string;
-    searching?: string;
-    noResults?: string;
-    close?: string;
-  };
-}
-```
-
-#### Usage Example
-
-```tsx
-import { ResourceSearchModal } from '@semiont/react-ui';
-
-function ResourcePicker() {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedResource, setSelectedResource] = useState(null);
-
-  const handleSelect = (resourceId: string) => {
-    setSelectedResource(resourceId);
-    setIsOpen(false);
-    // Load or display the selected resource
-  };
-
-  return (
-    <>
-      <button onClick={() => setIsOpen(true)}>
-        Select Resource
-      </button>
-
-      <ResourceSearchModal
-        isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
-        onSelect={handleSelect}
-        searchTerm=""
-        translations={{
-          title: 'Search Resources',
-          placeholder: 'Search for resources...',
-          searching: 'Searching...',
-          noResults: 'No documents found'
-        }}
-      />
-    </>
-  );
-}
-```
-
-## Modal Structure
-
-Both modals follow a consistent structure:
-
-```tsx
-<Transition>
-  <Dialog>
-    {/* Backdrop */}
-    <div className="backdrop" />
-
-    {/* Modal Panel */}
-    <DialogPanel>
-      {/* Header */}
-      <DialogTitle>Title</DialogTitle>
-      <CloseButton />
-
-      {/* Search Input */}
-      <SearchInput />
-
-      {/* Results */}
-      <ResultsList>
-        <ResultItem />
-      </ResultsList>
-
-      {/* Footer/Instructions */}
-      <KeyboardShortcuts />
-    </DialogPanel>
-  </Dialog>
-</Transition>
-```
-
 ## Styling
 
 Modal components use BEM-style CSS classes:
 
 ```css
 /* SearchModal */
-.search-modal
-.search-modal__backdrop
-.search-modal__panel
-.search-modal__header
-.search-modal__input
-.search-modal__results
-.search-modal__result-item
-.search-modal__result-item--active
-.search-modal__empty-state
-.search-modal__loading
-
-/* ResourceSearchModal */
-.resource-search-modal
-.resource-search-modal__header
-.resource-search-modal__title
-.resource-search-modal__close
-.resource-search-modal__input
-.resource-search-modal__results
-.resource-search-modal__resource
-.resource-search-modal__resource--active
-.resource-search-modal__resource-name
-.resource-search-modal__resource-content
+.semiont-search-modal
+.semiont-search-modal__backdrop
+.semiont-search-modal__panel
+.semiont-search-modal__header
+.semiont-search-modal__input
+.semiont-search-modal__results
+.semiont-search-modal__result
+.semiont-search-modal__result--selected
+.semiont-search-modal__empty
 ```
 
 ## Keyboard Shortcuts
@@ -219,12 +108,6 @@ Modal components use BEM-style CSS classes:
 - **ESC**: Close modal
 - **⌘K / Ctrl+K**: Open modal (implement in parent)
 
-### ResourceSearchModal
-
-- **ESC**: Close modal
-- **Enter**: Submit search
-- **Click**: Select resource
-
 ## Accessibility Features
 
 - **Focus Management**: Focus trapped within modal when open
@@ -235,11 +118,11 @@ Modal components use BEM-style CSS classes:
 
 ## Integration with Search
 
-The modals drive search through `semiont.browse.resources()` (wired up via
+`SearchModal` drives search through `client.browse.resources()` (wired up via
 `createSearchPipeline`):
 
 ```tsx
-import { ResourceSearchModal, useSemiont } from '@semiont/react-ui';
+import { SearchModal, useSemiont } from '@semiont/react-ui';
 
 // The modal uses the SDK's Observable surface internally:
 // client.browse.resources({ search, limit }) — debounced via RxJS. The fetch
@@ -310,9 +193,7 @@ All modal types are exported:
 ```typescript
 import type {
   SearchModalProps,
-  ResourceSearchModalProps,
   BaseModalProps,
-  TranslatableModalProps,
   NavigableModalProps
 } from '@semiont/react-ui';
 ```
@@ -344,52 +225,4 @@ useEffect(() => {
   window.addEventListener('keydown', handleKeyDown);
   return () => window.removeEventListener('keydown', handleKeyDown);
 }, []);
-```
-
-### Resource Linking
-
-```tsx
-// Use ResourceSearchModal for linking resources
-function LinkResource({ onLink }) {
-  const [isLinking, setIsLinking] = useState(false);
-
-  return (
-    <>
-      <button onClick={() => setIsLinking(true)}>
-        Link Resource
-      </button>
-
-      <ResourceSearchModal
-        isOpen={isLinking}
-        onClose={() => setIsLinking(false)}
-        onSelect={(resourceId) => {
-          onLink(resourceId);
-          setIsLinking(false);
-        }}
-      />
-    </>
-  );
-}
-```
-
-### Contextual Search
-
-```tsx
-// Open search with pre-filled term
-function ContextualSearch({ selectedText }) {
-  const [searchOpen, setSearchOpen] = useState(false);
-
-  const handleSearchSelection = () => {
-    setSearchOpen(true);
-  };
-
-  return (
-    <ResourceSearchModal
-      isOpen={searchOpen}
-      onClose={() => setSearchOpen(false)}
-      searchTerm={selectedText}
-      onSelect={handleResourceSelect}
-    />
-  );
-}
 ```
