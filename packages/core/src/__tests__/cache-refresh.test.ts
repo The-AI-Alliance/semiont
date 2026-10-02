@@ -127,8 +127,8 @@ describe('the cache-refresh generator', () => {
     refused((t) => t.refresh.splice(t.refresh.indexOf(row(t, 'reopened')), 1), 'has no row for `reopened`');
   });
 
-  it('refuses a write or a removal on a trigger with no identity', () => {
-    refused((t) => (row(t, 'yield:updated').removes = ['annotation']), 'yield:updated removes annotation, and its frames have no identity');
+  it('refuses a write or a removal on a passing trigger', () => {
+    refused((t) => (row(t, 'yield:updated').removes = ['annotation']), 'yield:updated removes annotation, and its frames are passing');
     refused((t) => (row(t, 'frame:tag-schema-added').writes = ['annotation']), 'frame:tag-schema-added writes annotation');
   });
 

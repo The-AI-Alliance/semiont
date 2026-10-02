@@ -210,7 +210,7 @@ the format is the frame's delivery class
 |---|---|---|---|
 | `p-<scope>-<seq>` | `PersistedEventId` | positioned | An event of the record, delivered on its resource's scope. `<scope>` is the resource id, `<seq>` its `metadata.sequenceNumber`. The same on every connection. |
 | `e-<channel>:<correlationId>` | `ReplyEventId` | correlated | A frame carrying a `correlationId`. The same on every connection it reaches, and when it is sent again. |
-| `e-<connectionId>-<counter>` | `EphemeralEventId` | passing | Any other frame. Unique to the connection that carried it. |
+| `e-<publishId>` | `EphemeralEventId` | passing | Any other frame. Given once, when the frame is published: the same on every connection that carries it, through every replica. |
 
 The persisted format is used exactly when the frame carries a `scope` and
 its payload a `metadata.sequenceNumber`.
@@ -362,9 +362,7 @@ client delivers a frame only if its id is not among the last
   *Held by `sdk/wire/dedup-window`.*
 - A correlated frame (`e-<channel>:<correlationId>`) is delivered once.
   *Held by `sdk/wire/overlap-dedup`.*
-- A passing frame has a different id on each connection, so its two copies
-  are not recognised as one: a frame published while both streams are open
-  is **delivered twice**.
+- A passing frame (`e-<publishId>`) is delivered once.
   *Held by `sdk/wire/passing-across-handoff`.*
 
 ### Emitting

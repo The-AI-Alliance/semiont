@@ -175,12 +175,6 @@ Its `timing` overrides `busRequestTimeoutMs`, `invalidationWindowMs`,
 `jobSilenceMs` and `jobStatusPollMs` beside the transport's `reconnectMs`,
 `lazyRemoveMs` and `lingerMs`.
 
-While a client hands its subscription from one stream to the next, both
-streams carry every event sent to all clients, and the client is given each
-twice: such an event has no id that says the two are one. A live case
-therefore publishes one only after a `scopes` step, which waits for the old
-stream to have closed.
-
 `open`'s `timing` overrides entries of
 [`specs/src/client/timing.json`](../../../specs/src/client/timing.json) by
 name, so a case does not wait out a production delay. The wire cases override

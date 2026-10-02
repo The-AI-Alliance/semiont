@@ -11,10 +11,11 @@ import { beforeAll, expect, it } from 'vitest';
 import type { GatewayProcess } from '../harness/gateway';
 import { eventually } from '../harness/net';
 import { operationFor, spec } from '../harness/spec';
-import { subscribe } from '../harness/stream';
+import { subscribe, type StreamMessage } from '../harness/stream';
 import { eachPlane } from '../harness/world';
 
 const REQUEST = 'browse:resource-requested';
+const BROADCAST = 'beckon:focus';
 const described = {
   response: {
     resource: { '@context': 'https://schema.org/', '@id': 'https://kb.example/r', name: 'r', representations: [] },
@@ -75,6 +76,16 @@ eachPlane('two replicas on one broker', (world) => {
     const died = Date.now();
     await eventually('a stream admitted once the dead replica\'s leases end', (2 * heartbeat + 15) * 1000, () => probe(200));
     expect(Date.now() - died, 'not before the lease could have ended').toBeGreaterThan(heartbeat * 1000);
+  });
+
+  it('a frame with no correlationId and no position carries one id through every replica', async () => {
+    const here = await world().subscribe(await world().person('here'), { clientId: randomUUID(), global: [BROADCAST] });
+    const there = await world().subscribe(await world().person('there'), { clientId: randomUUID(), global: [BROADCAST] }, b.origin);
+    const annotationId = randomUUID();
+    expect((await world().emit(await world().person('emitter'), { channel: BROADCAST, payload: { annotationId } })).status).toBe(202);
+    const carried = (m: StreamMessage) => m.frame?.channel === BROADCAST && m.frame.payload['annotationId'] === annotationId;
+    const id = (await here.next('the frame on the replica it was emitted through', carried)).id;
+    expect((await there.next('the frame on the other replica', carried)).id).toBe(id);
   });
 
   it('a request made through one replica is answered to its requester through that replica, and to no one on the other', async () => {

@@ -2781,7 +2781,7 @@ type EntityTypeAddedPayload struct {
 	EntityType string `json:"entityType"`
 }
 
-// EphemeralEventId `e-<connectionId>-<n>` — the id of any other frame: unique on its connection, meaningless elsewhere. Never a resumption watermark.
+// EphemeralEventId `e-<publishId>` — the id of any other frame, given once when the frame is published: the same on every connection that carries it, through every replica, so a copy arriving on two connections (a reconnect overlap) dedups. Never a resumption watermark.
 type EphemeralEventId = string
 
 // ErrorResponse The body of every error the gateway answers, whatever the status and whatever the route — including a path it does not serve.

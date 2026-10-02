@@ -12,7 +12,7 @@
 
 use super::{
     ClientSubscription, Frame, IngestReceipt, Meta, SharedTable, SignalPlane, Subscription,
-    TableWatcher, Unavailable,
+    TableWatcher, Unavailable, publish_id,
 };
 use async_nats::StatusCode;
 use async_nats::connection::State;
@@ -63,9 +63,10 @@ fn scoped_subject(scope: &str, channel: &str) -> Result<String, String> {
     ))
 }
 
-/// A frame as it travels: routing metadata beside the payload.
+/// A frame as it travels: its id and routing metadata beside the payload.
 #[derive(Serialize, Deserialize)]
 struct Wire {
+    id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     meta: Option<Meta>,
     payload: Value,
@@ -111,7 +112,12 @@ fn message(
         None => channel_subject(channel),
     }
     .unwrap_or_else(|e| panic!("{e}"));
-    let bytes = serde_json::to_vec(&Wire { meta, payload }).expect("a frame serializes");
+    let wire = Wire {
+        id: publish_id(),
+        meta,
+        payload,
+    };
+    let bytes = serde_json::to_vec(&wire).expect("a frame serializes");
     (subject, Bytes::from(bytes))
 }
 
@@ -234,6 +240,7 @@ impl SignalPlane for NatsPlane {
                 while let Some((scope, channel, message)) = merged.next().await {
                     if let Some(wire) = decode(&message.payload) {
                         on_frame(Frame {
+                            publish_id: wire.id,
                             channel,
                             payload: Arc::new(wire.payload),
                             scope,

@@ -7,7 +7,9 @@
 //! It moves frames and never reads one: a frame's `scope` is the one routing
 //! fact a plane interprets, and its `meta` (the correlation id, the trace) is
 //! carried verbatim. Entitlement is the ledger's (crate::ledger), above it.
-//! Delivery is at most once, in order per channel and scope.
+//! Delivery is at most once, in order per channel and scope. A plane gives
+//! each frame one id as it publishes it, and delivers it under that id
+//! wherever it delivers it.
 
 pub mod in_process;
 pub mod nats;
@@ -24,6 +26,9 @@ pub type Meta = HashMap<String, String>;
 /// One frame as a plane delivers it.
 #[derive(Debug, Clone)]
 pub struct Frame {
+    /// Given once, when the frame was published: the same on every delivery,
+    /// through every replica.
+    pub publish_id: String,
     pub channel: String,
     pub payload: Arc<Value>,
     pub scope: Option<String>,
@@ -31,6 +36,11 @@ pub struct Frame {
 }
 
 pub type OnFrame = Arc<dyn Fn(Frame) + Send + Sync>;
+
+/// The id of a frame being published.
+pub fn publish_id() -> String {
+    uuid::Uuid::new_v4().to_string()
+}
 
 pub struct ScopedChannels {
     pub scope: String,

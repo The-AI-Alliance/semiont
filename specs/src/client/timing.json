@@ -43,7 +43,7 @@
     {
       "name": "lingerMs",
       "value": 1000,
-      "docs": "How long a superseded connection keeps draining after a make-before-break handoff. Closing it the instant its replacement opens discards replies already written to the old socket and not yet read. The overlap is safe for a frame with an identity of its own: delivered on both, it is seen once (`seenEventIdsCount`)."
+      "docs": "How long a superseded connection keeps draining after a make-before-break handoff. Closing it the instant its replacement opens discards replies already written to the old socket and not yet read. The overlap doubles nothing: a frame both connections carry has one id, and is delivered once (`seenEventIdsCount`)."
     },
     {
       "name": "seenEventIdsCount",
@@ -87,7 +87,7 @@
     {
       "name": "jobSilenceMs",
       "value": 10000,
-      "docs": "How long a job a client is following may say nothing before the client asks for its status. A job's progress and its end reach the client as frames with no identity, which a dropped stream loses and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every frame of the job starts the wait again."
+      "docs": "How long a job a client is following may say nothing before the client asks for its status. A job's progress and its end reach the client as passing frames, which a dropped stream loses and nothing redelivers; `job:status-requested` is how a follower learns what it missed. Every frame of the job starts the wait again."
     },
     {
       "name": "jobStatusPollMs",

@@ -86,9 +86,9 @@ for (const row of refresh) {
 }
 // What a row may do follows from how its trigger is delivered
 // (docs/protocol/TRANSPORT-CONTRACT.md § Delivery). A passing frame is lost
-// when the stream is down and may arrive twice across a handoff, so a row it
-// triggers does only what is safe to repeat and to miss: it refetches, and
-// `reopened` refetches the same queries, which is what repairs the miss.
+// when the stream is down, so a row it triggers does only what is safe to
+// miss: it refetches, and `reopened` refetches the same queries, which is what
+// repairs the miss.
 const reopened = refresh.find((row) => row.on === 'reopened');
 if (!reopened) refuse('has no row for `reopened`');
 for (const row of refresh) {
@@ -96,7 +96,7 @@ for (const row of refresh) {
   // The gateway writes this one itself, on the stream whose subscription it is about: it cannot be missed.
   if (row.on === 'bus:resume-gap') continue;
   for (const act of ['writes', 'removes']) {
-    if ((row[act] ?? []).length > 0) refuse(`${row.on} ${act} ${row[act].join(', ')}, and its frames have no identity: one lost or doubled must leave the cache right`);
+    if ((row[act] ?? []).length > 0) refuse(`${row.on} ${act} ${row[act].join(', ')}, and its frames are passing: one lost must leave the cache right`);
   }
   const unrepaired = (row.refetches ?? []).filter((query) => !(reopened.refetches ?? []).includes(query));
   if (unrepaired.length > 0) {

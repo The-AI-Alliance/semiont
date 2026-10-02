@@ -4,7 +4,7 @@
 
 use super::{
     ClientSubscription, Frame, IngestReceipt, Meta, OnFrame, SharedTable, SignalPlane,
-    Subscription, TableWatcher, Unavailable,
+    Subscription, TableWatcher, Unavailable, publish_id,
 };
 use futures::FutureExt;
 use futures::future::BoxFuture;
@@ -65,6 +65,7 @@ impl SignalPlane for InProcessPlane {
             .map(|subs| subs.iter().map(|(_, f)| f.clone()).collect())
             .unwrap_or_default();
         let frame = Frame {
+            publish_id: publish_id(),
             channel,
             payload: Arc::new(payload),
             scope,

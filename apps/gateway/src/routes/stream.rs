@@ -15,7 +15,7 @@ use crate::http::{ApiError, Authenticated, ConnectionAbort, typed_body};
 use crate::ledger::DeliveryGate;
 use crate::limits::{self, Limits};
 use crate::metrics;
-use crate::signal::{ClientSubscription, Frame, ScopedChannels, Subscription};
+use crate::signal::{ClientSubscription, Frame, ScopedChannels, Subscription, publish_id};
 use crate::stream_counts::StreamLease;
 use axum::Extension;
 use axum::body::Body;
@@ -33,7 +33,7 @@ use semiont_observability::telemetry;
 use serde_json::{Map, Value, json};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context, Poll, Waker};
 use std::time::Duration;
@@ -150,6 +150,9 @@ struct Outbox {
 
 /// A frame that arrived while the replay ran, waiting for it to finish.
 struct Queued {
+    /// Its publication's; a frame handed to this connection alone (a replayed
+    /// event, a retained reply) is given one here.
+    publish_id: String,
     channel: String,
     payload: Arc<Value>,
     scope: Option<String>,
@@ -174,7 +177,6 @@ struct Connection {
     abort: ConnectionAbort,
     outbox: Mutex<Outbox>,
     delivery: Mutex<Delivery>,
-    ephemeral: AtomicU64,
     torn_down: AtomicBool,
     ended: Notify,
     subscription: Mutex<Option<Subscription>>,
@@ -274,7 +276,6 @@ impl Connection {
                 buffer: Vec::new(),
                 last_sequence: HashMap::new(),
             }),
-            ephemeral: AtomicU64::new(0),
             torn_down: AtomicBool::new(false),
             ended: Notify::new(),
             subscription: Mutex::new(None),
@@ -285,14 +286,6 @@ impl Connection {
 
     fn torn_down(&self) -> bool {
         self.torn_down.load(Ordering::SeqCst)
-    }
-
-    fn next_ephemeral(&self) -> String {
-        format!(
-            "e-{}-{}",
-            self.id,
-            self.ephemeral.fetch_add(1, Ordering::SeqCst) + 1
-        )
     }
 
     /// Every message leaves through here, so `pending` counts exactly what
@@ -341,10 +334,12 @@ impl Connection {
 
     /// One frame, stamped with its id: persisted when it is scoped and carries
     /// a sequence number, `e-<channel>:<correlationId>` when it is a reply
-    /// (the same on every connection it reaches), otherwise this connection's
-    /// own. A reply's delivery is a span; the frame carries the trace on.
+    /// (the same on every connection it reaches), otherwise its publication's,
+    /// `e-<publishId>`, as every connection and replica that carries it stamps
+    /// it. A reply's delivery is a span; the frame carries the trace on.
     fn deliver(self: &Arc<Self>, delivery: &mut Delivery, frame: Queued) {
         let Queued {
+            publish_id,
             channel,
             payload,
             scope,
@@ -365,7 +360,7 @@ impl Connection {
             }
             _ => match correlation_id.as_deref().filter(|c| !c.is_empty()) {
                 Some(cid) => format!("e-{channel}:{cid}"),
-                None => self.next_ephemeral(),
+                None => format!("e-{publish_id}"),
             },
         };
         let parent = match &trace {
@@ -451,7 +446,7 @@ impl Connection {
     fn resume_gap(self: &Arc<Self>, reason: &str, scope: &str, last_seen_id: &str) {
         metrics::record_resume_gap(reason);
         let data = json!({ "channel": "bus:resume-gap", "payload": { "reason": reason, "scope": scope, "lastSeenId": last_seen_id } });
-        let id = self.next_ephemeral();
+        let id = format!("e-{}", publish_id());
         let _delivery = locked(&self.delivery);
         self.write("bus-event", &data.to_string(), Some(&id));
     }
@@ -539,6 +534,7 @@ impl Connection {
                 .cloned();
             let trace = trace_of(frame.meta.as_ref());
             let queued = Queued {
+                publish_id: frame.publish_id,
                 channel: frame.channel.clone(),
                 payload: frame.payload,
                 scope: frame.scope.clone(),
@@ -621,6 +617,7 @@ impl Connection {
                                 };
                                 if entry.channels.contains(&kind) {
                                     let frame = Queued {
+                                        publish_id: publish_id(),
                                         channel: kind,
                                         payload: Arc::new(event),
                                         scope: Some(entry.scope.clone()),
@@ -658,6 +655,7 @@ impl Connection {
                 .await
             {
                 let frame = Queued {
+                    publish_id: publish_id(),
                     channel: reply.channel,
                     payload: Arc::new(reply.payload),
                     scope: None,
