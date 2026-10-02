@@ -342,13 +342,15 @@ of a job it follows for `jobSilenceMs` asks for the job's status, and asks again
 
 A follower reports how its job ended under the codes every SDK shares
 ([`specs/src/errors/codes.json`](../../specs/src/errors/codes.json), `job`). A `job:fail` whose
-`willRetry` is `true` is not an end: the follower reports the setback and keeps following, and does
-not ask for the status of the attempt that died. Any other `job:fail`, and a status of `failed`, end
-it as `job.failed`, with the worker's message. A follower of a generation that has heard nothing for
-its stall deadline asks for the cancellation and ends as `job.stalled`; the deadline is
+`willRetry` is `true` is not an end, of an assisted job or of a generation: the follower reports the
+setback and keeps following, and does not ask for the status of the attempt that died. Any other
+`job:fail`, and a status of `failed`, end it as `job.failed`, with the worker's message. A follower
+of a generation that has heard nothing for its stall deadline asks for the cancellation and ends as
+`job.stalled`; the deadline is
 `generationStallFloorMs`, or `generationStallPerTokenMs` for each token asked for when that is
-longer, unless its caller states one. Each frame of the job starts the deadline again.
-*Held by `sdk/live/job-failed`, `sdk/live/job-failed-unheard`, `sdk/live/job-stalled`.*
+longer, unless its caller states one. Each frame of the job starts the deadline again, a setback
+among them: the attempt that follows one has the whole deadline to say something.
+*Held by `sdk/live/job-failed`, `sdk/live/job-failed-unheard`, `sdk/live/job-stalled`, `sdk/live/generation-retried`.*
 
 ## What the dispatcher emits on its own
 

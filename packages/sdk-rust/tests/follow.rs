@@ -395,6 +395,44 @@ async fn a_generation_that_says_nothing_is_cancelled_and_given_up_on() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn a_generations_setback_starts_its_stall_deadline_again_and_is_followed_past() {
+    let (client, transport) = world();
+    let started = Instant::now();
+    let following = collected(
+        client
+            .yield_
+            .from_context(generation(None), Some(Duration::from_secs(5))),
+    );
+    settle().await;
+
+    // The attempt dies three seconds in, and the queue will try again.
+    tokio::time::sleep(Duration::from_secs(3)).await;
+    client.bus().emit(
+        "job:fail",
+        object(json!({
+            "resourceId": "res-1", "jobId": "job-1", "jobType": "generation",
+            "error": "a blip", "willRetry": true
+        })),
+        Envelope::default(),
+    );
+
+    // Past where the deadline would have fallen had the setback not been
+    // heard: the next attempt has its whole deadline to say something, and
+    // generation is not cancelled under it.
+    tokio::time::sleep(Duration::from_secs(4)).await;
+    assert_eq!(asked(&transport, "job:cancel-requested"), 0);
+    assert_eq!(asked(&transport, "job:status-requested"), 0);
+
+    let seen = ended(following).await;
+    assert_eq!(kinds(&seen), ["failed", "error job.stalled"]);
+    let took = started.elapsed();
+    assert!(
+        took >= Duration::from_secs(8) && took < Duration::from_secs(9),
+        "five seconds after the setback, not {took:?}"
+    );
+}
+
+#[tokio::test(start_paused = true)]
 async fn a_generation_that_ends_in_time_is_not_cancelled() {
     let (client, transport) = world();
     let following = collected(

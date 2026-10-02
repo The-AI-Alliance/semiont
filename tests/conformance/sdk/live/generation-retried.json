@@ -1,0 +1,195 @@
+{
+  "about": "a generation's setback is not its end: a job:fail the queue will try again is reported and followed past, as an assisted job's is; the follower does not ask for the status of the attempt that died, the setback starts its stall deadline again, and the next attempt's frames are the job's to their completion",
+  "source": "docs/protocol/JOBS.md § Following a job; specs/src/client/timing.json jobSilenceMs",
+  "tier": "parity",
+  "steps": [
+    {
+      "let": {
+        "params": {
+          "title": "A summary",
+          "storageUri": "file://a-summary.md",
+          "context": {
+            "focus": {
+              "kind": "resource",
+              "resource": {
+                "@context": "https://schema.org/",
+                "@id": "res-one",
+                "name": "one",
+                "representations": []
+              }
+            },
+            "graph": {
+              "nodes": [],
+              "edges": []
+            },
+            "metadata": {}
+          }
+        }
+      }
+    },
+    {
+      "backend": "listen",
+      "with": {
+        "channels": [
+          "job:create",
+          "job:status-requested",
+          "job:cancel-requested"
+        ]
+      }
+    },
+    {
+      "driver": "open",
+      "with": {
+        "timing": {
+          "busRequestTimeoutMs": 5000,
+          "invalidationWindowMs": 100,
+          "reconnectMs": 50,
+          "lazyRemoveMs": 50,
+          "lingerMs": 50,
+          "jobSilenceMs": 1500,
+          "jobStatusPollMs": 60000
+        }
+      }
+    },
+    {
+      "state": "open"
+    },
+    {
+      "driver": "generate",
+      "with": {
+        "observer": "job",
+        "params": {
+          "$var": "params"
+        },
+        "stallDeadlineMs": 2000
+      }
+    },
+    {
+      "fetch": "job:create",
+      "payload": {
+        "jobType": "generation",
+        "params": {
+          "$var": "params"
+        }
+      },
+      "as": "c1"
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:created",
+        "correlationId": {
+          "$var": "c1"
+        },
+        "payload": {
+          "response": {
+            "jobId": "job-1"
+          }
+        }
+      }
+    },
+    {
+      "quiet": 1200
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:fail",
+        "payload": {
+          "resourceId": "res-one",
+          "jobId": "job-1",
+          "jobType": "generation",
+          "attempt": 1,
+          "error": "the model did not answer",
+          "willRetry": true
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "ready",
+        "value": {
+          "kind": "failed",
+          "data": {
+            "_userId": {
+              "$var": "_"
+            },
+            "resourceId": "res-one",
+            "jobId": "job-1",
+            "jobType": "generation",
+            "attempt": 1,
+            "error": "the model did not answer",
+            "willRetry": true
+          }
+        }
+      }
+    },
+    {
+      "quiet": 1200
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:report-progress",
+        "payload": {
+          "resourceId": "res-one",
+          "jobId": "job-1",
+          "jobType": "generation",
+          "percentage": 40,
+          "progress": {
+            "percentage": 40
+          }
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "ready",
+        "value": {
+          "kind": "progress",
+          "data": {
+            "percentage": 40
+          }
+        }
+      }
+    },
+    {
+      "backend": "emit",
+      "with": {
+        "channel": "job:complete",
+        "payload": {
+          "resourceId": "res-one",
+          "jobId": "job-1",
+          "jobType": "generation",
+          "attempt": 2
+        }
+      }
+    },
+    {
+      "reaches": "job",
+      "state": {
+        "status": "ready",
+        "value": {
+          "kind": "complete",
+          "data": {
+            "_userId": {
+              "$var": "_"
+            },
+            "resourceId": "res-one",
+            "jobId": "job-1",
+            "jobType": "generation",
+            "attempt": 2
+          }
+        }
+      }
+    },
+    {
+      "completes": "job"
+    },
+    {
+      "quiet": 300
+    }
+  ]
+}

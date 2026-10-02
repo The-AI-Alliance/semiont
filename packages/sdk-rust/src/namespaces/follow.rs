@@ -286,9 +286,12 @@ async fn followed(
                 Heard::Complete(frame) => return Ok(JobEvent::Complete(frame)),
                 // The queue re-queues the job and another attempt continues
                 // it. The dead attempt's status is not asked for: the next
-                // attempt's first frame starts the silence again.
+                // attempt's first frame starts the silence again. The
+                // setback was heard, so the stall deadline starts again:
+                // one left running would cancel the attempt that is coming.
                 Heard::Fail(frame) if frame.will_retry == Some(true) => {
                     ask_at = None;
+                    stall_at = stall.map(|stall| Instant::now() + stall.within);
                     reporter.report(JobEvent::Failed(frame));
                 }
                 // Absent reads as final: a follower that ends early is seen,

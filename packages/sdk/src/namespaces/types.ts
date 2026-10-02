@@ -231,10 +231,13 @@ export type MarkAssistEvent =
 
 /**
  * Discriminated event yielded by the `yield.fromContext()` Observable.
- * Same shape and semantics as `MarkAssistEvent`.
+ * Same shape and semantics as `MarkAssistEvent`: `failed` is a setback the
+ * queue will try again, on a stream that stays open, and a failure that is
+ * final errors the stream.
  */
 export type YieldGenerationEvent =
   | { kind: 'progress'; data: JobProgress }
+  | { kind: 'failed'; data: components['schemas']['JobFailCommand'] }
   | { kind: 'complete'; data: components['schemas']['JobCompleteCommand'] };
 
 // ── Namespace interfaces ────────────────────────────────────────────────────
