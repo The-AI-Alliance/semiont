@@ -163,6 +163,17 @@ export class Spec {
     return out;
   }
 
+  /** One of a security scheme's `x-semiont-limits`. */
+  schemeLimit(scheme: string, key: string): number {
+    const components = this.doc['components'];
+    const schemes = isObject(components) ? components['securitySchemes'] : undefined;
+    const declared = isObject(schemes) ? schemes[scheme] : undefined;
+    const limits = isObject(declared) ? declared['x-semiont-limits'] : undefined;
+    const value = isObject(limits) ? limits[key] : undefined;
+    if (typeof value !== 'number') throw new Error(`the spec's security scheme ${scheme} states no x-semiont-limits.${key}`);
+    return value;
+  }
+
   /** A limit on a principal: its baseline, and a coefficient per role (`'unlimited'`, or the baseline's shape). */
   principalLimit<C>(method: Method, path: string, key: string): { baseline: C; roles: Record<string, C | 'unlimited'> } {
     const limit = (this.operation(method, path)['x-semiont-limits'] as Record<string, unknown> | undefined)?.[key];

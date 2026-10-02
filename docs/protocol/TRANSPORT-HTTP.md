@@ -108,6 +108,9 @@ The numbers live in the spec, not here:
 | Heartbeat interval | `x-semiont-limits.heartbeatSeconds` | — |
 | Bytes written to a connection and not yet taken | `x-semiont-limits.pendingWriteBytes` | the connection is closed |
 | Live frames arriving during a replay | `x-semiont-limits.replayBufferEvents` | the connection is closed |
+| How old the issuer's key set may be | `bearerAuth` `x-semiont-limits.keySetMaxAgeSeconds` | it is fetched again before an issuer token is verified |
+| How soon the key set is fetched again, for a key id it lacks or after a fetch that failed | `bearerAuth` `x-semiont-limits.keyRefetchCooldownSeconds` | until then a token that needs the fetch is refused 401 |
+| How long one fetch of the key set may take, discovery included | `bearerAuth` `x-semiont-limits.keyFetchDeadlineSeconds` | the fetch has failed; the tokens waiting on it are refused 401 |
 
 A closed connection is not an error the client handles: it reopens its
 stream with each scope's position and its `pendingReplies`, and loses

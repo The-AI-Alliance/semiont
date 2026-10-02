@@ -160,6 +160,17 @@ eachPlane(
         return replies.some((r) => r.status === 429) ? true : undefined;
       });
 
+      // A request refused 401, for each reason one can be: no token, a token
+      // the gateway did not sign and the issuer did not, a media token that is none.
+      expect((await call(world().origin, 'GET', '/api/users/me')).status).toBe(401);
+      expect((await call(world().origin, 'GET', '/api/users/me', { token: 'not-a-token' })).status).toBe(401);
+      expect((await call(world().origin, 'GET', '/api/resources/res-metered?token=not-a-media-token')).status).toBe(401);
+      const unauthenticated = await eventually('every reason a request is refused 401 for', 15_000, () => {
+        const reasons = otlp().metrics.get(metricName('semiont.gateway.unauthenticated'))?.attributes.get('unauthenticated.reason');
+        return reasons?.size === 3 ? reasons : undefined;
+      });
+      expect([...unauthenticated].sort()).toEqual(['invalid_media_token', 'invalid_token', 'missing_token']);
+
       for (const row of expectedOn(telemetry('gateway').metrics, plane).filter((r) => r.when === 'traffic')) {
         const seen = await eventually(`the ${row.name} metric`, 15_000, () => otlp().metrics.get(metricName(row.name)));
         for (const attribute of row.attributes.filter((a) => !a.only)) {

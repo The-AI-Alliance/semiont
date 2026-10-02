@@ -230,6 +230,25 @@
       ]
     },
     {
+      "name": "semiont.gateway.unauthenticated",
+      "services": [
+        "gateway"
+      ],
+      "instrument": "counter",
+      "when": "traffic",
+      "meaning": "Requests answered 401, by why: no bearer token, a bearer token refused, a media token refused.",
+      "attributes": [
+        {
+          "key": "unauthenticated.reason",
+          "values": [
+            "missing_token",
+            "invalid_token",
+            "invalid_media_token"
+          ]
+        }
+      ]
+    },
+    {
       "name": "semiont.bus.correlation.size",
       "services": [
         "gateway"

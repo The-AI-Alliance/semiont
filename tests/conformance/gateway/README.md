@@ -12,7 +12,7 @@ provides to the cases: the Rust gateway's binary, built in `apps/gateway`.
 Every case runs against a gateway on each signal plane — in-process, and NATS
 with a real `nats-server` — except the ones that need a broker (replicas, a
 broker outage, what the broker holds) or do not depend on the plane (the slow
-heartbeat, reply-retention and key-rotation cases, and knowledge bases
+heartbeat, reply-retention, key-rotation and key-fetch cases, and knowledge bases
 configured another way).
 
 ## What it checks
@@ -38,6 +38,8 @@ configured another way).
   A violation fails the case whatever it was about.
 - **Hand-written**, each citing the text it checks:
   - credentials, the bearer and media-token schemes (`tokens.test.ts`);
+  - the issuer's key set: the deadline on a fetch, and one fetch per cooldown
+    when it fails (`issuer.test.ts`);
   - content and uploads, and the JSON-LD description (`content.test.ts`);
   - emitting: stamping, claims, profiles and unanswerable requests
     (`emit.test.ts`);

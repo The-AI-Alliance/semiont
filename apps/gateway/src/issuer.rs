@@ -1,29 +1,53 @@
 //! Verifies tokens from the one issuer the knowledge base trusts, against the
-//! keys it publishes: discovery read once, the key set fetched on first use,
-//! refetched when it is ten minutes old, and on a key id it does not hold no
-//! more often than every thirty seconds.
+//! keys it publishes. Discovery is read once. The key set is fetched when none
+//! is held, when the one held has reached its maximum age, and for a key id it
+//! lacks once it is a cooldown old. One fetch runs at a time, under a
+//! deadline: the requests that need it wait for it, and its failure stands
+//! for a cooldown. The three timings are the bearer scheme's
+//! `x-semiont-limits` (crate::limits).
 
+use crate::limits::limits;
 use jsonwebtoken::errors::ErrorKind;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde_json::{Map, Value};
 use std::collections::HashSet;
+use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, Instant};
-use tokio::sync::Mutex;
 
-const REFETCH_COOLDOWN: Duration = Duration::from_secs(30);
-const MAX_AGE: Duration = Duration::from_secs(600);
+const NO_MATCHING_KEY: &str = "no key the issuer publishes matches the token";
 
 pub struct IssuerVerifier {
     issuer: String,
     audience: String,
     http: reqwest::Client,
     jwks_uri: Mutex<Option<String>>,
-    keys: Mutex<Option<KeySet>>,
+    held: Mutex<Held>,
+    /// Held by the one fetch in flight; a request that needs a fetch waits here.
+    fetching: tokio::sync::Mutex<()>,
 }
 
 struct KeySet {
     keys: Vec<Value>,
     fetched: Instant,
+}
+
+#[derive(Default)]
+struct Held {
+    set: Option<KeySet>,
+    /// The last fetch, if it failed: when, and why.
+    failed: Option<(Instant, String)>,
+}
+
+/// What the held keys say of a token's key id.
+enum Answer {
+    Keys(Vec<DecodingKey>),
+    Refused(String),
+    /// Neither: a fetch is due.
+    Fetch,
+}
+
+fn locked<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
+    mutex.lock().unwrap_or_else(|p| p.into_inner())
 }
 
 impl IssuerVerifier {
@@ -33,7 +57,8 @@ impl IssuerVerifier {
             audience,
             http,
             jwks_uri: Mutex::new(None),
-            keys: Mutex::new(None),
+            held: Mutex::new(Held::default()),
+            fetching: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -48,9 +73,8 @@ impl IssuerVerifier {
     }
 
     async fn discover(&self) -> Result<String, String> {
-        let mut known = self.jwks_uri.lock().await;
-        if let Some(uri) = known.as_ref() {
-            return Ok(uri.clone());
+        if let Some(uri) = locked(&self.jwks_uri).clone() {
+            return Ok(uri);
         }
         let base = if self.issuer.ends_with('/') {
             self.issuer.clone()
@@ -89,7 +113,7 @@ impl IssuerVerifier {
                 self.issuer
             ));
         }
-        *known = Some(jwks_uri.to_owned());
+        *locked(&self.jwks_uri) = Some(jwks_uri.to_owned());
         Ok(jwks_uri.to_owned())
     }
 
@@ -121,35 +145,64 @@ impl IssuerVerifier {
         })
     }
 
-    /// The published keys a token with `kid` could be signed by, fetching or
-    /// refetching the set as its age and the cooldown allow.
-    async fn candidates(&self, kid: Option<&str>) -> Result<Vec<DecodingKey>, String> {
-        let mut held = self.keys.lock().await;
-        if held
+    /// What the keys held now answer for `kid`, without fetching.
+    fn answer(&self, kid: Option<&str>) -> Answer {
+        let cooldown = Duration::from_secs(limits().key_refetch_cooldown_seconds);
+        let max_age = Duration::from_secs(limits().key_set_max_age_seconds);
+        let held = locked(&self.held);
+        let usable = held
+            .set
             .as_ref()
-            .is_none_or(|set| set.fetched.elapsed() >= MAX_AGE)
-        {
-            *held = Some(self.fetch().await?);
+            .filter(|set| set.fetched.elapsed() < max_age);
+        if let Some(set) = usable {
+            let found = matching(&set.keys, kid);
+            if !found.is_empty() {
+                return Answer::Keys(found);
+            }
         }
-        let mut found = matching(
-            held.as_ref().map(|s| s.keys.as_slice()).unwrap_or_default(),
-            kid,
-        );
-        if found.is_empty()
-            && held
-                .as_ref()
-                .is_some_and(|set| set.fetched.elapsed() >= REFETCH_COOLDOWN)
-        {
-            *held = Some(self.fetch().await?);
-            found = matching(
-                held.as_ref().map(|s| s.keys.as_slice()).unwrap_or_default(),
-                kid,
-            );
+        match &held.failed {
+            Some((at, why)) if at.elapsed() < cooldown => Answer::Refused(match usable {
+                Some(_) => NO_MATCHING_KEY.to_owned(),
+                None => why.clone(),
+            }),
+            _ if usable.is_none_or(|set| set.fetched.elapsed() >= cooldown) => Answer::Fetch,
+            _ => Answer::Refused(NO_MATCHING_KEY.to_owned()),
         }
-        if found.is_empty() {
-            return Err("no key the issuer publishes matches the token".to_owned());
+    }
+
+    /// The published keys a token with `kid` could be signed by, fetching the
+    /// set when that is due. A request that needs a fetch waits for the one in
+    /// flight and takes its outcome, so however many arrive, one is made.
+    async fn candidates(&self, kid: Option<&str>) -> Result<Vec<DecodingKey>, String> {
+        loop {
+            match self.answer(kid) {
+                Answer::Keys(found) => return Ok(found),
+                Answer::Refused(why) => return Err(why),
+                Answer::Fetch => {}
+            }
+            let _one = self.fetching.lock().await;
+            if !matches!(self.answer(kid), Answer::Fetch) {
+                continue;
+            }
+            let deadline = Duration::from_secs(limits().key_fetch_deadline_seconds);
+            let fetched = tokio::time::timeout(deadline, self.fetch())
+                .await
+                .unwrap_or_else(|_| {
+                    Err(format!(
+                        "fetching the keys of {} took longer than {} s",
+                        self.issuer,
+                        deadline.as_secs()
+                    ))
+                });
+            let mut held = locked(&self.held);
+            match fetched {
+                Ok(set) => {
+                    held.set = Some(set);
+                    held.failed = None;
+                }
+                Err(why) => held.failed = Some((Instant::now(), why)),
+            }
         }
-        Ok(found)
     }
 
     /// The token's claims, if the trusted issuer signed it (RS256) for this

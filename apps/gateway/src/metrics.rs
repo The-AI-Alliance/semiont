@@ -2,6 +2,7 @@
 //! specs/src/service-telemetry/telemetry.json lists for it beside the process's and
 //! its count of the emits it accepted (`semiont.bus.emit`, observability's).
 
+use crate::http::Unauthenticated;
 use opentelemetry::KeyValue;
 use opentelemetry::metrics::{Counter, UpDownCounter};
 use semiont_observability::telemetry;
@@ -12,6 +13,7 @@ struct Instruments {
     resume_gaps: Counter<u64>,
     unanswerable: Counter<u64>,
     refusals: Counter<u64>,
+    unauthenticated: Counter<u64>,
     subscribers: UpDownCounter<i64>,
 }
 
@@ -40,6 +42,10 @@ fn instruments() -> Option<&'static Instruments> {
                 refusals: meter
                     .u64_counter("semiont.gateway.refused")
                     .with_description("Requests a limit refused, and connections closed at the cap")
+                    .build(),
+                unauthenticated: meter
+                    .u64_counter("semiont.gateway.unauthenticated")
+                    .with_description("Requests answered 401")
                     .build(),
                 subscribers: meter
                     .i64_up_down_counter("semiont.sse.subscribers")
@@ -71,6 +77,15 @@ pub fn record_refused(reason: &str) {
     if let Some(t) = instruments() {
         t.refusals
             .add(1, &[KeyValue::new("refused.reason", reason.to_owned())]);
+    }
+}
+
+pub fn record_unauthenticated(reason: Unauthenticated) {
+    if let Some(t) = instruments() {
+        t.unauthenticated.add(
+            1,
+            &[KeyValue::new("unauthenticated.reason", reason.as_str())],
+        );
     }
 }
 
