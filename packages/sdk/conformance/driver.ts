@@ -10,7 +10,8 @@
  */
 import { createInterface } from 'node:readline';
 import { BehaviorSubject, type Subscription } from 'rxjs';
-import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type Motivation } from '@semiont/core';
+import { SemiontError, accessToken, annotationId, baseUrl, resourceId, type AccessToken, type GatheredContext, type Motivation } from '@semiont/core';
+import type { Observable } from 'rxjs';
 import {
   HttpContentTransport,
   HttpTransport,
@@ -18,6 +19,7 @@ import {
   SemiontClient,
   type CacheObservable,
   type CacheState,
+  type GenerationOptions,
 } from '@semiont/sdk';
 
 type Arguments = Record<string, unknown>;
@@ -66,6 +68,22 @@ const observers = new Map<string, Subscription>();
 function opened(): SemiontClient {
   if (!client) throw new Misuse('no client is open');
   return client;
+}
+
+/**
+ * A job followed to its end, observed as a live query is: each event it
+ * reports is a `ready` state, its failure a `failed` one, its end a completion.
+ */
+function follow(observer: string, job: () => Observable<unknown>): void {
+  if (observers.has(observer)) throw new Misuse(`${observer} is already observing`);
+  observers.set(
+    observer,
+    job().subscribe({
+      next: (event) => say({ emission: { observer, state: { status: 'ready', value: event } } }),
+      error: (error: unknown) => say({ emission: { observer, state: { status: 'failed', error: failure(error) } } }),
+      complete: () => say({ completed: observer }),
+    }),
+  );
 }
 
 /** The live query a case names. */
@@ -159,20 +177,19 @@ const operations: Record<string, (args: Arguments) => Promise<unknown> | unknown
     observers.delete(observer);
   },
 
-  // A job followed to its end, observed as a live query is: each event it
-  // reports is a `ready` state, its failure a `failed` one, its end a completion.
   assist(args) {
-    const observer = text(args, 'observer');
-    if (observers.has(observer)) throw new Misuse(`${observer} is already observing`);
-    observers.set(
-      observer,
-      opened()
-        .mark.assist(resourceId(text(args, 'resource')), text(args, 'motivation') as Motivation, object(args, 'options'))
-        .subscribe({
-          next: (event) => say({ emission: { observer, state: { status: 'ready', value: event } } }),
-          error: (error: unknown) => say({ emission: { observer, state: { status: 'failed', error: failure(error) } } }),
-          complete: () => say({ completed: observer }),
-        }),
+    follow(text(args, 'observer'), () =>
+      opened().mark.assist(resourceId(text(args, 'resource')), text(args, 'motivation') as Motivation, object(args, 'options')),
+    );
+  },
+
+  // A generation, whose follower gives up on it after `stallDeadlineMs` of
+  // silence. `params` is what the job is created with, its context among them.
+  generate(args) {
+    const { context, ...options } = object(args, 'params');
+    const stallDeadlineMs = count(args, 'stallDeadlineMs');
+    follow(text(args, 'observer'), () =>
+      opened().yield.fromContext(context as GatheredContext, { ...options, stallDeadlineMs } as GenerationOptions),
     );
   },
 

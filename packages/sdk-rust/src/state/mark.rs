@@ -6,9 +6,10 @@
 //! Submitting it (`client.mark.submit`) creates it, and it stops being
 //! pending when the knowledge base says it is recorded; a creation that
 //! fails leaves it pending and says `mark:create-error` on the client's own
-//! bus. `client.mark.cancel_pending` drops it. `mark:delete` on that bus
-//! deletes an annotation of this resource, and says `mark:delete-error` when
-//! that fails.
+//! bus. `client.mark.cancel_pending` drops it. A `mark:delete` on that bus
+//! that names this resource deletes the annotation, and says
+//! `mark:delete-error` when that fails; one that names another resource, or
+//! none, is not this unit's.
 //!
 //! A request and a submission name the resource they are for, and a unit
 //! acts only on its own: several units over one client, one per open
@@ -37,13 +38,10 @@ use crate::state_unit::StateUnit;
 use crate::timing::ASSIST_SILENCE;
 use crate::transport::Envelope;
 use crate::types::{
-    AnnotationTarget, AnnotationTargetSelector, AnnotationTargetSelectorItem,
-    CreateAnnotationRequest, CreateAnnotationRequestBody, FragmentSelector, FragmentSelectorType,
-    JobProgress, MarkAssistRequestEvent, MarkAssistRequestEventOptions, MarkAssistTimeoutEvent,
-    MarkRequestedEventSelector, MarkRequestedEventSelectorItem, MarkSubmitEvent,
-    MarkSubmitEventBody, MarkSubmitEventSelector, MarkSubmitEventSelectorItem, Motivation,
-    ResourceErrorEvent, SelectionData, SvgSelector, SvgSelectorType, TextQuoteSelector,
-    TextQuoteSelectorType,
+    AnnotationSelector, AnnotationTarget, CreateAnnotationRequest, FragmentSelector,
+    FragmentSelectorType, JobProgress, MarkAssistRequestEvent, MarkAssistRequestEventOptions,
+    MarkAssistTimeoutEvent, MarkSubmitEvent, Motivation, ResourceErrorEvent, SelectionData,
+    Selector, SvgSelector, SvgSelectorType, TextQuoteSelector, TextQuoteSelectorType,
 };
 use std::sync::Arc;
 use tokio::sync::watch;
@@ -52,36 +50,9 @@ use tokio::sync::watch;
 /// selector is what `client.mark.submit` takes.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PendingAnnotation {
-    pub selector: MarkSubmitEventSelector,
+    pub selector: AnnotationSelector,
     pub motivation: Motivation,
 }
-
-/// The spec states the selectors of a request, of a submission and of an
-/// annotation's target each in its own schema, and they are one union. A
-/// selector is carried from one to the next variant by variant, so a schema
-/// that gains one stops this compiling until it is carried too.
-macro_rules! same_selector {
-    ($carry:ident, $from:ident, $from_item:ident => $to:ident, $to_item:ident) => {
-        fn $carry(selector: $from) -> $to {
-            let item = |item: $from_item| match item {
-                $from_item::TextPositionSelector(one) => $to_item::TextPositionSelector(one),
-                $from_item::TextQuoteSelector(one) => $to_item::TextQuoteSelector(one),
-                $from_item::SvgSelector(one) => $to_item::SvgSelector(one),
-                $from_item::FragmentSelector(one) => $to_item::FragmentSelector(one),
-            };
-            match selector {
-                $from::TextPositionSelector(one) => $to::TextPositionSelector(one),
-                $from::TextQuoteSelector(one) => $to::TextQuoteSelector(one),
-                $from::SvgSelector(one) => $to::SvgSelector(one),
-                $from::FragmentSelector(one) => $to::FragmentSelector(one),
-                $from::List(several) => $to::List(several.into_iter().map(item).collect()),
-            }
-        }
-    };
-}
-
-same_selector!(pending_selector, MarkRequestedEventSelector, MarkRequestedEventSelectorItem => MarkSubmitEventSelector, MarkSubmitEventSelectorItem);
-same_selector!(target_selector, MarkSubmitEventSelector, MarkSubmitEventSelectorItem => AnnotationTargetSelector, AnnotationTargetSelectorItem);
 
 fn stated(text: Option<String>) -> Option<String> {
     text.filter(|text| !text.is_empty())
@@ -89,7 +60,7 @@ fn stated(text: Option<String>) -> Option<String> {
 
 /// The selector a quick selection states: its region, its fragment with the
 /// text it quotes, or the text alone.
-fn selected(selection: SelectionData) -> MarkSubmitEventSelector {
+fn selected(selection: SelectionData) -> AnnotationSelector {
     let quote = TextQuoteSelector {
         r#type: TextQuoteSelectorType::TextQuoteSelector,
         exact: selection.exact,
@@ -97,25 +68,23 @@ fn selected(selection: SelectionData) -> MarkSubmitEventSelector {
         suffix: stated(selection.suffix),
     };
     if let Some(region) = stated(selection.svg_selector) {
-        return MarkSubmitEventSelector::SvgSelector(SvgSelector {
+        return AnnotationSelector::Selector(Selector::SvgSelector(SvgSelector {
             r#type: SvgSelectorType::SvgSelector,
             value: region,
-        });
+        }));
     }
     if let Some(fragment) = stated(selection.fragment_selector) {
-        let mut selectors = vec![MarkSubmitEventSelectorItem::FragmentSelector(
-            FragmentSelector {
-                r#type: FragmentSelectorType::FragmentSelector,
-                value: fragment,
-                conforms_to: stated(selection.conforms_to),
-            },
-        )];
+        let mut selectors = vec![Selector::FragmentSelector(FragmentSelector {
+            r#type: FragmentSelectorType::FragmentSelector,
+            value: fragment,
+            conforms_to: stated(selection.conforms_to),
+        })];
         if !quote.exact.is_empty() {
-            selectors.push(MarkSubmitEventSelectorItem::TextQuoteSelector(quote));
+            selectors.push(Selector::TextQuoteSelector(quote));
         }
-        return MarkSubmitEventSelector::List(selectors);
+        return AnnotationSelector::List(selectors);
     }
-    MarkSubmitEventSelector::TextQuoteSelector(quote)
+    AnnotationSelector::Selector(Selector::TextQuoteSelector(quote))
 }
 
 /// What a signal asks of an assist, as the job is asked it.
@@ -216,7 +185,7 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
         };
         if let Some(request) = said::<MarkRequested>(&frame) {
             if request.source == shared.resource_id {
-                pend(pending_selector(request.selector), request.motivation);
+                pend(request.selector, request.motivation);
             }
         } else if let Some(selection) = said::<MarkSelectComment>(&frame) {
             pend(selected(selection), Motivation::Commenting);
@@ -233,6 +202,11 @@ async fn listen(shared: Arc<Shared>, mut heard: BusFrames) {
                 shared.tasks.spawn(create(shared.clone(), submission));
             }
         } else if let Some(deletion) = said::<MarkDelete>(&frame) {
+            // Only what is said to be of this resource: with several
+            // resources open on one client, each has a unit that hears this.
+            if deletion.resource_id.as_deref() != Some(shared.resource_id.as_str()) {
+                continue;
+            }
             let deleting = shared.clone();
             shared.tasks.spawn(async move {
                 let deleted = deleting
@@ -265,14 +239,9 @@ async fn create(shared: Arc<Shared>, submission: MarkSubmitEvent) {
             motivation: submission.motivation,
             target: AnnotationTarget {
                 source: shared.resource_id.clone(),
-                selector: Some(target_selector(submission.selector)),
+                selector: Some(submission.selector),
             },
-            body: submission.body.map(|body| match body {
-                MarkSubmitEventBody::AnnotationBody(one) => {
-                    CreateAnnotationRequestBody::AnnotationBody(one)
-                }
-                MarkSubmitEventBody::List(several) => CreateAnnotationRequestBody::List(several),
-            }),
+            body: submission.body,
         })
         .await;
     match created {

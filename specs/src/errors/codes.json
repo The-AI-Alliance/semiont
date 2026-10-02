@@ -95,8 +95,12 @@
         "docs": "The job failed and will not be tried again: the failure its worker reported, or the one its status states."
       },
       {
+        "code": "job.cancelled",
+        "docs": "The job was cancelled before it ended, as its status states. Nothing announces a cancellation: its follower learns of it when it asks for the job's status."
+      },
+      {
         "code": "job.stalled",
-        "docs": "The job said nothing for longer than its follower allows. The follower has asked for it to be cancelled."
+        "docs": "The job said nothing for longer than its follower allows. The follower has asked for that job to be cancelled."
       }
     ]
   },

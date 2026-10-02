@@ -19,7 +19,9 @@
 //! - `timing.rs`: the deadlines, retry budgets and stream cadences a client
 //!   keeps (client/timing.json);
 //! - `cache_refresh.rs`: what each event on the bus, and the reopening of a
-//!   dropped stream, does to a client's cache (client/refresh.json).
+//!   dropped stream, does to a client's cache (client/refresh.json);
+//! - `media_types.rs`: the media types a knowledge base admits and what the
+//!   system can do with each (media-types/registry.json).
 
 use semiont_codegen::bundle::{Bundle, draft7_definitions, read_json};
 use semiont_codegen::types::{Generation, generate, pascal};
@@ -210,6 +212,116 @@ fn main() {
         cache_refresh(&read_json(&specs.join("client/refresh.json"))),
     )
     .expect("cannot write cache_refresh.rs");
+    fs::write(
+        out.join("media_types.rs"),
+        media_types(&read_json(&specs.join("media-types/registry.json"))),
+    )
+    .expect("cannot write media_types.rs");
+}
+
+/// The registry as an enum per vocabulary, a row per media type in the
+/// registry's order, and the row a clone falls back to. The registry's own
+/// generator (scripts/spec/generate-media-types.mjs) is where it is held to
+/// the `SupportedMediaType` schema; this refuses only what it cannot render.
+fn media_types(table: &Value) -> String {
+    const VOCABULARIES: [(&str, &str, &str, &str); 3] = [
+        (
+            "render",
+            "render",
+            "RenderMode",
+            "The viewer a reader mounts for a type.",
+        ),
+        (
+            "anchoring",
+            "anchoring",
+            "AnchoringModel",
+            "How an annotation is anchored in a type: by character offsets, or by geometry.",
+        ),
+        (
+            "textSource",
+            "text_source",
+            "TextSource",
+            "Where a type's text comes from: decoded from its own bytes, derived by reading them, or nowhere.",
+        ),
+    ];
+    let mut code =
+        String::from("// Generated from specs/src/media-types/registry.json; do not edit.\n");
+    for (key, _, name, docs) in VOCABULARIES {
+        let words: Vec<&str> = list(&table[key], key)
+            .iter()
+            .map(|word| {
+                word.as_str()
+                    .unwrap_or_else(|| panic!("{key} lists {word}, which is not a word"))
+            })
+            .collect();
+        let _ = writeln!(
+            code,
+            "/// {docs}\n#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]\npub enum {name} {{"
+        );
+        for word in &words {
+            let _ = writeln!(code, "    {},", pascal(word));
+        }
+        let _ = writeln!(
+            code,
+            "}}\n\nimpl {name} {{\n    /// The word the registry states.\n    pub const fn as_str(self) -> &'static str {{\n        match self {{"
+        );
+        for word in &words {
+            let _ = writeln!(code, "            {name}::{} => {word:?},", pascal(word));
+        }
+        code.push_str("        }\n    }\n}\n\n");
+    }
+
+    let row = |row: &Value| -> String {
+        let media_type = text(row, "mediaType", "a media type");
+        let flag = |key: &str| {
+            row[key]
+                .as_bool()
+                .unwrap_or_else(|| panic!("{media_type} does not say whether it is {key}"))
+        };
+        let mut fields = format!(
+            "media_type: {media_type:?}, extension: {:?}, label: {:?}",
+            text(row, "extension", media_type),
+            text(row, "label", media_type)
+        );
+        for (key, field, name, _) in VOCABULARIES {
+            let word = text(row, key, media_type);
+            assert!(
+                list(&table[key], key).iter().any(|stated| stated == word),
+                "{media_type}'s {key} is {word}, which the registry's {key} does not list"
+            );
+            let _ = write!(fields, ", {field}: {name}::{}", pascal(word));
+        }
+        for (key, field) in [
+            ("authorable", "authorable"),
+            ("uploadable", "uploadable"),
+            ("generatable", "generatable"),
+        ] {
+            let _ = write!(fields, ", {field}: {}", flag(key));
+        }
+        format!("MediaTypeCapabilities {{ {fields} }}")
+    };
+    let rows = list(&table["mediaTypes"], "mediaTypes");
+    code.push_str(
+        "/// Every media type a knowledge base admits, in the registry's order.\npub const MEDIA_TYPES: &[MediaTypeCapabilities] = &[\n",
+    );
+    for stated in rows {
+        let _ = writeln!(code, "    {},", row(stated));
+    }
+    code.push_str("];\n");
+    let plain = rows
+        .iter()
+        .find(|stated| stated["mediaType"] == "text/plain")
+        .expect("the registry has no text/plain, which a clone falls back to");
+    assert!(
+        plain["authorable"] == true,
+        "text/plain is not authorable, and a clone falls back to it because it is"
+    );
+    let _ = writeln!(
+        code,
+        "/// Plain text: the format a clone takes when its source's is not one a person can author.\npub const PLAIN_TEXT: MediaTypeCapabilities = {};",
+        row(plain)
+    );
+    code
 }
 
 /// The refresh table as its queries, its triggers and each trigger's rows.

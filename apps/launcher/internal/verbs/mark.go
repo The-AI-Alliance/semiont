@@ -179,35 +179,42 @@ func Mark(args []string) int {
 	// Built with the generated types and their union constructors: a
 	// selector or body assembled as a bare map is exactly how a wrong field
 	// name reaches the gateway unnoticed.
+	//
+	// The `type` discriminant is NOT set on a selector or a body: Selector and
+	// AnnotationBody each declare one in the schema, so the generated From*
+	// stamps it on the way in. A literal beside these fields would be
+	// overwritten with the same value — and would quietly absorb a typo
+	// rather than failing.
 	target := semiont.AnnotationTarget{Source: resourceID}
+	var one semiont.Selector
 	switch {
 	case quote != "":
-		sel := semiont.TextQuoteSelector{Type: "TextQuoteSelector", Exact: quote}
+		sel := semiont.TextQuoteSelector{Exact: quote}
 		if prefix != "" {
 			sel.Prefix = &prefix
 		}
 		if suffix != "" {
 			sel.Suffix = &suffix
 		}
-		var u semiont.AnnotationTarget_Selector
-		if err := u.FromTextQuoteSelector(sel); err != nil {
+		if err := one.FromTextQuoteSelector(sel); err != nil {
 			return markBuildFail(err)
 		}
-		target.Selector = &u
 	case start >= 0:
-		var u semiont.AnnotationTarget_Selector
-		if err := u.FromTextPositionSelector(semiont.TextPositionSelector{
-			Type: "TextPositionSelector", Start: float32(start), End: float32(end),
+		if err := one.FromTextPositionSelector(semiont.TextPositionSelector{
+			Start: float32(start), End: float32(end),
 		}); err != nil {
 			return markBuildFail(err)
 		}
-		target.Selector = &u
+	}
+	if quote != "" || start >= 0 {
+		// A selector is one selector or a list of them: this is one.
+		var selector semiont.AnnotationSelector
+		if err := selector.FromSelector(one); err != nil {
+			return markBuildFail(err)
+		}
+		target.Selector = &selector
 	}
 
-	// The `type` discriminant is NOT set here: AnnotationBody declares one in
-	// the schema, so the generated From* stamps it on the way in. A literal
-	// beside these fields would be overwritten with the same value — and would
-	// quietly absorb a typo rather than failing.
 	var bodies []semiont.AnnotationBody
 	if bodyText != "" {
 		var b semiont.AnnotationBody
@@ -233,7 +240,7 @@ func Mark(args []string) int {
 		var b semiont.AnnotationBody
 		purpose := semiont.BodyPurpose("tagging")
 		if err := b.FromTextualBody(semiont.TextualBody{
-			Type: "TextualBody", Value: et, Purpose: &purpose,
+			Value: et, Purpose: &purpose,
 		}); err != nil {
 			return markBuildFail(err)
 		}
@@ -247,14 +254,14 @@ func Mark(args []string) int {
 	// The body is a union of "one body" or "a list of bodies" — the schema
 	// models both, so use the list form only when there is more than one.
 	if len(bodies) == 1 {
-		var body semiont.CreateAnnotationRequest_Body
+		var body semiont.AnnotationBodies
 		if err := body.FromAnnotationBody(bodies[0]); err != nil {
 			return markBuildFail(err)
 		}
 		request.Body = &body
 	} else if len(bodies) > 1 {
-		var body semiont.CreateAnnotationRequest_Body
-		if err := body.FromCreateAnnotationRequestBody1(bodies); err != nil {
+		var body semiont.AnnotationBodies
+		if err := body.FromAnnotationBodies1(bodies); err != nil {
 			return markBuildFail(err)
 		}
 		request.Body = &body

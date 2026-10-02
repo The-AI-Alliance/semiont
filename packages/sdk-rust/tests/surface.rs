@@ -10,7 +10,7 @@
 
 use bytes::Bytes;
 use semiont::client::SemiontClient;
-use semiont::namespaces::{MarkAssistOptions, ResourceFilters};
+use semiont::namespaces::{CreateFromTokenOptions, MarkAssistOptions, ResourceFilters};
 use semiont::testing::{
     ContentCall, FaultyTransport, InMemoryContent, StubGateway, TestClientOptions,
     create_test_client,
@@ -197,6 +197,7 @@ const METHODS: &[(&str, &[&str])] = &[
             "fromContext",
             "cloneToken",
             "fromToken",
+            "createFromToken",
             "clone",
         ],
     ),
@@ -459,6 +460,16 @@ fn call(world: &World, namespace: &str, method: &str, args: Args) {
         ("yield", "fromToken") => {
             let token = args.text("token");
             go!(client.yield_.from_token(&token))
+        }
+        ("yield", "createFromToken") => {
+            let options = Args(args.options());
+            let options = CreateFromTokenOptions {
+                token: options.text("token"),
+                name: options.text("name"),
+                content: options.text("content"),
+                archive_original: None,
+            };
+            go!(client.yield_.create_from_token(options))
         }
         ("yield", "clone") => client.yield_.clone(),
 

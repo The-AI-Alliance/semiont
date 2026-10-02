@@ -1,10 +1,11 @@
 # Media Types
 
 **The media-type registry lives in [@semiont/core](../../core/), not here.**
-`packages/core/src/media-types.ts` is the single source of truth for which
-types Semiont admits (the `SupportedMediaType` enum, authored in the OpenAPI
-spec), their canonical extensions, and their capabilities (render, anchoring,
-text extraction, authorable, uploadable).
+`packages/core/src/media-types.ts` is where TypeScript reads which types
+Semiont admits (the `SupportedMediaType` enum, authored in the OpenAPI spec),
+their canonical extensions, and their capabilities (render, anchoring, text
+extraction, authorable, uploadable). Its table is generated from
+`specs/src/media-types/registry.json`, the single source of truth.
 
 What this package owns is one consumer of that registry:
 

@@ -9,6 +9,7 @@ use semiont::discovery::{
     DiscoveryAbsentReason, DiscoveryRead, DiscoveryState, DiscoveryTransport,
     parse_discovery_document,
 };
+use semiont::timing::HTTP_REQUEST_TIMEOUT;
 use semiont::transport::BoxFuture;
 use std::sync::Mutex;
 
@@ -33,8 +34,19 @@ impl DiscoveryTransport for HttpDiscovery {
             if let Some(etag) = locked(&self.etag).clone() {
                 request = request.header("if-none-match", etag);
             }
-            let response = match request.send().await {
+            // With a deadline: a read that is never answered would hold the
+            // poll that awaits it, and every poll after it, for good.
+            let response = match request.timeout(HTTP_REQUEST_TIMEOUT).send().await {
                 Ok(response) => response,
+                Err(error) if error.is_timeout() => {
+                    return absent(
+                        DiscoveryAbsentReason::Unreadable,
+                        format!(
+                            "the document was not served within {}s",
+                            HTTP_REQUEST_TIMEOUT.as_secs()
+                        ),
+                    );
+                }
                 Err(error) => {
                     return absent(DiscoveryAbsentReason::Unreadable, error.to_string());
                 }

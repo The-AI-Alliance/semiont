@@ -28,9 +28,9 @@ use crate::errors::{BusRequestError, BusRequestErrorCode, JobError, JobErrorCode
 use crate::running::{Reporter, Running};
 use crate::transport::BoxFuture;
 use crate::types::{
-    JobCancelRequest, JobCancelRequestJobType, JobCompleteCommand, JobCreateCommand,
-    JobCreatedResult, JobFailCommand, JobProgress, JobReportProgressCommand, JobStatusRequest,
-    JobStatusResponse, JobStatusResponseStatus, JobStoredResult,
+    JobCancelRequest, JobCompleteCommand, JobCreateCommand, JobCreatedResult, JobFailCommand,
+    JobProgress, JobReportProgressCommand, JobStatusRequest, JobStatusResponse,
+    JobStatusResponseStatus, JobStoredResult,
 };
 use serde::{Deserialize, Serialize};
 use std::future::Future;
@@ -56,16 +56,8 @@ pub(crate) struct Following {
     /// The resource the job is about, for a completion learned from the
     /// job's status, which does not state it.
     pub resource_id: String,
-    /// When the follower gives up on a job that says nothing.
-    pub stall: Option<Stall>,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) struct Stall {
-    /// How long the job may say nothing.
-    pub within: Duration,
-    /// The category of jobs a follower that gave up asks to be cancelled.
-    pub cancels: JobCancelRequestJobType,
+    /// How long the job may say nothing before its follower gives up on it.
+    pub stall: Option<Duration>,
 }
 
 pub(crate) fn follow(links: Links, following: Following) -> Running<JobEvent> {
@@ -156,7 +148,7 @@ async fn followed(
     let mut held: Vec<Heard> = Vec::new();
     let mut ask_at: Option<Instant> = None;
     let mut asking: Option<BoxFuture<'static, Result<JobStatusResponse, SemiontError>>> = None;
-    let mut stall_at = stall.map(|stall| Instant::now() + stall.within);
+    let mut stall_at = stall.map(|within| Instant::now() + within);
 
     loop {
         // Frames come first, so one of this job's that is already here is
@@ -237,31 +229,44 @@ async fn followed(
                                 status.error.unwrap_or_else(|| "Job failed".to_owned()),
                             ));
                         }
-                        JobStatusResponseStatus::Pending
-                        | JobStatusResponseStatus::Running
-                        | JobStatusResponseStatus::Cancelled => {}
+                        // Nothing announces a cancellation: this is where
+                        // its follower learns of one.
+                        JobStatusResponseStatus::Cancelled => {
+                            return Err(JobError {
+                                code: JobErrorCode::Cancelled,
+                                job_id: Some(status.job_id),
+                                message: "The job was cancelled".to_owned(),
+                            }
+                            .into());
+                        }
+                        JobStatusResponseStatus::Pending | JobStatusResponseStatus::Running => {}
                     }
                 }
             }
             Step::Stalled => {
-                let Some(stall) = stall else { continue };
-                // Asked for on its own task: the follower ends here, and the
-                // request must outlive it.
-                let links = links.clone();
-                tokio::spawn(async move {
-                    let _ = links
-                        .request::<JobCancelRequested>(&JobCancelRequest {
-                            job_id: None,
-                            job_type: Some(stall.cancels),
-                        })
-                        .await;
-                });
+                let Some(within) = stall else { continue };
+                // That job and no other: a cancellation by category would
+                // end every pending job of it, whoever asked for them. One
+                // whose creation was never answered has no id, and there is
+                // nothing to cancel. Asked for on its own task: the follower
+                // ends here, and the request must outlive it.
+                if let Some(stalled) = job_id.clone() {
+                    let links = links.clone();
+                    tokio::spawn(async move {
+                        let _ = links
+                            .request::<JobCancelRequested>(&JobCancelRequest {
+                                job_id: Some(stalled),
+                                job_type: None,
+                            })
+                            .await;
+                    });
+                }
                 return Err(JobError {
                     code: JobErrorCode::Stalled,
                     job_id,
                     message: format!(
-                        "The job stalled: nothing was heard of it within {}ms, and its cancellation was requested",
-                        stall.within.as_millis()
+                        "The job stalled: nothing was heard of it within {}ms",
+                        within.as_millis()
                     ),
                 }
                 .into());
@@ -281,14 +286,17 @@ async fn followed(
                         reporter.report(JobEvent::Progress(progress));
                     }
                     ask_at = Some(Instant::now() + links.timing.job_silence);
-                    stall_at = stall.map(|stall| Instant::now() + stall.within);
+                    stall_at = stall.map(|within| Instant::now() + within);
                 }
                 Heard::Complete(frame) => return Ok(JobEvent::Complete(frame)),
                 // The queue re-queues the job and another attempt continues
                 // it. The dead attempt's status is not asked for: the next
-                // attempt's first frame starts the silence again.
+                // attempt's first frame starts the silence again. The
+                // setback was heard, so the stall deadline starts again:
+                // one left running would cancel the attempt that is coming.
                 Heard::Fail(frame) if frame.will_retry == Some(true) => {
                     ask_at = None;
+                    stall_at = stall.map(|within| Instant::now() + within);
                     reporter.report(JobEvent::Failed(frame));
                 }
                 // Absent reads as final: a follower that ends early is seen,

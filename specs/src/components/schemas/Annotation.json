@@ -3,13 +3,17 @@
   "properties": {
     "@context": {
       "type": "string",
-      "enum": ["http://www.w3.org/ns/anno.jsonld"],
+      "enum": [
+        "http://www.w3.org/ns/anno.jsonld"
+      ],
       "default": "http://www.w3.org/ns/anno.jsonld",
       "description": "W3C Web Annotation JSON-LD context"
     },
     "type": {
       "type": "string",
-      "enum": ["Annotation"],
+      "enum": [
+        "Annotation"
+      ],
       "default": "Annotation",
       "description": "W3C Annotation type"
     },
@@ -32,20 +36,7 @@
       "description": "W3C Web Annotation target - can be a simple IRI string (entire resource) or an object with source and optional selector (fragment)"
     },
     "body": {
-      "oneOf": [
-        {
-          "$ref": "./AnnotationBody.json",
-          "description": "Single body (TextualBody or SpecificResource)"
-        },
-        {
-          "type": "array",
-          "items": {
-            "$ref": "./AnnotationBody.json"
-          },
-          "minItems": 1,
-          "description": "Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies"
-        }
-      ],
+      "$ref": "./AnnotationBodies.json",
       "description": "W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug)."
     },
     "creator": {
@@ -63,15 +54,31 @@
     },
     "generator": {
       "oneOf": [
-        { "$ref": "./Agent.json" },
-        { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
+        {
+          "$ref": "./Agent.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./Agent.json"
+          },
+          "minItems": 1
+        }
       ],
       "description": "Web Annotation generator — the Software peer that produced the annotation, when software did. Absent for a person's own annotation. An emitter may supply it to carry the model's parameters, but its identity must be the emitter's own: the knowledge base refuses a generator naming anyone else, and supplies it from the verified emitter when omitted. One producer per write — a write carrying the array form is refused."
     },
     "wasAttributedTo": {
       "oneOf": [
-        { "$ref": "./Agent.json" },
-        { "type": "array", "items": { "$ref": "./Agent.json" }, "minItems": 1 }
+        {
+          "$ref": "./Agent.json"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "./Agent.json"
+          },
+          "minItems": 1
+        }
       ],
       "description": "PROV-O wasAttributedTo — every party responsible for this annotation, DERIVED by the knowledge base from `creator` and the verified executor of the write: `[creator, generator]` when one agent requested the work and software produced it; collapsed to the one agent when requester and producer are the same. Never accepted from an emitter."
     }

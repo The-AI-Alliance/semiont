@@ -216,7 +216,9 @@ const { resourceId } = await semiont.yield.resource({
 });
 
 // AI generation from annotation — StreamObservable<YieldGenerationEvent>:
-// subscribe for progress, await for the final event. The optional
+// subscribe for progress, await for the final event. A `failed` event is a
+// setback the queue will try again, on a stream that stays open; a failure
+// that is final rejects, as `job.failed`. The optional
 // `entityTypes` are stamped on the synthesized resource (so
 // `browse.resources({ entityType: 'Character' })` finds it) and also
 // fed into the LLM prompt as a topical bias.

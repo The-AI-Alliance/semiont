@@ -1931,8 +1931,8 @@ type Annotation struct {
 	// Context W3C Web Annotation JSON-LD context
 	Context AnnotationContext `json:"@context"`
 
-	// Body W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug).
-	Body *Annotation_Body `json:"body,omitempty"`
+	// Body What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Created When the annotation was MADE — the authoring moment, carried from the event that created it. Not when a projection happened to write it: a store that rebuilds from the log must preserve this value, never restamp it.
 	Created time.Time `json:"created"`
@@ -1960,14 +1960,6 @@ type Annotation struct {
 
 // AnnotationContext W3C Web Annotation JSON-LD context
 type AnnotationContext string
-
-// AnnotationBody1 Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies
-type AnnotationBody1 = []AnnotationBody
-
-// Annotation_Body W3C Web Annotation body. Optional per the W3C spec — annotations whose motivation alone is meaningful (highlighting) legitimately omit it. Present values are either a single body or a non-empty array of bodies; the prior empty-array 'stub' branch has been removed (it was a naming lie shared between highlights and never-actually-emitted stub references, and the source of the #651 reference-annotation validator bug).
-type Annotation_Body struct {
-	union json.RawMessage
-}
 
 // AnnotationGenerator1 defines model for .
 type AnnotationGenerator1 = []Agent
@@ -2004,6 +1996,14 @@ type AnnotationAddedPayload struct {
 	ContentChecksum *string `json:"contentChecksum,omitempty"`
 }
 
+// AnnotationBodies What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+type AnnotationBodies struct {
+	union json.RawMessage
+}
+
+// AnnotationBodies1 Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies
+type AnnotationBodies1 = []AnnotationBody
+
 // AnnotationBody An annotation's body: a TextualBody carries text the annotation states (entity tags, descriptions, comments), a SpecificResource points at what it links to. Tell them apart by `type`, which is required on both and single-valued — a consumer never has to probe for which fields happen to be present.
 type AnnotationBody struct {
 	union json.RawMessage
@@ -2038,26 +2038,21 @@ type AnnotationRemovedPayload struct {
 	AnnotationId string `json:"annotationId"`
 }
 
+// AnnotationSelector What a target's `selector` holds: one W3C selector, or several of the same segment.
+type AnnotationSelector struct {
+	union json.RawMessage
+}
+
+// AnnotationSelector1 Several selectors of the same segment, each a different way of finding it
+type AnnotationSelector1 = []Selector
+
 // AnnotationTarget W3C Web Annotation target object - source is required, selector is optional
 type AnnotationTarget struct {
-	// Selector Optional selector to identify a specific segment of the source resource
-	Selector *AnnotationTarget_Selector `json:"selector,omitempty"`
+	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
+	Selector *AnnotationSelector `json:"selector,omitempty"`
 
 	// Source IRI of the resource being annotated
 	Source string `json:"source"`
-}
-
-// AnnotationTargetSelector4 defines model for .
-type AnnotationTargetSelector4 = []AnnotationTarget_Selector_4_Item
-
-// AnnotationTarget_Selector_4_Item defines model for AnnotationTarget.Selector.4.Item.
-type AnnotationTarget_Selector_4_Item struct {
-	union json.RawMessage
-}
-
-// AnnotationTarget_Selector Optional selector to identify a specific segment of the source resource
-type AnnotationTarget_Selector struct {
-	union json.RawMessage
 }
 
 // ArchivistEventsResponse The events of one resource from one sequence number, inclusive, in log order: the Archivist's answer to `GET /events/{resourceId}`, which the gateway reads to replay a scope a subscriber resumes.
@@ -2598,22 +2593,14 @@ type ContextualSummaryResponse struct {
 
 // CreateAnnotationRequest defines model for CreateAnnotationRequest.
 type CreateAnnotationRequest struct {
-	// Body Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body.
-	Body *CreateAnnotationRequest_Body `json:"body,omitempty"`
+	// Body What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
 	// Target W3C Web Annotation target object - source is required, selector is optional
 	Target AnnotationTarget `json:"target"`
-}
-
-// CreateAnnotationRequestBody1 Non-empty array of mixed TextualBody (tagging) and SpecificResource (linking) bodies
-type CreateAnnotationRequestBody1 = []AnnotationBody
-
-// CreateAnnotationRequest_Body Optional body. Omit for annotations whose motivation alone is meaningful (highlighting) or whose user-supplied content is empty. Shape matches Annotation.body.
-type CreateAnnotationRequest_Body struct {
-	union json.RawMessage
 }
 
 // CreateResourceResponse The id of the resource an upload created. The Archivist answers it (200) once it has stored the bytes and recorded the resource, and the gateway forwards it (202), so the id is the one the record minted and its creation event is persisted. What remains asynchronous is downstream projection: graph, views and vectors settle afterwards.
@@ -4371,60 +4358,26 @@ type MarkRequestedEvent struct {
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
-	// Selector One or more W3C selectors
-	Selector MarkRequestedEvent_Selector `json:"selector"`
+	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
+	Selector AnnotationSelector `json:"selector"`
 
 	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the event to the right viewer/state unit when a host mounts many viewers on one session.
 	Source string `json:"source"`
 }
 
-// MarkRequestedEventSelector4 defines model for .
-type MarkRequestedEventSelector4 = []MarkRequestedEvent_Selector_4_Item
-
-// MarkRequestedEvent_Selector_4_Item defines model for MarkRequestedEvent.Selector.4.Item.
-type MarkRequestedEvent_Selector_4_Item struct {
-	union json.RawMessage
-}
-
-// MarkRequestedEvent_Selector One or more W3C selectors
-type MarkRequestedEvent_Selector struct {
-	union json.RawMessage
-}
-
 // MarkSubmitEvent Emitted when a mark is submitted with its annotation body
 type MarkSubmitEvent struct {
-	// Body Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body.
-	Body *MarkSubmitEvent_Body `json:"body,omitempty"`
+	// Body What an annotation's `body` holds: one body, or a non-empty list of them. There is no empty list: an annotation with nothing to say has no `body`.
+	Body *AnnotationBodies `json:"body,omitempty"`
 
 	// Motivation Semiont-supported W3C Web Annotation motivations - https://www.w3.org/TR/annotation-vocab/#motivation
 	Motivation Motivation `json:"motivation"`
 
-	// Selector One or more W3C selectors
-	Selector MarkSubmitEvent_Selector `json:"selector"`
+	// Selector What a target's `selector` holds: one W3C selector, or several of the same segment.
+	Selector AnnotationSelector `json:"selector"`
 
 	// Source The '@id' of the resource the mark belongs to (W3C target.source). Routes the submit to the state unit bound to that resource — without it, N mounted units each create the annotation (N copies on N resources).
 	Source string `json:"source"`
-}
-
-// MarkSubmitEventBody1 Non-empty array of mixed TextualBody / SpecificResource bodies
-type MarkSubmitEventBody1 = []AnnotationBody
-
-// MarkSubmitEvent_Body Optional body. Omit for annotations whose motivation alone is meaningful (e.g. highlighting) or whose user-supplied content is empty (e.g. an assessing annotation saved without comment text). Shape matches Annotation.body.
-type MarkSubmitEvent_Body struct {
-	union json.RawMessage
-}
-
-// MarkSubmitEventSelector4 defines model for .
-type MarkSubmitEventSelector4 = []MarkSubmitEvent_Selector_4_Item
-
-// MarkSubmitEvent_Selector_4_Item defines model for MarkSubmitEvent.Selector.4.Item.
-type MarkSubmitEvent_Selector_4_Item struct {
-	union json.RawMessage
-}
-
-// MarkSubmitEvent_Selector One or more W3C selectors
-type MarkSubmitEvent_Selector struct {
-	union json.RawMessage
 }
 
 // MarkUnarchiveCommand Bus command to unarchive a previously archived resource.
@@ -5203,6 +5156,11 @@ type SelectionData struct {
 
 	// SvgSelector SVG selector for non-text selections (e.g. PDF regions)
 	SvgSelector *string `json:"svgSelector,omitempty"`
+}
+
+// Selector One W3C selector: a way of finding a segment of a resource. Tell them apart by `type`, which is required on each and single-valued.
+type Selector struct {
+	union json.RawMessage
 }
 
 // SemanticMatch defines model for SemanticMatch.
@@ -7805,68 +7763,6 @@ func (t *AnchoredTextAnswer) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// AsAnnotationBody returns the union data inside the Annotation_Body as a AnnotationBody
-func (t Annotation_Body) AsAnnotationBody() (AnnotationBody, error) {
-	var body AnnotationBody
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAnnotationBody overwrites any union data inside the Annotation_Body as the provided AnnotationBody
-func (t *Annotation_Body) FromAnnotationBody(v AnnotationBody) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAnnotationBody performs a merge with any union data inside the Annotation_Body, using the provided AnnotationBody
-func (t *Annotation_Body) MergeAnnotationBody(v AnnotationBody) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAnnotationBody1 returns the union data inside the Annotation_Body as a AnnotationBody1
-func (t Annotation_Body) AsAnnotationBody1() (AnnotationBody1, error) {
-	var body AnnotationBody1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAnnotationBody1 overwrites any union data inside the Annotation_Body as the provided AnnotationBody1
-func (t *Annotation_Body) FromAnnotationBody1(v AnnotationBody1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAnnotationBody1 performs a merge with any union data inside the Annotation_Body, using the provided AnnotationBody1
-func (t *Annotation_Body) MergeAnnotationBody1(v AnnotationBody1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t Annotation_Body) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *Annotation_Body) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
 // AsAgent returns the union data inside the Annotation_Generator as a Agent
 func (t Annotation_Generator) AsAgent() (Agent, error) {
 	var body Agent
@@ -8053,6 +7949,68 @@ func (t *Annotation_WasAttributedTo) UnmarshalJSON(b []byte) error {
 	return err
 }
 
+// AsAnnotationBody returns the union data inside the AnnotationBodies as a AnnotationBody
+func (t AnnotationBodies) AsAnnotationBody() (AnnotationBody, error) {
+	var body AnnotationBody
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnnotationBody overwrites any union data inside the AnnotationBodies as the provided AnnotationBody
+func (t *AnnotationBodies) FromAnnotationBody(v AnnotationBody) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnnotationBody performs a merge with any union data inside the AnnotationBodies, using the provided AnnotationBody
+func (t *AnnotationBodies) MergeAnnotationBody(v AnnotationBody) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsAnnotationBodies1 returns the union data inside the AnnotationBodies as a AnnotationBodies1
+func (t AnnotationBodies) AsAnnotationBodies1() (AnnotationBodies1, error) {
+	var body AnnotationBodies1
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromAnnotationBodies1 overwrites any union data inside the AnnotationBodies as the provided AnnotationBodies1
+func (t *AnnotationBodies) FromAnnotationBodies1(v AnnotationBodies1) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeAnnotationBodies1 performs a merge with any union data inside the AnnotationBodies, using the provided AnnotationBodies1
+func (t *AnnotationBodies) MergeAnnotationBodies1(v AnnotationBodies1) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t AnnotationBodies) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *AnnotationBodies) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
 // AsTextualBody returns the union data inside the AnnotationBody as a TextualBody
 func (t AnnotationBody) AsTextualBody() (TextualBody, error) {
 	var body TextualBody
@@ -8230,22 +8188,22 @@ func (t *AnnotationBodyUpdatedPayload_Operations_Item) UnmarshalJSON(b []byte) e
 	return err
 }
 
-// AsTextPositionSelector returns the union data inside the AnnotationTarget_Selector_4_Item as a TextPositionSelector
-func (t AnnotationTarget_Selector_4_Item) AsTextPositionSelector() (TextPositionSelector, error) {
-	var body TextPositionSelector
+// AsSelector returns the union data inside the AnnotationSelector as a Selector
+func (t AnnotationSelector) AsSelector() (Selector, error) {
+	var body Selector
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromTextPositionSelector overwrites any union data inside the AnnotationTarget_Selector_4_Item as the provided TextPositionSelector
-func (t *AnnotationTarget_Selector_4_Item) FromTextPositionSelector(v TextPositionSelector) error {
+// FromSelector overwrites any union data inside the AnnotationSelector as the provided Selector
+func (t *AnnotationSelector) FromSelector(v Selector) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeTextPositionSelector performs a merge with any union data inside the AnnotationTarget_Selector_4_Item, using the provided TextPositionSelector
-func (t *AnnotationTarget_Selector_4_Item) MergeTextPositionSelector(v TextPositionSelector) error {
+// MergeSelector performs a merge with any union data inside the AnnotationSelector, using the provided Selector
+func (t *AnnotationSelector) MergeSelector(v Selector) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8256,22 +8214,22 @@ func (t *AnnotationTarget_Selector_4_Item) MergeTextPositionSelector(v TextPosit
 	return err
 }
 
-// AsTextQuoteSelector returns the union data inside the AnnotationTarget_Selector_4_Item as a TextQuoteSelector
-func (t AnnotationTarget_Selector_4_Item) AsTextQuoteSelector() (TextQuoteSelector, error) {
-	var body TextQuoteSelector
+// AsAnnotationSelector1 returns the union data inside the AnnotationSelector as a AnnotationSelector1
+func (t AnnotationSelector) AsAnnotationSelector1() (AnnotationSelector1, error) {
+	var body AnnotationSelector1
 	err := json.Unmarshal(t.union, &body)
 	return body, err
 }
 
-// FromTextQuoteSelector overwrites any union data inside the AnnotationTarget_Selector_4_Item as the provided TextQuoteSelector
-func (t *AnnotationTarget_Selector_4_Item) FromTextQuoteSelector(v TextQuoteSelector) error {
+// FromAnnotationSelector1 overwrites any union data inside the AnnotationSelector as the provided AnnotationSelector1
+func (t *AnnotationSelector) FromAnnotationSelector1(v AnnotationSelector1) error {
 	b, err := json.Marshal(v)
 	t.union = b
 	return err
 }
 
-// MergeTextQuoteSelector performs a merge with any union data inside the AnnotationTarget_Selector_4_Item, using the provided TextQuoteSelector
-func (t *AnnotationTarget_Selector_4_Item) MergeTextQuoteSelector(v TextQuoteSelector) error {
+// MergeAnnotationSelector1 performs a merge with any union data inside the AnnotationSelector, using the provided AnnotationSelector1
+func (t *AnnotationSelector) MergeAnnotationSelector1(v AnnotationSelector1) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -8282,204 +8240,12 @@ func (t *AnnotationTarget_Selector_4_Item) MergeTextQuoteSelector(v TextQuoteSel
 	return err
 }
 
-// AsSvgSelector returns the union data inside the AnnotationTarget_Selector_4_Item as a SvgSelector
-func (t AnnotationTarget_Selector_4_Item) AsSvgSelector() (SvgSelector, error) {
-	var body SvgSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSvgSelector overwrites any union data inside the AnnotationTarget_Selector_4_Item as the provided SvgSelector
-func (t *AnnotationTarget_Selector_4_Item) FromSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSvgSelector performs a merge with any union data inside the AnnotationTarget_Selector_4_Item, using the provided SvgSelector
-func (t *AnnotationTarget_Selector_4_Item) MergeSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFragmentSelector returns the union data inside the AnnotationTarget_Selector_4_Item as a FragmentSelector
-func (t AnnotationTarget_Selector_4_Item) AsFragmentSelector() (FragmentSelector, error) {
-	var body FragmentSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFragmentSelector overwrites any union data inside the AnnotationTarget_Selector_4_Item as the provided FragmentSelector
-func (t *AnnotationTarget_Selector_4_Item) FromFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFragmentSelector performs a merge with any union data inside the AnnotationTarget_Selector_4_Item, using the provided FragmentSelector
-func (t *AnnotationTarget_Selector_4_Item) MergeFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AnnotationTarget_Selector_4_Item) MarshalJSON() ([]byte, error) {
+func (t AnnotationSelector) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
 }
 
-func (t *AnnotationTarget_Selector_4_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsTextPositionSelector returns the union data inside the AnnotationTarget_Selector as a TextPositionSelector
-func (t AnnotationTarget_Selector) AsTextPositionSelector() (TextPositionSelector, error) {
-	var body TextPositionSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextPositionSelector overwrites any union data inside the AnnotationTarget_Selector as the provided TextPositionSelector
-func (t *AnnotationTarget_Selector) FromTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextPositionSelector performs a merge with any union data inside the AnnotationTarget_Selector, using the provided TextPositionSelector
-func (t *AnnotationTarget_Selector) MergeTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextQuoteSelector returns the union data inside the AnnotationTarget_Selector as a TextQuoteSelector
-func (t AnnotationTarget_Selector) AsTextQuoteSelector() (TextQuoteSelector, error) {
-	var body TextQuoteSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextQuoteSelector overwrites any union data inside the AnnotationTarget_Selector as the provided TextQuoteSelector
-func (t *AnnotationTarget_Selector) FromTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextQuoteSelector performs a merge with any union data inside the AnnotationTarget_Selector, using the provided TextQuoteSelector
-func (t *AnnotationTarget_Selector) MergeTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSvgSelector returns the union data inside the AnnotationTarget_Selector as a SvgSelector
-func (t AnnotationTarget_Selector) AsSvgSelector() (SvgSelector, error) {
-	var body SvgSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSvgSelector overwrites any union data inside the AnnotationTarget_Selector as the provided SvgSelector
-func (t *AnnotationTarget_Selector) FromSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSvgSelector performs a merge with any union data inside the AnnotationTarget_Selector, using the provided SvgSelector
-func (t *AnnotationTarget_Selector) MergeSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFragmentSelector returns the union data inside the AnnotationTarget_Selector as a FragmentSelector
-func (t AnnotationTarget_Selector) AsFragmentSelector() (FragmentSelector, error) {
-	var body FragmentSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFragmentSelector overwrites any union data inside the AnnotationTarget_Selector as the provided FragmentSelector
-func (t *AnnotationTarget_Selector) FromFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFragmentSelector performs a merge with any union data inside the AnnotationTarget_Selector, using the provided FragmentSelector
-func (t *AnnotationTarget_Selector) MergeFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsAnnotationTargetSelector4 returns the union data inside the AnnotationTarget_Selector as a AnnotationTargetSelector4
-func (t AnnotationTarget_Selector) AsAnnotationTargetSelector4() (AnnotationTargetSelector4, error) {
-	var body AnnotationTargetSelector4
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAnnotationTargetSelector4 overwrites any union data inside the AnnotationTarget_Selector as the provided AnnotationTargetSelector4
-func (t *AnnotationTarget_Selector) FromAnnotationTargetSelector4(v AnnotationTargetSelector4) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAnnotationTargetSelector4 performs a merge with any union data inside the AnnotationTarget_Selector, using the provided AnnotationTargetSelector4
-func (t *AnnotationTarget_Selector) MergeAnnotationTargetSelector4(v AnnotationTargetSelector4) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t AnnotationTarget_Selector) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *AnnotationTarget_Selector) UnmarshalJSON(b []byte) error {
+func (t *AnnotationSelector) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -8878,68 +8644,6 @@ func (t BusStreamMessage) MarshalJSON() ([]byte, error) {
 }
 
 func (t *BusStreamMessage) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsAnnotationBody returns the union data inside the CreateAnnotationRequest_Body as a AnnotationBody
-func (t CreateAnnotationRequest_Body) AsAnnotationBody() (AnnotationBody, error) {
-	var body AnnotationBody
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAnnotationBody overwrites any union data inside the CreateAnnotationRequest_Body as the provided AnnotationBody
-func (t *CreateAnnotationRequest_Body) FromAnnotationBody(v AnnotationBody) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAnnotationBody performs a merge with any union data inside the CreateAnnotationRequest_Body, using the provided AnnotationBody
-func (t *CreateAnnotationRequest_Body) MergeAnnotationBody(v AnnotationBody) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsCreateAnnotationRequestBody1 returns the union data inside the CreateAnnotationRequest_Body as a CreateAnnotationRequestBody1
-func (t CreateAnnotationRequest_Body) AsCreateAnnotationRequestBody1() (CreateAnnotationRequestBody1, error) {
-	var body CreateAnnotationRequestBody1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromCreateAnnotationRequestBody1 overwrites any union data inside the CreateAnnotationRequest_Body as the provided CreateAnnotationRequestBody1
-func (t *CreateAnnotationRequest_Body) FromCreateAnnotationRequestBody1(v CreateAnnotationRequestBody1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeCreateAnnotationRequestBody1 performs a merge with any union data inside the CreateAnnotationRequest_Body, using the provided CreateAnnotationRequestBody1
-func (t *CreateAnnotationRequest_Body) MergeCreateAnnotationRequestBody1(v CreateAnnotationRequestBody1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t CreateAnnotationRequest_Body) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *CreateAnnotationRequest_Body) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -10140,576 +9844,6 @@ func (t KnowledgeGraph_Nodes_Item) MarshalJSON() ([]byte, error) {
 }
 
 func (t *KnowledgeGraph_Nodes_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsTextPositionSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a TextPositionSelector
-func (t MarkRequestedEvent_Selector_4_Item) AsTextPositionSelector() (TextPositionSelector, error) {
-	var body TextPositionSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextPositionSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided TextPositionSelector
-func (t *MarkRequestedEvent_Selector_4_Item) FromTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextPositionSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided TextPositionSelector
-func (t *MarkRequestedEvent_Selector_4_Item) MergeTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextQuoteSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a TextQuoteSelector
-func (t MarkRequestedEvent_Selector_4_Item) AsTextQuoteSelector() (TextQuoteSelector, error) {
-	var body TextQuoteSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextQuoteSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided TextQuoteSelector
-func (t *MarkRequestedEvent_Selector_4_Item) FromTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextQuoteSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided TextQuoteSelector
-func (t *MarkRequestedEvent_Selector_4_Item) MergeTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSvgSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a SvgSelector
-func (t MarkRequestedEvent_Selector_4_Item) AsSvgSelector() (SvgSelector, error) {
-	var body SvgSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSvgSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided SvgSelector
-func (t *MarkRequestedEvent_Selector_4_Item) FromSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSvgSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided SvgSelector
-func (t *MarkRequestedEvent_Selector_4_Item) MergeSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFragmentSelector returns the union data inside the MarkRequestedEvent_Selector_4_Item as a FragmentSelector
-func (t MarkRequestedEvent_Selector_4_Item) AsFragmentSelector() (FragmentSelector, error) {
-	var body FragmentSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFragmentSelector overwrites any union data inside the MarkRequestedEvent_Selector_4_Item as the provided FragmentSelector
-func (t *MarkRequestedEvent_Selector_4_Item) FromFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFragmentSelector performs a merge with any union data inside the MarkRequestedEvent_Selector_4_Item, using the provided FragmentSelector
-func (t *MarkRequestedEvent_Selector_4_Item) MergeFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t MarkRequestedEvent_Selector_4_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *MarkRequestedEvent_Selector_4_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsTextPositionSelector returns the union data inside the MarkRequestedEvent_Selector as a TextPositionSelector
-func (t MarkRequestedEvent_Selector) AsTextPositionSelector() (TextPositionSelector, error) {
-	var body TextPositionSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextPositionSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided TextPositionSelector
-func (t *MarkRequestedEvent_Selector) FromTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextPositionSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided TextPositionSelector
-func (t *MarkRequestedEvent_Selector) MergeTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextQuoteSelector returns the union data inside the MarkRequestedEvent_Selector as a TextQuoteSelector
-func (t MarkRequestedEvent_Selector) AsTextQuoteSelector() (TextQuoteSelector, error) {
-	var body TextQuoteSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextQuoteSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided TextQuoteSelector
-func (t *MarkRequestedEvent_Selector) FromTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextQuoteSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided TextQuoteSelector
-func (t *MarkRequestedEvent_Selector) MergeTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSvgSelector returns the union data inside the MarkRequestedEvent_Selector as a SvgSelector
-func (t MarkRequestedEvent_Selector) AsSvgSelector() (SvgSelector, error) {
-	var body SvgSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSvgSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided SvgSelector
-func (t *MarkRequestedEvent_Selector) FromSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSvgSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided SvgSelector
-func (t *MarkRequestedEvent_Selector) MergeSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFragmentSelector returns the union data inside the MarkRequestedEvent_Selector as a FragmentSelector
-func (t MarkRequestedEvent_Selector) AsFragmentSelector() (FragmentSelector, error) {
-	var body FragmentSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFragmentSelector overwrites any union data inside the MarkRequestedEvent_Selector as the provided FragmentSelector
-func (t *MarkRequestedEvent_Selector) FromFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFragmentSelector performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided FragmentSelector
-func (t *MarkRequestedEvent_Selector) MergeFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsMarkRequestedEventSelector4 returns the union data inside the MarkRequestedEvent_Selector as a MarkRequestedEventSelector4
-func (t MarkRequestedEvent_Selector) AsMarkRequestedEventSelector4() (MarkRequestedEventSelector4, error) {
-	var body MarkRequestedEventSelector4
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromMarkRequestedEventSelector4 overwrites any union data inside the MarkRequestedEvent_Selector as the provided MarkRequestedEventSelector4
-func (t *MarkRequestedEvent_Selector) FromMarkRequestedEventSelector4(v MarkRequestedEventSelector4) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeMarkRequestedEventSelector4 performs a merge with any union data inside the MarkRequestedEvent_Selector, using the provided MarkRequestedEventSelector4
-func (t *MarkRequestedEvent_Selector) MergeMarkRequestedEventSelector4(v MarkRequestedEventSelector4) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t MarkRequestedEvent_Selector) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *MarkRequestedEvent_Selector) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsAnnotationBody returns the union data inside the MarkSubmitEvent_Body as a AnnotationBody
-func (t MarkSubmitEvent_Body) AsAnnotationBody() (AnnotationBody, error) {
-	var body AnnotationBody
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromAnnotationBody overwrites any union data inside the MarkSubmitEvent_Body as the provided AnnotationBody
-func (t *MarkSubmitEvent_Body) FromAnnotationBody(v AnnotationBody) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeAnnotationBody performs a merge with any union data inside the MarkSubmitEvent_Body, using the provided AnnotationBody
-func (t *MarkSubmitEvent_Body) MergeAnnotationBody(v AnnotationBody) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsMarkSubmitEventBody1 returns the union data inside the MarkSubmitEvent_Body as a MarkSubmitEventBody1
-func (t MarkSubmitEvent_Body) AsMarkSubmitEventBody1() (MarkSubmitEventBody1, error) {
-	var body MarkSubmitEventBody1
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromMarkSubmitEventBody1 overwrites any union data inside the MarkSubmitEvent_Body as the provided MarkSubmitEventBody1
-func (t *MarkSubmitEvent_Body) FromMarkSubmitEventBody1(v MarkSubmitEventBody1) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeMarkSubmitEventBody1 performs a merge with any union data inside the MarkSubmitEvent_Body, using the provided MarkSubmitEventBody1
-func (t *MarkSubmitEvent_Body) MergeMarkSubmitEventBody1(v MarkSubmitEventBody1) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t MarkSubmitEvent_Body) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *MarkSubmitEvent_Body) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsTextPositionSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a TextPositionSelector
-func (t MarkSubmitEvent_Selector_4_Item) AsTextPositionSelector() (TextPositionSelector, error) {
-	var body TextPositionSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextPositionSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided TextPositionSelector
-func (t *MarkSubmitEvent_Selector_4_Item) FromTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextPositionSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided TextPositionSelector
-func (t *MarkSubmitEvent_Selector_4_Item) MergeTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextQuoteSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a TextQuoteSelector
-func (t MarkSubmitEvent_Selector_4_Item) AsTextQuoteSelector() (TextQuoteSelector, error) {
-	var body TextQuoteSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextQuoteSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided TextQuoteSelector
-func (t *MarkSubmitEvent_Selector_4_Item) FromTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextQuoteSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided TextQuoteSelector
-func (t *MarkSubmitEvent_Selector_4_Item) MergeTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSvgSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a SvgSelector
-func (t MarkSubmitEvent_Selector_4_Item) AsSvgSelector() (SvgSelector, error) {
-	var body SvgSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSvgSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided SvgSelector
-func (t *MarkSubmitEvent_Selector_4_Item) FromSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSvgSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided SvgSelector
-func (t *MarkSubmitEvent_Selector_4_Item) MergeSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFragmentSelector returns the union data inside the MarkSubmitEvent_Selector_4_Item as a FragmentSelector
-func (t MarkSubmitEvent_Selector_4_Item) AsFragmentSelector() (FragmentSelector, error) {
-	var body FragmentSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFragmentSelector overwrites any union data inside the MarkSubmitEvent_Selector_4_Item as the provided FragmentSelector
-func (t *MarkSubmitEvent_Selector_4_Item) FromFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFragmentSelector performs a merge with any union data inside the MarkSubmitEvent_Selector_4_Item, using the provided FragmentSelector
-func (t *MarkSubmitEvent_Selector_4_Item) MergeFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t MarkSubmitEvent_Selector_4_Item) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *MarkSubmitEvent_Selector_4_Item) UnmarshalJSON(b []byte) error {
-	err := t.union.UnmarshalJSON(b)
-	return err
-}
-
-// AsTextPositionSelector returns the union data inside the MarkSubmitEvent_Selector as a TextPositionSelector
-func (t MarkSubmitEvent_Selector) AsTextPositionSelector() (TextPositionSelector, error) {
-	var body TextPositionSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextPositionSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided TextPositionSelector
-func (t *MarkSubmitEvent_Selector) FromTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextPositionSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided TextPositionSelector
-func (t *MarkSubmitEvent_Selector) MergeTextPositionSelector(v TextPositionSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsTextQuoteSelector returns the union data inside the MarkSubmitEvent_Selector as a TextQuoteSelector
-func (t MarkSubmitEvent_Selector) AsTextQuoteSelector() (TextQuoteSelector, error) {
-	var body TextQuoteSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromTextQuoteSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided TextQuoteSelector
-func (t *MarkSubmitEvent_Selector) FromTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeTextQuoteSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided TextQuoteSelector
-func (t *MarkSubmitEvent_Selector) MergeTextQuoteSelector(v TextQuoteSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsSvgSelector returns the union data inside the MarkSubmitEvent_Selector as a SvgSelector
-func (t MarkSubmitEvent_Selector) AsSvgSelector() (SvgSelector, error) {
-	var body SvgSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromSvgSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided SvgSelector
-func (t *MarkSubmitEvent_Selector) FromSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeSvgSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided SvgSelector
-func (t *MarkSubmitEvent_Selector) MergeSvgSelector(v SvgSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsFragmentSelector returns the union data inside the MarkSubmitEvent_Selector as a FragmentSelector
-func (t MarkSubmitEvent_Selector) AsFragmentSelector() (FragmentSelector, error) {
-	var body FragmentSelector
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromFragmentSelector overwrites any union data inside the MarkSubmitEvent_Selector as the provided FragmentSelector
-func (t *MarkSubmitEvent_Selector) FromFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeFragmentSelector performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided FragmentSelector
-func (t *MarkSubmitEvent_Selector) MergeFragmentSelector(v FragmentSelector) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-// AsMarkSubmitEventSelector4 returns the union data inside the MarkSubmitEvent_Selector as a MarkSubmitEventSelector4
-func (t MarkSubmitEvent_Selector) AsMarkSubmitEventSelector4() (MarkSubmitEventSelector4, error) {
-	var body MarkSubmitEventSelector4
-	err := json.Unmarshal(t.union, &body)
-	return body, err
-}
-
-// FromMarkSubmitEventSelector4 overwrites any union data inside the MarkSubmitEvent_Selector as the provided MarkSubmitEventSelector4
-func (t *MarkSubmitEvent_Selector) FromMarkSubmitEventSelector4(v MarkSubmitEventSelector4) error {
-	b, err := json.Marshal(v)
-	t.union = b
-	return err
-}
-
-// MergeMarkSubmitEventSelector4 performs a merge with any union data inside the MarkSubmitEvent_Selector, using the provided MarkSubmitEventSelector4
-func (t *MarkSubmitEvent_Selector) MergeMarkSubmitEventSelector4(v MarkSubmitEventSelector4) error {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	merged, err := runtime.JSONMerge(t.union, b)
-	t.union = merged
-	return err
-}
-
-func (t MarkSubmitEvent_Selector) MarshalJSON() ([]byte, error) {
-	b, err := t.union.MarshalJSON()
-	return b, err
-}
-
-func (t *MarkSubmitEvent_Selector) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }
@@ -12452,6 +11586,155 @@ func (t ScoredResource_WasDerivedFrom) MarshalJSON() ([]byte, error) {
 }
 
 func (t *ScoredResource_WasDerivedFrom) UnmarshalJSON(b []byte) error {
+	err := t.union.UnmarshalJSON(b)
+	return err
+}
+
+// AsTextPositionSelector returns the union data inside the Selector as a TextPositionSelector
+func (t Selector) AsTextPositionSelector() (TextPositionSelector, error) {
+	var body TextPositionSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextPositionSelector overwrites any union data inside the Selector as the provided TextPositionSelector
+func (t *Selector) FromTextPositionSelector(v TextPositionSelector) error {
+	v.Type = "TextPositionSelector"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextPositionSelector performs a merge with any union data inside the Selector, using the provided TextPositionSelector
+func (t *Selector) MergeTextPositionSelector(v TextPositionSelector) error {
+	v.Type = "TextPositionSelector"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsTextQuoteSelector returns the union data inside the Selector as a TextQuoteSelector
+func (t Selector) AsTextQuoteSelector() (TextQuoteSelector, error) {
+	var body TextQuoteSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromTextQuoteSelector overwrites any union data inside the Selector as the provided TextQuoteSelector
+func (t *Selector) FromTextQuoteSelector(v TextQuoteSelector) error {
+	v.Type = "TextQuoteSelector"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeTextQuoteSelector performs a merge with any union data inside the Selector, using the provided TextQuoteSelector
+func (t *Selector) MergeTextQuoteSelector(v TextQuoteSelector) error {
+	v.Type = "TextQuoteSelector"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSvgSelector returns the union data inside the Selector as a SvgSelector
+func (t Selector) AsSvgSelector() (SvgSelector, error) {
+	var body SvgSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSvgSelector overwrites any union data inside the Selector as the provided SvgSelector
+func (t *Selector) FromSvgSelector(v SvgSelector) error {
+	v.Type = "SvgSelector"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSvgSelector performs a merge with any union data inside the Selector, using the provided SvgSelector
+func (t *Selector) MergeSvgSelector(v SvgSelector) error {
+	v.Type = "SvgSelector"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsFragmentSelector returns the union data inside the Selector as a FragmentSelector
+func (t Selector) AsFragmentSelector() (FragmentSelector, error) {
+	var body FragmentSelector
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromFragmentSelector overwrites any union data inside the Selector as the provided FragmentSelector
+func (t *Selector) FromFragmentSelector(v FragmentSelector) error {
+	v.Type = "FragmentSelector"
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeFragmentSelector performs a merge with any union data inside the Selector, using the provided FragmentSelector
+func (t *Selector) MergeFragmentSelector(v FragmentSelector) error {
+	v.Type = "FragmentSelector"
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+func (t Selector) Discriminator() (string, error) {
+	var discriminator struct {
+		Discriminator string `json:"type"`
+	}
+	err := json.Unmarshal(t.union, &discriminator)
+	return discriminator.Discriminator, err
+}
+
+func (t Selector) ValueByDiscriminator() (interface{}, error) {
+	discriminator, err := t.Discriminator()
+	if err != nil {
+		return nil, err
+	}
+	switch discriminator {
+	case "FragmentSelector":
+		return t.AsFragmentSelector()
+	case "SvgSelector":
+		return t.AsSvgSelector()
+	case "TextPositionSelector":
+		return t.AsTextPositionSelector()
+	case "TextQuoteSelector":
+		return t.AsTextQuoteSelector()
+	default:
+		return nil, errors.New("unknown discriminator value: " + discriminator)
+	}
+}
+
+func (t Selector) MarshalJSON() ([]byte, error) {
+	b, err := t.union.MarshalJSON()
+	return b, err
+}
+
+func (t *Selector) UnmarshalJSON(b []byte) error {
 	err := t.union.UnmarshalJSON(b)
 	return err
 }

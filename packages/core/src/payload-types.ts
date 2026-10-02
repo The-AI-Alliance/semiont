@@ -12,11 +12,7 @@
 
 import type { components } from './types';
 
-export type Selector =
-  | components['schemas']['TextPositionSelector']
-  | components['schemas']['TextQuoteSelector']
-  | components['schemas']['SvgSelector']
-  | components['schemas']['FragmentSelector'];
+export type Selector = components['schemas']['Selector'];
 
 export type GatheredContext = components['schemas']['GatheredContext'];
 

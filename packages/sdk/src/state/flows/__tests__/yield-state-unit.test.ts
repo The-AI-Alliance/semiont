@@ -219,6 +219,40 @@ describe('createYieldStateUnit', () => {
     stateUnit.dispose();
   });
 
+  it('holds why a run failed, until it is dismissed or another begins', () => {
+    const refused = new Error('the model refused');
+    const runs: Array<Subject<YieldGenerationEvent>> = [];
+    tc = withYield(vi.fn(() => {
+      const run = new Subject<YieldGenerationEvent>();
+      runs.push(run);
+      return run.asObservable();
+    }));
+    const stateUnit = createYieldStateUnit(tc.client, 'en');
+    const failures: unknown[] = [];
+    stateUnit.failure$.subscribe((v) => failures.push(v));
+    expect(failures).toEqual([null]);
+
+    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    runs[0]!.error(refused);
+    expect(failures.at(-1)).toBe(refused);
+    stateUnit.dismissProgress();
+    expect(failures.at(-1)).toBeNull();
+
+    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    runs[1]!.error(refused);
+    expect(failures.at(-1)).toBe(refused);
+    // The next run does not begin with the last one's failure.
+    stateUnit.generate(CTX_ANN, { title: 'T', storageUri: 's' });
+    expect(failures.at(-1)).toBeNull();
+
+    // A setback the queue will retry is not one, and neither is a completion.
+    runs[2]!.next({ kind: 'failed', data: { resourceId: 'res-1', jobId: 'job-1', jobType: 'generation', error: 'busy', willRetry: true } });
+    runs[2]!.next(completeEvent(GEN_RESULT));
+    runs[2]!.complete();
+    expect(failures.at(-1)).toBeNull();
+    stateUnit.dispose();
+  });
+
   // The unit's own 300s timer is GONE (FLOW-LIFECYCLE-CONVERGENCE A1): the
   // one stall guard lives in `runGeneration`'s producer, so it cannot be
   // exercised through this file's mocked `fromContext`. Its behavior — stall
@@ -358,7 +392,7 @@ describe('YieldStateUnit — StateUnit axioms', () => {
         const tc = makeTestClient({ yield: { fromContext: vi.fn(stub) } });
         return { unit: createYieldStateUnit(tc.client, 'en'), teardown: () => tc.bus.destroy() };
       },
-      surfaces: (u) => [u.isGenerating$, u.progress$, u.outcome$],
+      surfaces: (u) => [u.isGenerating$, u.progress$, u.outcome$, u.failure$],
       invocations: (u) => [() => u.generate(CTX_ANN, opts), () => u.generate(CTX_RES, opts)],
       numRuns: 15,
     });

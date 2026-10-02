@@ -102,7 +102,8 @@ describe('generation stall guard', () => {
     await rejection;
     await coded;
     expect(cancelCount(emitSpy)).toBe(1);
-    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', expect.objectContaining({ jobType: 'generation' }), expect.objectContaining({ correlationId: expect.any(String) }));
+    // The job that stalled, by its id: no other generation is touched.
+    expect(emitSpy).toHaveBeenCalledWith('job:cancel-requested', { jobId: 'j1' }, expect.objectContaining({ correlationId: expect.any(String) }));
   });
 
   it('an event inside the window resets it', async () => {
@@ -126,6 +127,93 @@ describe('generation stall guard', () => {
     await vi.advanceTimersByTimeAsync(1_000);
     await rejection;
     expect(cancelCount(emitSpy)).toBe(1);
+  });
+
+  it('a generation that stalls before its job is known has nothing to cancel', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    // The knowledge base never answers the job's creation.
+    const { transport, emitSpy } = createMockTransport({});
+    const y = new YieldNamespace(transport, bus, makeMockContent());
+
+    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', stallDeadlineMs: 5_000 }).run(() => {});
+    const rejection = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await rejection;
+
+    expect(cancelCount(emitSpy)).toBe(0);
+  });
+
+  it('a status of cancelled ends the follower as a cancelled job', async () => {
+    vi.useFakeTimers();
+    const bus = new EventBus();
+    const { transport } = createMockTransport({
+      'job:create': () => ({ resultChannel: 'job:created', response: { jobId: 'j1' } }),
+      'job:status-requested': () => ({ resultChannel: 'job:status-result', response: { jobId: 'j1', status: 'cancelled' } }),
+    });
+    const y = new YieldNamespace(transport, bus, makeMockContent());
+
+    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const rejection = expect(p).rejects.toMatchObject({ name: 'JobCancelledError', code: 'job.cancelled', message: 'The job was cancelled', jobId: 'j1' });
+    await vi.advanceTimersByTimeAsync(16_000);
+    await rejection;
+  });
+
+  const statusCount = (spy: ReturnType<typeof vi.fn>): number =>
+    spy.mock.calls.filter(([ch]) => ch === 'job:status-requested').length;
+
+  it('a setback is reported and followed past: it is not the end, and the attempt after it is still this job', async () => {
+    vi.useFakeTimers();
+    const { y, bus } = harness();
+    const seen: string[] = [];
+
+    const done = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run((e) => {
+      seen.push(e.kind === 'failed' ? `failed ${e.data.error}` : e.kind);
+    });
+    await vi.advanceTimersByTimeAsync(10);
+
+    bus.emit('job:fail', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation', error: 'a blip', willRetry: true });
+    bus.emit('job:report-progress', {
+      resourceId: 'res-1', jobId: 'j1', jobType: 'generation', percentage: 50, progress: { percentage: 50 },
+    });
+    bus.emit('job:complete', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation' });
+
+    await expect(done).resolves.toMatchObject({ kind: 'complete' });
+    expect(seen).toEqual(['failed a blip', 'progress', 'complete']);
+  });
+
+  it('a setback starts the stall deadline again, and the attempt that died is not asked about', async () => {
+    vi.useFakeTimers();
+    const { y, bus, emitSpy } = harness();
+
+    const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+    const rejection = expect(p).rejects.toMatchObject({ code: 'job.stalled' });
+
+    await vi.advanceTimersByTimeAsync(299_000);
+    const asked = statusCount(emitSpy);
+    bus.emit('job:fail', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation', error: 'a blip', willRetry: true });
+
+    // 299s after the setback: past where the deadline would have fallen had
+    // the setback not been heard. The attempt that is coming has its whole
+    // deadline, and nobody asks after the one that died.
+    await vi.advanceTimersByTimeAsync(299_000);
+    expect(cancelCount(emitSpy)).toBe(0);
+    expect(statusCount(emitSpy)).toBe(asked);
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    await rejection;
+    expect(cancelCount(emitSpy)).toBe(1);
+  });
+
+  it('a failure that is final, or that does not say, ends the job as failed', async () => {
+    for (const said of [{ willRetry: false }, {}]) {
+      const { y, bus } = harness();
+      const p = y.fromContext(CTX_RES, { title: 'T', storageUri: 's', maxTokens: 4000 }).run(() => {});
+      const rejection = expect(p).rejects.toMatchObject({ code: 'job.failed', message: 'the budget is spent' });
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      bus.emit('job:fail', { resourceId: 'res-1', jobId: 'j1', jobType: 'generation', error: 'the budget is spent', ...said });
+      await rejection;
+    }
   });
 
   it('a terminal inside the window never cancels', async () => {

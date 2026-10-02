@@ -1,5 +1,5 @@
 import { merge } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { filter, takeUntil } from 'rxjs/operators';
 import type {
   ResourceId,
   EventBus,
@@ -12,7 +12,7 @@ import type { ITransport, IContentTransport } from '@semiont/core';
 import { busRequest, isReportedJobResult } from '@semiont/core';
 import { StreamObservable, UploadObservable } from '../awaitable';
 import { GenerationStallError, deriveStallDeadlineMs } from './generation-stall';
-import { JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
+import { JobCancelledError, JobFailedError, JobFrames, JobStatusPoll, type JobFollowTiming } from './job-status-poll';
 import type {
   YieldNamespace as IYieldNamespace,
   CreateResourceInput,
@@ -201,6 +201,9 @@ export class YieldNamespace implements IYieldNamespace {
           } else if (status.status === 'failed') {
             cleanup();
             subscriber.error(new JobFailedError(status.error ?? 'Generation failed', status.jobId));
+          } else if (status.status === 'cancelled') {
+            cleanup();
+            subscriber.error(new JobCancelledError(status.jobId));
           }
         },
         this.timing,
@@ -223,21 +226,27 @@ export class YieldNamespace implements IYieldNamespace {
       const progress$ = frames.of('job:report-progress');
       const complete$ = frames.of('job:complete');
       const fail$ = frames.of('job:fail');
+      // Only a failure the queue will not try again is an end. One it will
+      // (`willRetry`) is followed past, as `mark.assist` follows it; absent
+      // reads as final, so a worker that does not say cannot hang the stream.
+      const terminalFail$ = fail$.pipe(filter((e) => e.willRetry !== true));
 
       // The ONE stall guard (FLOW-LIFECYCLE-CONVERGENCE D1): armed at
       // subscribe, re-armed on every event, cleared by any terminal. Firing
-      // requests the server-side cancel — the queue kills pending jobs;
-      // there is no worker-kill channel, so a hung RUNNING job dies at its
-      // own pace — then errors the stream with the typed stall error.
+      // asks for THAT job to be cancelled, by its id: a cancellation by
+      // category would end every pending generation, whoever asked for it.
+      // A pending job is cancelled outright; a running one is left to its
+      // worker. A job whose creation was never answered has no id, and there
+      // is nothing to cancel. Then the stream errors with the stall error.
       const armStall = () => {
         if (stallTimer) clearTimeout(stallTimer);
         stallTimer = setTimeout(() => {
           if (done) return;
           const stalledJobId = activeJobId;
           cleanup();
-          void busRequest(
-            this.transport, 'job:cancel-requested', { jobType: 'generation' },
-          ).catch(() => {});
+          if (stalledJobId !== null) {
+            void busRequest(this.transport, 'job:cancel-requested', { jobId: stalledJobId }).catch(() => {});
+          }
           // subscriber.error runs the producer teardown, which unsubscribes
           // the three lifecycle subs — no manual unsubscribe needed here.
           subscriber.error(new GenerationStallError(stallMs, stalledJobId));
@@ -245,7 +254,7 @@ export class YieldNamespace implements IYieldNamespace {
       };
 
       const progressSub = progress$
-        .pipe(takeUntil(merge(complete$, fail$)))
+        .pipe(takeUntil(merge(complete$, terminalFail$)))
         .subscribe((e) => {
           if (e.progress) subscriber.next({ kind: 'progress', data: e.progress });
           if (activeJobId) poll.heard(activeJobId);
@@ -259,6 +268,16 @@ export class YieldNamespace implements IYieldNamespace {
       });
 
       const failSub = fail$.subscribe((e) => {
+        if (e.willRetry === true) {
+          subscriber.next({ kind: 'failed', data: e });
+          // The attempt that died is not asked about: the next attempt's
+          // first frame starts the silence again. The setback was heard, so
+          // the stall deadline starts again too: one left running would
+          // cancel the attempt that is coming.
+          poll.stop();
+          armStall();
+          return;
+        }
         cleanup();
         subscriber.error(new JobFailedError(e.error, e.jobId));
       });

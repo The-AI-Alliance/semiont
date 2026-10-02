@@ -37,7 +37,7 @@ import type {
   StatusResponse,
   UserResponse,
 } from '@semiont/core';
-import { BRIDGED_CHANNELS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs, type RetryPolicy } from '@semiont/core';
+import { BRIDGED_CHANNELS, HTTP_REQUEST_TIMEOUT_MS, RETRY_RULES, RESOURCE_SCOPED_CHANNELS, retryAfterMs, type RetryPolicy } from '@semiont/core';
 import type { BusEnvelope, BusFrame } from '@semiont/core';
 
 type ProtectedResourceMetadata = components['schemas']['ProtectedResourceMetadata'];
@@ -50,6 +50,7 @@ export interface HttpTransportConfig {
   baseUrl: BaseUrl;
   /** Observable token source; headers read the current value. */
   token$?: BehaviorSubject<AccessToken | null>;
+  /** The deadline on one request that is neither the stream nor an emit. Absent, `HTTP_REQUEST_TIMEOUT_MS`. */
   timeout?: number;
   retry?: number;
   logger?: Logger;
@@ -121,7 +122,7 @@ export class HttpTransport implements ITransport, IGatewayOperations {
   private readonly config: HttpTransportConfig;
 
   constructor(config: HttpTransportConfig) {
-    const { baseUrl, timeout = 30000, retry = 2, logger, tokenRefresher } = config;
+    const { baseUrl, timeout = HTTP_REQUEST_TIMEOUT_MS, retry = 2, logger, tokenRefresher } = config;
     this.config = config;
 
     this.baseUrl = (baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl) as BaseUrl;

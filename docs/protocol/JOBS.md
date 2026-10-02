@@ -337,16 +337,22 @@ and nothing redelivers it ([TRANSPORT-CONTRACT.md](./TRANSPORT-CONTRACT.md#deliv
 of a job it follows for `jobSilenceMs` asks for the job's status, and asks again every
 `jobStatusPollMs` until the job says something or its status is an end; a status of `complete` or
 `failed` is that end, reported as the frame would have been
-([`specs/src/client/timing.json`](../../specs/src/client/timing.json)).
+([`specs/src/client/timing.json`](../../specs/src/client/timing.json)). So is a status of
+`cancelled`, which no frame announces: a follower learns of a cancellation here and nowhere else.
+*Held by `sdk/live/job-across-drop`, `sdk/live/job-failed-unheard`, `sdk/live/job-cancelled`.*
 
 A follower reports how its job ended under the codes every SDK shares
 ([`specs/src/errors/codes.json`](../../specs/src/errors/codes.json), `job`). A `job:fail` whose
-`willRetry` is `true` is not an end: the follower reports the setback and keeps following, and does
-not ask for the status of the attempt that died. Any other `job:fail`, and a status of `failed`, end
-it as `job.failed`, with the worker's message. A follower of a generation that has heard nothing for
-its stall deadline asks for the cancellation and ends as `job.stalled`; the deadline is
+`willRetry` is `true` is not an end, of an assisted job or of a generation: the follower reports the
+setback and keeps following, and does not ask for the status of the attempt that died. Any other
+`job:fail`, and a status of `failed`, end it as `job.failed`, with the worker's message; a status of
+`cancelled` ends it as `job.cancelled`. A follower of a generation that has heard nothing for its
+stall deadline asks for that job to be cancelled, by its id, and ends as `job.stalled`: a
+cancellation by category would end every pending generation in the knowledge base. The deadline is
 `generationStallFloorMs`, or `generationStallPerTokenMs` for each token asked for when that is
-longer.
+longer, unless its caller states one. Each frame of the job starts the deadline again, a setback
+among them: the attempt that follows one has the whole deadline to say something.
+*Held by `sdk/live/job-failed`, `sdk/live/job-failed-unheard`, `sdk/live/job-cancelled`, `sdk/live/job-stalled`, `sdk/live/generation-retried`.*
 
 ## What the dispatcher emits on its own
 

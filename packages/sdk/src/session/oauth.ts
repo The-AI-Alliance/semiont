@@ -11,6 +11,7 @@ import { APIError, HttpTransport } from '@semiont/http-transport';
 import {
   BROWSER_CLIENT_ID,
   REFRESH_RETRY,
+  HTTP_REQUEST_TIMEOUT_MS,
   RETRY_RULES,
   SCRIPT_CLIENT_ID,
   SIGN_IN_SCOPE,
@@ -88,6 +89,7 @@ export async function discoverIssuer(target: HttpEndpoint): Promise<IssuerEndpoi
 
   const response = await fetch(`${issuer.replace(/\/$/, '')}/.well-known/openid-configuration`, {
     headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   });
   if (!response.ok) {
     throw new SignInError('discovery', `Issuer ${issuer}: discovery answered HTTP ${response.status}`);
@@ -274,6 +276,13 @@ function parsePending(raw: string): PendingAuthorization | null {
 
 // ---------- Token endpoint ----------
 
+/**
+ * One request of the issuer. It has a deadline: an issuer that accepts a
+ * connection and never answers would otherwise hold a renewal, and the
+ * session waiting on it, for as long as the page lives. A request that
+ * passes its deadline rejects as one that got no answer, which a renewal
+ * tries again inside its budget.
+ */
 async function postForm(
   endpoint: string,
   form: Record<string, string>,
@@ -282,6 +291,7 @@ async function postForm(
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
     body: new URLSearchParams(form),
+    signal: AbortSignal.timeout(HTTP_REQUEST_TIMEOUT_MS),
   });
   const body: unknown = await response.json().catch(() => null);
   return { status: response.status, body: isObject(body) ? body : null };

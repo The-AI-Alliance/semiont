@@ -38,6 +38,13 @@ export interface YieldStateUnit extends StateUnit {
    */
   outcome$: Observable<YieldOutcome | null>;
   /**
+   * Why the last run ended without a result: it failed, stalled or was
+   * cancelled. A `SemiontError`'s `code` says which. Null while a run is
+   * under way, after one that completed, and once dismissed. A stall is said
+   * nowhere else.
+   */
+  failure$: Observable<Error | null>;
+  /**
    * Grounded generation — the context's `focus.kind` decides the shape
    * (annotation focus auto-binds; resource focus mints provenance). Ids are
    * derived from the focus; see `client.yield.fromContext`.
@@ -61,6 +68,7 @@ export function createYieldStateUnit(
   const isGenerating$ = new BehaviorSubject<boolean>(false);
   const progress$ = new BehaviorSubject<JobProgress | null>(null);
   const outcome$ = new BehaviorSubject<YieldOutcome | null>(null);
+  const failure$ = new BehaviorSubject<Error | null>(null);
 
   // Generation progress/complete/fail is driven entirely by the StreamObservable
   // returned from `client.yield.fromContext` — it is filtered to this job's
@@ -101,17 +109,20 @@ export function createYieldStateUnit(
         // the assist path's 5 s, in the same component.
         isGenerating$.next(false);
       },
-      error: () => {
+      error: (error: unknown) => {
         progress$.next(null);
         isGenerating$.next(false);
+        failure$.next(error instanceof Error ? error : new Error(String(error)));
       },
     });
     subs.push(genSub);
   };
 
   const generate = (context: GatheredContext, options: GenerationOptions): void => {
-    // A new run's frame must not carry the previous run's link.
+    // A new run's frame must not carry the previous run's link, or its
+    // failure.
     outcome$.next(null);
+    failure$.next(null);
     drive(client.yield.fromContext(
       context,
       { ...options, language: options.language || locale },
@@ -122,16 +133,19 @@ export function createYieldStateUnit(
     isGenerating$: isGenerating$.asObservable(),
     progress$: progress$.asObservable(),
     outcome$: outcome$.asObservable(),
+    failure$: failure$.asObservable(),
     generate,
     dismissProgress() {
       progress$.next(null);
       outcome$.next(null);
+      failure$.next(null);
     },
     dispose() {
       subs.forEach(s => s.unsubscribe());
       isGenerating$.complete();
       progress$.complete();
       outcome$.complete();
+      failure$.complete();
     },
   };
 }

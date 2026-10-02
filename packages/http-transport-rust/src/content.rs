@@ -167,7 +167,7 @@ impl ContentTransport for HttpContentTransport {
                     KeyValue::new("content.size_bytes", size as i64),
                 ],
                 opentelemetry::Context::current(),
-                shared.answer(reqwest::Method::POST, "/resources", true, |builder| {
+                shared.answer_at_length(reqwest::Method::POST, "/resources", true, |builder| {
                     builder
                         .header(
                             reqwest::header::CONTENT_TYPE,
@@ -285,7 +285,8 @@ impl ContentTransport for HttpContentTransport {
 
 impl HttpContentTransport {
     /// The stored bytes, as they are: no `Accept`, so the gateway serves them
-    /// with their own media type.
+    /// with their own media type. The deadline is on their beginning to
+    /// arrive: how long they take after that is how many there are.
     async fn read(&self, resource_id: &str) -> Result<reqwest::Response, TransportError> {
         self.shared
             .send(

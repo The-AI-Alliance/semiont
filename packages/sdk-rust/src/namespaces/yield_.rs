@@ -1,20 +1,22 @@
 //! Yield: creating resources, by upload, by generation, and by cloning.
 
-use super::follow::{Following, JobEvent, Stall, follow};
+use super::follow::{Following, JobEvent, follow};
 use crate::bus::payload_of;
 use crate::channels::{Empty, YieldClone, YieldCloneResourceRequested, YieldCloneTokenRequested};
 use crate::client::Links;
 use crate::errors::SemiontError;
+use crate::media_types::{clone_format, derive_storage_uri, primary_media_type};
 use crate::running::Running;
 use crate::timing::{
     GENERATION_STALL_ASSUMED_TOKENS_COUNT, GENERATION_STALL_FLOOR, GENERATION_STALL_PER_TOKEN,
 };
 use crate::transport::{ContentTransport, Envelope, PutBinaryRequest, Upload};
 use crate::types::{
-    CloneResourceWithTokenResponse, GatheredContextFocus, GenerationJobParams,
-    JobCancelRequestJobType, JobCreateCommand, JobType, ResourceDescriptor,
-    YieldCloneResourceRequest, YieldCloneTokenRequest,
+    CloneResourceWithTokenResponse, CreateResourceResponse, GatheredContextFocus,
+    GenerationJobParams, JobCreateCommand, JobType, ResourceDescriptor, YieldCloneResourceRequest,
+    YieldCloneTokenRequest,
 };
+use bytes::Bytes;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -25,6 +27,17 @@ use std::time::Duration;
 pub fn stall_deadline(max_tokens: Option<f64>) -> Duration {
     let tokens = max_tokens.unwrap_or(GENERATION_STALL_ASSUMED_TOKENS_COUNT as f64);
     GENERATION_STALL_FLOOR.max(GENERATION_STALL_PER_TOKEN.mul_f64(tokens.max(0.0)))
+}
+
+/// What a clone is created with: the token of its source, and its own name
+/// and content.
+#[derive(Debug, Clone)]
+pub struct CreateFromTokenOptions {
+    pub token: String,
+    pub name: String,
+    pub content: String,
+    /// Archive the source once the clone exists.
+    pub archive_original: Option<bool>,
 }
 
 pub struct YieldNamespace {
@@ -47,7 +60,8 @@ impl YieldNamespace {
     /// its completion. The context's focus says what the job is about, so
     /// the job names no resource. A follower that hears nothing for
     /// `stall_deadline`, or for `stall_deadline(params.max_tokens)` when
-    /// none is stated, asks for the cancellation and ends as stalled.
+    /// none is stated, asks for that job to be cancelled and ends as
+    /// stalled.
     pub fn from_context(
         &self,
         params: GenerationJobParams,
@@ -69,10 +83,7 @@ impl YieldNamespace {
                         params,
                     },
                     resource_id,
-                    stall: Some(Stall {
-                        within,
-                        cancels: JobCancelRequestJobType::Generation,
-                    }),
+                    stall: Some(within),
                 },
             ),
             Err(unsendable) => Running::new(|_| async move { Err(unsendable.into()) }),
@@ -102,6 +113,38 @@ impl YieldNamespace {
             })
             .await?;
         Ok(answer.response.source_resource)
+    }
+
+    /// Create a resource as a clone of the one `options.token` was made
+    /// from. The source is read first; the clone's content then goes by the
+    /// upload path, in the format its source's allows
+    /// (`media_types::clone_format`) and under a name made from its own.
+    pub async fn create_from_token(
+        &self,
+        options: CreateFromTokenOptions,
+    ) -> Result<CreateResourceResponse, SemiontError> {
+        let source = self.from_token(&options.token).await?;
+        let format = clone_format(primary_media_type(&source));
+        let created = self
+            .content
+            .put_binary(PutBinaryRequest {
+                storage_uri: derive_storage_uri(&options.name, format),
+                name: options.name,
+                bytes: Bytes::from(options.content),
+                format: format.media_type.to_owned(),
+                entity_types: Vec::new(),
+                language: None,
+                source_annotation_id: None,
+                source_resource_id: None,
+                generation_prompt: None,
+                generator: None,
+                job_id: None,
+                is_draft: None,
+                clone_token: Some(options.token),
+                archive_original: options.archive_original,
+            })
+            .await?;
+        Ok(created)
     }
 
     /// Signal: a clone of the open resource is wanted.

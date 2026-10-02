@@ -1,0 +1,26 @@
+{
+  "oneOf": [
+    {
+      "$ref": "./TextPositionSelector.json"
+    },
+    {
+      "$ref": "./TextQuoteSelector.json"
+    },
+    {
+      "$ref": "./SvgSelector.json"
+    },
+    {
+      "$ref": "./FragmentSelector.json"
+    }
+  ],
+  "discriminator": {
+    "propertyName": "type",
+    "mapping": {
+      "TextPositionSelector": "./TextPositionSelector.json",
+      "TextQuoteSelector": "./TextQuoteSelector.json",
+      "SvgSelector": "./SvgSelector.json",
+      "FragmentSelector": "./FragmentSelector.json"
+    }
+  },
+  "description": "One W3C selector: a way of finding a segment of a resource. Tell them apart by `type`, which is required on each and single-valued."
+}

@@ -8,10 +8,15 @@ description = "Semiont's Rust SDK: the protocol's types, the transport contract 
 [features]
 # The doubles and the axiom harnesses a consumer's tests use.
 testing = ["dep:proptest", "tokio/test-util"]
+# Text in any charset the Encoding Standard names, as a browser reads it.
+# Without it a resource's text is decoded only when it is UTF-8. A service
+# reads no resource as text, and does not enable it.
+charsets = ["dep:encoding_rs"]
 
 [dependencies]
 base64.workspace = true
 bytes.workspace = true
+encoding_rs = { workspace = true, optional = true }
 futures-core.workspace = true
 percent-encoding.workspace = true
 proptest = { workspace = true, optional = true }
@@ -23,8 +28,8 @@ uuid = { workspace = true, features = ["v4"] }
 
 [dev-dependencies]
 base64.workspace = true
-# This crate's own tests use its testing surface.
-semiont = { workspace = true, features = ["testing"] }
+# This crate's own tests use its testing surface, and read text in every charset.
+semiont = { workspace = true, features = ["testing", "charsets"] }
 # The multi-threaded runtime is for the tests that hold a unit to the order it hears things in.
 tokio = { workspace = true, features = ["test-util", "rt-multi-thread"] }
 

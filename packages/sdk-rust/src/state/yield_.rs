@@ -4,10 +4,12 @@
 //! The display it feeds stays once the run is over: the progress and the
 //! outcome are there until they are dismissed, or until the next run begins.
 //! A run that fails, or stalls, clears its progress and is no longer
-//! generating. The unit does not hold the failure.
+//! generating, and why it ended is held with the rest. A stall is said
+//! nowhere else.
 
 use super::{Held, Tasks};
 use crate::client::SemiontClient;
+use crate::errors::SemiontError;
 use crate::namespaces::JobEvent;
 use crate::state_unit::StateUnit;
 use crate::types::{GenerationJobParams, JobProgress, JobResult};
@@ -31,6 +33,7 @@ struct Shared {
     generating: Held<bool>,
     progress: Held<Option<JobProgress>>,
     outcome: Held<Option<YieldOutcome>>,
+    failure: Held<Option<SemiontError>>,
     tasks: Tasks,
 }
 
@@ -50,6 +53,7 @@ impl YieldStateUnit {
                 generating: Held::new(false),
                 progress: Held::new(None),
                 outcome: Held::new(None),
+                failure: Held::new(None),
                 tasks: Tasks::new(),
             }),
         }
@@ -70,11 +74,19 @@ impl YieldStateUnit {
         self.shared.outcome.read()
     }
 
+    /// Why the last run ended without a result: it failed, stalled or was
+    /// cancelled. None while one runs, after one that completed, and once
+    /// dismissed.
+    pub fn failure(&self) -> watch::Receiver<Option<SemiontError>> {
+        self.shared.failure.read()
+    }
+
     /// Generate a resource from a gathered context, as
     /// `client.yield_.from_context` does, in this unit's locale when the
     /// request states no language.
     pub fn generate(&self, mut params: GenerationJobParams, stall_deadline: Option<Duration>) {
         self.shared.outcome.set(None);
+        self.shared.failure.set(None);
         if params.language.as_deref().is_none_or(str::is_empty) {
             params.language = Some(self.shared.locale.clone());
         }
@@ -99,8 +111,9 @@ impl YieldStateUnit {
                     // An attempt that failed and will be tried again: the
                     // run is not over.
                     Ok(JobEvent::Failed(_)) => {}
-                    Err(_) => {
+                    Err(failure) => {
                         shared.progress.set(None);
+                        shared.failure.set(Some(failure));
                         break;
                     }
                 }
@@ -109,10 +122,12 @@ impl YieldStateUnit {
         });
     }
 
-    /// Clear the display of a run: its progress and its outcome.
+    /// Clear the display of a run: its progress, its outcome and why it
+    /// failed.
     pub fn dismiss_progress(&self) {
         self.shared.progress.set(None);
         self.shared.outcome.set(None);
+        self.shared.failure.set(None);
     }
 }
 
@@ -122,6 +137,7 @@ impl StateUnit for YieldStateUnit {
         self.shared.generating.end();
         self.shared.progress.end();
         self.shared.outcome.end();
+        self.shared.failure.end();
     }
 }
 

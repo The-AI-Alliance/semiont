@@ -48,10 +48,11 @@ use super::stored::{
 use crate::errors::{BusRequestErrorCode, SemiontError, SessionError, TransportErrorCode};
 use crate::event_bus::EventBus;
 use crate::locked;
+use crate::media_types::primary_media_type;
 use crate::state::{Held, Tasks};
 use crate::storage::{SessionStorage, StorageSubscription};
 use crate::transport::{Events, STREAM_BACKLOG};
-use crate::types::{KbDescription, ResourceDescriptorRepresentations};
+use crate::types::KbDescription;
 use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -1018,13 +1019,8 @@ impl Inner {
 async fn check_open_resource(session: &SemiontSession, id: &str) -> TabCheck {
     match session.client().browse.resource(id).fresh().await {
         Ok(descriptor) => TabCheck::Ready {
+            media_type: primary_media_type(&descriptor).map(str::to_owned),
             name: descriptor.name,
-            media_type: match descriptor.representations {
-                ResourceDescriptorRepresentations::Representation(only) => Some(only.media_type),
-                ResourceDescriptorRepresentations::List(several) => {
-                    several.into_iter().next().map(|first| first.media_type)
-                }
-            },
         },
         Err(SemiontError::Bus(answer)) if answer.code == BusRequestErrorCode::NotFound => {
             TabCheck::Gone
