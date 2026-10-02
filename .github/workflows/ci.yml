@@ -453,6 +453,13 @@ jobs:
           node scripts/bus/generate-ts.mjs --check
           node scripts/bus/generate-go.mjs --check
 
+      # Authority: specs/src/media-types/registry.json → Go
+      # (packages/sdk-go/mediatypes). The TypeScript and Rust tables are built
+      # from the same registry at build time; the Go one is committed, so it
+      # is the one that can go stale.
+      - name: Media-type registry vs generated Go
+        run: node scripts/spec/generate-media-types-go.mjs --check
+
       # specs/openapi.json is a BUILD ARTIFACT (gitignored) — redocly bundles
       # it from specs/src/. A fresh checkout has no such file, so the client
       # check has to produce it first. Version pinned to the repo's devDependency:

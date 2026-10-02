@@ -23,6 +23,7 @@ import (
 
 	semiont "github.com/The-AI-Alliance/semiont/packages/sdk-go"
 	"github.com/The-AI-Alliance/semiont/packages/sdk-go/bus"
+	"github.com/The-AI-Alliance/semiont/packages/sdk-go/mediatypes"
 )
 
 const yieldUsage = `Usage: semiont yield --upload <file> [--upload <file>...] [options]
@@ -41,18 +42,6 @@ Options:
 Requires a session:  semiont login
 Generation from context: semiont yield --delegate --help
 `
-
-// extMediaTypes: the common cases, detected client-side like the npm CLI
-// does. Anything unknown uploads as octet-stream — the gateway's create
-// route stays the validator of record (big tent).
-var extMediaTypes = map[string]string{
-	".md": "text/markdown", ".markdown": "text/markdown",
-	".txt": "text/plain", ".csv": "text/csv",
-	".html": "text/html", ".htm": "text/html",
-	".json": "application/json", ".pdf": "application/pdf",
-	".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
-	".gif": "image/gif",
-}
 
 func Yield(args []string) int {
 	u := launcher.NewUI(false)
@@ -265,7 +254,10 @@ func yieldOne(u *launcher.UI, cli *semiont.ClientWithResponses, sess *launcher.S
 		b := filepath.Base(rel)
 		name = strings.TrimSuffix(b, filepath.Ext(b))
 	}
-	format, ok := extMediaTypes[strings.ToLower(filepath.Ext(rel))]
+	// The format the extension names in the media-type registry. An
+	// extension no row states uploads as octet-stream: the gateway's create
+	// route stays the validator of record.
+	format, ok := mediatypes.ForExtension(filepath.Ext(rel))
 	if !ok {
 		format = "application/octet-stream"
 	}

@@ -9,9 +9,10 @@
 // `--table <path>`, `--enum <path>` and `--out <path>` name another table,
 // another enum and another output; the test of the refusals passes them.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readMediaTypeTable, VOCABULARIES, FLAGS } from './media-type-table.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, '../..');
@@ -25,67 +26,7 @@ const TABLE = resolve(option('--table') ?? resolve(ROOT, 'specs/src/media-types/
 const ENUM = resolve(option('--enum') ?? resolve(ROOT, 'specs/src/components/schemas/SupportedMediaType.json'));
 const OUT = resolve(option('--out') ?? resolve(ROOT, 'packages/core/src/generated/media-types.ts'));
 
-function refuse(message) {
-  console.error(`✗ ${TABLE}: ${message}`);
-  process.exit(1);
-}
-
-const table = JSON.parse(readFileSync(TABLE, 'utf8'));
-const VOCABULARIES = ['render', 'anchoring', 'textSource'];
-const FLAGS = ['authorable', 'uploadable', 'generatable'];
-for (const vocabulary of VOCABULARIES) {
-  const words = table[vocabulary];
-  if (!Array.isArray(words) || words.length === 0 || words.some((word) => typeof word !== 'string' || word === '')) {
-    refuse(`${vocabulary} lists no words`);
-  }
-  if (new Set(words).size !== words.length) refuse(`${vocabulary} states a word twice`);
-}
-
-const rows = table.mediaTypes;
-if (!Array.isArray(rows) || rows.length === 0) refuse('lists no media types');
-const stated = new Set();
-for (const row of rows) {
-  const { mediaType, extension, label } = row;
-  if (typeof mediaType !== 'string' || mediaType === '') refuse(`a row names no media type: ${JSON.stringify(row)}`);
-  if (mediaType !== mediaType.toLowerCase() || mediaType.includes(';')) {
-    refuse(`${mediaType} is not a base media type: lower case, and no parameters`);
-  }
-  if (stated.has(mediaType)) refuse(`${mediaType} is stated twice`);
-  stated.add(mediaType);
-  if (typeof extension !== 'string' || !/^\.[a-z0-9]+$/.test(extension)) {
-    refuse(`${mediaType}'s extension is ${JSON.stringify(extension)}: a dot, then lower-case letters and digits`);
-  }
-  if (typeof label !== 'string' || label === '') refuse(`${mediaType} has no label`);
-  for (const vocabulary of VOCABULARIES) {
-    if (!table[vocabulary].includes(row[vocabulary])) {
-      refuse(`${mediaType}'s ${vocabulary} is ${JSON.stringify(row[vocabulary])}, which is none of ${table[vocabulary].join(', ')}`);
-    }
-  }
-  for (const flag of FLAGS) {
-    if (typeof row[flag] !== 'boolean') refuse(`${mediaType} does not say whether it is ${flag}`);
-  }
-  const unknown = Object.keys(row).filter((key) => !['mediaType', 'extension', 'label', ...VOCABULARIES, ...FLAGS].includes(key));
-  if (unknown.length > 0) refuse(`${mediaType} states ${unknown.join(', ')}, which no generator reads`);
-}
-
-const aliases = table.extensionAliases;
-if (aliases === null || typeof aliases !== 'object' || Array.isArray(aliases)) refuse('extensionAliases is not a table');
-const extensions = new Set(rows.map((row) => row.extension));
-for (const [alias, extension] of Object.entries(aliases)) {
-  if (!/^\.[a-z0-9]+$/.test(alias)) refuse(`the alias ${JSON.stringify(alias)} is not a dot, then lower-case letters and digits`);
-  if (extensions.has(alias)) refuse(`${alias} is an alias and a row's own extension: it would never be read as ${extension}`);
-  if (!extensions.has(extension)) refuse(`${alias} is read as ${JSON.stringify(extension)}, which no row states`);
-}
-
-// The enum and the registry are one list, stated in two places for what each
-// is read by. Neither may have a member the other lacks.
-const admitted = JSON.parse(readFileSync(ENUM, 'utf8')).enum;
-for (const mediaType of admitted) {
-  if (!stated.has(mediaType)) refuse(`${mediaType} is in the SupportedMediaType schema and has no row here`);
-}
-for (const mediaType of stated) {
-  if (!admitted.includes(mediaType)) refuse(`${mediaType} has a row here and is not in the SupportedMediaType schema`);
-}
+const { table, rows, aliases } = readMediaTypeTable(TABLE, ENUM);
 
 const text = (value) => `'${String(value).replaceAll('\\', '\\\\').replaceAll("'", "\\'")}'`;
 const union = (words) => words.map(text).join(' | ');
