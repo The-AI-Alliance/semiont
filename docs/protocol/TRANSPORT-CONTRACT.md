@@ -170,7 +170,7 @@ repairs a drop by asking:
   *Held by `sdk/live/missed-while-down`, `sdk/live/refresh-reopened`, `sdk/live/reconnect`, `sdk/live/first-open`.*
 - **A job's follower** asks for the job's status when the job has been
   silent ([JOBS.md](./JOBS.md#following-a-job)).
-  *Held by `sdk/live/job-across-drop`.*
+  *Held by `sdk/live/job-across-drop`, `sdk/live/job-failed-unheard`.*
 
 A row of the refresh table whose trigger is a passing channel may only
 refetch, and `reopened` refetches whatever it does: the table's generator
